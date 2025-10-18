@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.HdSeedEntity
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdSeedMapper
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
+import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -16,7 +17,6 @@ internal class HdSeedRepositoryImpl(
     private val hdSeedDao: HdSeedDao,
     private val hdSeedEntityMapper: HdSeedEntityMapper,
     private val hdSeedMapper: HdSeedMapper,
-    // private val aesPlatformManager: AESPlatformManager,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : HdSeedRepository {
     override fun getAllAsFlow(): Flow<List<HdSeed>> =
@@ -36,8 +36,8 @@ internal class HdSeedRepositoryImpl(
         val entities = hdSeedDao.getAll()
 
         for (entity in entities) {
-            // val decryptedEntropy = aesPlatformManager.decryptByteArray(entity.encryptedEntropy)
-            if (entropy.contentEquals(entity.encryptedEntropy)) {
+            val decryptedEntropy = decryptByteArray(entity.encryptedEntropy)
+            if (entropy.contentEquals(decryptedEntropy)) {
                 return entity.seedId
             }
         }
@@ -85,14 +85,12 @@ internal class HdSeedRepositoryImpl(
     override suspend fun getEntropy(seedId: Int): ByteArray? =
         withContext(coroutineDispatcher) {
             val encryptedSK = hdSeedDao.get(seedId)?.encryptedEntropy
-            //  encryptedSK?.let { aesPlatformManager.decryptByteArray(it) }
-            encryptedSK
+            encryptedSK?.let { decryptByteArray(it) }
         }
 
     override suspend fun getSeed(seedId: Int): ByteArray? =
         withContext(coroutineDispatcher) {
             val encryptedSK = hdSeedDao.get(seedId)?.encryptedSeed
-            // encryptedSK?.let { aesPlatformManager.decryptByteArray(it) }
-            encryptedSK
+            encryptedSK?.let { decryptByteArray(it) }
         }
 }

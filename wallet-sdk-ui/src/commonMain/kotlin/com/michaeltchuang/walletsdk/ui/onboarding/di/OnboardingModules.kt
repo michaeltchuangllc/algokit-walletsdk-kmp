@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.onboarding.di
 
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateAccountNameViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.Falcon24WalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
@@ -49,6 +50,9 @@ internal val onboardingModules =
 
             viewModel {
                 RecoverPassphraseViewModel(get(), get())
+            }
+            viewModel {
+                Falcon24WalletSelectionViewModel(get(), get(), get(), get(), get())
             }
         },
     )

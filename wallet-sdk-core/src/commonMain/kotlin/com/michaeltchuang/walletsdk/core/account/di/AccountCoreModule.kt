@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.core.account.di
 
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreationFalcon24TypeMapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreationHdKeyTypeMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25AccountTypeMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25AccountTypeMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.DefaultAccountCreationFalcon24TypeMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.DefaultAccountCreationHdKeyTypeMapperImpl
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AccountAdditionUseCase
@@ -81,6 +83,6 @@ val accountCoreModule =
         }
         single<AccountCreationHdKeyTypeMapper> { DefaultAccountCreationHdKeyTypeMapperImpl() }
         single<AccountCreationFalcon24TypeMapper> { DefaultAccountCreationFalcon24TypeMapperImpl() }
-
+        single<Algo25AccountTypeMapper> { Algo25AccountTypeMapperImpl() }
         single { RecoverPassphraseUseCase() }
     }

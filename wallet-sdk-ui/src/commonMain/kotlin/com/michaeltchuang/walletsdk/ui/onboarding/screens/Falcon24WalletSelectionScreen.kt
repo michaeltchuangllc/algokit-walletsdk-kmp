@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.settings.presentation.screen
+package com.michaeltchuang.walletsdk.ui.onboarding.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_a_new_algorand_account_with
@@ -115,7 +115,6 @@ fun Falcon24WalletSelectionScreenContent(
             when (viewState) {
                 is Falcon24WalletSelectionViewModel.ViewState.Content -> {
                     ContentState(
-                        navController,
                         viewState.walletItemPreviews,
                         createNewWalletClick,
                         walletItemClick,
@@ -133,7 +132,6 @@ fun Falcon24WalletSelectionScreenContent(
 @Suppress("LongMethod")
 @Composable
 private fun ContentState(
-    navController: NavController,
     walletItems: List<Falcon24WalletSelectionViewModel.WalletItemPreview>,
     createNewWalletClick: () -> Unit,
     walletItemClick: (Falcon24WalletSelectionViewModel.WalletItemPreview) -> Unit,

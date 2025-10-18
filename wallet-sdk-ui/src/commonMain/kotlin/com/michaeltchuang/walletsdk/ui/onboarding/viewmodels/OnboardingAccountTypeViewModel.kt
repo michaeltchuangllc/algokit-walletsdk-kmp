@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreat
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
 import com.michaeltchuang.walletsdk.core.algosdk.createBip39Wallet
+import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -15,9 +16,6 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreatio
 import kotlinx.coroutines.launch
 
 class OnboardingAccountTypeViewModel(
-  /*  private val androidEncryptionManager: AndroidEncryptionManager,
-    private val aesPlatformManager: AESPlatformManager,
-    private val runtimeAwareSdk: RuntimeAwareSdk, */
     private val accountCreationFalcon24TypeMapper: AccountCreationFalcon24TypeMapper,
     private val hdSeedRepository: HdSeedRepository,
     private val stateDelegate: StateDelegate<ViewState>,
@@ -27,7 +25,7 @@ class OnboardingAccountTypeViewModel(
     EventViewModel<OnboardingAccountTypeViewModel.ViewEvent> by eventDelegate {
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
-        //  viewModelScope.launch { androidEncryptionManager.initializeEncryptionManager() }
+        viewModelScope.launch { initializeEncryptionManager() }
         hasAnySeedExist()
     }
 

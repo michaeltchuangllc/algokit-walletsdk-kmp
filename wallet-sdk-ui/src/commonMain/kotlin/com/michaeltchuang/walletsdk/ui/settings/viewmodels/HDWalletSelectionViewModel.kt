@@ -18,11 +18,9 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreatio
 import kotlinx.coroutines.launch
 
 class HDWalletSelectionViewModel(
-// private val aesPlatformManager: AESPlatformManager,
     private val getHdWalletSummaries: GetHdWalletSummaries,
     private val accountCreationHdKeyTypeMapper: AccountCreationHdKeyTypeMapper,
     private val getHdEntropy: GetHdEntropy,
-// private val algorandBip39WalletProvider: AlgorandBip39WalletProvider,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),

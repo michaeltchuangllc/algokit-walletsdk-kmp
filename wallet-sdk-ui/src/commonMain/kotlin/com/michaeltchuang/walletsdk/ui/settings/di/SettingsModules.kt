@@ -19,6 +19,7 @@ internal val settingsModules =
                     get(),
                     get(),
                     get(),
+                    get(),
                 )
             }
 

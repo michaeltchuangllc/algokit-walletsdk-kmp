@@ -3,10 +3,9 @@ package com.michaeltchuang.walletsdk.core.account.data.mapper.entity
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddress
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressDerivationType
+import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 
-internal class DefaultAccountCreationHdKeyTypeMapperImpl(
-    // private val aesPlatformManager: AESPlatformManager
-) : AccountCreationHdKeyTypeMapper {
+internal class DefaultAccountCreationHdKeyTypeMapperImpl() : AccountCreationHdKeyTypeMapper {
     override fun invoke(
         entropy: ByteArray,
         hdKeyAddress: HdKeyAddress,
@@ -15,10 +14,8 @@ internal class DefaultAccountCreationHdKeyTypeMapperImpl(
         with(hdKeyAddress) {
             AccountCreation.Type.HdKey(
                 publicKey,
-                // aesPlatformManager.encryptByteArray(privateKey.toByteArray())
-                privateKey,
-                // aesPlatformManager.encryptByteArray(entropy)
-                entropy,
+                encryptByteArray(privateKey) ,
+                encryptByteArray(entropy),
                 index.accountIndex,
                 index.changeIndex,
                 index.keyIndex,

@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 
 class CreateAccountNameViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,
-    // private val aesPlatformManager: AESPlatformManager,
     private val getMaxHdSeedId: GetMaxHdSeedId,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,

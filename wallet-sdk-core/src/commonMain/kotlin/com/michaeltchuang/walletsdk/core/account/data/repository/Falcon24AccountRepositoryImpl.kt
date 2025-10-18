@@ -8,14 +8,13 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdSeedWalletS
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
+import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
-import kotlin.collections.component1
-import kotlin.collections.component2
 import kotlin.collections.map
 
 internal class Falcon24AccountRepositoryImpl(
@@ -24,7 +23,6 @@ internal class Falcon24AccountRepositoryImpl(
     private val falcon24EntityMapper: Falcon24EntityMapper,
     private val falcon24Mapper: Falcon24Mapper,
     private val hdSeedWalletSummaryMapper: HdSeedWalletSummaryMapper,
-    // private val aesPlatformManager: AESPlatformManager,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : Falcon24AccountRepository {
     override fun getAllAsFlow(): Flow<List<Falcon24>> =
@@ -83,8 +81,7 @@ internal class Falcon24AccountRepositoryImpl(
     override suspend fun getSecretKey(address: String): ByteArray? =
         withContext(coroutineDispatcher) {
             val encryptedSK = falcon24Dao.get(address)?.encryptedSecretKey
-            // encryptedSK?.let { aesPlatformManager.decryptByteArray(it) }
-            encryptedSK
+             encryptedSK?.let { decryptByteArray(it) }
         }
 
     override suspend fun getHdWalletSummaries(): List<HdWalletSummary> =

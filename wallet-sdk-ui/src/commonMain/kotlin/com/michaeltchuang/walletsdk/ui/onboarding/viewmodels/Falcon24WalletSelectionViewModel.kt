@@ -17,7 +17,6 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreatio
 import kotlinx.coroutines.launch
 
 class Falcon24WalletSelectionViewModel(
-// private val aesPlatformManager: AESPlatformManager,
     private val getFalcon24WalletSummaries: GetFalcon24WalletSummaries,
     private val accountCreationFalcon24TypeMapper: AccountCreationFalcon24TypeMapper,
     private val getHdEntropy: GetHdEntropy,

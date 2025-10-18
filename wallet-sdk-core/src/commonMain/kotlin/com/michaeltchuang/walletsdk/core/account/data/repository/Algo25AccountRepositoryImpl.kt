@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25Entity
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.Algo25Mapper
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository
+import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -16,7 +17,6 @@ internal class Algo25AccountRepositoryImpl(
     private val algo25Dao: Algo25Dao,
     private val algo25EntityMapper: Algo25EntityMapper,
     private val algo25Mapper: Algo25Mapper,
-    // private val aesPlatformManager: AESPlatformManager,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : Algo25AccountRepository {
     override fun getAllAsFlow(): Flow<List<Algo25>> =
@@ -69,7 +69,6 @@ internal class Algo25AccountRepositoryImpl(
     override suspend fun getSecretKey(address: String): ByteArray? =
         withContext(coroutineDispatcher) {
             val encryptedSK = algo25Dao.get(address)?.encryptedSecretKey
-            // encryptedSK?.let { aesPlatformManager.decryptByteArray(it) }
-            encryptedSK
+             encryptedSK?.let {decryptByteArray(it) }
         }
 }

@@ -1,10 +1,9 @@
 package com.michaeltchuang.walletsdk.core.account.data.mapper.entity
 
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntity
+import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 
-internal class HdSeedEntityMapperImpl(
-    // private val aesPlatformManager: AESPlatformManager
-) : HdSeedEntityMapper {
+internal class HdSeedEntityMapperImpl() : HdSeedEntityMapper {
     override fun invoke(
         seedId: Int,
         entropy: ByteArray,
@@ -12,7 +11,7 @@ internal class HdSeedEntityMapperImpl(
     ): HdSeedEntity =
         HdSeedEntity(
             seedId = 0, // Let Room auto-generate the ID
-            encryptedEntropy = /*aesPlatformManager.encryptByteArray(entropy)*/entropy,
-            encryptedSeed = /*aesPlatformManager.encryptByteArray(seed)*/ seed,
+            encryptedEntropy = encryptByteArray(entropy),
+            encryptedSeed = encryptByteArray(seed),
         )
 }

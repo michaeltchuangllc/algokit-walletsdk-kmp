@@ -3,8 +3,10 @@ package com.michaeltchuang.walletsdk.core.foundation.cache
 import java.lang.reflect.Type
 
 interface PersistentCacheProvider {
-    fun <T : Any> getPersistentCache(
+    fun <T : Any> getPersistentCache(type: Type, key: String): PersistentCache<T>
+    fun <T : Any> getFlowPersistentCache(
         type: Type,
         key: String,
-    ): PersistentCache<T>
+        defaultValue: T
+    ): FlowPersistentCache<T>
 }

@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdWalletSumma
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
+import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -23,7 +24,6 @@ internal class HdKeyAccountRepositoryImpl(
     private val hdKeyMapper: HdKeyMapper,
     private val hdSeedDao: HdSeedDao,
     private val hdSeedWalletSummaryMapper: HdSeedWalletSummaryMapper,
-    // private val aesPlatformManager: AESPlatformManager,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : HdKeyAccountRepository {
     override fun getAllAsFlow(): Flow<List<HdKey>> =
@@ -81,8 +81,7 @@ internal class HdKeyAccountRepositoryImpl(
     override suspend fun getPrivateKey(address: String): ByteArray? =
         withContext(coroutineDispatcher) {
             val encryptedSK = hdKeyDao.get(address)?.encryptedPrivateKey
-            // encryptedSK?.let { aesPlatformManager.decryptByteArray(it) }
-            ByteArray(0)
+             encryptedSK?.let {decryptByteArray(it) }
         }
 
     override suspend fun getHdWalletSummaries(): List<HdWalletSummary> =
