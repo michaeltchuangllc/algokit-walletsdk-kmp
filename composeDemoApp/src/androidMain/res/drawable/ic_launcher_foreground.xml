@@ -5,18 +5,37 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <group
-        android:scaleX="0.5"
-        android:scaleY="0.5"
-        android:translateX="27"
-        android:translateY="27">
+        android:scaleX="1.5"
+        android:scaleY="1.5"
+        android:translateX="10"
+        android:translateY="15">
+
+        <!-- Left slanted bar (parallelogram) -->
+        <path
+            android:fillColor="#1428F0"
+            android:pathData="M 16,8 L 36,8 C 38,8 39,9 39,11 L 39,48 C 39,50 38,51 36,51 L 16,51 C 14,51 13,50 13,48 L 13,11 C 13,9 14,8 16,8 Z" />
+
+        <!-- White diagonal stripe on left bar -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M54,27L27,40.5v27L54,81l27,-13.5v-27z" />
-        <path
-            android:fillColor="#0081CB"
-            android:pathData="M54,35L35,45v20l19,10l19,-10V45z" />
+            android:pathData="M 20,12 L 26,12 L 26,44 C 26,45 25.5,46 24,46 L 22,46 C 20.5,46 20,45 20,44 L 20,12 Z" />
+
+        <!-- White dot on left bar -->
         <path
             android:fillColor="#FFFFFF"
-            android:pathData="M54,45L45,50v10l9,5l9,-5V50z" />
+            android:pathData="M 23,35 m -2,0 a 2,2 0 1,1 4,0 a 2,2 0 1,1 -4,0" />
+
+        <!-- Right slanted bar (curved parallelogram) -->
+        <path
+            android:fillColor="#1428F0"
+            android:pathData="M 47,17 C 49,14 51,12 54,12 L 62,12 C 64,12 65,13 65,15 L 65,48 C 65,50 64,51 62,51 L 47,51 C 45,51 44,50 44,48 L 44,23 C 44,20 45,18 47,17 Z" />
+
+        <!-- White curved line on top connecting the shapes -->
+        <path
+            android:strokeWidth="2"
+            android:strokeColor="#FFFFFF"
+            android:strokeLineCap="round"
+            android:fillColor="#00000000"
+            android:pathData="M 39,11 Q 42,11 45,13 Q 47,15 49,18" />
     </group>
 </vector>
