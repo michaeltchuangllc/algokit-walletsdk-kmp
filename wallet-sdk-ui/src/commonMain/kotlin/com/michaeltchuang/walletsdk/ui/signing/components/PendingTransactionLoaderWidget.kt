@@ -22,7 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
-import org.jetbrains.compose.resources.stringResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -52,7 +52,7 @@ fun PendingTransactionLoaderWidget() {
             Spacer(modifier = Modifier.height(32.dp))
 
             Text(
-                text = stringResource(Res.string.sending_the_transaction),
+                text = localizedStringResource(Res.string.sending_the_transaction),
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.body.large.sansMedium,
             )
@@ -60,7 +60,7 @@ fun PendingTransactionLoaderWidget() {
             Spacer(modifier = Modifier.height(12.dp))
 
             Text(
-                text = stringResource(Res.string.your_transaction_is_processed_algorand),
+                text = localizedStringResource(Res.string.your_transaction_is_processed_algorand),
                 color = AlgoKitTheme.colors.textGray,
                 style = typography.body.regular.sansMedium,
                 textAlign = TextAlign.Center,

@@ -35,7 +35,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHigh
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGreenText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
-import org.jetbrains.compose.resources.stringResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -60,16 +60,16 @@ fun RecoverAnAccountScreen(
 
         AlgoKitTitleText(
             modifier = Modifier.padding(horizontal = 24.dp),
-            text = stringResource(Res.string.bottom_sheet_mnemonic_type_title),
+            text = localizedStringResource(Res.string.bottom_sheet_mnemonic_type_title),
         )
         Spacer(Modifier.height(24.dp))
         PeraCard(
-            title = stringResource(Res.string.mnemonic_type_falcon24_title),
-            description = stringResource(Res.string.mnemonic_type_falcon24_description),
-            footer = stringResource(Res.string.mnemonic_type_falcon24_footer),
+            title = localizedStringResource(Res.string.mnemonic_type_falcon24_title),
+            description = localizedStringResource(Res.string.mnemonic_type_falcon24_description),
+            footer = localizedStringResource(Res.string.mnemonic_type_falcon24_footer),
             highlightContent = {
                 AlgoKitHighlightedGreenText(
-                    text = stringResource(Res.string.new_text),
+                    text = localizedStringResource(Res.string.new_text),
                 )
             },
             onClick = {
@@ -78,12 +78,12 @@ fun RecoverAnAccountScreen(
         )
 
         PeraCard(
-            title = stringResource(Res.string.mnemonic_type_algo25_title),
-            description = stringResource(Res.string.mnemonic_type_algo25_description),
-            footer = stringResource(Res.string.mnemonic_type_algo25_footer),
+            title = localizedStringResource(Res.string.mnemonic_type_algo25_title),
+            description = localizedStringResource(Res.string.mnemonic_type_algo25_description),
+            footer = localizedStringResource(Res.string.mnemonic_type_algo25_footer),
             highlightContent = {
                 AlgoKitHighlightedGrayText(
-                    text = stringResource(Res.string.legacy_text),
+                    text = localizedStringResource(Res.string.legacy_text),
                 )
             },
             onClick = {
@@ -92,12 +92,12 @@ fun RecoverAnAccountScreen(
         )
         Spacer(Modifier.height(24.dp))
         PeraCard(
-            title = stringResource(Res.string.mnemonic_type_universal_title),
-            description = stringResource(Res.string.mnemonic_type_universal_description),
-            footer = stringResource(Res.string.mnemonic_type_universal_footer),
+            title = localizedStringResource(Res.string.mnemonic_type_universal_title),
+            description = localizedStringResource(Res.string.mnemonic_type_universal_description),
+            footer = localizedStringResource(Res.string.mnemonic_type_universal_footer),
             highlightContent = {
                 AlgoKitHighlightedGrayText(
-                    text = stringResource(Res.string.legacy_text),
+                    text = localizedStringResource(Res.string.legacy_text),
                 )
             },
             onClick = {

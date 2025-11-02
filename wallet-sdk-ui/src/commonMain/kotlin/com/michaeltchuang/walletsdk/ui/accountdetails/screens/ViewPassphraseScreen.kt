@@ -31,7 +31,7 @@ import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.ViewPassphraseV
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.onboarding.components.CenteredLoader
-import org.jetbrains.compose.resources.stringResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -71,7 +71,7 @@ fun ViewPassphraseContent(
                     .padding(horizontal = 16.dp)
                     .fillMaxWidth(),
         ) {
-            AlgoKitTopBar(title = stringResource(Res.string.passphrase)) {
+            AlgoKitTopBar(title = localizedStringResource(Res.string.passphrase)) {
                 navController.popBackStack()
             }
             Spacer(modifier = Modifier.height(16.dp))

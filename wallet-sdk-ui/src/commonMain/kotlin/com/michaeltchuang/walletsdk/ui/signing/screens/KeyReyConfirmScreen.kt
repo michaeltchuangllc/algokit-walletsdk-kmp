@@ -52,6 +52,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.components.PendingTransactionLoaderWidget
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.KeyRegConfirmViewModel
 import org.jetbrains.compose.resources.stringResource
@@ -113,7 +114,7 @@ fun Content(
     ) {
         Column {
             AlgoKitTopBar(
-                title = stringResource(Res.string.key_reg_transaction_title),
+                title = localizedStringResource(Res.string.key_reg_transaction_title),
                 onClick = { navController.popBackStack() },
             )
             val txnDetail = viewModel.getPendingTransactionRequest()
@@ -132,7 +133,7 @@ fun Content(
             onClick = {
                 viewModel.confirmTransaction()
             },
-            text = stringResource(Res.string.confirm_transaction),
+            text = localizedStringResource(Res.string.confirm_transaction),
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -242,12 +243,12 @@ fun AddNote(txnDetail: KeyRegTransactionDetail?) {
                 } else {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(Res.string.add_note),
+                        contentDescription = localizedStringResource(Res.string.add_note),
                         tint = AlgoKitTheme.colors.textMain,
                     )
                     Text(
                         style = typography.body.large.sansMedium,
-                        text = stringResource(Res.string.add_note),
+                        text = localizedStringResource(Res.string.add_note),
                         color = AlgoKitTheme.colors.textMain,
                     )
                 }
@@ -273,14 +274,14 @@ fun AddNoteTextField(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.enter_your_note),
+                text = localizedStringResource(Res.string.enter_your_note),
             )
 
             Text(
                 modifier = Modifier.clickable(onClick = onDoneClick),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.done),
+                text = localizedStringResource(Res.string.done),
             )
         }
 

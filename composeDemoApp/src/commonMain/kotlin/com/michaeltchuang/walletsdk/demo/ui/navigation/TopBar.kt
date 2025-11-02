@@ -16,10 +16,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalAppLocale
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -29,7 +31,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TopBar() {
-    val scop = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
     TopAppBar(
         colors =
             TopAppBarDefaults.topAppBarColors(
@@ -37,10 +40,12 @@ fun TopBar() {
                 titleContentColor = AlgoKitTheme.colors.textMain,
             ),
         title = {
-            Text(
-                localizedStringResource(Res.string.app_name_topbar),
-                maxLines = 1,
-            )
+            key(locale) {
+                Text(
+                    localizedStringResource(Res.string.app_name_topbar),
+                    maxLines = 1,
+                )
+            }
         },
         actions = {
             Row {
@@ -50,7 +55,7 @@ fun TopBar() {
                             .size(44.dp)
                             .padding(horizontal = 8.dp)
                             .clickable(onClick = {
-                                scop.launch {
+                                scope.launch {
                                     ACTIONS.qrClickEvent.emit(true)
                                 }
                             }),
@@ -65,7 +70,7 @@ fun TopBar() {
                             .size(44.dp)
                             .padding(horizontal = 8.dp)
                             .clickable(onClick = {
-                                scop.launch {
+                                scope.launch {
                                     ACTIONS.settingsClickEvent.emit(true)
                                 }
                             }),

@@ -60,7 +60,6 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -226,7 +225,7 @@ fun RecoveryPhraseContent(
     Column(modifier = modifier) {
         Text(
             style = AlgoKitTheme.typography.title.regular.sansMedium,
-            text = stringResource(Res.string.enter_your_recovery_passphrase),
+            text = localizedStringResource(Res.string.enter_your_recovery_passphrase),
             color = AlgoKitTheme.colors.textMain,
         )
         Spacer(modifier = Modifier.height(32.dp))

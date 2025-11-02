@@ -76,10 +76,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.GroupChoiceWidge
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -149,14 +149,14 @@ private fun ContentState(
                 style = typography.title.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
                 text =
-                    stringResource(
+                    localizedStringResource(
                         Res.string.welcome_to_pera,
                     ),
             )
             Spacer(modifier = Modifier.weight(1f))
             AlgoKitIcon(
                 painter = painterResource(Res.drawable.pera_icon_3d),
-                contentDescription = stringResource(Res.string.add_a_wallet_or_account),
+                contentDescription = localizedStringResource(Res.string.add_a_wallet_or_account),
             )
         }
         Spacer(modifier = Modifier.weight(1f))
@@ -180,10 +180,10 @@ private fun CreateWalletHdWidget(
     scope: CoroutineScope,
 ) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.create_a_new_account),
-        description = stringResource(Res.string.create_a_new_algorand_account_with),
+        title = localizedStringResource(Res.string.create_a_new_account),
+        description = localizedStringResource(Res.string.create_a_new_algorand_account_with),
         icon = vectorResource(Res.drawable.ic_wallet),
-        iconContentDescription = stringResource(Res.string.create_a_new_algorand_account_with),
+        iconContentDescription = localizedStringResource(Res.string.create_a_new_algorand_account_with),
         onClick = {
             scope.launch {
                 viewModel.createFalcon24Account()
@@ -195,9 +195,9 @@ private fun CreateWalletHdWidget(
 @Composable
 private fun ImportHdWalletWidget(navController: NavController) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.import_an_account),
-        description = stringResource(Res.string.import_an_existing),
-        iconContentDescription = stringResource(Res.string.import_an_existing),
+        title = localizedStringResource(Res.string.import_an_account),
+        description = localizedStringResource(Res.string.import_an_existing),
+        iconContentDescription = localizedStringResource(Res.string.import_an_existing),
         icon = vectorResource(Res.drawable.ic_key),
         onClick = { navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name) },
     )
@@ -241,7 +241,7 @@ fun CreateNewAccountCard(
                         .background(AlgoKitTheme.colors.layerGrayLighter)
                         .padding(8.dp),
                 imageVector = icon,
-                contentDescription = stringResource(Res.string.add_a_new_account_desc),
+                contentDescription = localizedStringResource(Res.string.add_a_new_account_desc),
                 tint = AlgoKitTheme.colors.textMain,
             )
 
@@ -250,13 +250,13 @@ fun CreateNewAccountCard(
                 Text(
                     style = typography.body.regular.sansMedium,
                     color = AlgoKitTheme.colors.textMain,
-                    text = stringResource(Res.string.add_a_new_account),
+                    text = localizedStringResource(Res.string.add_a_new_account),
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     style = typography.footnote.sans,
                     color = AlgoKitTheme.colors.textGray,
-                    text = stringResource(Res.string.add_a_new_account_desc),
+                    text = localizedStringResource(Res.string.add_a_new_account_desc),
                 )
             }
         }
@@ -271,13 +271,13 @@ fun CreateNewAccountCard(
         ) {
             AlgoKitIcon(
                 painter = painterResource(Res.drawable.ic_info),
-                contentDescription = stringResource(Res.string.warning),
+                contentDescription = localizedStringResource(Res.string.warning),
                 modifier = Modifier.size(20.dp),
                 tintColor = AlgoKitTheme.colors.wallet3IconGovernor,
             )
             Spacer(Modifier.width(4.dp))
             Text(
-                text = stringResource(Res.string.because_you_have_already),
+                text = localizedStringResource(Res.string.because_you_have_already),
                 style = typography.footnote.sansMedium,
                 color = AlgoKitTheme.colors.wallet3IconGovernor,
             )
@@ -288,9 +288,9 @@ fun CreateNewAccountCard(
 @Composable
 private fun WatchAddressWidget(onClick: (message: String) -> Unit) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.watch_an_address),
-        description = stringResource(Res.string.monitor_an_algorand_address),
-        iconContentDescription = stringResource(Res.string.monitor_an_algorand_address),
+        title = localizedStringResource(Res.string.watch_an_address),
+        description = localizedStringResource(Res.string.monitor_an_algorand_address),
+        iconContentDescription = localizedStringResource(Res.string.monitor_an_algorand_address),
         icon = vectorResource(Res.drawable.ic_eye),
         onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
     )
@@ -349,11 +349,11 @@ fun TermsAndPrivacy(modifier: Modifier = Modifier) {
 private fun createAnnotatedString() =
     buildAnnotatedString {
         val fullText =
-            stringResource(
+            localizedStringResource(
                 Res.string.by_creating_account,
             )
-        val termsAndConditionsText = stringResource(Res.string.terms_and_conditions)
-        val privacyPolicyText = stringResource(Res.string.privacy_policy)
+        val termsAndConditionsText = localizedStringResource(Res.string.terms_and_conditions)
+        val privacyPolicyText = localizedStringResource(Res.string.privacy_policy)
 
         val termsAndConditionsStartIndex = fullText.indexOf(termsAndConditionsText)
         val termsAndConditionsEndIndex = termsAndConditionsStartIndex + termsAndConditionsText.length
