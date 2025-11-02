@@ -29,10 +29,18 @@ class RecoverPassphraseViewModel(
                     mnemonic,
                     onboardingAccountType,
                 ).collectLatest { accountCreation ->
-                    accountCreation?.let {
+                    if (accountCreation != null) {
                         // Store the account creation data in the manager
-                        AccountCreationManager.storePendingAccountCreation(it)
-                        eventDelegate.sendEvent(ViewEvent.NavigateToAccountNameScreen(it))
+                        AccountCreationManager.storePendingAccountCreation(accountCreation)
+                        eventDelegate.sendEvent(
+                            ViewEvent.NavigateToAccountNameScreen(
+                                accountCreation
+                            )
+                        )
+                    } else {
+                        eventDelegate.sendEvent(
+                            ViewEvent.ShowError("Invalid recovery phrase. Please check your words and try again."),
+                        )
                     }
                 }
         }
