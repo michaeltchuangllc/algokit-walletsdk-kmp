@@ -34,8 +34,8 @@ class RecoverPassphraseViewModel(
                         AccountCreationManager.storePendingAccountCreation(accountCreation)
                         eventDelegate.sendEvent(
                             ViewEvent.NavigateToAccountNameScreen(
-                                accountCreation
-                            )
+                                accountCreation,
+                            ),
                         )
                     } else {
                         eventDelegate.sendEvent(

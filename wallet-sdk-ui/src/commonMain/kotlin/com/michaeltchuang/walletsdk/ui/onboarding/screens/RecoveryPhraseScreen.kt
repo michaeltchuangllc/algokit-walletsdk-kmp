@@ -2,11 +2,9 @@ package com.michaeltchuang.walletsdk.ui.onboarding.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.enter_your_recovery_passphrase
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.finish_account_creation
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_info
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recovery_passphrase
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,11 +75,12 @@ fun RecoveryPhraseScreen(
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val viewModel: RecoverPassphraseViewModel = koinViewModel()
 
-    val initialWordCount = when (accountType) {
-        AccountMnemonic.AccountType.Algo25 -> 25
-        AccountMnemonic.AccountType.Falcon24 -> 24
-        else -> 24
-    }
+    val initialWordCount =
+        when (accountType) {
+            AccountMnemonic.AccountType.Algo25 -> 25
+            AccountMnemonic.AccountType.Falcon24 -> 24
+            else -> 24
+        }
 
     var mnemonicList by rememberSaveable {
         mutableStateOf(
@@ -89,7 +88,7 @@ fun RecoveryPhraseScreen(
                 mnemonicString.splitMnemonic()
             } else {
                 List(initialWordCount) { "" }
-            }
+            },
         )
     }
     val webViewController by rememberWebViewController()
@@ -277,8 +276,9 @@ fun RecoveryWordField(
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .padding(8.dp)
+        modifier =
+            modifier
+                .padding(8.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -294,22 +294,25 @@ fun RecoveryWordField(
             BasicTextField(
                 value = value,
                 onValueChange = onValueChange,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(end = 16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(end = 16.dp),
                 singleLine = true,
-                textStyle = LocalTextStyle.current.copy(
-                    fontSize = 16.sp,
-                    color = AlgoKitTheme.colors.textMain
-                ),
+                textStyle =
+                    LocalTextStyle.current.copy(
+                        fontSize = 16.sp,
+                        color = AlgoKitTheme.colors.textMain,
+                    ),
                 cursorBrush = SolidColor(AlgoKitTheme.colors.textMain),
                 keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text),
             )
         }
         HorizontalDivider(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
             color = Color.Gray,
         )
     }
