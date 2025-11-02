@@ -28,7 +28,9 @@ val LocalAppLocale = staticCompositionLocalOf { LocalizationPreference.ENGLISH }
 fun localizedStringResource(resource: StringResource): String {
     // Read the current locale to trigger recomposition when it changes
     val currentLocale = LocalAppLocale.current
-    // Return the string resource - the read of currentLocale above ensures recomposition
+    // On iOS, also observe locale change counter to force immediate recomposition
+    val localeChangeCounter = observeLocaleChanges()
+    // Return the string resource - the reads above ensure recomposition
     return stringResource(resource)
 }
 
@@ -43,7 +45,9 @@ fun localizedStringResource(
 ): String {
     // Read the current locale to trigger recomposition when it changes
     val currentLocale = LocalAppLocale.current
-    // Return the string resource - the read of currentLocale above ensures recomposition
+    // On iOS, also observe locale change counter to force immediate recomposition
+    val localeChangeCounter = observeLocaleChanges()
+    // Return the string resource - the reads above ensure recomposition
     return stringResource(resource, *formatArgs)
 }
 
@@ -57,3 +61,6 @@ fun LocaleAwareContent(content: @Composable () -> Unit) {
 
     content()
 }
+
+@Composable
+expect fun observeLocaleChanges(): Int

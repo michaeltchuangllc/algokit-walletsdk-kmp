@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name_topbar">एल्गो किट डेमो वॉलेट</string>
+    <string name="open_github">गिटहब खोलें</string>
+
+    <!-- Bottom Navigation Screen -->
+    <string name="nav_discover">गिटहब रिपोजिटरी</string>
+    <string name="nav_home">मुखपृष्ठ</string>
+    <string name="no_account_list">कोई खाता नहीं मिला। \nनया जोड़ने के लिए + टैप करें!</string>
+
+    <!-- Account Types -->
+    <string name="account_type_hd">एचडी खाता</string>
+    <string name="account_type_algo25">एल्गो25 खाता</string>
+    <string name="account_type_falcon24">फाल्कन24 खाता</string>
+    <string name="account_type_watch">वॉच खाता</string>
+    <string name="account_type_ledger">लेजर खाता</string>
+
+    <!-- Content Descriptions -->
+    <string name="wallet_icon">वॉलेट आइकन</string>
+    <string name="qr_icon">क्यूआर आइकन</string>
+    <string name="add_account">खाता जोड़ें</string>
+
+    <!-- Messages -->
+    <string name="account_deleted">खाता सफलतापूर्वक हटाया गया।</string>
+    <string name="failed_to_delete">खाता हटाने में विफल।</string>
+    <string name="failed_to_fetch">खाते प्राप्त करने में विफल।</string>
+    <string name="unknown_error">अज्ञात त्रुटि</string>
+    <string name="loading_accounts">खाते लोड करने के लिए तैयार...</string>
+</resources>
