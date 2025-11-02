@@ -43,11 +43,8 @@ fun localizedStringResource(
     resource: StringResource,
     vararg formatArgs: Any,
 ): String {
-    // Read the current locale to trigger recomposition when it changes
     val currentLocale = LocalAppLocale.current
-    // On iOS, also observe locale change counter to force immediate recomposition
     val localeChangeCounter = observeLocaleChanges()
-    // Return the string resource - the reads above ensure recomposition
     return stringResource(resource, *formatArgs)
 }
 

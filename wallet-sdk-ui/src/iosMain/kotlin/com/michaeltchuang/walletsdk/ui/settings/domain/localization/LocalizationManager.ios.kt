@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import platform.Foundation.NSUserDefaults
 
-// Add a global state flow to track locale changes and trigger recomposition
 private object LocaleChangeTracker {
     private val _localeChangeCounter = MutableStateFlow(0)
     val localeChangeCounter = _localeChangeCounter.asStateFlow()
@@ -22,7 +21,6 @@ actual class LocalizationManager actual constructor(
 ) {
     actual fun actuateLocalization(localizationPreference: LocalizationPreference): Any? {
         setDefaultLocale(localizationPreference)
-        // Notify that locale has changed to trigger recomposition
         LocaleChangeTracker.notifyLocaleChange()
         return Unit
     }
@@ -45,14 +43,11 @@ actual fun setDefaultLocale(localizationPreference: LocalizationPreference) {
             LocalizationPreference.HINDI -> "hi"
         }
 
-    // Update NSUserDefaults with the new language preference
     NSUserDefaults.standardUserDefaults.setObject(
         arrayListOf(languageCode),
         "AppleLanguages",
     )
     NSUserDefaults.standardUserDefaults.synchronize()
 
-    // Immediately notify about the locale change to trigger UI recomposition
-    // This ensures that all composables using localizedStringResource will recompose
     LocaleChangeTracker.notifyLocaleChange()
 }

@@ -24,8 +24,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
-import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
