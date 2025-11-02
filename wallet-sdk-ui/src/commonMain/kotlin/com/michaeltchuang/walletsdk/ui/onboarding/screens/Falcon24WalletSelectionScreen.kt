@@ -45,10 +45,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitSe
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.Falcon24WalletSelectionViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreenContent
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -145,12 +145,12 @@ private fun ContentState(
         ) {
             Text(
                 style = AlgoKitTheme.typography.title.regular.sansMedium,
-                text = stringResource(Res.string.select_falcon24_wallet),
+                text = localizedStringResource(Res.string.select_falcon24_wallet),
                 color = AlgoKitTheme.colors.textMain,
             )
             Text(
                 style = AlgoKitTheme.typography.body.regular.sans,
-                text = stringResource(Res.string.create_your_new_falcon24_account),
+                text = localizedStringResource(Res.string.create_your_new_falcon24_account),
                 color = AlgoKitTheme.colors.textGray,
                 modifier = Modifier.padding(top = 12.dp),
             )
@@ -163,7 +163,7 @@ private fun ContentState(
                             numberOfAccounts = walletItemPreview.numberOfAccounts,
                             icon = vectorResource(Res.drawable.ic_wallet),
                             iconContentDescription =
-                                stringResource(
+                                localizedStringResource(
                                     Res.string.create_a_new_algorand_account_with,
                                 ),
                             onClick = { walletItemClick(walletItemPreview) },
@@ -176,7 +176,7 @@ private fun ContentState(
             onClick = {
                 createNewWalletClick()
             },
-            text = stringResource(Res.string.create_a_new_wallet),
+            text = localizedStringResource(Res.string.create_a_new_wallet),
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -184,7 +184,7 @@ private fun ContentState(
             leftIcon = {
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_plus),
-                    contentDescription = stringResource(Res.string.plus),
+                    contentDescription = localizedStringResource(Res.string.plus),
                     modifier = Modifier,
                 )
             },

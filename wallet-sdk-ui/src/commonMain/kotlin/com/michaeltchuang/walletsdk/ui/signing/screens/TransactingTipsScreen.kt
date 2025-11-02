@@ -50,6 +50,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -84,7 +85,7 @@ fun TransactingTipsScreen(onUnderstandClick: () -> Unit) {
 
             // Title
             Text(
-                text = stringResource(Res.string.transacting_tips),
+                text = localizedStringResource(Res.string.transacting_tips),
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.body.large.sansMedium,
                 textAlign = TextAlign.Center,
@@ -94,7 +95,7 @@ fun TransactingTipsScreen(onUnderstandClick: () -> Unit) {
 
             // Description
             Text(
-                text = stringResource(Res.string.we_notice_that_this),
+                text = localizedStringResource(Res.string.we_notice_that_this),
                 color = AlgoKitTheme.colors.textGray,
                 style = typography.body.regular.sans,
                 textAlign = TextAlign.Center,
@@ -137,7 +138,7 @@ fun TransactingTipsScreen(onUnderstandClick: () -> Unit) {
         // Bottom button
         AlgoKitPrimaryButton(
             onClick = onUnderstandClick,
-            text = stringResource(Res.string.i_understand),
+            text = localizedStringResource(Res.string.i_understand),
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -231,7 +232,7 @@ fun MoreInfoClick(modifier: Modifier = Modifier) {
 private fun createAnnotatedString() =
     buildAnnotatedString {
         val fullText =
-            stringResource(
+            localizedStringResource(
                 Res.string.for_more_information_on,
             )
         val tapHere = "tap here"

@@ -64,11 +64,11 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPr
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectReceiverViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -119,7 +119,7 @@ fun SelectReceiverScreen(
         ) {
             // Top Bar
             AlgoKitTopBar(
-                title = stringResource(Res.string.select_the_receiver_account),
+                title = localizedStringResource(Res.string.select_the_receiver_account),
                 onClick = { navController.popBackStack() },
             )
 
@@ -227,7 +227,7 @@ private fun SelectReceiverContent(
 
         AlgoKitPrimaryButton(
             onClick = onNextPressed,
-            text = stringResource(Res.string.next),
+            text = localizedStringResource(Res.string.next),
             modifier = Modifier.fillMaxWidth(),
             state =
                 if (state.searchText.isNotEmpty() && isValidAlgorandAddress(state.searchText)) {
@@ -282,7 +282,7 @@ private fun SearchField(
                 decorationBox = { innerTextField ->
                     if (searchText.isEmpty()) {
                         Text(
-                            text = stringResource(Res.string.search_or_enter_address),
+                            text = localizedStringResource(Res.string.search_or_enter_address),
                             style =
                                 LocalTextStyle.current.copy(
                                     color = AlgoKitTheme.colors.textGray,
@@ -317,7 +317,7 @@ private fun ClipboardSection(
 ) {
     Column {
         Text(
-            text = stringResource(Res.string.paste_from_clipboard),
+            text = localizedStringResource(Res.string.paste_from_clipboard),
             style = typography.body.regular.sansMedium,
             color = AlgoKitTheme.colors.textGray,
             modifier = Modifier.padding(bottom = 8.dp),
@@ -361,7 +361,7 @@ private fun AccountSection(
 ) {
     Column {
         Text(
-            text = stringResource(Res.string.my_accounts),
+            text = localizedStringResource(Res.string.my_accounts),
             style = typography.body.regular.sansMedium,
             color = AlgoKitTheme.colors.textGray,
             modifier = Modifier.padding(bottom = 8.dp),
@@ -416,7 +416,7 @@ private fun AccountItem(
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    text = stringResource(getAccountTypeResource(account.registrationType)),
+                    text = localizedStringResource(getAccountTypeResource(account.registrationType)),
                     style = typography.caption.mono,
                     color = AlgoKitTheme.colors.textGray,
                 )

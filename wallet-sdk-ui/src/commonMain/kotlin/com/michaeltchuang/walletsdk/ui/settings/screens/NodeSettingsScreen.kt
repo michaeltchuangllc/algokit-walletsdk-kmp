@@ -37,9 +37,9 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.NodeSettingsViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -84,14 +84,14 @@ fun NodeSettingsScreen(navController: NavController) {
             },
             title = {
                 Text(
-                    text = stringResource(Res.string.mainnet_warning),
+                    text = localizedStringResource(Res.string.mainnet_warning),
                     color = AlgoKitTheme.colors.textMain,
                     style = AlgoKitTheme.typography.body.large.sansMedium,
                 )
             },
             text = {
                 Text(
-                    text = stringResource(Res.string.mainnet_warning_desc),
+                    text = localizedStringResource(Res.string.mainnet_warning_desc),
                     color = AlgoKitTheme.colors.textMain,
                     style = AlgoKitTheme.typography.body.regular.sansMedium,
                 )
@@ -107,7 +107,7 @@ fun NodeSettingsScreen(navController: NavController) {
                     },
                 ) {
                     Text(
-                        text = stringResource(Res.string.ok),
+                        text = localizedStringResource(Res.string.ok),
                         color = AlgoKitTheme.colors.positive,
                     )
                 }
@@ -120,7 +120,7 @@ fun NodeSettingsScreen(navController: NavController) {
                     },
                 ) {
                     Text(
-                        text = stringResource(Res.string.cancel),
+                        text = localizedStringResource(Res.string.cancel),
                         color = AlgoKitTheme.colors.textMain,
                     )
                 }
@@ -139,7 +139,7 @@ fun NodeSettingsScreen(navController: NavController) {
                 .padding(horizontal = 16.dp),
     ) {
         AlgoKitTopBar(
-            title = stringResource(Res.string.node_settings),
+            title = localizedStringResource(Res.string.node_settings),
         ) {
             navController.popBackStack()
         }

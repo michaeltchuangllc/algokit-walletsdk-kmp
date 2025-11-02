@@ -46,8 +46,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.GroupChoiceWidget
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.Resource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -92,7 +92,7 @@ private fun TitleWidget(isOnHdWallet: Boolean = false) {
         modifier = Modifier.padding(horizontal = 24.dp),
         style = typography.title.regular.sansMedium,
         color = AlgoKitTheme.colors.textMain,
-        text = stringResource(titleRes),
+        text = localizedStringResource(titleRes),
     )
 }
 
@@ -113,10 +113,10 @@ private fun RecoverAnAccountWidget(
     }
 
     GroupChoiceWidget(
-        title = stringResource(titleRes),
-        description = stringResource(descriptionRes),
+        title = localizedStringResource(titleRes),
+        description = localizedStringResource(descriptionRes),
         icon = vectorResource(Res.drawable.ic_key),
-        iconContentDescription = stringResource(Res.string.key),
+        iconContentDescription = localizedStringResource(Res.string.key),
         onClick = { navController.navigate(AlgoKitScreens.RECOVER_AN_ACCOUNT_SCREEN.name) },
     )
 }
@@ -124,10 +124,10 @@ private fun RecoverAnAccountWidget(
 @Composable
 private fun RecoverAnAccountWithQRWidget(navController: NavController) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.recover_an_account_with_qr),
-        description = stringResource(Res.string.i_want_to_recover_qr),
+        title = localizedStringResource(Res.string.recover_an_account_with_qr),
+        description = localizedStringResource(Res.string.i_want_to_recover_qr),
         icon = vectorResource(Res.drawable.ic_qr),
-        iconContentDescription = stringResource(Res.string.qr_code),
+        iconContentDescription = localizedStringResource(Res.string.qr_code),
         onClick = { navController.navigate(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) },
     )
 }
@@ -135,9 +135,9 @@ private fun RecoverAnAccountWithQRWidget(navController: NavController) {
 @Composable
 private fun PairLedgerDeviceWidget(onClick: (message: String) -> Unit) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.pair_ledger_device),
-        description = stringResource(Res.string.i_want_to_recover_an),
-        iconContentDescription = stringResource(Res.string.ledger),
+        title = localizedStringResource(Res.string.pair_ledger_device),
+        description = localizedStringResource(Res.string.i_want_to_recover_an),
+        iconContentDescription = localizedStringResource(Res.string.ledger),
         icon = vectorResource(Res.drawable.ic_ledger),
         onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
     )
@@ -146,9 +146,9 @@ private fun PairLedgerDeviceWidget(onClick: (message: String) -> Unit) {
 @Composable
 private fun ImportPeraWebWidget(onClick: (message: String) -> Unit) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.import_from_pera_web),
-        description = stringResource(Res.string.i_want_to_import_algorand),
-        iconContentDescription = stringResource(Res.string.import_from_pera_web),
+        title = localizedStringResource(Res.string.import_from_pera_web),
+        description = localizedStringResource(Res.string.i_want_to_import_algorand),
+        iconContentDescription = localizedStringResource(Res.string.import_from_pera_web),
         icon = vectorResource(Res.drawable.ic_global),
         onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
     )
@@ -157,9 +157,9 @@ private fun ImportPeraWebWidget(onClick: (message: String) -> Unit) {
 @Composable
 private fun AlgorandSecureBackupWidget(onClick: (message: String) -> Unit) {
     GroupChoiceWidget(
-        title = stringResource(Res.string.algorand_secure_backup),
-        description = stringResource(Res.string.i_want_to_restore_my),
-        iconContentDescription = stringResource(Res.string.i_want_to_restore_my),
+        title = localizedStringResource(Res.string.algorand_secure_backup),
+        description = localizedStringResource(Res.string.i_want_to_restore_my),
+        iconContentDescription = localizedStringResource(Res.string.i_want_to_restore_my),
         icon = vectorResource(Res.drawable.ic_backup),
         onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
     )
