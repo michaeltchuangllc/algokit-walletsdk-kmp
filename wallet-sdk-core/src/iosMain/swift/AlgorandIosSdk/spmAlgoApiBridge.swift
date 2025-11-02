@@ -5,6 +5,7 @@ import AlgoSDK
 
 @objcMembers public class spmAlgoApiBridge: NSObject {
 
+    @_optimize(none)
     public func getHdPublicKeyFromSeed(seedBase64: String, account: Int, change: Int, keyIndex: Int) -> String {
         do {
             guard let seedData = Data(base64Encoded: seedBase64) else {
@@ -34,6 +35,7 @@ import AlgoSDK
         }
     }
 
+    @_optimize(none)
     public func getHdPrivateKeyFromSeed(seedBase64: String, account: Int, change: Int, keyIndex: Int) -> String {
         do {
             guard let seedData = Data(base64Encoded: seedBase64) else {
@@ -48,17 +50,21 @@ import AlgoSDK
                 return ""
             }
 
-            let bip44Path = wallet.getBIP44PathFromContext(
-                context: .Address,
-                account: UInt32(account),
-                change: UInt32(change),
-                keyIndex: UInt32(keyIndex)
-            )
+            // Construct BIP44 path as [UInt32] array
+            // For Algorand: m/44'/283'/account'/change/keyIndex
+            // Hardened derivation: add 0x80000000
+            let hardenedOffset: UInt32 = 0x80000000
+            let bip44Path: [UInt32] = [
+                44 + hardenedOffset, // 44' - purpose
+                283 + hardenedOffset, // 283' - Algorand coin type
+                UInt32(account) + hardenedOffset, // account' - hardened
+                UInt32(change), // change - not hardened
+                UInt32(keyIndex)          // keyIndex - not hardened
+            ]
 
-            let rootKey = wallet.fromSeed(seedData)
 
             let extendedPrivateKey = try wallet.deriveKey(
-                rootKey: rootKey,
+                rootKey: wallet.fromSeed(seedData),
                 bip44Path: bip44Path,
                 isPrivate: true,
                 derivationType: BIP32DerivationType.Peikert
@@ -66,12 +72,13 @@ import AlgoSDK
 
             return extendedPrivateKey.base64EncodedString()
 
-        } catch {
-            print("Failed to generate key: \(error)")
+        } catch let error {
+            print("Failed to generate private key: \(error)")
             return ""
         }
     }
 
+    @_optimize(none)
     public func signHdKeyTransaction(
         transactionBytes: Data,
         seedBase64: String,
@@ -296,7 +303,7 @@ import AlgoSDK
         }
 
         var error: NSError?
-        guard let signedBytes = AlgoSdkSignFalconTransaction(
+        guard let signedBytes = AlgoSDK.AlgoSdkSignFalconTransaction(
             transactionBytes,
             publicKeyData,
             privateKeyData,

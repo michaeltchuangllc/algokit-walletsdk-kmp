@@ -47,6 +47,9 @@ actual class LocalizationPreferenceRepository actual constructor(
                 forKey = LOCALIZATION_KEY,
             )
             defaults.synchronize()
+            // Update the iOS system locale immediately
+            setDefaultLocale(pref)
+            // Update the state flow to trigger recomposition
             stateFlow.value = pref
         }
     }

@@ -52,3 +52,10 @@ actual fun setDefaultLocale(localizationPreference: LocalizationPreference) {
         }
     Locale.setDefault(locale)
 }
+
+@Composable
+actual fun observeLocaleChanges(): Int {
+    // On Android, stringResource automatically handles locale changes
+    // so we don't need additional tracking
+    return 0
+}

@@ -40,8 +40,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitTe
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -89,7 +89,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
                 style = typography.title.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
                 text =
-                    stringResource(
+                    localizedStringResource(
                         Res.string.welcome_to_pera,
                     ),
             )
@@ -102,7 +102,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
                 AlgoKitIcon(
                     modifier = Modifier.fillMaxWidth(),
                     painter = painterResource(Res.drawable.pera_icon_3d),
-                    contentDescription = stringResource(Res.string.welcome_to_pera),
+                    contentDescription = localizedStringResource(Res.string.welcome_to_pera),
                     contentScale = ContentScale.FillWidth,
                 )
             }
@@ -128,7 +128,7 @@ private fun CreateNewWalletWidget(viewModel: OnboardingIntroViewModel) {
         Text(
             modifier = Modifier.padding(horizontal = 24.dp),
             style = typography.body.regular.sans,
-            text = stringResource(Res.string.new_to_algorand),
+            text = localizedStringResource(Res.string.new_to_algorand),
             color = AlgoKitTheme.colors.textGray,
         )
 
@@ -142,17 +142,18 @@ private fun CreateNewWalletWidget(viewModel: OnboardingIntroViewModel) {
             onClick = {
                 viewModel.createFalcon24Account()
             },
-            text = stringResource(Res.string.create_a_new_wallet),
+            text = localizedStringResource(Res.string.create_a_new_wallet),
             leftIcon = {
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_hd_wallet),
-                    contentDescription = stringResource(Res.string.hd_wallet),
+                    contentDescription = localizedStringResource(Res.string.hd_wallet),
+                    tintColor = AlgoKitTheme.colors.textMain,
                 )
             },
             rightIcon = {
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_right_arrow),
-                    contentDescription = stringResource(Res.string.right_arrow),
+                    contentDescription = localizedStringResource(Res.string.right_arrow),
                     tintColor = AlgoKitTheme.colors.textGray,
                 )
             },
@@ -166,7 +167,7 @@ private fun ImportAccountWidget(navController: NavController) {
         Text(
             modifier = Modifier.padding(horizontal = 24.dp),
             style = typography.body.regular.sans,
-            text = stringResource(Res.string.already_have_an_account),
+            text = localizedStringResource(Res.string.already_have_an_account),
             color = AlgoKitTheme.colors.textGray,
         )
 
@@ -180,17 +181,18 @@ private fun ImportAccountWidget(navController: NavController) {
             onClick = {
                 navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name)
             },
-            text = stringResource(Res.string.import_an_account),
+            text = localizedStringResource(Res.string.import_an_account),
             leftIcon = {
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_key),
-                    contentDescription = stringResource(Res.string.hd_wallet),
+                    contentDescription = localizedStringResource(Res.string.hd_wallet),
+                    tintColor = AlgoKitTheme.colors.textMain,
                 )
             },
             rightIcon = {
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_right_arrow),
-                    contentDescription = stringResource(Res.string.right_arrow),
+                    contentDescription = localizedStringResource(Res.string.right_arrow),
                     tintColor = AlgoKitTheme.colors.textGray,
                 )
             },

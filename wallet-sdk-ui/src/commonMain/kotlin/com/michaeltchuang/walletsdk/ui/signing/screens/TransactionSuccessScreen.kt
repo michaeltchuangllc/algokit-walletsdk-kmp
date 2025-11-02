@@ -31,9 +31,9 @@ import com.final_class.webview_multiplatform_mobile.webview.controller.rememberW
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.TransactionSuccessViewModel
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -77,7 +77,7 @@ fun TransactionSuccessScreen(
 
             // Success Message
             Text(
-                text = stringResource(Res.string.operation_completed),
+                text = localizedStringResource(Res.string.operation_completed),
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.body.regular.sansMedium,
             )
@@ -86,7 +86,7 @@ fun TransactionSuccessScreen(
 
             // Subtext
             Text(
-                text = stringResource(Res.string.your_transaction_was),
+                text = localizedStringResource(Res.string.your_transaction_was),
                 color = AlgoKitTheme.colors.textGrayLighter,
                 style = typography.body.regular.sansMedium,
             )
@@ -101,7 +101,7 @@ fun TransactionSuccessScreen(
                     .padding(16.dp),
         ) {
             Text(
-                text = stringResource(Res.string.view_transaction_detail_in_pera_explorer),
+                text = localizedStringResource(Res.string.view_transaction_detail_in_pera_explorer),
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.footnote.sansMedium,
                 modifier =
@@ -115,7 +115,7 @@ fun TransactionSuccessScreen(
                 onClick = {
                     onDoneClick()
                 },
-                text = stringResource(Res.string.done),
+                text = localizedStringResource(Res.string.done),
                 modifier =
                     Modifier
                         .fillMaxWidth()

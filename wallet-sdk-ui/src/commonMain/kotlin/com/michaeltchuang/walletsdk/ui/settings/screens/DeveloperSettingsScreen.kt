@@ -24,8 +24,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -61,27 +61,27 @@ fun DeveloperSettingsScreen(
                 .padding(horizontal = 16.dp),
     ) {
         AlgoKitTopBar(
-            title = stringResource(Res.string.developer_settings),
+            title = localizedStringResource(Res.string.developer_settings),
             onClick = { navController.popBackStack() },
         )
 
         SettingsItem(
             Res.drawable.ic_node,
-            stringResource(Res.string.node_settings),
+            localizedStringResource(Res.string.node_settings),
         ) {
             navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name)
         }
 
         SettingsItem(
             Res.drawable.ic_wallet,
-            stringResource(Res.string.create_legacy_algo25_account),
+            localizedStringResource(Res.string.create_legacy_algo25_account),
         ) {
             viewModel.createAlgoAccount()
         }
 
         SettingsItem(
             Res.drawable.ic_wallet,
-            stringResource(Res.string.create_legacy_hd_account),
+            localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
             navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name)
         }

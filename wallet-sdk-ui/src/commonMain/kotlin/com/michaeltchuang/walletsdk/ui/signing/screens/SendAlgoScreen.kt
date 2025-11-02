@@ -66,9 +66,9 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPr
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShapeSmall
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAlgoViewModel
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -177,7 +177,7 @@ private fun SendAlgoTopBar(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = stringResource(Res.string.send_algo),
+                text = localizedStringResource(Res.string.send_algo),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
             )
@@ -262,7 +262,7 @@ private fun SendAlgoContent(
         // Next Button
         AlgoKitPrimaryButton(
             onClick = onNextPressed,
-            text = stringResource(Res.string.next),
+            text = localizedStringResource(Res.string.next),
             modifier = Modifier.fillMaxWidth(),
             state =
                 if (state.amount.isNotEmpty() && state.amount != "0") {
@@ -321,7 +321,14 @@ private fun AmountDisplaySection(
         ) {
             if (isAddNoteEnabled.not()) {
                 Text(
-                    text = if (noteText.value.isBlank()) stringResource(Res.string.add_note) else stringResource(Res.string.edit_note),
+                    text =
+                        if (noteText.value.isBlank()) {
+                            localizedStringResource(
+                                Res.string.add_note,
+                            )
+                        } else {
+                            localizedStringResource(Res.string.edit_note)
+                        },
                     style = typography.body.regular.sansMedium,
                     color = AlgoKitTheme.colors.textGray,
                     modifier =
@@ -332,7 +339,7 @@ private fun AmountDisplaySection(
             }
 
             Text(
-                text = stringResource(Res.string.max),
+                text = localizedStringResource(Res.string.max),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textGray,
                 modifier = Modifier.clickable { onMaxPressed() },
@@ -528,14 +535,14 @@ fun SendAlgoAddNoteTextField(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.enter_your_note),
+                text = localizedStringResource(Res.string.enter_your_note),
             )
 
             Text(
                 modifier = Modifier.clickable(onClick = onDoneClick),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.done),
+                text = localizedStringResource(Res.string.done),
             )
         }
 

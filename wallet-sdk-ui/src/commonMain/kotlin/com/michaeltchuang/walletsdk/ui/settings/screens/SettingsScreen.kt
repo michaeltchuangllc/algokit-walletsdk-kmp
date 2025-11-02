@@ -6,8 +6,10 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.get_help
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_feedback
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_localization
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_moon
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.localization_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.next
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.privacy_policy
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.settings
@@ -48,9 +50,9 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.isDebugBuild
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -64,7 +66,7 @@ fun SettingsScreen(navController: NavController) {
                 .padding(horizontal = 16.dp),
     ) {
         Text(
-            text = stringResource(Res.string.settings),
+            text = localizedStringResource(Res.string.settings),
             modifier =
                 Modifier
                     .padding(vertical = 16.dp),
@@ -77,50 +79,50 @@ fun SettingsScreen(navController: NavController) {
 
         // Section: App Preferences
         Text(
-            text = stringResource(Res.string.app_preferences),
+            text = localizedStringResource(Res.string.app_preferences),
             color = AlgoKitTheme.colors.textMain,
             style = AlgoKitTheme.typography.body.regular.sansMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
         SettingsItem(
             icon = Res.drawable.ic_moon,
-            title = stringResource(Res.string.theme),
+            title = localizedStringResource(Res.string.theme),
         ) {
             navController.navigate(AlgoKitScreens.THEME_SCREEN.name)
         }
-//        SettingsItem(
-//            icon = Res.drawable.ic_localization,
-//            title = stringResource(Res.string.localization_settings),
-//        ) {
-//            navController.navigate(AlgoKitScreens.LANGUAGE_SCREEN.name)
-//        }
+        SettingsItem(
+            icon = Res.drawable.ic_localization,
+            title = localizedStringResource(Res.string.localization_settings),
+        ) {
+            navController.navigate(AlgoKitScreens.LANGUAGE_SCREEN.name)
+        }
         Spacer(modifier = Modifier.height(16.dp))
 
         // Section: Support
         Text(
-            text = stringResource(Res.string.support),
+            text = localizedStringResource(Res.string.support),
             color = AlgoKitTheme.colors.textMain,
             style = AlgoKitTheme.typography.body.regular.sansMedium,
             modifier = Modifier.padding(vertical = 8.dp),
         )
         SettingsWebviewItem(
             Res.drawable.ic_feedback,
-            stringResource(Res.string.get_help),
+            localizedStringResource(Res.string.get_help),
             WalletSdkConstants.SUPPORT_URL,
         )
         SettingsWebviewItem(
             Res.drawable.ic_text_document,
-            stringResource(Res.string.privacy_policy),
+            localizedStringResource(Res.string.privacy_policy),
             WalletSdkConstants.PRIVACY_POLICY_URL,
         )
         SettingsWebviewItem(
             Res.drawable.ic_text_document,
-            stringResource(Res.string.terms_and_services),
+            localizedStringResource(Res.string.terms_and_services),
             WalletSdkConstants.TERMS_AND_SERVICES_URL,
         )
         SettingsItem(
             Res.drawable.ic_code,
-            stringResource(Res.string.developer_settings),
+            localizedStringResource(Res.string.developer_settings),
         ) {
             navController.navigate(AlgoKitScreens.DEVELOPER_SETTINGS_SCREEN.name)
         }
@@ -190,7 +192,7 @@ fun SettingsWebviewItem(
         Icon(
             Icons.AutoMirrored.Filled.KeyboardArrowRight,
             tint = AlgoKitTheme.colors.textMain,
-            contentDescription = stringResource(Res.string.next),
+            contentDescription = localizedStringResource(Res.string.next),
         )
     }
 }
