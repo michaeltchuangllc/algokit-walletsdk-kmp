@@ -22,8 +22,13 @@ class RecoverPassphraseUseCase(
         mnemonics: String,
         onboardingAccountType: OnboardingAccountType,
     ) = flow {
-        val recoveredAccount = getAccount(onboardingAccountType, mnemonics)
-        emit(recoveredAccount)
+        try {
+            val recoveredAccount = getAccount(onboardingAccountType, mnemonics)
+            emit(recoveredAccount)
+        } catch (e: Exception) {
+            // Catch any exception (IllegalArgumentException, etc.) and return null
+            emit(null)
+        }
     }
 
     private fun getAccount(

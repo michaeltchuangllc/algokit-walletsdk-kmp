@@ -2,9 +2,9 @@ package com.michaeltchuang.walletsdk.ui.onboarding.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.enter_your_recovery_passphrase
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.finish_account_creation
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_info
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,10 +19,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,8 +36,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -49,9 +54,11 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.SAM
 import com.michaeltchuang.walletsdk.core.foundation.utils.splitMnemonic
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -67,8 +74,23 @@ fun RecoveryPhraseScreen(
 ) {
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val viewModel: RecoverPassphraseViewModel = koinViewModel()
-    var mnemonic by rememberSaveable { mutableStateOf(mnemonicString) }
-    var mnemonicList by rememberSaveable { mutableStateOf(mnemonicString.splitMnemonic()) }
+
+    val initialWordCount =
+        when (accountType) {
+            AccountMnemonic.AccountType.Algo25 -> 25
+            AccountMnemonic.AccountType.Falcon24 -> 24
+            else -> 24
+        }
+
+    var mnemonicList by rememberSaveable {
+        mutableStateOf(
+            if (mnemonicString.isNotEmpty()) {
+                mnemonicString.splitMnemonic()
+            } else {
+                List(initialWordCount) { "" }
+            },
+        )
+    }
     val webViewController by rememberWebViewController()
     WebViewPlatform(webViewController = webViewController)
 
@@ -117,7 +139,6 @@ fun RecoveryPhraseScreen(
                             clipboardManager.getText()?.text?.let {
                                 viewModel.onClipBoardPastedMnemonic(it) {
                                     mnemonicList = it.splitMnemonic()
-                                    mnemonic = it
                                 }
                             }
                         },
@@ -154,25 +175,34 @@ fun RecoveryPhraseScreen(
             RecoveryPhraseContent(
                 modifier = Modifier.fillMaxHeight(0.8f),
                 predefinedWords = mnemonicList,
+                onWordChange = { index, value ->
+                    val newList = mnemonicList.toMutableList()
+                    while (newList.size <= index) {
+                        newList.add("")
+                    }
+                    newList[index] = value
+                    mnemonicList = newList
+                },
             )
             Spacer(modifier = Modifier.height(32.dp))
+            val isValid = mnemonicList.all { it.isNotEmpty() }
             AlgoKitPrimaryButton(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .align(Alignment.CenterHorizontally),
-                {
+                onClick = {
                     when (accountType) {
                         AccountMnemonic.AccountType.Algo25 -> {
                             viewModel.onRecoverAccount(
-                                mnemonic,
+                                mnemonicList.joinToString(" "),
                                 OnboardingAccountType.Algo25,
                             )
                         }
 
                         AccountMnemonic.AccountType.Falcon24 -> {
                             viewModel.onRecoverAccount(
-                                mnemonic,
+                                mnemonicList.joinToString(" "),
                                 OnboardingAccountType.Falcon24,
                             )
                         }
@@ -180,7 +210,8 @@ fun RecoveryPhraseScreen(
                         else -> { }
                     }
                 },
-                text = stringResource(Res.string.finish_account_creation),
+                text = localizedStringResource(Res.string.recover),
+                state = if (isValid) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
             )
         }
     }
@@ -190,6 +221,7 @@ fun RecoveryPhraseScreen(
 fun RecoveryPhraseContent(
     modifier: Modifier,
     predefinedWords: List<String>,
+    onWordChange: (index: Int, value: String) -> Unit,
 ) {
     Column(modifier = modifier) {
         Text(
@@ -202,7 +234,7 @@ fun RecoveryPhraseContent(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier.fillMaxSize(),
         ) {
-            val wordCount = if (predefinedWords.isNotEmpty()) predefinedWords.size else 25
+            val wordCount = predefinedWords.size
             items((wordCount + 1) / 2) { rowIndex ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -214,8 +246,8 @@ fun RecoveryPhraseContent(
                     if (leftIndex < wordCount) {
                         RecoveryWordField(
                             index = leftIndex,
-                            value = if (predefinedWords.isNotEmpty()) predefinedWords[leftIndex] else "",
-                            onValueChange = { /*recoveryWords[leftIndex] = it*/ },
+                            value = predefinedWords[leftIndex],
+                            onValueChange = { onWordChange(leftIndex, it) },
                             modifier = Modifier.weight(1f),
                         )
                     }
@@ -223,8 +255,8 @@ fun RecoveryPhraseContent(
                     if (rightIndex < wordCount) {
                         RecoveryWordField(
                             index = rightIndex,
-                            value = if (predefinedWords.isNotEmpty()) predefinedWords[rightIndex] else "",
-                            onValueChange = { /* recoveryWords[rightIndex] = it*/ },
+                            value = predefinedWords[rightIndex],
+                            onValueChange = { onWordChange(rightIndex, it) },
                             modifier = Modifier.weight(1f),
                         )
                     } else {
@@ -243,31 +275,46 @@ fun RecoveryWordField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = modifier.padding(8.dp),
+    Column(
+        modifier =
+            modifier
+                .padding(8.dp),
     ) {
-        Text(
-            modifier = Modifier.padding(4.dp),
-            text = "${index + 1}",
-            style = AlgoKitTheme.typography.title.regular.sans,
-            fontSize = 14.sp,
-            color = AlgoKitTheme.colors.textMain,
-        )
-
-        Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = value,
-                fontSize = 16.sp,
-                color = AlgoKitTheme.colors.textMain,
+                modifier = Modifier.padding(4.dp),
+                text = "${index + 1}",
                 style = AlgoKitTheme.typography.title.regular.sans,
+                fontSize = 14.sp,
+                color = AlgoKitTheme.colors.textMain,
             )
-            Spacer(modifier = Modifier.height(4.dp))
-            HorizontalDivider(
-                thickness = 1.dp,
-                color = Color.Gray,
+
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .padding(end = 16.dp),
+                singleLine = true,
+                textStyle =
+                    LocalTextStyle.current.copy(
+                        fontSize = 16.sp,
+                        color = AlgoKitTheme.colors.textMain,
+                    ),
+                cursorBrush = SolidColor(AlgoKitTheme.colors.textMain),
+                keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Text),
             )
         }
+        HorizontalDivider(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            color = Color.Gray,
+        )
     }
 }
 
