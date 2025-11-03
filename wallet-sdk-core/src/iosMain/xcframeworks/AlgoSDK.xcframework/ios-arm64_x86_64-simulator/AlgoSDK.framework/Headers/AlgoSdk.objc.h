@@ -461,7 +461,9 @@ FOUNDATION_EXPORT NSData* _Nullable AlgoSdkBackupMnemonicToKey(NSString* _Nullab
 
 FOUNDATION_EXPORT AlgoSdkEncryption* _Nullable AlgoSdkDecrypt(NSData* _Nullable data, NSData* _Nullable sk);
 
-FOUNDATION_EXPORT AlgoSdkAlgorandKeyInfo* _Nullable AlgoSdkDeriveFromBIP39(NSString* _Nullable mnemonic, NSError* _Nullable* _Nullable error);
+FOUNDATION_EXPORT AlgoSdkAlgorandKeyInfo* _Nullable AlgoSdkDeriveFromMnemonic(NSString* _Nullable mnemonicStr, NSString* _Nullable passphrase, NSError* _Nullable* _Nullable error);
+
+FOUNDATION_EXPORT AlgoSdkAlgorandKeyInfo* _Nullable AlgoSdkDeriveFromSeedPhrase(NSString* _Nullable phrase, NSError* _Nullable* _Nullable error);
 
 /**
  * DeserializeLogicSigAccountFromJSON deserializes a LogicSigAccount from a JSON string. See

@@ -326,11 +326,11 @@ private fun getBit39Wallet(entropy: ByteArray): Bip39Wallet =
         }
 
         override fun generateFalcon24Address(mnemonic: String): Falcon24 {
-            val address = bridge.getFalconAddressFromMnemonicWithPassphrase(mnemonic)
+            val address = bridge.getFalconAddressFromMnemonicWithMnemonic(mnemonic)
             val publicKeyBase64 =
-                bridge.getFalconPublicKeyFromMnemonicWithPassphrase(mnemonic)
+                bridge.getFalconPublicKeyFromMnemonicWithMnemonic(mnemonic)
             val privateKeyBase64 =
-                bridge.getFalconPrivateKeyFromMnemonicWithPassphrase(mnemonic)
+                bridge.getFalconPrivateKeyFromMnemonicWithMnemonic(mnemonic)
 
             return Falcon24(
                 address = address,
