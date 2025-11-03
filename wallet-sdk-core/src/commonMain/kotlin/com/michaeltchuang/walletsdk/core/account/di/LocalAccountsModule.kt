@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.Algo25Dao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.Falcon24Dao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdKeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdSeedDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.NoAuthDao
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25EntityMapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25EntityMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Falcon24EntityMapper
@@ -12,6 +13,8 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.HdKeyEntityM
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.HdKeyEntityMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.HdSeedEntityMapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.HdSeedEntityMapperImpl
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.NoAuthEntityMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.NoAuthEntityMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.Algo25Mapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.Algo25MapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.Falcon24Mapper
@@ -26,18 +29,24 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdSeedWalletS
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdSeedWalletSummaryMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdWalletSummaryMapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdWalletSummaryMapperImpl
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.NoAuthMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.NoAuthMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.Algo25AccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.Falcon24AccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.HdKeyAccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.HdSeedRepositoryImpl
+import com.michaeltchuang.walletsdk.core.account.data.repository.NoAuthAccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdKeyAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdKeyAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdSeedUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.CreateWatchAccountUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24WalletSummaries
@@ -119,4 +128,16 @@ val localAccountsModule =
         single { GetHdEntropy(get<HdSeedRepository>()::getEntropy) }
         single<HdSeedWalletSummaryMapper> { HdSeedWalletSummaryMapperImpl() }
         single { GetHdSeed(get<HdSeedRepository>()::getSeed) }
+
+        // NoAuth (Watch Account) dependencies
+        single<NoAuthDao> { get<AlgoKitDatabase>().noAuthDao() }
+        single<NoAuthEntityMapper> { NoAuthEntityMapperImpl() }
+        single<NoAuthMapper> { NoAuthMapperImpl() }
+
+        single<NoAuthAccountRepository> {
+            NoAuthAccountRepositoryImpl(get(), get(), get(), get())
+        }
+
+        single { CreateWatchAccountUseCase(get(), get(),get())}
+        single { DeleteNoAuthAccountUseCase(get()) }
     }
