@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.CircularProgressIndicator
@@ -51,8 +53,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitBu
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateWatchAccountViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -137,6 +139,7 @@ private fun ScreenContent(
         modifier = Modifier
             .fillMaxSize()
             .background(color = AlgoKitTheme.colors.background)
+            .verticalScroll(rememberScrollState())
             .padding(16.dp),
     ) {
         AlgoKitTopBar(
@@ -145,81 +148,71 @@ private fun ScreenContent(
             onInfoClick = onInfoClick
         )
 
-        // Main Content
-        Column(
+        Text(
+            style = typography.title.regular.sansBold,
+            color = AlgoKitTheme.colors.textMain,
+            text = localizedStringResource(Res.string.create_a_watch_account),
+            fontWeight = FontWeight.Bold,
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            style = typography.body.regular.sansMedium,
+            color = AlgoKitTheme.colors.textGray,
+            text = localizedStringResource(Res.string.you_are_creating_a_read_only),
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            style = typography.body.regular.sansMedium,
+            color = AlgoKitTheme.colors.textGray,
+            text = localizedStringResource(Res.string.monitor_activity_of),
+        )
+
+        Spacer(modifier = Modifier.height(40.dp))
+
+        // Address Input Field
+        WatchAccountBasicTextField(
+            value = viewState.address,
+            onValueChange = onAddressChanged,
+            onClearClick = { onAddressChanged("") },
+            hint = localizedStringResource(Res.string.account_address_or_short_name),
+            onQRScanClick = { navController.navigate("${AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name}?isForWatchAccount=true") }
+        )
+
+        Spacer(modifier = Modifier.height(50.dp))
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                tint = AlgoKitTheme.colors.negative,
+                imageVector = Icons.Default.Info,
+                contentDescription = "Info",
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                style = typography.body.regular.sansMedium,
+                color = AlgoKitTheme.colors.negative,
+                text = localizedStringResource(Res.string.monitor_activity_of),
+            )
+        }
+
+        Spacer(modifier = Modifier.height(50.dp))
+        // Create Watch Account Button
+        AlgoKitPrimaryButton(
             modifier = Modifier
-                .weight(1f)
-                .padding(top = 24.dp),
-        ) {
-            Text(
-                style = typography.title.regular.sansBold,
-                color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.create_a_watch_account),
-                fontWeight = FontWeight.Bold,
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                style = typography.body.regular.sansMedium,
-                color = AlgoKitTheme.colors.textGray,
-                text = stringResource(Res.string.you_are_creating_a_read_only),
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                style = typography.body.regular.sansMedium,
-                color = AlgoKitTheme.colors.textGray,
-                text = stringResource(Res.string.monitor_activity_of),
-            )
-
-            Spacer(modifier = Modifier.height(40.dp))
-
-            // Address Input Field
-            WatchAccountBasicTextField(
-                value = viewState.address,
-                onValueChange = onAddressChanged,
-                onClearClick = { onAddressChanged("") },
-                hint = stringResource(Res.string.account_address_or_short_name),
-                onQRScanClick = { navController.navigate("${AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name}?isForWatchAccount=true") }
-            )
-
-            Spacer(modifier = Modifier.weight(1f))
-        }
-
-        Column {
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    tint = AlgoKitTheme.colors.negative,
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "Info",
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-
-                Text(
-                    style = typography.body.regular.sansMedium,
-                    color = AlgoKitTheme.colors.negative,
-                    text = stringResource(Res.string.monitor_activity_of),
-                )
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            onClick = onCreateWatchAccount,
+            text = localizedStringResource(Res.string.create_a_watch),
+            state = if (viewState.isLoading) {
+                AlgoKitButtonState.PROGRESS
+            } else if (viewState.isAddressValid) {
+                AlgoKitButtonState.ENABLED
+            } else {
+                AlgoKitButtonState.DISABLED
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-            // Create Watch Account Button
-            AlgoKitPrimaryButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 16.dp),
-                onClick = onCreateWatchAccount,
-                text = stringResource(Res.string.create_a_watch),
-                state = if (viewState.isLoading) {
-                    AlgoKitButtonState.PROGRESS
-                } else if (viewState.isAddressValid) {
-                    AlgoKitButtonState.ENABLED
-                } else {
-                    AlgoKitButtonState.DISABLED
-                }
-            )
-        }
+        )
 
 
     }

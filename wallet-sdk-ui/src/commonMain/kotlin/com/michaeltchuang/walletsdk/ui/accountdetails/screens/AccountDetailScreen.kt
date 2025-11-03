@@ -53,8 +53,8 @@ import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailWe
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -100,7 +100,7 @@ fun AccountDetailScreen(
                 .padding(horizontal = 16.dp),
     ) {
         Text(
-            text = stringResource(Res.string.account),
+            text = localizedStringResource(Res.string.account),
             modifier =
                 Modifier
                     .padding(vertical = 16.dp),
@@ -140,7 +140,7 @@ fun AccountDetailScreen(
 
                     AccountDetailWebviewItem(
                         icon = Res.drawable.ic_receipt,
-                        title = stringResource(Res.string.transaction_history),
+                        title = localizedStringResource(Res.string.transaction_history),
                         url = "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address",
                     )
 
@@ -150,7 +150,7 @@ fun AccountDetailScreen(
 
                         AccountDetailItem(
                             icon = Res.drawable.ic_key,
-                            title = stringResource(Res.string.view_passphrase),
+                            title = localizedStringResource(Res.string.view_passphrase),
                         ) {
                             navController.navigate(
                                 AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
@@ -164,7 +164,7 @@ fun AccountDetailScreen(
 
                         AccountDetailWebviewItem(
                             icon = Res.drawable.ic_algo_sign,
-                            title = stringResource(Res.string.dispenser_add_funds_to_your_account),
+                            title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
                             url = "https://bank.testnet.algorand.network/?account=$address",
                         )
                     }
@@ -176,7 +176,7 @@ fun AccountDetailScreen(
                         AccountDetailItem(
                             icon = Res.drawable.ic_send,
                             isRemoveAccount = false,
-                            title = stringResource(Res.string.send_funds_to_another_account),
+                            title = localizedStringResource(Res.string.send_funds_to_another_account),
                         ) {
                             navController.navigate(
                                 "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
@@ -189,7 +189,7 @@ fun AccountDetailScreen(
                     AccountDetailItem(
                         icon = Res.drawable.ic_unlink,
                         isRemoveAccount = true,
-                        title = stringResource(Res.string.remove_account),
+                        title = localizedStringResource(Res.string.remove_account),
                     ) {
                         viewModel.deleteAccount(address)
                     }
@@ -205,7 +205,7 @@ fun CopyAddress(
     showSnackBar: (String) -> Unit,
 ) {
     val clipboardManager = LocalClipboardManager.current
-    val copyMessage = stringResource(Res.string.address_copied_to_clipboard)
+    val copyMessage = localizedStringResource(Res.string.address_copied_to_clipboard)
 
     Row(
         modifier =
@@ -219,7 +219,7 @@ fun CopyAddress(
     ) {
         Icon(
             painter = painterResource(Res.drawable.ic_copy),
-            contentDescription = stringResource(Res.string.copy_address),
+            contentDescription = localizedStringResource(Res.string.copy_address),
             tint = AlgoKitTheme.colors.textMain,
             modifier = Modifier.size(24.dp),
         )
@@ -228,7 +228,7 @@ fun CopyAddress(
 
         Column {
             Text(
-                text = stringResource(Res.string.copy_address),
+                text = localizedStringResource(Res.string.copy_address),
                 color = AlgoKitTheme.colors.textMain,
                 style = AlgoKitTheme.typography.body.regular.sansMedium,
             )
