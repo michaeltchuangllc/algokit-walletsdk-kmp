@@ -51,6 +51,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitBu
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateWatchAccountViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -154,7 +155,7 @@ private fun ScreenContent(
             Text(
                 style = typography.title.regular.sansBold,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.create_a_watch_account),
+                text = localizedStringResource(Res.string.create_a_watch_account),
                 fontWeight = FontWeight.Bold,
             )
 
@@ -163,13 +164,13 @@ private fun ScreenContent(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textGray,
-                text = stringResource(Res.string.you_are_creating_a_read_only),
+                text = localizedStringResource(Res.string.you_are_creating_a_read_only),
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textGray,
-                text = stringResource(Res.string.monitor_activity_of),
+                text = localizedStringResource(Res.string.monitor_activity_of),
             )
 
             Spacer(modifier = Modifier.height(40.dp))
@@ -179,7 +180,7 @@ private fun ScreenContent(
                 value = viewState.address,
                 onValueChange = onAddressChanged,
                 onClearClick = { onAddressChanged("") },
-                hint = stringResource(Res.string.account_address_or_short_name),
+                hint = localizedStringResource(Res.string.account_address_or_short_name),
                 onQRScanClick = { navController.navigate("${AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name}?isForWatchAccount=true") }
             )
 
@@ -199,7 +200,7 @@ private fun ScreenContent(
                 Text(
                     style = typography.body.regular.sansMedium,
                     color = AlgoKitTheme.colors.negative,
-                    text = stringResource(Res.string.monitor_activity_of),
+                    text = localizedStringResource(Res.string.monitor_activity_of),
                 )
             }
 
@@ -210,7 +211,7 @@ private fun ScreenContent(
                     .fillMaxWidth()
                     .padding(bottom = 16.dp),
                 onClick = onCreateWatchAccount,
-                text = stringResource(Res.string.create_a_watch),
+                text = localizedStringResource(Res.string.create_a_watch),
                 state = if (viewState.isLoading) {
                     AlgoKitButtonState.PROGRESS
                 } else if (viewState.isAddressValid) {
