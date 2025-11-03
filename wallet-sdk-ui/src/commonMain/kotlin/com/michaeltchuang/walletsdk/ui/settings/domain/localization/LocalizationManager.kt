@@ -25,6 +25,7 @@ val LocalAppLocale = staticCompositionLocalOf { LocalizationPreference.ENGLISH }
  * observe locale changes.
  */
 @Composable
+@Suppress("UNUSED_VARIABLE")
 fun localizedStringResource(resource: StringResource): String {
     // Read the current locale to trigger recomposition when it changes
     val currentLocale = LocalAppLocale.current
@@ -39,6 +40,7 @@ fun localizedStringResource(resource: StringResource): String {
  * when the app locale changes.
  */
 @Composable
+@Suppress("UNUSED_VARIABLE")
 fun localizedStringResource(
     resource: StringResource,
     vararg formatArgs: Any,

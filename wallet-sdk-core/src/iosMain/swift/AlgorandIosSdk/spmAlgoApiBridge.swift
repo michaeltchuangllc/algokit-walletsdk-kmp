@@ -63,14 +63,12 @@ import AlgoSDK
             ]
 
 
-            let extendedPrivateKey = try wallet.deriveKey(
+            return try wallet.deriveKey(
                 rootKey: wallet.fromSeed(seedData),
                 bip44Path: bip44Path,
                 isPrivate: true,
                 derivationType: BIP32DerivationType.Peikert
-            )
-
-            return extendedPrivateKey.base64EncodedString()
+            ).base64EncodedString()
 
         } catch let error {
             print("Failed to generate private key: \(error)")
@@ -142,7 +140,7 @@ import AlgoSDK
     }
 
     public func getAlgo25SecretKey(mnemonic: String?) -> String {
-        if mnemonic != nil {
+        if let mnemonic = mnemonic {
             var error: NSError?
             guard let secretKeyData = AlgoSDK.AlgoSdkMnemonicToPrivateKey(mnemonic, &error) else {
                 print("Failed to convert mnemonic to secret key.")
@@ -245,13 +243,12 @@ import AlgoSDK
         return result
     }
 
-    public func getFalconAddressFromMnemonic(passphrase: String) -> String {
+    public func getFalconAddressFromMnemonic(mnemonic: String) -> String {
         var error: NSError?
-        guard let algorandKeyInfo = AlgoSdkDeriveFromBIP39(passphrase, &error) else {
+        let passphrase = ""
+        guard let algorandKeyInfo = AlgoSdkDeriveFromMnemonic(mnemonic, passphrase, &error) else {
             if let error = error {
                 print("Error deriving from BIP39: \(error)")
-            } else {
-                print("Failed to derive from BIP39 - no key info returned")
             }
             return ""
         }
@@ -259,11 +256,12 @@ import AlgoSDK
         return algorandKeyInfo.algorandAddress
     }
 
-    public func getFalconPublicKeyFromMnemonic(passphrase: String) -> String {
+    public func getFalconPublicKeyFromMnemonic(mnemonic: String) -> String {
         var error: NSError?
-        guard let algorandKeyInfo = AlgoSdkDeriveFromBIP39(passphrase, &error) else {
+        let passphrase = ""
+        guard let algorandKeyInfo = AlgoSdkDeriveFromMnemonic(mnemonic, passphrase, &error) else {
             if let error = error {
-                print("Error deriving from BIP39: \(error)")
+                print("Error deriving from AlgoSdkDeriveFromMnemonic: \(error)")
             }
             return ""
         }
@@ -272,14 +270,17 @@ import AlgoSDK
             print("Public key data is nil")
             return ""
         }
-        return publicKeyData.base64EncodedString()
+
+        let base64Key = publicKeyData.base64EncodedString()
+        return base64Key
     }
 
-    public func getFalconPrivateKeyFromMnemonic(passphrase: String) -> String {
+    public func getFalconPrivateKeyFromMnemonic(mnemonic: String) -> String {
         var error: NSError?
-        guard let algorandKeyInfo = AlgoSdkDeriveFromBIP39(passphrase, &error) else {
+        let passphrase = ""
+        guard let algorandKeyInfo = AlgoSdkDeriveFromMnemonic(mnemonic, passphrase, &error) else {
             if let error = error {
-                print("Error deriving from BIP39: \(error)")
+                print("Error deriving from AlgoSdkDeriveFromMnemonic: \(error)")
             }
             return ""
         }
@@ -288,7 +289,9 @@ import AlgoSDK
             print("Private key data is nil")
             return ""
         }
-        return privateKeyData.base64EncodedString()
+
+        let base64Key = privateKeyData.base64EncodedString()
+        return base64Key
     }
 
     public func signFalconTransaction(
@@ -297,7 +300,8 @@ import AlgoSDK
         privateKeyBase64: String
     ) -> Data? {
         guard let publicKeyData = Data(base64Encoded: publicKeyBase64),
-              let privateKeyData = Data(base64Encoded: privateKeyBase64) else {
+              let privateKeyData = Data(base64Encoded: privateKeyBase64)
+        else {
             print("Failed to decode base64 keys")
             return nil
         }

@@ -24,7 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import org.jetbrains.compose.resources.stringResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -78,9 +78,9 @@ fun GroupChoiceWidget(
 @Composable
 fun GroupChoiceWidgetPreview() {
     GroupChoiceWidget(
-        title = stringResource(Res.string.import_an_account),
-        description = stringResource(Res.string.import_an_existing),
-        iconContentDescription = stringResource(Res.string.import_an_existing),
+        title = localizedStringResource(Res.string.import_an_account),
+        description = localizedStringResource(Res.string.import_an_existing),
+        iconContentDescription = localizedStringResource(Res.string.import_an_existing),
         icon = vectorResource(Res.drawable.ic_key),
         onClick = { },
     )

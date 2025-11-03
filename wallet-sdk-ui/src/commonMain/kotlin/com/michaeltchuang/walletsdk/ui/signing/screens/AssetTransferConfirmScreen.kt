@@ -63,10 +63,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.components.PendingTransactionLoaderWidget
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.AssetTransferConfirmViewModel
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -198,7 +198,7 @@ fun AssetTransferContent(
     ) {
         Column {
             AlgoKitTopBar(
-                title = stringResource(Res.string.confirm_transaction),
+                title = localizedStringResource(Res.string.confirm_transaction),
                 onClick = { navController.popBackStack() },
             )
             AssetTransferContentItems(
@@ -214,7 +214,7 @@ fun AssetTransferContent(
 
         AlgoKitPrimaryButton(
             onClick = onTransactionClick,
-            text = stringResource(Res.string.confirm_transfer),
+            text = localizedStringResource(Res.string.confirm_transfer),
             modifier =
                 Modifier
                     .align(Alignment.BottomCenter)
@@ -243,29 +243,29 @@ fun AssetTransferContentItems(
         Spacer(modifier = Modifier.height(16.dp))
 
         AssetTransferAmountLabeledText(
-            label = stringResource(Res.string.amount),
+            label = localizedStringResource(Res.string.amount),
             value = amount.formatAmount(),
         )
 
         AssetTransferDivider()
 
         AssetTransferAccountLabeledText(
-            label = stringResource(Res.string.account),
+            label = localizedStringResource(Res.string.account),
             value = senderAddress,
         )
         AssetTransferAccountLabeledText(
-            label = stringResource(Res.string.to),
+            label = localizedStringResource(Res.string.to),
             value = receiverAddress,
             isReceiver = true,
         )
 
-        AssetTransferLabeledText(label = stringResource(Res.string.fee), value = fee.toAlgoCurrency())
+        AssetTransferLabeledText(label = localizedStringResource(Res.string.fee), value = fee.toAlgoCurrency())
         Spacer(modifier = Modifier.height(8.dp))
         AssetTransferDivider()
 
 //        AssetTransferLabeledText(label = "Current", value = "10.00".toAlgoCurrency())
         AssetTransferLabeledText(
-            label = stringResource(Res.string.balance),
+            label = localizedStringResource(Res.string.balance),
             value =
                 accountBalance?.let {
                     try {
@@ -411,7 +411,7 @@ fun AssetTransferAddNote(
             ) {
                 Text(
                     modifier = Modifier.fillMaxWidth(.25f),
-                    text = stringResource(Res.string.note),
+                    text = localizedStringResource(Res.string.note),
                     color = AlgoKitTheme.colors.textGray,
                     style = typography.body.regular.sansMedium,
                 )
@@ -424,12 +424,12 @@ fun AssetTransferAddNote(
                 } else {
                     Icon(
                         imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(Res.string.add_note),
+                        contentDescription = localizedStringResource(Res.string.add_note),
                         tint = AlgoKitTheme.colors.textMain,
                     )
                     Text(
                         style = typography.body.large.sansMedium,
-                        text = stringResource(Res.string.add_note),
+                        text = localizedStringResource(Res.string.add_note),
                         color = AlgoKitTheme.colors.textMain,
                     )
                 }
@@ -455,14 +455,14 @@ fun AssetTransferAddNoteTextField(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.enter_your_note),
+                text = localizedStringResource(Res.string.enter_your_note),
             )
 
             Text(
                 modifier = Modifier.clickable(onClick = onDoneClick),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.done),
+                text = localizedStringResource(Res.string.done),
             )
         }
 

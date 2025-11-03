@@ -26,9 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.StringResource
-import org.jetbrains.compose.resources.stringResource
 
 var passphraseTextField: String = ""
 
@@ -48,7 +48,7 @@ fun AlgorandButton(
                 .height(50.dp),
     ) {
         Text(
-            stringResource(resource = stringResourceId),
+            localizedStringResource(resource = stringResourceId),
             style = MaterialTheme.typography.labelLarge,
             color = Color.White,
         )

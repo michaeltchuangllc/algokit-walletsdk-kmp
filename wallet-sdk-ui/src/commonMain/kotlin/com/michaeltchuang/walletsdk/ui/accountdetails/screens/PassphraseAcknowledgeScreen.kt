@@ -50,9 +50,9 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitBu
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitSecondaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -99,7 +99,7 @@ private fun TopIcon() {
 @Composable
 private fun TitleText() {
     Text(
-        text = stringResource(Res.string.keep_it_secret_keep_it),
+        text = localizedStringResource(Res.string.keep_it_secret_keep_it),
         style = AlgoKitTheme.typography.body.large.sansMedium,
         color = AlgoKitTheme.colors.textMain,
     )
@@ -108,7 +108,7 @@ private fun TitleText() {
 @Composable
 private fun DescriptionText() {
     Text(
-        text = stringResource(Res.string.confirm_and_acknowledge_the_following),
+        text = localizedStringResource(Res.string.confirm_and_acknowledge_the_following),
         style = AlgoKitTheme.typography.body.regular.sans,
         color = AlgoKitTheme.colors.textMain,
     )
@@ -131,7 +131,7 @@ private fun ConfirmButton(
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
         state = if (isConfirmButtonEnabled) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
-        text = stringResource(Res.string.reveal_passphrase),
+        text = localizedStringResource(Res.string.reveal_passphrase),
         onClick = {
             navController.navigate(AlgoKitScreens.VIEW_PASSPHRASE_SCREEN.name)
         },
@@ -145,7 +145,7 @@ private fun CancelButton(onClick: () -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 24.dp),
-        text = stringResource(Res.string.cancel),
+        text = localizedStringResource(Res.string.cancel),
         onClick = onClick,
     )
 }
@@ -202,7 +202,7 @@ private fun ConfirmationCheckbox(
                     .weight(1f)
                     .padding(start = 18.dp, end = 16.dp)
                     .onSizeChanged { onHeightChanged(it.height) },
-            text = stringResource(item.resId),
+            text = localizedStringResource(item.resId),
             style = AlgoKitTheme.typography.footnote.sans,
             color = AlgoKitTheme.colors.textMain,
         )

@@ -18,9 +18,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun SettingsItem(
@@ -52,7 +52,7 @@ fun SettingsItem(
         Icon(
             Icons.Default.KeyboardArrowRight,
             tint = AlgoKitTheme.colors.textMain,
-            contentDescription = stringResource(Res.string.next),
+            contentDescription = localizedStringResource(Res.string.next),
         )
     }
 }

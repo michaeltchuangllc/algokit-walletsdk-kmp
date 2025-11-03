@@ -31,7 +31,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitBody
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGrayText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitLinkText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
-import org.jetbrains.compose.resources.stringResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
@@ -96,12 +96,12 @@ fun PeraCard(
 @Composable
 fun PeraCardPreview() {
     PeraCard(
-        title = stringResource(Res.string.mnemonic_type_algo25_title),
-        description = stringResource(Res.string.mnemonic_type_algo25_description),
-        footer = stringResource(Res.string.mnemonic_type_algo25_footer),
+        title = localizedStringResource(Res.string.mnemonic_type_algo25_title),
+        description = localizedStringResource(Res.string.mnemonic_type_algo25_description),
+        footer = localizedStringResource(Res.string.mnemonic_type_algo25_footer),
         highlightContent = {
             AlgoKitHighlightedGrayText(
-                text = stringResource(Res.string.recommended),
+                text = localizedStringResource(Res.string.recommended),
             )
         },
         onClick = { },

@@ -22,8 +22,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 
 @Composable
 fun AlgoKitHeadlineText(
@@ -136,7 +136,7 @@ fun AlgoKitWarningText(
             modifier = Modifier.align(alignment = Alignment.CenterVertically),
             painter = painterResource(Res.drawable.ic_error),
             colorFilter = ColorFilter.tint(color = AlgoKitTheme.colors.negative),
-            contentDescription = stringResource(Res.string.error),
+            contentDescription = localizedStringResource(Res.string.error),
         )
         Text(
             modifier = Modifier.padding(start = 12.dp),

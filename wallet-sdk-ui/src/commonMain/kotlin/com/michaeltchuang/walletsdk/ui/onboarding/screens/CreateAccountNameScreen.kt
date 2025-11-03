@@ -50,8 +50,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateAccountNameViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -140,7 +140,7 @@ fun ScreenContent(
             Text(
                 style = typography.title.regular.sansBold,
                 color = AlgoKitTheme.colors.textMain,
-                text = stringResource(Res.string.name_your_account),
+                text = localizedStringResource(Res.string.name_your_account),
                 fontWeight = FontWeight.Bold,
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -172,7 +172,7 @@ fun ScreenContent(
             {
                 onFinishClick()
             },
-            text = stringResource(Res.string.finish_account_creation),
+            text = localizedStringResource(Res.string.finish_account_creation),
         )
     }
 }
