@@ -67,7 +67,6 @@ import androidx.navigation.NavHostController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.PRIVACY_POLICY_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.TERMS_AND_SERVICES_URL
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -168,7 +167,7 @@ private fun ContentState(
         Spacer(modifier = Modifier.height(20.dp))
         CreateWalletHdWidget(viewModel, scope)
         ImportHdWalletWidget(navController)
-        WatchAddressWidget(onClick)
+        WatchAddressWidget(navController)
         Spacer(modifier = Modifier.weight(1f))
         TermsAndPrivacy()
     }
@@ -286,13 +285,13 @@ fun CreateNewAccountCard(
 }
 
 @Composable
-private fun WatchAddressWidget(onClick: (message: String) -> Unit) {
+private fun WatchAddressWidget(navController: NavController) {
     GroupChoiceWidget(
         title = stringResource(Res.string.watch_an_address),
         description = stringResource(Res.string.monitor_an_algorand_address),
         iconContentDescription = stringResource(Res.string.monitor_an_algorand_address),
         icon = vectorResource(Res.drawable.ic_eye),
-        onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
+        onClick = { navController.navigate(AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name) },
     )
 }
 

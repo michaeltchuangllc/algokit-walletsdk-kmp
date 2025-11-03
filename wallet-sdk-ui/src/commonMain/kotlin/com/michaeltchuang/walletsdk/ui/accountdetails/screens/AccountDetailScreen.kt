@@ -33,9 +33,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -69,6 +69,11 @@ fun AccountDetailScreen(
 ) {
     val viewModel: AccountDetailViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsState()
+
+    // Load account details when screen starts
+    LaunchedEffect(address) {
+        viewModel.loadAccountDetails(address)
+    }
 
     // Handle ViewEvents
     LaunchedEffect(Unit) {
@@ -139,15 +144,18 @@ fun AccountDetailScreen(
                         url = "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address",
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Only show "View passphrase" for non-NoAuth accounts
+                    if (!state.isNoAuthAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_key,
-                        title = stringResource(Res.string.view_passphrase),
-                    ) {
-                        navController.navigate(
-                            AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
-                        )
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_key,
+                            title = stringResource(Res.string.view_passphrase),
+                        ) {
+                            navController.navigate(
+                                AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
+                            )
+                        }
                     }
 
                     // Only show dispenser on TestNet
@@ -161,16 +169,19 @@ fun AccountDetailScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Only show "Send funds" for non-NoAuth accounts
+                    if (!state.isNoAuthAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_send,
-                        isRemoveAccount = false,
-                        title = stringResource(Res.string.send_funds_to_another_account),
-                    ) {
-                        navController.navigate(
-                            "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
-                        )
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_send,
+                            isRemoveAccount = false,
+                            title = stringResource(Res.string.send_funds_to_another_account),
+                        ) {
+                            navController.navigate(
+                                "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

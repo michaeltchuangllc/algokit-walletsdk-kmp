@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreati
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.custom.GetAccountsCustomInfo
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
 
 class NameRegistrationUseCase(
     private val accountAdditionUseCase: AccountAdditionUseCase,
@@ -15,6 +16,7 @@ class NameRegistrationUseCase(
     private val deleteHdKeyAccountUseCase: DeleteHdKeyAccountUseCase,
     private val deleteAlgo25AccountUseCase: DeleteAlgo25AccountUseCase,
     private val deleteFalcon24AccountUseCase: DeleteFalcon24AccountUseCase,
+    private val deleteNoAuthAccountUseCase: DeleteNoAuthAccountUseCase,
 ) {
     suspend fun addNewAccount(accountCreation: AccountCreation) {
         accountAdditionUseCase.addNewAccount(accountCreation)
@@ -38,5 +40,6 @@ class NameRegistrationUseCase(
         deleteAlgo25AccountUseCase(address)
         deleteHdKeyAccountUseCase(address)
         deleteFalcon24AccountUseCase(address)
+        deleteNoAuthAccountUseCase(address)
     }
 }

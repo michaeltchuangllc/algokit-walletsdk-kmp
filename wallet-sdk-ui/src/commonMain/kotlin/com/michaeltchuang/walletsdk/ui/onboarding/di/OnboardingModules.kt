@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.onboarding.di
 
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateAccountNameViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateWatchAccountViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.Falcon24WalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
@@ -53,6 +54,9 @@ internal val onboardingModules =
             }
             viewModel {
                 Falcon24WalletSelectionViewModel(get(), get(), get(), get(), get())
+            }
+            viewModel {
+                CreateWatchAccountViewModel(get(), get())
             }
         },
     )

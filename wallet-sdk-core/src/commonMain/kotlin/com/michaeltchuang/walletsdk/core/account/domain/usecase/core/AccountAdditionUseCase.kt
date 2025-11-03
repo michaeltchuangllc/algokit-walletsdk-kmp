@@ -2,10 +2,12 @@ package com.michaeltchuang.walletsdk.core.account.domain.usecase.core
 
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.CreateAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.CreateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 
 @Suppress("LongParameterList")
 class AccountAdditionUseCase(
+    private val addNoAuthAccount: CreateWatchAccountUseCase,
     private val addHdKeyAccount: AddHdKeyAccount,
     private val addHdSeed: AddHdSeed,
     private val addAlgo25Account: AddAlgo25Account,
@@ -29,7 +31,9 @@ class AccountAdditionUseCase(
 
             is CreateAccount.Type.Algo25 -> createAlgo25Account(createAccount, createAccount.type)
             is CreateAccount.Type.LedgerBle -> {}
-            is CreateAccount.Type.NoAuth -> {}
+            is CreateAccount.Type.NoAuth -> {
+                createNoAuthAccount(createAccount)
+            }
         }
     }
 
@@ -105,5 +109,11 @@ class AccountAdditionUseCase(
             )
             // type.clearFromMemory()
         }
+    }
+
+    private suspend fun createNoAuthAccount(createAccount: CreateAccount) {
+        addNoAuthAccount(
+            createAccount
+        )
     }
 }
