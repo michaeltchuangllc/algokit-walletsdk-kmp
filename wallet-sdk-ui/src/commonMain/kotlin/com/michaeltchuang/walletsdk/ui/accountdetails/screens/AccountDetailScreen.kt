@@ -70,6 +70,11 @@ fun AccountDetailScreen(
     val viewModel: AccountDetailViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsState()
 
+    // Load account details when screen starts
+    LaunchedEffect(address) {
+        viewModel.loadAccountDetails(address)
+    }
+
     // Handle ViewEvents
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -139,15 +144,18 @@ fun AccountDetailScreen(
                         url = "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address",
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Only show "View passphrase" for non-NoAuth accounts
+                    if (!state.isNoAuthAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_key,
-                        title = localizedStringResource(Res.string.view_passphrase),
-                    ) {
-                        navController.navigate(
-                            AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
-                        )
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_key,
+                            title = localizedStringResource(Res.string.view_passphrase),
+                        ) {
+                            navController.navigate(
+                                AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
+                            )
+                        }
                     }
 
                     // Only show dispenser on TestNet
@@ -161,16 +169,19 @@ fun AccountDetailScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // Only show "Send funds" for non-NoAuth accounts
+                    if (!state.isNoAuthAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_send,
-                        isRemoveAccount = false,
-                        title = localizedStringResource(Res.string.send_funds_to_another_account),
-                    ) {
-                        navController.navigate(
-                            "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
-                        )
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_send,
+                            isRemoveAccount = false,
+                            title = localizedStringResource(Res.string.send_funds_to_another_account),
+                        ) {
+                            navController.navigate(
+                                "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
+                            )
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

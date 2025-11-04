@@ -25,8 +25,9 @@ import qrscanner.QrScanner
 @Composable
 fun QRCodeScannerScreen(
     navController: NavController,
-    onQrScanned: (String) -> Unit,
+    onQrScanned: (String) -> Unit = {},
     closeSheet: () -> Unit,
+    isForWatchAccount: Boolean = false,
 ) {
     val viewModel: QRScannerViewModel = koinViewModel()
     val hasProcessedResult = remember { mutableStateOf(false) }
@@ -50,6 +51,18 @@ fun QRCodeScannerScreen(
                             "?receiver=${it.assetTransfer.receiverAccountAddress}" +
                             "&amount=${it.assetTransfer.amount}",
                     )
+                }
+
+                is QRScannerViewModel.ViewEvent.NavigateToAddressScreen -> {
+                    if (isForWatchAccount) {
+                        // Navigate back to CreateWatchAccountScreen with the scanned address
+                        navController.navigate(
+                            "${AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name}?scannedAddress=${it.accountAddress.address}",
+                        )
+                    } else {
+                        // Handle other address navigation scenarios
+                        onQrScanned(it.accountAddress.address)
+                    }
                 }
 
                 is QRScannerViewModel.ViewEvent.ShowUnrecognizedDeeplink -> {

@@ -99,8 +99,28 @@ class QRScannerViewModel(
 
     fun handleDeeplink(uri: String) {
         viewModelScope.launch(Dispatchers.IO) {
+            // First try to handle as a deeplink
             deeplinkHandler.handleDeepLink(uri)
+
+            // If it's not recognized as a deeplink, check if it's a plain Algorand address
+            if (isValidAlgorandAddress(uri.trim())) {
+                // Treat plain address as an AccountAddress deeplink
+                val accountAddress =
+                    DeepLink.AccountAddress(
+                        address = uri.trim(),
+                        label = null,
+                    )
+                eventDelegate.sendEvent(
+                    scope = viewModelScope,
+                    newEvent = ViewEvent.NavigateToAddressScreen(accountAddress),
+                )
+            }
         }
+    }
+
+    private fun isValidAlgorandAddress(address: String): Boolean {
+        // Basic validation: 58 characters, alphanumeric
+        return address.length == 58 && address.all { it.isLetterOrDigit() }
     }
 
     interface ViewEvent {

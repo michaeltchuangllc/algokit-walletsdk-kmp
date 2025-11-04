@@ -119,19 +119,16 @@ fun RecoveryPhraseScreen(
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Absolute.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 AlgoKitTopBar(
-                    modifier =
-                        Modifier
-                            .wrapContentSize(),
+                    modifier = Modifier.weight(1f, fill = false),
                     onClick = { navController.popBackStack() },
                 )
                 Row(
-                    modifier =
-                        Modifier
-                            .wrapContentSize()
-                            .padding(end = 16.dp),
+                    modifier = Modifier.wrapContentSize(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
                         onClick = {
@@ -141,15 +138,13 @@ fun RecoveryPhraseScreen(
                                 }
                             }
                         },
-                        modifier =
-                            Modifier
-                                .size(32.dp)
-                                .padding(end = 8.dp),
+                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
                             tint = AlgoKitTheme.colors.textMain,
                             painter = painterResource(Res.drawable.ic_clipboard),
-                            contentDescription = "Back",
+                            contentDescription = "Paste from clipboard",
+                            modifier = Modifier.size(24.dp),
                         )
                     }
 
@@ -157,15 +152,13 @@ fun RecoveryPhraseScreen(
                         onClick = {
                             webViewController.open(WalletSdkConstants.RECOVER_ACCOUNT_LEARN_MORE)
                         },
-                        modifier =
-                            Modifier
-                                .size(32.dp)
-                                .padding(start = 8.dp),
+                        modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
                             tint = AlgoKitTheme.colors.textMain,
                             painter = painterResource(Res.drawable.ic_info),
-                            contentDescription = "Back",
+                            contentDescription = "Learn more",
+                            modifier = Modifier.size(24.dp),
                         )
                     }
                 }

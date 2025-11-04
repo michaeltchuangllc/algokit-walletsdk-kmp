@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreationFalcon24TypeMapper
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
 import com.michaeltchuang.walletsdk.core.algosdk.createBip39Wallet
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 class OnboardingAccountTypeViewModel(
     private val accountCreationFalcon24TypeMapper: AccountCreationFalcon24TypeMapper,
     private val hdSeedRepository: HdSeedRepository,
+    private val falcon24AccountRepository: Falcon24AccountRepository,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -26,15 +28,15 @@ class OnboardingAccountTypeViewModel(
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
         viewModelScope.launch { initializeEncryptionManager() }
-        hasAnySeedExist()
+        checkForWalletsWithNoAccounts()
     }
 
-    private fun hasAnySeedExist() {
+    private fun checkForWalletsWithNoAccounts() {
         viewModelScope.launch {
-            hdSeedRepository.hasAnySeed().let { hasAnySeed ->
-                stateDelegate.updateState {
-                    ViewState.Content(hasAnySeed)
-                }
+            val hdWalletSummaries = falcon24AccountRepository.getHdWalletSummaries()
+            val hasWalletWithNoAccounts = hdWalletSummaries.any { it.accountCount == 0 }
+            stateDelegate.updateState {
+                ViewState.Content(hasWalletWithNoAccounts)
             }
         }
     }
@@ -80,7 +82,7 @@ class OnboardingAccountTypeViewModel(
         data object Loading : ViewState
 
         data class Content(
-            val hasAnySeed: Boolean,
+            val hasWalletWithNoAccounts: Boolean,
         ) : ViewState
     }
 

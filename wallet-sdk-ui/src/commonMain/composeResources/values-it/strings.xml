@@ -1467,6 +1467,10 @@
     <string name="account_type_watch">Account Osservato</string>
     <string name="account_type_ledger">Account Ledger</string>
 
+    <string name="error_account_already_exists">Un account con questo indirizzo esiste già</string>
+    <string name="error_invalid_algorand_address">Indirizzo Algorand non valido</string>
+    <string name="error_failed_to_validate_watch_account">Impossibile convalidare l\'account di osservazione</string>
+
     <string name="send_funds_to_another_account">Invia fondi a un altro account</string>
     <string name="dispenser_add_funds_to_your_account">Dispenser - Aggiungi fondi al tuo account</string>
     <string name="send_algo">Invia ALGO</string>

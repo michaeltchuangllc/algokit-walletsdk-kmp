@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.core.account.domain.repository.local
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import kotlinx.coroutines.flow.Flow
 
-internal interface NoAuthAccountRepository {
+interface NoAuthAccountRepository {
     fun getAllAsFlow(): Flow<List<LocalAccount.NoAuth>>
 
     fun getAccountCountAsFlow(): Flow<Int>
