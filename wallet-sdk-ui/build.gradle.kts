@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.maven.publish)
+    alias(libs.plugins.screenshot)
 }
 
 // Apply shared version calculation script
@@ -124,18 +125,25 @@ kotlin {
     }
 }
 
+
 android {
     namespace = "com.michaeltchuang.walletsdk.ui"
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 24
+        minSdk = libs.versions.android.minSdk.get().toInt()
     }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.4"
+    }
+
+    experimentalProperties["android.experimental.enableScreenshotTest"] = true
 
     sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
     sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
@@ -242,4 +250,12 @@ mavenPublishing {
             url.set("https://github.com/michaeltchuangllc/algokit-walletsdk-kmp")
         }
     }
+}
+
+dependencies {
+    screenshotTestImplementation(compose.uiTooling)
+    screenshotTestImplementation(compose.material3)
+    screenshotTestImplementation(compose.foundation)
+    screenshotTestImplementation(compose.runtime)
+    screenshotTestImplementation(compose.components.resources)
 }

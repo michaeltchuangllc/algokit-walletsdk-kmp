@@ -86,6 +86,8 @@ walletConnectBom = "1.34.1"
 xhdwalletapi = "1.2.0"
 webviewMultiplatform = "1.2.0"
 zxing = "4.3.0"
+# Compose Screenshot Testing
+screenshot = "0.0.1-alpha09"
 
 
 [libraries]
@@ -268,3 +270,5 @@ maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "mavenPubli
 multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 room = { id = "androidx.room", version.ref = "room" }
 spmForKmp = { id = "io.github.frankois944.spmForKmp", version.ref = "spmForKmp" }
+# Compose Screenshot Testing
+screenshot = { id = "com.android.compose.screenshot", version.ref = "screenshot" }
