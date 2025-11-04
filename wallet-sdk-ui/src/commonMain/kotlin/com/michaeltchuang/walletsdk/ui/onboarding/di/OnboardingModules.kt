@@ -27,6 +27,7 @@ internal val onboardingModules =
                     get(),
                     get(),
                     get(),
+                    get(),
                 )
             }
 

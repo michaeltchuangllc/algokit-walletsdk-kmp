@@ -24,7 +24,6 @@ class CreateWatchAccountViewModel(
 ) : ViewModel(),
     StateViewModel<CreateWatchAccountViewModel.ViewState> by stateDelegate,
     EventViewModel<CreateWatchAccountViewModel.ViewEvent> by eventDelegate {
-
     init {
         stateDelegate.setDefaultState(ViewState.Idle)
     }
@@ -35,15 +34,17 @@ class CreateWatchAccountViewModel(
 
         stateDelegate.updateState { currentState ->
             when (currentState) {
-                is ViewState.Content -> currentState.copy(
-                    address = trimmedAddress,
-                    isAddressValid = isValid
-                )
+                is ViewState.Content ->
+                    currentState.copy(
+                        address = trimmedAddress,
+                        isAddressValid = isValid,
+                    )
 
-                else -> ViewState.Content(
-                    address = trimmedAddress,
-                    isAddressValid = isValid
-                )
+                else ->
+                    ViewState.Content(
+                        address = trimmedAddress,
+                        isAddressValid = isValid,
+                    )
             }
         }
     }
@@ -76,27 +77,28 @@ class CreateWatchAccountViewModel(
                         Log.d(TAG, "Watch account validation successful")
 
                         // Now that validation passed, store for the name screen
-                        val accountCreation = AccountCreation(
-                            address = address,
-                            customName = null,
-                            isBackedUp = false,
-                            type = AccountCreation.Type.NoAuth,
-                            creationType = CreationType.CREATE,
-                        )
+                        val accountCreation =
+                            AccountCreation(
+                                address = address,
+                                customName = null,
+                                isBackedUp = false,
+                                type = AccountCreation.Type.NoAuth,
+                                creationType = CreationType.CREATE,
+                            )
 
                         AccountCreationManager.storePendingAccountCreation(accountCreation)
                         eventDelegate.sendEvent(ViewEvent.WatchAccountCreated(accountCreation))
                     },
                     onFailure = { exception ->
                         Log.e(TAG, "Validation failed: ${exception.message}")
-                        val errorType = when (exception) {
-                            is AccountAlreadyExistsException -> ErrorType.AccountAlreadyExists
-                            else -> ErrorType.ValidationFailed
-                        }
+                        val errorType =
+                            when (exception) {
+                                is AccountAlreadyExistsException -> ErrorType.AccountAlreadyExists
+                                else -> ErrorType.ValidationFailed
+                            }
                         displayError(errorType)
-                    }
+                    },
                 )
-
             } catch (e: Exception) {
                 Log.e(TAG, "Error validating watch account: ${e.message}")
                 displayError(ErrorType.ValidationFailed)
@@ -115,7 +117,6 @@ class CreateWatchAccountViewModel(
         eventDelegate.sendEvent(ViewEvent.Error(errorType))
     }
 
-
     sealed interface ViewState {
         data object Idle : ViewState
 
@@ -129,13 +130,18 @@ class CreateWatchAccountViewModel(
     }
 
     sealed interface ViewEvent {
-        data class Error(val errorType: ErrorType) : ViewEvent
-        data class WatchAccountCreated(val accountCreation: AccountCreation) : ViewEvent
+        data class Error(
+            val errorType: ErrorType,
+        ) : ViewEvent
+
+        data class WatchAccountCreated(
+            val accountCreation: AccountCreation,
+        ) : ViewEvent
     }
 
     enum class ErrorType {
         InvalidAddress,
         AccountAlreadyExists,
-        ValidationFailed
+        ValidationFailed,
     }
 }

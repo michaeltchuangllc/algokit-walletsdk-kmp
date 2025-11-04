@@ -111,7 +111,7 @@ fun OnboardingAccountTypeScreen(
         is OnboardingAccountTypeViewModel.ViewState.Loading -> LoadingState()
         is OnboardingAccountTypeViewModel.ViewState.Content ->
             ContentState(
-                isHasAnySeed = viewState.hasAnySeed,
+                hasWalletWithNoAccounts = viewState.hasWalletWithNoAccounts,
                 viewModel = viewModel,
                 scope = scope,
                 navController = navController,
@@ -122,7 +122,7 @@ fun OnboardingAccountTypeScreen(
 
 @Composable
 private fun ContentState(
-    isHasAnySeed: Boolean,
+    hasWalletWithNoAccounts: Boolean,
     viewModel: OnboardingAccountTypeViewModel,
     scope: CoroutineScope,
     navController: NavHostController,
@@ -159,7 +159,7 @@ private fun ContentState(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        if (isHasAnySeed) {
+        if (hasWalletWithNoAccounts) {
             CreateNewAccountCard {
                 navController.navigate(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name)
             }

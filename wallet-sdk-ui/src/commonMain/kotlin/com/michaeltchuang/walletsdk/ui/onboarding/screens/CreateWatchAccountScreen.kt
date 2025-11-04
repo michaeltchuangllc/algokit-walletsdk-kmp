@@ -34,10 +34,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -69,7 +68,7 @@ private const val TAG = "CreateWatchAccountScreen"
 fun CreateWatchAccountScreen(
     navController: NavController = rememberNavController(),
     showSnackBar: (String) -> Unit = {},
-    scannedAddress: String? = null
+    scannedAddress: String? = null,
 ) {
     val viewModel: CreateWatchAccountViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsState()
@@ -82,11 +81,13 @@ fun CreateWatchAccountScreen(
     }
 
     // Create localized error messages map
-    val errorMessages = mapOf(
-        CreateWatchAccountViewModel.ErrorType.InvalidAddress to localizedStringResource(Res.string.error_invalid_algorand_address),
-        CreateWatchAccountViewModel.ErrorType.AccountAlreadyExists to localizedStringResource(Res.string.error_account_already_exists),
-        CreateWatchAccountViewModel.ErrorType.ValidationFailed to localizedStringResource(Res.string.error_failed_to_validate_watch_account)
-    )
+    val errorMessages =
+        mapOf(
+            CreateWatchAccountViewModel.ErrorType.InvalidAddress to localizedStringResource(Res.string.error_invalid_algorand_address),
+            CreateWatchAccountViewModel.ErrorType.AccountAlreadyExists to localizedStringResource(Res.string.error_account_already_exists),
+            CreateWatchAccountViewModel.ErrorType.ValidationFailed to
+                localizedStringResource(Res.string.error_failed_to_validate_watch_account),
+        )
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -124,7 +125,7 @@ fun CreateWatchAccountScreen(
                 onCreateWatchAccount = viewModel::createWatchAccount,
                 onInfoClick = {
                     webViewController.open(WalletSdkConstants.WATCH_ACCOUNT_LEARN_MORE)
-                }
+                },
             )
         }
     }
@@ -134,7 +135,7 @@ fun CreateWatchAccountScreen(
 private fun LoadingState() {
     Box(
         modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
         CircularProgressIndicator(color = AlgoKitTheme.colors.linkPrimary)
     }
@@ -146,19 +147,20 @@ private fun ScreenContent(
     viewState: CreateWatchAccountViewModel.ViewState.Content,
     onAddressChanged: (String) -> Unit,
     onCreateWatchAccount: () -> Unit,
-    onInfoClick: () -> Unit = {}
+    onInfoClick: () -> Unit = {},
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(color = AlgoKitTheme.colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(color = AlgoKitTheme.colors.background)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
     ) {
         AlgoKitTopBar(
             onClick = { navController.popBackStack() },
             showInfoIcon = true,
-            onInfoClick = onInfoClick
+            onInfoClick = onInfoClick,
         )
 
         Text(
@@ -190,7 +192,7 @@ private fun ScreenContent(
             onValueChange = onAddressChanged,
             onClearClick = { onAddressChanged("") },
             hint = localizedStringResource(Res.string.account_address_or_short_name),
-            onQRScanClick = { navController.navigate("${AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name}?isForWatchAccount=true") }
+            onQRScanClick = { navController.navigate("${AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name}?isForWatchAccount=true") },
         )
 
         Spacer(modifier = Modifier.height(50.dp))
@@ -213,21 +215,21 @@ private fun ScreenContent(
         Spacer(modifier = Modifier.height(50.dp))
         // Create Watch Account Button
         AlgoKitPrimaryButton(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
             onClick = onCreateWatchAccount,
             text = localizedStringResource(Res.string.create_a_watch),
-            state = if (viewState.isLoading) {
-                AlgoKitButtonState.PROGRESS
-            } else if (viewState.isAddressValid) {
-                AlgoKitButtonState.ENABLED
-            } else {
-                AlgoKitButtonState.DISABLED
-            }
+            state =
+                if (viewState.isLoading) {
+                    AlgoKitButtonState.PROGRESS
+                } else if (viewState.isAddressValid) {
+                    AlgoKitButtonState.ENABLED
+                } else {
+                    AlgoKitButtonState.DISABLED
+                },
         )
-
-
     }
 }
 
@@ -237,11 +239,11 @@ fun WatchAccountBasicTextField(
     onValueChange: (String) -> Unit,
     onClearClick: () -> Unit,
     hint: String = "",
-    onQRScanClick: () -> Unit
+    onQRScanClick: () -> Unit,
 ) {
     Column(
         Modifier
-            .fillMaxWidth()
+            .fillMaxWidth(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -265,14 +267,15 @@ fun WatchAccountBasicTextField(
                     if (value.isEmpty()) {
                         Text(
                             text = hint,
-                            style = LocalTextStyle.current.copy(
-                                color = AlgoKitTheme.colors.textGray,
-                                fontSize = 16.sp,
-                            )
+                            style =
+                                LocalTextStyle.current.copy(
+                                    color = AlgoKitTheme.colors.textGray,
+                                    fontSize = 16.sp,
+                                ),
                         )
                     }
                     innerTextField()
-                }
+                },
             )
             IconButton(modifier = Modifier.offset(x = (10).dp), onClick = onQRScanClick) {
                 Icon(
@@ -297,14 +300,15 @@ private fun CreateWatchAccountScreenPreview() {
     AlgoKitTheme {
         ScreenContent(
             navController = rememberNavController(),
-            viewState = CreateWatchAccountViewModel.ViewState.Content(
-                address = "", // Empty address to show the hint
-                isAddressValid = false,
-                isLoading = false
-            ),
+            viewState =
+                CreateWatchAccountViewModel.ViewState.Content(
+                    address = "", // Empty address to show the hint
+                    isAddressValid = false,
+                    isLoading = false,
+                ),
             onAddressChanged = {},
             onCreateWatchAccount = {},
-            onInfoClick = {}
+            onInfoClick = {},
         )
     }
 }

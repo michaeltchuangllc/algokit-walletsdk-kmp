@@ -57,7 +57,7 @@ fun QRCodeScannerScreen(
                     if (isForWatchAccount) {
                         // Navigate back to CreateWatchAccountScreen with the scanned address
                         navController.navigate(
-                            "${AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name}?scannedAddress=${it.accountAddress.address}"
+                            "${AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name}?scannedAddress=${it.accountAddress.address}",
                         )
                     } else {
                         // Handle other address navigation scenarios

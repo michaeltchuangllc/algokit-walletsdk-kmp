@@ -23,7 +23,6 @@ class AccountDetailViewModel(
 ) : ViewModel(),
     StateViewModel<AccountDetailViewModel.ViewState> by stateDelegate,
     EventViewModel<AccountDetailViewModel.ViewEvent> by eventDelegate {
-
     private var currentAddress: String? = null
 
     init {
@@ -55,7 +54,7 @@ class AccountDetailViewModel(
                 }
             } catch (e: Exception) {
                 eventDelegate.sendEvent(
-                    ViewEvent.Error(e.message ?: "Failed to load account details")
+                    ViewEvent.Error(e.message ?: "Failed to load account details"),
                 )
             }
         }

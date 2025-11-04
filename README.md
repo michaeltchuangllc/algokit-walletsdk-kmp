@@ -91,7 +91,7 @@ timeline
             : ✅ GitOps - Setup stores for demo Android/iOS app releases
             : ✅ Settings - Localization (Italian, Hindi)
             : ✅ Testing - Setup unit test coverage foundation
-            : Onboarding - Add Watch Accounts
+            : ✅ Onboarding - Add Watch Accounts
 
 
     section Future

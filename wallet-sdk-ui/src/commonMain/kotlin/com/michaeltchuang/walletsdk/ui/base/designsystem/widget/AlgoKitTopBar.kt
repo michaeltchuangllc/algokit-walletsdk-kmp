@@ -84,7 +84,7 @@ fun AlgoKitTopBar(
 fun AlgoKitTopBarPreview() {
     AlgoKitTopBar(
         title = "Settings",
-        onClick = { }
+        onClick = { },
     )
 }
 
@@ -92,7 +92,7 @@ fun AlgoKitTopBarPreview() {
 @Composable
 fun AlgoKitTopBarWithoutTitlePreview() {
     AlgoKitTopBar(
-        onClick = { }
+        onClick = { },
     )
 }
 
@@ -103,6 +103,6 @@ fun AlgoKitTopBarWithInfoIconPreview() {
         title = "Create Watch Account",
         onClick = { },
         showInfoIcon = true,
-        onInfoClick = { }
+        onInfoClick = { },
     )
 }

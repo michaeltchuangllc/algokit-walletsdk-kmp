@@ -196,10 +196,11 @@ fun NavigationBottomSheetNavHost(
         },
     ) { padding ->
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(color = AlgoKitTheme.colors.background)
-                .padding(0.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(color = AlgoKitTheme.colors.background)
+                    .padding(0.dp),
         ) {
             NavHost(
                 navController,
@@ -244,13 +245,14 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(
                     route = AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name + "?scannedAddress={scannedAddress}",
-                    arguments = listOf(
-                        navArgument("scannedAddress") {
-                            type = NavType.StringType
-                            nullable = true
-                            defaultValue = null
-                        }
-                    )
+                    arguments =
+                        listOf(
+                            navArgument("scannedAddress") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
                 ) { backStackEntry ->
                     val scannedAddress = backStackEntry.arguments?.getString("scannedAddress")
                     CreateWatchAccountScreen(
@@ -260,7 +262,7 @@ fun NavigationBottomSheetNavHost(
                                 snackbarHostState.showSnackbar(message)
                             }
                         },
-                        scannedAddress = scannedAddress
+                        scannedAddress = scannedAddress,
                     )
                 }
                 composable(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name) {
@@ -275,12 +277,13 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(
                     route = AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name + "?isForWatchAccount={isForWatchAccount}",
-                    arguments = listOf(
-                        navArgument("isForWatchAccount") {
-                            type = NavType.BoolType
-                            defaultValue = false
-                        }
-                    )
+                    arguments =
+                        listOf(
+                            navArgument("isForWatchAccount") {
+                                type = NavType.BoolType
+                                defaultValue = false
+                            },
+                        ),
                 ) { backStackEntry ->
                     val isForWatchAccount =
                         backStackEntry.arguments?.getBoolean("isForWatchAccount") ?: false
@@ -290,7 +293,7 @@ fun NavigationBottomSheetNavHost(
                             coroutineScope.launch { snackbarHostState.showSnackbar(it) }
                         },
                         closeSheet = { closeSheet() },
-                        isForWatchAccount = isForWatchAccount
+                        isForWatchAccount = isForWatchAccount,
                     )
                 }
                 composable(
