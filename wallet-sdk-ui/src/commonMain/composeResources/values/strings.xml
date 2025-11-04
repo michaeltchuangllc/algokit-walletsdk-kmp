@@ -1598,11 +1598,11 @@
     <string name="hindi">Hindi</string>
 
     <!-- Account Types -->
-    <string name="account_type_hd">Account HD</string>
-    <string name="account_type_algo25">Account Algo25</string>
-    <string name="account_type_falcon24">Account Falcon24</string>
-    <string name="account_type_watch">Account Osservato</string>
-    <string name="account_type_ledger">Account Ledger</string>
+    <string name="account_type_hd">HD Account</string>
+    <string name="account_type_algo25">Algo25 Account</string>
+    <string name="account_type_falcon24">Falcon24 Account</string>
+    <string name="account_type_watch">Watch Account</string>
+    <string name="account_type_ledger">Ledger Account</string>
 
     <string name="send_funds_to_another_account">Send funds to another account</string>
     <string name="dispenser_add_funds_to_your_account">Dispenser - Add funds to your account</string>

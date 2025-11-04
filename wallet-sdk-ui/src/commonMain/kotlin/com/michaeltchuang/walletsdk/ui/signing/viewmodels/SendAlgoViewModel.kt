@@ -2,8 +2,13 @@ package com.michaeltchuang.walletsdk.ui.signing.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.toBigInteger
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -12,13 +17,17 @@ import kotlinx.coroutines.launch
 
 class SendAlgoViewModel(
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
+    private val getAccountMinimumBalance: GetAccountMinimumBalance,
+    private val getLocalAccount: GetLocalAccount,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     StateViewModel<SendAlgoViewModel.ViewState> by stateDelegate,
     EventViewModel<SendAlgoViewModel.ViewEvent> by eventDelegate {
     private var accountBalance: BigInteger = BigInteger.ZERO
+    private var senderAddress: String = ""
     private val algoUsdPrice: Double = 0.199 // Mock price, should come from a price service
+    private val maxDecimalPlaces = 6 // Algorand supports 6 decimal places (microAlgos)
 
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
@@ -30,6 +39,7 @@ class SendAlgoViewModel(
             try {
                 val balance = getAccountAlgoBalance(senderAddress) ?: BigInteger.ZERO
                 accountBalance = balance
+                this@SendAlgoViewModel.senderAddress = senderAddress
                 updateContentState()
             } catch (e: Exception) {
                 stateDelegate.updateState { ViewState.Error("Failed to fetch account balance: ${e.message}") }
@@ -69,33 +79,17 @@ class SendAlgoViewModel(
         if (currentState is ViewState.Content) {
             val currentAmount = currentState.amount
             val newAmount =
-                when (digit) {
-                    "." -> {
-                        if (!currentAmount.contains(".")) {
-                            if (currentAmount.isEmpty()) "0." else "$currentAmount."
-                        } else {
-                            currentAmount
-                        }
-                    }
-
-                    else -> {
-                        if (currentAmount == "0") {
-                            digit
-                        } else {
-                            "$currentAmount$digit"
-                        }
-                    }
+                when {
+                    digit == "." && currentAmount.isEmpty() -> "0."
+                    digit == "." && currentAmount.contains(".") -> return // Already has decimal point
+                    currentAmount == "0" && digit != "." -> digit
+                    else -> "$currentAmount$digit"
                 }
 
-            // Validate decimal places (max 6 for microAlgos precision)
-            if (newAmount.contains(".")) {
-                val parts = newAmount.split(".")
-                if (parts.size == 2 && parts[1].length > 6) {
-                    return // Don't allow more than 6 decimal places
-                }
+            // Validate the new amount is a valid BigDecimal with max decimal places
+            if (isValidAmount(newAmount)) {
+                updateAmountAndRefresh(newAmount)
             }
-
-            updateAmountAndRefresh(newAmount)
         }
     }
 
@@ -114,18 +108,40 @@ class SendAlgoViewModel(
     }
 
     fun onMaxPressed() {
-        val maxSendable = accountBalance
-        if (maxSendable > BigInteger.ZERO) {
-            val maxInAlgos = maxSendable.toString().toDouble() / 1_000_000.0
-            val maxFormatted =
-                maxInAlgos
-                    .toString()
-                    .take(8)
-                    .trimEnd('0')
-                    .trimEnd('.')
-            updateAmountAndRefresh(maxFormatted)
-        } else {
-            updateAmountAndRefresh("0")
+        viewModelScope.launch {
+            try {
+                // Get the minimum balance
+                val minimumBalance = getAccountMinimumBalance(senderAddress) ?: 100000L
+
+                // Determine fee based on account type (0.001 for regular, 0.004 for Falcon24)
+                val account = getLocalAccount(senderAddress)
+                val feeInMicroAlgos =
+                    when (account) {
+                        is LocalAccount.Falcon24 -> 4000L // 0.004 ALGO
+                        else -> 1000L // 0.001 ALGO
+                    }
+
+                // Calculate max sendable: balance - fee - minimum balance
+                // This is the actual amount that will be sent to the recipient
+                val maxSendable =
+                    accountBalance - feeInMicroAlgos.toBigInteger() - minimumBalance.toBigInteger()
+
+                if (maxSendable > BigInteger.ZERO) {
+                    val maxInAlgos = maxSendable.toString().toDouble() / 1_000_000.0
+                    val maxFormatted =
+                        maxInAlgos
+                            .toString()
+                            .take(8)
+                            .trimEnd('0')
+                            .trimEnd('.')
+                    updateAmountAndRefresh(maxFormatted)
+                } else {
+                    updateAmountAndRefresh("0")
+                }
+            } catch (e: Exception) {
+                // Fallback to 0 if anything goes wrong
+                updateAmountAndRefresh("0")
+            }
         }
     }
 
@@ -141,6 +157,26 @@ class SendAlgoViewModel(
             } catch (e: Exception) {
                 stateDelegate.updateState { ViewState.Error("Invalid amount format") }
             }
+        }
+    }
+
+    private fun isValidAmount(amount: String): Boolean {
+        if (amount.isEmpty()) return true
+        if (amount == ".") return false // Just a decimal point is not valid
+
+        return try {
+            // Try to parse as BigDecimal
+            BigDecimal.parseString(amount)
+
+            // Check decimal places
+            if (amount.contains(".")) {
+                val decimalPart = amount.substringAfter(".")
+                decimalPart.length <= maxDecimalPlaces
+            } else {
+                true
+            }
+        } catch (e: Exception) {
+            false
         }
     }
 
