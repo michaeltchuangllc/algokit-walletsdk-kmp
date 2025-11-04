@@ -59,6 +59,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSeedIdI
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveAlgo25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon24Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveHdKeyAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ValidateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase
 import org.koin.dsl.module
 
@@ -140,4 +141,6 @@ val localAccountsModule =
 
         single { CreateWatchAccountUseCase(get(), get(),get())}
         single { DeleteNoAuthAccountUseCase(get()) }
+        single { ValidateWatchAccountUseCase(get()) }
+
     }

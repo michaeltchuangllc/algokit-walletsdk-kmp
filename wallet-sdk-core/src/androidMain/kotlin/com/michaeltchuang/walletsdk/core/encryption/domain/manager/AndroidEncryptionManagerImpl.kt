@@ -5,7 +5,7 @@ import android.security.keystore.KeyProperties
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.encryption.domain.usecase.GetStrongBoxUsedCheck
 import com.michaeltchuang.walletsdk.core.encryption.domain.usecase.SaveStrongBoxUsedCheck
-import com.michaeltchuang.walletsdk.core.foundation.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 import java.security.KeyStore
 import java.security.ProviderException
 import javax.crypto.KeyGenerator
@@ -63,9 +63,9 @@ internal class AndroidEncryptionManagerImpl(
      * Migrates encryption keys to StrongBox
      * @return true if migration was successful
      */
-    override suspend fun migrateToStrongBox(): AlgoKitResult<Boolean> {
+    override suspend fun migrateToStrongBox(): WalletSdkResult<Boolean> {
         if (!shouldMigrateToStrongBox()) {
-            return AlgoKitResult.Success(false)
+            return WalletSdkResult.Success(false)
         }
 
         try {
@@ -73,7 +73,7 @@ internal class AndroidEncryptionManagerImpl(
             val originalKeyExists = keyStore.containsAlias(KEY_ALIAS)
             if (!originalKeyExists) {
                 Log.d(TAG, "No key to migrate to StrongBox")
-                return AlgoKitResult.Success(false)
+                return WalletSdkResult.Success(false)
             }
 
             val keyGenerator = getKeyGenerator()
@@ -84,10 +84,10 @@ internal class AndroidEncryptionManagerImpl(
             // migrate all secret keys in db tables
             // not completely implemented yet so return false
 
-            return AlgoKitResult.Success(false)
+            return WalletSdkResult.Success(false)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to migrate to StrongBox", e)
-            return AlgoKitResult.Error(e)
+            return WalletSdkResult.Error(e)
         }
     }
 

@@ -1012,6 +1012,9 @@
 
     <string name="account_not_found">Account not found</string>
     <string name="account_address_or_short_name">Account address or short name</string>
+    <string name="error_account_already_exists">An account with this address already exists</string>
+    <string name="error_invalid_algorand_address">Invalid Algorand address</string>
+    <string name="error_failed_to_validate_watch_account">Failed to validate watch account</string>
 
     <string name="error_while_opting_to_the">Error while opting to the ASA. Please Retry</string>
     <string name="retry">Retry</string>

@@ -1,14 +1,14 @@
 package com.michaeltchuang.walletsdk.core.foundation
 
-sealed class AlgoKitResult<out T : Any> {
+sealed class WalletSdkResult<out T : Any> {
     data class Success<out T : Any>(
         val data: T,
-    ) : AlgoKitResult<T>()
+    ) : WalletSdkResult<T>()
 
     data class Error(
         val exception: Exception,
         val code: Int? = null,
-    ) : AlgoKitResult<Nothing>()
+    ) : WalletSdkResult<Nothing>()
 
     val isSuccess: Boolean
         get() = this is Success
@@ -37,7 +37,7 @@ sealed class AlgoKitResult<out T : Any> {
             is Error -> onFailed.invoke(exception, code)
         }
 
-    suspend fun <R : Any> map(transform: suspend (T) -> R): AlgoKitResult<R> =
+    suspend fun <R : Any> map(transform: suspend (T) -> R): WalletSdkResult<R> =
         when (this) {
             is Success -> Success(transform(data))
             is Error -> Error(exception, code)

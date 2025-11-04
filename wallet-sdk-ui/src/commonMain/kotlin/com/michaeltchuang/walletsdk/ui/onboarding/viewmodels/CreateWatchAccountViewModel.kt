@@ -3,7 +3,8 @@ package com.michaeltchuang.walletsdk.ui.onboarding.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.CreateWatchAccountUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.AccountAlreadyExistsException
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ValidateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.algosdk.isValidAlgorandAddress
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -19,6 +20,7 @@ private const val TAG = "CreateWatchAccountViewModel"
 class CreateWatchAccountViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
+    private val validateWatchAccountUseCase: ValidateWatchAccountUseCase,
 ) : ViewModel(),
     StateViewModel<CreateWatchAccountViewModel.ViewState> by stateDelegate,
     EventViewModel<CreateWatchAccountViewModel.ViewEvent> by eventDelegate {
@@ -60,39 +62,44 @@ class CreateWatchAccountViewModel(
                 val address = if (currentState is ViewState.Content) currentState.address else ""
 
                 if (isValidAlgorandAddress(address).not()) {
-                    displayError("Invalid Algorand address")
+                    displayError(ErrorType.InvalidAddress)
                     return@launch
                 }
 
-                Log.d(TAG, "Creating watch account for address: $address")
+                Log.d(TAG, "Validating watch account for address: $address")
 
-                //  val result = createWatchAccountUseCase(address)
+                // Validate the account doesn't already exist before navigating
+                val validationResult = validateWatchAccountUseCase(address)
 
-                /*    result.fold(
-                        onSuccess = {
-                            Log.d(TAG, "Watch account created successfully")
-                            eventDelegate.sendEvent(ViewEvent.WatchAccountCreated)
-                        },
-                        onFailure = { exception ->
-                            Log.e(TAG, "Failed to create watch account: ${exception.message}")
-                            displayError(exception.message ?: "Failed to create watch account")
+                validationResult.fold(
+                    onSuccess = {
+                        Log.d(TAG, "Watch account validation successful")
+
+                        // Now that validation passed, store for the name screen
+                        val accountCreation = AccountCreation(
+                            address = address,
+                            customName = null,
+                            isBackedUp = false,
+                            type = AccountCreation.Type.NoAuth,
+                            creationType = CreationType.CREATE,
+                        )
+
+                        AccountCreationManager.storePendingAccountCreation(accountCreation)
+                        eventDelegate.sendEvent(ViewEvent.WatchAccountCreated(accountCreation))
+                    },
+                    onFailure = { exception ->
+                        Log.e(TAG, "Validation failed: ${exception.message}")
+                        val errorType = when (exception) {
+                            is AccountAlreadyExistsException -> ErrorType.AccountAlreadyExists
+                            else -> ErrorType.ValidationFailed
                         }
-                    )*/
-                val accountCreation =
-                    AccountCreation(
-                        address = address,
-                        customName = null,
-                        isBackedUp = false,
-                        type = AccountCreation.Type.NoAuth,
-                        creationType = CreationType.CREATE,
-                    )
-
-                AccountCreationManager.storePendingAccountCreation(accountCreation)
-                eventDelegate.sendEvent(ViewEvent.WatchAccountCreated(accountCreation))
+                        displayError(errorType)
+                    }
+                )
 
             } catch (e: Exception) {
-                Log.e(TAG, "Error creating watch account: ${e.message}")
-                displayError("Failed to create watch account: ${e.message}")
+                Log.e(TAG, "Error validating watch account: ${e.message}")
+                displayError(ErrorType.ValidationFailed)
             } finally {
                 stateDelegate.updateState { currentState ->
                     when (currentState) {
@@ -104,8 +111,8 @@ class CreateWatchAccountViewModel(
         }
     }
 
-    private suspend fun displayError(message: String) {
-        eventDelegate.sendEvent(ViewEvent.Error(message))
+    private suspend fun displayError(errorType: ErrorType) {
+        eventDelegate.sendEvent(ViewEvent.Error(errorType))
     }
 
 
@@ -122,7 +129,13 @@ class CreateWatchAccountViewModel(
     }
 
     sealed interface ViewEvent {
-        data class Error(val message: String) : ViewEvent
+        data class Error(val errorType: ErrorType) : ViewEvent
         data class WatchAccountCreated(val accountCreation: AccountCreation) : ViewEvent
+    }
+
+    enum class ErrorType {
+        InvalidAddress,
+        AccountAlreadyExists,
+        ValidationFailed
     }
 }

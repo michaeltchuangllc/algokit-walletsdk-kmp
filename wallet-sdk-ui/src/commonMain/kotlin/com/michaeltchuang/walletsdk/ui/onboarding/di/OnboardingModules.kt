@@ -56,7 +56,7 @@ internal val onboardingModules =
                 Falcon24WalletSelectionViewModel(get(), get(), get(), get(), get())
             }
             viewModel {
-                CreateWatchAccountViewModel(get(), get())
+                CreateWatchAccountViewModel(get(), get(), get())
             }
         },
     )

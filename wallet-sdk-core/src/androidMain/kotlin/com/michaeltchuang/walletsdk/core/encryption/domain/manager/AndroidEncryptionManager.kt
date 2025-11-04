@@ -1,6 +1,6 @@
 package com.michaeltchuang.walletsdk.core.encryption.domain.manager
 
-import com.michaeltchuang.walletsdk.core.foundation.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 import javax.crypto.SecretKey
 
 interface AndroidEncryptionManager {
@@ -10,5 +10,5 @@ interface AndroidEncryptionManager {
 
     suspend fun shouldMigrateToStrongBox(): Boolean
 
-    suspend fun migrateToStrongBox(): AlgoKitResult<Boolean>
+    suspend fun migrateToStrongBox(): WalletSdkResult<Boolean>
 }

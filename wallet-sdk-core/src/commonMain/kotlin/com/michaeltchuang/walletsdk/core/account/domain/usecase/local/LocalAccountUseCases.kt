@@ -5,7 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegist
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
-import com.michaeltchuang.walletsdk.core.foundation.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 import com.michaeltchuang.walletsdk.core.network.model.AccountInformation
 
@@ -74,7 +74,7 @@ fun interface GetHdEntropy {
 }
 
 fun interface GetAccountMnemonic {
-    suspend operator fun invoke(address: String): AlgoKitResult<AccountMnemonic>
+    suspend operator fun invoke(address: String): WalletSdkResult<AccountMnemonic>
 }
 
 fun interface GetAlgo25SecretKey {

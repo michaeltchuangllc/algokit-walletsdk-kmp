@@ -1016,6 +1016,9 @@
 
     <string name="account_not_found">खाता नहीं मिला</string>
     <string name="account_address_or_short_name">खाते का पता या संक्षिप्त नाम</string>
+    <string name="error_account_already_exists">इस पते वाला एक खाता पहले से मौजूद है</string>
+    <string name="error_invalid_algorand_address">अमान्य एल्गोरैंड पता</string>
+    <string name="error_failed_to_validate_watch_account">वॉच खाते को मान्य करने में विफल</string>
 
     <string name="error_while_opting_to_the">ASA में ऑप्ट-इन करते समय त्रुटि हुई। कृपया पुनः प्रयास करें।</string>
     <string name="retry">पुनः प्रयास करें</string>

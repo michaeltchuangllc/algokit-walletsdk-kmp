@@ -38,7 +38,7 @@ val accountCoreModule =
         single { AddAlgo25AccountUseCase(get(), get()) }
 
         factory<AddAlgo25Account> { get<AddAlgo25AccountUseCase>() }
-        single { AccountAdditionUseCase(get(), get(), get(), get(),get()) }
+        single { AccountAdditionUseCase(get(), get(), get(), get(), get(), get()) }
 
         single { DeleteAlgo25AccountUseCase(get(), get()) }
         single<DeleteAlgo25Account> { get<DeleteAlgo25AccountUseCase>() }
@@ -46,7 +46,6 @@ val accountCoreModule =
         single { AddFalcon24AccountUseCase(get(), get()) }
 
         factory<AddFalcon24Account> { get<AddFalcon24AccountUseCase>() }
-        single { AccountAdditionUseCase(get(), get(), get(), get(),get()) }
 
         single {
             DeleteFalcon24AccountUseCase(

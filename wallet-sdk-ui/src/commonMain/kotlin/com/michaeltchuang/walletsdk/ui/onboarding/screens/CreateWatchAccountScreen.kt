@@ -4,7 +4,11 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_address_or_short_name
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_a_watch
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_a_watch_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.error_account_already_exists
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.error_failed_to_validate_watch_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.error_invalid_algorand_address
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr_scan
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.if_you_do_not
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.monitor_activity_of
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.you_are_creating_a_read_only
 import androidx.compose.foundation.background
@@ -30,9 +34,10 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,6 +81,13 @@ fun CreateWatchAccountScreen(
         viewModel.onAddressChanged(address)
     }
 
+    // Create localized error messages map
+    val errorMessages = mapOf(
+        CreateWatchAccountViewModel.ErrorType.InvalidAddress to localizedStringResource(Res.string.error_invalid_algorand_address),
+        CreateWatchAccountViewModel.ErrorType.AccountAlreadyExists to localizedStringResource(Res.string.error_account_already_exists),
+        CreateWatchAccountViewModel.ErrorType.ValidationFailed to localizedStringResource(Res.string.error_failed_to_validate_watch_account)
+    )
+
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
             when (event) {
@@ -84,8 +96,9 @@ fun CreateWatchAccountScreen(
                 }
 
                 is CreateWatchAccountViewModel.ViewEvent.Error -> {
-                    Log.e(TAG, event.message)
-                    showSnackBar(event.message)
+                    val errorMessage = errorMessages[event.errorType] ?: "An error occurred"
+                    Log.e(TAG, errorMessage)
+                    showSnackBar(errorMessage)
                 }
             }
         }
@@ -110,7 +123,7 @@ fun CreateWatchAccountScreen(
                 onAddressChanged = viewModel::onAddressChanged,
                 onCreateWatchAccount = viewModel::createWatchAccount,
                 onInfoClick = {
-                    webViewController.open(WalletSdkConstants.SUPPORT_URL)
+                    webViewController.open(WalletSdkConstants.WATCH_ACCOUNT_LEARN_MORE)
                 }
             )
         }
@@ -155,7 +168,7 @@ private fun ScreenContent(
             fontWeight = FontWeight.Bold,
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             style = typography.body.regular.sansMedium,
@@ -193,7 +206,7 @@ private fun ScreenContent(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.negative,
-                text = localizedStringResource(Res.string.monitor_activity_of),
+                text = localizedStringResource(Res.string.if_you_do_not),
             )
         }
 

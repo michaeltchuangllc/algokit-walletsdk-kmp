@@ -1,6 +1,6 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.core
 
-import com.michaeltchuang.walletsdk.core.foundation.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 
 fun interface AddAlgo25Account {
     suspend operator fun invoke(
@@ -13,7 +13,7 @@ fun interface AddAlgo25Account {
 }
 
 fun interface AddHdSeed {
-    suspend operator fun invoke(entropy: ByteArray): AlgoKitResult<Int>
+    suspend operator fun invoke(entropy: ByteArray): WalletSdkResult<Int>
 }
 
 fun interface AddFalcon24Account {

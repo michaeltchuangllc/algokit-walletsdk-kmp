@@ -38,16 +38,3 @@ class CreateWatchAccountUseCase(
         }
     }
 }
-
-class DeleteNoAuthAccountUseCase(
-    private val noAuthAccountRepository: NoAuthAccountRepository,
-) {
-    suspend operator fun invoke(address: String): Result<Unit> {
-        return try {
-            noAuthAccountRepository.deleteAccount(address)
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-}
