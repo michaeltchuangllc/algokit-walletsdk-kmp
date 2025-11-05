@@ -8,11 +8,13 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_fun
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_copy
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_passphrase
 import androidx.compose.foundation.background
@@ -135,6 +137,15 @@ fun AccountDetailScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     CopyAddress(address, showSnackBar)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AccountDetailItem(
+                        icon = Res.drawable.ic_qr,
+                        title = localizedStringResource(Res.string.show_qr_code),
+                    ) {
+                        navController.navigate(AlgoKitScreens.QR_CODE_SCREEN.name)
+                    }
 
                     Spacer(modifier = Modifier.height(16.dp))
 

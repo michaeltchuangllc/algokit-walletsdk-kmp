@@ -33,6 +33,7 @@ import com.michaeltchuang.walletsdk.core.deeplink.presentation.screens.QRCodeSca
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreen
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewPlatformScreen
@@ -74,6 +75,7 @@ enum class AlgoKitScreens {
     HD_WALLET_SELECTION_SCREEN,
     INITIAL_REGISTER_INTRO_SCREEN,
     QR_CODE_SCANNER_SCREEN,
+    QR_CODE_SCREEN,
     RECOVER_AN_ACCOUNT_SCREEN,
     RECOVER_PHRASE_SCREEN,
     SETTINGS_SCREEN,
@@ -295,6 +297,19 @@ fun NavigationBottomSheetNavHost(
                         closeSheet = { closeSheet() },
                         isForWatchAccount = isForWatchAccount,
                     )
+                }
+                composable(route = AlgoKitScreens.QR_CODE_SCREEN.name) {
+                    address?.let { addr ->
+                        ShowAddressScreen(
+                            navController = navController,
+                            address = addr,
+                            showSnackBar = { message ->
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar(message)
+                                }
+                            }
+                        )
+                    }
                 }
                 composable(
                     route = AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/{accountType}?mnemonic={mnemonic}",
