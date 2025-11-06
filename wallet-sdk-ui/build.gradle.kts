@@ -9,6 +9,8 @@ plugins {
     alias(libs.plugins.maven.publish)
 }
 
+apply(plugin = "shot")
+
 // Apply shared version calculation script
 apply(from = rootProject.file("gradle/version.gradle.kts"))
 
@@ -129,7 +131,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        minSdk = 24
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        testApplicationId = "com.michaeltchuang.walletsdk.ui.test"
+        testInstrumentationRunner = "com.karumi.shot.ShotTestRunner"
     }
 
     compileOptions {
@@ -137,8 +144,18 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.4"
+    }
+
     sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
     sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 val generateBuildInfo by tasks.registering {
@@ -242,4 +259,17 @@ mavenPublishing {
             url.set("https://github.com/michaeltchuangllc/algokit-walletsdk-kmp")
         }
     }
+}
+
+dependencies {
+    androidTestImplementation(compose.uiTooling)
+    androidTestImplementation(compose.material3)
+    androidTestImplementation(compose.foundation)
+    androidTestImplementation(compose.runtime)
+    androidTestImplementation(compose.components.resources)
+    androidTestImplementation(libs.navigation.compose)
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.3")
+    androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.7.3")
 }
