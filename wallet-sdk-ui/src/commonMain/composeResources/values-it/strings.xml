@@ -1373,8 +1373,8 @@
     <string name="wallet_number">Wallet #%1$d</string>
     <string name="select_hd_wallet">Seleziona HD Wallet</string>
     <string name="create_your_new_account_under">Crea il tuo nuovo account sotto un HD wallet che già possiedi</string>
-    <string name="create_legacy_algo25_account">Crea Account Legacy Algo25</string>
-    <string name="create_legacy_hd_account">Crea Account Legacy Universal HD</string>
+    <string name="create_legacy_algo25_account">Crea un account Algo25 non post-quantico</string>
+    <string name="create_legacy_hd_account">Crea un account Universal HD non post-quantico</string>
     <string name="migration_viewer">Visualizzatore Migrazione</string>
     <string name="migration_troubleshooter">Risoluzione Problemi Migrazione</string>
     <string name="clear_new_accounts">Svuota Nuovi Account (Post v6)</string>
@@ -1424,6 +1424,8 @@
     <string name="create_your_new_falcon24_account">Crea il tuo nuovo account sotto un Falcon24 Wallet che già possiedi</string>
     <string name="recover_a_wallet">Recupera un wallet</string>
     <string name="i_want_to_recover_wallet">Voglio recuperare un wallet Algorand.</string>
+    <string name="recover_a_legacy_account">Recuperare un account non post-quantico</string>
+    <string name="i_want_to_recover_legacy_account">Voglio recuperare un account Algorand non post-quantico utilizzando la mia passphrase di 24 o 25 parole</string>
     <string name="new_to_algorand">Nuovo su Algorand?</string>
     <string name="already_have_an_account">Hai già un account?</string>
 

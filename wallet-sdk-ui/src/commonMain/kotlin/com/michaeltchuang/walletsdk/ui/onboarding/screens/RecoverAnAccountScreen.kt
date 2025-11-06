@@ -63,19 +63,6 @@ fun RecoverAnAccountScreen(
             text = localizedStringResource(Res.string.bottom_sheet_mnemonic_type_title),
         )
         Spacer(Modifier.height(24.dp))
-        PeraCard(
-            title = localizedStringResource(Res.string.mnemonic_type_falcon24_title),
-            description = localizedStringResource(Res.string.mnemonic_type_falcon24_description),
-            footer = localizedStringResource(Res.string.mnemonic_type_falcon24_footer),
-            highlightContent = {
-                AlgoKitHighlightedGreenText(
-                    text = localizedStringResource(Res.string.new_text),
-                )
-            },
-            onClick = {
-                navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/falcon24")
-            },
-        )
 
         PeraCard(
             title = localizedStringResource(Res.string.mnemonic_type_algo25_title),
@@ -102,6 +89,7 @@ fun RecoverAnAccountScreen(
             },
             onClick = {
                 showSnackbar(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET, false)
+                // navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/hdkey")
             },
         )
     }

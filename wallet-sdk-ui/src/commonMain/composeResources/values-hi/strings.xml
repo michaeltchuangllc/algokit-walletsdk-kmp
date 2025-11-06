@@ -1502,8 +1502,8 @@
     <string name="select_hd_wallet">HD वॉलेट चुनें</string>
     <string name="create_your_new_account_under">एक मौजूदा HD वॉलेट के अंतर्गत अपना नया खाता बनाएं</string>
 
-    <string name="create_legacy_algo25_account">पुराना Algo25 खाता बनाएं</string>
-    <string name="create_legacy_hd_account">पुराना Universal HD खाता बनाएं</string>
+    <string name="create_legacy_algo25_account">नॉन पोस्ट-क्वांटम Algo25 खाता बनाएँ</string>
+    <string name="create_legacy_hd_account">नॉन पोस्ट-क्वांटम यूनिवर्सल एचडी खाता बनाएँ</string>
 
     <string name="migration_viewer">माइग्रेशन व्यूअर</string>
     <string name="migration_troubleshooter">माइग्रेशन समस्या निवारक</string>
@@ -1562,6 +1562,9 @@
 
     <string name="recover_a_wallet">एक वॉलेट पुनर्प्राप्त करें</string>
     <string name="i_want_to_recover_wallet">मैं एक Algorand वॉलेट पुनर्प्राप्त करना चाहता हूँ।</string>
+
+    <string name="recover_a_legacy_account">गैर-पोस्ट-क्वांटम खाता पुनर्प्राप्त करेंं</string>
+    <string name="i_want_to_recover_legacy_account">मैं अपने 24 या 25 शब्दों के पासफ़्रेज़ का उपयोग करके एक गैर-पोस्ट-क्वांटम एल्गोरैंड खाते को पुनर्प्राप्त करना चाहता हूँ</string>
 
     <string name="new_to_algorand">Algorand पर नए हैं?</string>
     <string name="already_have_an_account">पहले से एक खाता है?</string>
