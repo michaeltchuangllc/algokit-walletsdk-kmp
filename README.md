@@ -155,13 +155,11 @@ reference images. If there are differences, the test will fail and generate a co
 ./gradlew :wallet-sdk-ui:executeScreenshotTests
 ```
 
-**Example Screenshot Test Location:**
+**Screenshot Repo Example Storage Location:**
 
--
-`wallet-sdk-ui/src/androidTest/kotlin/com/michaeltchuang/walletsdk/ui/onboarding/screens/CreateWatchAccountScreenshotTest.kt`
+- `wallet-sdk-ui/src/androidTest/kotlin/com/michaeltchuang/walletsdk/ui/onboarding/screens/CreateWatchAccountScreenshotTest.kt`
 
-> **Note:** Screenshot tests require an Android device or emulator to be connected. The screenshots
-> are stored in the project and should be committed to version control to track UI changes over time.
+> **Note:** Screenshot tests require an Android device or emulator to be connected.
 
 ### Sample App - Accounts List
 
