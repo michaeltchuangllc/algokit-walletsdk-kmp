@@ -78,6 +78,7 @@ peraWalletConnect = "1.0.1"
 qrkit = "3.0.5"
 review = "2.0.2"
 room = "2.7.0"
+shot = "6.1.0"
 sqlite = "2.5.0"
 spmForKmp = "1.0.0-Beta06"
 runner = "1.6.2"
@@ -86,7 +87,6 @@ walletConnectBom = "1.34.1"
 xhdwalletapi = "1.2.0"
 webviewMultiplatform = "1.2.0"
 zxing = "4.3.0"
-
 
 [libraries]
 
@@ -219,6 +219,7 @@ lifecycle-runtime-testing = { module = "androidx.lifecycle:lifecycle-runtime-tes
 mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 multidex = { module = "androidx.multidex:multidex", version.ref = "multidex" }
 runner = { module = "androidx.test:runner", version.ref = "runner" }
+shot-plugin = { module = "com.karumi:shot", version.ref = "shot" }
 
 # Android / Google Libraries
 agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
