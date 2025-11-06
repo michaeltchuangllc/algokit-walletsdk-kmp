@@ -126,6 +126,43 @@ This project is developed using [Android Studio](https://developer.android.com/s
 
 ## Screenshots
 
+#### Running Screenshot Tests
+
+**Record/Generate Reference Images:**
+
+```bash
+./gradlew :wallet-sdk-ui:executeScreenshotTests -Precord
+```
+
+This command will run all screenshot tests and save the captured screenshots as reference images.
+
+**Verify Screenshots:**
+
+```bash
+./gradlew :wallet-sdk-ui:executeScreenshotTests
+```
+
+This command will run the tests and compare current screenshots against the previously recorded
+reference images. If there are differences, the test will fail and generate a comparison report.
+
+**Module-Specific Commands:**
+
+```bash
+# Record screenshots for wallet-sdk-ui module only
+./gradlew :wallet-sdk-ui:executeScreenshotTests -Precord
+
+# Verify screenshots for wallet-sdk-ui module only
+./gradlew :wallet-sdk-ui:executeScreenshotTests
+```
+
+**Example Screenshot Test Location:**
+
+-
+`wallet-sdk-ui/src/androidTest/kotlin/com/michaeltchuang/walletsdk/ui/onboarding/screens/CreateWatchAccountScreenshotTest.kt`
+
+> **Note:** Screenshot tests require an Android device or emulator to be connected. The screenshots
+> are stored in the project and should be committed to version control to track UI changes over time.
+
 ### Sample App - Accounts List
 
 #### Fetching All Accounts Flow

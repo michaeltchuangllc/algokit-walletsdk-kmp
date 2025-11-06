@@ -7,8 +7,9 @@ plugins {
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.maven.publish)
-    alias(libs.plugins.screenshot)
 }
+
+apply(plugin = "shot")
 
 // Apply shared version calculation script
 apply(from = rootProject.file("gradle/version.gradle.kts"))
@@ -125,13 +126,17 @@ kotlin {
     }
 }
 
-
 android {
     namespace = "com.michaeltchuang.walletsdk.ui"
     compileSdk = 36
 
     defaultConfig {
-        minSdk = libs.versions.android.minSdk.get().toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        testApplicationId = "com.michaeltchuang.walletsdk.ui.test"
+        testInstrumentationRunner = "com.karumi.shot.ShotTestRunner"
     }
 
     compileOptions {
@@ -143,10 +148,14 @@ android {
         kotlinCompilerExtensionVersion = "1.5.4"
     }
 
-    experimentalProperties["android.experimental.enableScreenshotTest"] = true
-
     sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
     sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
+
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+        }
+    }
 }
 
 val generateBuildInfo by tasks.registering {
@@ -253,9 +262,14 @@ mavenPublishing {
 }
 
 dependencies {
-    screenshotTestImplementation(compose.uiTooling)
-    screenshotTestImplementation(compose.material3)
-    screenshotTestImplementation(compose.foundation)
-    screenshotTestImplementation(compose.runtime)
-    screenshotTestImplementation(compose.components.resources)
+    androidTestImplementation(compose.uiTooling)
+    androidTestImplementation(compose.material3)
+    androidTestImplementation(compose.foundation)
+    androidTestImplementation(compose.runtime)
+    androidTestImplementation(compose.components.resources)
+    androidTestImplementation(libs.navigation.compose)
+    androidTestImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.3")
+    androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.7.3")
 }
