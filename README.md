@@ -81,12 +81,12 @@ timeline
             : ✅ Onboarding - Embedded and external webview flow
             : ✅ Account Details - View passphrase flow
             : ✅ Settings - Network switcher flow
-            : ✅ Transaction - Sign KeyReg online/offline flow with QR code
             : ✅ Onboarding - Encrypt secret keys in DB
             : ✅ GitOps - Setup Maven Central for library releases
 
     section In Progress 🔄
-    2025Q4  : ✅ Transaction - Send Algo using account detail or QR code flows (between accounts)
+    2025Q4  : ✅ Transaction - Sign KeyReg online/offline flow with QR code
+            : ✅ Transaction - Send Algo using account detail or QR code flows (between accounts)
             : ✅ Account Details - Add copy and show address button
             : ✅ Account Details - Add testnet dispenser and transaction history links
             : ✅ GitOps - Setup stores for demo Android/iOS app releases
