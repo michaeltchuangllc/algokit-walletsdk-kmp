@@ -180,11 +180,13 @@ class AssetTransferConfirmViewModel(
                 BigInteger.parseString(transferAmount)
             } catch (e: Exception) {
                 eventDelegate.sendEvent(ViewEvent.ShowError("Invalid amount format: $transferAmount"))
+                restoreContentState()
                 return null
             }
 
         if (amountBigInteger <= BigInteger.ZERO) {
             eventDelegate.sendEvent(ViewEvent.ShowError("Amount must be greater than 0"))
+            restoreContentState()
             return null
         }
 
@@ -193,10 +195,12 @@ class AssetTransferConfirmViewModel(
             try {
                 getAccountAlgoBalance(senderAddress) ?: run {
                     eventDelegate.sendEvent(ViewEvent.ShowError("Unable to fetch sender account balance"))
+                    restoreContentState()
                     return null
                 }
             } catch (e: Exception) {
                 eventDelegate.sendEvent(ViewEvent.ShowError("Error fetching balance: ${e.message}"))
+                restoreContentState()
                 return null
             }
 
@@ -205,32 +209,55 @@ class AssetTransferConfirmViewModel(
             try {
                 getAccountMinimumBalance(senderAddress) ?: run {
                     eventDelegate.sendEvent(ViewEvent.ShowError("Unable to fetch minimum balance"))
+                    restoreContentState()
                     return null
                 }
             } catch (e: Exception) {
                 eventDelegate.sendEvent(ViewEvent.ShowError("Error fetching minimum balance: ${e.message}"))
+                restoreContentState()
                 return null
             }
 
         val amountInMicroAlgos = amountBigInteger
 
+        // Determine if this is a max transaction by comparing amount with balance
+        val isMaxTransaction = amountInMicroAlgos == senderAlgoAmount
+
         // Calculate fee based on account type (minimum 0.001 ALGO, 0.004 for Falcon24)
         val feeInAlgos = BigDecimal.parseString(currentFee)
         val fee = (feeInAlgos * BigDecimal.fromInt(1000000)).toBigInteger()
 
-        // Validate that sender has enough balance
-        val totalRequired = amountInMicroAlgos + fee + minimumBalance.toBigInteger()
-        if (senderAlgoAmount < totalRequired) {
-            val availableInMicroAlgos = (senderAlgoAmount - minimumBalance.toBigInteger() - fee)
-            val availableInMicroAlgosBigDecimal =
-                BigDecimal.parseString(availableInMicroAlgos.toString())
-            val availableToSend = availableInMicroAlgosBigDecimal / BigDecimal.fromInt(1000000)
-            eventDelegate.sendEvent(
-                ViewEvent.ShowError(
-                    "Insufficient balance. Available to send: ${availableToSend.toStringExpanded()} ALGO",
-                ),
-            )
-            return null
+        // Validate balance based on whether this is a max transaction
+        if (isMaxTransaction) {
+            // For max transactions, ensure sender has enough for fee + minimum balance
+            val requiredForMax = fee + minimumBalance.toBigInteger()
+            if (senderAlgoAmount < requiredForMax) {
+                val requiredInAlgos =
+                    BigDecimal.parseString(requiredForMax.toString()) / BigDecimal.fromInt(1000000)
+                eventDelegate.sendEvent(
+                    ViewEvent.ShowError(
+                        "Insufficient balance. You need at least ${requiredInAlgos.toStringExpanded()} ALGO for fee and minimum balance.",
+                    ),
+                )
+                restoreContentState()
+                return null
+            }
+        } else {
+            // For non-max transactions, ensure sender has enough for amount + fee + minimum balance
+            val totalRequired = amountInMicroAlgos + fee + minimumBalance.toBigInteger()
+            if (senderAlgoAmount < totalRequired) {
+                val availableInMicroAlgos = (senderAlgoAmount - minimumBalance.toBigInteger() - fee)
+                val availableInMicroAlgosBigDecimal =
+                    BigDecimal.parseString(availableInMicroAlgos.toString())
+                val availableToSend = availableInMicroAlgosBigDecimal / BigDecimal.fromInt(1000000)
+                eventDelegate.sendEvent(
+                    ViewEvent.ShowError(
+                        "Insufficient balance. Available to send: ${availableToSend.toStringExpanded()} ALGO",
+                    ),
+                )
+                restoreContentState()
+                return null
+            }
         }
 
         val assetId = -7L
@@ -249,6 +276,7 @@ class AssetTransferConfirmViewModel(
                 ),
             signer = getTransactionSigner(senderAddress),
             isArc59Transaction = false,
+            isMax = isMaxTransaction,
         )
     }
 
@@ -267,7 +295,10 @@ class AssetTransferConfirmViewModel(
 
     fun sendTransaction() {
         viewModelScope.launch {
-            val transactionData = createSendTransactionData() ?: return@launch
+            val transactionData = createSendTransactionData()
+            if (transactionData == null) {
+                return@launch
+            }
             stateDelegate.updateState { ViewState.Confirming }
             transactionSignManager.initSigningTransactions(
                 isGroupTransaction = false,
@@ -293,6 +324,7 @@ class AssetTransferConfirmViewModel(
                                     error.exception?.message ?: "Transaction failed",
                                 ),
                             )
+                            restoreContentState()
                         },
                     )
                 }
@@ -308,7 +340,6 @@ class AssetTransferConfirmViewModel(
                     else -> "0.001"
                 }
             currentFee = fee
-            // Update the content state with the new fee
             updateContentState()
         }
     }
@@ -340,6 +371,10 @@ class AssetTransferConfirmViewModel(
     sealed interface ViewEvent {
         data class ShowError(
             val message: String,
+            val id: String =
+                kotlin.random.Random
+                    .nextLong()
+                    .toString(),
         ) : ViewEvent
 
         data class TransactionSuccess(
