@@ -173,7 +173,7 @@ exoplayer = { module = "com.google.android.exoplayer:exoplayer", version.ref = "
 # Sensors - Bluetooth / Camera
 biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 ble = { module = "no.nordicsemi.android:ble", version.ref = "ble" }
-qr-kit = { module = "network.chaintech:qr-kit", version.ref = "qrkit" }
+qrkit = { module = "network.chaintech:qr-kit", version.ref = "qrkit" }
 zxing-android-embedded = { module = "com.journeyapps:zxing-android-embedded", version.ref = "zxing" }
 
 # Wallet SDK - Logging

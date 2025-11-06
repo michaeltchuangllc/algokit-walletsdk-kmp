@@ -435,6 +435,7 @@
     <string name="enter_a_passcode">पासकोड दर्ज करें</string>
     <string name="share_address">पता साझा करें</string>
     <string name="show_qr_code">QR कोड दिखाएँ</string>
+    <string name="show_address_qr">QR कोड दिखाएँ (पता)</string>
     <string name="qr_code">QR कोड</string>
     <string name="you_are_about_to">आप <annotation replacement="asset_name">assetNamePlaceholder</annotation> को "<annotation replacement="account_name">accountNamePlaceholder</annotation>" खाते से हटाने और ऑप्ट-आउट करने वाले हैं। आप इस परिसंपत्ति के साथ लेन-देन नहीं कर पाएंगे जब तक आप इसे फिर से ऑप्ट-इन नहीं करते।</string>
     <string name="to_opt_out_and_remove"><annotation replacement="asset_name">assetNamePlaceholder</annotation> से ऑप्ट-आउट और हटाने के लिए शेष राशि 0 होनी चाहिए। कृपया शेष राशि किसी अन्य खाते में स्थानांतरित करें और पुनः प्रयास करें।</string>

@@ -81,7 +81,7 @@ kotlin {
                 implementation(libs.kotlinx.datetime)
                 implementation(libs.webview.multiplatform.mobile)
                 implementation(libs.compose.webview.multiplatform)
-                implementation(libs.qr.kit)
+                implementation(libs.qrkit)
                 implementation(libs.navigation.compose)
                 implementation(libs.datastore)
                 implementation(libs.datastore.preferences)

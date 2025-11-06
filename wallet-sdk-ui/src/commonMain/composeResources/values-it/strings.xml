@@ -412,6 +412,7 @@
     <string name="enter_a_passcode">Inserisci un Codice di Accesso</string>
     <string name="share_address">Condividi Indirizzo</string>
     <string name="show_qr_code">Mostra Codice QR</string>
+    <string name="show_address_qr">Mostra codice QR (indirizzo)</string>
     <string name="qr_code">Codice QR</string>
     <string name="you_are_about_to">Stai per rimuovere e fare l\u2019opt-out da <annotation replacement="asset_name">assetNamePlaceholder</annotation> con "<annotation replacement="account_name">accountNamePlaceholder</annotation>". Non potrai più effettuare transazioni con questo asset da questo account a meno che non fai di nuovo l\u2019opt-in.</string>
     <string name="to_opt_out_and_remove">Per fare l\u2019opt-out e rimuovere <annotation replacement="asset_name">assetNamePlaceholder</annotation> il saldo deve essere 0. Trasferisci il saldo a un altro account e riprova.</string>

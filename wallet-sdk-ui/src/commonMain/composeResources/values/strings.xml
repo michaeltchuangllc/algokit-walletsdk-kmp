@@ -427,6 +427,7 @@
     <string name="enter_a_passcode">Enter a Passcode</string>
     <string name="share_address">Share Address</string>
     <string name="show_qr_code">Show QR Code</string>
+    <string name="show_address_qr">Show QR Code (Address)</string>
     <string name="qr_code">QR Code</string>
     <string name="you_are_about_to">You\u2019re about to remove and opt-out from the <annotation replacement="asset_name">assetNamePlaceholder</annotation> with "<annotation replacement="account_name">accountNamePlaceholder</annotation>". You\u2019ll be unable to transact with this asset from this account unless you opt-in to it again.</string>
     <string name="to_opt_out_and_remove">To opt-out and remove <annotation replacement="asset_name">assetNamePlaceholder</annotation> the balance must be 0. Please transfer the balance to another account and try again.</string>
