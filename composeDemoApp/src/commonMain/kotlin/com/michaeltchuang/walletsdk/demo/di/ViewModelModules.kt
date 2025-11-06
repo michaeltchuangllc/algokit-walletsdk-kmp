@@ -13,11 +13,6 @@ val provideViewModelModules =
             AppViewModel(get())
         }
         viewModel<AccountListViewModel> {
-            AccountListViewModel(
-                get(),
-                get(),
-                get(),
-                get(),
-            )
+            AccountListViewModel(get(), get(), get())
         }
     }

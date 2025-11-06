@@ -18,6 +18,54 @@ dependencies {
 > **Note:** Check Maven Central for the latest
 > versions: [wallet-sdk-ui](https://central.sonatype.com/artifact/com.michaeltchuang.algokit.walletsdk/wallet-sdk-ui) | [wallet-sdk-core](https://central.sonatype.com/artifact/com.michaeltchuang.algokit.walletsdk/wallet-sdk-core)
 
+### Quick Start
+
+For detailed integration instructions and examples, see the [SDK Usage Guide](SDK_USAGE.md).
+
+#### Option 1: Standalone SDK Initialization (Recommended)
+
+```kotlin
+import com.michaeltchuang.walletsdk.core.WalletSDK
+
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        WalletSDK.init()
+    }
+}
+```
+
+#### Option 2: Manual Koin Module Integration
+
+```kotlin
+import com.michaeltchuang.walletsdk.core.foundation.di.walletSdkCoreModules
+import org.koin.core.context.startKoin
+
+class MyApplication : Application() {
+    override fun onCreate() {
+        super.onCreate()
+        startKoin {
+            modules(walletSdkCoreModules)
+        }
+    }
+}
+```
+
+Then use the `WalletSDKManager` interface to interact with SDK functionality:
+
+```kotlin
+class MyViewModel(
+    private val walletSDK: WalletSDKManager
+) : ViewModel() {
+    fun loadAccounts() {
+        viewModelScope.launch {
+            val accounts = walletSDK.getAccounts()
+            // Use accounts
+        }
+    }
+}
+```
+
 ## Overview
 
 ```mermaid
