@@ -195,7 +195,7 @@ fun AlgoKitHighlightedGrayText(
     AlgoKitHighlightedText(
         modifier = modifier,
         text = text,
-        textColor = AlgoKitTheme.colors.textGray,
-        backgroundColor = AlgoKitTheme.colors.textGrayLighter,
+        textColor = AlgoKitTheme.colors.textMain,
+        backgroundColor = AlgoKitTheme.colors.layerGray,
     )
 }

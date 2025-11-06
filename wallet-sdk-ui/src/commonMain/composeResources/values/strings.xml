@@ -1500,8 +1500,8 @@
     <string name="select_hd_wallet">Select HD Wallet</string>
     <string name="create_your_new_account_under">Create your new account under an HD wallet you already have</string>
 
-    <string name="create_legacy_algo25_account">Create Legacy Algo25 Account</string>
-    <string name="create_legacy_hd_account">Create Legacy Universal HD Account</string>
+    <string name="create_legacy_algo25_account">Create Non Post-Quantum Algo25 Account</string>
+    <string name="create_legacy_hd_account">Create Non Post-Quantum Universal HD Account</string>
 
     <string name="migration_viewer">Migration Viewer</string>
     <string name="migration_troubleshooter">Migration Troubleshooter</string>
@@ -1560,6 +1560,9 @@
 
     <string name="recover_a_wallet">Recover a wallet</string>
     <string name="i_want_to_recover_wallet">I want to recover an Algorand wallet.</string>
+
+    <string name="recover_a_legacy_account">Recover a non post-quantum account</string>
+    <string name="i_want_to_recover_legacy_account">I want to recover a non post-quantum Algorand account using my 24 or 25 word passphrase</string>
 
     <string name="new_to_algorand">New to Algorand?</string>
     <string name="already_have_an_account">Already have an account?</string>

@@ -5,6 +5,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.algorand_secure_b
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_import_algorand
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_an
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_legacy_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_restore_my
@@ -13,6 +14,8 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_global
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_ledger
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_vpn_key_alert
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_a_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_an_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_from_pera_web
@@ -20,6 +23,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ledger
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.pair_ledger_device
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.qr_code
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_a_legacy_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_a_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_an_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_an_account_with_qr
@@ -73,6 +77,7 @@ fun AccountRecoveryTypeSelectionScreen(
         Spacer(modifier = Modifier.height(30.dp))
         RecoverAnAccountWidget(navController = navController)
         RecoverAnAccountWithQRWidget(navController)
+        RecoverLegacyAccountWidget(navController = navController)
         // PairLedgerDeviceWidget(onClick)
         // ImportPeraWebWidget(onClick)
         // AlgorandSecureBackupWidget(onClick)
@@ -99,23 +104,36 @@ private fun TitleWidget(isOnHdWallet: Boolean = false) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecoverAnAccountWidget(
-    isOnHdWallet: Boolean = false,
     navController: NavController,
 ) {
     val titleRes: Resource
     val descriptionRes: Resource
-    if (isOnHdWallet) {
-        titleRes = Res.string.recover_a_wallet
-        descriptionRes = Res.string.i_want_to_recover_wallet
-    } else {
-        titleRes = Res.string.recover_an_account
-        descriptionRes = Res.string.i_want_to_recover
-    }
+    titleRes = Res.string.recover_an_account
+    descriptionRes = Res.string.i_want_to_recover
 
     GroupChoiceWidget(
         title = localizedStringResource(titleRes),
         description = localizedStringResource(descriptionRes),
         icon = vectorResource(Res.drawable.ic_key),
+        iconContentDescription = localizedStringResource(Res.string.key),
+        onClick = { navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/falcon24") },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecoverLegacyAccountWidget(
+    navController: NavController,
+) {
+    val titleRes: Resource
+    val descriptionRes: Resource
+    titleRes = Res.string.recover_a_legacy_account
+    descriptionRes = Res.string.i_want_to_recover_legacy_account
+
+    GroupChoiceWidget(
+        title = localizedStringResource(titleRes),
+        description = localizedStringResource(descriptionRes),
+        icon = vectorResource(Res.drawable.ic_vpn_key_alert),
         iconContentDescription = localizedStringResource(Res.string.key),
         onClick = { navController.navigate(AlgoKitScreens.RECOVER_AN_ACCOUNT_SCREEN.name) },
     )
