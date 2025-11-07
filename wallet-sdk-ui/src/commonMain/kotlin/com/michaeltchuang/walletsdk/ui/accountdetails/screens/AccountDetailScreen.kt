@@ -179,7 +179,7 @@ fun AccountDetailScreen(
                         AccountDetailWebviewItem(
                             icon = Res.drawable.ic_algo_sign,
                             title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
-                            url = "https://bank.testnet.algorand.network/?account=$address",
+                            url = "https://lora.algokit.io/testnet/fund/?account=$address",
                         )
                     }
 
