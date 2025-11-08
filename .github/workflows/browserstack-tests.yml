@@ -2,9 +2,9 @@ name: "BrowserStack Instrumented Tests"
 
 on:
   workflow_dispatch:
-  push:
-  pull_request_target:
-    types: [ opened, synchronize ]
+#  push:
+#  pull_request_target:
+#    types: [ opened, synchronize ]
 
 env:
   GITHUB_TOKEN: ${{ github.token }}
