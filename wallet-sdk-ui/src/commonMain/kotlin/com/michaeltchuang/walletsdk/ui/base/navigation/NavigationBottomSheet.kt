@@ -307,7 +307,7 @@ fun NavigationBottomSheetNavHost(
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(message)
                                 }
-                            }
+                            },
                         )
                     }
                 }

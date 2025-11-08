@@ -6,13 +6,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.legacy_text
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_algo25_description
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_algo25_footer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_algo25_title
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_falcon24_description
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_falcon24_footer
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_falcon24_title
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_universal_description
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_universal_footer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.mnemonic_type_universal_title
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.new_text
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -32,7 +28,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.PeraCard
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGrayText
-import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGreenText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource

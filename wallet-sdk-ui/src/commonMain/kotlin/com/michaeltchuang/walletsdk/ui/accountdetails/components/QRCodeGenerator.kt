@@ -25,7 +25,7 @@ fun QRCodeDisplay(
     data: String,
     size: Dp = 232.dp,
     modifier: Modifier = Modifier,
-    onQRCodeGenerated: ((ImageBitmap?) -> Unit)? = null
+    onQRCodeGenerated: ((ImageBitmap?) -> Unit)? = null,
 ) {
     val qrPainter = rememberQrKitPainter(data = data)
 
@@ -36,17 +36,18 @@ fun QRCodeDisplay(
     }
 
     Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.White),
-        contentAlignment = Alignment.Center
+        modifier =
+            modifier
+                .size(size)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.White),
+        contentAlignment = Alignment.Center,
     ) {
         if (data.isNotBlank()) {
             Image(
                 painter = qrPainter,
                 contentDescription = "QR Code for $data",
-                modifier = Modifier.size(size - 16.dp)
+                modifier = Modifier.size(size - 16.dp),
             )
         } else {
             // Fallback when data is empty
@@ -56,7 +57,7 @@ fun QRCodeDisplay(
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
-                maxLines = 2
+                maxLines = 2,
             )
         }
     }

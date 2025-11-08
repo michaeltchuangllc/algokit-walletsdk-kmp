@@ -101,8 +101,6 @@ kotlin {
 
         androidMain {
             dependencies {
-                implementation(libs.xhdwalletapi)
-                implementation(libs.kotlin.bip39)
                 implementation(libs.androidx.activityCompose)
                 implementation(libs.androidx.compose.foundation)
                 implementation(libs.androidx.lifecycle.runtime.compose)
@@ -114,9 +112,6 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation(compose.uiTooling)
                 implementation(compose.components.uiToolingPreview)
-                implementation(project.dependencies.platform(libs.firebase.bom))
-                implementation(libs.firebase.analytics)
-                implementation(libs.firebase.config)
                 implementation(libs.koin.android)
             }
         }

@@ -101,26 +101,16 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.androidx.lifecycle.viewmodel.compose)
             implementation(libs.androidx.lifecycle.viewmodel.savedstate)
+            implementation(libs.javax.inject)
+            implementation(libs.koin.android)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.kotlinfixture)
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
-            implementation(compose.uiTooling)
-            implementation(compose.components.uiToolingPreview)
-            implementation(project.dependencies.platform(libs.firebase.bom))
-            implementation(libs.firebase.analytics)
-            implementation(libs.firebase.config)
-            implementation(libs.koin.android)
         }
         commonMain.dependencies {
             api(libs.napier)
 
-            implementation(compose.animation)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
-            implementation(compose.foundation)
-            implementation(compose.material)
-            implementation(compose.material3)
             implementation(compose.runtime)
             implementation(libs.bitcoin.kmp)
             implementation(libs.coil.compose)
@@ -147,7 +137,6 @@ kotlin {
             implementation(libs.room.runtime)
             implementation(libs.sqlite.bundled)
             implementation(libs.bignum)
-            implementation(libs.compottie)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

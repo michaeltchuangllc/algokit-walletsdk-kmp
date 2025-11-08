@@ -7,14 +7,12 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_an
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_legacy_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_qr
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_restore_my
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_backup
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_global
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_ledger
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_vpn_key_alert
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_a_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_an_account
@@ -24,7 +22,6 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ledger
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.pair_ledger_device
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_a_legacy_account
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_a_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_an_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_an_account_with_qr
 import androidx.compose.foundation.background
@@ -103,9 +100,7 @@ private fun TitleWidget(isOnHdWallet: Boolean = false) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecoverAnAccountWidget(
-    navController: NavController,
-) {
+private fun RecoverAnAccountWidget(navController: NavController) {
     val titleRes: Resource
     val descriptionRes: Resource
     titleRes = Res.string.recover_an_account
@@ -122,9 +117,7 @@ private fun RecoverAnAccountWidget(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RecoverLegacyAccountWidget(
-    navController: NavController,
-) {
+private fun RecoverLegacyAccountWidget(navController: NavController) {
     val titleRes: Resource
     val descriptionRes: Resource
     titleRes = Res.string.recover_a_legacy_account
