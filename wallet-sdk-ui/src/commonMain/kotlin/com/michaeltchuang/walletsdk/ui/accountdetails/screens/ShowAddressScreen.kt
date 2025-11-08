@@ -85,9 +85,10 @@ fun ShowAddressScreen(
     }
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(color = AlgoKitTheme.colors.background)
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(color = AlgoKitTheme.colors.background),
     ) {
         // Top Bar with Back Button
         AlgoKitTopBar(
@@ -95,54 +96,60 @@ fun ShowAddressScreen(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
             onClick = {
                 navController.popBackStack()
-            }
+            },
         )
 
         // Scrollable Content
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(modifier = Modifier.height(24.dp))
 
             // QR Code Card
             Card(
-                modifier = Modifier
-                    .size(280.dp)
-                    .clip(RoundedCornerShape(16.dp)),
-                colors = CardDefaults.cardColors(
-                    containerColor = Color.White
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 8.dp
-                )
+                modifier =
+                    Modifier
+                        .size(280.dp)
+                        .clip(RoundedCornerShape(16.dp)),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = Color.White,
+                    ),
+                elevation =
+                    CardDefaults.cardElevation(
+                        defaultElevation = 8.dp,
+                    ),
             ) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
+                    modifier =
+                        Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
                     when (val state = viewState) {
                         is QRCodeViewModel.ViewState.Content -> {
                             QRCodeDisplay(
                                 data = state.address,
-                                modifier = Modifier.size(232.dp)
+                                modifier = Modifier.size(232.dp),
                             )
                         }
 
                         else -> {
                             // Loading or error state placeholder
                             Box(
-                                modifier = Modifier
-                                    .size(232.dp)
-                                    .background(
-                                        color = AlgoKitTheme.colors.layerGrayLighter,
-                                        shape = RoundedCornerShape(8.dp)
-                                    )
+                                modifier =
+                                    Modifier
+                                        .size(232.dp)
+                                        .background(
+                                            color = AlgoKitTheme.colors.layerGrayLighter,
+                                            shape = RoundedCornerShape(8.dp),
+                                        ),
                             )
                         }
                     }
@@ -156,43 +163,46 @@ fun ShowAddressScreen(
                 is QRCodeViewModel.ViewState.Content -> {
                     Text(
                         text = state.displayAddress,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                         color = AlgoKitTheme.colors.textMain,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
                         text = state.address,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
                         color = AlgoKitTheme.colors.textGray,
                         fontSize = 12.sp,
                         textAlign = TextAlign.Center,
                         maxLines = 3,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
 
                 else -> {
                     // Placeholder for loading state
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 16.dp)
-                            .background(
-                                color = AlgoKitTheme.colors.layerGrayLighter,
-                                shape = RoundedCornerShape(4.dp)
-                            )
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .padding(horizontal = 16.dp)
+                                .background(
+                                    color = AlgoKitTheme.colors.layerGrayLighter,
+                                    shape = RoundedCornerShape(4.dp),
+                                ),
                     )
                 }
             }
@@ -201,9 +211,10 @@ fun ShowAddressScreen(
 
             // Action Buttons - Copy Address
             AlgoKitPrimaryButton(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                 onClick = {
                     viewModel.copyAddress(copiedMessage)
                 },
@@ -212,9 +223,9 @@ fun ShowAddressScreen(
                     Icon(
                         painter = painterResource(Res.drawable.ic_copy),
                         contentDescription = localizedStringResource(Res.string.copy_address),
-                        modifier = Modifier.size(20.dp)
+                        modifier = Modifier.size(20.dp),
                     )
-                }
+                },
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -257,7 +268,7 @@ fun QRCodeScreenPreview() {
         ShowAddressScreen(
             navController = rememberNavController(),
             address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
-            showSnackBar = {}
+            showSnackBar = {},
         )
     }
 }

@@ -15,7 +15,6 @@ class QRCodeViewModel(
 ) : ViewModel(),
     StateViewModel<QRCodeViewModel.ViewState> by stateDelegate,
     EventViewModel<QRCodeViewModel.ViewEvent> by eventDelegate {
-
     init {
         stateDelegate.setDefaultState(ViewState.Idle)
     }
@@ -28,11 +27,10 @@ class QRCodeViewModel(
                     return@launch
                 }
 
-
                 stateDelegate.updateState {
                     ViewState.Content(
                         address = address,
-                        displayAddress = address.toShortenedAddress()
+                        displayAddress = address.toShortenedAddress(),
                     )
                 }
             } catch (e: Exception) {
@@ -59,35 +57,46 @@ class QRCodeViewModel(
                 val shareMessage = buildShareMessage(address)
                 eventDelegate.sendEvent(
                     viewModelScope,
-                    ViewEvent.AddressShared(address, shareMessage)
+                    ViewEvent.AddressShared(address, shareMessage),
                 )
             } catch (e: Exception) {
                 eventDelegate.sendEvent(
                     viewModelScope,
-                    ViewEvent.Error("Failed to share address: ${e.message}")
+                    ViewEvent.Error("Failed to share address: ${e.message}"),
                 )
             }
         }
     }
 
-    private fun buildShareMessage(address: String): String {
-        return "My Algorand wallet address: $address"
-    }
+    private fun buildShareMessage(address: String): String = "My Algorand wallet address: $address"
 
     sealed interface ViewState {
         data object Idle : ViewState
+
         data object Loading : ViewState
+
         data class Content(
             val address: String,
-            val displayAddress: String
+            val displayAddress: String,
         ) : ViewState
 
-        data class Error(val message: String) : ViewState
+        data class Error(
+            val message: String,
+        ) : ViewState
     }
 
     sealed interface ViewEvent {
-        data class AddressCopied(val message: String) : ViewEvent
-        data class AddressShared(val address: String, val message: String) : ViewEvent
-        data class Error(val message: String) : ViewEvent
+        data class AddressCopied(
+            val message: String,
+        ) : ViewEvent
+
+        data class AddressShared(
+            val address: String,
+            val message: String,
+        ) : ViewEvent
+
+        data class Error(
+            val message: String,
+        ) : ViewEvent
     }
 }

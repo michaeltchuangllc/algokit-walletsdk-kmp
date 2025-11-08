@@ -12,12 +12,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address_qr
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_passphrase
 import androidx.compose.foundation.background

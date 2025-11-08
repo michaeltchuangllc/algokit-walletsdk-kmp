@@ -36,15 +36,12 @@ desugar = "2.1.5"
 datastore = "1.1.7"
 detekt = "1.23.8"
 espresso = "3.6.1"
-exoPlayer = "2.19.1"
-firebaseBom = "33.14.0"
-firebaseCrashlyticsGradle = "3.0.3"
-firebasePerformance = "1.4.2"
 flexbox = "3.0.0"
 googleServicesVersion = "4.4.2"
 gradlePlayPublisher = "3.12.1"
 installreferrer = "2.2"
 javaWebSocket = "1.5.6"
+javaxInject = "1"
 junit = "4.13.2"
 junitKtx = "1.2.1"
 khex = "1.1.2"
@@ -58,7 +55,6 @@ ksp = "2.2.21-2.0.4"
 ktlint = "13.0.0"
 ktor = "3.0.0"
 ktorContentNegotiation = "3.0.0"
-legacySupport = "1.0.0"
 lifecycle = "2.9.0"
 lifecycleExt = "2.2.0"
 material = "1.12.0"
@@ -71,7 +67,6 @@ navigation = "2.9.0"
 navigation-compose = "2.8.0-alpha10"
 okhttp = "4.12.0"
 paging = "3.3.6"
-peraCompactDecimalFormat = "1.0.1"
 peraWalletConnect = "1.0.1"
 qrkit = "3.0.5"
 review = "2.0.2"
@@ -113,16 +108,7 @@ koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel" }
 koin-compose-viewmodel-navigation = { module = "io.insert-koin:koin-compose-viewmodel-navigation" }
 koin-core = { module = "io.insert-koin:koin-core" }
 koin-core-viewmodel = { module = "io.insert-koin:koin-core-viewmodel" }
-
-# Firebase
-firebase-bom = { module = "com.google.firebase:firebase-bom", version.ref = "firebaseBom" }
-firebase-analytics = { module = "com.google.firebase:firebase-analytics" }
-firebase-config = { module = "com.google.firebase:firebase-config-ktx" }
-firebase-crashlytics = { module = "com.google.firebase:firebase-crashlytics" }
-firebase-crashlytics-gradle = { module = "com.google.firebase:firebase-crashlytics-gradle", version.ref = "firebaseCrashlyticsGradle" }
-firebase-messaging = { module = "com.google.firebase:firebase-messaging" }
-firebase-perf = { module = "com.google.firebase:firebase-perf" }
-firebase-perf-plugin = { module = "com.google.firebase:perf-plugin", version.ref = "firebasePerformance" }
+javax-inject = { module = "javax.inject:javax.inject", version.ref = "javaxInject" }
 
 # Navigation
 navigation-compose = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref = "navigation-compose" }
@@ -161,7 +147,6 @@ room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
 # Image Loading / Animations / Video Player
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 compottie = { module = "io.github.alexzhirkevich:compottie", version.ref = "compottie" }
-exoplayer = { module = "com.google.android.exoplayer:exoplayer", version.ref = "exoPlayer" }
 
 # Sensors - Bluetooth / Camera
 biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
@@ -232,14 +217,6 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
-
-[bundles]
-firebase = ["firebase-analytics",
-    "firebase-config",
-    "firebase-crashlytics",
-    "firebase-messaging",
-    "firebase-perf"
-]
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
