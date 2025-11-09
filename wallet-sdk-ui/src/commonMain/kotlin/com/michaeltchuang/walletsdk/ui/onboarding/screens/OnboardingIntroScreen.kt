@@ -40,7 +40,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitTe
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
-import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel.ViewEvent
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
