@@ -29,7 +29,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
-import com.michaeltchuang.walletsdk.core.deeplink.presentation.screens.QRCodeScannerScreen
+import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
@@ -307,7 +307,7 @@ fun NavigationBottomSheetNavHost(
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(message)
                                 }
-                            }
+                            },
                         )
                     }
                 }

@@ -101,6 +101,31 @@ fun SendAlgoScreen(
         }
     }
 
+    ScreenContent(
+        senderAddress = senderAddress,
+        viewState = viewState,
+        noteText = noteText,
+        onAmountChange = { digit -> viewModel.onDigitPressed(digit) },
+        onDeletePressed = { viewModel.onDeletePressed() },
+        onMaxPressed = { viewModel.onMaxPressed() },
+        onNextPressed = { viewModel.onNextPressed() },
+        onBackClick = { navController.popBackStack() },
+        onInfoClick = { navController.navigate(AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) }
+    )
+}
+
+@Composable
+fun ScreenContent(
+    senderAddress: String,
+    viewState: SendAlgoViewModel.ViewState,
+    noteText: MutableState<String>,
+    onAmountChange: (String) -> Unit = {},
+    onDeletePressed: () -> Unit = {},
+    onMaxPressed: () -> Unit = {},
+    onNextPressed: () -> Unit = {},
+    onBackClick: () -> Unit = {},
+    onInfoClick: () -> Unit = {}
+) {
     Box(
         modifier =
             Modifier
@@ -111,14 +136,12 @@ fun SendAlgoScreen(
             // Top Bar
             SendAlgoTopBar(
                 senderAddress = senderAddress,
-                onBackClick = { navController.popBackStack() },
-                onInfoClick = {
-                    navController.navigate(AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name)
-                },
+                onBackClick = onBackClick,
+                onInfoClick = onInfoClick,
             )
 
             // Content
-            when (val state = viewState) {
+            when (viewState) {
                 is SendAlgoViewModel.ViewState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
@@ -130,12 +153,12 @@ fun SendAlgoScreen(
 
                 is SendAlgoViewModel.ViewState.Content -> {
                     SendAlgoContent(
-                        state = state,
+                        state = viewState,
                         noteText = noteText,
-                        onAmountChange = { digit -> viewModel.onDigitPressed(digit) },
-                        onDeletePressed = { viewModel.onDeletePressed() },
-                        onMaxPressed = { viewModel.onMaxPressed() },
-                        onNextPressed = { viewModel.onNextPressed() },
+                        onAmountChange = onAmountChange,
+                        onDeletePressed = onDeletePressed,
+                        onMaxPressed = onMaxPressed,
+                        onNextPressed = onNextPressed,
                     )
                 }
 
@@ -144,7 +167,7 @@ fun SendAlgoScreen(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(state.message, color = AlgoKitTheme.colors.negative)
+                        Text(viewState.message, color = AlgoKitTheme.colors.negative)
                     }
                 }
             }

@@ -52,6 +52,21 @@ fun DeveloperSettingsScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        onCreateAlgoAccount = { viewModel.createAlgoAccount() },
+        onNavigateToNodeSettings = { navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name) },
+        onNavigateToHDWalletSelection = { navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name) },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    onCreateAlgoAccount: () -> Unit = {},
+    onNavigateToNodeSettings: () -> Unit = {},
+    onNavigateToHDWalletSelection: () -> Unit = {},
+) {
     Column(
         modifier =
             Modifier
@@ -69,21 +84,21 @@ fun DeveloperSettingsScreen(
             Res.drawable.ic_node,
             localizedStringResource(Res.string.node_settings),
         ) {
-            navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name)
+            onNavigateToNodeSettings()
         }
 
         SettingsItem(
             Res.drawable.ic_wallet,
             localizedStringResource(Res.string.create_legacy_algo25_account),
         ) {
-            viewModel.createAlgoAccount()
+            onCreateAlgoAccount()
         }
 
         SettingsItem(
             Res.drawable.ic_wallet,
             localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
-            navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name)
+            onNavigateToHDWalletSelection()
         }
     }
 }

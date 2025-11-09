@@ -12,12 +12,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address_qr
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_passphrase
 import androidx.compose.foundation.background
@@ -97,6 +94,23 @@ fun AccountDetailScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        address = address,
+        viewState = viewState,
+        onDeleteAccount = { viewModel.deleteAccount(address) },
+        showSnackBar = showSnackBar,
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    address: String,
+    viewState: AccountDetailViewModel.ViewState,
+    onDeleteAccount: () -> Unit,
+    showSnackBar: (String) -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -205,7 +219,7 @@ fun AccountDetailScreen(
                         isRemoveAccount = true,
                         title = localizedStringResource(Res.string.remove_account),
                     ) {
-                        viewModel.deleteAccount(address)
+                        onDeleteAccount()
                     }
                 }
             }
@@ -263,11 +277,18 @@ fun CopyAddress(
 @Composable
 fun SettingsScreenPreview() {
     AlgoKitTheme {
-        AccountDetailScreen(
+        ScreenContent(
             navController = rememberNavController(),
             address = WalletSdkConstants.SAMPLE_FALCON24_ADDRESS,
+            viewState =
+                AccountDetailViewModel.ViewState.Content(
+                    currentNetwork = com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork.TESTNET,
+                    isTestNet = true,
+                    explorerBaseUrl = "https://testnet.algoexplorer.io",
+                    isNoAuthAccount = false,
+                ),
+            onDeleteAccount = {},
             showSnackBar = {},
-            onAccountDeleted = {},
         )
     }
 }

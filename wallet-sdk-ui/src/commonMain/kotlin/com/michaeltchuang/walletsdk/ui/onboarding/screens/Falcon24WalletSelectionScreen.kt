@@ -46,8 +46,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.Falcon24WalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
-import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreenContent
-import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -240,12 +238,27 @@ fun WalletItem(
 
 @Preview
 @Composable
-fun HdWalletSelectionScreenContentPreview() {
-    val fakeViewState = HDWalletSelectionViewModel.ViewState.Content()
+fun Falcon24WalletSelectionScreenContentPreview() {
+    val fakeViewState =
+        Falcon24WalletSelectionViewModel.ViewState.Content(
+            walletItemPreviews =
+                listOf(
+                    Falcon24WalletSelectionViewModel.WalletItemPreview(
+                        seedId = 1,
+                        name = "Wallet #1",
+                        numberOfAccounts = "2 accounts",
+                        primaryValue = "AXNQ4ZE...",
+                        secondaryValue = "123.45 ALGO",
+                        maxAccountIndex = 1,
+                    ),
+                ),
+        )
     AlgoKitTheme {
-        HdWalletSelectionScreenContent(
+        Falcon24WalletSelectionScreenContent(
             viewState = fakeViewState,
             navController = rememberNavController(),
+            createNewWalletClick = {},
+            walletItemClick = {},
         )
     }
 }

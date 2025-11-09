@@ -105,6 +105,25 @@ fun SelectReceiverScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        onSearchTextChange = { viewModel.setSearchText(it) },
+        onAccountSelected = { viewModel.onAccountSelected(it) },
+        onClipboardTapped = { viewModel.onClipboardAddressTapped(it) },
+        onNextPressed = { viewModel.onNextPressed() },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: SelectReceiverViewModel.ViewState,
+    onSearchTextChange: (String) -> Unit = {},
+    onAccountSelected: (String) -> Unit = {},
+    onClipboardTapped: (String) -> Unit = {},
+    onNextPressed: () -> Unit = {},
+) {
     Box(
         modifier =
             Modifier
@@ -138,10 +157,10 @@ fun SelectReceiverScreen(
                 is SelectReceiverViewModel.ViewState.Content -> {
                     SelectReceiverContent(
                         state = state,
-                        onSearchTextChange = { viewModel.setSearchText(it) },
-                        onAccountSelected = { viewModel.onAccountSelected(it) },
-                        onClipboardTapped = { viewModel.onClipboardAddressTapped(it) },
-                        onNextPressed = { viewModel.onNextPressed() },
+                        onSearchTextChange = onSearchTextChange,
+                        onAccountSelected = onAccountSelected,
+                        onClipboardTapped = onClipboardTapped,
+                        onNextPressed = onNextPressed,
                     )
                 }
 

@@ -148,7 +148,9 @@ fun ScreenContent(
             Text(
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
-                text = "Name your account to easily identify it while using the AlgoKit Wallet. These names are stored locally, and can only be seen by you.",
+                text =
+                    "Name your account to easily identify it while using the AlgoKit Wallet. " +
+                        "These names are stored locally, and can only be seen by you.",
             )
 
             Spacer(modifier = Modifier.height(24.dp))

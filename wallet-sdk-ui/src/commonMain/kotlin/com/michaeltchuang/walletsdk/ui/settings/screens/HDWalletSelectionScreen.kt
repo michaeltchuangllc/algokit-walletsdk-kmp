@@ -74,7 +74,7 @@ fun HdWalletSelectionScreen(
         }
     }
 
-    HdWalletSelectionScreenContent(
+    ScreenContent(
         viewState = viewState,
         navController = navController,
         createNewWalletClick = { viewModel.createHdKeyAccount() },
@@ -88,7 +88,7 @@ fun HdWalletSelectionScreen(
 }
 
 @Composable
-fun HdWalletSelectionScreenContent(
+internal fun ScreenContent(
     viewState: HDWalletSelectionViewModel.ViewState,
     navController: NavController,
     createNewWalletClick: () -> Unit = {},
@@ -245,7 +245,7 @@ fun WalletItem(
 fun HdWalletSelectionScreenContentPreview() {
     val fakeViewState = HDWalletSelectionViewModel.ViewState.Content()
     AlgoKitTheme {
-        HdWalletSelectionScreenContent(
+        ScreenContent(
             viewState = fakeViewState,
             navController = rememberNavController(),
         )
