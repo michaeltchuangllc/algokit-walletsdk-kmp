@@ -12,37 +12,38 @@ class SelectReceiverScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
-
     @Test
     fun testSelectReceiverContentWithAccounts() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
-                viewState = SelectReceiverViewModel.ViewState.Content(
-                    searchText = "",
-                    accounts = listOf(
-                        AccountLite(
-                            address = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
-                            customName = "Main Account",
-                            registrationType = AccountRegistrationType.HdKey
-                        ),
-                        AccountLite(
-                            address = "BXYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P",
-                            customName = "Secondary Account",
-                            registrationType = AccountRegistrationType.Falcon24
-                        ),
-                        AccountLite(
-                            address = "CDEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1A",
-                            customName = "",
-                            registrationType = AccountRegistrationType.NoAuth
-                        )
+                viewState =
+                    SelectReceiverViewModel.ViewState.Content(
+                        searchText = "",
+                        accounts =
+                            listOf(
+                                AccountLite(
+                                    address = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
+                                    customName = "Main Account",
+                                    registrationType = AccountRegistrationType.HdKey,
+                                ),
+                                AccountLite(
+                                    address = "BXYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P3XYZ9YUM2P",
+                                    customName = "Secondary Account",
+                                    registrationType = AccountRegistrationType.Falcon24,
+                                ),
+                                AccountLite(
+                                    address = "CDEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1ABC4DEF1A",
+                                    customName = "",
+                                    registrationType = AccountRegistrationType.NoAuth,
+                                ),
+                            ),
+                        clipboardText = "DEMO1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABC",
                     ),
-                    clipboardText = "DEMO1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890ABC"
-                ),
                 onSearchTextChange = {},
                 onAccountSelected = {},
                 onClipboardTapped = {},
-                onNextPressed = {}
+                onNextPressed = {},
             )
         }
 
@@ -54,15 +55,16 @@ class SelectReceiverScreenshotTest(
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
-                viewState = SelectReceiverViewModel.ViewState.Content(
-                    searchText = "HVTAJEVD6WVPY53MUZGPRJ446WW5C3SUSKNSQ3UCZH2R4XWQZPXE72MQ",
-                    accounts = emptyList(),
-                    clipboardText = ""
-                ),
+                viewState =
+                    SelectReceiverViewModel.ViewState.Content(
+                        searchText = "HVTAJEVD6WVPY53MUZGPRJ446WW5C3SUSKNSQ3UCZH2R4XWQZPXE72MQ",
+                        accounts = emptyList(),
+                        clipboardText = "",
+                    ),
                 onSearchTextChange = {},
                 onAccountSelected = {},
                 onClipboardTapped = {},
-                onNextPressed = {}
+                onNextPressed = {},
             )
         }
 

@@ -133,7 +133,7 @@ fun AssetTransferConfirmScreen(
         viewState = viewState,
         snackbarHostState = snackbarHostState,
         onSendTransaction = { viewModel.sendTransaction() },
-        onSetNote = { viewModel.setNote(it) }
+        onSetNote = { viewModel.setNote(it) },
     )
 }
 
@@ -143,7 +143,7 @@ internal fun ScreenContent(
     viewState: AssetTransferConfirmViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
     onSendTransaction: () -> Unit = {},
-    onSetNote: (String) -> Unit = {}
+    onSetNote: (String) -> Unit = {},
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (val state = viewState) {

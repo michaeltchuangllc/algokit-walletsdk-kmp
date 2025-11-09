@@ -110,7 +110,7 @@ fun SendAlgoScreen(
         onMaxPressed = { viewModel.onMaxPressed() },
         onNextPressed = { viewModel.onNextPressed() },
         onBackClick = { navController.popBackStack() },
-        onInfoClick = { navController.navigate(AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) }
+        onInfoClick = { navController.navigate(AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) },
     )
 }
 
@@ -124,7 +124,7 @@ fun ScreenContent(
     onMaxPressed: () -> Unit = {},
     onNextPressed: () -> Unit = {},
     onBackClick: () -> Unit = {},
-    onInfoClick: () -> Unit = {}
+    onInfoClick: () -> Unit = {},
 ) {
     Box(
         modifier =

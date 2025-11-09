@@ -93,7 +93,7 @@ fun ConfirmTransactionRequestScreen(
         onConfirm = { viewModel.confirmTransaction() },
         onBack = { navController.popBackStack() },
         minimumFee = minimumFee,
-        transactionDetail = viewModel.getPendingTransactionRequest()
+        transactionDetail = viewModel.getPendingTransactionRequest(),
     )
 }
 
@@ -103,7 +103,7 @@ internal fun ScreenContent(
     onConfirm: () -> Unit,
     onBack: () -> Unit,
     minimumFee: String,
-    transactionDetail: KeyRegTransactionDetail?
+    transactionDetail: KeyRegTransactionDetail?,
 ) {
     when (viewState) {
         is KeyRegConfirmViewModel.ViewState.Content -> {
@@ -111,7 +111,7 @@ internal fun ScreenContent(
                 onConfirm = onConfirm,
                 onBack = onBack,
                 minimumFee = minimumFee,
-                transactionDetail = transactionDetail
+                transactionDetail = transactionDetail,
             )
         }
 
@@ -126,7 +126,7 @@ fun Content(
     onConfirm: () -> Unit,
     onBack: () -> Unit,
     minimumFee: String,
-    transactionDetail: KeyRegTransactionDetail?
+    transactionDetail: KeyRegTransactionDetail?,
 ) {
     Box(
         modifier =

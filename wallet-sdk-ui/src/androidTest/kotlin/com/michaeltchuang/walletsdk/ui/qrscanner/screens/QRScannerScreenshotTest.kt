@@ -9,7 +9,6 @@ class QRScannerScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
-
     @Test
     fun testQRScanner() {
         setTestContent {
@@ -17,7 +16,7 @@ class QRScannerScreenshotTest(
                 navController = rememberNavController(),
                 hasProcessedResult = false,
                 onQrCodeScanned = {},
-                onBackPressed = {}
+                onBackPressed = {},
             )
         }
 

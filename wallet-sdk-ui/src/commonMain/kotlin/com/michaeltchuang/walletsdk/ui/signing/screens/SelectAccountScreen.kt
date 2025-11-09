@@ -64,9 +64,9 @@ fun SelectAccountScreen(
                 is SelectAccountViewModel.ViewEvent.NavigateToAssetTransfer -> {
                     navController.navigate(
                         AlgoKitScreens.SEND_ALGO_SCREEN.name +
-                                "?senderAddress=${event.senderAddress}" +
-                                "&receiverAddress=${event.receiverAddress}" +
-                                "&amount=${event.amount}",
+                            "?senderAddress=${event.senderAddress}" +
+                            "&receiverAddress=${event.receiverAddress}" +
+                            "&amount=${event.amount}",
                     ) {
                         popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
                             inclusive = true

@@ -29,7 +29,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
-import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
@@ -45,6 +44,7 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeS
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
+import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen

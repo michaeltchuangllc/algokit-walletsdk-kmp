@@ -87,7 +87,7 @@ fun QRCodeScannerScreen(
             if (navController.popBackStack().not()) {
                 closeSheet()
             }
-        }
+        },
     )
 }
 
@@ -114,9 +114,10 @@ internal fun ScreenContent(
         )
 
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(color = AlgoKitTheme.colors.background),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(color = AlgoKitTheme.colors.background),
         ) {
             AlgoKitTopBar(
                 title = "Scan QR Code",
