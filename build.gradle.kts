@@ -9,12 +9,10 @@ buildscript {
 
     dependencies {
         classpath(libs.agp)
-        classpath(libs.firebase.crashlytics.gradle)
         classpath(libs.google.services)
         classpath(libs.kotlin.gradle.plugin)
         classpath(libs.ksp.gradle.plugin)
         classpath(libs.navigation.safe.args.gradle.plugin)
-        classpath(libs.firebase.perf.plugin)
         classpath(libs.kover.plugin)
         classpath(libs.shot.plugin)
 

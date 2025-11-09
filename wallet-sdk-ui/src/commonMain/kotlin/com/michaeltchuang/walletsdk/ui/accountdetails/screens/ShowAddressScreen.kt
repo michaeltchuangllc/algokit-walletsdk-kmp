@@ -236,9 +236,9 @@ internal fun ScreenContent(
                     Icon(
                         painter = painterResource(Res.drawable.ic_copy),
                         contentDescription = localizedStringResource(Res.string.copy_address),
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(20.dp)
                     )
-                },
+                }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
