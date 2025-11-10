@@ -88,9 +88,31 @@ fun ConfirmTransactionRequestScreen(
         }
     }
 
+    ScreenContent(
+        viewState = viewState,
+        onConfirm = { viewModel.confirmTransaction() },
+        onBack = { navController.popBackStack() },
+        minimumFee = minimumFee,
+        transactionDetail = viewModel.getPendingTransactionRequest(),
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    viewState: KeyRegConfirmViewModel.ViewState,
+    onConfirm: () -> Unit,
+    onBack: () -> Unit,
+    minimumFee: String,
+    transactionDetail: KeyRegTransactionDetail?,
+) {
     when (viewState) {
         is KeyRegConfirmViewModel.ViewState.Content -> {
-            Content(navController, viewModel, minimumFee)
+            Content(
+                onConfirm = onConfirm,
+                onBack = onBack,
+                minimumFee = minimumFee,
+                transactionDetail = transactionDetail,
+            )
         }
 
         is KeyRegConfirmViewModel.ViewState.Loading -> {
@@ -101,9 +123,10 @@ fun ConfirmTransactionRequestScreen(
 
 @Composable
 fun Content(
-    navController: NavController,
-    viewModel: KeyRegConfirmViewModel,
+    onConfirm: () -> Unit,
+    onBack: () -> Unit,
     minimumFee: String,
+    transactionDetail: KeyRegTransactionDetail?,
 ) {
     Box(
         modifier =
@@ -115,24 +138,20 @@ fun Content(
         Column {
             AlgoKitTopBar(
                 title = localizedStringResource(Res.string.key_reg_transaction_title),
-                onClick = { navController.popBackStack() },
+                onClick = onBack,
             )
-            val txnDetail = viewModel.getPendingTransactionRequest()
-            txnDetail?.let {
-                LaunchedEffect(txnDetail) {
-                    viewModel.calculateMinimumFee(txnDetail)
+            transactionDetail?.let {
+                LaunchedEffect(transactionDetail) {
                 }
                 ContentItems(
-                    viewModel.getPendingTransactionRequest(),
+                    transactionDetail,
                     minimumFee,
                 )
             }
         }
 
         AlgoKitPrimaryButton(
-            onClick = {
-                viewModel.confirmTransaction()
-            },
+            onClick = onConfirm,
             text = localizedStringResource(Res.string.confirm_transaction),
             modifier =
                 Modifier

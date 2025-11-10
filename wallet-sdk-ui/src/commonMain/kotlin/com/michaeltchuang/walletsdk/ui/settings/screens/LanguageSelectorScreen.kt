@@ -58,6 +58,19 @@ fun LanguageScreen(navController: NavController) {
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        onLanguageSelected = { viewModel.onLanguageSelected(it) },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: LanguageSelectorViewModel.ViewState,
+    onLanguageSelected: (LocalizationPreference) -> Unit = {},
+) {
     @Composable
     fun LocalizationPreference.displayString() =
         when (this) {
@@ -95,7 +108,7 @@ fun LanguageScreen(navController: NavController) {
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.onLanguageSelected(languageOption) }
+                                .clickable { onLanguageSelected(languageOption) }
                                 .padding(vertical = 16.dp),
                     ) {
                         Text(
@@ -106,7 +119,7 @@ fun LanguageScreen(navController: NavController) {
                         )
                         RadioButton(
                             selected = languageOption == state.currentLanguage,
-                            onClick = { viewModel.onLanguageSelected(languageOption) },
+                            onClick = { onLanguageSelected(languageOption) },
                             colors =
                                 RadioButtonDefaults.colors(
                                     selectedColor = AlgoKitTheme.colors.positive,

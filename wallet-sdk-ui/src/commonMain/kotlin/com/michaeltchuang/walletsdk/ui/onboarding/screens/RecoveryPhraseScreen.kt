@@ -107,6 +107,53 @@ fun RecoveryPhraseScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        accountType = accountType,
+        mnemonicList = mnemonicList,
+        onMnemonicChange = { newList -> mnemonicList = newList },
+        onClipboardPaste = {
+            clipboardManager.getText()?.text?.let {
+                viewModel.onClipBoardPastedMnemonic(it) {
+                    mnemonicList = it.splitMnemonic()
+                }
+            }
+        },
+        onRecover = {
+            when (accountType) {
+                AccountMnemonic.AccountType.Algo25 -> {
+                    viewModel.onRecoverAccount(
+                        mnemonicList.joinToString(" "),
+                        OnboardingAccountType.Algo25,
+                    )
+                }
+
+                AccountMnemonic.AccountType.Falcon24 -> {
+                    viewModel.onRecoverAccount(
+                        mnemonicList.joinToString(" "),
+                        OnboardingAccountType.Falcon24,
+                    )
+                }
+
+                else -> {}
+            }
+        },
+        onLearnMore = {
+            webViewController.open(WalletSdkConstants.RECOVER_ACCOUNT_LEARN_MORE)
+        },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    accountType: AccountMnemonic.AccountType,
+    mnemonicList: List<String>,
+    onMnemonicChange: (List<String>) -> Unit,
+    onClipboardPaste: () -> Unit,
+    onRecover: () -> Unit,
+    onLearnMore: () -> Unit,
+) {
     Box(
         modifier =
             Modifier
@@ -131,13 +178,7 @@ fun RecoveryPhraseScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(
-                        onClick = {
-                            clipboardManager.getText()?.text?.let {
-                                viewModel.onClipBoardPastedMnemonic(it) {
-                                    mnemonicList = it.splitMnemonic()
-                                }
-                            }
-                        },
+                        onClick = onClipboardPaste,
                         modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
@@ -149,9 +190,7 @@ fun RecoveryPhraseScreen(
                     }
 
                     IconButton(
-                        onClick = {
-                            webViewController.open(WalletSdkConstants.RECOVER_ACCOUNT_LEARN_MORE)
-                        },
+                        onClick = onLearnMore,
                         modifier = Modifier.size(48.dp),
                     ) {
                         Icon(
@@ -173,7 +212,7 @@ fun RecoveryPhraseScreen(
                         newList.add("")
                     }
                     newList[index] = value
-                    mnemonicList = newList
+                    onMnemonicChange(newList)
                 },
             )
             Spacer(modifier = Modifier.height(32.dp))
@@ -183,25 +222,7 @@ fun RecoveryPhraseScreen(
                     Modifier
                         .fillMaxWidth()
                         .align(Alignment.CenterHorizontally),
-                onClick = {
-                    when (accountType) {
-                        AccountMnemonic.AccountType.Algo25 -> {
-                            viewModel.onRecoverAccount(
-                                mnemonicList.joinToString(" "),
-                                OnboardingAccountType.Algo25,
-                            )
-                        }
-
-                        AccountMnemonic.AccountType.Falcon24 -> {
-                            viewModel.onRecoverAccount(
-                                mnemonicList.joinToString(" "),
-                                OnboardingAccountType.Falcon24,
-                            )
-                        }
-
-                        else -> { }
-                    }
-                },
+                onClick = onRecover,
                 text = localizedStringResource(Res.string.recover),
                 state = if (isValid) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
             )
@@ -313,21 +334,29 @@ fun RecoveryWordField(
 @Preview
 @Composable
 fun RecoveryPhrase24WordScreenPreview() {
-    val words = SAMPLE_BIP39_MNEMONIC
-    RecoveryPhraseScreen(
-        rememberNavController(),
+    val words = SAMPLE_BIP39_MNEMONIC.split(" ")
+    ScreenContent(
+        navController = rememberNavController(),
         accountType = AccountMnemonic.AccountType.Falcon24,
-        words,
-    ) {}
+        mnemonicList = words,
+        onMnemonicChange = {},
+        onClipboardPaste = {},
+        onRecover = {},
+        onLearnMore = {},
+    )
 }
 
 @Preview
 @Composable
 fun RecoveryPhrase25WordScreenPreview() {
-    val words = SAMPLE_ALGO25_MNEMONIC
-    RecoveryPhraseScreen(
-        rememberNavController(),
+    val words = SAMPLE_ALGO25_MNEMONIC.split(" ")
+    ScreenContent(
+        navController = rememberNavController(),
         accountType = AccountMnemonic.AccountType.Algo25,
-        words,
-    ) {}
+        mnemonicList = words,
+        onMnemonicChange = {},
+        onClipboardPaste = {},
+        onRecover = {},
+        onLearnMore = {},
+    )
 }

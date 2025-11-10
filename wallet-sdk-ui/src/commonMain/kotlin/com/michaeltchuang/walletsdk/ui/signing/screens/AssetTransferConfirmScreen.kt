@@ -128,6 +128,23 @@ fun AssetTransferConfirmScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        snackbarHostState = snackbarHostState,
+        onSendTransaction = { viewModel.sendTransaction() },
+        onSetNote = { viewModel.setNote(it) },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: AssetTransferConfirmViewModel.ViewState,
+    snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    onSendTransaction: () -> Unit = {},
+    onSetNote: (String) -> Unit = {},
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         when (val state = viewState) {
             is AssetTransferConfirmViewModel.ViewState.Loading -> {
@@ -149,12 +166,10 @@ fun AssetTransferConfirmScreen(
 
             is AssetTransferConfirmViewModel.ViewState.Content -> {
                 AssetTransferContent(
-                    viewModel = viewModel,
                     state = state,
                     navController = navController,
-                    onTransactionClick = {
-                        viewModel.sendTransaction()
-                    },
+                    onTransactionClick = onSendTransaction,
+                    onSetNote = onSetNote,
                 )
             }
 
@@ -184,10 +199,10 @@ fun AssetTransferConfirmScreen(
 
 @Composable
 fun AssetTransferContent(
-    viewModel: AssetTransferConfirmViewModel,
     state: AssetTransferConfirmViewModel.ViewState.Content,
     navController: NavController,
     onTransactionClick: () -> Unit,
+    onSetNote: (String) -> Unit,
 ) {
     Box(
         modifier =
@@ -208,7 +223,7 @@ fun AssetTransferContent(
                 accountBalance = state.accountBalance,
                 fee = state.fee,
                 note = state.note,
-                viewModel = viewModel,
+                onSetNote = onSetNote,
             )
         }
 
@@ -231,7 +246,7 @@ fun AssetTransferContentItems(
     accountBalance: String?,
     fee: String,
     note: String,
-    viewModel: AssetTransferConfirmViewModel,
+    onSetNote: (String) -> Unit,
 ) {
     Column(
         modifier =
@@ -280,7 +295,7 @@ fun AssetTransferContentItems(
         )
         AssetTransferDivider()
 
-        AssetTransferAddNote(note, viewModel)
+        AssetTransferAddNote(note, onSetNote)
     }
 }
 
@@ -387,7 +402,7 @@ fun AssetTransferLabeledText(
 @Composable
 fun AssetTransferAddNote(
     note: String,
-    viewModel: AssetTransferConfirmViewModel,
+    onSetNote: (String) -> Unit,
 ) {
     var isAddNoteEnabled by remember { mutableStateOf(false) }
     var noteText by remember { mutableStateOf(note) }
@@ -398,7 +413,7 @@ fun AssetTransferAddNote(
             }, {
                 noteText = ""
             }, {
-                viewModel.setNote(noteText)
+                onSetNote(noteText)
                 isAddNoteEnabled = false
             })
         } else {

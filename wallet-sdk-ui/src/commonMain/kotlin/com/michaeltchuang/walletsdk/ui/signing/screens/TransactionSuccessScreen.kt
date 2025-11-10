@@ -47,6 +47,23 @@ fun TransactionSuccessScreen(
     val webViewController by rememberWebViewController()
     WebViewPlatform(webViewController = webViewController)
 
+    ScreenContent(
+        transactionId = transactionId,
+        onDoneClick = onDoneClick,
+        onViewInExplorer = { txId ->
+            scope.launch {
+                webViewController.open(viewModel.getExplorerBaseUrl() + "/tx/$txId")
+            }
+        },
+    )
+}
+
+@Composable
+fun ScreenContent(
+    transactionId: String,
+    onDoneClick: () -> Unit,
+    onViewInExplorer: (String) -> Unit,
+) {
     Box(
         modifier =
             Modifier
@@ -106,9 +123,7 @@ fun TransactionSuccessScreen(
                 style = typography.footnote.sansMedium,
                 modifier =
                     Modifier.clickable {
-                        scope.launch {
-                            webViewController.open(viewModel.getExplorerBaseUrl() + "/tx/$transactionId")
-                        }
+                        onViewInExplorer(transactionId)
                     },
             )
             AlgoKitPrimaryButton(

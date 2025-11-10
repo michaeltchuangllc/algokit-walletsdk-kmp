@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.deeplink.presentation.screens
+package com.michaeltchuang.walletsdk.ui.qrscanner.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -13,11 +13,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
+import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.PendingTransactionRequestManger.storePendingTransactionRequest
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.qrscanner.viewmodels.QRScannerViewModel
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrscanner.CameraLens
 import qrscanner.QrScanner
@@ -71,25 +73,46 @@ fun QRCodeScannerScreen(
             }
         }
     }
+
+    ScreenContent(
+        navController = navController,
+        hasProcessedResult = hasProcessedResult.value,
+        onQrCodeScanned = { scannedText ->
+            if (!hasProcessedResult.value) {
+                viewModel.handleDeeplink(scannedText)
+                hasProcessedResult.value = true
+            }
+        },
+        onBackPressed = {
+            if (navController.popBackStack().not()) {
+                closeSheet()
+            }
+        },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    hasProcessedResult: Boolean = false,
+    onQrCodeScanned: (String) -> Unit = {},
+    onBackPressed: () -> Unit = {},
+) {
     Box(
-        modifier =
-            Modifier
-                .fillMaxSize(),
+        modifier = Modifier.fillMaxSize(),
     ) {
         QrScanner(
             modifier = Modifier.fillMaxSize(),
             flashlightOn = false,
             cameraLens = CameraLens.Back,
             openImagePicker = false,
-            onCompletion = {
-                if (!hasProcessedResult.value) {
-                    viewModel.handleDeeplink(it)
-                    hasProcessedResult.value = true
-                }
+            onCompletion = { scannedText ->
+                onQrCodeScanned(scannedText)
             },
             imagePickerHandler = {},
             onFailure = {},
         )
+
         Row(
             modifier =
                 Modifier
@@ -99,12 +122,15 @@ fun QRCodeScannerScreen(
             AlgoKitTopBar(
                 title = "Scan QR Code",
                 modifier = Modifier.padding(start = 16.dp),
-                onClick = {
-                    if (navController.popBackStack().not()) {
-                        closeSheet()
-                    }
-                },
+                onClick = onBackPressed,
             )
         }
     }
+}
+
+@Preview
+@Composable
+fun PreviewQRCodeScannerScreen() {
+    val navController = rememberNavController()
+    QRCodeScannerScreen(navController = navController, closeSheet = {})
 }

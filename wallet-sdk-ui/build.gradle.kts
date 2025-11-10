@@ -193,12 +193,13 @@ val generateBuildInfo by tasks.registering {
                 const val VERSION_CODE = ${calculateVersionCode()}
                 const val VERSION_NAME = "${calculateVersionName()}"
                 const val GIT_HASH = "${getGitHash()}"
-                
+
                 // Note: For iOS, this reflects the Gradle build config.
                 // iOS debug status is determined by Xcode build configuration.
                 // Use isDebugBuild() function for runtime debug detection.
                 const val DEBUG = $debug
             }
+
             """.trimIndent(),
         )
     }

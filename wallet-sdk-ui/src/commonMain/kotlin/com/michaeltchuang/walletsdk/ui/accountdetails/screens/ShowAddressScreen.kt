@@ -84,6 +84,21 @@ fun ShowAddressScreen(
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        onCopyAddress = {
+            viewModel.copyAddress(copiedMessage)
+        },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: QRCodeViewModel.ViewState,
+    onCopyAddress: () -> Unit,
+) {
     Column(
         modifier =
             Modifier
@@ -215,9 +230,7 @@ fun ShowAddressScreen(
                     Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                onClick = {
-                    viewModel.copyAddress(copiedMessage)
-                },
+                onClick = onCopyAddress,
                 text = localizedStringResource(Res.string.copy_address),
                 leftIcon = {
                     Icon(
@@ -265,10 +278,14 @@ fun ShowAddressScreen(
 @Composable
 fun QRCodeScreenPreview() {
     AlgoKitTheme {
-        ShowAddressScreen(
+        ScreenContent(
             navController = rememberNavController(),
-            address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
-            showSnackBar = {},
+            viewState =
+                QRCodeViewModel.ViewState.Content(
+                    address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
+                    displayAddress = "MCRT...FWRLM",
+                ),
+            onCopyAddress = {},
         )
     }
 }

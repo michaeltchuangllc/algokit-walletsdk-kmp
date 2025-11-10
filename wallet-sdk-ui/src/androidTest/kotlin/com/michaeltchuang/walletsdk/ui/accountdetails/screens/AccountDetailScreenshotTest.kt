@@ -1,0 +1,55 @@
+package com.michaeltchuang.walletsdk.ui.accountdetails.screens
+
+import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
+import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
+import org.junit.Test
+import java.util.Locale
+
+class AccountDetailScreenshotTest(
+    locale: Locale,
+    darkTheme: Boolean,
+) : BaseScreenshotTest(locale, darkTheme) {
+    @Test
+    fun testRegularAccountMainnet() {
+        setTestContent {
+            ScreenContent(
+                navController = rememberNavController(),
+                address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
+                viewState =
+                    AccountDetailViewModel.ViewState.Content(
+                        currentNetwork = AlgorandNetwork.MAINNET,
+                        isTestNet = false,
+                        explorerBaseUrl = "https://algoexplorer.io",
+                        isNoAuthAccount = false,
+                    ),
+                onDeleteAccount = {},
+                showSnackBar = {},
+            )
+        }
+
+        takeScreenshot("testRegularAccountMainnet")
+    }
+
+    @Test
+    fun testWatchAccountMainnet() {
+        setTestContent {
+            ScreenContent(
+                navController = rememberNavController(),
+                address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
+                viewState =
+                    AccountDetailViewModel.ViewState.Content(
+                        currentNetwork = AlgorandNetwork.MAINNET,
+                        isTestNet = false,
+                        explorerBaseUrl = "https://algoexplorer.io",
+                        isNoAuthAccount = true,
+                    ),
+                onDeleteAccount = {},
+                showSnackBar = {},
+            )
+        }
+
+        takeScreenshot("testWatchAccountMainnet")
+    }
+}

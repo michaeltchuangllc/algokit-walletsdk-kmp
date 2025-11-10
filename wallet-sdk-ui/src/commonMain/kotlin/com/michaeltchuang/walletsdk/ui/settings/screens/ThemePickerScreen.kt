@@ -74,6 +74,19 @@ fun ThemeScreen(navController: NavController) {
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        onThemeSelected = { viewModel.onThemeSelected(it) },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: ThemePickerViewModel.ViewState,
+    onThemeSelected: (ThemePreference) -> Unit = {},
+) {
     @Composable
     fun ThemePreference.displayString() =
         when (this) {
@@ -111,7 +124,7 @@ fun ThemeScreen(navController: NavController) {
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.onThemeSelected(themeOption) }
+                                .clickable { onThemeSelected(themeOption) }
                                 .padding(vertical = 16.dp),
                     ) {
                         Text(
@@ -122,7 +135,7 @@ fun ThemeScreen(navController: NavController) {
                         )
                         RadioButton(
                             selected = themeOption == state.currentTheme,
-                            onClick = { viewModel.onThemeSelected(themeOption) },
+                            onClick = { onThemeSelected(themeOption) },
                             colors =
                                 RadioButtonDefaults.colors(
                                     selectedColor = AlgoKitTheme.colors.positive,

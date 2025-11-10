@@ -76,12 +76,37 @@ fun NodeSettingsScreen(navController: NavController) {
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+        showMainnetWarningDialog = showMainnetWarningDialog,
+        pendingNetwork = pendingNetwork,
+        onNetworkSelected = { viewModel.onNetworkSelected(it) },
+        onConfirmMainnetSelection = {
+            pendingNetwork?.let { network ->
+                viewModel.confirmMainnetSelection(network)
+            }
+        },
+        onDismissDialog = {
+            showMainnetWarningDialog = false
+            pendingNetwork = null
+        },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: NodeSettingsViewModel.ViewState,
+    showMainnetWarningDialog: Boolean = false,
+    pendingNetwork: AlgorandNetwork? = null,
+    onNetworkSelected: (AlgorandNetwork) -> Unit = {},
+    onConfirmMainnetSelection: () -> Unit = {},
+    onDismissDialog: () -> Unit = {},
+) {
     if (showMainnetWarningDialog && pendingNetwork != null) {
         AlertDialog(
-            onDismissRequest = {
-                showMainnetWarningDialog = false
-                pendingNetwork = null
-            },
+            onDismissRequest = onDismissDialog,
             title = {
                 Text(
                     text = localizedStringResource(Res.string.mainnet_warning),
@@ -99,11 +124,8 @@ fun NodeSettingsScreen(navController: NavController) {
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingNetwork?.let { network ->
-                            viewModel.confirmMainnetSelection(network)
-                        }
-                        showMainnetWarningDialog = false
-                        pendingNetwork = null
+                        onConfirmMainnetSelection()
+                        onDismissDialog()
                     },
                 ) {
                     Text(
@@ -114,10 +136,7 @@ fun NodeSettingsScreen(navController: NavController) {
             },
             dismissButton = {
                 TextButton(
-                    onClick = {
-                        showMainnetWarningDialog = false
-                        pendingNetwork = null
-                    },
+                    onClick = onDismissDialog,
                 ) {
                     Text(
                         text = localizedStringResource(Res.string.cancel),
@@ -162,7 +181,7 @@ fun NodeSettingsScreen(navController: NavController) {
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .clickable { viewModel.onNetworkSelected(network) }
+                                .clickable { onNetworkSelected(network) }
                                 .padding(vertical = 16.dp),
                     ) {
                         Text(
@@ -173,7 +192,7 @@ fun NodeSettingsScreen(navController: NavController) {
                         )
                         RadioButton(
                             selected = network == state.currentNetwork,
-                            onClick = { viewModel.onNetworkSelected(network) },
+                            onClick = { onNetworkSelected(network) },
                             colors =
                                 RadioButtonDefaults.colors(
                                     selectedColor = AlgoKitTheme.colors.positive,

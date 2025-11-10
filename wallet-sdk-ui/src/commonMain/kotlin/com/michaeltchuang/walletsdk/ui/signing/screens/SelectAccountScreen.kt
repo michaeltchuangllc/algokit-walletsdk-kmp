@@ -51,7 +51,7 @@ fun SelectAccountScreen(
     amount: String,
 ) {
     val viewModel: SelectAccountViewModel = koinViewModel()
-    val state by viewModel.state.collectAsStateWithLifecycle()
+    val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(receiverAddress, amount) {
@@ -63,9 +63,9 @@ fun SelectAccountScreen(
             when (event) {
                 is SelectAccountViewModel.ViewEvent.NavigateToAssetTransfer -> {
                     navController.navigate(
-                        AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
-                            "?sender=${event.senderAddress}" +
-                            "&receiver=${event.receiverAddress}" +
+                        AlgoKitScreens.SEND_ALGO_SCREEN.name +
+                            "?senderAddress=${event.senderAddress}" +
+                            "&receiverAddress=${event.receiverAddress}" +
                             "&amount=${event.amount}",
                     ) {
                         popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
@@ -81,6 +81,21 @@ fun SelectAccountScreen(
         }
     }
 
+    ScreenContent(
+        viewState = viewState,
+        onAccountSelected = { accountAddress ->
+            viewModel.onAccountSelected(accountAddress)
+        },
+        onBack = { navController.popBackStack() },
+    )
+}
+
+@Composable
+fun ScreenContent(
+    viewState: SelectAccountViewModel.AccountsState,
+    onAccountSelected: (String) -> Unit,
+    onBack: () -> Unit,
+) {
     Box(
         modifier =
             Modifier
@@ -90,25 +105,29 @@ fun SelectAccountScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             AlgoKitTopBar(
                 title = "Select Account",
-                onClick = { navController.popBackStack() },
+                onClick = onBack,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            when (state) {
+            when (viewState) {
                 is SelectAccountViewModel.AccountsState.Loading -> {
                     CenteredLoader()
                 }
 
                 is SelectAccountViewModel.AccountsState.Content -> {
-                    val accounts = (state as SelectAccountViewModel.AccountsState.Content).accounts
+                    val accounts =
+                        viewState.accounts
                     if (accounts.isEmpty()) {
                         CenteredMessage("No accounts available")
                     } else {
                         AccountsList(
                             accounts = accounts,
                             onAccountItemClick = { address ->
-                                viewModel.onAccountSelected(address)
+                                val account = accounts.find { it.address == address }
+                                if (account != null) {
+                                    onAccountSelected(account.address)
+                                }
                             },
                         )
                     }
@@ -116,7 +135,7 @@ fun SelectAccountScreen(
 
                 is SelectAccountViewModel.AccountsState.Error -> {
                     CenteredMessage(
-                        text = "Error: ${(state as SelectAccountViewModel.AccountsState.Error).message}",
+                        text = "Error: ${viewState.message}",
                         color = Color.Red,
                     )
                 }

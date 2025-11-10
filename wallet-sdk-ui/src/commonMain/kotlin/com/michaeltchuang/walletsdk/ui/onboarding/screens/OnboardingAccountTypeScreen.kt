@@ -62,7 +62,6 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
@@ -75,6 +74,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.GroupChoiceWidge
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel.ViewEvent
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel.ViewState
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -95,21 +96,21 @@ fun OnboardingAccountTypeScreen(
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect {
             when (it) {
-                is OnboardingAccountTypeViewModel.ViewEvent.AccountCreated -> {
+                is ViewEvent.AccountCreated -> {
                     navController.navigate(AlgoKitScreens.CREATE_ACCOUNT_NAME.name)
                     Log.d(TAG, it.accountCreation.address)
                 }
 
-                is OnboardingAccountTypeViewModel.ViewEvent.Error -> {
+                is ViewEvent.Error -> {
                     Log.d(TAG, it.message)
                 }
             }
         }
     }
     when (viewState) {
-        is OnboardingAccountTypeViewModel.ViewState.Idle -> {}
-        is OnboardingAccountTypeViewModel.ViewState.Loading -> LoadingState()
-        is OnboardingAccountTypeViewModel.ViewState.Content ->
+        is ViewState.Idle -> {}
+        is ViewState.Loading -> LoadingState()
+        is ViewState.Content ->
             ContentState(
                 hasWalletWithNoAccounts = viewState.hasWalletWithNoAccounts,
                 viewModel = viewModel,
@@ -121,13 +122,19 @@ fun OnboardingAccountTypeScreen(
 }
 
 @Composable
-private fun ContentState(
+internal fun ScreenContent(
     hasWalletWithNoAccounts: Boolean,
-    viewModel: OnboardingAccountTypeViewModel,
-    scope: CoroutineScope,
-    navController: NavHostController,
-    onClick: (message: String) -> Unit,
+    isLoading: Boolean = false,
+    onCreateNewAccount: () -> Unit = {},
+    onCreateWallet: () -> Unit = {},
+    onImportAccount: () -> Unit = {},
+    onWatchAddress: () -> Unit = {},
 ) {
+    if (isLoading) {
+        LoadingState()
+        return
+    }
+
     Column(
         modifier =
             Modifier
@@ -160,51 +167,68 @@ private fun ContentState(
         }
         Spacer(modifier = Modifier.weight(1f))
         if (hasWalletWithNoAccounts) {
-            CreateNewAccountCard {
-                navController.navigate(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name)
-            }
+            CreateNewAccountCard(onClick = onCreateNewAccount)
         }
         Spacer(modifier = Modifier.height(20.dp))
-        CreateWalletHdWidget(viewModel, scope)
-        ImportHdWalletWidget(navController)
-        WatchAddressWidget(navController)
+
+        GroupChoiceWidget(
+            title = localizedStringResource(Res.string.create_a_new_account),
+            description = localizedStringResource(Res.string.create_a_new_algorand_account_with),
+            icon = vectorResource(Res.drawable.ic_wallet),
+            iconContentDescription = localizedStringResource(Res.string.create_a_new_algorand_account_with),
+            onClick = onCreateWallet,
+        )
+
+        GroupChoiceWidget(
+            title = localizedStringResource(Res.string.import_an_account),
+            description = localizedStringResource(Res.string.import_an_existing),
+            iconContentDescription = localizedStringResource(Res.string.import_an_existing),
+            icon = vectorResource(Res.drawable.ic_key),
+            onClick = onImportAccount,
+        )
+
+        GroupChoiceWidget(
+            title = localizedStringResource(Res.string.watch_an_address),
+            description = localizedStringResource(Res.string.monitor_an_algorand_address),
+            iconContentDescription = localizedStringResource(Res.string.monitor_an_algorand_address),
+            icon = vectorResource(Res.drawable.ic_eye),
+            onClick = onWatchAddress,
+        )
+
         Spacer(modifier = Modifier.weight(1f))
         TermsAndPrivacy()
     }
 }
 
 @Composable
-private fun CreateWalletHdWidget(
+private fun ContentState(
+    hasWalletWithNoAccounts: Boolean,
     viewModel: OnboardingAccountTypeViewModel,
     scope: CoroutineScope,
+    navController: NavHostController,
+    onClick: (message: String) -> Unit,
 ) {
-    GroupChoiceWidget(
-        title = localizedStringResource(Res.string.create_a_new_account),
-        description = localizedStringResource(Res.string.create_a_new_algorand_account_with),
-        icon = vectorResource(Res.drawable.ic_wallet),
-        iconContentDescription = localizedStringResource(Res.string.create_a_new_algorand_account_with),
-        onClick = {
+    ScreenContent(
+        hasWalletWithNoAccounts = hasWalletWithNoAccounts,
+        onCreateNewAccount = {
+            navController.navigate(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name)
+        },
+        onCreateWallet = {
             scope.launch {
                 viewModel.createFalcon24Account()
             }
+        },
+        onImportAccount = {
+            navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name)
+        },
+        onWatchAddress = {
+            navController.navigate(AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name)
         },
     )
 }
 
 @Composable
-private fun ImportHdWalletWidget(navController: NavController) {
-    GroupChoiceWidget(
-        title = localizedStringResource(Res.string.import_an_account),
-        description = localizedStringResource(Res.string.import_an_existing),
-        iconContentDescription = localizedStringResource(Res.string.import_an_existing),
-        icon = vectorResource(Res.drawable.ic_key),
-        onClick = { navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name) },
-    )
-}
-
-@Suppress("LongMethod")
-@Composable
-fun CreateNewAccountCard(
+private fun CreateNewAccountCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {},
 ) {
@@ -282,17 +306,6 @@ fun CreateNewAccountCard(
             )
         }
     }
-}
-
-@Composable
-private fun WatchAddressWidget(navController: NavController) {
-    GroupChoiceWidget(
-        title = localizedStringResource(Res.string.watch_an_address),
-        description = localizedStringResource(Res.string.monitor_an_algorand_address),
-        iconContentDescription = localizedStringResource(Res.string.monitor_an_algorand_address),
-        icon = vectorResource(Res.drawable.ic_eye),
-        onClick = { navController.navigate(AlgoKitScreens.CREATE_WATCH_ACCOUNT_SCREEN.name) },
-    )
 }
 
 @Composable

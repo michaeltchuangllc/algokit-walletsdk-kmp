@@ -65,6 +65,23 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
         }
     }
 
+    ScreenContent(
+        navController = navController,
+        onCreateNewWallet = {
+            viewModel.createFalcon24Account()
+        },
+        onImportAccount = {
+            navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name)
+        },
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    onCreateNewWallet: () -> Unit = {},
+    onImportAccount: () -> Unit = {},
+) {
     Column(
         modifier =
             Modifier
@@ -110,11 +127,11 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
 
         Spacer(modifier = Modifier.weight(1f))
 
-        CreateNewWalletWidget(viewModel)
+        CreateNewWalletWidget(onCreateNewWallet)
 
         Spacer(modifier = Modifier.height(40.dp))
 
-        ImportAccountWidget(navController)
+        ImportAccountWidget(onImportAccount)
 
         Spacer(modifier = Modifier.weight(1f))
 
@@ -123,7 +140,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
 }
 
 @Composable
-private fun CreateNewWalletWidget(viewModel: OnboardingIntroViewModel) {
+private fun CreateNewWalletWidget(onCreateNewWallet: () -> Unit) {
     Column {
         Text(
             modifier = Modifier.padding(horizontal = 24.dp),
@@ -139,9 +156,7 @@ private fun CreateNewWalletWidget(viewModel: OnboardingIntroViewModel) {
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-            onClick = {
-                viewModel.createFalcon24Account()
-            },
+            onClick = onCreateNewWallet,
             text = localizedStringResource(Res.string.create_a_new_wallet),
             leftIcon = {
                 AlgoKitIcon(
@@ -162,7 +177,7 @@ private fun CreateNewWalletWidget(viewModel: OnboardingIntroViewModel) {
 }
 
 @Composable
-private fun ImportAccountWidget(navController: NavController) {
+private fun ImportAccountWidget(onImportAccount: () -> Unit) {
     Column {
         Text(
             modifier = Modifier.padding(horizontal = 24.dp),
@@ -178,9 +193,7 @@ private fun ImportAccountWidget(navController: NavController) {
                 Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp),
-            onClick = {
-                navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name)
-            },
+            onClick = onImportAccount,
             text = localizedStringResource(Res.string.import_an_account),
             leftIcon = {
                 AlgoKitIcon(
@@ -205,7 +218,11 @@ private fun ImportAccountWidget(navController: NavController) {
 private fun InitialRegisterIntroScreenPreview() {
     AlgoKitTheme {
         Column {
-            OnboardingIntroScreen()
+            ScreenContent(
+                navController = rememberNavController(),
+                onCreateNewWallet = {},
+                onImportAccount = {},
+            )
         }
     }
 }

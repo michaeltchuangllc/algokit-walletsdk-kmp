@@ -46,6 +46,17 @@ fun ViewPassphraseScreen(
         viewModel.initViewState(address)
     }
 
+    ScreenContent(
+        navController = navController,
+        viewState = viewState,
+    )
+}
+
+@Composable
+internal fun ScreenContent(
+    navController: NavController,
+    viewState: ViewPassphraseViewModel.ViewState,
+) {
     when (viewState) {
         is ViewPassphraseViewModel.ViewState.Idle -> {}
 
@@ -155,19 +166,23 @@ fun ViewPassphraseWordField(
 @Preview
 @Composable
 fun ViewPassphrase24WordScreenScreenPreview() {
-    val words = SAMPLE_BIP39_MNEMONIC
-    ViewPassphraseScreen(
-        rememberNavController(),
-        words,
-    )
+    val words = SAMPLE_BIP39_MNEMONIC.split(" ")
+    AlgoKitTheme {
+        ScreenContent(
+            navController = rememberNavController(),
+            viewState = ViewPassphraseViewModel.ViewState.Content(words),
+        )
+    }
 }
 
 @Preview
 @Composable
 fun ViewPassphrase25WordScreenScreenPreview() {
-    val words = SAMPLE_ALGO25_MNEMONIC
-    ViewPassphraseScreen(
-        rememberNavController(),
-        words,
-    )
+    val words = SAMPLE_ALGO25_MNEMONIC.split(" ")
+    AlgoKitTheme {
+        ScreenContent(
+            navController = rememberNavController(),
+            viewState = ViewPassphraseViewModel.ViewState.Content(words),
+        )
+    }
 }
