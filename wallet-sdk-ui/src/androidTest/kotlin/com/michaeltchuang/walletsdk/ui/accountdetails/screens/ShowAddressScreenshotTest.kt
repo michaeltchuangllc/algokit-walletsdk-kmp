@@ -11,7 +11,7 @@ class ShowAddressScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testWithValidAddress() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -24,6 +24,6 @@ class ShowAddressScreenshotTest(
             )
         }
 
-        takeScreenshot("testWithValidAddress")
+        takeScreenshot("testContent")
     }
 }

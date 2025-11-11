@@ -12,7 +12,7 @@ class LanguageSelectorScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testLanguageScreen() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             val viewState =
@@ -31,6 +31,6 @@ class LanguageSelectorScreenshotTest(
                 onLanguageSelected = { },
             )
         }
-        takeScreenshot("testLanguageScreen")
+        takeScreenshot("testContent")
     }
 }

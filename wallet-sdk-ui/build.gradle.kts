@@ -116,6 +116,22 @@ kotlin {
             }
         }
 
+        androidInstrumentedTest {
+            dependencies {
+                implementation(compose.uiTooling)
+                implementation(compose.material3)
+                implementation(compose.foundation)
+                implementation(compose.runtime)
+                implementation(compose.components.resources)
+                implementation(libs.navigation.compose)
+                implementation(libs.junit)
+                implementation(libs.androidx.junit)
+                implementation(libs.compose.ui.testManifest)
+                implementation(libs.compose.ui.test.junit4)
+                implementation(libs.androidx.uiautomator)
+            }
+        }
+
         iosMain {
             dependencies {}
         }
@@ -256,17 +272,4 @@ mavenPublishing {
             url.set("https://github.com/michaeltchuangllc/algokit-walletsdk-kmp")
         }
     }
-}
-
-dependencies {
-    androidTestImplementation(compose.uiTooling)
-    androidTestImplementation(compose.material3)
-    androidTestImplementation(compose.foundation)
-    androidTestImplementation(compose.runtime)
-    androidTestImplementation(compose.components.resources)
-    androidTestImplementation(libs.navigation.compose)
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.7.3")
-    androidTestImplementation("androidx.compose.ui:ui-test-manifest:1.7.3")
 }

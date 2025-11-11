@@ -76,7 +76,8 @@ class ViewPassphraseScreenshotTest(
     }
 
     @Test
-    fun testWith24WordMnemonic() {
+    fun testContent() {
+        Locale.setDefault(locale)
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -87,7 +88,7 @@ class ViewPassphraseScreenshotTest(
             )
         }
 
-        takeScreenshot("testWith24WordMnemonic")
+        takeScreenshot("testContent")
     }
 
     @Test

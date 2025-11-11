@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.onboarding.screens
 
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateWatchAccountViewModel
 import org.junit.Test
@@ -10,34 +11,15 @@ class CreateWatchAccountScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
+
     @Test
-    fun testEmptyForm() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
                 viewState =
                     CreateWatchAccountViewModel.ViewState.Content(
-                        address = "",
-                        isAddressValid = false,
-                        isLoading = false,
-                    ),
-                onAddressChanged = {},
-                onCreateWatchAccount = {},
-                onInfoClick = {},
-            )
-        }
-
-        takeScreenshot("testEmptyForm")
-    }
-
-    @Test
-    fun testWithAddress() {
-        setTestContent {
-            ScreenContent(
-                navController = rememberNavController(),
-                viewState =
-                    CreateWatchAccountViewModel.ViewState.Content(
-                        address = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                        address = WalletSdkConstants.SAMPLE_FALCON24_ADDRESS,
                         isAddressValid = true,
                         isLoading = false,
                     ),
@@ -47,6 +29,6 @@ class CreateWatchAccountScreenshotTest(
             )
         }
 
-        takeScreenshot("testWithAddress")
+        takeScreenshot("testContent")
     }
 }

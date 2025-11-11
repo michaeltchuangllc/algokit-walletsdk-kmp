@@ -9,13 +9,13 @@ class TransactingTipsScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testTransactingTipsScreen() {
+    fun testContent() {
         setTestContent {
             TransactingTipsScreen(
                 onUnderstandClick = {},
             )
         }
 
-        takeScreenshot("TransactingTips")
+        takeScreenshot("testContent")
     }
 }

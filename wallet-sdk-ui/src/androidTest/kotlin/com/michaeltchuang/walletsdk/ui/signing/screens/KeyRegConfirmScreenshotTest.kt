@@ -39,7 +39,7 @@ class KeyRegConfirmScreenshotTest(
     }
 
     @Test
-    fun testKeyRegConfirmContentWithNote() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 viewState = KeyRegConfirmViewModel.ViewState.Content,
@@ -63,6 +63,6 @@ class KeyRegConfirmScreenshotTest(
             )
         }
 
-        takeScreenshot("KeyRegConfirm_ContentWithNote")
+        takeScreenshot("testContent")
     }
 }

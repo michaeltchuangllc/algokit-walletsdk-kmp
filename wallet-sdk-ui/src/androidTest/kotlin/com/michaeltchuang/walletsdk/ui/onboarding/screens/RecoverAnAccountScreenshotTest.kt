@@ -10,7 +10,7 @@ class RecoverAnAccountScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testDefaultState() {
+    fun testContent() {
         setTestContent {
             RecoverAnAccountScreen(
                 navController = rememberNavController(),
@@ -18,6 +18,6 @@ class RecoverAnAccountScreenshotTest(
             )
         }
 
-        takeScreenshot("testDefaultState")
+        takeScreenshot("testContent")
     }
 }

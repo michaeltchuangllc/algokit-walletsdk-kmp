@@ -13,7 +13,7 @@ class SelectReceiverScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testSelectReceiverContentWithAccounts() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -47,7 +47,7 @@ class SelectReceiverScreenshotTest(
             )
         }
 
-        takeScreenshot("SelectReceiver_ContentWithAccounts")
+        takeScreenshot("testContent")
     }
 
     @Test

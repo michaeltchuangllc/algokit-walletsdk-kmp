@@ -10,7 +10,7 @@ class DeveloperSettingsScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testDeveloperSettingsScreen() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             ScreenContent(
@@ -20,6 +20,6 @@ class DeveloperSettingsScreenshotTest(
                 onNavigateToHDWalletSelection = { },
             )
         }
-        takeScreenshot("testDeveloperSettingsScreen")
+        takeScreenshot("testContent")
     }
 }

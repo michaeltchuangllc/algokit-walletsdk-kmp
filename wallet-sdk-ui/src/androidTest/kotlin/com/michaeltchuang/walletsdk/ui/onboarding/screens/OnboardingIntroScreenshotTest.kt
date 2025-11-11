@@ -10,7 +10,7 @@ class OnboardingIntroScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testOnboardingIntro() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -19,6 +19,6 @@ class OnboardingIntroScreenshotTest(
             )
         }
 
-        takeScreenshot("OnboardingIntro")
+        takeScreenshot("testContent")
     }
 }

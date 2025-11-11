@@ -9,7 +9,7 @@ class TransactionSuccessScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testTransactionSuccessScreen() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 transactionId = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
@@ -18,6 +18,6 @@ class TransactionSuccessScreenshotTest(
             )
         }
 
-        takeScreenshot("TransactionSuccess")
+        takeScreenshot("testContent")
     }
 }

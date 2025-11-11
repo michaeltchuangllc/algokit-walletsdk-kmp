@@ -10,11 +10,11 @@ class SettingsScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testSettingsScreen() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             SettingsScreen(navController = navController)
         }
-        takeScreenshot("testSettingsScreen")
+        takeScreenshot("testContent")
     }
 }

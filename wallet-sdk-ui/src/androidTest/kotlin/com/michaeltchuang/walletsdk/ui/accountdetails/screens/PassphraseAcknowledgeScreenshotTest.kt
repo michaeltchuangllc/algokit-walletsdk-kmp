@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.accountdetails.screens
 
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import org.junit.Test
 import java.util.Locale
@@ -10,14 +11,14 @@ class PassphraseAcknowledgeScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testInitialState() {
+    fun testContent() {
         setTestContent {
             PassphraseAcknowledgeScreen(
                 navController = rememberNavController(),
-                address = "MCRT347GYFXVLIQBCEBTEQJO6S5KFYRG2TC5CLXBHGGVNXHONP5RA7FWRLM",
+                address = WalletSdkConstants.SAMPLE_FALCON24_ADDRESS,
             )
         }
 
-        takeScreenshot("testInitialState")
+        takeScreenshot("testContent")
     }
 }

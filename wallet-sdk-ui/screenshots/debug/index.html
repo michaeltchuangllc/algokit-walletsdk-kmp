@@ -1,0 +1,1352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlgoKit Wallet SDK - Screenshot Gallery</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .filters {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .filter-section {
+            margin-bottom: 20px;
+        }
+
+        .filter-section:last-child {
+            margin-bottom: 0;
+        }
+
+        .filter-label {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #333;
+            margin-bottom: 12px;
+            display: block;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .filter-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .filter-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .view-btn {
+            padding: 10px 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.95rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+
+        .view-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+        }
+
+        .view-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        .screen-selector {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            background: white;
+            cursor: pointer;
+        }
+
+        .screen-selector:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .stats {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px 25px;
+            margin-bottom: 30px;
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stat-label {
+            font-weight: 600;
+        }
+
+        .stat-value {
+            background: white;
+            color: #667eea;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-weight: 700;
+        }
+
+        /* Flow View Styles */
+        .flow-container {
+            display: none;
+        }
+
+        .flow-container.active {
+            display: block;
+        }
+
+        .flow-section {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .flow-section.hidden {
+            display: none;
+        }
+
+        .flow-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        .flow-group {
+            margin-bottom: 30px;
+        }
+
+        .flow-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .flow-group-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .flow-group-title::before {
+            content: "→";
+            font-size: 1.5rem;
+            color: #667eea;
+        }
+
+        .flow-images {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+
+        .flow-images::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .flow-images::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .flow-images::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .flow-image-wrapper {
+            flex-shrink: 0;
+            width: 200px;
+            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .flow-image-wrapper:hover {
+            transform: scale(1.05);
+        }
+
+        .flow-image {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .flow-image-label {
+            font-size: 0.75rem;
+            color: #666;
+            margin-top: 8px;
+            text-align: center;
+        }
+
+        /* Gallery View Styles */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 25px;
+        }
+
+        .gallery.hidden {
+            display: none;
+        }
+
+        .screenshot-card {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .screenshot-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .screenshot-card.hidden {
+            display: none;
+        }
+
+        .device-frame {
+            background: #1a1a1a;
+            border-radius: 36px;
+            padding: 12px;
+            margin: 20px auto;
+            max-width: 320px;
+            box-shadow: 0 0 0 2px #333, 0 0 0 4px #1a1a1a;
+            position: relative;
+        }
+
+        .device-frame::before {
+            content: '';
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 60px;
+            height: 6px;
+            background: #2a2a2a;
+            border-radius: 3px;
+        }
+
+        .device-screen {
+            background: #000;
+            border-radius: 28px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .screenshot-img {
+            width: 100%;
+            height: auto;
+            display: block;
+            background: #000;
+        }
+
+        .screenshot-info {
+            padding: 15px;
+        }
+
+        .screenshot-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+
+        .screenshot-tags {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .tag.locale-en {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .tag.locale-hi {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .tag.locale-it {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
+        .tag.theme-dark {
+            background: #263238;
+            color: white;
+        }
+
+        .tag.theme-light {
+            background: #fff9c4;
+            color: #f57f17;
+        }
+
+        .no-results {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 60px 20px;
+            color: white;
+            font-size: 1.2rem;
+        }
+
+        .no-results-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.5;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            animation: fadeIn 0.3s ease;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            max-width: 90%;
+            max-height: 90%;
+            object-fit: contain;
+            border-radius: 8px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 20px;
+            right: 40px;
+            color: white;
+            font-size: 40px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+
+        .modal-close:hover {
+            transform: scale(1.2);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .gallery {
+                grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                gap: 15px;
+            }
+
+            .filters {
+                padding: 20px;
+            }
+
+            .filter-buttons {
+                gap: 8px;
+            }
+
+            .filter-btn {
+                padding: 8px 16px;
+                font-size: 0.85rem;
+            }
+
+            .flow-images {
+                gap: 10px;
+            }
+
+            .flow-image-wrapper {
+                width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🖼️ AlgoKit Wallet SDK</h1>
+        <p class="subtitle">Screenshot Gallery</p>
+    </header>
+
+    <div class="filters">
+        <div class="filter-section">
+            <label class="filter-label">View Mode</label>
+            <div class="view-toggle">
+                <button class="view-btn active" data-view="flow">📱 Flow View</button>
+                <button class="view-btn" data-view="gallery">🎨 Gallery View</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">Locale</label>
+            <div class="filter-buttons" id="localeFilters">
+                <button class="filter-btn active" data-filter="en" data-group="locale">🇬🇧 English
+                </button>
+                <button class="filter-btn" data-filter="hi" data-group="locale">🇮🇳 Hindi</button>
+                <button class="filter-btn" data-filter="it" data-group="locale">🇮🇹 Italian</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">Theme</label>
+            <div class="filter-buttons" id="themeFilters">
+                <button class="filter-btn active" data-filter="dark" data-group="theme">🌙 Dark
+                </button>
+                <button class="filter-btn" data-filter="light" data-group="theme">☀️ Light</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <label class="filter-label">Screen</label>
+            <select class="screen-selector" id="screenSelector">
+                <option value="">Select a screen</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="stats">
+        <div class="stat-item">
+            <span class="stat-label">Showing:</span>
+            <span class="stat-value" id="visibleCount">0</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-label">Total:</span>
+            <span class="stat-value" id="totalCount">0</span>
+        </div>
+    </div>
+
+    <!-- Flow View Container -->
+    <div class="flow-container active" id="flowContainer">
+        <!-- Flow sections will be dynamically generated -->
+    </div>
+
+    <!-- Gallery View Container -->
+    <div class="gallery hidden" id="gallery">
+        <!-- Screenshots will be loaded here dynamically -->
+    </div>
+</div>
+
+<!-- Modal for fullscreen view -->
+<div class="modal" id="modal">
+    <span class="modal-close" id="modalClose">&times;</span>
+    <img class="modal-content" id="modalImage">
+</div>
+
+<script>
+    // List of all screenshot files
+    const screenshots = [
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_en_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_en_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_hi_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_hi_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_it_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreenshotTest_it_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_dark_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_dark_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_light_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_en_light_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_dark_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_dark_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_light_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_hi_light_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_dark_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_dark_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_light_testWithoutWalletAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreenshotTest_it_light_testWithWalletButNoAccounts.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_dark_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_dark_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_dark_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_dark_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_light_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_light_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_light_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_en_light_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_dark_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_dark_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_dark_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_dark_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_light_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_light_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_light_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_hi_light_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_dark_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_dark_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_dark_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_dark_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_light_testCompleteRecoveryPhrase.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_light_testCompleteRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_light_testEmptyRecoveryPhrase24Words.png",
+        "com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreenshotTest_it_light_testEmptyRecoveryPhrase25Words.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRScannerScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_dark_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_dark_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_light_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_light_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_en_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_dark_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_dark_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_light_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_light_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_hi_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_dark_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_dark_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_dark_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_light_testEmptyWalletList.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_light_testWithMultipleWallets.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.HDWalletSelectionScreenshotTest_it_light_testWithSingleWallet.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.LanguageSelectorScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.settings.screens.ThemePickerScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.KeyRegConfirmScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreenshotTest_it_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_en_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_en_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_hi_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_hi_light_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_it_dark_testContent.png",
+        "com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreenshotTest_it_light_testContent.png"
+    ];
+
+    // Parse screenshot data
+    function parseScreenshot(filename) {
+        // Remove .png extension
+        const nameWithoutExt = filename.replace('.png', '');
+
+        // Split by underscore to get: [package.path.TestClass, locale, theme, testName]
+        const parts = nameWithoutExt.split('_');
+
+        // The last 3 parts are always: locale, theme, testName
+        const testName = parts[parts.length - 1];
+        const theme = parts[parts.length - 2];
+        const locale = parts[parts.length - 3];
+
+        // Everything before the last 3 underscores is the full class path
+        const fullClassPath = parts.slice(0, -3).join('_');
+
+        // Extract just the class name (last part after the dots)
+        const testClass = fullClassPath.split('.').pop();
+
+        return {
+            filename,
+            locale,
+            theme,
+            testClass,
+            testName,
+            displayName: `${testClass.replace('ScreenshotTest', '')} - ${testName}`
+        };
+    }
+
+    const screenshotData = screenshots.map(parseScreenshot);
+
+    // Custom flow definitions - embedded directly to avoid CORS issues with file://
+    let customFlows = {
+        "Onboarding": [
+            {
+                "name": "No Accounts Onboarding Flow",
+                "steps": [
+                    "OnboardingIntroScreenshotTest_testContent",
+                    "OnboardingAccountTypeScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Create Falcon24 Account Flow",
+                "steps": [
+                    "OnboardingAccountTypeScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Add Falcon24 Account to Existing Wallet Flow",
+                "steps": [
+                    "OnboardingAccountTypeScreenshotTest_testContent",
+                    "Falcon24WalletSelectionScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Recover Falcon24 Account Flow",
+                "steps": [
+                    "AccountRecoveryTypeSelectionScreenshotTest_testContent",
+                    "RecoveryPhraseScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Recover Non Post-Quantum Account Flow",
+                "steps": [
+                    "AccountRecoveryTypeSelectionScreenshotTest_testContent",
+                    "RecoverAnAccountScreenshotTest_testContent",
+                    "RecoveryPhraseScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Recover Falcon24/Algo25 Account with QR Flow",
+                "steps": [
+                    "QRScannerScreenShotTest_testContent",
+                    "RecoveryPhraseScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            }
+        ],
+        "Account Details": [
+            {
+                "name": "View Passphrase Flow",
+                "steps": [
+                    "AccountDetailScreenshotTest_testContent",
+                    "PassphraseAcknowledgeScreenshotTest_testContent",
+                    "ViewPassphraseScreenshotTest_testContent"
+                ]
+            }
+        ],
+        "Settings": [
+            {
+                "name": "Theme Picker Flow",
+                "steps": [
+                    "SettingsScreenshotTest_testContent",
+                    "ThemePickerScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Network Switch Flow",
+                "steps": [
+                    "SettingsScreenshotTest_testContent",
+                    "DeveloperSettingsScreenshotTest_testContent",
+                    "NodeSettingsScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Create Non Post-Quantum Algo25 Flow",
+                "steps": [
+                    "SettingsScreenshotTest_testContent",
+                    "DeveloperSettingsScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Create Non Post-Quantum Universal HD Flow",
+                "steps": [
+                    "SettingsScreenshotTest_testContent",
+                    "DeveloperSettingsScreenshotTest_testContent",
+                    "HDWalletSelectionScreenshotTest_testContent",
+                    "CreateAccountNameScreenshotTest_testContent"
+                ]
+            }
+        ],
+        "Signing": [
+            {
+                "name": "Key Reg Flow",
+                "steps": [
+                    "QRScannerScreenShotTest_testContent",
+                    "KeyRegConfirmScreenshotTest_testContent",
+                    "TransactionSuccessScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Asset Transfer using QR Code Flow",
+                "steps": [
+                    "QRScannerScreenShotTest_testContent",
+                    "SelectAccountScreenshotTest_testContent",
+                    "AssetTransferConfirmScreenshotTest_testContent",
+                    "TransactionSuccessScreenshotTest_testContent"
+                ]
+            },
+            {
+                "name": "Asset Transfer Flow",
+                "steps": [
+                    "AccountDetailScreenshotTest_testContent",
+                    "SendAlgoScreenshotTest_testContent",
+                    "SelectReceiverScreenshotTest_testContent",
+                    "AssetTransferConfirmScreenshotTest_testContent",
+                    "TransactionSuccessScreenshotTest_testContent"
+                ]
+            }
+        ]
+    };
+
+    // State
+    let filters = {
+        locale: 'en',
+        theme: 'dark',
+        screen: ''
+    };
+
+    // View mode state
+    let viewMode = 'flow';
+
+    // Initialize gallery
+    function initGallery() {
+        const gallery = document.getElementById('gallery');
+        gallery.innerHTML = '';
+
+        screenshotData.forEach(screenshot => {
+            const card = document.createElement('div');
+            card.className = 'screenshot-card';
+            card.dataset.locale = screenshot.locale;
+            card.dataset.theme = screenshot.theme;
+            card.dataset.testname = screenshot.testName.toLowerCase();
+            card.dataset.testclass = screenshot.testClass.toLowerCase();
+
+            const deviceFrame = document.createElement('div');
+            deviceFrame.className = 'device-frame';
+
+            const deviceScreen = document.createElement('div');
+            deviceScreen.className = 'device-screen';
+
+            const screenshotImg = document.createElement('img');
+            screenshotImg.src = screenshot.filename + '?t=' + Date.now();
+            screenshotImg.alt = screenshot.displayName;
+            screenshotImg.className = 'screenshot-img';
+
+            deviceScreen.appendChild(screenshotImg);
+            deviceFrame.appendChild(deviceScreen);
+            card.appendChild(deviceFrame);
+
+            const screenshotInfo = document.createElement('div');
+            screenshotInfo.className = 'screenshot-info';
+            const screenshotTitle = document.createElement('div');
+            screenshotTitle.className = 'screenshot-title';
+            screenshotTitle.textContent = screenshot.displayName;
+            screenshotInfo.appendChild(screenshotTitle);
+
+            const screenshotTags = document.createElement('div');
+            screenshotTags.className = 'screenshot-tags';
+            const localeTag = document.createElement('span');
+            localeTag.className = `tag locale-${screenshot.locale}`;
+            localeTag.textContent = screenshot.locale.toUpperCase();
+            screenshotTags.appendChild(localeTag);
+
+            const themeTag = document.createElement('span');
+            themeTag.className = `tag theme-${screenshot.theme}`;
+            themeTag.textContent = screenshot.theme;
+            screenshotTags.appendChild(themeTag);
+            screenshotInfo.appendChild(screenshotTags);
+
+            card.appendChild(screenshotInfo);
+
+            card.addEventListener('click', () => openModal(screenshot.filename));
+            gallery.appendChild(card);
+        });
+
+        updateStats();
+    }
+
+    // Initialize flow view
+    function initFlowView() {
+        const flowContainer = document.getElementById('flowContainer');
+        flowContainer.innerHTML = '';
+
+        // Use custom flows if defined, otherwise group by test class
+        if (Object.keys(customFlows).length > 0) {
+            // Use custom flow definitions with new array structure
+            Object.keys(customFlows).forEach(sectionName => {
+                const section = document.createElement('div');
+                section.className = 'flow-section';
+                section.dataset.section = sectionName;
+
+                const title = document.createElement('div');
+                title.className = 'flow-title';
+                title.textContent = sectionName;
+                section.appendChild(title);
+
+                let hasVisibleGroups = false;
+
+                // Each section contains an array of flow objects
+                const flows = customFlows[sectionName];
+                flows.forEach(flowObj => {
+                    const group = document.createElement('div');
+                    group.className = 'flow-group';
+
+                    const groupTitle = document.createElement('div');
+                    groupTitle.className = 'flow-group-title';
+                    groupTitle.textContent = flowObj.name;
+                    group.appendChild(groupTitle);
+
+                    const images = document.createElement('div');
+                    images.className = 'flow-images';
+
+                    // Get screenshots for this flow
+                    const flowScreenshots = flowObj.steps;
+                    let addedCount = 0;
+
+                    flowScreenshots.forEach(screenshotPattern => {
+                        // Find matching screenshots
+                        const matchingScreenshots = screenshotData.filter(screenshot => {
+                            const fullName = `${screenshot.testClass}_${screenshot.testName}`;
+                            const matchesPattern = fullName.includes(screenshotPattern);
+                            const matchesLocale = screenshot.locale === filters.locale;
+                            const matchesTheme = screenshot.theme === filters.theme;
+                            const matchesScreen = filters.screen === '' || screenshot.testClass === filters.screen;
+
+                            return matchesPattern && matchesLocale && matchesTheme && matchesScreen;
+                        });
+
+                        // Add the first matching screenshot (limit to 4 total per flow)
+                        if (matchingScreenshots.length > 0 && addedCount < 4) {
+                            const screenshot = matchingScreenshots[0];
+                            const imageWrapper = createImageWrapper(screenshot);
+                            images.appendChild(imageWrapper);
+                            addedCount++;
+                        } else if (addedCount < 4) {
+                            // Debug: log when no match is found
+                            console.log(`No match found for pattern: ${screenshotPattern} with locale=${filters.locale}, theme=${filters.theme}`);
+                        }
+                    });
+
+                    // Only add group if it has images
+                    if (addedCount > 0) {
+                        group.appendChild(images);
+                        section.appendChild(group);
+                        hasVisibleGroups = true;
+                    }
+                });
+
+                // Only add section if it has visible groups
+                if (hasVisibleGroups) {
+                    flowContainer.appendChild(section);
+                }
+            });
+        } else {
+            // Fallback to automatic grouping
+            generateAutoFlows(flowContainer);
+        }
+
+        updateFlowStats();
+    }
+
+    function createImageWrapper(screenshot) {
+        const imageWrapper = document.createElement('div');
+        imageWrapper.className = 'flow-image-wrapper';
+        imageWrapper.addEventListener('click', () => openModal(screenshot.filename));
+
+        const deviceFrame = document.createElement('div');
+        deviceFrame.className = 'device-frame';
+
+        const deviceScreen = document.createElement('div');
+        deviceScreen.className = 'device-screen';
+
+        const image = document.createElement('img');
+        image.className = 'flow-image';
+        image.src = screenshot.filename + '?t=' + Date.now();
+        image.alt = screenshot.displayName;
+        image.loading = 'lazy';
+        deviceScreen.appendChild(image);
+        deviceFrame.appendChild(deviceScreen);
+        imageWrapper.appendChild(deviceFrame);
+
+        const label = document.createElement('div');
+        label.className = 'flow-image-label';
+        const tags = `
+            <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
+                <span class="tag locale-${screenshot.locale}">${screenshot.locale.toUpperCase()}</span>
+                <span class="tag theme-${screenshot.theme}">${screenshot.theme}</span>
+            </div>
+        `;
+        label.innerHTML = tags;
+        imageWrapper.appendChild(label);
+
+        return imageWrapper;
+    }
+
+    function generateAutoFlows(flowContainer) {
+        const flowSections = {};
+
+        // Group by test class (screen type)
+        screenshotData.forEach(screenshot => {
+            const sectionName = screenshot.testClass.replace('ScreenshotTest', 'Screen');
+            if (!flowSections[sectionName]) {
+                flowSections[sectionName] = [];
+            }
+            flowSections[sectionName].push(screenshot);
+        });
+
+        Object.keys(flowSections).sort().forEach(sectionName => {
+            const section = document.createElement('div');
+            section.className = 'flow-section';
+            section.dataset.section = sectionName;
+
+            const title = document.createElement('div');
+            title.className = 'flow-title';
+            title.textContent = sectionName;
+            section.appendChild(title);
+
+            // Group by test name within each section
+            const groups = {};
+            flowSections[sectionName].forEach(screenshot => {
+                const groupName = screenshot.testName;
+                if (!groups[groupName]) {
+                    groups[groupName] = [];
+                }
+                groups[groupName].push(screenshot);
+            });
+
+            Object.keys(groups).sort().forEach(groupName => {
+                const group = document.createElement('div');
+                group.className = 'flow-group';
+
+                const groupTitle = document.createElement('div');
+                groupTitle.className = 'flow-group-title';
+                groupTitle.textContent = groupName;
+                group.appendChild(groupTitle);
+
+                const images = document.createElement('div');
+                images.className = 'flow-images';
+
+                // Filter and sort screenshots in each group
+                const filteredScreenshots = groups[groupName].filter(screenshot => {
+                    const matchesLocale = screenshot.locale === filters.locale;
+                    const matchesTheme = screenshot.theme === filters.theme;
+                    const matchesScreen = filters.screen === '' || screenshot.testClass === filters.screen;
+                    return matchesLocale && matchesTheme && matchesScreen;
+                });
+
+                // Only show group if it has matching screenshots (limit to 4)
+                if (filteredScreenshots.length > 0) {
+                    filteredScreenshots.slice(0, 4).forEach(screenshot => {
+                        const imageWrapper = createImageWrapper(screenshot);
+                        images.appendChild(imageWrapper);
+                    });
+
+                    group.appendChild(images);
+                    section.appendChild(group);
+                }
+            });
+
+            // Only add section if it has groups
+            if (section.querySelectorAll('.flow-group').length > 0) {
+                flowContainer.appendChild(section);
+            }
+        });
+    }
+
+    function updateFlowStats() {
+        const visibleImages = document.querySelectorAll('.flow-image-wrapper').length;
+        document.getElementById('visibleCount').textContent = visibleImages;
+    }
+
+    // Filter functionality
+    function applyFilters() {
+        const cards = document.querySelectorAll('.screenshot-card');
+        let visibleCount = 0;
+
+        cards.forEach(card => {
+            const matchesLocale = filters.locale === card.dataset.locale;
+            const matchesTheme = filters.theme === card.dataset.theme;
+            const matchesScreen = filters.screen === '' || card.dataset.testclass === filters.screen;
+
+            if (matchesLocale && matchesTheme && matchesScreen) {
+                card.classList.remove('hidden');
+                visibleCount++;
+            } else {
+                card.classList.add('hidden');
+            }
+        });
+
+        updateStats(visibleCount);
+        showNoResults(visibleCount === 0);
+    }
+
+    function showNoResults(show) {
+        const existing = document.getElementById('noResults');
+        if (existing) {
+            existing.remove();
+        }
+
+        if (show) {
+            const gallery = document.getElementById('gallery');
+            const noResults = document.createElement('div');
+            noResults.id = 'noResults';
+            noResults.className = 'no-results';
+            noResults.innerHTML = `
+                <div class="no-results-icon">🔍</div>
+                <div>No screenshots found matching your filters</div>
+            `;
+            gallery.appendChild(noResults);
+        }
+    }
+
+    function updateStats(visible = null) {
+        const visibleCount = visible !== null ? visible : document.querySelectorAll('.screenshot-card:not(.hidden)').length;
+        const totalCount = screenshotData.length;
+
+        document.getElementById('visibleCount').textContent = visibleCount;
+        document.getElementById('totalCount').textContent = totalCount;
+    }
+
+    // Event listeners for filters
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const group = e.target.dataset.group;
+            const filter = e.target.dataset.filter;
+
+            // Update active state
+            document.querySelectorAll(`[data-group="${group}"]`).forEach(b => {
+                b.classList.remove('active');
+            });
+            e.target.classList.add('active');
+
+            // Update filter
+            filters[group] = filter;
+            
+            // Refresh the current view
+            if (viewMode === 'flow') {
+                initFlowView();
+            } else {
+                applyFilters();
+            }
+        });
+    });
+
+    document.getElementById('screenSelector').addEventListener('change', (e) => {
+        filters.screen = e.target.value;
+
+        // Refresh the current view
+        if (viewMode === 'flow') {
+            initFlowView();
+        } else {
+            applyFilters();
+        }
+    });
+
+    // Event listeners for view mode
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const view = e.target.dataset.view;
+
+            // Update active state
+            document.querySelectorAll('.view-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            e.target.classList.add('active');
+
+            // Update view mode
+            viewMode = view;
+
+            if (viewMode === 'flow') {
+                document.getElementById('flowContainer').classList.add('active');
+                document.getElementById('gallery').classList.add('hidden');
+                initFlowView();
+            } else {
+                document.getElementById('flowContainer').classList.remove('active');
+                document.getElementById('gallery').classList.remove('hidden');
+                initGallery();
+                applyFilters();
+            }
+        });
+    });
+
+    // Modal functionality
+    const modal = document.getElementById('modal');
+    const modalImg = document.getElementById('modalImage');
+    const modalClose = document.getElementById('modalClose');
+
+    function openModal(filename) {
+        modal.classList.add('active');
+        modalImg.src = filename;
+    }
+
+    function closeModal() {
+        modal.classList.remove('active');
+        modalImg.src = '';
+    }
+
+    modalClose.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            closeModal();
+        }
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+
+    // Initialize
+    initGallery();
+    initFlowView();
+    const screenSelector = document.getElementById('screenSelector');
+    const uniqueScreens = [...new Set(screenshotData.map(screenshot => screenshot.testClass))];
+    uniqueScreens.forEach(screen => {
+        const option = document.createElement('option');
+        option.value = screen;
+        option.textContent = screen.replace('ScreenshotTest', '');
+        screenSelector.appendChild(option);
+    });
+</script>
+</body>
+</html>
