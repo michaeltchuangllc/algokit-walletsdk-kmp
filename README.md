@@ -158,7 +158,7 @@ reference images. If there are differences, the test will fail and generate a co
 
 <img width="200" alt="Image" src="https://github.com/user-attachments/assets/d86ffc6a-7fa2-4f9c-8c45-9603911efb3e" />
 
-### Wallet-SDK Screens - Onboarding
+### Wallet-SDK Screens
 
 **Interactive Screenshot Viewer:**
 
