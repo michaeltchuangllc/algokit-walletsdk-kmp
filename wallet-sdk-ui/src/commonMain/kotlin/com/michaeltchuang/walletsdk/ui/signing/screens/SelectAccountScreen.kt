@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.signing.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,8 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -100,9 +99,14 @@ fun ScreenContent(
         modifier =
             Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .background(AlgoKitTheme.colors.background),
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+        ) {
             AlgoKitTopBar(
                 title = "Select Account",
                 onClick = onBack,
@@ -136,7 +140,7 @@ fun ScreenContent(
                 is SelectAccountViewModel.AccountsState.Error -> {
                     CenteredMessage(
                         text = "Error: ${viewState.message}",
-                        color = Color.Red,
+                        color = AlgoKitTheme.colors.negative,
                     )
                 }
             }
@@ -150,14 +154,16 @@ private fun CenteredLoader() {
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator()
+        CircularProgressIndicator(
+            color = AlgoKitTheme.colors.textMain,
+        )
     }
 }
 
 @Composable
 private fun CenteredMessage(
     text: String,
-    color: Color = Color.Unspecified,
+    color: Color = AlgoKitTheme.colors.textMain,
 ) {
     Box(
         modifier = Modifier.fillMaxSize(),
@@ -194,24 +200,19 @@ private fun AccountItem(
     account: AccountLite,
     onAccountItemClick: (address: String) -> Unit,
 ) {
-    Card(
+    Box(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .clickable(onClick = {
                     onAccountItemClick(account.address)
                 }),
-        elevation = CardDefaults.cardElevation(4.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.layerGray,
-            ),
     ) {
         Row(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AlgoKitIconRoundShape(

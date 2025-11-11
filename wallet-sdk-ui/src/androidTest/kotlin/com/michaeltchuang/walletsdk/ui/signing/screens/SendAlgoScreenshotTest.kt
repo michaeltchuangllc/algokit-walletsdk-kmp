@@ -11,7 +11,6 @@ class SendAlgoScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
-
     @Test
     fun testContent() {
         setTestContent {

@@ -855,7 +855,7 @@
             {
                 "name": "Recover Falcon24/Algo25 Account with QR Flow",
                 "steps": [
-                    "QRScannerScreenShotTest_testContent",
+                    "QRScannerScreenshotTest_testContent",
                     "RecoveryPhraseScreenshotTest_testContent",
                     "CreateAccountNameScreenshotTest_testContent"
                 ]
@@ -909,7 +909,7 @@
             {
                 "name": "Key Reg Flow",
                 "steps": [
-                    "QRScannerScreenShotTest_testContent",
+                    "QRScannerScreenshotTest_testContent",
                     "KeyRegConfirmScreenshotTest_testContent",
                     "TransactionSuccessScreenshotTest_testContent"
                 ]
@@ -917,7 +917,7 @@
             {
                 "name": "Asset Transfer using QR Code Flow",
                 "steps": [
-                    "QRScannerScreenShotTest_testContent",
+                    "QRScannerScreenshotTest_testContent",
                     "SelectAccountScreenshotTest_testContent",
                     "AssetTransferConfirmScreenshotTest_testContent",
                     "TransactionSuccessScreenshotTest_testContent"
@@ -1026,6 +1026,22 @@
                 // Each section contains an array of flow objects
                 const flows = customFlows[sectionName];
                 flows.forEach(flowObj => {
+                    // Check if this flow contains the selected screen (if any)
+                    let flowContainsSelectedScreen = filters.screen === '';
+                    if (filters.screen !== '') {
+                        flowContainsSelectedScreen = flowObj.steps.some(step => {
+                            // Extract testClass from step pattern (e.g., "SettingsScreenshotTest_testContent" -> "SettingsScreenshotTest")
+                            const stepTestClass = step.split('_')[0];
+                            // Check for exact testClass match to avoid substring issues (e.g., Settings vs DeveloperSettings)
+                            return stepTestClass === filters.screen;
+                        });
+                    }
+
+                    // Skip this flow if it doesn't contain the selected screen
+                    if (!flowContainsSelectedScreen) {
+                        return;
+                    }
+
                     const group = document.createElement('div');
                     group.className = 'flow-group';
 
@@ -1042,15 +1058,15 @@
                     let addedCount = 0;
 
                     flowScreenshots.forEach(screenshotPattern => {
-                        // Find matching screenshots
+                        // Find matching screenshots - use exact match instead of includes to avoid substring issues
                         const matchingScreenshots = screenshotData.filter(screenshot => {
                             const fullName = `${screenshot.testClass}_${screenshot.testName}`;
-                            const matchesPattern = fullName.includes(screenshotPattern);
+                            // Exact match on the full pattern
+                            const matchesPattern = fullName === screenshotPattern;
                             const matchesLocale = screenshot.locale === filters.locale;
                             const matchesTheme = screenshot.theme === filters.theme;
-                            const matchesScreen = filters.screen === '' || screenshot.testClass === filters.screen;
 
-                            return matchesPattern && matchesLocale && matchesTheme && matchesScreen;
+                            return matchesPattern && matchesLocale && matchesTheme;
                         });
 
                         // Add the first matching screenshot (limit to 4 total per flow)
@@ -1059,9 +1075,6 @@
                             const imageWrapper = createImageWrapper(screenshot);
                             images.appendChild(imageWrapper);
                             addedCount++;
-                        } else if (addedCount < 4) {
-                            // Debug: log when no match is found
-                            console.log(`No match found for pattern: ${screenshotPattern} with locale=${filters.locale}, theme=${filters.theme}`);
                         }
                     });
 
@@ -1204,7 +1217,7 @@
         cards.forEach(card => {
             const matchesLocale = filters.locale === card.dataset.locale;
             const matchesTheme = filters.theme === card.dataset.theme;
-            const matchesScreen = filters.screen === '' || card.dataset.testclass === filters.screen;
+            const matchesScreen = filters.screen === '' || card.dataset.testclass === filters.screen.toLowerCase();
 
             if (matchesLocale && matchesTheme && matchesScreen) {
                 card.classList.remove('hidden');

@@ -12,16 +12,16 @@ class QRScannerScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
-
     private fun allowPermissionsIfNeeded() {
         val device = UiDevice.getInstance(InstrumentationRegistry.getInstrumentation())
         try {
             // Look for "Allow" or "While using the app" button
-            val allowButton = device.findObject(
-                UiSelector()
-                    .textMatches("(?i)(allow|while using the app|only this time)")
-                    .clickable(true)
-            )
+            val allowButton =
+                device.findObject(
+                    UiSelector()
+                        .textMatches("(?i)(allow|while using the app|only this time)")
+                        .clickable(true),
+                )
             if (allowButton.exists()) {
                 allowButton.click()
                 Thread.sleep(500)
