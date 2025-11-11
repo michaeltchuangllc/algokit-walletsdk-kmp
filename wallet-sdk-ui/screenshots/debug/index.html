@@ -186,11 +186,14 @@
         }
 
         .flow-section {
-            background: white;
+            background: #f5f5f5;
             border-radius: 16px;
             padding: 30px;
             margin-bottom: 30px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+        .flow-section.theme-light {
+            background: #3a3a3a;
         }
 
         .flow-section.hidden {
@@ -204,6 +207,10 @@
             margin-bottom: 20px;
             border-bottom: 3px solid #667eea;
             padding-bottom: 10px;
+        }
+        .flow-section.theme-light .flow-title {
+            color: #f5f5f5;
+            border-bottom: 3px solid #764ba2;
         }
 
         .flow-group {
@@ -223,11 +230,17 @@
             align-items: center;
             gap: 10px;
         }
+        .flow-section.theme-light .flow-group-title {
+            color: #e7e7e7;
+        }
 
         .flow-group-title::before {
             content: "→";
             font-size: 1.5rem;
             color: #667eea;
+        }
+        .flow-section.theme-light .flow-group-title::before {
+            color: #a786fa;
         }
 
         .flow-images {
@@ -289,7 +302,7 @@
         }
 
         .screenshot-card {
-            background: white;
+            background: transparent;
             border-radius: 12px;
             overflow: hidden;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
@@ -345,6 +358,16 @@
 
         .screenshot-info {
             padding: 15px;
+            background: white;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .screenshot-info.theme-light {
+            background: #2a2a2a;
+        }
+
+        .screenshot-info.theme-light .screenshot-title {
+            color: white;
         }
 
         .screenshot-title {
@@ -975,7 +998,7 @@
             card.appendChild(deviceFrame);
 
             const screenshotInfo = document.createElement('div');
-            screenshotInfo.className = 'screenshot-info';
+            screenshotInfo.className = 'screenshot-info' + (screenshot.theme === 'light' ? ' theme-light' : '');
             const screenshotTitle = document.createElement('div');
             screenshotTitle.className = 'screenshot-title';
             screenshotTitle.textContent = screenshot.displayName;
@@ -1013,7 +1036,7 @@
             // Use custom flow definitions with new array structure
             Object.keys(customFlows).forEach(sectionName => {
                 const section = document.createElement('div');
-                section.className = 'flow-section';
+                section.className = 'flow-section' + (filters.theme === 'light' ? ' theme-light' : '');
                 section.dataset.section = sectionName;
 
                 const title = document.createElement('div');
@@ -1147,7 +1170,7 @@
 
         Object.keys(flowSections).sort().forEach(sectionName => {
             const section = document.createElement('div');
-            section.className = 'flow-section';
+            section.className = 'flow-section' + (filters.theme === 'light' ? ' theme-light' : '');
             section.dataset.section = sectionName;
 
             const title = document.createElement('div');
