@@ -25,6 +25,23 @@ class Falcon24WalletSelectionScreenshotTest(
     }
 
     @Test
+    fun testContent() {
+        setTestContent {
+            Falcon24WalletSelectionScreenContent(
+                viewState =
+                    Falcon24WalletSelectionViewModel.ViewState.Content(
+                        walletItemPreviews = createSampleWalletItems(2),
+                    ),
+                navController = rememberNavController(),
+                createNewWalletClick = {},
+                walletItemClick = {},
+            )
+        }
+
+        takeScreenshot("testContent")
+    }
+
+    @Test
     fun testWithSingleWallet() {
         setTestContent {
             Falcon24WalletSelectionScreenContent(

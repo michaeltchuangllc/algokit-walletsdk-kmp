@@ -11,6 +11,50 @@ class RecoveryPhraseScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
+    fun testContent() {
+        setTestContent {
+            val navController = rememberNavController()
+            val mnemonicInputs =
+                listOf(
+                    "abandon",
+                    "ability",
+                    "able",
+                    "about",
+                    "above",
+                    "absent",
+                    "absorb",
+                    "abstract",
+                    "absurd",
+                    "abuse",
+                    "access",
+                    "accident",
+                    "account",
+                    "accuse",
+                    "achieve",
+                    "acid",
+                    "acoustic",
+                    "acquire",
+                    "across",
+                    "act",
+                    "action",
+                    "actor",
+                    "actress",
+                    "actual",
+                )
+            ScreenContent(
+                navController = navController,
+                accountType = AccountMnemonic.AccountType.Falcon24,
+                mnemonicList = mnemonicInputs,
+                onMnemonicChange = { },
+                onClipboardPaste = { },
+                onRecover = { },
+                onLearnMore = { },
+            )
+        }
+        takeScreenshot("testContent")
+    }
+
+    @Test
     fun testEmptyRecoveryPhrase24Words() {
         setTestContent {
             val navController = rememberNavController()

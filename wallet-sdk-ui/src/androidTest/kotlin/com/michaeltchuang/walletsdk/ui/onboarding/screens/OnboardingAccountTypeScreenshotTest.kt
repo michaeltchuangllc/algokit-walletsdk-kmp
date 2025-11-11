@@ -9,6 +9,21 @@ class OnboardingAccountTypeScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
+    fun testContent() {
+        setTestContent {
+            ScreenContent(
+                hasWalletWithNoAccounts = true,
+                onCreateNewAccount = {},
+                onCreateWallet = {},
+                onImportAccount = {},
+                onWatchAddress = {},
+            )
+        }
+
+        takeScreenshot("testContent")
+    }
+
+    @Test
     fun testWithWalletButNoAccounts() {
         setTestContent {
             ScreenContent(

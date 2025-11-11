@@ -12,7 +12,7 @@ class ThemePickerScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testThemeScreen() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             val viewState =
@@ -31,6 +31,6 @@ class ThemePickerScreenshotTest(
                 onThemeSelected = { },
             )
         }
-        takeScreenshot("testThemeScreen")
+        takeScreenshot("testContent")
     }
 }

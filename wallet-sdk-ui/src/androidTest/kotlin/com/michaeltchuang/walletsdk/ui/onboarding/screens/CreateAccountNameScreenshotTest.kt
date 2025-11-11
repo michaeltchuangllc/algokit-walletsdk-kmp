@@ -14,7 +14,7 @@ class CreateAccountNameScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testWithAccountName() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -24,6 +24,6 @@ class CreateAccountNameScreenshotTest(
             )
         }
 
-        takeScreenshot("testWithAccountName")
+        takeScreenshot("testContent")
     }
 }

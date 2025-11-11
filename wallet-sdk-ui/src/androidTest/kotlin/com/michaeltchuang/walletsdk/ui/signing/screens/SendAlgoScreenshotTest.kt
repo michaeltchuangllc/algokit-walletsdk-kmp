@@ -12,6 +12,32 @@ class SendAlgoScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
+    fun testContent() {
+        setTestContent {
+            ScreenContent(
+                senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
+                viewState =
+                    SendAlgoViewModel.ViewState.Content(
+                        amount = "10.5",
+                        usdValue = "$20.85",
+                        balance = "25.0 ALGO",
+                        assetUsdValue = "$49.75",
+                        showUSDAmount = true,
+                    ),
+                noteText = remember { mutableStateOf("") },
+                onAmountChange = {},
+                onDeletePressed = {},
+                onMaxPressed = {},
+                onNextPressed = {},
+                onBackClick = {},
+                onInfoClick = {},
+            )
+        }
+
+        takeScreenshot("testContent")
+    }
+
+    @Test
     fun testSendAlgoScreenEmpty() {
         setTestContent {
             ScreenContent(

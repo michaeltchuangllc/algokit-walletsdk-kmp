@@ -12,7 +12,7 @@ class SelectAccountScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testSelectAccountContentWithAccounts() {
+    fun testContent() {
         setTestContent {
             ScreenContent(
                 viewState =
@@ -44,6 +44,6 @@ class SelectAccountScreenshotTest(
             )
         }
 
-        takeScreenshot("SelectAccount_ContentWithAccounts")
+        takeScreenshot("testContent")
     }
 }

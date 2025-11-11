@@ -10,7 +10,7 @@ class AccountRecoveryTypeSelectionScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testDefaultState() {
+    fun testContent() {
         setTestContent {
             AccountRecoveryTypeSelectionScreen(
                 navController = rememberNavController(),
@@ -18,6 +18,6 @@ class AccountRecoveryTypeSelectionScreenshotTest(
             )
         }
 
-        takeScreenshot("testDefaultState")
+        takeScreenshot("testContent")
     }
 }

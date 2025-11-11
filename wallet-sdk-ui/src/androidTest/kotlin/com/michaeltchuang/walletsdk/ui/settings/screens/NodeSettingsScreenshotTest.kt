@@ -12,7 +12,7 @@ class NodeSettingsScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testNodeSettingsScreen() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             val viewState =
@@ -34,6 +34,6 @@ class NodeSettingsScreenshotTest(
                 onDismissDialog = { },
             )
         }
-        takeScreenshot("testNodeSettingsScreen")
+        takeScreenshot("testContent")
     }
 }

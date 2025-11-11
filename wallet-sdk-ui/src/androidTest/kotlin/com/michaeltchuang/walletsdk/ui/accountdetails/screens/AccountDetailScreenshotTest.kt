@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.accountdetails.screens
 
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
@@ -11,6 +12,27 @@ class AccountDetailScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
+    @Test
+    fun testContent() {
+        setTestContent {
+            ScreenContent(
+                navController = rememberNavController(),
+                address = WalletSdkConstants.SAMPLE_FALCON24_ADDRESS,
+                viewState =
+                    AccountDetailViewModel.ViewState.Content(
+                        currentNetwork = AlgorandNetwork.MAINNET,
+                        isTestNet = false,
+                        explorerBaseUrl = "https://algoexplorer.io",
+                        isNoAuthAccount = false,
+                    ),
+                onDeleteAccount = {},
+                showSnackBar = {},
+            )
+        }
+
+        takeScreenshot("testContent")
+    }
+
     @Test
     fun testRegularAccountMainnet() {
         setTestContent {

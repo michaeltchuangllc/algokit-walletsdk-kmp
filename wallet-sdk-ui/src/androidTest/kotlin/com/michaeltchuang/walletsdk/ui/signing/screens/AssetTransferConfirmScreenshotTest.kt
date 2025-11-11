@@ -11,30 +11,7 @@ class AssetTransferConfirmScreenshotTest(
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
     @Test
-    fun testContentStateWithoutNote() {
-        setTestContent {
-            val navController = rememberNavController()
-            val contentState =
-                AssetTransferConfirmViewModel.ViewState.Content(
-                    senderAddress = "AXNQ4ZEZ5QBVWGMGW3C7VQJHZ8NQKQY5XJVZ2WQXQY5XJVZ2WQXQY5XJVZ2W",
-                    receiverAddress = "BXYZ9YUZ5QBVWGMGW3C7VQJHZ8NQKQY5XJVZ2WQXQY5XJVZ2WQXQY5XJVZ2W",
-                    amount = "10.5",
-                    accountBalance = "25000000",
-                    note = "",
-                    fee = "0.001",
-                )
-            ScreenContent(
-                navController = navController,
-                viewState = contentState,
-                onSendTransaction = { },
-                onSetNote = { },
-            )
-        }
-        takeScreenshot("testContentStateWithoutNote")
-    }
-
-    @Test
-    fun testContentStateWithNote() {
+    fun testContent() {
         setTestContent {
             val navController = rememberNavController()
             val contentState =
@@ -53,6 +30,6 @@ class AssetTransferConfirmScreenshotTest(
                 onSetNote = { },
             )
         }
-        takeScreenshot("testContentStateWithNote")
+        takeScreenshot("testContent")
     }
 }
