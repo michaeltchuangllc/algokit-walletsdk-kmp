@@ -162,9 +162,8 @@ reference images. If there are differences, the test will fail and generate a co
 
 **Interactive Screenshot Viewer:**
 
-View all wallet SDK screens with an interactive gallery that allows you to filter by locale (
-English, Hindi, Italian), theme (Dark/Light), and view various user
-flows. [Open Screenshot Gallery →](https://raw.githack.com/michaeltchuang/algokit-walletsdk-kmp/screenshot_website/wallet-sdk-ui/screenshots/debug/index.html)
+View all Wallet SDK screens with an interactive gallery that allows you to filter by locale 
+(English, Hindi, Italian), theme (Dark/Light), and view various user flows. [Open Screenshot Gallery →](https://raw.githack.com/michaeltchuang/algokit-walletsdk-kmp/screenshot_website/wallet-sdk-ui/screenshots/debug/index.html)
 
 ## Architecture
 
