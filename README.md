@@ -92,15 +92,16 @@ timeline
             : ✅ GitOps - Setup stores for demo Android/iOS app releases
             : ✅ GitOps - CLA agreement bot
             : ✅ Onboarding - Add Watch accounts support
-            : ✅ Settings - Localization (Italian, Hindi)
+            : ✅ Settings - Localization (English, Italian, Hindi)
             : ✅ Testing - Setup unit test coverage foundation
-            : 🔄 Testing - Add screenshot testing infrastructure
+            : ✅ Testing - Add screenshot testing infrastructure
 
     section Future
-    2026Q1  : Transaction - Integrate new AlgoKit-Core Transact rust library
+    2026Q1  : 🔄 Add In Landscape (Tablet/Desktop) UI Support
+            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : Onboarding - Passkeys / Liquid Auth
             : Onboarding - Rekey flow
-            : Onboarding - Recover HD account flow
+            : Transaction - Integrate new AlgoKit-Core Transact rust library
             : Onboarding - Fun app splash screen
             : Account Details - Add more items in Account Detail screen
             : Android - Wallet SDK as a background service integration
