@@ -147,9 +147,9 @@ This command will run all screenshot tests and save the captured screenshots as 
 This command will run the tests and compare current screenshots against the previously recorded
 reference images. If there are differences, the test will fail and generate a comparison report.
 
-**Screenshot Repo Example Storage Location:**
+**Screenshot Default Storage Location:**
 
-- `wallet-sdk-ui/src/androidTest/kotlin/com/michaeltchuang/walletsdk/ui/onboarding/screens/CreateWatchAccountScreenshotTest.kt`
+- `wallet-sdk-ui/screenshots/debug/*.png`
 
 > **Note:** Screenshot tests require an Android device or emulator to be connected.
 

@@ -417,6 +417,16 @@
             color: #f57f17;
         }
 
+        .tag.device-phone {
+            background: #e8eaf6;
+            color: #3f51b5;
+        }
+
+        .tag.device-tablet {
+            background: #fce4ec;
+            color: #c2185b;
+        }
+
         .no-results {
             grid-column: 1 / -1;
             text-align: center;
@@ -527,6 +537,16 @@
         </div>
 
         <div class="filter-section">
+            <label class="filter-label">Device Type</label>
+            <div class="filter-buttons" id="deviceFilters">
+                <button class="filter-btn active" data-filter="phone" data-group="device">📱 Phone
+                </button>
+                <button class="filter-btn" data-filter="tablet" data-group="device">📱 Tablet
+                </button>
+            </div>
+        </div>
+
+        <div class="filter-section">
             <label class="filter-label">Locale</label>
             <div class="filter-buttons" id="localeFilters">
                 <button class="filter-btn active" data-filter="en" data-group="locale">🇬🇧 English
@@ -549,6 +569,12 @@
             <label class="filter-label">Screen</label>
             <select class="screen-selector" id="screenSelector">
                 <option value="">Select a screen</option>
+            </select>
+        </div>
+        <div class="filter-section" id="flowFilterSection">
+            <label class="filter-label">Filter by Flow</label>
+            <select class="screen-selector" id="flowSelector">
+                <option value="">All flows</option>
             </select>
         </div>
     </div>
@@ -961,6 +987,7 @@
 
     // State
     let filters = {
+        device: 'phone',
         locale: 'en',
         theme: 'dark',
         screen: ''
@@ -968,6 +995,11 @@
 
     // View mode state
     let viewMode = 'flow';
+
+    // Helper function to get the path to the screenshot based on device type
+    function getScreenshotPath(filename) {
+        return `${filters.device}/${filename}`;
+    }
 
     // Initialize gallery
     function initGallery() {
@@ -989,7 +1021,7 @@
             deviceScreen.className = 'device-screen';
 
             const screenshotImg = document.createElement('img');
-            screenshotImg.src = screenshot.filename + '?t=' + Date.now();
+            screenshotImg.src = getScreenshotPath(screenshot.filename) + '?t=' + Date.now();
             screenshotImg.alt = screenshot.displayName;
             screenshotImg.className = 'screenshot-img';
 
@@ -1015,11 +1047,18 @@
             themeTag.className = `tag theme-${screenshot.theme}`;
             themeTag.textContent = screenshot.theme;
             screenshotTags.appendChild(themeTag);
+
+            // Add device tag
+            const deviceTag = document.createElement('span');
+            deviceTag.className = `tag device-${filters.device}`;
+            deviceTag.textContent = filters.device.charAt(0).toUpperCase() + filters.device.slice(1);
+            screenshotTags.appendChild(deviceTag);
+
             screenshotInfo.appendChild(screenshotTags);
 
             card.appendChild(screenshotInfo);
 
-            card.addEventListener('click', () => openModal(screenshot.filename));
+            card.addEventListener('click', () => openModal(getScreenshotPath(screenshot.filename)));
             gallery.appendChild(card);
         });
 
@@ -1081,14 +1120,12 @@
                     let addedCount = 0;
 
                     flowScreenshots.forEach(screenshotPattern => {
-                        // Find matching screenshots - use exact match instead of includes to avoid substring issues
+                        // Find matching screenshots - match locale and theme, show all steps in flow
                         const matchingScreenshots = screenshotData.filter(screenshot => {
                             const fullName = `${screenshot.testClass}_${screenshot.testName}`;
-                            // Exact match on the full pattern
                             const matchesPattern = fullName === screenshotPattern;
                             const matchesLocale = screenshot.locale === filters.locale;
                             const matchesTheme = screenshot.theme === filters.theme;
-
                             return matchesPattern && matchesLocale && matchesTheme;
                         });
 
@@ -1125,7 +1162,7 @@
     function createImageWrapper(screenshot) {
         const imageWrapper = document.createElement('div');
         imageWrapper.className = 'flow-image-wrapper';
-        imageWrapper.addEventListener('click', () => openModal(screenshot.filename));
+        imageWrapper.addEventListener('click', () => openModal(getScreenshotPath(screenshot.filename)));
 
         const deviceFrame = document.createElement('div');
         deviceFrame.className = 'device-frame';
@@ -1135,7 +1172,7 @@
 
         const image = document.createElement('img');
         image.className = 'flow-image';
-        image.src = screenshot.filename + '?t=' + Date.now();
+        image.src = getScreenshotPath(screenshot.filename) + '?t=' + Date.now();
         image.alt = screenshot.displayName;
         image.loading = 'lazy';
         deviceScreen.appendChild(image);
@@ -1148,6 +1185,7 @@
             <div style="display: flex; gap: 4px; justify-content: center; margin-top: 4px;">
                 <span class="tag locale-${screenshot.locale}">${screenshot.locale.toUpperCase()}</span>
                 <span class="tag theme-${screenshot.theme}">${screenshot.theme}</span>
+                <span class="tag device-${filters.device}">${filters.device.charAt(0).toUpperCase() + filters.device.slice(1)}</span>
             </div>
         `;
         label.innerHTML = tags;
@@ -1299,7 +1337,9 @@
             // Refresh the current view
             if (viewMode === 'flow') {
                 initFlowView();
+                applyFlowFilter();
             } else {
+                initGallery();
                 applyFilters();
             }
         });
@@ -1311,6 +1351,7 @@
         // Refresh the current view
         if (viewMode === 'flow') {
             initFlowView();
+            applyFlowFilter();
         } else {
             applyFilters();
         }
@@ -1330,17 +1371,111 @@
             // Update view mode
             viewMode = view;
 
+            // Show/hide the flow filter dropdown based on view mode
+            var flowFilterSection = document.getElementById('flowFilterSection');
             if (viewMode === 'flow') {
+                flowFilterSection.style.display = '';
                 document.getElementById('flowContainer').classList.add('active');
                 document.getElementById('gallery').classList.add('hidden');
                 initFlowView();
             } else {
+                flowFilterSection.style.display = 'none';
                 document.getElementById('flowContainer').classList.remove('active');
                 document.getElementById('gallery').classList.remove('hidden');
                 initGallery();
                 applyFilters();
             }
         });
+    });
+
+    // Jump to Flow/Section functionality
+    function populateFlowSelector() {
+        const flowSelector = document.getElementById('flowSelector');
+        flowSelector.innerHTML = '';
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = 'All flows';
+        flowSelector.appendChild(defaultOption);
+
+        Object.keys(customFlows).forEach(sectionName => {
+            // Add section as an option
+            const sectionOption = document.createElement('option');
+            sectionOption.value = 'section|' + sectionName;
+            sectionOption.textContent = sectionName;
+            sectionOption.dataset.type = 'section';
+            flowSelector.appendChild(sectionOption);
+
+            // Add individual flows within this section
+            customFlows[sectionName].forEach(flow => {
+                const flowOption = document.createElement('option');
+                flowOption.value = 'flow|' + sectionName + '|' + flow.name;
+                flowOption.textContent = '  └ ' + flow.name;
+                flowOption.dataset.type = 'flow';
+                flowSelector.appendChild(flowOption);
+            });
+        });
+    }
+
+    // New logic: Actually filter the flow view by chosen section/flow.
+    let flowFilter = '';
+
+    function applyFlowFilter() {
+        const flowSelector = document.getElementById('flowSelector');
+        flowFilter = flowSelector.value;
+
+        // Only apply in flow view
+        if (viewMode !== 'flow') return;
+
+        // Get all flow-section and flow-group elements
+        const flowSections = document.querySelectorAll('.flow-section');
+        const flowGroups = document.querySelectorAll('.flow-group');
+
+        // If "All flows" (flowFilter is empty), show everything
+        if (!flowFilter) {
+            flowSections.forEach(el => el.style.display = '');
+            flowGroups.forEach(el => el.style.display = '');
+            updateFlowStats();
+            return;
+        }
+        
+        // Hide all sections and groups
+        flowSections.forEach(el => el.style.display = 'none');
+        flowGroups.forEach(el => el.style.display = 'none');
+
+        if (flowFilter.startsWith('section|')) {
+            // Show only this section, and all its flow groups
+            const sectionName = flowFilter.split('|')[1];
+            flowSections.forEach(section => {
+                if (section.dataset.section === sectionName) {
+                    section.style.display = '';
+                    // Show all its groups inside
+                    section.querySelectorAll('.flow-group').forEach(g => g.style.display = '');
+                }
+            });
+        } else if (flowFilter.startsWith('flow|')) {
+            // Show only this flow group (and its parent section)
+            const [, sectionName, flowName] = flowFilter.split('|');
+            flowSections.forEach(section => {
+                if (section.dataset.section === sectionName) {
+                    section.style.display = '';
+                    section.querySelectorAll('.flow-group').forEach(group => {
+                        const groupTitle = group.querySelector('.flow-group-title');
+                        if (groupTitle && groupTitle.textContent.trim() === flowName) {
+                            group.style.display = '';
+                        }
+                    });
+                }
+            });
+        }
+        updateFlowStats();
+    }
+
+    document.getElementById('flowSelector').addEventListener('change', (e) => {
+        // Always switch to flow view when filter is used
+        if (viewMode !== 'flow') {
+            document.querySelector('[data-view="flow"]').click();
+        }
+        applyFlowFilter();
     });
 
     // Modal functionality
@@ -1375,6 +1510,17 @@
     // Initialize
     initGallery();
     initFlowView();
+    applyFlowFilter();
+
+    // Hide or show "Filter by Flow" section on initial page load based on default view mode
+    var flowFilterSection = document.getElementById('flowFilterSection');
+    if (viewMode === 'flow') {
+        flowFilterSection.style.display = '';
+    } else {
+        flowFilterSection.style.display = 'none';
+    }
+
+    // Init screen selector
     const screenSelector = document.getElementById('screenSelector');
     const uniqueScreens = [...new Set(screenshotData.map(screenshot => screenshot.testClass))];
     uniqueScreens.forEach(screen => {
@@ -1383,6 +1529,9 @@
         option.textContent = screen.replace('ScreenshotTest', '');
         screenSelector.appendChild(option);
     });
+
+    // Init flow selector
+    populateFlowSelector();
 </script>
 </body>
 </html>
