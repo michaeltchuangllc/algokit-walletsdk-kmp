@@ -273,3 +273,36 @@ mavenPublishing {
         }
     }
 }
+
+// Task to copy screenshots to GitHub Pages directory
+val copyPhoneScreenshots by tasks.registering(Copy::class) {
+    description =
+        "Copy screenshots to /docs/screenshots/phone for GitHub Pages (mirrors and deletes old " +
+                "files)"
+    group = "documentation"
+
+    from("screenshots/debug") {
+        include("*.png")
+    }
+    into(rootProject.file("docs/screenshots/phone"))
+
+    doFirst {
+        rootProject.file("docs/screenshots/phone").mkdirs()
+    }
+}
+
+val copyTabletScreenshots by tasks.registering(Copy::class) {
+    description =
+        "Copy screenshots to /docs/screenshots/tablet for GitHub Pages (mirrors and deletes old " +
+                "files)"
+    group = "documentation"
+
+    from("screenshots/debug") {
+        include("*.png")
+    }
+    into(rootProject.file("docs/screenshots/tablet"))
+
+    doFirst {
+        rootProject.file("docs/screenshots/tablet").mkdirs()
+    }
+}

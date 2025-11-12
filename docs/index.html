@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AlgoKit Wallet SDK - Documentation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 50px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .description {
+            font-size: 1rem;
+            opacity: 0.85;
+            line-height: 1.6;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .card-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+            display: block;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-icon {
+            font-size: 3rem;
+            margin-bottom: 20px;
+            display: block;
+        }
+
+        .card-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 12px;
+        }
+
+        .card-description {
+            font-size: 0.95rem;
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .card-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #667eea;
+            font-size: 0.95rem;
+        }
+
+        .card-link::after {
+            content: "→";
+            font-size: 1.2rem;
+            transition: transform 0.3s ease;
+        }
+
+        .card:hover .card-link::after {
+            transform: translateX(5px);
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 15px;
+        }
+
+        footer {
+            text-align: center;
+            color: white;
+            margin-top: 60px;
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .card-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .card {
+                padding: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>🖼️ AlgoKit Wallet SDK</h1>
+        <p class="subtitle">Documentation Hub</p>
+        <p class="description">
+            A comprehensive Kotlin Multiplatform wallet SDK for Algorand blockchain,
+            featuring post-quantum cryptography and beautiful UI components.
+        </p>
+    </header>
+
+    <div class="card-grid">
+        <a href="screenshots/index.html" class="card">
+            <span class="badge">Interactive</span>
+            <span class="card-icon">📱</span>
+            <h2 class="card-title">Screenshot Gallery</h2>
+            <p class="card-description">
+                Browse through comprehensive screenshots of all UI screens with interactive filters
+                for device type, locale, theme, and flow visualization.
+            </p>
+            <span class="card-link">View Gallery</span>
+        </a>
+
+        <!-- Placeholder for future documentation sections -->
+        <div class="card" style="opacity: 0.6; pointer-events: none;">
+            <span class="badge">Coming Soon</span>
+            <span class="card-icon">📚</span>
+            <h2 class="card-title">API Documentation</h2>
+            <p class="card-description">
+                Detailed API documentation for all SDK components, classes, and methods.
+            </p>
+            <span class="card-link">View Docs</span>
+        </div>
+
+        <div class="card" style="opacity: 0.6; pointer-events: none;">
+            <span class="badge">Coming Soon</span>
+            <span class="card-icon">🚀</span>
+            <h2 class="card-title">Getting Started</h2>
+            <p class="card-description">
+                Quick start guide and tutorials to integrate the AlgoKit Wallet SDK into your
+                project.
+            </p>
+            <span class="card-link">Get Started</span>
+        </div>
+
+        <a href="https://algorand.co/blog/technical-brief-quantum-resistant-transactions-on-algorand-with-falcon-signatures"
+           target="_blank" rel="noopener noreferrer" class="card">
+            <span class="badge">Technical Brief</span>
+            <span class="card-icon">🔐</span>
+            <h2 class="card-title">Quantum-Resistant Security</h2>
+            <p class="card-description">
+                Learn about Falcon signatures and how Algorand implements quantum-resistant
+                cryptography
+                to protect against future threats from quantum computers.
+            </p>
+            <span class="card-link">Read Technical Brief</span>
+        </a>
+    </div>
+
+    <footer>
+        <p>AlgoKit Wallet SDK - Built with ❤️ for the Algorand ecosystem</p>
+    </footer>
+</div>
+</body>
+</html>
