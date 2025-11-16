@@ -68,7 +68,7 @@ internal val onboardingModules =
                     registeredAccountsProcessor = get(),
                     accountCreationHdKeyTypeMapper = get(),
                     stateDelegate = get(),
-                    eventDelegate = get()
+                    eventDelegate = get(),
                 )
             }
             viewModel {

@@ -29,10 +29,10 @@ class RecoverRegisteredAccountsViewModel(
     private val registeredAccountsProcessor: RecoverRegisteredAccountsAccountProcessor,
     private val accountCreationHdKeyTypeMapper: AccountCreationHdKeyTypeMapper,
     private val stateDelegate: StateDelegate<ViewState>,
-    private val eventDelegate: EventDelegate<ViewEvent>
-) : ViewModel(), StateViewModel<RecoverRegisteredAccountsViewModel.ViewState> by stateDelegate,
+    private val eventDelegate: EventDelegate<ViewEvent>,
+) : ViewModel(),
+    StateViewModel<RecoverRegisteredAccountsViewModel.ViewState> by stateDelegate,
     EventViewModel<RecoverRegisteredAccountsViewModel.ViewEvent> by eventDelegate {
-
     private val encryptedEntropy =
         AccountCreationManager.getPendingAccountCreation().let {
             (it?.type as? AccountCreation.Type.HdKey)?.encryptedEntropy
@@ -49,13 +49,15 @@ class RecoverRegisteredAccountsViewModel(
                 encryptedEntropy?.let { encryptedEntropyValue ->
                     val registeredAccounts =
                         registeredAccountsProcessor.getRegisteredHdKeyItems(encryptedEntropyValue)
-                    val notImportedAddresses = registeredAccounts.mapNotNull {
-                        it.takeIf { !it.isImportedToDB }?.address
-                    }.toSet()
+                    val notImportedAddresses =
+                        registeredAccounts
+                            .mapNotNull {
+                                it.takeIf { !it.isImportedToDB }?.address
+                            }.toSet()
                     stateDelegate.updateState {
                         ViewState.Content(
                             registeredAccounts = registeredAccounts,
-                            registeredAddressesNotImported = notImportedAddresses
+                            registeredAddressesNotImported = notImportedAddresses,
                         )
                     }
                 } ?: run {
@@ -66,13 +68,17 @@ class RecoverRegisteredAccountsViewModel(
         }
     }
 
-    fun toggleAccountSelection(address: String, isSelected: Boolean) {
+    fun toggleAccountSelection(
+        address: String,
+        isSelected: Boolean,
+    ) {
         stateDelegate.onState<ViewState.Content> { currentState ->
-            val updatedSelection = if (isSelected) {
-                currentState.selectedAddresses + address
-            } else {
-                currentState.selectedAddresses - address
-            }
+            val updatedSelection =
+                if (isSelected) {
+                    currentState.selectedAddresses + address
+                } else {
+                    currentState.selectedAddresses - address
+                }
             stateDelegate.updateState {
                 currentState.copy(selectedAddresses = updatedSelection)
             }
@@ -83,7 +89,7 @@ class RecoverRegisteredAccountsViewModel(
         stateDelegate.onState<ViewState.Content> { currentState ->
             stateDelegate.updateState {
                 currentState.copy(
-                    selectedAddresses = currentState.registeredAddressesNotImported
+                    selectedAddresses = currentState.registeredAddressesNotImported,
                 )
             }
         }
@@ -102,9 +108,10 @@ class RecoverRegisteredAccountsViewModel(
             stateDelegate.updateState { currentState.copy(type = ViewState.Content.ContentType.LoadingRekeyedAddresses) }
             viewModelScope.launch(Dispatchers.IO) {
                 encryptedEntropy?.let { encryptedEntropyValue ->
-                    val selectedAddresses = currentState.registeredAccounts.filter {
-                        currentState.selectedAddresses.contains(it.address)
-                    }
+                    val selectedAddresses =
+                        currentState.registeredAccounts.filter {
+                            currentState.selectedAddresses.contains(it.address)
+                        }
                     val entropy = decryptByteArray(encryptedEntropyValue)
                     val addressesToImport = getAddressesToImport(entropy, selectedAddresses)
                     addSelectedAddresses(entropy, addressesToImport)
@@ -112,8 +119,8 @@ class RecoverRegisteredAccountsViewModel(
                     if (addressesToImport.size == 1) {
                         eventDelegate.sendEvent(
                             ViewEvent.NavigateToAddressNaming(
-                                addressesToImport.single().address
-                            )
+                                addressesToImport.single().address,
+                            ),
                         )
                     } else {
                         val isNewAccountAdded = addressesToImport.isNotEmpty()
@@ -131,7 +138,7 @@ class RecoverRegisteredAccountsViewModel(
 
     private suspend fun addSelectedAddresses(
         entropy: ByteArray,
-        selectedAddresses: List<HdKeyAddress>
+        selectedAddresses: List<HdKeyAddress>,
     ) {
         selectedAddresses.forEach { hdKeyAccount ->
             val newAccountCreation = createAccountCreation(entropy, hdKeyAccount)
@@ -141,64 +148,68 @@ class RecoverRegisteredAccountsViewModel(
 
     private fun getAddressesToImport(
         entropy: ByteArray,
-        selectedAddresses: List<RegisteredHdKeyItem>
+        selectedAddresses: List<RegisteredHdKeyItem>,
     ): List<HdKeyAddress> {
         val wallet = getBip39Wallet(entropy.copyOf())
-        return selectedAddresses.map { accountItem ->
-            createHdKeyAddress(wallet, accountItem)
-        }.also {
-            wallet.invalidate()
-        }
+        return selectedAddresses
+            .map { accountItem ->
+                createHdKeyAddress(wallet, accountItem)
+            }.also {
+                wallet.invalidate()
+            }
     }
-
 
     private fun createHdKeyAddress(
         bip39Wallet: Bip39Wallet,
-        accountItem: RegisteredHdKeyItem
-    ): HdKeyAddress {
-        return with(accountItem) {
+        accountItem: RegisteredHdKeyItem,
+    ): HdKeyAddress =
+        with(accountItem) {
             val index =
                 HdKeyAddressIndex(accountIndex = account, changeIndex = change, keyIndex = keyIndex)
             bip39Wallet.generateAddress(index)
         }
-    }
 
     private fun createAccountCreation(
         entropy: ByteArray,
-        hdKeyAddress: HdKeyAddress
-    ): AccountCreation {
-        return with(hdKeyAddress) {
+        hdKeyAddress: HdKeyAddress,
+    ): AccountCreation =
+        with(hdKeyAddress) {
             val hdKeyType = accountCreationHdKeyTypeMapper(entropy, hdKeyAddress, seedId = null)
             AccountCreation(
                 address = address,
                 customName = address.toShortenedAddress(),
                 isBackedUp = false,
                 type = hdKeyType,
-                creationType = CreationType.RECOVER
+                creationType = CreationType.RECOVER,
             )
         }
-    }
 
     sealed interface ViewState {
         data object Idle : ViewState
+
         data object Loading : ViewState
 
         data class Content(
             val registeredAccounts: List<RegisteredHdKeyItem> = emptyList(),
             val registeredAddressesNotImported: Set<String> = emptySet(),
             val selectedAddresses: Set<String> = emptySet(),
-            val type: ContentType = ContentType.Idle
+            val type: ContentType = ContentType.Idle,
         ) : ViewState {
-
             sealed interface ContentType {
                 data object Idle : ContentType
+
                 data object LoadingRekeyedAddresses : ContentType
             }
         }
     }
 
     sealed interface ViewEvent {
-        data class NavigateToHome(val isNewAccountAdded: Boolean) : ViewEvent
-        data class NavigateToAddressNaming(val address: String) : ViewEvent
+        data class NavigateToHome(
+            val isNewAccountAdded: Boolean,
+        ) : ViewEvent
+
+        data class NavigateToAddressNaming(
+            val address: String,
+        ) : ViewEvent
     }
 }

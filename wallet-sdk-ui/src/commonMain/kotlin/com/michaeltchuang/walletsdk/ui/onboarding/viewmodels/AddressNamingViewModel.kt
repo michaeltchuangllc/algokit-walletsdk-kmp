@@ -15,12 +15,10 @@ class AddressNamingViewModel(
     private val setAccountCustomName: SetAccountCustomName,
     private val getAccountCustomName: GetAccountCustomName,
     private val stateDelegate: StateDelegate<ViewState>,
-    private val eventDelegate: EventDelegate<ViewEvent>
+    private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     StateViewModel<AddressNamingViewModel.ViewState> by stateDelegate,
     EventViewModel<AddressNamingViewModel.ViewEvent> by eventDelegate {
-
-
     init {
         stateDelegate.setDefaultState(ViewState.Idle)
     }
@@ -41,15 +39,20 @@ class AddressNamingViewModel(
         }
     }
 
-
     sealed interface ViewState {
         data object Idle : ViewState
+
         data object Loading : ViewState
-        data class Content(val address: String, val currentName: String) : ViewState
+
+        data class Content(
+            val address: String,
+            val currentName: String,
+        ) : ViewState
     }
 
     sealed interface ViewEvent {
         data object FinishedAccountCreation : ViewEvent
+
         data class Error(
             val message: String,
         ) : ViewEvent

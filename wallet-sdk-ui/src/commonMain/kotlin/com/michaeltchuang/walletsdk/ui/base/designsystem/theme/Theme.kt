@@ -23,7 +23,7 @@ val LocalThemeIsDark = compositionLocalOf { mutableStateOf(true) }
 
 @Composable
 fun AlgoKitTheme(content: @Composable () -> Unit) {
-    val systemIsDark =  false
+    val systemIsDark = false
     val isDarkState = remember { mutableStateOf(systemIsDark) }
     val customColors = ThemedColors.getColorsByMode(isDarkState.value)
 

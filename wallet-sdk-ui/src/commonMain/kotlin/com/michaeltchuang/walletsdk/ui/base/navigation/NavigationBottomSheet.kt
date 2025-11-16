@@ -566,12 +566,13 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(route = AlgoKitScreens.RECOVER_REGISTERED_ACCOUNTS_SCREEN.name) {
                     RecoverRegisteredAccountsScreen(
-                        navController = navController, showSnackBar = {
+                        navController = navController,
+                        showSnackBar = {
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(it)
                             }
                         },
-                        allAccountImported = onFinish
+                        allAccountImported = onFinish,
                     )
                 }
 
@@ -583,7 +584,8 @@ fun NavigationBottomSheetNavHost(
                                 type = NavType.StringType
                                 nullable = false
                                 defaultValue = ""
-                            }),
+                            },
+                        ),
                 ) { backStackEntry ->
                     val address = backStackEntry.arguments?.getString("address") ?: ""
                     AddressNamingScreen(
@@ -593,10 +595,10 @@ fun NavigationBottomSheetNavHost(
                             coroutineScope.launch {
                                 snackbarHostState.showSnackbar(it)
                             }
-                        }, onFinish
+                        },
+                        onFinish,
                     )
                 }
-
             }
         }
     }

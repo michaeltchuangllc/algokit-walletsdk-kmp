@@ -48,7 +48,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.BuildInfo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
-import com.michaeltchuang.walletsdk.ui.isDebugBuild
+import com.michaeltchuang.walletsdk.ui.base.utils.isDebugBuild
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.DrawableResource

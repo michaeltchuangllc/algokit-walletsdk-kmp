@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShapeBig
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
+import com.michaeltchuang.walletsdk.ui.base.utils.LottieJsonAnimations
 import io.github.alexzhirkevich.compottie.LottieAnimation
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
 import io.github.alexzhirkevich.compottie.LottieConstants
@@ -34,37 +35,39 @@ fun AnimationLoader(
     start: ImageVector,
     lottie: LottieCompositionSpec,
     end: ImageVector,
-    description: String
+    description: String,
 ) {
     val preloaderLottieComposition by rememberLottieComposition(lottie)
     val preloaderProgress by animateLottieCompositionAsState(
         preloaderLottieComposition,
         iterations = LottieConstants.IterateForever,
-        isPlaying = true
+        isPlaying = true,
     )
     Column(modifier = modifier) {
         Row(modifier = Modifier.align(alignment = Alignment.CenterHorizontally)) {
-           AlgoKitIconRoundShapeBig(
+            AlgoKitIconRoundShapeBig(
                 imageVector = start,
-                contentDescription = "start side of the animation"
+                contentDescription = "start side of the animation",
             )
             LottieAnimation(
                 composition = preloaderLottieComposition,
                 progress = { preloaderProgress },
-                modifier = Modifier
-                    .width(120.dp)
-                    .align(alignment = Alignment.CenterVertically),
+                modifier =
+                    Modifier
+                        .width(120.dp)
+                        .align(alignment = Alignment.CenterVertically),
             )
             AlgoKitIconRoundShapeBig(
                 imageVector = end,
-                contentDescription = "end side of the animation"
+                contentDescription = "end side of the animation",
             )
         }
         AlgoKitTitleText(
-            modifier = Modifier
-                .padding(top = 40.dp)
-                .align(alignment = Alignment.CenterHorizontally),
-            text = description
+            modifier =
+                Modifier
+                    .padding(top = 40.dp)
+                    .align(alignment = Alignment.CenterHorizontally),
+            text = description,
         )
     }
 }
@@ -75,7 +78,7 @@ fun AnimationLoaderPreview() {
     var animationData by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        animationData = Res.readBytes("files/loading_dots.json").decodeToString()
+        animationData = LottieJsonAnimations.TRANSACTION_LOADING
     }
 
     AlgoKitTheme {
@@ -83,7 +86,7 @@ fun AnimationLoaderPreview() {
             start = vectorResource(Res.drawable.ic_ledger_old_export),
             end = vectorResource(Res.drawable.ic_phone_new),
             lottie = LottieCompositionSpec.JsonString(animationData),
-            description = "Searching your accounts"
+            description = "Searching your accounts",
         )
     }
 }

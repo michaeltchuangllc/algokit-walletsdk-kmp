@@ -43,7 +43,6 @@ fun AddressNamingScreen(
     showSnackBar: (message: String) -> Unit,
     onFinish: () -> Unit,
 ) {
-
     val viewModel: AddressNamingViewModel = koinViewModel()
     val viewState = viewModel.state.collectAsStateWithLifecycle().value
     val accountName = remember { mutableStateOf(address.toShortenedAddress()) }
@@ -120,7 +119,7 @@ fun ScreenContent(
                 color = AlgoKitTheme.colors.textMain,
                 text =
                     "Name your account to easily identify it while using the AlgoKit Wallet. " +
-                            "These names are stored locally, and can only be seen by you.",
+                        "These names are stored locally, and can only be seen by you.",
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -145,7 +144,6 @@ fun ScreenContent(
         )
     }
 }
-
 
 @Preview
 @Composable

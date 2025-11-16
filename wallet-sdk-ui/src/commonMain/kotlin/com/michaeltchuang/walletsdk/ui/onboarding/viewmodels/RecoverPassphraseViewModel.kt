@@ -38,7 +38,7 @@ class RecoverPassphraseViewModel(
 
                             else -> {
                                 eventDelegate.sendEvent(
-                                    ViewEvent.NavigateToAccountNameScreen
+                                    ViewEvent.NavigateToAccountNameScreen,
                                 )
                             }
                         }

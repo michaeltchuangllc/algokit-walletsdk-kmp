@@ -53,6 +53,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHead
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGrayText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.base.utils.LottieJsonAnimations
 import com.michaeltchuang.walletsdk.ui.onboarding.components.AnimationLoader
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverRegisteredAccountsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
@@ -69,7 +70,7 @@ fun RecoverRegisteredAccountsScreen(
     viewModel: RecoverRegisteredAccountsViewModel = koinViewModel(),
     navController: NavController = rememberNavController(),
     showSnackBar: (message: String) -> Unit,
-    allAccountImported: () -> Unit
+    allAccountImported: () -> Unit,
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
 
@@ -94,11 +95,12 @@ fun RecoverRegisteredAccountsScreen(
     when (val currentState = viewState) {
         is RecoverRegisteredAccountsViewModel.ViewState.Idle -> Unit
         is RecoverRegisteredAccountsViewModel.ViewState.Loading -> LoadingStateContent()
-        is RecoverRegisteredAccountsViewModel.ViewState.Content -> ContentStateContent(
-            viewModel,
-            currentState,
-            onBackClick = { navController.popBackStack() }
-        )
+        is RecoverRegisteredAccountsViewModel.ViewState.Content ->
+            ContentStateContent(
+                viewModel,
+                currentState,
+                onBackClick = { navController.popBackStack() },
+            )
     }
 }
 
@@ -108,7 +110,7 @@ private fun LoadingStateContent() {
     var animationData by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
-        animationData = Res.readBytes("files/loading_dots.json").decodeToString()
+        animationData = LottieJsonAnimations.SEARCH_REGISTERED_ACCOUNTS_LOADING
     }
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -117,7 +119,7 @@ private fun LoadingStateContent() {
             start = vectorResource(Res.drawable.ic_ledger_old_export),
             end = vectorResource(Res.drawable.ic_phone_new),
             lottie = LottieCompositionSpec.JsonString(animationData),
-            description = stringResource(Res.string.searching_your_accounts)
+            description = stringResource(Res.string.searching_your_accounts),
         )
     }
 }
@@ -126,18 +128,19 @@ private fun LoadingStateContent() {
 private fun ContentStateContent(
     viewModel: RecoverRegisteredAccountsViewModel,
     state: RecoverRegisteredAccountsViewModel.ViewState.Content,
-    onBackClick: () -> Unit = {}
+    onBackClick: () -> Unit = {},
 ) {
-
     Box(
-        modifier = Modifier
-            .background(color = AlgoKitTheme.colors.background)
-            .fillMaxSize()
+        modifier =
+            Modifier
+                .background(color = AlgoKitTheme.colors.background)
+                .fillMaxSize(),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
         ) {
             AlgoKitTopBar(onClick = onBackClick)
 
@@ -148,7 +151,7 @@ private fun ContentStateContent(
             ListHeaderContainer(
                 state,
                 onSelectAllAccounts = { viewModel.selectAllAccounts() },
-                onUnselectAllAccounts = { viewModel.unselectAllAccounts() }
+                onUnselectAllAccounts = { viewModel.unselectAllAccounts() },
             )
 
             LazyColumn(modifier = Modifier.weight(1f)) {
@@ -158,28 +161,30 @@ private fun ContentStateContent(
                         account = account,
                         onCheckedChange = { isChecked ->
                             viewModel.toggleAccountSelection(account.address, isChecked)
-                        }
+                        },
                     )
                     if (index != state.registeredAccounts.lastIndex) {
                         HorizontalDivider(
                             color = AlgoKitTheme.colors.layerGrayLighter,
-                            thickness = 1.dp
+                            thickness = 1.dp,
                         )
                     }
                 }
             }
 
-            val isPrimaryButtonEnabled = state.selectedAddresses.isNotEmpty() ||
+            val isPrimaryButtonEnabled =
+                state.selectedAddresses.isNotEmpty() ||
                     (state.registeredAccounts.size == 1 && state.registeredAccounts[0].isImportedToDB)
             AlgoKitPrimaryButton(
                 onClick = { viewModel.importSelectedAccounts() },
                 modifier = Modifier.fillMaxWidth(),
                 text = localizedStringResource(Res.string.continue_text),
-                state = if (isPrimaryButtonEnabled) {
-                    AlgoKitButtonState.ENABLED
-                } else {
-                    AlgoKitButtonState.DISABLED
-                }
+                state =
+                    if (isPrimaryButtonEnabled) {
+                        AlgoKitButtonState.ENABLED
+                    } else {
+                        AlgoKitButtonState.DISABLED
+                    },
             )
         }
 
@@ -192,7 +197,7 @@ private fun ContentStateContent(
 @Composable
 private fun TitleText() {
     AlgoKitHeadlineText(
-        text = localizedStringResource(Res.string.select_address_to_add)
+        text = localizedStringResource(Res.string.select_address_to_add),
     )
 }
 
@@ -200,7 +205,7 @@ private fun TitleText() {
 private fun DescriptionText(registeredAccountSize: Int) {
     AlgoKitBodyText(
         modifier = Modifier.padding(top = 10.dp),
-        text = "Select the addresses you want to import ($registeredAccountSize ${if (registeredAccountSize == 1) "address" else "addresses"})"
+        text = "Select the addresses you want to import ($registeredAccountSize ${if (registeredAccountSize == 1) "address" else "addresses"})",
     )
 }
 
@@ -208,17 +213,18 @@ private fun DescriptionText(registeredAccountSize: Int) {
 private fun ListHeaderContainer(
     state: RecoverRegisteredAccountsViewModel.ViewState.Content,
     onSelectAllAccounts: () -> Unit,
-    onUnselectAllAccounts: () -> Unit
+    onUnselectAllAccounts: () -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 34.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 34.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         AlgoKitTitleText(
             text = "${state.registeredAccounts.size} ${if (state.registeredAccounts.size == 1) "address" else "addresses"}",
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
 
         AlgoKitTitleText(
@@ -226,18 +232,20 @@ private fun ListHeaderContainer(
             color = AlgoKitTheme.colors.textGray,
         )
 
-        val currentToggleState = if (state.selectedAddresses.isEmpty()) {
-            ToggleableState.Off
-        } else if (state.selectedAddresses.size == state.registeredAddressesNotImported.size) {
-            ToggleableState.On
-        } else {
-            ToggleableState.Indeterminate
-        }
+        val currentToggleState =
+            if (state.selectedAddresses.isEmpty()) {
+                ToggleableState.Off
+            } else if (state.selectedAddresses.size == state.registeredAddressesNotImported.size) {
+                ToggleableState.On
+            } else {
+                ToggleableState.Indeterminate
+            }
 
-        val checkboxColors = CheckboxDefaults.colors(
-            checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
-            uncheckedColor = AlgoKitTheme.colors.layerGrayLighter
-        )
+        val checkboxColors =
+            CheckboxDefaults.colors(
+                checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
+                uncheckedColor = AlgoKitTheme.colors.layerGrayLighter,
+            )
 
         Checkbox(
             checked = currentToggleState == ToggleableState.On,
@@ -248,7 +256,7 @@ private fun ListHeaderContainer(
                     onSelectAllAccounts()
                 }
             },
-            colors = checkboxColors
+            colors = checkboxColors,
         )
     }
 }
@@ -258,45 +266,47 @@ private fun ListHeaderContainer(
 fun AddressItem(
     selectedAddresses: Set<String>,
     account: RegisteredHdKeyItem,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .defaultMinSize(minHeight = 76.dp)
-            .padding(vertical = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 76.dp)
+                .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         AlgoKitTitleText(
             modifier = Modifier.fillMaxWidth(0.4f),
-            text = account.address.toShortenedAddress().toUpperCase(Locale.current)
+            text = account.address.toShortenedAddress().toUpperCase(Locale.current),
         )
         if (account.isImportedToDB) {
             AlgoKitHighlightedGrayText(
                 modifier = Modifier.padding(start = 8.dp),
-                text = localizedStringResource(Res.string.already_imported).toUpperCase(Locale.current)
+                text = localizedStringResource(Res.string.already_imported).toUpperCase(Locale.current),
             )
         } else {
             Row {
                 Column {
                     AlgoKitTitleText(
-                        text = (("\u00A6") + account.algoValue.toString().formatAmount())
+                        text = (("\u00A6") + account.algoValue.toString().formatAmount()),
                     )
-                    //AlgoKitBodyText(text = account.formattedSelectedCurrencyValue)
+                    // AlgoKitBodyText(text = account.formattedSelectedCurrencyValue)
                 }
                 val isChecked = selectedAddresses.contains(account.address)
-                val checkboxColors = CheckboxDefaults.colors(
-                    checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
-                    uncheckedColor = AlgoKitTheme.colors.layerGrayLighter
-                )
+                val checkboxColors =
+                    CheckboxDefaults.colors(
+                        checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
+                        uncheckedColor = AlgoKitTheme.colors.layerGrayLighter,
+                    )
 
                 Checkbox(
                     checked = isChecked,
                     onCheckedChange = { checked ->
                         onCheckedChange(checked)
                     },
-                    colors = checkboxColors
+                    colors = checkboxColors,
                 )
             }
         }
@@ -306,32 +316,34 @@ fun AddressItem(
 @Preview
 @Composable
 private fun RecoverRegisteredAccountsScreenPreview() {
-    val fakeViewState = RecoverRegisteredAccountsViewModel.ViewState.Content(
-        registeredAccounts = listOf(
-            RegisteredHdKeyItem(
-                address = "IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E",
-                algoValue = BigDecimal.fromInt(100),
-                formattedSelectedCurrencyValue = "$0.10",
-                accountExists = true,
-                isImportedToDB = false,
-                account = 0,
-                change = 0,
-                keyIndex = 0
-            ),
-            RegisteredHdKeyItem(
-                address = "B7DFJHGK8LMNPQR9STUVWXYZ123456789",
-                algoValue = BigDecimal.fromInt(250),
-                formattedSelectedCurrencyValue = "$0.25",
-                accountExists = true,
-                isImportedToDB = true,
-                account = 1,
-                change = 0,
-                keyIndex = 1
-            )
-        ),
-        selectedAddresses = setOf("IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E"),
-        registeredAddressesNotImported = setOf("IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E")
-    )
+    val fakeViewState =
+        RecoverRegisteredAccountsViewModel.ViewState.Content(
+            registeredAccounts =
+                listOf(
+                    RegisteredHdKeyItem(
+                        address = "IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E",
+                        algoValue = BigDecimal.fromInt(100),
+                        formattedSelectedCurrencyValue = "$0.10",
+                        accountExists = true,
+                        isImportedToDB = false,
+                        account = 0,
+                        change = 0,
+                        keyIndex = 0,
+                    ),
+                    RegisteredHdKeyItem(
+                        address = "B7DFJHGK8LMNPQR9STUVWXYZ123456789",
+                        algoValue = BigDecimal.fromInt(250),
+                        formattedSelectedCurrencyValue = "$0.25",
+                        accountExists = true,
+                        isImportedToDB = true,
+                        account = 1,
+                        change = 0,
+                        keyIndex = 1,
+                    ),
+                ),
+            selectedAddresses = setOf("IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E"),
+            registeredAddressesNotImported = setOf("IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E"),
+        )
 
     AlgoKitTheme {
         ContentStatePreview(fakeViewState)
@@ -339,20 +351,20 @@ private fun RecoverRegisteredAccountsScreenPreview() {
 }
 
 @Composable
-private fun ContentStatePreview(
-    state: RecoverRegisteredAccountsViewModel.ViewState.Content,
-) {
+private fun ContentStatePreview(state: RecoverRegisteredAccountsViewModel.ViewState.Content) {
     Scaffold { innerPadding ->
         Box(
-            modifier = Modifier
-                .background(color = AlgoKitTheme.colors.background)
-                .fillMaxSize()
+            modifier =
+                Modifier
+                    .background(color = AlgoKitTheme.colors.background)
+                    .fillMaxSize(),
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(start = 24.dp, end = 24.dp)
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                        .padding(start = 24.dp, end = 24.dp),
             ) {
                 AlgoKitTopBar(onClick = { })
 
@@ -367,12 +379,12 @@ private fun ContentStatePreview(
                         AddressItem(
                             selectedAddresses = state.selectedAddresses,
                             account = account,
-                            onCheckedChange = { }
+                            onCheckedChange = { },
                         )
                         if (index != state.registeredAccounts.lastIndex) {
                             HorizontalDivider(
                                 color = AlgoKitTheme.colors.layerGrayLighter,
-                                thickness = 1.dp
+                                thickness = 1.dp,
                             )
                         }
                     }
@@ -382,7 +394,7 @@ private fun ContentStatePreview(
                     onClick = { },
                     modifier = Modifier.fillMaxWidth(),
                     text = localizedStringResource(Res.string.continue_text),
-                    state = AlgoKitButtonState.ENABLED
+                    state = AlgoKitButtonState.ENABLED,
                 )
             }
         }
@@ -390,18 +402,17 @@ private fun ContentStatePreview(
 }
 
 @Composable
-private fun ListHeaderContainerPreview(
-    state: RecoverRegisteredAccountsViewModel.ViewState.Content,
-) {
+private fun ListHeaderContainerPreview(state: RecoverRegisteredAccountsViewModel.ViewState.Content) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 34.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 34.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         AlgoKitTitleText(
             text = "${state.registeredAccounts.size} ${if (state.registeredAccounts.size == 1) "address" else "addresses"}",
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(1f),
         )
 
         AlgoKitTitleText(
@@ -409,23 +420,25 @@ private fun ListHeaderContainerPreview(
             color = AlgoKitTheme.colors.textGray,
         )
 
-        val currentToggleState = if (state.selectedAddresses.isEmpty()) {
-            ToggleableState.Off
-        } else if (state.selectedAddresses.size == state.registeredAddressesNotImported.size) {
-            ToggleableState.On
-        } else {
-            ToggleableState.Indeterminate
-        }
+        val currentToggleState =
+            if (state.selectedAddresses.isEmpty()) {
+                ToggleableState.Off
+            } else if (state.selectedAddresses.size == state.registeredAddressesNotImported.size) {
+                ToggleableState.On
+            } else {
+                ToggleableState.Indeterminate
+            }
 
-        val checkboxColors = CheckboxDefaults.colors(
-            checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
-            uncheckedColor = AlgoKitTheme.colors.layerGrayLighter
-        )
+        val checkboxColors =
+            CheckboxDefaults.colors(
+                checkedColor = AlgoKitTheme.colors.buttonPrimaryBg,
+                uncheckedColor = AlgoKitTheme.colors.layerGrayLighter,
+            )
 
         Checkbox(
             checked = currentToggleState == ToggleableState.On,
             onCheckedChange = { },
-            colors = checkboxColors
+            colors = checkboxColors,
         )
     }
 }
