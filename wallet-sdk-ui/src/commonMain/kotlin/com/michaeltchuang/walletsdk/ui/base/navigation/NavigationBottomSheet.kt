@@ -37,12 +37,14 @@ import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScre
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewPlatformScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.AddressNamingScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
@@ -78,6 +80,7 @@ enum class AlgoKitScreens {
     QR_CODE_SCREEN,
     RECOVER_AN_ACCOUNT_SCREEN,
     RECOVER_PHRASE_SCREEN,
+    RECOVER_REGISTERED_ACCOUNTS_SCREEN,
     SETTINGS_SCREEN,
     THEME_SCREEN,
     LANGUAGE_SCREEN,
@@ -95,6 +98,7 @@ enum class AlgoKitScreens {
     SEND_ALGO_SCREEN,
     SELECT_RECEIVER_SCREEN,
     TRANSACTING_TIPS_SCREEN,
+    ADDRESS_NAMING_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -560,6 +564,39 @@ fun NavigationBottomSheetNavHost(
                         },
                     )
                 }
+                composable(route = AlgoKitScreens.RECOVER_REGISTERED_ACCOUNTS_SCREEN.name) {
+                    RecoverRegisteredAccountsScreen(
+                        navController = navController, showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        },
+                        allAccountImported = onFinish
+                    )
+                }
+
+                composable(
+                    route = AlgoKitScreens.ADDRESS_NAMING_SCREEN.name + "?address={address}",
+                    arguments =
+                        listOf(
+                            navArgument("address") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            }),
+                ) { backStackEntry ->
+                    val address = backStackEntry.arguments?.getString("address") ?: ""
+                    AddressNamingScreen(
+                        navController,
+                        address,
+                        showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        }, onFinish
+                    )
+                }
+
             }
         }
     }

@@ -139,8 +139,7 @@ val localAccountsModule =
             NoAuthAccountRepositoryImpl(get(), get(), get(), get())
         }
 
-        single { CreateWatchAccountUseCase(get(), get(),get())}
+        single { CreateWatchAccountUseCase(get(), get(), get()) }
         single { DeleteNoAuthAccountUseCase(get()) }
         single { ValidateWatchAccountUseCase(get()) }
-
     }

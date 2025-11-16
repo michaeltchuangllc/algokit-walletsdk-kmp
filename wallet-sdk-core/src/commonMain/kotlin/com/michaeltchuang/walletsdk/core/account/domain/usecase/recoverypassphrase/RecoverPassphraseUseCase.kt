@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.OnboardingAcc
 import com.michaeltchuang.walletsdk.core.algosdk.AlgoKitBip39.getEntropyFromMnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.getBip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.recoverAlgo25Account
+import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.foundation.utils.CreationType
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import kotlinx.coroutines.flow.flow
@@ -65,8 +66,25 @@ class RecoverPassphraseUseCase(
                     creationType = CreationType.RECOVER,
                 )
             }
-            else -> {
-                null
+
+            OnboardingAccountType.HdKey -> {
+                // only entropy is needed for next screen (importing registered addresses)
+                val entropy = getEntropyFromMnemonic(mnemonics)
+                AccountCreation(
+                    address = "",
+                    customName = "",
+                    isBackedUp = true,
+                    type = AccountCreation.Type.HdKey(
+                        publicKey = ByteArray(0),
+                        encryptedPrivateKey = ByteArray(0),
+                        encryptedEntropy = encryptByteArray(entropy),
+                        account = 0,
+                        change = 0,
+                        keyIndex = 0,
+                        derivationType = 0
+                    ),
+                    creationType = CreationType.RECOVER
+                )
             }
         }
     }

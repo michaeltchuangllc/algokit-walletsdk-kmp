@@ -5,4 +5,5 @@ val accountModules =
         accountCoreModule,
         localAccountsModule,
         accountCustomInfoModule,
+        recoverRegisteredAccountsModule,
     )

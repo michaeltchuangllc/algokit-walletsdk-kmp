@@ -1,11 +1,13 @@
 package com.michaeltchuang.walletsdk.ui.onboarding.di
 
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.AddressNamingViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateAccountNameViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.CreateWatchAccountViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.Falcon24WalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTypeViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverRegisteredAccountsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -58,6 +60,19 @@ internal val onboardingModules =
             }
             viewModel {
                 CreateWatchAccountViewModel(get(), get(), get())
+            }
+
+            viewModel {
+                RecoverRegisteredAccountsViewModel(
+                    accountAdditionUseCase = get(),
+                    registeredAccountsProcessor = get(),
+                    accountCreationHdKeyTypeMapper = get(),
+                    stateDelegate = get(),
+                    eventDelegate = get()
+                )
+            }
+            viewModel {
+                AddressNamingViewModel(get(), get(), get(), get())
             }
         },
     )

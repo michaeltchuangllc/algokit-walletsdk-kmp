@@ -23,7 +23,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.PeraCard
@@ -83,8 +82,7 @@ fun RecoverAnAccountScreen(
                 )
             },
             onClick = {
-                showSnackbar(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET, false)
-                // navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/hdkey")
+                navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/hdkey")
             },
         )
     }

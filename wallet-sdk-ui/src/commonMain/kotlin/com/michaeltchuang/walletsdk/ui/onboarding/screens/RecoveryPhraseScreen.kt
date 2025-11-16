@@ -100,6 +100,10 @@ fun RecoveryPhraseScreen(
                     navController.navigate(AlgoKitScreens.CREATE_ACCOUNT_NAME.name)
                 }
 
+                is RecoverPassphraseViewModel.ViewEvent.NavigateToRecoverRegisteredAccountScreen -> {
+                    navController.navigate(AlgoKitScreens.RECOVER_REGISTERED_ACCOUNTS_SCREEN.name)
+                }
+
                 is RecoverPassphraseViewModel.ViewEvent.ShowError -> {
                     snackBar(it.error)
                 }
@@ -135,7 +139,12 @@ fun RecoveryPhraseScreen(
                     )
                 }
 
-                else -> {}
+                AccountMnemonic.AccountType.HdKey -> {
+                    viewModel.onRecoverAccount(
+                        mnemonicList.joinToString(" "),
+                        OnboardingAccountType.HdKey,
+                    )
+                }
             }
         },
         onLearnMore = {

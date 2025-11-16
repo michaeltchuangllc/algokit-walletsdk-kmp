@@ -1,9 +1,14 @@
 package com.michaeltchuang.walletsdk.core.network.di
 
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.AccountFastLookupMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.AccountFastLookupMapperImpl
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountFastLookup
 import com.michaeltchuang.walletsdk.core.network.domain.NodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.SaveNetworkPreferenceUseCase
+import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupApiService
+import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupRepositoryImpl
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiService
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiServiceImpl
 import io.ktor.client.HttpClient
@@ -54,4 +59,17 @@ val networkModule =
 
         factoryOf(::GetCurrentNetworkUseCase)
         factoryOf(::SaveNetworkPreferenceUseCase)
+
+        single<AccountFastLookupMapper> {
+            AccountFastLookupMapperImpl()
+        }
+
+        single<AccountFastLookupApiService> {
+            AccountFastLookupRepositoryImpl(
+                httpClient = get(),
+                accountFastLookupMapper = get()
+            )
+        }
+        single { GetAccountFastLookup(get<AccountFastLookupApiService>()::getAccountFastLookup) }
+
     }

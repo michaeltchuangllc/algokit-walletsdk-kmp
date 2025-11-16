@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.base.designsystem.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
@@ -24,7 +23,7 @@ val LocalThemeIsDark = compositionLocalOf { mutableStateOf(true) }
 
 @Composable
 fun AlgoKitTheme(content: @Composable () -> Unit) {
-    val systemIsDark = isSystemInDarkTheme()
+    val systemIsDark =  false
     val isDarkState = remember { mutableStateOf(systemIsDark) }
     val customColors = ThemedColors.getColorsByMode(isDarkState.value)
 
