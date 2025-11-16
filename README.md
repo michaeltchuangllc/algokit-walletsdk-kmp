@@ -77,37 +77,40 @@ timeline
             : ✅ Onboarding - Create Algo25/HD/Falcon24 wallet and account flow
             : ✅ Onboarding - Recover Algo25/Falcon24 account flow
             : ✅ Deeplink - Import Algo25/Falcon24 account using QR code flow
-            : ✅ Settings - Theme picker
+            : ✅ Settings - Theme picker and network switcher flow
             : ✅ Onboarding - Embedded and external webview flow
             : ✅ Account Details - View passphrase flow
-            : ✅ Settings - Network switcher flow
             : ✅ Onboarding - Encrypt secret keys in DB
             : ✅ GitOps - Setup Maven Central for library releases
+            : ✅ Transaction - Sign KeyReg online/offline flow with QR code
 
     section In Progress 🔄
-    2025Q4  : ✅ Transaction - Sign KeyReg online/offline flow with QR code
-            : ✅ Transaction - Send Algo using account detail or QR code flows (between accounts)
+    2025Q4  : ✅ Transaction - Send Algo using account detail or QR code flows (between accounts)
             : ✅ Account Details - Add copy and show address button
             : ✅ Account Details - Add testnet dispenser and transaction history links
             : ✅ GitOps - Setup stores for demo Android/iOS app releases
             : ✅ GitOps - CLA agreement bot
             : ✅ Onboarding - Add Watch accounts support
+            : ✅ Onboarding - Recover HD account flow
             : ✅ Settings - Localization (English, Italian, Hindi)
             : ✅ Testing - Setup unit test coverage foundation
             : ✅ Testing - Add screenshot testing infrastructure
+            : 🔄 Onboarding - ECC Passkeys / Liquid Auth
 
     section Future
-    2026Q1  : 🔄 Add In Landscape (Tablet/Desktop) UI Support
+    2026Q1  : Onboarding - PQ Passkeys / Liquid Auth
+            : Use Wallet Liquid Auth Integration for xGov Website & Lora (Dispenser)
+            : Add In Landscape (Tablet/Desktop) UI Support
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : Onboarding - Passkeys / Liquid Auth
             : Onboarding - Rekey flow
             : Transaction - Integrate new AlgoKit-Core Transact rust library
             : Onboarding - Fun app splash screen
-            : Account Details - Add more items in Account Detail screen
             : Android - Wallet SDK as a background service integration
-    2026Q2  : Research - React Native sample app that can use wallet-sdk (through bridging)
-            : Research - Wallet-SDK supporting more platforms (e.g Desktop/Web)
+            : TBD
+    2026Q2   
+            : Research - React Native sample app that can use wallet-sdk (through bridging)
             : Onboarding - Decentralized Identity
+            : Account Details - Add more items in Account Detail screen
             : Account Details - Asset Inbox
             : Account Details - Swap
             : Onboarding - Ledger flow
