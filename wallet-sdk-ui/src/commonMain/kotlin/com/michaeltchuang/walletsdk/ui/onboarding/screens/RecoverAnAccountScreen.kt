@@ -23,10 +23,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
-import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.PeraCard
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.MnemonicTypeCard
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGrayText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -59,7 +58,7 @@ fun RecoverAnAccountScreen(
         )
         Spacer(Modifier.height(24.dp))
 
-        PeraCard(
+        MnemonicTypeCard(
             title = localizedStringResource(Res.string.mnemonic_type_algo25_title),
             description = localizedStringResource(Res.string.mnemonic_type_algo25_description),
             footer = localizedStringResource(Res.string.mnemonic_type_algo25_footer),
@@ -73,7 +72,7 @@ fun RecoverAnAccountScreen(
             },
         )
         Spacer(Modifier.height(24.dp))
-        PeraCard(
+        MnemonicTypeCard(
             title = localizedStringResource(Res.string.mnemonic_type_universal_title),
             description = localizedStringResource(Res.string.mnemonic_type_universal_description),
             footer = localizedStringResource(Res.string.mnemonic_type_universal_footer),
@@ -83,8 +82,7 @@ fun RecoverAnAccountScreen(
                 )
             },
             onClick = {
-                showSnackbar(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET, false)
-                // navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/hdkey")
+                navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/hdkey")
             },
         )
     }

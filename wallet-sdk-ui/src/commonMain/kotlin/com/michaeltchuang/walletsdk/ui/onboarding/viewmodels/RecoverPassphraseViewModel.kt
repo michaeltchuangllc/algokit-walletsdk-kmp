@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.onboarding.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.OnboardingAccountType
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.recoverypassphrase.RecoverPassphraseUseCase
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
@@ -32,11 +31,17 @@ class RecoverPassphraseViewModel(
                     if (accountCreation != null) {
                         // Store the account creation data in the manager
                         AccountCreationManager.storePendingAccountCreation(accountCreation)
-                        eventDelegate.sendEvent(
-                            ViewEvent.NavigateToAccountNameScreen(
-                                accountCreation,
-                            ),
-                        )
+                        when (onboardingAccountType) {
+                            OnboardingAccountType.HdKey -> {
+                                eventDelegate.sendEvent(ViewEvent.NavigateToRecoverRegisteredAccountScreen)
+                            }
+
+                            else -> {
+                                eventDelegate.sendEvent(
+                                    ViewEvent.NavigateToAccountNameScreen,
+                                )
+                            }
+                        }
                     } else {
                         eventDelegate.sendEvent(
                             ViewEvent.ShowError("Invalid recovery phrase. Please check your words and try again."),
@@ -67,9 +72,9 @@ class RecoverPassphraseViewModel(
     }
 
     interface ViewEvent {
-        data class NavigateToAccountNameScreen(
-            val accountCreation: AccountCreation,
-        ) : ViewEvent
+        data object NavigateToAccountNameScreen : ViewEvent
+
+        data object NavigateToRecoverRegisteredAccountScreen : ViewEvent
 
         data class ShowError(
             val error: String,

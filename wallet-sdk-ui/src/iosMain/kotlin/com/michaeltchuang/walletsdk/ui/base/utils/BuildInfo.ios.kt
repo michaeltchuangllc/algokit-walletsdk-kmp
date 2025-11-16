@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui
+package com.michaeltchuang.walletsdk.ui.base.utils
 
 import kotlin.experimental.ExperimentalNativeApi
 import kotlin.native.Platform

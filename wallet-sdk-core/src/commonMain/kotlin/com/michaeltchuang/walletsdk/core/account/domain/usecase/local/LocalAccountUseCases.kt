@@ -2,12 +2,16 @@ package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastLookup
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.ActiveHdAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
 import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
-import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
+import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.network.model.AccountInformation
+import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 
 internal fun interface SaveAlgo25Account {
     suspend operator fun invoke(
@@ -119,4 +123,29 @@ fun interface GetAccountMinimumBalance {
 
 fun interface GetBasicAccountInformationUseCase {
     suspend operator fun invoke(address: String): AccountInformation?
+}
+
+internal fun interface GetActiveHdAccounts {
+    suspend operator fun invoke(entropy: ByteArray): List<ActiveHdAccount>
+}
+
+fun interface GetRegisteredHdKeys {
+    suspend operator fun invoke(entropy: ByteArray): List<RegisteredHdKey>
+}
+
+
+internal fun interface GetActiveHdAccountAddresses {
+    suspend operator fun invoke(activeHdAccount: ActiveHdAccount): List<ActiveHdAccount.HdAccountAddress>
+}
+
+internal fun interface GetAccountFastLookupBatch {
+    suspend operator fun invoke(addresses: List<String>): Map<String, AccountFastLookup?>
+}
+
+fun interface GetAccountFastLookup {
+    suspend operator fun invoke(address: String): AlgoKitResult<AccountFastLookup>
+}
+
+fun interface GetLocalAccountsAddresses {
+    suspend operator fun invoke(): List<String>
 }

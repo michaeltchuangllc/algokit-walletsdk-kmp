@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui
+package com.michaeltchuang.walletsdk.ui.base.utils
 
 /**
  * Returns true if the app is running in debug mode.

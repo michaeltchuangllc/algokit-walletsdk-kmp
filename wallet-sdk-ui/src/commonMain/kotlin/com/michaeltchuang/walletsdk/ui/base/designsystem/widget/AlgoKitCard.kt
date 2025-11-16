@@ -35,7 +35,7 @@ import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStr
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun PeraCard(
+fun MnemonicTypeCard(
     title: String,
     description: String,
     footer: String,
@@ -95,7 +95,7 @@ fun PeraCard(
 @Preview
 @Composable
 fun PeraCardPreview() {
-    PeraCard(
+    MnemonicTypeCard(
         title = localizedStringResource(Res.string.mnemonic_type_algo25_title),
         description = localizedStringResource(Res.string.mnemonic_type_algo25_description),
         footer = localizedStringResource(Res.string.mnemonic_type_algo25_footer),
