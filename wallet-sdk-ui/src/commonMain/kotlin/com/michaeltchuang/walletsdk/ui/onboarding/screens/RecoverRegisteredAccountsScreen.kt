@@ -290,7 +290,7 @@ fun AddressItem(
             Row {
                 Column {
                     AlgoKitTitleText(
-                        text = (("\u00A6") + account.algoValue.toString().formatAmount()),
+                        text = (("\u00A6") + account.algoValue.toString().formatAmount(false)),
                     )
                     // AlgoKitBodyText(text = account.formattedSelectedCurrencyValue)
                 }

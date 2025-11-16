@@ -49,10 +49,13 @@ inline fun <reified T> NavController.getData(): T? =
         ?.savedStateHandle
         ?.getObject()
 
-fun String.formatAmount(): String =
+fun String.formatAmount(convertToMicroAlgos: Boolean = true): String =
     try {
         val microalgos = BigDecimal.parseString(this)
-        val divisor = BigDecimal.parseString("1000000")
+        var divisor = BigDecimal.parseString("1")
+        if (convertToMicroAlgos) {
+            divisor = BigDecimal.parseString("1000000")
+        }
         val algos = microalgos.divide(divisor)
 
         // Round to 6 decimal places
