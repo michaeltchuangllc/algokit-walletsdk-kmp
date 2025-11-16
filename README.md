@@ -93,8 +93,7 @@ timeline
             : ✅ Onboarding - Add Watch accounts support
             : ✅ Onboarding - Recover HD account flow
             : ✅ Settings - Localization (English, Italian, Hindi)
-            : ✅ Testing - Setup unit test coverage foundation
-            : ✅ Testing - Add screenshot testing infrastructure
+            : ✅ Testing - Setup unit test coverage and screenshot testing foundation infrastructure
             : 🔄 Onboarding - ECC Passkeys / Liquid Auth
 
     section Future
