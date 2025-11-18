@@ -1,11 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.accountdetails.screens
 
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.mutableStateOf
 import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.ViewPassphraseViewModel
-import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import org.junit.Test
 import java.util.Locale
@@ -77,7 +73,6 @@ class ViewPassphraseScreenshotTest(
 
     @Test
     fun testContent() {
-        Locale.setDefault(locale)
         setTestContent {
             ScreenContent(
                 navController = rememberNavController(),
@@ -93,26 +88,15 @@ class ViewPassphraseScreenshotTest(
 
     @Test
     fun testWith25WordMnemonic() {
-        Locale.setDefault(locale)
-
-        composeTestRule.setContent {
-            CompositionLocalProvider(LocalThemeIsDark provides mutableStateOf(darkTheme)) {
-                AlgoKitTheme {
-                    ScreenContent(
-                        navController = rememberNavController(),
-                        viewState =
-                            ViewPassphraseViewModel.ViewState.Content(
-                                mnemonicWords = SAMPLE_ALGO25_WORDS,
-                            ),
-                    )
-                }
-            }
+        setTestContent {
+            ScreenContent(
+                navController = rememberNavController(),
+                viewState =
+                    ViewPassphraseViewModel.ViewState.Content(
+                        mnemonicWords = SAMPLE_ALGO25_WORDS,
+                    ),
+            )
         }
-
-        val themeDir = if (darkTheme) "dark" else "light"
-        compareScreenshot(
-            composeTestRule,
-            name = "${locale.language}_${themeDir}_testWith25WordMnemonic",
-        )
+        takeScreenshot("testWith25WordMnemonic")
     }
 }

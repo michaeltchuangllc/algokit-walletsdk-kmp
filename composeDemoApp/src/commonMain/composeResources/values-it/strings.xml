@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name_topbar">Portafoglio demo AlgoKit</string>
+    <string name="app_name_topbar">Area giochi WalletSDK</string>
     <string name="open_github">Apri github</string>
 
     <!-- Bottom Navigation Screen -->

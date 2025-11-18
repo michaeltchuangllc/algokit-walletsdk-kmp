@@ -21,7 +21,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.privacy_policy
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.terms_and_conditions
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.warning
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.watch_an_address
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.welcome_to_pera
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.welcome_to_walletsdk
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -156,7 +156,7 @@ internal fun ScreenContent(
                 color = AlgoKitTheme.colors.textMain,
                 text =
                     localizedStringResource(
-                        Res.string.welcome_to_pera,
+                        Res.string.welcome_to_walletsdk,
                     ),
             )
             Spacer(modifier = Modifier.weight(1f))

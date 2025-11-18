@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name_topbar">Area giochi WalletSDK</string>
     <string name="account_header">Informazioni Account</string>
     <string name="account_passphrase">Mnemonic / Passphrase</string>
     <string name="account_button_lock">Blocca Wallet</string>
@@ -18,7 +19,7 @@
     <string name="validator_detail_label_fee">Commissione</string>
     <string name="validator_detail_confirm_stake">Conferma</string>
     <string name="validator_detail_button_wait_message">Ci vorranno alcuni secondi affinché il nuovo stato venga riconosciuto sulla blockchain</string>
-    <string name="app_name">demo WalletSDK</string>
+    <string name="app_name">Area giochi WalletSDK</string>
     <string name="please_scan_your_fingerprint_or">Per favore, scansiona la tua impronta digitale o il tuo volto per procedere.</string>
     <string name="cancel">Annulla</string>
     <string name="share_via">Condividi tramite</string>
@@ -283,7 +284,7 @@
     <string name="in_the_following_account">Nei passaggi seguenti, inserirai la tua recovery passphrase per recuperare un account Algorand. Tieni a portata di mano la tua frase di recupero prima di iniziare.</string>
     <string name="in_the_following_wallet">Nei passaggi seguenti, inserirai la tua recovery passphrase per recuperare un wallet Algorand. Tieni a portata di mano la tua frase di recupero prima di iniziare.</string>
     <string name="finish_account_creation">Completa Creazione Account</string>
-    <string name="welcome_to_pera">Benvenuto in\nAlgoKit Wallet</string>
+    <string name="welcome_to_walletsdk">Benvenuto in\nAlgoKit Wallet</string>
     <string name="i_want_to_monitor">Voglio monitorare un account che è tenuto in cold storage.</string>
     <string name="recover">Recupera</string>
     <string name="the_last_copied_text">L\u2019ultimo testo copiato non è una passphrase valida. Per favore, copia una passphrase valida e riprova.</string>

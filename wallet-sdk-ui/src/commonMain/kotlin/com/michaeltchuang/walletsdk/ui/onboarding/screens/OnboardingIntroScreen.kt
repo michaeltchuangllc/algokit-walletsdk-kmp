@@ -11,7 +11,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_an_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.new_to_algorand
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.pera_icon_3d
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.right_arrow
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.welcome_to_pera
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.welcome_to_walletsdk
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,7 +77,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     onCreateNewWallet: () -> Unit = {},
     onImportAccount: () -> Unit = {},
@@ -107,7 +107,7 @@ internal fun ScreenContent(
                 color = AlgoKitTheme.colors.textMain,
                 text =
                     localizedStringResource(
-                        Res.string.welcome_to_pera,
+                        Res.string.welcome_to_walletsdk,
                     ),
             )
             Box(
@@ -119,7 +119,7 @@ internal fun ScreenContent(
                 AlgoKitIcon(
                     modifier = Modifier.fillMaxWidth(),
                     painter = painterResource(Res.drawable.pera_icon_3d),
-                    contentDescription = localizedStringResource(Res.string.welcome_to_pera),
+                    contentDescription = localizedStringResource(Res.string.welcome_to_walletsdk),
                     contentScale = ContentScale.FillWidth,
                 )
             }
