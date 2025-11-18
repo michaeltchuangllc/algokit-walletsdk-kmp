@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name_topbar">एल्गो किट डेमो वॉलेट</string>
+    <string name="app_name_topbar">WalletSDK प्लेग्राउंड</string>
     <string name="open_github">गिटहब खोलें</string>
 
     <!-- Bottom Navigation Screen -->

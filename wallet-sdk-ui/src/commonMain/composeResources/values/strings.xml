@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name_topbar">AlgoKit Demo Wallet</string>
+    <string name="app_name_topbar">WalletSDK Playground</string>
     <!-- Account Details -->
     <string name="account_header">Account Information</string>
     <string name="account_passphrase">Mnemomic / Passphrase</string>
@@ -27,7 +27,7 @@
     <string name="validator_detail_confirm_stake">Confirm</string>
     <string name="validator_detail_button_wait_message">It will take a few seconds for the new state to be recognized on the blockchain</string>
 
-    <string name="app_name">WalletSDK Demo</string>
+    <string name="app_name">WalletSDK Playground</string>
     <string name="please_scan_your_fingerprint_or">Please scan your fingerprint or your face to proceed.</string>
     <string name="cancel">Cancel</string>
     <string name="share_via">Share via</string>
@@ -299,7 +299,7 @@
     <string name="in_the_following_account">In the following steps, you\u2019ll enter your recovery passphrase to recover an Algorand account. Have your recovery phrase handy before you begin.</string>
     <string name="in_the_following_wallet">In the following steps, you\u2019ll enter your recovery passphrase to recover an Algorand wallet. Have your recovery phrase handy before you begin.</string>
     <string name="finish_account_creation">Finish Account Creation</string>
-    <string name="welcome_to_pera">Welcome to\nAlgoKit Wallet</string>
+    <string name="welcome_to_walletsdk">Welcome to\nAlgoKit Wallet</string>
     <string name="i_want_to_monitor">I want to monitor an account that\u2019s held in cold storage.</string>
     <string name="recover">Recover</string>
     <string name="the_last_copied_text">The last copied text is not a valid passphrase. Please copy a valid passphrase and try again.</string>
