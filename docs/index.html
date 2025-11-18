@@ -54,9 +54,22 @@
 
         .card-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
             gap: 30px;
             margin-top: 40px;
+        }
+
+        .app-tiles {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .app-tiles {
+                grid-template-columns: 1fr;
+            }
         }
 
         .card {
@@ -148,6 +161,10 @@
             .card {
                 padding: 30px;
             }
+
+            .app-tiles {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -173,6 +190,44 @@
             </p>
             <span class="card-link">View Gallery</span>
         </a>
+        <a href="https://algorand.co/blog/technical-brief-quantum-resistant-transactions-on-algorand-with-falcon-signatures"
+           target="_blank" rel="noopener noreferrer" class="card">
+            <span class="badge">Technical Brief</span>
+            <span class="card-icon">🔐</span>
+            <h2 class="card-title">Quantum-Resistant Security</h2>
+            <p class="card-description">
+                Learn about Falcon signatures and how Algorand implements quantum-resistant
+                cryptography
+                to protect against future threats from quantum computers.
+            </p>
+            <span class="card-link">Read Technical Brief</span>
+        </a>
+
+        <div class="app-tiles">
+            <a href="https://play.google.com/store/apps/details?id=com.michaeltchuang.walletsdk.demo"
+               target="_blank" rel="noopener noreferrer" class="card">
+                <span class="badge">Public Open Beta</span>
+                <span class="card-icon">🤖</span>
+                <h2 class="card-title">Android Demo App</h2>
+                <p class="card-description">
+                    Try the AlgoKit WalletSDK Playground app on Android. Experience post-quantum
+                    account creation and explore the SDK's capabilities firsthand.
+                </p>
+                <span class="card-link">Get on Google Play</span>
+            </a>
+
+            <a href="https://testflight.apple.com/join/UQfZ7P6w"
+               target="_blank" rel="noopener noreferrer" class="card">
+                <span class="badge">Public Open Beta</span>
+                <span class="card-icon">🍎</span>
+                <h2 class="card-title">iOS Demo App (TestFlight)</h2>
+                <p class="card-description">
+                    Try the AlgoKit WalletSDK Playground app on iOS via TestFlight. Experience
+                    post-quantum account creation and explore the SDK's capabilities firsthand.
+                </p>
+                <span class="card-link">Join TestFlight Beta</span>
+            </a>
+        </div>
 
         <!-- Placeholder for future documentation sections -->
         <div class="card" style="opacity: 0.6; pointer-events: none;">
@@ -195,19 +250,6 @@
             </p>
             <span class="card-link">Get Started</span>
         </div>
-
-        <a href="https://algorand.co/blog/technical-brief-quantum-resistant-transactions-on-algorand-with-falcon-signatures"
-           target="_blank" rel="noopener noreferrer" class="card">
-            <span class="badge">Technical Brief</span>
-            <span class="card-icon">🔐</span>
-            <h2 class="card-title">Quantum-Resistant Security</h2>
-            <p class="card-description">
-                Learn about Falcon signatures and how Algorand implements quantum-resistant
-                cryptography
-                to protect against future threats from quantum computers.
-            </p>
-            <span class="card-link">Read Technical Brief</span>
-        </a>
     </div>
 
     <footer>
