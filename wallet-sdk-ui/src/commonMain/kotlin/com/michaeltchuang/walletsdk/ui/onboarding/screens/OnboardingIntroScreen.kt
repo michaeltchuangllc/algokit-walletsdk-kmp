@@ -77,7 +77,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     onCreateNewWallet: () -> Unit = {},
     onImportAccount: () -> Unit = {},
