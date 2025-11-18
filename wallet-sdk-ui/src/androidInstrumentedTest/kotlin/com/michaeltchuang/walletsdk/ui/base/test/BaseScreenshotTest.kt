@@ -1,9 +1,21 @@
 package com.michaeltchuang.walletsdk.ui.base.test
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.unit.dp
 import com.karumi.shot.ScreenshotTest
+import com.michaeltchuang.walletsdk.components.TopBar
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ThemedColors
@@ -70,7 +82,25 @@ abstract class BaseScreenshotTest(
                 LocalCustomColors provides customColors,
                 LocalAppLocale provides localePreference,
             ) {
-                content()
+                Box {
+                    TopBar()
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.25f))
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxSize().padding(top = 50.dp),
+                            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = AlgoKitTheme.colors.background)
+                        ) {
+                            content()
+                        }
+                    }
+                }
+
             }
         }
     }

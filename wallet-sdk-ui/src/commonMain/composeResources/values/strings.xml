@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name_topbar">AlgoKit Demo Wallet</string>
     <!-- Account Details -->
     <string name="account_header">Account Information</string>
     <string name="account_passphrase">Mnemomic / Passphrase</string>

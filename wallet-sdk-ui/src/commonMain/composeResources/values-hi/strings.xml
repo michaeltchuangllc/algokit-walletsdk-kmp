@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <string name="app_name_topbar">एल्गो किट डेमो वॉलेट</string>
     <string name="account_header">खाता जानकारी</string>
     <string name="account_passphrase">म्नेमोनिक / पासफ्रेज़</string>
     <string name="account_button_lock">वॉलेट लॉक करें</string>
@@ -300,7 +301,7 @@
     <string name="in_the_following_account">आगामी चरणों में, आप अपने रिकवरी पासफ्रेज़ दर्ज करेंगे ताकि Algorand खाता पुनर्प्राप्त कर सकें। शुरू करने से पहले अपना रिकवरी वाक्यांश तैयार रखें।</string>
     <string name="in_the_following_wallet">आगामी चरणों में, आप अपने रिकवरी पासफ्रेज़ दर्ज करेंगे ताकि Algorand वॉलेट पुनर्प्राप्त कर सकें। शुरू करने से पहले अपना रिकवरी वाक्यांश तैयार रखें।</string>
     <string name="finish_account_creation">खाता निर्माण पूरा करें</string>
-    <string name="welcome_to_pera">AlgoKit वॉलेट में आपका स्वागत है</string>
+    <string name="welcome_to_pera">AlgoKit वॉलेट\nमें आपका स्वागत है</string>
     <string name="i_want_to_monitor">मैं उस खाते की निगरानी करना चाहता हूँ जो कोल्ड स्टोरेज में रखा गया है।</string>
     <string name="recover">पुनर्प्राप्त करें</string>
     <string name="the_last_copied_text">अंतिम कॉपी किया गया पाठ मान्य पासफ्रेज़ नहीं है। कृपया एक मान्य पासफ्रेज़ कॉपी करें और पुनः प्रयास करें।</string>

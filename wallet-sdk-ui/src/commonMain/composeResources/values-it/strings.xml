@@ -1,4 +1,5 @@
 <resources>
+    <string name="app_name_topbar">Portafoglio demo AlgoKit</string>
     <string name="account_header">Informazioni Account</string>
     <string name="account_passphrase">Mnemonic / Passphrase</string>
     <string name="account_button_lock">Blocca Wallet</string>
