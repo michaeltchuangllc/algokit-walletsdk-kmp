@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
@@ -52,7 +53,7 @@ fun TransactionSuccessScreen(
         onDoneClick = onDoneClick,
         onViewInExplorer = { txId ->
             scope.launch {
-                webViewController.open(viewModel.getExplorerBaseUrl() + "/tx/$txId")
+                webViewController.openUrl(viewModel.getExplorerBaseUrl() + "/tx/$txId")
             }
         },
     )

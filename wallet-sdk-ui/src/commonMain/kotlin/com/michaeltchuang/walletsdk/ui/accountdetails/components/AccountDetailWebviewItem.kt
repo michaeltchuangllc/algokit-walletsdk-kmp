@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.dp
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -38,7 +39,7 @@ fun AccountDetailWebviewItem(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable { webViewController.open(url) }
+                .clickable { webViewController.openUrl(url) }
                 .padding(vertical = 12.dp),
     ) {
         Icon(
