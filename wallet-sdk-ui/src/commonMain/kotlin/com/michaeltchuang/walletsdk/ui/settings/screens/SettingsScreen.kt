@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.BuildInfo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -173,7 +174,7 @@ fun SettingsWebviewItem(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .clickable { webViewController.open(url) }
+                .clickable { webViewController.openUrl(url) }
                 .padding(vertical = 12.dp),
     ) {
         Icon(

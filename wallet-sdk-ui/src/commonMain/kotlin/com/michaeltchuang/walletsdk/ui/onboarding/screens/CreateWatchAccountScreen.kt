@@ -49,6 +49,7 @@ import androidx.navigation.compose.rememberNavController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
@@ -124,7 +125,7 @@ fun CreateWatchAccountScreen(
                 onAddressChanged = viewModel::onAddressChanged,
                 onCreateWatchAccount = viewModel::createWatchAccount,
                 onInfoClick = {
-                    webViewController.open(WalletSdkConstants.WATCH_ACCOUNT_LEARN_MORE)
+                    webViewController.openUrl(WalletSdkConstants.WATCH_ACCOUNT_LEARN_MORE)
                 },
             )
         }

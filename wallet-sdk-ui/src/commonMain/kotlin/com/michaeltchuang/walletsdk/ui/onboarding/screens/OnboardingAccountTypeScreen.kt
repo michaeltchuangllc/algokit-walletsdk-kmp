@@ -66,6 +66,7 @@ import androidx.navigation.NavHostController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.PRIVACY_POLICY_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.TERMS_AND_SERVICES_URL
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -336,7 +337,7 @@ fun TermsAndPrivacy(modifier: Modifier = Modifier) {
                                     end = offset + 1,
                                 ).firstOrNull()
                                 ?.let {
-                                    webViewController.open(TERMS_AND_SERVICES_URL)
+                                    webViewController.openUrl(TERMS_AND_SERVICES_URL)
                                 }
                             annotatedString
                                 .getStringAnnotations(
@@ -345,7 +346,7 @@ fun TermsAndPrivacy(modifier: Modifier = Modifier) {
                                     end = offset + 1,
                                 ).firstOrNull()
                                 ?.let {
-                                    webViewController.open(PRIVACY_POLICY_URL)
+                                    webViewController.openUrl(PRIVACY_POLICY_URL)
                                 }
                         }
                     }
