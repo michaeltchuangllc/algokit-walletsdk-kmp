@@ -12,7 +12,7 @@
 
 package com.michaeltchuang.walletsdk.core.passkeys.domain.usecase
 
-import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
+import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import kotlinx.coroutines.flow.Flow
 
@@ -28,15 +28,15 @@ fun interface ClearAllPasskeys {
     suspend operator fun invoke()
 }
 
-internal fun interface GetSitePasskeyCount {
+fun interface GetSitePasskeyCount {
     suspend operator fun invoke(url: String): Int
 }
 
-internal fun interface GetSitePasskeys {
+fun interface GetSitePasskeys {
     suspend operator fun invoke(url: String): List<Passkey>
 }
 
-internal fun interface AddNewPasskey {
+fun interface AddNewPasskey {
     suspend operator fun invoke(
         bip44Address: String,
         requestOptions: PublicKeyCredentialCreationOptions,
@@ -44,14 +44,14 @@ internal fun interface AddNewPasskey {
     )
 }
 
-internal fun interface GetPasskeyByCredentialId {
+ fun interface GetPasskeyByCredentialId {
     suspend operator fun invoke(credentialId: String): Passkey?
 }
 
-internal fun interface SetPasskeyLastUsedTime {
+fun interface SetPasskeyLastUsedTime {
     suspend operator fun invoke(credId: String, lastUsed: Long)
 }
 
-internal fun interface DoesPasskeyExist {
+fun interface DoesPasskeyExist {
     suspend operator fun invoke(rpId: String, username: String, bip44Address: String): Boolean
 }

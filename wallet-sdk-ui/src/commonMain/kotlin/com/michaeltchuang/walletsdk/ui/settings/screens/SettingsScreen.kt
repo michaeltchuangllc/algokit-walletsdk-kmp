@@ -12,6 +12,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.localization_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.next
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.privacy_policy
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.security
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.support
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.terms_and_services
@@ -96,6 +97,20 @@ fun SettingsScreen(navController: NavController) {
             title = localizedStringResource(Res.string.localization_settings),
         ) {
             navController.navigate(AlgoKitScreens.LANGUAGE_SCREEN.name)
+        }
+        // Section: Security
+        Text(
+            text = localizedStringResource(Res.string.security),
+            color = AlgoKitTheme.colors.textMain,
+            style = AlgoKitTheme.typography.body.regular.sansMedium,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
+
+        SettingsItem(
+            icon = Res.drawable.ic_code,
+            title = "Passkeys",
+        ) {
+            navController.navigate(AlgoKitScreens.PASSKEYS_SCREEN.name)
         }
         Spacer(modifier = Modifier.height(16.dp))
 

@@ -13,8 +13,8 @@
 package com.michaeltchuang.walletsdk.core.passkeys.validator
 
 import android.content.Intent
-import com.michaeltchuang.walletsdk.core.passkeys.ui.model.GetPasskeyIntentValidationResult
+import com.michaeltchuang.walletsdk.core.passkeys.model.GetPasskeyIntentValidationResult
 
-internal interface GetPasskeyIntentValidator {
+interface GetPasskeyIntentValidator {
     suspend fun validate(intent: Intent): GetPasskeyIntentValidationResult
 }

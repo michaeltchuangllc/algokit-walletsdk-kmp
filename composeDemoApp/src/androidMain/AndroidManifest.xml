@@ -30,7 +30,7 @@
         </activity>
 
         <activity
-            android:name="com.michaeltchuang.walletsdk.core.passkeys.ui.PasskeyActivity"
+            android:name="com.michaeltchuang.walletsdk.ui.passkeys.PasskeyActivity"
             android:enabled="true"
             android:exported="true"
             android:screenOrientation="portrait"
@@ -46,7 +46,7 @@
         </activity>
 
         <service
-            android:name="com.michaeltchuang.walletsdk.core.passkeys.ui.PasskeyProviderService"
+            android:name="com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService"
             android:enabled="true"
             android:exported="true"
             android:icon="@mipmap/ic_launcher"

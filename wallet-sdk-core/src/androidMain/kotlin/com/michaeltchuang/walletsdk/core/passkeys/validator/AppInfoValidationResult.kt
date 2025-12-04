@@ -12,7 +12,7 @@
 
 package com.michaeltchuang.walletsdk.core.passkeys.validator
 
-internal sealed interface AppInfoValidationResult {
+sealed interface AppInfoValidationResult {
     data object AppInfoNotFound : AppInfoValidationResult
     data object FailedToValidateRP : AppInfoValidationResult
     data class FailedToValidateOrigin(val exception: Exception) : AppInfoValidationResult

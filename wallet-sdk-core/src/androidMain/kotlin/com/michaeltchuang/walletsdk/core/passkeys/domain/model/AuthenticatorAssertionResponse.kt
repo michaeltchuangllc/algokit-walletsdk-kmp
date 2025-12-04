@@ -26,9 +26,9 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal class AuthenticatorAssertionResponse(
+class AuthenticatorAssertionResponse(
     private val requestOptions: PublicKeyCredentialRequestOptions,
-    origin: String,
+    origin: String?,
     private val authFlags: AuthenticatorFlags,
     private var userHandle: String,
     packageName: String? = null,

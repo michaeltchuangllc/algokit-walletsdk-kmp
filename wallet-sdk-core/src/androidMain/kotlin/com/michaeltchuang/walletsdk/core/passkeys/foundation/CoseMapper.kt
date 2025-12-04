@@ -14,7 +14,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.foundation
 
 import java.security.interfaces.ECPublicKey
 
-internal interface CoseMapper {
+ interface CoseMapper {
     fun mapPublicKeyToCose(key: ECPublicKey): MutableMap<Int, Any>
     fun mapCoseKeyToSpki(coseKey: MutableMap<Int, Any>): ByteArray?
 }

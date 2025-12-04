@@ -12,7 +12,7 @@
 
 package com.michaeltchuang.walletsdk.core.passkeys.domain.model
 
-internal data class AuthenticatorFlags(
+data class AuthenticatorFlags(
     val userPresent: Boolean = true,
     val userVerified: Boolean = true,
     val backupEligibility: Boolean = true,

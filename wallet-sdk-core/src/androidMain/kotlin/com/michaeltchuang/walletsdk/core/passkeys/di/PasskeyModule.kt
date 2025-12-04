@@ -1,11 +1,17 @@
 package com.michaeltchuang.walletsdk.core.passkeys.di
 
-import androidx.room.Room
 import app.perawallet.deterministicP256.DeterministicP256
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdEntropy
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
-import com.michaeltchuang.walletsdk.core.passkeys.data.database.PasskeyDatabase
+import com.michaeltchuang.walletsdk.core.passkeys.CreatePublicKeyCredentialResponseProcessor
+import com.michaeltchuang.walletsdk.core.passkeys.DefaultCreatePublicKeyCredentialResponseProcessor
+import com.michaeltchuang.walletsdk.core.passkeys.DefaultGetCredentialResponseProcessor
+import com.michaeltchuang.walletsdk.core.passkeys.GetCredentialResponseProcessor
+import com.michaeltchuang.walletsdk.core.passkeys.builder.DefaultPasskeyCreateCredentialEntryBuilder
+import com.michaeltchuang.walletsdk.core.passkeys.builder.DefaultPasskeyGetCredentialsEntryBuilder
+import com.michaeltchuang.walletsdk.core.passkeys.builder.PasskeyCreateCredentialEntryBuilder
+import com.michaeltchuang.walletsdk.core.passkeys.builder.PasskeyGetCredentialsEntryBuilder
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.DefaultPasskeyEntityMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.DefaultPasskeyMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyEntityMapper
@@ -26,28 +32,14 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.RemovePasskeyBy
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.passkeys.foundation.CoseMapper
 import com.michaeltchuang.walletsdk.core.passkeys.foundation.DefaultCoseMapper
-import com.michaeltchuang.walletsdk.core.passkeys.ui.builder.DefaultPasskeyCreateCredentialEntryBuilder
-import com.michaeltchuang.walletsdk.core.passkeys.ui.builder.DefaultPasskeyGetCredentialsEntryBuilder
-import com.michaeltchuang.walletsdk.core.passkeys.ui.builder.PasskeyCreateCredentialEntryBuilder
-import com.michaeltchuang.walletsdk.core.passkeys.ui.builder.PasskeyGetCredentialsEntryBuilder
-import com.michaeltchuang.walletsdk.core.passkeys.ui.viewmodel.DefaultGetCredentialResponseProcessor
-import com.michaeltchuang.walletsdk.core.passkeys.ui.viewmodel.GetCredentialResponseProcessor
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
 val passkeyModule = module {
-    // Database
-    single<PasskeyDatabase> {
-        Room.databaseBuilder(
-            context = get(),
-            klass = PasskeyDatabase::class.java,
-            name = PasskeyDatabase.DATABASE_NAME
-        ).build()
-    }
-
-    single { get<PasskeyDatabase>().passkeyDao() }
-    single { get<PasskeyDatabase>().passkeySiteDao() }
+    // Passkey DAOs from AlgoKitDatabase
+    single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeyDao() }
+    single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeySiteDao() }
 
     // Repository
     singleOf(::DefaultPasskeyRepository) bind PasskeyRepository::class
@@ -112,5 +104,8 @@ val passkeyModule = module {
             get<SetPasskeyLastUsedTime>(),
             get<TimeProvider>()
         )
+    }
+    single<CreatePublicKeyCredentialResponseProcessor> {
+        DefaultCreatePublicKeyCredentialResponseProcessor(get())
     }
 }

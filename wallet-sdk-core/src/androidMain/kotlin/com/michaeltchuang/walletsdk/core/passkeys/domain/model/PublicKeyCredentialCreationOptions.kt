@@ -25,7 +25,7 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal class PublicKeyCredentialCreationOptions(requestJson: String) {
+class PublicKeyCredentialCreationOptions(requestJson: String) {
     private val json: JSONObject = JSONObject(requestJson)
 
     val rp: PublicKeyCredentialRpEntity
@@ -68,12 +68,12 @@ internal class PublicKeyCredentialCreationOptions(requestJson: String) {
         attestation = json.optString("attestation", "none")
     }
 
-    internal data class PublicKeyCredentialRpEntity(
+    data class PublicKeyCredentialRpEntity(
         val name: String,
         val id: String,
     )
 
-    internal data class PublicKeyCredentialUserEntity(
+    data class PublicKeyCredentialUserEntity(
         val name: String,
         val id: ByteArray,
         val displayName: String,

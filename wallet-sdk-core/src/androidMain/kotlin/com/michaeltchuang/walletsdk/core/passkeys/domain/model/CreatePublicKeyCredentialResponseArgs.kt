@@ -15,7 +15,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.domain.model
 import androidx.credentials.provider.CallingAppInfo
 import java.security.KeyPair
 
-internal data class CreatePublicKeyCredentialResponseArgs(
+data class CreatePublicKeyCredentialResponseArgs(
     val keyPair: KeyPair,
     val credentialId: ByteArray,
     val request: PublicKeyCredentialCreationOptions,

@@ -14,7 +14,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.domain.model
 
 import androidx.credentials.CreatePublicKeyCredentialResponse
 
-internal data class CreatePublicKeyCredentialResponseData(
+data class CreatePublicKeyCredentialResponseData(
     val credentialId: ByteArray,
     val response: CreatePublicKeyCredentialResponse
 )

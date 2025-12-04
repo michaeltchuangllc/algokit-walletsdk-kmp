@@ -91,16 +91,23 @@ abstract class BaseScreenshotTest(
                     ) {
                         Card(
                             modifier = Modifier
-                                .fillMaxSize().padding(top = 50.dp),
-                            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-                            colors = CardDefaults.cardColors(containerColor = AlgoKitTheme.colors.background)
+                                .fillMaxSize()
+                                .padding(top = 50.dp),
+                            shape = RoundedCornerShape(
+                                topStart = 20.dp,
+                                topEnd = 20.dp
+                            ),
+                            elevation = CardDefaults.cardElevation(
+                                defaultElevation = 8.dp
+                            ),
+                            colors = CardDefaults.cardColors(
+                                containerColor = AlgoKitTheme.colors.background
+                            )
                         ) {
                             content()
                         }
                     }
                 }
-
             }
         }
     }

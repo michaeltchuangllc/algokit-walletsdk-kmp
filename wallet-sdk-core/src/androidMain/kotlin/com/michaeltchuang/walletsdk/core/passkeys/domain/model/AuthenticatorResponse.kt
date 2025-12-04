@@ -24,7 +24,7 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal interface AuthenticatorResponse {
+interface AuthenticatorResponse {
     var clientJson: JSONObject
 
     fun json(): JSONObject

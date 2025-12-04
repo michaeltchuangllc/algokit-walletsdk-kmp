@@ -51,6 +51,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreen
@@ -99,6 +100,7 @@ enum class AlgoKitScreens {
     SELECT_RECEIVER_SCREEN,
     TRANSACTING_TIPS_SCREEN,
     ADDRESS_NAMING_SCREEN,
+    PASSKEYS_SCREEN
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -599,6 +601,12 @@ fun NavigationBottomSheetNavHost(
                         onFinish,
                     )
                 }
+                composable(route = AlgoKitScreens.PASSKEYS_SCREEN.name) {
+                    PasskeysScreen {
+                        navController.popBackStack()
+                    }
+                }
+
             }
         }
     }

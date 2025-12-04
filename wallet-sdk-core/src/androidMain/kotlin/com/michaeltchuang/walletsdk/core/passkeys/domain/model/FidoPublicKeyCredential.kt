@@ -25,7 +25,7 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal class FidoPublicKeyCredential(
+class FidoPublicKeyCredential(
     val encodedId: String,
     val response: AuthenticatorResponse,
     val authenticatorAttachment: String = DEFAULT_AUTH_ATTACHMENT

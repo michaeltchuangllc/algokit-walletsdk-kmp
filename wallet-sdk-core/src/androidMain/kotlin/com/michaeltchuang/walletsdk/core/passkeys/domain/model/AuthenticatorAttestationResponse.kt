@@ -31,7 +31,7 @@ import java.util.UUID
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal class AuthenticatorAttestationResponse(
+class AuthenticatorAttestationResponse(
     private val requestOptions: PublicKeyCredentialCreationOptions,
     private val credentialId: ByteArray,
     private val credentialPublicKey: ByteArray,

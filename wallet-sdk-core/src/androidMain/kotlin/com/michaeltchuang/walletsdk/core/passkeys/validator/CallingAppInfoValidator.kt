@@ -14,6 +14,9 @@ package com.michaeltchuang.walletsdk.core.passkeys.validator
 
 import androidx.credentials.provider.CallingAppInfo
 
-internal interface CallingAppInfoValidator {
-    suspend fun validateCallingApp(rpId: String, callingAppInfo: CallingAppInfo?): AppInfoValidationResult
+interface CallingAppInfoValidator {
+    suspend fun validateCallingApp(
+        rpId: String,
+        callingAppInfo: CallingAppInfo?
+    ): AppInfoValidationResult
 }

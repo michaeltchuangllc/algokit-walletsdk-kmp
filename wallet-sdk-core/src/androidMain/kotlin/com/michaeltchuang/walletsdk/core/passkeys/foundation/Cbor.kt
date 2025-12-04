@@ -22,7 +22,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.foundation
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-internal class Cbor {
+class Cbor {
     fun encode(data: Any): ByteArray {
         if (data is Number) {
             return if (data is Double) {
