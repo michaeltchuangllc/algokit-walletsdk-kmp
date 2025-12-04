@@ -15,6 +15,7 @@ internal actual fun platformKoinModule(): Module =
             com.michaeltchuang.walletsdk.core.encryption.di.encryptionModule,
             com.michaeltchuang.walletsdk.core.account.di.accountCoreModule,
             com.michaeltchuang.walletsdk.core.account.di.localAccountsModule,
+            com.michaeltchuang.walletsdk.core.account.di.accountCustomInfoModule,
             com.michaeltchuang.walletsdk.core.passkeys.di.passkeyModule,
             com.michaeltchuang.walletsdk.core.passkeys.di.passkeysUiModule,
             com.michaeltchuang.walletsdk.core.passkeys.validator.di.validationModule
