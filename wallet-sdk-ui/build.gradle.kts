@@ -113,6 +113,7 @@ kotlin {
                 implementation(compose.uiTooling)
                 implementation(compose.components.uiToolingPreview)
                 implementation(libs.koin.android)
+                implementation(libs.androidx.credentials)
             }
         }
 

@@ -1,5 +1,6 @@
 import org.gradle.kotlin.dsl.dependencies
 import org.gradle.kotlin.dsl.getting
+import org.gradle.kotlin.dsl.implementation
 import org.gradle.kotlin.dsl.invoke
 import org.gradle.kotlin.dsl.kotlin
 import org.gradle.kotlin.dsl.libs
@@ -91,7 +92,9 @@ kotlin {
         androidMain.dependencies {
             implementation(libs.algosdk)
             implementation(libs.algorand.go.mobile)
-
+            implementation(libs.androidx.credentials)
+            implementation(libs.biometric)
+            implementation(libs.p256)
             // toml files don't support aar files yet
             implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
@@ -107,6 +110,15 @@ kotlin {
             implementation(libs.kotlinfixture)
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
+
+            // BouncyCastle for cryptography
+            implementation("org.bouncycastle:bcprov-jdk18on:1.82")
+
+            // Retrofit for passkeys validation (Android API 34+)
+            implementation(libs.retrofit)
+            implementation(libs.converter.gson)
+            implementation("com.squareup.okhttp3:okhttp:4.12.0")
+            implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
         }
         commonMain.dependencies {
             api(libs.napier)
@@ -177,6 +189,29 @@ android {
         compose = true
     }
 
+    packaging {
+        resources {
+            // Exclude duplicate files from multiple dependencies
+            excludes.addAll(
+                listOf(
+                    "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                    "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                    "META-INF/DEPENDENCIES",
+                    "META-INF/LICENSE",
+                    "META-INF/LICENSE.txt",
+                    "META-INF/license.txt",
+                    "META-INF/NOTICE",
+                    "META-INF/NOTICE.txt",
+                    "META-INF/notice.txt",
+                    "META-INF/ASL2.0",
+                    "META-INF/*.kotlin_module"
+                )
+            )
+            // Pick first occurrence of duplicate files
+            pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+        }
+    }
+
     lint {
         // Disable problematic rules for KMP
         disable.addAll(
@@ -208,6 +243,16 @@ android {
 
 room {
     schemaDirectory("$projectDir/schemas")
+}
+
+configurations.all {
+    resolutionStrategy {
+        // Force a single version of BouncyCastle to avoid conflicts
+        force("org.bouncycastle:bcprov-jdk18on:1.82")
+
+        // Exclude the older version
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+    }
 }
 
 dependencies {

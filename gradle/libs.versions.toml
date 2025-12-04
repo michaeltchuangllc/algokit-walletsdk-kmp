@@ -32,6 +32,7 @@ converterGson = "2.11.0"
 core = "1.6.1"
 coreKtx = "1.16.0"
 coroutines = "1.10.2"
+credentials = "1.5.0"
 desugar = "2.1.5"
 datastore = "1.1.7"
 detekt = "1.23.8"
@@ -68,11 +69,13 @@ navigation-compose = "2.8.0-alpha10"
 okhttp = "4.12.0"
 paging = "3.3.6"
 peraWalletConnect = "1.0.1"
+dP256 = "1.0.2"
 qrkit = "3.0.5"
 review = "2.0.2"
 room = "2.7.0"
 rules = "1.7.0"
 runner = "1.6.2"
+retrofit = "3.0.0"
 shot = "6.1.0"
 sqlite = "2.5.0"
 spmForKmp = "1.0.3"
@@ -103,6 +106,7 @@ core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 lifecycle-common-java8 = { module = "androidx.lifecycle:lifecycle-common-java8", version.ref = "lifecycle" }
 lifecycle-extensions = { module = "androidx.lifecycle:lifecycle-extensions", version.ref = "lifecycleExt" }
 lifecycle-viewmodel-ktx = { module = "androidx.lifecycle:lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 
 # Dependency Injection
 koin-bom = { module = "io.insert-koin:koin-bom", version.ref = "koin" }
@@ -131,10 +135,7 @@ ktor-client-content-negotiation-jvm = { module = "io.ktor:ktor-client-content-ne
 ktor-kotlinx-serialization = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 ktor-utils = { module = "io.ktor:ktor-utils", version.ref = "ktor" }
-java-websocket = { module = "org.java-websocket:Java-WebSocket", version.ref = "javaWebSocket" }
-logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
-moshi-core = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
-moshi-kotlin = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
+retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
 
 # Database / ORM
 datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
@@ -181,6 +182,7 @@ walletconnect-v2-sign = { module = "com.walletconnect:sign" }
 walletconnect-v2 = { module = "com.walletconnect:android-bom", version.ref = "walletConnectBom" }
 walletconnect-v2-android-core = { module = "com.walletconnect:android-core" }
 walletconnect-v2-web3wallet = { module = "com.walletconnect:web3wallet" }
+p256 = { module = "app.perawallet:dP256", version.ref = "dP256" }
 
 # Testing / Utilities
 androidx-core = { module = "androidx.test:core", version.ref = "core" }
@@ -223,7 +225,6 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
-
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
