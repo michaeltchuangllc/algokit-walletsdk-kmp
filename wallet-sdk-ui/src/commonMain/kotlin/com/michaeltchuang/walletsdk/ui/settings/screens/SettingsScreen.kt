@@ -8,6 +8,8 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_feedback
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_localization
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_moon
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkey
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkeys
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.localization_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.next
@@ -107,7 +109,7 @@ fun SettingsScreen(navController: NavController) {
         )
 
         SettingsItem(
-            icon = Res.drawable.ic_code,
+            icon = Res.drawable.ic_passkey,
             title = "Passkeys",
         ) {
             navController.navigate(AlgoKitScreens.PASSKEYS_SCREEN.name)

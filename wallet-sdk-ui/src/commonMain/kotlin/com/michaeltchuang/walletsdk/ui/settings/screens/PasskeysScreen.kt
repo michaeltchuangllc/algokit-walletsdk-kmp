@@ -3,6 +3,9 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.are_you_sure_remove_passkey
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.cancel
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkey
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkeys
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.last_used
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.loading
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.no_passkeys_yet
@@ -10,6 +13,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.passkeys_title
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_passkey
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.username
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,12 +46,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.PasskeysViewModel
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -135,15 +143,7 @@ internal fun ScreenContent(
 
                 is PasskeysViewModel.ViewState.Content -> {
                     if (viewState.passkeys.isEmpty()) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                localizedStringResource(Res.string.no_passkeys_yet),
-                                color = AlgoKitTheme.colors.textGray
-                            )
-                        }
+                        EmptyState()
                     } else {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
@@ -181,7 +181,7 @@ private fun PasskeyListItem(passkey: PasskeysViewModel.Passkey, onDelete: () -> 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 modifier = Modifier.size(24.dp),
-                imageVector = Icons.Default.Lock,
+                imageVector = vectorResource(Res.drawable.ic_passkey),
                 contentDescription = null,
                 tint = AlgoKitTheme.colors.textMain
             )
@@ -228,6 +228,26 @@ fun DetailsRow(label: String, value: String) {
         Spacer(modifier = Modifier.weight(1f))
         Text(
             text = value,
+            color = AlgoKitTheme.colors.textMain
+        )
+    }
+}
+
+@Composable
+private fun EmptyState() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            imageVector = vectorResource(Res.drawable.ic_passkeys),
+            contentDescription = null
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = stringResource(Res.string.no_passkeys_yet),
+            style = AlgoKitTheme.typography.body.regular.sans,
             color = AlgoKitTheme.colors.textMain
         )
     }
