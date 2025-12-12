@@ -32,14 +32,14 @@ internal class AddNewPasskeyUseCase(
     }
 
     private fun getAddPasskeyArgs(
-        bip44Address: String,
+        algoAddress: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray
     ): AddPasskeyArgs {
         return AddPasskeyArgs(
             siteUrl = requestOptions.rp.id,
             siteName = requestOptions.rp.name,
-            bip44Address = bip44Address,
+            algoAddress = algoAddress,
             uid = WebAuthnUtils.b64Encode(requestOptions.user.id),
             username = requestOptions.user.name,
             displayName = requestOptions.user.displayName,

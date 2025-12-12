@@ -22,7 +22,7 @@ internal class DefaultPasskeyMapper constructor() : PasskeyMapper {
 
     override fun mapToPasskey(entity: PasskeyEntity, siteEntity: SiteEntity): Passkey {
         return Passkey(
-            bip44Address = entity.algoAddress,
+            algoAddress = entity.algoAddress,
             userId = entity.userId,
             username = entity.userName,
             displayName = entity.userDisplayName ?: entity.userName,

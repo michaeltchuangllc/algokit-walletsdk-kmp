@@ -10,7 +10,7 @@ internal class DefaultPasskeyEntityMapper() : PasskeyEntityMapper {
     override fun mapToPasskeyEntity(passkey: AddPasskeyArgs, siteId: Long): PasskeyEntity {
         return PasskeyEntity(
             siteId = siteId,
-            algoAddress = passkey.bip44Address,
+            algoAddress = passkey.algoAddress,
             userId = passkey.uid,
             userName = passkey.username,
             userDisplayName = passkey.displayName,

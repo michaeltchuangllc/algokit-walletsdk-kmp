@@ -15,7 +15,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.model
 data class Passkey(
     val credId: String,
     val site: PasskeySite,
-    val bip44Address: String,
+    val algoAddress: String,
     val userId: String,
     val username: String,
     val displayName: String,
