@@ -24,10 +24,9 @@ import org.koin.core.context.startKoin
 import java.security.Security
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-class PasskeyActivity : FragmentActivity(),
+class PasskeyActivity :
+    FragmentActivity(),
     ActivityCredentialRequestResolver by DefaultActivityCredentialRequestResolver() {
-
-
     private val createPasskeyViewModel: CreatePasskeyViewModel by viewModel()
     private val getPasskeyViewModel: GetPasskeyViewModel by viewModel()
 
@@ -36,9 +35,10 @@ class PasskeyActivity : FragmentActivity(),
             when (event) {
                 is CreatePasskeyViewModel.ViewEvent.FinishActivityWithCreateError -> finishWithCreateCredentialError(event.errorMessage)
                 is CreatePasskeyViewModel.ViewEvent.SetCreateResponseAndFinishActivity -> finishWithCreateCredentialResponse(event.response)
-                is CreatePasskeyViewModel.ViewEvent.AuthenticateCreatePasskeyWithBiometrics -> authenticateCreatePasskeyWithBiometrics(
-                    event.params
-                )
+                is CreatePasskeyViewModel.ViewEvent.AuthenticateCreatePasskeyWithBiometrics ->
+                    authenticateCreatePasskeyWithBiometrics(
+                        event.params,
+                    )
 
                 is CreatePasskeyViewModel.ViewEvent.FinishActivityWithCreateBiometricError -> {
                     val errorMessage = "Biometric error: ${event.errorCode} - ${event.errorMessage}"
@@ -52,9 +52,10 @@ class PasskeyActivity : FragmentActivity(),
             when (event) {
                 is GetPasskeyViewModel.ViewEvent.FinishActivityWithGetError -> finishWithGetCredentialError(event.errorMessage)
                 is GetPasskeyViewModel.ViewEvent.SetGetResponseAndFinishActivity -> finishWithGetCredentialResponse(event.response)
-                is GetPasskeyViewModel.ViewEvent.AuthenticateGetPasskeyWithBiometrics -> authenticateGetPasskeyWithBiometrics(
-                    event.params
-                )
+                is GetPasskeyViewModel.ViewEvent.AuthenticateGetPasskeyWithBiometrics ->
+                    authenticateGetPasskeyWithBiometrics(
+                        event.params,
+                    )
             }
         }
 
@@ -81,7 +82,10 @@ class PasskeyActivity : FragmentActivity(),
             try {
                 startKoin {
                     androidContext(this@PasskeyActivity)
-                    modules(com.michaeltchuang.walletsdk.core.foundation.di.platformKoinModule())
+                    modules(
+                        com.michaeltchuang.walletsdk.core.foundation.di
+                            .platformKoinModule(),
+                    )
                 }
             } catch (e: Exception) {
                 // Koin might already be started in another process, ignore

@@ -20,11 +20,10 @@ import kotlin.math.abs
 
 class PasskeysViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
-    private val eventDelegate: EventDelegate<ViewEvent>
+    private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     StateViewModel<PasskeysViewModel.ViewState> by stateDelegate,
     EventViewModel<PasskeysViewModel.ViewEvent> by eventDelegate {
-
     init {
         createAlgo25Account()
         stateDelegate.setDefaultState(ViewState.Idle)
@@ -37,18 +36,18 @@ class PasskeysViewModel(
             }
             val repo = getPasskeyRepository()
 
-
             repo.getAllPasskeysAsFlow().collect { passkeys ->
                 val now = Clock.System.now().toEpochMilliseconds()
-                val uiPasskeys = passkeys.map { domainPasskey ->
-                    Passkey(
-                        credId = domainPasskey.credId,
-                        title = domainPasskey.displayName,
-                        domain = domainPasskey.site.url,
-                        lastUsed = formatLastUsedLabel(domainPasskey.lastUsed, now),
-                        username = domainPasskey.username,
-                    )
-                }
+                val uiPasskeys =
+                    passkeys.map { domainPasskey ->
+                        Passkey(
+                            credId = domainPasskey.credId,
+                            title = domainPasskey.displayName,
+                            domain = domainPasskey.site.url,
+                            lastUsed = formatLastUsedLabel(domainPasskey.lastUsed, now),
+                            username = domainPasskey.username,
+                        )
+                    }
                 stateDelegate.updateState {
                     ViewState.Content(uiPasskeys)
                 }
@@ -66,7 +65,6 @@ class PasskeysViewModel(
         }
     }
 
-
     data class Passkey(
         val credId: String,
         val title: String,
@@ -77,8 +75,12 @@ class PasskeysViewModel(
 
     sealed interface ViewState {
         data object Idle : ViewState
+
         data object Loading : ViewState
-        data class Content(val passkeys: List<Passkey>) : ViewState
+
+        data class Content(
+            val passkeys: List<Passkey>,
+        ) : ViewState
     }
 
     sealed interface ViewEvent {
@@ -86,7 +88,10 @@ class PasskeysViewModel(
     }
 
     companion object {
-        private fun formatLastUsedLabel(lastUsedEpochMillis: Long?, now: Long): String {
+        private fun formatLastUsedLabel(
+            lastUsedEpochMillis: Long?,
+            now: Long,
+        ): String {
             if (lastUsedEpochMillis == null || lastUsedEpochMillis == 0L) return "-"
             val diff = abs(now - lastUsedEpochMillis)
             return when {

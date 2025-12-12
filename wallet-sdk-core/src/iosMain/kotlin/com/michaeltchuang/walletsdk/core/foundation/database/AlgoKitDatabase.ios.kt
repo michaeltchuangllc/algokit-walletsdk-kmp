@@ -18,7 +18,9 @@ internal fun createAlgoKitDatabase(): RoomDatabase.Builder<AlgoKitDatabase> {
     return Room
         .databaseBuilder<AlgoKitDatabase>(
             name = dbFilePath,
-        ).setDriver(BundledSQLiteDriver()).addMigrations(MIGRATION_1_2)
+        )
+        .setDriver(BundledSQLiteDriver())
+        .addMigrations(MIGRATION_1_2)
 }
 
 

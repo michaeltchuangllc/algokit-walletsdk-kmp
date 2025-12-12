@@ -1,7 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.passkeys
 
-import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValidator
-import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -10,21 +8,21 @@ import androidx.credentials.provider.PendingIntentHandler
 import androidx.credentials.provider.ProviderCreateCredentialRequest
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.DoesPasskeyExist
+import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePasskeyParamsMapper
+import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyIntentValidationResult
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult.AppInfoNotFound
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult.FailedToValidateOrigin
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult.FailedToValidateRP
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult.Success
-import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePasskeyParamsMapper
-import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyIntentValidationResult
-
+import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValidator
+import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 internal class DefaultCreatePasskeyIntentValidator(
     private val appInfoValidator: CallingAppInfoValidator,
     private val createPasskeyParamsMapper: CreatePasskeyParamsMapper,
-    private val doesPasskeyExist: DoesPasskeyExist
+    private val doesPasskeyExist: DoesPasskeyExist,
 ) : CreatePasskeyIntentValidator {
-
     override suspend fun validate(intent: Intent): CreatePasskeyIntentValidationResult {
         val createPasskeyRequest = PendingIntentHandler.retrieveProviderCreateCredentialRequest(intent)
         val requestExtras = intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY)
@@ -49,7 +47,7 @@ internal class DefaultCreatePasskeyIntentValidator(
 
     private suspend fun getIntentResultValidatingAppInfo(
         createPasskeyRequest: ProviderCreateCredentialRequest,
-        bip44Address: String
+        bip44Address: String,
     ): CreatePasskeyIntentValidationResult {
         val publicKeyRequest = createPasskeyRequest.callingRequest as CreatePublicKeyCredentialRequest
         val requestOptions = PublicKeyCredentialCreationOptions(publicKeyRequest.requestJson)
@@ -58,10 +56,11 @@ internal class DefaultCreatePasskeyIntentValidator(
             return CreatePasskeyIntentValidationResult.ExistingPasskey
         }
 
-        val validationResult = appInfoValidator.validateCallingApp(
-            requestOptions.rp.id,
-            createPasskeyRequest.callingAppInfo
-        )
+        val validationResult =
+            appInfoValidator.validateCallingApp(
+                requestOptions.rp.id,
+                createPasskeyRequest.callingAppInfo,
+            )
         return when (validationResult) {
             is AppInfoNotFound -> CreatePasskeyIntentValidationResult.AppInfoNotFound
             is FailedToValidateRP -> CreatePasskeyIntentValidationResult.FailedToValidateRP

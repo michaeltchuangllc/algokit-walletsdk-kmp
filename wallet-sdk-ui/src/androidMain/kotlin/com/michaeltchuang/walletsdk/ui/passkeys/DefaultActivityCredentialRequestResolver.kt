@@ -10,7 +10,6 @@ import androidx.credentials.provider.PendingIntentHandler
 import androidx.fragment.app.FragmentActivity
 
 internal class DefaultActivityCredentialRequestResolver : ActivityCredentialRequestResolver {
-
     private var activity: FragmentActivity? = null
 
     override fun initializeRequestResolver(activity: FragmentActivity) {

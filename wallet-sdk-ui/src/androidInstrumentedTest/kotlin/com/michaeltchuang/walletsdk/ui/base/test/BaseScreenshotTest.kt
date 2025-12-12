@@ -85,24 +85,29 @@ abstract class BaseScreenshotTest(
                 Box {
                     TopBar()
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.25f))
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color.Black.copy(alpha = 0.25f)),
                     ) {
                         Card(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(top = 50.dp),
-                            shape = RoundedCornerShape(
-                                topStart = 20.dp,
-                                topEnd = 20.dp
-                            ),
-                            elevation = CardDefaults.cardElevation(
-                                defaultElevation = 8.dp
-                            ),
-                            colors = CardDefaults.cardColors(
-                                containerColor = AlgoKitTheme.colors.background
-                            )
+                            modifier =
+                                Modifier
+                                    .fillMaxSize()
+                                    .padding(top = 50.dp),
+                            shape =
+                                RoundedCornerShape(
+                                    topStart = 20.dp,
+                                    topEnd = 20.dp,
+                                ),
+                            elevation =
+                                CardDefaults.cardElevation(
+                                    defaultElevation = 8.dp,
+                                ),
+                            colors =
+                                CardDefaults.cardColors(
+                                    containerColor = AlgoKitTheme.colors.background,
+                                ),
                         ) {
                             content()
                         }

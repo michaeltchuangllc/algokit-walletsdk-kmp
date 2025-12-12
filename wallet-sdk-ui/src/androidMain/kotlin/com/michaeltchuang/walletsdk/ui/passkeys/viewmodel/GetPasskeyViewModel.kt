@@ -16,9 +16,9 @@ import kotlinx.coroutines.launch
 class GetPasskeyViewModel(
     private val getPasskeyIntentValidator: GetPasskeyIntentValidator,
     private val getCredentialResponseProcessor: GetCredentialResponseProcessor,
-    private val eventDelegate: EventDelegate<ViewEvent>
-) : ViewModel(), EventViewModel<ViewEvent> by eventDelegate {
-
+    private val eventDelegate: EventDelegate<ViewEvent>,
+) : ViewModel(),
+    EventViewModel<ViewEvent> by eventDelegate {
     fun processIntent(intent: Intent) {
         viewModelScope.launch {
             when (val result = getPasskeyIntentValidator.validate(intent)) {
@@ -34,8 +34,8 @@ class GetPasskeyViewModel(
                     } else {
                         eventDelegate.sendEvent(
                             ViewEvent.AuthenticateGetPasskeyWithBiometrics(
-                                result.params
-                            )
+                                result.params,
+                            ),
                         )
                     }
                 }
@@ -55,9 +55,16 @@ class GetPasskeyViewModel(
     }
 
     sealed interface ViewEvent {
-        data class FinishActivityWithGetError(val errorMessage: String) : ViewEvent
-        data class AuthenticateGetPasskeyWithBiometrics(val params: GetCredentialsParams) :
-            ViewEvent
-        data class SetGetResponseAndFinishActivity(val response: GetCredentialResponse) : ViewEvent
+        data class FinishActivityWithGetError(
+            val errorMessage: String,
+        ) : ViewEvent
+
+        data class AuthenticateGetPasskeyWithBiometrics(
+            val params: GetCredentialsParams,
+        ) : ViewEvent
+
+        data class SetGetResponseAndFinishActivity(
+            val response: GetCredentialResponse,
+        ) : ViewEvent
     }
 }

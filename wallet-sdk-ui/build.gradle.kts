@@ -282,7 +282,7 @@ mavenPublishing {
 val copyPhoneScreenshots by tasks.registering(Copy::class) {
     description =
         "Copy screenshots to /docs/screenshots/phone for GitHub Pages (mirrors and deletes old " +
-                "files)"
+        "files)"
     group = "documentation"
 
     from("screenshots/debug") {
@@ -298,7 +298,7 @@ val copyPhoneScreenshots by tasks.registering(Copy::class) {
 val copyTabletScreenshots by tasks.registering(Copy::class) {
     description =
         "Copy screenshots to /docs/screenshots/tablet for GitHub Pages (mirrors and deletes old " +
-                "files)"
+        "files)"
     group = "documentation"
 
     from("screenshots/debug") {
