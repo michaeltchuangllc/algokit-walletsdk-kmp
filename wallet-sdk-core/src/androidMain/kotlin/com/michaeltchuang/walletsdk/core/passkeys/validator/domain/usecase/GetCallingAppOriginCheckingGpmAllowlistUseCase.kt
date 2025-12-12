@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase
 import androidx.credentials.provider.CallingAppInfo
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.repository.AppInfoValidationRepository
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
-import com.google.gson.JsonElement
+import kotlinx.serialization.json.JsonElement
 
 
 internal class GetCallingAppOriginCheckingGpmAllowlistUseCase constructor(

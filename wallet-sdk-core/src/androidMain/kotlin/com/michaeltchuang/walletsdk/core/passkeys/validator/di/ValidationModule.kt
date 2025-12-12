@@ -5,52 +5,59 @@ import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValida
 import com.michaeltchuang.walletsdk.core.passkeys.validator.PasskeyCallingAppInfoValidator
 import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.AssetLinksApiService
 import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.GStaticApiService
+import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.KtorAssetLinksApiService
+import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.KtorGStaticApiService
 import com.michaeltchuang.walletsdk.core.passkeys.validator.data.repository.DefaultAppInfoValidationRepository
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.repository.AppInfoValidationRepository
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.GetCallingAppOriginCheckingGpmAllowlist
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.GetCallingAppOriginCheckingGpmAllowlistUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.IsAssetLinksValid
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.IsAssetLinksValidUseCase
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.serialization.kotlinx.json.json
+import kotlinx.serialization.json.Json
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 val validationModule = module {
+
+    // HttpClient
+    single {
+        HttpClient(OkHttp) {
+            install(ContentNegotiation) {
+                json(Json {
+                    prettyPrint = true
+                    isLenient = true
+                    ignoreUnknownKeys = true
+                })
+            }
+            install(Logging) {
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        println("Ktor: $message")
+                    }
+                }
+                level = LogLevel.BODY
+            }
+        }
+    }
 
     // Repository
     singleOf(::DefaultAppInfoValidationRepository) bind AppInfoValidationRepository::class
 
     // API Services
     single<GStaticApiService> {
-        val okhttpClient = OkHttpClient.Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            })
-            .build()
-        Retrofit.Builder()
-            .addConverterFactory(GsonConverterFactory.create())
-            .baseUrl("https://www.gstatic.com/")
-            .client(okhttpClient)
-            .build()
-            .create(GStaticApiService::class.java)
+        KtorGStaticApiService(get())
     }
 
     single<AssetLinksApiService> {
-        val okhttpClient = OkHttpClient.Builder()
-            .addInterceptor(HttpLoggingInterceptor().apply {
-                level = HttpLoggingInterceptor.Level.BODY
-            })
-            .build()
-        Retrofit.Builder()
-            .addConverterFactory(GsonConverterFactory.create())
-            .baseUrl("https://digitalassetlinks.googleapis.com/")
-            .client(okhttpClient)
-            .build()
-            .create(AssetLinksApiService::class.java)
+        KtorAssetLinksApiService(get())
     }
 
     // Use Cases

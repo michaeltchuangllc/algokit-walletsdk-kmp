@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.validator.domain.repository
 
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.model.AssetLinkCheckResult
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
-import com.google.gson.JsonElement
+import kotlinx.serialization.json.JsonElement
 
 internal interface AppInfoValidationRepository {
     suspend fun getGpmPrivilegedAppAllowlist(): AlgoKitResult<JsonElement>

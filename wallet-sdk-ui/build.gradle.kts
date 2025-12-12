@@ -115,10 +115,8 @@ kotlin {
                 implementation(libs.koin.android)
                 implementation(libs.androidx.credentials)
                 implementation(libs.biometric)
-                // BouncyCastle for cryptography
-                implementation("org.bouncycastle:bcprov-jdk18on:1.82")
+                implementation(libs.bcprov.jdk18on)
                 implementation(libs.androidx.credentials)
-
             }
         }
 
