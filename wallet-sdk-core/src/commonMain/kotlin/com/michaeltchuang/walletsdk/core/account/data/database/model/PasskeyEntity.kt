@@ -14,9 +14,25 @@ package com.michaeltchuang.walletsdk.core.account.data.database.model
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.ForeignKey
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "passkey_table")
+@Entity(
+    tableName = "passkey_table",
+    foreignKeys = [
+        ForeignKey(
+            entity = SiteEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["site_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["site_id"]),
+        Index(value = ["algo_address"])
+    ]
+)
 internal data class PasskeyEntity(
     @PrimaryKey
     @ColumnInfo(name = "credential_id")

@@ -33,7 +33,7 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 url TEXT NOT NULL,
                 name TEXT NOT NULL
             )
-        """
+        """.trimIndent()
         )
 
         // Create passkey_table
@@ -49,11 +49,12 @@ private val MIGRATION_1_2 = object : Migration(1, 2) {
                 last_used_time_ms INTEGER,
                 FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
             )
-        """
+        """.trimIndent()
         )
 
         // Create index for faster lookups
         db.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_site_id ON passkey_table(site_id)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_algo_address ON passkey_table(algo_address)")
+        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sites_url ON sites(url)")
     }
 }
