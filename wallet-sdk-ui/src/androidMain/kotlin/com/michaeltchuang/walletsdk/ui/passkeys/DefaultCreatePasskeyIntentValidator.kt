@@ -26,8 +26,8 @@ internal class DefaultCreatePasskeyIntentValidator(
     override suspend fun validate(intent: Intent): CreatePasskeyIntentValidationResult {
         val createPasskeyRequest = PendingIntentHandler.retrieveProviderCreateCredentialRequest(intent)
         val requestExtras = intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY)
-        val bip44Address = requestExtras?.getString(PasskeyProviderService.ALGOADDRESS)
-        if (createPasskeyRequest == null || bip44Address == null) {
+        val algoAddress = requestExtras?.getString(PasskeyProviderService.ALGOADDRESS)
+        if (createPasskeyRequest == null || algoAddress == null) {
             return CreatePasskeyIntentValidationResult.UnableToExtractData
         }
 
@@ -39,7 +39,7 @@ internal class DefaultCreatePasskeyIntentValidator(
         }
 
         return if (createPasskeyRequest.callingRequest is CreatePublicKeyCredentialRequest) {
-            getIntentResultValidatingAppInfo(createPasskeyRequest, bip44Address)
+            getIntentResultValidatingAppInfo(createPasskeyRequest, algoAddress)
         } else {
             CreatePasskeyIntentValidationResult.InvalidRequestType
         }
@@ -47,12 +47,12 @@ internal class DefaultCreatePasskeyIntentValidator(
 
     private suspend fun getIntentResultValidatingAppInfo(
         createPasskeyRequest: ProviderCreateCredentialRequest,
-        bip44Address: String,
+        algoAddress: String,
     ): CreatePasskeyIntentValidationResult {
         val publicKeyRequest = createPasskeyRequest.callingRequest as CreatePublicKeyCredentialRequest
         val requestOptions = PublicKeyCredentialCreationOptions(publicKeyRequest.requestJson)
 
-        if (doesPasskeyExist(requestOptions.rp.id, requestOptions.user.name, bip44Address)) {
+        if (doesPasskeyExist(requestOptions.rp.id, requestOptions.user.name, algoAddress)) {
             return CreatePasskeyIntentValidationResult.ExistingPasskey
         }
 
@@ -67,7 +67,7 @@ internal class DefaultCreatePasskeyIntentValidator(
             is FailedToValidateOrigin -> CreatePasskeyIntentValidationResult.FailedToValidateOrigin
             is Success -> {
                 val appInfoOrigin = validationResult.callingAppInfoOrigin
-                val params = createPasskeyParamsMapper(createPasskeyRequest, bip44Address, appInfoOrigin)
+                val params = createPasskeyParamsMapper(createPasskeyRequest, algoAddress, appInfoOrigin)
                 CreatePasskeyIntentValidationResult.Success(createPasskeyRequest, params)
             }
         }

@@ -6,7 +6,7 @@ data class CreatePasskeyParams(
     val requestOptions: PublicKeyCredentialCreationOptions,
     val callingAppInfo: CallingAppInfo,
     val clientDataHash: ByteArray?,
-    val bip44Address: String,
+    val algoAddress: String,
     val appInfoOrigin: String
 ) {
     val rpId: String

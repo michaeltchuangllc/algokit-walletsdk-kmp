@@ -121,7 +121,7 @@ class PasskeyProviderService : CredentialProviderService() {
     private fun buildCreateCredentialResponse(entries: List<CreatePasskeyCredentialCreateEntry>): BeginCreateCredentialResponse {
         val builder = BeginCreateCredentialResponse.Builder()
         entries.forEach { entry ->
-            val extras = Bundle().apply { putString(ALGOADDRESS, entry.bip44Address) }
+            val extras = Bundle().apply { putString(ALGOADDRESS, entry.algoAddress) }
             val intent = createNewPendingIntent(CREATE_PASSKEY_INTENT, extras)
             val createEntry = getCreateEntry(entry.accountName, entry.passkeyCount, intent)
             builder.addCreateEntry(createEntry)

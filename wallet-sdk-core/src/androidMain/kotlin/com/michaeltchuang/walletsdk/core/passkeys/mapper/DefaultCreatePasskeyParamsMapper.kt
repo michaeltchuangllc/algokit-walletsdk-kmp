@@ -14,7 +14,7 @@ class DefaultCreatePasskeyParamsMapper() : CreatePasskeyParamsMapper {
 
     override fun invoke(
         request: ProviderCreateCredentialRequest,
-        bip44Address: String,
+        algoAddress: String,
         appInfoOrigin: String
     ): CreatePasskeyParams {
         val publicKeyRequest = request.callingRequest as CreatePublicKeyCredentialRequest
@@ -23,7 +23,7 @@ class DefaultCreatePasskeyParamsMapper() : CreatePasskeyParamsMapper {
                 requestOptions = PublicKeyCredentialCreationOptions(requestJson),
                 callingAppInfo = request.callingAppInfo,
                 clientDataHash = clientDataHash,
-                bip44Address = bip44Address,
+                algoAddress = algoAddress,
                 appInfoOrigin = appInfoOrigin
             )
         }

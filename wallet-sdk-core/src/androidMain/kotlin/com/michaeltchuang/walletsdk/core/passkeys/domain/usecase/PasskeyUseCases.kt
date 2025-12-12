@@ -26,7 +26,7 @@ fun interface GetSitePasskeys {
 
 fun interface AddNewPasskey {
     suspend operator fun invoke(
-        bip44Address: String,
+        algoAddress: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray
     )
@@ -41,5 +41,5 @@ fun interface SetPasskeyLastUsedTime {
 }
 
 fun interface DoesPasskeyExist {
-    suspend operator fun invoke(rpId: String, username: String, bip44Address: String): Boolean
+    suspend operator fun invoke(rpId: String, username: String, algoAddress: String): Boolean
 }

@@ -77,7 +77,7 @@ class DefaultGetPasskeyIntentValidator(
         passkey: Passkey,
     ): GetCredentialsParams =
         GetCredentialsParams(
-            bip44Address = passkey.algoAddress,
+            algoAddress = passkey.algoAddress,
             credId = passkey.credId,
             origin = appInfoOrigin,
             request = publicKeyRequestOptions,

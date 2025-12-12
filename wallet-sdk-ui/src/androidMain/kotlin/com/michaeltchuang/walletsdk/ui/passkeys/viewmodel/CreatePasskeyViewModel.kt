@@ -63,7 +63,7 @@ class CreatePasskeyViewModel(
             with(params) {
                 val args = createPublicKeyCredentialResponseArgsMapper(params, appInfoOrigin)
                 val responseData = createPublicKeyCredentialResponseProcessor(args)
-                addNewPasskey(bip44Address, requestOptions, responseData.credentialId)
+                addNewPasskey(algoAddress, requestOptions, responseData.credentialId)
                 eventDelegate.sendEvent(ViewEvent.SetCreateResponseAndFinishActivity(responseData.response))
             }
         }

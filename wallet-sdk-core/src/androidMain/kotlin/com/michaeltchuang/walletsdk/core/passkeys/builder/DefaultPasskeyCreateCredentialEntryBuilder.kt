@@ -36,7 +36,7 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
             CreatePasskeyCredentialCreateEntry(
                 accountName = getHdSeedCustomName(hdSeed.seedId).orEmpty(),
                 passkeyCount = registeredRelyingPartyPasskeyCount,
-                bip44Address = hdSeed.firstAddress
+                algoAddress = hdSeed.firstAddress
             )
         }
     }
