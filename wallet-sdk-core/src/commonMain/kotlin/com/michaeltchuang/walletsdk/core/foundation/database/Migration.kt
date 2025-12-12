@@ -5,9 +5,9 @@ import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.execSQL
 
 val MIGRATION_1_2 = object : Migration(1, 2) {
-    override fun migrate(db: SQLiteConnection) {
+    override fun migrate(connection: SQLiteConnection) {
         // Create sites table
-        db.execSQL(
+        connection.execSQL(
             """
             CREATE TABLE IF NOT EXISTS sites (
                 id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
@@ -18,7 +18,7 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
 
         // Create passkey_table
-        db.execSQL(
+        connection.execSQL(
             """
             CREATE TABLE IF NOT EXISTS passkey_table (
                 credential_id TEXT PRIMARY KEY NOT NULL,
@@ -34,8 +34,8 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         )
 
         // Create index for faster lookups
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_site_id ON passkey_table(site_id)")
-        db.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_algo_address ON passkey_table(algo_address)")
-        db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sites_url ON sites(url)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_site_id ON passkey_table(site_id)")
+        connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_algo_address ON passkey_table(algo_address)")
+        connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sites_url ON sites(url)")
     }
 }
