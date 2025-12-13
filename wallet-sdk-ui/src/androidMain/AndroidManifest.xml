@@ -1,2 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <activity
+            android:name=".passkeys.PasskeyActivity"
+            android:enabled="true"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            tools:targetApi="34">
+            <intent-filter>
+                <action android:name="com.algorand.android.credentials.CREATE_PASSKEY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.algorand.android.credentials.GET_PASSKEY" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".passkeys.PasskeyProviderService"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
+            tools:targetApi="34">
+            <intent-filter>
+                <action android:name="android.service.credentials.CredentialProviderService" />
+            </intent-filter>
+            <!-- Note: Apps using this library must provide their own @xml/provider resource -->
+        </service>
+    </application>
+</manifest>
