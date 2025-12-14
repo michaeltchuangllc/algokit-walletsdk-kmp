@@ -37,10 +37,8 @@ import org.koin.core.context.startKoin
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
-
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class PasskeyProviderService : CredentialProviderService() {
-
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val requestCode: AtomicInteger = AtomicInteger()
@@ -72,8 +70,14 @@ class PasskeyProviderService : CredentialProviderService() {
             try {
                 startKoin {
                     androidContext(this@PasskeyProviderService)
-                    modules(com.michaeltchuang.walletsdk.core.foundation.di.platformKoinModule())
-                    modules(com.michaeltchuang.walletsdk.ui.base.di.uiPlatformModule())
+                    modules(
+                        com.michaeltchuang.walletsdk.core.foundation.di
+                            .platformKoinModule(),
+                    )
+                    modules(
+                        com.michaeltchuang.walletsdk.ui.base.di
+                            .uiPlatformModule(),
+                    )
                 }
             } catch (e: Exception) {
                 // Koin might already be started in another process, ignore
@@ -90,9 +94,8 @@ class PasskeyProviderService : CredentialProviderService() {
     override fun onBeginCreateCredentialRequest(
         request: BeginCreateCredentialRequest,
         cancellationSignal: CancellationSignal,
-        callback: OutcomeReceiver<BeginCreateCredentialResponse, CreateCredentialException>
+        callback: OutcomeReceiver<BeginCreateCredentialResponse, CreateCredentialException>,
     ) {
-
         when (request) {
             is BeginCreatePublicKeyCredentialRequest -> {
                 scope.launch {
@@ -102,10 +105,11 @@ class PasskeyProviderService : CredentialProviderService() {
                             callback.onResult(response)
                         },
                         onFailed = { exception, _ ->
-                            val error = (exception as? CreateCredentialException)
-                                ?: CreateCredentialUnknownException()
+                            val error =
+                                (exception as? CreateCredentialException)
+                                    ?: CreateCredentialUnknownException()
                             callback.onError(error)
-                        }
+                        },
                     )
                 }
             }
@@ -114,12 +118,10 @@ class PasskeyProviderService : CredentialProviderService() {
         }
     }
 
-    private fun buildCreateCredentialResponse(
-        entries: List<CreatePasskeyCredentialCreateEntry>
-    ): BeginCreateCredentialResponse {
+    private fun buildCreateCredentialResponse(entries: List<CreatePasskeyCredentialCreateEntry>): BeginCreateCredentialResponse {
         val builder = BeginCreateCredentialResponse.Builder()
         entries.forEach { entry ->
-            val extras = Bundle().apply { putString(ALGOADDRESS, entry.bip44Address) }
+            val extras = Bundle().apply { putString(ALGOADDRESS, entry.algoAddress) }
             val intent = createNewPendingIntent(CREATE_PASSKEY_INTENT, extras)
             val createEntry = getCreateEntry(entry.accountName, entry.passkeyCount, intent)
             builder.addCreateEntry(createEntry)
@@ -130,9 +132,8 @@ class PasskeyProviderService : CredentialProviderService() {
     override fun onBeginGetCredentialRequest(
         request: BeginGetCredentialRequest,
         cancellationSignal: CancellationSignal,
-        callback: OutcomeReceiver<BeginGetCredentialResponse, GetCredentialException>
+        callback: OutcomeReceiver<BeginGetCredentialResponse, GetCredentialException>,
     ) {
-
         val callingPackage = request.callingAppInfo?.packageName
         if (callingPackage == null) {
             callback.onError(NoCredentialException())
@@ -153,7 +154,7 @@ class PasskeyProviderService : CredentialProviderService() {
                     val error =
                         (exception as? GetCredentialException) ?: GetCredentialUnknownException()
                     callback.onError(error)
-                }
+                },
             )
         }
     }
@@ -161,15 +162,21 @@ class PasskeyProviderService : CredentialProviderService() {
     private fun createPublicKeyCredentialEntry(entry: GetPasskeyCredentialEntry): PublicKeyCredentialEntry {
         val extras = Bundle().apply { putString(CRED_ID_KEY, entry.credentialId) }
         val intent = createNewPendingIntent(GET_PASSKEY_INTENT, extras)
-        var entry = PublicKeyCredentialEntry.Builder(
-            applicationContext,
-            entry.username.orEmpty(),
-            intent,
-            entry.option
-        ).setDisplayName(entry.userDisplayName)
+        var entry =
+            PublicKeyCredentialEntry
+                .Builder(
+                    applicationContext,
+                    entry.username.orEmpty(),
+                    intent,
+                    entry.option,
+                ).setDisplayName(entry.userDisplayName)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            entry = entry.setBiometricPromptData(com.michaeltchuang.walletsdk.ui.passkeys.biometric.BiometricPromptDataBuilder.getDefaultPromptData())
+            entry =
+                entry.setBiometricPromptData(
+                    com.michaeltchuang.walletsdk.ui.passkeys.biometric.BiometricPromptDataBuilder
+                        .getDefaultPromptData(),
+                )
         }
 
         return entry.build()
@@ -178,30 +185,39 @@ class PasskeyProviderService : CredentialProviderService() {
     override fun onClearCredentialStateRequest(
         request: ProviderClearCredentialStateRequest,
         cancellationSignal: CancellationSignal,
-        callback: OutcomeReceiver<Void?, ClearCredentialException>
+        callback: OutcomeReceiver<Void?, ClearCredentialException>,
     ) {
     }
 
     private fun getCreateEntry(
         accountName: String,
         passkeyCount: Int,
-        intent: PendingIntent
+        intent: PendingIntent,
     ): CreateEntry {
         val description = "your credential will be saved"
-        var entry = CreateEntry.Builder(accountName, intent)
-            .setLastUsedTime(Instant.ofEpochMilli(0L))
-            .setPublicKeyCredentialCount(passkeyCount)
-            .setTotalCredentialCount(passkeyCount)
-            .setDescription(description)
+        var entry =
+            CreateEntry
+                .Builder(accountName, intent)
+                .setLastUsedTime(Instant.ofEpochMilli(0L))
+                .setPublicKeyCredentialCount(passkeyCount)
+                .setTotalCredentialCount(passkeyCount)
+                .setDescription(description)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            entry = entry.setBiometricPromptData(com.michaeltchuang.walletsdk.ui.passkeys.biometric.BiometricPromptDataBuilder.getDefaultPromptData())
+            entry =
+                entry.setBiometricPromptData(
+                    com.michaeltchuang.walletsdk.ui.passkeys.biometric.BiometricPromptDataBuilder
+                        .getDefaultPromptData(),
+                )
         }
 
         return entry.build()
     }
 
-    private fun createNewPendingIntent(action: String, extra: Bundle? = null): PendingIntent {
+    private fun createNewPendingIntent(
+        action: String,
+        extra: Bundle? = null,
+    ): PendingIntent {
         val intent = Intent(action).setPackage(applicationContext.packageName)
         if (extra != null) {
             Intent.EXTRA_INTENT
@@ -212,7 +228,7 @@ class PasskeyProviderService : CredentialProviderService() {
             applicationContext,
             requestCode.incrementAndGet(),
             intent,
-            flags
+            flags,
         )
     }
 

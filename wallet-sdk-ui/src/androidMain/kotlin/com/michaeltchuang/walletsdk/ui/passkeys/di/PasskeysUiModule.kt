@@ -18,33 +18,32 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-val passkeysUiModule = module {
-    // Mappers
-    singleOf(::DefaultCreatePasskeyParamsMapper) bind CreatePasskeyParamsMapper::class
-    singleOf(::DefaultCreatePublicKeyCredentialResponseArgsMapper) bind CreatePublicKeyCredentialResponseArgsMapper::class
+val passkeysUiModule =
+    module {
+        // Mappers
+        singleOf(::DefaultCreatePasskeyParamsMapper) bind CreatePasskeyParamsMapper::class
+        singleOf(::DefaultCreatePublicKeyCredentialResponseArgsMapper) bind CreatePublicKeyCredentialResponseArgsMapper::class
 
-    // Validators
-    singleOf(::DefaultCreatePasskeyIntentValidator) bind CreatePasskeyIntentValidator::class
-    singleOf(::DefaultGetPasskeyIntentValidator) bind GetPasskeyIntentValidator::class
+        // Validators
+        singleOf(::DefaultCreatePasskeyIntentValidator) bind CreatePasskeyIntentValidator::class
+        singleOf(::DefaultGetPasskeyIntentValidator) bind GetPasskeyIntentValidator::class
 
+        // ViewModels
+        viewModel {
+            CreatePasskeyViewModel(
+                eventDelegate = EventDelegate(),
+                addNewPasskey = get(),
+                createPublicKeyCredentialResponseProcessor = get(),
+                createPublicKeyCredentialResponseArgsMapper = get(),
+                createPasskeyIntentValidator = get(),
+            )
+        }
 
-    // ViewModels
-    viewModel {
-        CreatePasskeyViewModel(
-            eventDelegate = EventDelegate(),
-            addNewPasskey = get(),
-            createPublicKeyCredentialResponseProcessor = get(),
-            createPublicKeyCredentialResponseArgsMapper = get(),
-            createPasskeyIntentValidator = get()
-        )
+        viewModel {
+            GetPasskeyViewModel(
+                eventDelegate = EventDelegate(),
+                getCredentialResponseProcessor = get(),
+                getPasskeyIntentValidator = get(),
+            )
+        }
     }
-
-    viewModel {
-        GetPasskeyViewModel(
-            eventDelegate = EventDelegate(),
-            getCredentialResponseProcessor = get(),
-            getPasskeyIntentValidator = get()
-        )
-    }
-
-}

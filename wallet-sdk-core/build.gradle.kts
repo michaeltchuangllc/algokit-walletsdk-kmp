@@ -99,6 +99,7 @@ kotlin {
             implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
             implementation(libs.kotlin.bip39)
+            implementation(libs.bcprov.jdk18on)
             implementation(libs.androidx.activityCompose)
             implementation(libs.androidx.compose.foundation)
             implementation(libs.androidx.lifecycle.runtime.compose)
@@ -110,15 +111,6 @@ kotlin {
             implementation(libs.kotlinfixture)
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
-
-            // BouncyCastle for cryptography
-            implementation("org.bouncycastle:bcprov-jdk18on:1.82")
-
-            // Retrofit for passkeys validation (Android API 34+)
-            implementation(libs.retrofit)
-            implementation(libs.converter.gson)
-            implementation("com.squareup.okhttp3:okhttp:4.12.0")
-            implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
         }
         commonMain.dependencies {
             api(libs.napier)
@@ -204,8 +196,8 @@ android {
                     "META-INF/NOTICE.txt",
                     "META-INF/notice.txt",
                     "META-INF/ASL2.0",
-                    "META-INF/*.kotlin_module"
-                )
+                    "META-INF/*.kotlin_module",
+                ),
             )
             // Pick first occurrence of duplicate files
             pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")

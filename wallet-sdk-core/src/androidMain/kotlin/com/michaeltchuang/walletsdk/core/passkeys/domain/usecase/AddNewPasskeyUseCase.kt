@@ -11,11 +11,11 @@ internal class AddNewPasskeyUseCase(
 ) : AddNewPasskey {
 
     override suspend fun invoke(
-        bip44Address: String,
+        algoAddress: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray
     ) {
-        val args = getAddPasskeyArgs(bip44Address, requestOptions, credId)
+        val args = getAddPasskeyArgs(algoAddress, requestOptions, credId)
         passkeyRepository.addNewPasskey(args)
     }
 

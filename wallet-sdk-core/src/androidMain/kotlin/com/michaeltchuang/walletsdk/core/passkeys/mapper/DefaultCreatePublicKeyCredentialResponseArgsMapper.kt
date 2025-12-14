@@ -18,8 +18,8 @@ class DefaultCreatePublicKeyCredentialResponseArgsMapper (
 
             // Derive deterministic keypair from HD seed
             // This ensures the same keypair is always generated for the same (address, origin, userHandle)
-            val keyPair = bip39SignManager.deriveKeyPair(bip44Address, appInfoOrigin, userHandle)
-                ?: throw IllegalStateException("Failed to derive keypair for address: $bip44Address")
+            val keyPair = bip39SignManager.deriveKeyPair(algoAddress, appInfoOrigin, userHandle)
+                ?: throw IllegalStateException("Failed to derive keypair for address: $algoAddress")
 
             // Derive deterministic credential ID from the public key
             val credentialId = bip39SignManager.deriveCredentialId(keyPair)

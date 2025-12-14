@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.core.passkeys.model
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 
 data class GetCredentialsParams(
-    val bip44Address: String,
+    val algoAddress: String,
     val credId: String,
     val origin: String,
     val request: PublicKeyCredentialRequestOptions,
@@ -12,4 +12,36 @@ data class GetCredentialsParams(
     val packageName: String,
     val callingAppInfo: String?,
     val clientDataHash: ByteArray?,
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+
+        other as GetCredentialsParams
+
+        if (algoAddress != other.algoAddress) return false
+        if (credId != other.credId) return false
+        if (origin != other.origin) return false
+        if (request != other.request) return false
+        if (userId != other.userId) return false
+        if (username != other.username) return false
+        if (packageName != other.packageName) return false
+        if (callingAppInfo != other.callingAppInfo) return false
+        if (!clientDataHash.contentEquals(other.clientDataHash)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = algoAddress.hashCode()
+        result = 31 * result + credId.hashCode()
+        result = 31 * result + origin.hashCode()
+        result = 31 * result + request.hashCode()
+        result = 31 * result + userId.hashCode()
+        result = 31 * result + username.hashCode()
+        result = 31 * result + packageName.hashCode()
+        result = 31 * result + (callingAppInfo?.hashCode() ?: 0)
+        result = 31 * result + (clientDataHash?.contentHashCode() ?: 0)
+        return result
+    }
+}

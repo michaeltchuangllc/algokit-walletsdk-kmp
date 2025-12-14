@@ -9,13 +9,11 @@ import androidx.credentials.provider.BiometricPromptData
 
 @RequiresApi(Build.VERSION_CODES.R)
 internal object BiometricPromptDataBuilder {
-
     private const val ALLOWED_AUTHENTICATORS = BIOMETRIC_WEAK or BIOMETRIC_STRONG or DEVICE_CREDENTIAL
 
-    fun getDefaultPromptData(): BiometricPromptData {
-        return BiometricPromptData(
+    fun getDefaultPromptData(): BiometricPromptData =
+        BiometricPromptData(
             cryptoObject = null,
-            allowedAuthenticators = ALLOWED_AUTHENTICATORS
+            allowedAuthenticators = ALLOWED_AUTHENTICATORS,
         )
-    }
 }

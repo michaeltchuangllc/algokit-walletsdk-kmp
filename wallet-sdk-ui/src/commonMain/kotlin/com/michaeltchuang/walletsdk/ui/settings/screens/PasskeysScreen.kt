@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.are_you_sure_remove_passkey
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.cancel
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkey
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkeys
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.last_used
@@ -33,7 +32,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -46,8 +44,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key.Companion.R
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -70,10 +66,11 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
         viewModel.fetchPasskeys()
     }
     Box(
-        modifier = Modifier
-            .background(color = AlgoKitTheme.colors.background)
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
+        modifier =
+            Modifier
+                .background(color = AlgoKitTheme.colors.background)
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
     ) {
         ScreenContent(
             viewState = viewState,
@@ -81,7 +78,7 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
             onDeletePasskey = { passkey ->
                 selectedPasskey.value = passkey
                 showDeleteConfirm.value = true
-            }
+            },
         )
         if (showDeleteConfirm.value && selectedPasskey.value != null) {
             AlertDialog(
@@ -103,7 +100,7 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
                     OutlinedButton(onClick = { showDeleteConfirm.value = false }) {
                         Text(localizedStringResource(Res.string.cancel))
                     }
-                }
+                },
             )
         }
     }
@@ -113,13 +110,13 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
 internal fun ScreenContent(
     viewState: PasskeysViewModel.ViewState,
     onBackClick: () -> Unit = {},
-    onDeletePasskey: (PasskeysViewModel.Passkey) -> Unit = {}
+    onDeletePasskey: (PasskeysViewModel.Passkey) -> Unit = {},
 ) {
-
     Box(
-        modifier = Modifier
-            .background(color = AlgoKitTheme.colors.background)
-            .fillMaxSize()
+        modifier =
+            Modifier
+                .background(color = AlgoKitTheme.colors.background)
+                .fillMaxSize(),
     ) {
         Column {
             AlgoKitTopBar(
@@ -132,11 +129,11 @@ internal fun ScreenContent(
                 is PasskeysViewModel.ViewState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             localizedStringResource(Res.string.loading),
-                            color = AlgoKitTheme.colors.textGray
+                            color = AlgoKitTheme.colors.textGray,
                         )
                     }
                 }
@@ -148,7 +145,7 @@ internal fun ScreenContent(
                         LazyColumn(
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
                             items(viewState.passkeys) { passkey ->
                                 PasskeyListItem(
@@ -163,52 +160,56 @@ internal fun ScreenContent(
                 }
             }
         }
-
     }
 }
 
 @Composable
-private fun PasskeyListItem(passkey: PasskeysViewModel.Passkey, onDelete: () -> Unit) {
+private fun PasskeyListItem(
+    passkey: PasskeysViewModel.Passkey,
+    onDelete: () -> Unit,
+) {
     Column(
-        modifier = Modifier
-            .border(
-                width = 1.dp,
-                color = AlgoKitTheme.colors.layerGray,
-                shape = RoundedCornerShape(16.dp)
-            )
-            .padding(16.dp)
+        modifier =
+            Modifier
+                .border(
+                    width = 1.dp,
+                    color = AlgoKitTheme.colors.layerGray,
+                    shape = RoundedCornerShape(16.dp),
+                ).padding(16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 modifier = Modifier.size(24.dp),
                 imageVector = vectorResource(Res.drawable.ic_passkey),
                 contentDescription = null,
-                tint = AlgoKitTheme.colors.textMain
+                tint = AlgoKitTheme.colors.textMain,
             )
             Column(
-                modifier = Modifier
-                    .padding(horizontal = 12.dp)
-                    .weight(1f)
+                modifier =
+                    Modifier
+                        .padding(horizontal = 12.dp)
+                        .weight(1f),
             ) {
                 Text(
                     text = passkey.title,
-                    color = AlgoKitTheme.colors.textMain
+                    color = AlgoKitTheme.colors.textMain,
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = passkey.domain,
-                    color = AlgoKitTheme.colors.textGray
+                    color = AlgoKitTheme.colors.textGray,
                 )
             }
             Icon(
-                modifier = Modifier
-                    .size(24.dp)
-                    .padding(start = 4.dp)
-                    .background(Color.Transparent)
-                    .clickable { onDelete() },
+                modifier =
+                    Modifier
+                        .size(24.dp)
+                        .padding(start = 4.dp)
+                        .background(Color.Transparent)
+                        .clickable { onDelete() },
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Delete",
-                tint = AlgoKitTheme.colors.textGray
+                tint = AlgoKitTheme.colors.textGray,
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -219,16 +220,19 @@ private fun PasskeyListItem(passkey: PasskeysViewModel.Passkey, onDelete: () -> 
 }
 
 @Composable
-fun DetailsRow(label: String, value: String) {
+fun DetailsRow(
+    label: String,
+    value: String,
+) {
     Row(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
-            color = AlgoKitTheme.colors.textGray
+            color = AlgoKitTheme.colors.textGray,
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
             text = value,
-            color = AlgoKitTheme.colors.textMain
+            color = AlgoKitTheme.colors.textMain,
         )
     }
 }
@@ -238,17 +242,17 @@ private fun EmptyState() {
     Column(
         modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Center,
     ) {
         Image(
             imageVector = vectorResource(Res.drawable.ic_passkeys),
-            contentDescription = null
+            contentDescription = null,
         )
         Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = stringResource(Res.string.no_passkeys_yet),
             style = AlgoKitTheme.typography.body.regular.sans,
-            color = AlgoKitTheme.colors.textMain
+            color = AlgoKitTheme.colors.textMain,
         )
     }
 }
@@ -256,22 +260,23 @@ private fun EmptyState() {
 @Preview
 @Composable
 fun PasskeysScreenContentPreview() {
-    val fakePasskeys = listOf(
-        PasskeysViewModel.Passkey(
-            credId = "credId123",
-            title = "Liquid Auth Passkey",
-            domain = "liquid-auth.onrender.com",
-            lastUsed = "Today",
-            username = "kyle007",
-        ),
-        PasskeysViewModel.Passkey(
-            credId = "credId123",
-            title = "Liquid Auth Passkey",
-            domain = "liquid-auth.onrender.com",
-            lastUsed = "5d ago",
-            username = "kyle007",
-        ),
-    )
+    val fakePasskeys =
+        listOf(
+            PasskeysViewModel.Passkey(
+                credId = "credId123",
+                title = "Liquid Auth Passkey",
+                domain = "liquid-auth.onrender.com",
+                lastUsed = "Today",
+                username = "kyle007",
+            ),
+            PasskeysViewModel.Passkey(
+                credId = "credId123",
+                title = "Liquid Auth Passkey",
+                domain = "liquid-auth.onrender.com",
+                lastUsed = "5d ago",
+                username = "kyle007",
+            ),
+        )
     val fakeViewState = PasskeysViewModel.ViewState.Content(passkeys = fakePasskeys)
     ScreenContent(viewState = fakeViewState)
 }

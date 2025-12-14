@@ -100,7 +100,7 @@ enum class AlgoKitScreens {
     SELECT_RECEIVER_SCREEN,
     TRANSACTING_TIPS_SCREEN,
     ADDRESS_NAMING_SCREEN,
-    PASSKEYS_SCREEN
+    PASSKEYS_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -606,7 +606,6 @@ fun NavigationBottomSheetNavHost(
                         navController.popBackStack()
                     }
                 }
-
             }
         }
     }

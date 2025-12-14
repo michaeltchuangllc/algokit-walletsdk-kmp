@@ -10,10 +10,10 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.passkeys.CreatePublicKeyCredentialResponseProcessor
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
-import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePublicKeyCredentialResponseArgsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyIntentValidationResult
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
+import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 import kotlinx.coroutines.launch
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
@@ -23,8 +23,8 @@ class CreatePasskeyViewModel(
     private val createPublicKeyCredentialResponseProcessor: CreatePublicKeyCredentialResponseProcessor,
     private val createPublicKeyCredentialResponseArgsMapper: CreatePublicKeyCredentialResponseArgsMapper,
     private val createPasskeyIntentValidator: CreatePasskeyIntentValidator,
-) : ViewModel(), EventViewModel<CreatePasskeyViewModel.ViewEvent> by eventDelegate {
-
+) : ViewModel(),
+    EventViewModel<CreatePasskeyViewModel.ViewEvent> by eventDelegate {
     fun processIntent(intent: Intent) {
         viewModelScope.launch {
             when (val result = createPasskeyIntentValidator.validate(intent)) {
@@ -41,8 +41,8 @@ class CreatePasskeyViewModel(
                     } else {
                         eventDelegate.sendEvent(
                             ViewEvent.AuthenticateCreatePasskeyWithBiometrics(
-                                result.params
-                            )
+                                result.params,
+                            ),
                         )
                     }
                 }
@@ -63,16 +63,28 @@ class CreatePasskeyViewModel(
             with(params) {
                 val args = createPublicKeyCredentialResponseArgsMapper(params, appInfoOrigin)
                 val responseData = createPublicKeyCredentialResponseProcessor(args)
-                addNewPasskey(bip44Address, requestOptions, responseData.credentialId)
+                addNewPasskey(algoAddress, requestOptions, responseData.credentialId)
                 eventDelegate.sendEvent(ViewEvent.SetCreateResponseAndFinishActivity(responseData.response))
             }
         }
     }
 
     sealed interface ViewEvent {
-        data class FinishActivityWithCreateError(val errorMessage: String) : ViewEvent
-        data class FinishActivityWithCreateBiometricError(val errorCode: Int, val errorMessage: String) : ViewEvent
-        data class AuthenticateCreatePasskeyWithBiometrics(val params: CreatePasskeyParams) : ViewEvent
-        data class SetCreateResponseAndFinishActivity(val response: CreatePublicKeyCredentialResponse) : ViewEvent
+        data class FinishActivityWithCreateError(
+            val errorMessage: String,
+        ) : ViewEvent
+
+        data class FinishActivityWithCreateBiometricError(
+            val errorCode: Int,
+            val errorMessage: String,
+        ) : ViewEvent
+
+        data class AuthenticateCreatePasskeyWithBiometrics(
+            val params: CreatePasskeyParams,
+        ) : ViewEvent
+
+        data class SetCreateResponseAndFinishActivity(
+            val response: CreatePublicKeyCredentialResponse,
+        ) : ViewEvent
     }
 }

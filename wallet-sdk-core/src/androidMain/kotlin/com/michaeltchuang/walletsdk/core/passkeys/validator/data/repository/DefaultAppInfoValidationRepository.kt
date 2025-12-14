@@ -5,9 +5,9 @@ import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.AssetLi
 import com.michaeltchuang.walletsdk.core.passkeys.validator.data.network.GStaticApiService
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.model.AssetLinkCheckResult
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.repository.AppInfoValidationRepository
-import com.google.gson.JsonElement
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonElement
 
 
 internal class DefaultAppInfoValidationRepository constructor(
@@ -17,7 +17,7 @@ internal class DefaultAppInfoValidationRepository constructor(
 
     override suspend fun getGpmPrivilegedAppAllowlist(): AlgoKitResult<JsonElement> {
         return try {
-            val allowlist = gStaticApiService.getPrivilegedAppAllowlist().body()
+            val allowlist = gStaticApiService.getPrivilegedAppAllowlist()
             if (allowlist == null) AlgoKitResult.Error(Exception()) else AlgoKitResult.Success(allowlist)
         } catch (e: Exception) {
             AlgoKitResult.Error(e)

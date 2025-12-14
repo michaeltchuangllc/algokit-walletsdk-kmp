@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
 fun interface CreatePasskeyParamsMapper {
     operator fun invoke(
         request: ProviderCreateCredentialRequest,
-        bip44Address: String,
+        algoAddress: String,
         appInfoOrigin: String
     ): CreatePasskeyParams
 }
