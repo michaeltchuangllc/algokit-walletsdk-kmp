@@ -36,6 +36,9 @@ class QRScannerViewModel(
                     is DeeplinkHandler.DeepLinkState.AccountAddress -> {
                         handleAccountAddressDeepLink(it.accountAddress)
                     }
+                    is DeeplinkHandler.DeepLinkState.FidoDeepLink -> {
+                        eventDelegate.sendEvent(ViewEvent.NavigateToFidoDeepLink(it.uri))
+                    }
 
                     is DeeplinkHandler.DeepLinkState.OnUnrecognizedDeepLink -> {
                         eventDelegate.sendEvent(ViewEvent.ShowUnrecognizedDeeplink)
@@ -140,6 +143,9 @@ class QRScannerViewModel(
             val accountAddress: DeepLink.AccountAddress,
         ) : ViewEvent
 
+        data class  NavigateToFidoDeepLink(
+            val uri: String,
+        ) : ViewEvent
         object ShowUnrecognizedDeeplink : ViewEvent
     }
 }
