@@ -1615,4 +1615,11 @@
     <string name="dispenser_add_funds_to_your_account">डिस्पेंसर - अपने खाते में धन जोड़ें</string>
     <string name="send_algo">ALGO भेजें</string>
 
+    <string name="remove_passkey">पासकी हटाएँ</string>
+    <string name="are_you_sure_remove_passkey">क्या आप वाकई इस पासकी को हटाना चाहते हैं?</string>
+    <string name="passkeys_title">पासकी</string>
+    <string name="no_passkeys_yet">अभी कोई पासकी नहीं</string>
+    <string name="delete_passkey_icon_description">पासकी हटाएँ</string>
+    <string name="last_used">अंतिम उपयोग</string>
+    <string name="username">उपयोगकर्ता नाम</string>
 </resources>

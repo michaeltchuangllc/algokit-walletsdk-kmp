@@ -28,6 +28,7 @@ class DeeplinkHandler(
             is DeepLink.KeyReg -> handleKeyReg(deepLink)
             is DeepLink.AssetTransfer -> handleAssetTransfer(deepLink)
             is DeepLink.AccountAddress -> handleAccountAddress(deepLink)
+            is DeepLink.Fido -> handleFidoDeepLink(deepLink)
             else -> {
                 handleUnrecognizedDeepLink()
             }
@@ -64,6 +65,12 @@ class DeeplinkHandler(
         }
     }
 
+    private fun handleFidoDeepLink(deepLink: DeepLink.Fido) {
+        CoroutineScope(Dispatchers.Main).launch {
+            _deepLinkState.emit(DeepLinkState.FidoDeepLink(deepLink.uri))
+        }
+    }
+
     sealed class DeepLinkState {
         data class OnImportAccountDeepLink(
             var mnemonic: String,
@@ -81,6 +88,7 @@ class DeeplinkHandler(
             var accountAddress: DeepLink.AccountAddress,
         ) : DeepLinkState()
 
+        data class FidoDeepLink(var uri: String): DeepLinkState()
         object OnUnrecognizedDeepLink : DeepLinkState()
     }
 }

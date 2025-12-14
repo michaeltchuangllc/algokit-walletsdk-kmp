@@ -21,6 +21,10 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.HdKeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntity
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeyDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDao
+import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 
 @Database(
     entities = [
@@ -32,6 +36,8 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntit
         Falcon24Entity::class,
         CustomAccountInfoEntity::class,
         CustomHdSeedInfoEntity::class,
+        PasskeyEntity::class,
+        SiteEntity::class,
     ],
     version = AlgoKitDatabase.DATABASE_VERSION,
 )
@@ -55,8 +61,12 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun customHdSeedInfoDao(): CustomHdSeedInfoDao
 
+    abstract fun passkeyDao(): PasskeyDao
+
+    abstract fun passkeySiteDao(): PasskeySiteDao
+
     companion object Companion {
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2  // Bumped for passkey tables
         const val DATABASE_NAME = "algokit_database"
     }
 }

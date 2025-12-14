@@ -2,7 +2,10 @@ package com.michaeltchuang.walletsdk.core.foundation.database
 
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.SQLiteConnection
 import androidx.sqlite.driver.bundled.BundledSQLiteDriver
+import androidx.sqlite.execSQL
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
@@ -15,8 +18,12 @@ internal fun createAlgoKitDatabase(): RoomDatabase.Builder<AlgoKitDatabase> {
     return Room
         .databaseBuilder<AlgoKitDatabase>(
             name = dbFilePath,
-        ).setDriver(BundledSQLiteDriver())
+        )
+        .setDriver(BundledSQLiteDriver())
+        .addMigrations(MIGRATION_1_2)
 }
+
+
 
 @OptIn(ExperimentalForeignApi::class)
 private fun documentDirectory(): String {

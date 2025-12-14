@@ -1463,6 +1463,13 @@
     <string name="italian">Italiano</string>
     <string name="english">Inglese</string>
     <string name="hindi">Hindi</string>
+    <string name="remove_passkey">Rimuovi passkey</string>
+    <string name="are_you_sure_remove_passkey">Sei sicuro di voler rimuovere questa passkey?</string>
+    <string name="passkeys_title">Passkey</string>
+    <string name="no_passkeys_yet">Nessuna passkey ancora</string>
+    <string name="delete_passkey_icon_description">Elimina passkey</string>
+    <string name="last_used">Ultimo utilizzo</string>
+    <string name="username">Nome utente</string>
 
     <!-- Account Types -->
     <string name="account_type_hd">Account HD</string>

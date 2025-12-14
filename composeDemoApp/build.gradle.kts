@@ -216,7 +216,19 @@ android {
                     "lib/libnarcissus-macos-64.dylib",
                     "lib/libnarcissus-win-32.dll",
                     "lib/libnarcissus-win-64.dll",
+                    // Exclude duplicate files from BouncyCastle and other dependencies
+                    "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                    "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                    "META-INF/DEPENDENCIES",
+                    "META-INF/LICENSE",
+                    "META-INF/license.txt",
+                    "META-INF/NOTICE",
+                    "META-INF/notice.txt",
+                    "META-INF/ASL2.0",
+                    "META-INF/*.kotlin_module",
                 )
+            // Pick first occurrence of duplicate files
+            pickFirsts += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
         }
     }
 

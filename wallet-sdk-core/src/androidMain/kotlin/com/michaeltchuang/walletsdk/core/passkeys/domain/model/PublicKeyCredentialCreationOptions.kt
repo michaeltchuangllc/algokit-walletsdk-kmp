@@ -1,0 +1,87 @@
+package com.michaeltchuang.walletsdk.core.passkeys.domain.model
+
+import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
+import org.json.JSONObject
+
+/**
+ * This class is a duplicated version of the original [androidx.credentials.webauthn.PublicKeyCredentialCreationOptions]
+ * from the WebAuthn library, which is restricted to library-only usage.
+ *
+ * It was duplicated intentionally to simplify integration and avoid the need to create
+ * multiple sub-models and data mappers that would otherwise be required to work around
+ * its restricted visibility.
+ *
+ * The functionality and structure are preserved as-is for compatibility and maintainability.
+ */
+class PublicKeyCredentialCreationOptions(requestJson: String) {
+    private val json: JSONObject = JSONObject(requestJson)
+
+    val rp: PublicKeyCredentialRpEntity
+    val user: PublicKeyCredentialUserEntity
+    val challenge: ByteArray
+    private val pubKeyCredParams: List<PublicKeyCredentialParameters>
+
+    private var timeout: Long
+    private var excludeCredentials: List<PublicKeyCredentialDescriptor>
+    private var authenticatorSelection: AuthenticatorSelectionCriteria
+    private var attestation: String
+
+    init {
+        val challengeString = json.getString("challenge")
+        challenge = WebAuthnUtils.b64Decode(challengeString)
+        val rpJson = json.getJSONObject("rp")
+        rp = PublicKeyCredentialRpEntity(rpJson.getString("name"), rpJson.getString("id"))
+        val rpUser = json.getJSONObject("user")
+        val userId = WebAuthnUtils.b64Decode(rpUser.getString("id"))
+        user = PublicKeyCredentialUserEntity(
+            rpUser.getString("name"), userId, rpUser.getString("displayName"),
+        )
+        val pubKeyCredParamsJson = json.getJSONArray("pubKeyCredParams")
+        val pubKeyCredParamsTmp: MutableList<PublicKeyCredentialParameters> = mutableListOf()
+        for (i in 0 until pubKeyCredParamsJson.length()) {
+            val e = pubKeyCredParamsJson.getJSONObject(i)
+            pubKeyCredParamsTmp.add(
+                PublicKeyCredentialParameters(
+                    e.getString("type"),
+                    e.getLong("alg"),
+                ),
+            )
+        }
+        pubKeyCredParams = pubKeyCredParamsTmp.toList()
+
+        timeout = json.optLong("timeout", 0)
+
+        excludeCredentials = emptyList()
+        authenticatorSelection = AuthenticatorSelectionCriteria("platform", "required")
+        attestation = json.optString("attestation", "none")
+    }
+
+    data class PublicKeyCredentialRpEntity(
+        val name: String,
+        val id: String,
+    )
+
+    data class PublicKeyCredentialUserEntity(
+        val name: String,
+        val id: ByteArray,
+        val displayName: String,
+    )
+
+    private data class PublicKeyCredentialParameters(
+        val type: String,
+        val alg: Long,
+    )
+
+    private data class PublicKeyCredentialDescriptor(
+        val type: String,
+        val id: ByteArray,
+        val transports: List<String>,
+    )
+
+    private data class AuthenticatorSelectionCriteria(
+        val authenticatorAttachment: String,
+        val residentKey: String,
+        val requireResidentKey: Boolean = false,
+        val userVerification: String = "preferred",
+    )
+}

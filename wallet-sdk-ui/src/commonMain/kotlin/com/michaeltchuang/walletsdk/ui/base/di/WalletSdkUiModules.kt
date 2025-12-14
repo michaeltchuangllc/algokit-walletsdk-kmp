@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.ui.signing.di.signingModules
 val walletSdkUiModules =
     buildList {
         addAll(walletSdkCoreModules)
+        add(uiPlatformModule())
         addAll(onboardingModules)
         addAll(qrScannerModules)
         addAll(accountDetailModules)

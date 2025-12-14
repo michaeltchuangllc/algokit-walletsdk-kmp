@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-feature
         android:name="android.hardware.camera"
@@ -27,6 +28,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-    </application>
 
+        <!-- Override PasskeyProviderService attributes from wallet-sdk-ui library -->
+        <service
+            android:name="com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService"
+            android:icon="@mipmap/ic_launcher"
+            android:label="@string/app_name"
+            tools:replace="android:icon,android:label">
+            <meta-data
+                android:name="android.credentials.provider"
+                android:resource="@xml/provider" />
+        </service>
+    </application>
 </manifest>

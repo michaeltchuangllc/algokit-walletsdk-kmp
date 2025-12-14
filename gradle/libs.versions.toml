@@ -3,44 +3,44 @@ agp = "8.10.0"
 algoSdk = "2.10.1"
 algoGoMobilesdk = "2025.4.1"
 algokit-version = "3"
-algokit-walletsdk-calendar-quarter = "202504"
-algokit-walletsdk-quarter-release-number = "7"
-algokit-walletsdk-maven = "3.202504.7"
+algokit-walletsdk-calendar-quarter = "202601"
+algokit-walletsdk-quarter-release-number = "0"
+algokit-walletsdk-maven = "3.202601.0"
 android-compileSdk = "36"
-android-minSdk = "30"
+android-minSdk = "34"
 android-namespace = "com.michaelchuang.walletsdk"
 android-targetSdk = "36"
-android-versionCode-offset = "8"
+android-versionCode-offset = "10"
 androidx-compose-activity = "1.10.1"
-androidx-compose-fragment = "1.8.7"
 androidx-compose-material3 = "1.3.2"
 appCompat = "1.7.0"
-bignum = "0.3.9"
+bcprovJdk18on = "1.83"
+bignum = "0.3.10"
 biometric = "1.1.0"
-bip39 = "1.0.7"
-bitcoin-kmp = "0.25.1"
+bip39 = "1.0.9"
+bitcoin-kmp = "0.28.1"
 ble = "2.8.0"
 browser = "1.8.0"
 buildConfig = "5.6.5"
-coil = "3.0.1"
+coil = "3.3.0"
 compose = "1.7.3"
 compose-ui = "1.8.2"
 composeFoundation = "1.8.2"
 composeWebview = "1.9.40"
 compottie = "1.1.2"
-converterGson = "2.11.0"
 core = "1.6.1"
 coreKtx = "1.16.0"
 coroutines = "1.10.2"
+credentials = "1.5.0"
 desugar = "2.1.5"
 datastore = "1.1.7"
 detekt = "1.23.8"
+dP256 = "1.0.2"
 espresso = "3.6.1"
 flexbox = "3.0.0"
-googleServicesVersion = "4.4.2"
-gradlePlayPublisher = "3.12.1"
+googleServicesVersion = "4.4.4"
+gradlePlayPublisher = "3.13.0"
 installreferrer = "2.2"
-javaWebSocket = "1.5.6"
 javaxInject = "1"
 junit = "4.13.2"
 junitKtx = "1.2.1"
@@ -50,24 +50,20 @@ kotlin = "2.2.21"
 kotlinfixture = "1.2.0"
 kotlinxDatetime = "0.6.2"
 kotlinxSerialization = "1.7.3"
-kover = "0.9.3"
+kover = "0.9.4"
 ksp = "2.2.21-2.0.4"
 ktlint = "13.0.0"
 ktor = "3.0.0"
-ktorContentNegotiation = "3.0.0"
 lifecycle = "2.9.0"
 lifecycleExt = "2.2.0"
 material = "1.12.0"
 mavenPublish = "0.34.0"
 mockk = "1.13.13"
-moshi = "1.15.1"
 multidex = "2.0.1"
 napier = "2.7.1"
 navigation = "2.9.0"
 navigation-compose = "2.8.0-alpha10"
-okhttp = "4.12.0"
 paging = "3.3.6"
-peraWalletConnect = "1.0.1"
 qrkit = "3.0.5"
 review = "2.0.2"
 room = "2.7.0"
@@ -75,13 +71,10 @@ rules = "1.7.0"
 runner = "1.6.2"
 shot = "6.1.0"
 sqlite = "2.5.0"
-spmForKmp = "1.0.3"
+spmForKmp = "1.2.0"
 uiautomator = "2.3.0"
-walletConnectBom = "1.34.1"
 xhdwalletapi = "1.2.0"
 webviewMultiplatform = "1.3.0"
-
-
 
 [libraries]
 
@@ -89,8 +82,8 @@ webviewMultiplatform = "1.3.0"
 androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-compose-activity" }
 browser = { module = "androidx.browser:browser", version.ref = "browser" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
-androidx-compose-fragment = { module = "androidx.fragment:fragment-compose", version.ref = "androidx-compose-fragment" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "androidx-compose-material3" }
+androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
@@ -121,20 +114,15 @@ navigation-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-
 navigation-ui-ktx = { module = "androidx.navigation:navigation-ui-ktx", version.ref = "navigation" }
 
 # Networking / Json Parsing
-converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converterGson" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
 ktor-client-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
 ktor-client-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
 ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "ktor" }
-ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktorContentNegotiation" }
-ktor-client-content-negotiation-jvm = { module = "io.ktor:ktor-client-content-negotiation-jvm", version.ref = "ktorContentNegotiation" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-client-content-negotiation-jvm = { module = "io.ktor:ktor-client-content-negotiation-jvm", version.ref = "ktor" }
 ktor-kotlinx-serialization = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
 ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
 ktor-utils = { module = "io.ktor:ktor-utils", version.ref = "ktor" }
-java-websocket = { module = "org.java-websocket:Java-WebSocket", version.ref = "javaWebSocket" }
-logging-interceptor = { module = "com.squareup.okhttp3:logging-interceptor", version.ref = "okhttp" }
-moshi-core = { module = "com.squareup.moshi:moshi", version.ref = "moshi" }
-moshi-kotlin = { module = "com.squareup.moshi:moshi-kotlin", version.ref = "moshi" }
 
 # Database / ORM
 datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
@@ -167,20 +155,15 @@ webview-multiplatform-mobile = { module = "io.github.final-class:webview-multipl
 # Wallet SDK - Security / Blockchain / Crypto
 algosdk = { module = "com.algorand:algosdk", version.ref = "algoSdk" }
 algorand-go-mobile = { group = "com.michaeltchuang.algokit", name = "algorand-go-mobile-sdk", version.ref = "algoGoMobilesdk" }
+bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 bignum = { group = "com.ionspin.kotlin", name ="bignum", version.ref = "bignum" }
 bitcoin-kmp = { module = "fr.acinq.bitcoin:bitcoin-kmp", version.ref = "bitcoin-kmp" }
 khex = { module = "com.github.komputing:khex", version.ref = "khex" }
 xhdwalletapi = { module = "foundation.algorand.xhdwalletapi:xhdwalletapi-android", version.ref = "xhdwalletapi" }
 kotlin-bip39 = { module = "cash.z.ecc.android:kotlin-bip39", version.ref = "bip39" }
+p256 = { module = "app.perawallet:dP256", version.ref = "dP256" }
 walletsdk-ui = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-ui" , version.ref = "algokit-walletsdk-maven"}
 walletsdk-core = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-core", version.ref = "algokit-walletsdk-maven" }
-
-# Wallet Connect
-pera-walletconnect-v1 = { group = "io.github.perawallet", name = "perawalletconnect", version.ref = "peraWalletConnect" }
-walletconnect-v2-sign = { module = "com.walletconnect:sign" }
-walletconnect-v2 = { module = "com.walletconnect:android-bom", version.ref = "walletConnectBom" }
-walletconnect-v2-android-core = { module = "com.walletconnect:android-core" }
-walletconnect-v2-web3wallet = { module = "com.walletconnect:web3wallet" }
 
 # Testing / Utilities
 androidx-core = { module = "androidx.test:core", version.ref = "core" }
@@ -223,7 +206,6 @@ kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlin-stdlib = { group = "org.jetbrains.kotlin", name = "kotlin-stdlib", version.ref = "kotlin" }
-
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -208,6 +208,7 @@ private fun AccountListContent(
             }
 
             is AccountListViewModel.AccountsState.Error -> {
+                print(state.message)
                 CenteredMessage(
                     text = "Error: ${state.message}",
                     color = Color.Red,

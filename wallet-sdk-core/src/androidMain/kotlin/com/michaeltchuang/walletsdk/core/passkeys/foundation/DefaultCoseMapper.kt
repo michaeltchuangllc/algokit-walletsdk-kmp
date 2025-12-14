@@ -1,0 +1,50 @@
+@file:Suppress("MagicNumber")
+
+package com.michaeltchuang.walletsdk.core.passkeys.foundation
+
+import android.util.Base64
+import java.math.BigInteger
+import java.security.interfaces.ECPublicKey
+
+
+internal class DefaultCoseMapper constructor() : CoseMapper {
+
+    override fun mapPublicKeyToCose(key: ECPublicKey): MutableMap<Int, Any> {
+        val x = bigIntToFixedArray(key.w.affineX)
+        val y = bigIntToFixedArray(key.w.affineY)
+        val coseKey = mutableMapOf<Int, Any>()
+        coseKey[1] = 2 // EC Key type
+        coseKey[3] = -7 // ES256
+        coseKey[-1] = 1 // P-265 Curve
+        coseKey[-2] = x // x
+        coseKey[-3] = y // y
+        return coseKey
+    }
+
+    private fun bigIntToFixedArray(n: BigInteger): ByteArray {
+        assert(n.signum() >= 0)
+        val bytes = n.toByteArray()
+        var offset = 0
+        if (bytes[0] == 0x00.toByte()) {
+            offset++
+        }
+        val bytesLen = bytes.size - offset
+        assert(bytesLen <= 32)
+
+        val output = ByteArray(32)
+        System.arraycopy(bytes, offset, output, 32 - bytesLen, bytesLen)
+        return output
+    }
+
+    override fun mapCoseKeyToSpki(coseKey: MutableMap<Int, Any>): ByteArray? {
+        try {
+            val spkiPrefix: ByteArray = Base64.decode("MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE", 0)
+            val x = coseKey[-2] as ByteArray
+            val y = coseKey[-3] as ByteArray
+            return spkiPrefix + x + y
+        } catch (_: Exception) {
+            // Log exceptions
+        }
+        return null
+    }
+}

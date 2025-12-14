@@ -18,6 +18,7 @@ import com.michaeltchuang.walletsdk.core.transaction.signmanager.PendingTransact
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.qrscanner.launchIntentWithUri
 import com.michaeltchuang.walletsdk.ui.qrscanner.viewmodels.QRScannerViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -33,6 +34,7 @@ fun QRCodeScannerScreen(
 ) {
     val viewModel: QRScannerViewModel = koinViewModel()
     val hasProcessedResult = remember { mutableStateOf(false) }
+    val launchFidoDeepLink = remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect {
@@ -66,6 +68,10 @@ fun QRCodeScannerScreen(
                         onQrScanned(it.accountAddress.address)
                     }
                 }
+                is QRScannerViewModel.ViewEvent.NavigateToFidoDeepLink -> {
+                    closeSheet()
+                    launchFidoDeepLink.value = it.uri
+                }
 
                 is QRScannerViewModel.ViewEvent.ShowUnrecognizedDeeplink -> {
                     onQrScanned("Unrecognized QR Code")
@@ -89,6 +95,11 @@ fun QRCodeScannerScreen(
             }
         },
     )
+
+    launchFidoDeepLink.value?.let { uri ->
+        launchIntentWithUri(uri)
+        launchFidoDeepLink.value = null
+    }
 }
 
 @Composable

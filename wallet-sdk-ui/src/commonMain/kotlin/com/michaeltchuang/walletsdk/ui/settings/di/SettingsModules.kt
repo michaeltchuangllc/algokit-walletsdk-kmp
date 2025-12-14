@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsView
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LanguageSelectorViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.NodeSettingsViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.PasskeysViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.ThemePickerViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -57,6 +58,9 @@ internal val settingsModules =
                     get(),
                     get(),
                 )
+            }
+            viewModel {
+                PasskeysViewModel(get(), get())
             }
         },
     )

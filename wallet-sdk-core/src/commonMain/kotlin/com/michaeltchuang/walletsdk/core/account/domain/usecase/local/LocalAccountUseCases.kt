@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegist
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastLookup
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.ActiveHdAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstAddress
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
@@ -148,4 +149,8 @@ fun interface GetAccountFastLookup {
 
 fun interface GetLocalAccountsAddresses {
     suspend operator fun invoke(): List<String>
+}
+
+fun interface GetAllHdSeedFirstAddresses {
+    suspend operator fun invoke(): List<HdSeedFirstAddress>
 }

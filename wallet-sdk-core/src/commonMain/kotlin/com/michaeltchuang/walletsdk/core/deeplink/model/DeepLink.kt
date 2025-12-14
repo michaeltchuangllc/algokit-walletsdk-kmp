@@ -126,4 +126,6 @@ sealed interface DeepLink {
     data class Undefined(
         val url: String,
     ) : DeepLink
+
+    data class Fido(val uri: String) : DeepLink
 }

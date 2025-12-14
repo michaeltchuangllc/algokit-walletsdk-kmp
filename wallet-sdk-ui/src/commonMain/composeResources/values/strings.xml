@@ -1613,5 +1613,13 @@
     <string name="dispenser_add_funds_to_your_account">Dispenser - Add funds to your account</string>
     <string name="send_algo">Send ALGO</string>
 
+    <string name="remove_passkey">Remove passkey</string>
+    <string name="are_you_sure_remove_passkey">Are you sure you want to remove this passkey?</string>
+    <string name="passkeys_title">Passkeys</string>
+    <string name="no_passkeys_yet">No passkeys yet</string>
+    <string name="delete_passkey_icon_description">Delete passkey</string>
+    <string name="last_used">Last Used</string>
+    <string name="username">Username</string>
+
 
 </resources>

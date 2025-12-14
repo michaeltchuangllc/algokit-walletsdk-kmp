@@ -71,7 +71,12 @@ val localAccountsModule =
         single<Algo25Mapper> { Algo25MapperImpl() }
 
         single<Algo25AccountRepository> {
-            Algo25AccountRepositoryImpl(get(), get(), get(), get())
+            Algo25AccountRepositoryImpl(
+                algo25Dao = get(),
+                algo25EntityMapper = get(),
+                algo25Mapper = get()
+                // coroutineDispatcher uses default Dispatchers.IO
+            )
         }
 
         factory { SaveAlgo25Account(get<Algo25AccountRepository>()::addAccount) }
@@ -83,12 +88,12 @@ val localAccountsModule =
 
         single<Falcon24AccountRepository> {
             Falcon24AccountRepositoryImpl(
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
+                hdSeedDao = get(),
+                falcon24Dao = get(),
+                falcon24EntityMapper = get(),
+                falcon24Mapper = get(),
+                hdSeedWalletSummaryMapper = get()
+                // coroutineDispatcher uses default Dispatchers.IO
             )
         }
 
@@ -105,12 +110,13 @@ val localAccountsModule =
 
         single<HdKeyAccountRepository> {
             HdKeyAccountRepositoryImpl(
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
+                hdKeyDao = get(),
+                hdKeyEntityMapper = get(),
+                hdWalletSummaryMapper = get(),
+                hdKeyMapper = get(),
+                hdSeedDao = get(),
+                hdSeedWalletSummaryMapper = get()
+                // coroutineDispatcher uses default Dispatchers.IO
             )
         }
         factory { GetHdKeyPrivateKey(get<HdKeyAccountRepository>()::getPrivateKey) }
@@ -122,7 +128,14 @@ val localAccountsModule =
         single<HdSeedDao> { get<AlgoKitDatabase>().hdSeedDao() }
         single<HdSeedEntityMapper> { HdSeedEntityMapperImpl() }
         single<HdSeedMapper> { HdSeedMapperImpl() }
-        single<HdSeedRepository> { HdSeedRepositoryImpl(get(), get(), get(), get()) }
+        single<HdSeedRepository> {
+            HdSeedRepositoryImpl(
+                hdSeedDao = get(),
+                hdSeedEntityMapper = get(),
+                hdSeedMapper = get()
+                // coroutineDispatcher uses default Dispatchers.IO
+            )
+        }
         factory { GetSeedIdIfExistingEntropy(get<HdSeedRepository>()::getSeedIdIfExistingEntropy) }
         single<AddHdSeed> { AddHdSeedUseCase(get(), get(), get()) }
         single { GetMaxHdSeedId(get<HdSeedRepository>()::getMaxSeedId) }
@@ -136,10 +149,46 @@ val localAccountsModule =
         single<NoAuthMapper> { NoAuthMapperImpl() }
 
         single<NoAuthAccountRepository> {
-            NoAuthAccountRepositoryImpl(get(), get(), get(), get())
+            NoAuthAccountRepositoryImpl(
+                noAuthDao = get(),
+                noAuthEntityMapper = get(),
+                noAuthMapper = get()
+                // coroutineDispatcher uses default Dispatchers.IO
+            )
         }
 
         single { CreateWatchAccountUseCase(get(), get(), get()) }
         single { DeleteNoAuthAccountUseCase(get()) }
         single { ValidateWatchAccountUseCase(get()) }
+
+        // GetAllHdSeedFirstAddresses - queries all HD seeds and their first (index 0) addresses
+        factory {
+            com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses {
+                val hdSeedRepository = get<HdSeedRepository>()
+                val hdKeyRepository = get<HdKeyAccountRepository>()
+                val falconRepository = get<Falcon24AccountRepository>()
+
+                // Get all HD seeds
+                val allSeeds = hdSeedRepository.getAllHdSeeds()
+
+                // For each seed, find the account with index 0 (first address)
+                allSeeds.mapNotNull { seed ->
+                    // Get all accounts for this seed and find the one with account index 0
+                   // val allAccounts = hdKeyRepository.getAll()
+                    val falcon24Account = falconRepository.getAll()
+                    //val all = allAccounts + falcon24Account
+                    val firstAccount = falcon24Account.firstOrNull { account ->
+                        account.seedId == seed.seedId /*&& account == 0*/
+                    }
+
+                    // If we found the first address, return it
+                    firstAccount?.let {
+                        com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstAddress(
+                            seedId = seed.seedId,
+                            firstAddress = it.algoAddress
+                        )
+                    }
+                }
+            }
+        }
     }

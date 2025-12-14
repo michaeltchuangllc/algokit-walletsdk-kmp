@@ -8,10 +8,12 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_feedback
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_localization
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_moon
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_passkey
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_text_document
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.localization_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.next
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.privacy_policy
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.security
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.support
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.terms_and_services
@@ -45,11 +47,11 @@ import androidx.navigation.compose.rememberNavController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
-import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.BuildInfo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.utils.isDebugBuild
+import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.DrawableResource
@@ -96,6 +98,20 @@ fun SettingsScreen(navController: NavController) {
             title = localizedStringResource(Res.string.localization_settings),
         ) {
             navController.navigate(AlgoKitScreens.LANGUAGE_SCREEN.name)
+        }
+        // Section: Security
+        Text(
+            text = localizedStringResource(Res.string.security),
+            color = AlgoKitTheme.colors.textMain,
+            style = AlgoKitTheme.typography.body.regular.sansMedium,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
+
+        SettingsItem(
+            icon = Res.drawable.ic_passkey,
+            title = "Passkeys",
+        ) {
+            navController.navigate(AlgoKitScreens.PASSKEYS_SCREEN.name)
         }
         Spacer(modifier = Modifier.height(16.dp))
 
