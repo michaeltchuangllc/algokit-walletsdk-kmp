@@ -94,11 +94,11 @@ timeline
             : ✅ Onboarding - Recover HD account flow
             : ✅ Settings - Localization (English, Italian, Hindi)
             : ✅ Testing - Setup unit test coverage and screenshot testing foundation infrastructure
-            : 🔄 Onboarding - ECC Passkeys & Liquid Auth/Connect (Android)
+            : 🔄 Onboarding - ECC Passkeys & Liquid Auth (Android)
 
     section Future
-    2026Q1  : Onboarding - ECC Passkeys & Liquid Auth/Connect (iOS)
-            : Onboarding - PQ Passkeys & Liquid Auth/Connect (PQ)
+    2026Q1  : Onboarding - ECC Passkeys & Liquid Auth (iOS)
+            : Onboarding - PQ Passkeys
             : Use-Wallet Liquid Auth Integration for xGov Website
             : Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Add In Landscape (Tablet/Desktop) UI Support
