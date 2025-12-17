@@ -98,22 +98,20 @@ timeline
 
     section Future
     2026Q1  : Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : Update Use-Wallet Liquid Auth Integration
-            : Use-Wallet Liquid Auth Integration for xGov Website
-            : Use Wallet Liquid Auth Integration for Lora (Dispenser)
+            : Re-enable Use-Wallet Liquid Auth Functionality
+            : Add Use-Wallet Liquid Auth Integration for xGov Website
+            : Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Onboarding - PQ Passkeys
             : Onboarding - Rekey flow
-            : Account Details - Opt-In / Opt-Out Stablecoin QR flow
+            : Account Details - Opt-In / Opt-Out USDC QR flow
             : Transaction - Send USDC using account detail or QR code flows (between accounts)
             : Transaction - Integrate new AlgoKit-Core Transact rust library
-            : Android - Wallet SDK as a background service integration
             : TBD
     2026Q2   
-            : Research - React Native sample app that can use wallet-sdk (through bridging)
             : Onboarding - Multi-sig flow
             : Onboarding - Ledger flow
+            : Android - Wallet SDK as a background service integration
             : Add In Landscape (Tablet/Desktop) UI Support
-            : Onboarding - Fun app animations
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : TBD
     2026Q3
