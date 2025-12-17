@@ -98,14 +98,12 @@ timeline
 
     section Future
     2026Q1  : Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : Onboarding - PQ Passkeys
             : Use-Wallet Liquid Auth Integration for xGov Website
             : Use Wallet Liquid Auth Integration for Lora (Dispenser)
-            : Add In Landscape (Tablet/Desktop) UI Support
-            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+            : Onboarding - PQ Passkeys
             : Onboarding - Rekey flow
+            : Account Details - Opt-In / Opt-Out Stablecoin QR flow
             : Transaction - Integrate new AlgoKit-Core Transact rust library
-            : Onboarding - Fun app splash screen
             : Android - Wallet SDK as a background service integration
             : TBD
     2026Q2   
@@ -115,7 +113,10 @@ timeline
             : Account Details - Asset Inbox
             : Account Details - Swap
             : Onboarding - Ledger flow
-            : Account Details - Opt-In / Opt-Out Stablecoin QR flow
+            : Onboarding - Multisig flow
+            : Add In Landscape (Tablet/Desktop) UI Support
+            : Onboarding - Fun app animations
+            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : TBD
 ```
 
