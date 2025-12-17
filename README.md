@@ -98,9 +98,9 @@ timeline
 
     section Future
     2026Q1  : Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : Re-enable Use-Wallet Liquid Auth Functionality
-            : Add Use-Wallet Liquid Auth Integration for xGov Website
-            : Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
+            : Onboarding - Re-enable Use-Wallet Liquid Auth Functionality
+            : Onboarding - Add Use-Wallet Liquid Auth Integration for xGov Website
+            : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Onboarding - PQ Passkeys
             : Onboarding - Rekey flow
             : Account Details - Opt-In / Opt-Out USDC QR flow
