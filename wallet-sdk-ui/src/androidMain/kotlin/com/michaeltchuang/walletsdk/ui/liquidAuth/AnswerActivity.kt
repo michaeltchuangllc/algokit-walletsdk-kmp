@@ -233,10 +233,10 @@ class AnswerActivity : AppCompatActivity() {
         super.onPostCreate(savedInstanceState)
         initWebRTCService { hydrateIntents() }
         Handler().postDelayed({
-            connectServer(
+            connect(
                 AuthMessageStorage.AuthMessage
             )
-        },2000)
+        }, 2000)
     }
 
     /** Reload the application state from an Intent */
@@ -467,7 +467,7 @@ class AnswerActivity : AppCompatActivity() {
      * In Android 14, the application can handle the FIDO:/ URI scheme directly. This is useful when
      * a user is registering the phone as an Authenticator for the first time.
      */
-    private fun connectServer(msg: AuthMessage) {
+    private fun connect(msg: AuthMessage) {
         // Decode Barcode Message
         viewModel.setMessage(msg)
         signalService!!.updateDeepLinkFlag(false)
