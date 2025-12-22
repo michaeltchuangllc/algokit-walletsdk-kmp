@@ -117,6 +117,25 @@ kotlin {
                 implementation(libs.biometric)
                 implementation(libs.bcprov.jdk18on)
                 implementation(libs.androidx.credentials)
+                implementation(libs.algosdk)
+                implementation(libs.algorand.go.mobile)
+                implementation(files("../libs/provider-debug.aar"))
+                implementation(files("../libs/crypto-debug.aar"))
+
+
+                // FIDO2 - Deprecated
+                implementation("com.google.android.gms:play-services-fido:20.1.0")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
+
+                val okhttpVersion by extra { "4.12.0" }
+                implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
+                implementation("com.squareup.okhttp3:logging-interceptor:$okhttpVersion")
+                implementation("ru.gildor.coroutines:kotlin-coroutines-okhttp:1.0")
+                implementation("io.socket:socket.io-client:2.1.0")
+                implementation("io.getstream:stream-webrtc-android:1.1.3")
+
+                // UUID Generator
+                implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
             }
         }
 
@@ -139,6 +158,16 @@ kotlin {
         iosMain {
             dependencies {}
         }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        // Force a single version of BouncyCastle to avoid conflicts
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
+
+        // Exclude the older version
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
     }
 }
 

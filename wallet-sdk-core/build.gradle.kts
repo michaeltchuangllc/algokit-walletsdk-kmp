@@ -111,6 +111,28 @@ kotlin {
             implementation(libs.kotlinfixture)
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
+
+            implementation(files("../libs/provider-debug.aar"))
+            implementation(files("../libs/crypto-debug.aar"))
+            // Deterministic Passkeys
+            implementation(files("../libs/dP256.jar"))
+
+            // Signaling Service
+            implementation("io.socket:socket.io-client:2.1.0")
+            implementation("io.getstream:stream-webrtc-android:1.1.3")
+            // QR Code Generator
+            implementation("io.github.g0dkar:qrcode-kotlin:4.1.1")
+            // UUID Generator
+            implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
+
+            // FIDO2
+            implementation("com.google.android.gms:play-services-fido:21.0.0")
+            // Barcode Scanner
+            implementation("com.google.mlkit:barcode-scanning-common:17.0.0")
+            implementation("com.google.mlkit:camera:16.0.0-beta3")
+            // Signaling Service
+            implementation("io.socket:socket.io-client:2.1.0")
+            implementation("io.getstream:stream-webrtc-android:1.1.3")
         }
         commonMain.dependencies {
             api(libs.napier)
@@ -240,7 +262,7 @@ room {
 configurations.all {
     resolutionStrategy {
         // Force a single version of BouncyCastle to avoid conflicts
-        force("org.bouncycastle:bcprov-jdk18on:1.82")
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
 
         // Exclude the older version
         exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
