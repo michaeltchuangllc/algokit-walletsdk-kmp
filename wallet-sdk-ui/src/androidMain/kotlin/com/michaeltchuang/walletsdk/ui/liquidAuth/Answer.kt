@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
 import android.app.Activity
-import android.content.Context
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
@@ -22,7 +21,9 @@ import okhttp3.internal.userAgent
 import org.json.JSONObject
 import ru.gildor.coroutines.okhttp.await as awaitCall
 
-class Answer(private val activity: ComponentActivity) {
+class Answer(
+    private val activity: ComponentActivity,
+) {
     private val tag = "LiquidAuth"
     private var httpClient = OkHttpClient.Builder().cookieJar(Cookies()).build()
     private val attestationApi = AttestationApi(httpClient)
@@ -89,4 +90,3 @@ class Answer(private val activity: ComponentActivity) {
         }
     }
 }
-

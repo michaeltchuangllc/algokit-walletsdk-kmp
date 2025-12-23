@@ -15,41 +15,47 @@ import org.json.JSONObject
  *
  * Minimal state to handle FIDO2 PublicKeyCredentials and Proof of Knowledge
  */
-class AnswerViewModel: ViewModel() {
-   /* private val credentialRepository = CredentialRepository()*/
-    private val _session = MutableLiveData<String>().apply {
-        value = "Logged Out"
-    }
+class AnswerViewModel : ViewModel() {
+    // private val credentialRepository = CredentialRepository()
+    private val _session =
+        MutableLiveData<String>().apply {
+            value = "Logged Out"
+        }
     val session: LiveData<String> = _session
 
-    fun setSession(cookie: String?){
-        if(cookie !== null){
+    fun setSession(cookie: String?) {
+        if (cookie !== null) {
             _session.value = cookie
         }
     }
 
-    private val _message = MutableLiveData<AuthMessage?>().apply {
-        value = null
-    }
+    private val _message =
+        MutableLiveData<AuthMessage?>().apply {
+            value = null
+        }
 
     val message: LiveData<AuthMessage?> = _message
 
-    fun setMessage(msg: AuthMessage?){
+    fun setMessage(msg: AuthMessage?) {
         _message.value = msg
     }
 
-    private val _count = MutableLiveData<Int>().apply {
-        value = 0
-    }
+    private val _count =
+        MutableLiveData<Int>().apply {
+            value = 0
+        }
 
     val count = _count
 
-    fun setCount(i: Int){
+    fun setCount(i: Int) {
         _count.value = i
     }
 
-
-    suspend fun saveCredential(context: Context, account: Account, credential: PublicKeyCredential){
+    suspend fun saveCredential(
+        context: Context,
+        account: Account,
+        credential: PublicKeyCredential,
+    ) {
        /* credentialRepository.saveCredential(
             context,
             Credential(
@@ -64,7 +70,10 @@ class AnswerViewModel: ViewModel() {
         )*/
     }
 
-    fun getCredentialMessage(account: Account, credential: PublicKeyCredential): JSONObject {
+    fun getCredentialMessage(
+        account: Account,
+        credential: PublicKeyCredential,
+    ): JSONObject {
         val credMessage = JSONObject()
         credMessage.put("address", account.address.toString())
         credMessage.put("device", Build.MODEL)

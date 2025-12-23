@@ -8,12 +8,13 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import com.michaeltchuang.walletsdk.ui.R
 
-class NotificationViewModel: ViewModel() {
+class NotificationViewModel : ViewModel() {
     companion object {
         const val TAG = "NotificationViewModel"
-        const val NOTIFICATION_CHANNEL_ID =  "NOTIFICATION_CHANNEL"
+        const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
     }
+
     /**
      * Create a Notification Channel
      *
@@ -21,14 +22,16 @@ class NotificationViewModel: ViewModel() {
      */
     fun createChannels(notificationManager: NotificationManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID,
-                "WebRTC Service",
-                NotificationManager.IMPORTANCE_DEFAULT
-            )
+            val channel =
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "WebRTC Service",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
             notificationManager.createNotificationChannel(channel)
         }
     }
+
     /**
      * Create a Notification Builder with Defaults
      *
@@ -40,12 +43,10 @@ class NotificationViewModel: ViewModel() {
         contentText: String = "Tap to open the app.",
         contentTitle: String = "Liquid Auth",
         channelId: String = NOTIFICATION_CHANNEL_ID,
-
-        ): Builder {
-        return Builder(context, channelId)
+    ): Builder =
+        Builder(context, channelId)
             .setContentTitle(contentTitle)
             .setContentText(contentText)
             .setColor(ContextCompat.getColor(context, androidx.biometric.R.color.biometric_error_color))
             .setSmallIcon(R.drawable.ic_key)
-    }
 }

@@ -24,8 +24,23 @@ data class AuthMessage @Inject constructor(
         const val TAG = "connect.Message"
         fun fromUri(uri: Uri): AuthMessage {
             Log.d(TAG, "fromUri($uri)")
-            val origin = "https://${uri.host}"
+            Log.d(TAG, "URI scheme: ${uri.scheme}")
+            Log.d(TAG, "URI host: ${uri.host}")
+            Log.d(TAG, "URI path: ${uri.path}")
+            Log.d(TAG, "URI query: ${uri.query}")
+            
+            val host = uri.host
+            if (host.isNullOrEmpty()) {
+                Log.e(TAG, "URI host is null or empty! Full URI: $uri")
+                throw IllegalArgumentException("Invalid URI: host is null or empty")
+            }
+            
+            val origin = "https://$host"
             val requestId = uri.findParameterValue("requestId").toString()
+            
+            Log.d(TAG, "Constructed origin: $origin")
+            Log.d(TAG, "Extracted requestId: $requestId")
+            
             return AuthMessage(origin, requestId)
         }
         /**

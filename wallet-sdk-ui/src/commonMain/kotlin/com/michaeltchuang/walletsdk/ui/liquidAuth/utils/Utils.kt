@@ -7,12 +7,15 @@ private fun String.findParameterValue(parameterName: String): String? {
     val queryStart = this.indexOf('?')
     val query = if (queryStart != -1) this.substring(queryStart + 1) else null
 
-    return query?.split('&')?.map {
-        val parts = it.split('=')
-        val name = parts.firstOrNull() ?: ""
-        val value = parts.drop(1).firstOrNull() ?: ""
-        Pair(name, value)
-    }?.firstOrNull { it.first == parameterName }?.second
+    return query
+        ?.split('&')
+        ?.map {
+            val parts = it.split('=')
+            val name = parts.firstOrNull() ?: ""
+            val value = parts.drop(1).firstOrNull() ?: ""
+            Pair(name, value)
+        }?.firstOrNull { it.first == parameterName }
+        ?.second
 }
 
 fun fromUri(uri: String): AuthMessage {

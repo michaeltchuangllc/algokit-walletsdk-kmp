@@ -16,7 +16,6 @@ class QRScannerViewModel(
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     EventViewModel<QRScannerViewModel.ViewEvent> by eventDelegate {
-
     private lateinit var uri: String
 
     init {
@@ -152,7 +151,10 @@ class QRScannerViewModel(
             val uri: String,
         ) : ViewEvent
 
-        data class NavigateToLiquidAuthScreen(val uri: String) : ViewEvent
+        data class NavigateToLiquidAuthScreen(
+            val uri: String,
+        ) : ViewEvent
+
         object ShowUnrecognizedDeeplink : ViewEvent
     }
 }

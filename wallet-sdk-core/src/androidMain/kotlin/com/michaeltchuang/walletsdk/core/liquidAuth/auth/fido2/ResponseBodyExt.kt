@@ -28,8 +28,10 @@ fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialReque
 }
 
 @Deprecated("Use the new CredentialManager API")
-fun ResponseBody.toPublicKeyCredentialCreationOptions(): PublicKeyCredentialCreationOptions {
+fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = null): PublicKeyCredentialCreationOptions {
     val builder = PublicKeyCredentialCreationOptions.Builder()
+    var parsedRpEntity: PublicKeyCredentialRpEntity? = null
+    
     JsonReader(this.byteStream().bufferedReader()).use { reader ->
         reader.beginObject()
         while (reader.hasNext()) {
@@ -38,7 +40,16 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(): PublicKeyCredentialCrea
                 "challenge" -> builder.setChallenge(reader.nextString().decodeBase64())
                 "pubKeyCredParams" -> builder.setParameters(parseParameters(reader))
                 "timeout" -> builder.setTimeoutSeconds(reader.nextDouble())
-                "attestation" -> reader.skipValue() // Unused
+                "attestation" -> {
+                    val attestation = reader.nextString()
+                    try {
+                        builder.setAttestationConveyancePreference(
+                            AttestationConveyancePreference.fromString(attestation)
+                        )
+                    } catch (e: Exception) {
+                        Log.w("FIDO2", "Unknown attestation value: $attestation", e)
+                    }
+                }
                 "excludeCredentials" -> builder.setExcludeList(
                     parseCredentialDescriptors(reader)
                 )
@@ -47,13 +58,36 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(): PublicKeyCredentialCrea
                     parseSelection(reader)
                 )
 
-                "rp" -> builder.setRp(parseRp(reader))
-                "extensions" -> reader.skipValue()
+                "rp" -> {
+                    parsedRpEntity = parseRp(reader)
+                    // Don't set it yet if we have an override
+                    if (overrideRpId == null) {
+                        builder.setRp(parsedRpEntity!!)
+                    }
+                }
+                "extensions" -> {
+                    // Parse extensions but don't apply them yet as they may need special handling
+                    // Skip for now to avoid parsing errors
+                    reader.skipValue()
+                }
+                else -> reader.skipValue()
             }
         }
         reader.endObject()
     }
-    Log.d("FIDO2", "Parsed PublicKeyCredentialCreationOptions: $builder")
+    
+    // Apply RP ID override if provided
+    if (overrideRpId != null && parsedRpEntity != null) {
+        Log.w("FIDO2", "Overriding server RP ID '${parsedRpEntity!!.id}' with '$overrideRpId'")
+        val overriddenRp = PublicKeyCredentialRpEntity(
+            overrideRpId,
+            parsedRpEntity!!.name,
+            parsedRpEntity!!.icon
+        )
+        builder.setRp(overriddenRp)
+    }
+    
+    Log.d("FIDO2", "Parsed PublicKeyCredentialCreationOptions successfully")
     return builder.build()
 }
 
@@ -70,7 +104,18 @@ fun parseRp(reader: JsonReader): PublicKeyCredentialRpEntity {
         }
     }
     reader.endObject()
-    return PublicKeyCredentialRpEntity(id!!, name!!, /* icon */ null)
+    
+    if (id.isNullOrEmpty()) {
+        Log.e("FIDO2", "RP ID is null or empty! This will cause validation errors.")
+        throw IllegalArgumentException("RP ID is required for FIDO2 operations")
+    }
+    if (name.isNullOrEmpty()) {
+        Log.e("FIDO2", "RP name is null or empty! This will cause validation errors.")
+        throw IllegalArgumentException("RP name is required for FIDO2 operations")
+    }
+    
+    Log.d("FIDO2", "Parsed RP - ID: $id, Name: $name")
+    return PublicKeyCredentialRpEntity(id, name, /* icon */ null)
 }
 
 @Deprecated("Use the new CredentialManager API")

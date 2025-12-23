@@ -56,9 +56,7 @@ class LiquidAuthViewModel(
         }
     }
 
-
     fun processAuthentication() {
-
     }
 
     sealed interface ViewState {

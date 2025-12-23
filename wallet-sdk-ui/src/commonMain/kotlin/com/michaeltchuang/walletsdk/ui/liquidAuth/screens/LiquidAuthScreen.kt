@@ -29,7 +29,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
-
 @Composable
 fun LiquidAuthScreen(
     navController: NavController,
@@ -61,7 +60,7 @@ fun LiquidAuthScreen(
         onBackClick = { navController.popBackStack() },
         onConnect = { onConnect.value = true },
     )
-    if (onConnect.value){
+    if (onConnect.value) {
         connect(viewModel.authMessage)
         onConnect.value = false
     }

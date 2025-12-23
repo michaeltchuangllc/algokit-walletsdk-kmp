@@ -45,7 +45,6 @@ import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import okhttp3.OkHttpClient
@@ -62,7 +61,6 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
-
     val TURN_USERNAME: String = "fc7708976bf5d60be20c5a1d"
     val TURN_CREDENTIAL: String = "sVpEREQGGhXOw4gX"
     val NODELY_TURN_USERNAME = "liquid-auth"
@@ -73,72 +71,79 @@ class AnswerActivity : AppCompatActivity() {
         private const val SHARED_PREFERENCE_SEED_FILE = "ACCOUNT_SEEDS"
     }
 
-    fun createIceServer(uri: String, username: String, password: String): PeerConnection.IceServer {
-        return PeerConnection.IceServer.builder(uri)
+    fun createIceServer(
+        uri: String,
+        username: String,
+        password: String,
+    ): PeerConnection.IceServer =
+        PeerConnection.IceServer
+            .builder(uri)
             .setUsername(username)
             .setPassword(password)
             .createIceServer()
-    }
 
     // Liquid Auth Service
     private val iceServers =
         listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
+            PeerConnection.IceServer
+                .builder("stun:stun.l.google.com:19302")
                 .createIceServer(),
-            PeerConnection.IceServer.builder("stun:stun1.l.google.com:19302")
+            PeerConnection.IceServer
+                .builder("stun:stun1.l.google.com:19302")
                 .createIceServer(),
-            PeerConnection.IceServer.builder("stun:stun2.l.google.com:19302")
+            PeerConnection.IceServer
+                .builder("stun:stun2.l.google.com:19302")
                 .createIceServer(),
             createIceServer(
                 "turn:global.turn.nodely.network:80?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turns:global.turn.nodely.network:443?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turn:eu.turn.nodely.io:80?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turns:eu.turn.nodely.io:443?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turn:us.turn.nodely.io:80?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turns:us.turn.nodely.io:443?transport=tcp",
                 NODELY_TURN_USERNAME,
-                NODELY_TURN_CREDENTIAL
+                NODELY_TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turn:global.relay.metered.ca:80",
                 TURN_USERNAME,
-                TURN_CREDENTIAL
+                TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turn:global.relay.metered.ca:80?transport=tcp",
                 TURN_USERNAME,
-                TURN_CREDENTIAL
+                TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turn:global.relay.metered.ca:443",
                 TURN_USERNAME,
-                TURN_CREDENTIAL
+                TURN_CREDENTIAL,
             ),
             createIceServer(
                 "turns:global.relay.metered.ca:443?transport=tcp",
                 TURN_USERNAME,
-                TURN_CREDENTIAL
-            )
+                TURN_CREDENTIAL,
+            ),
         )
 
     private var mBounded = false
@@ -162,7 +167,7 @@ class AnswerActivity : AppCompatActivity() {
     val VERSION_NAME = "1.0"
     private val userAgent =
         "${APPLICATION_ID}/${VERSION_NAME} " +
-                "(Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
+            "(Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
     private var signature: ByteArray? = null
 
     // Datachannel Provider/Handler
@@ -176,20 +181,24 @@ class AnswerActivity : AppCompatActivity() {
     private val attestationIntentLauncher =
         registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
-            ::handleAuthenticatorAttestationResult
+            ::handleAuthenticatorAttestationResult,
         )
 
     // Authenticate/Assertion Intent Channel
     private val assertionIntentLauncher =
         registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
-            ::handleAuthenticatorAssertionResult
+            ::handleAuthenticatorAssertionResult,
         )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Set Security
-        val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
+        val policy =
+            StrictMode.ThreadPolicy
+                .Builder()
+                .permitAll()
+                .build()
         StrictMode.setThreadPolicy(policy)
         Security.removeProvider("BC")
         Security.insertProviderAt(BouncyCastleProvider(), 0)
@@ -198,9 +207,7 @@ class AnswerActivity : AppCompatActivity() {
         fido2Client = Fido2ApiClient(this@AnswerActivity)
         // Load the Shared Preferences
         hydrateSharedPreferences()
-      //  fromUri(liquid://debug.liquidauth.com/?requestId=019b41a1-d33c-7559-9eff-98e7644e3bcd)
-
-
+        //  fromUri(liquid://debug.liquidauth.com/?requestId=019b41a1-d33c-7559-9eff-98e7644e3bcd)
 
         /* // Ensure the device has notifications enabled
          val notificationManager =
@@ -232,25 +239,36 @@ class AnswerActivity : AppCompatActivity() {
     override fun onPostCreate(savedInstanceState: Bundle?) {
         super.onPostCreate(savedInstanceState)
         initWebRTCService { hydrateIntents() }
-        Handler().postDelayed({
-            connect(
-                AuthMessageStorage.AuthMessage
-            )
-        }, 2000)
+
+        // Only auto-connect if we don't have an intent (deep link or QR scan)
+        val hasIntent = intent?.data != null
+        if (!hasIntent) {
+            Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
+            Handler().postDelayed({
+                connect(AuthMessageStorage.AuthMessage)
+            }, 2000)
+        } else {
+            Log.d(TAG, "Intent detected, skipping auto-connect (will use scanned QR data)")
+        }
     }
 
     /** Reload the application state from an Intent */
     private fun hydrateIntents() {
         val isConnected =
             signalService?.dataChannel is DataChannel &&
-                    signalService?.dataChannel?.state() === DataChannel.State.OPEN
+                signalService?.dataChannel?.state() === DataChannel.State.OPEN
         val isIntent = intent != null
         val isDeepLink = intent?.data != null && intent.data is Uri
         val isDataChannelMessage = intent?.getStringExtra("msg") != null
         if (isDeepLink) {
             signalService!!.updateDeepLinkFlag(true)
             val intentUri = intent.data as Uri
-            Log.d(TAG, "Intent Detected: $intentUri")
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "🔍 DEEP LINK DETECTED")
+            Log.d(TAG, "Intent URI: $intentUri")
+            Log.d(TAG, "Intent URI scheme: ${intentUri.scheme}")
+            Log.d(TAG, "Intent URI host: ${intentUri.host}")
+            Log.d(TAG, "========================================")
 
             // Find the Application ID in the Intent Extras
             if (intent.extras is Bundle) {
@@ -271,20 +289,39 @@ class AnswerActivity : AppCompatActivity() {
             }
 
             // Set the Message and Start the Service
-            val msg = AuthMessage.fromUri(intentUri)
+            val msg =
+                try {
+                    AuthMessage.fromUri(intentUri)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse AuthMessage from URI: $intentUri", e)
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Invalid QR code format: ${e.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    return
+                }
+
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "✅ PARSED AUTH MESSAGE FROM QR CODE")
+            Log.d(TAG, "Origin: ${msg.origin}")
+            Log.d(TAG, "RequestID: ${msg.requestId}")
+            Log.d(TAG, "========================================")
+
             viewModel.setMessage(msg)
             signalService?.start(
                 msg.origin,
                 httpClient,
                 notifications.createNotificationBuilder(this@AnswerActivity),
                 NotificationViewModel.SERVICE_NOTIFICATION_ID,
-                AnswerActivity::class.java
+                AnswerActivity::class.java,
             )
 
             // Launch the authentication process
             lifecycleScope.launch {
                 val savedCredential = null
-                /* credentialRepository.getCredentialByOrigin(this@AnswerActivity, msg.origin)*/
+                // credentialRepository.getCredentialByOrigin(this@AnswerActivity, msg.origin)
                 if (savedCredential === null) {
                     register(msg)
                 } else {
@@ -313,7 +350,7 @@ class AnswerActivity : AppCompatActivity() {
             return
         }
         notifications.createChannels(
-            getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+            getSystemService(NOTIFICATION_SERVICE) as NotificationManager,
         )
         // Handle the Service Connection
         mConnection =
@@ -323,7 +360,10 @@ class AnswerActivity : AppCompatActivity() {
                     signalService = null
                 }
 
-                override fun onServiceConnected(name: ComponentName, service: IBinder) {
+                override fun onServiceConnected(
+                    name: ComponentName,
+                    service: IBinder,
+                ) {
                     mBounded = true
                     val mLocalBinder = service as SignalService.LocalBinder
                     signalService = mLocalBinder.getServerInstance()
@@ -341,10 +381,27 @@ class AnswerActivity : AppCompatActivity() {
      */
     private fun hydrateSharedPreferences() {
         val sharedPref = getSharedPreferences(SHARED_PREFERENCE_SEED_FILE, MODE_PRIVATE)
+        
+        // 🔧 CONFIGURATION: To use a specific account, uncomment and paste your 25-word mnemonic here:
+        // val importedMnemonic = "word1 word2 word3 word4 word5 word6 word7 word8 word9 word10 word11 word12 word13 word14 word15 word16 word17 word18 word19 word20 word21 word22 word23 word24 word25"
+        // val importedAccount = Account(importedMnemonic)
+        // Log.d(TAG, "📥 Importing account: ${importedAccount.address}")
+        // sharedPref.edit().putString("MAIN_ACCOUNT", importedMnemonic).apply()
+        // wallet.setAccount(importedAccount)
+        // // Also set rekey and selected to use the imported account
+        // wallet.setRekey(importedAccount)
+        // wallet.setSelected(importedAccount)
+        // return
+        
         // Load the stored seed phrases
-        sharedPref.getString("MAIN_ACCOUNT", null)?.let { wallet.setAccount(Account(it)) }
+        sharedPref.getString("MAIN_ACCOUNT", null)?.let { 
+            val account = Account(it)
+            Log.d(TAG, "✅ Loaded existing account: ${account.address}")
+            wallet.setAccount(account)
+        }
             ?: run {
                 val account = Account()
+                Log.d(TAG, "🆕 Created new random account: ${account.address}")
                 sharedPref.edit().putString("MAIN_ACCOUNT", account.toMnemonic()).apply()
                 wallet.setAccount(account)
             }
@@ -366,26 +423,20 @@ class AnswerActivity : AppCompatActivity() {
                     .putString(
                         "SELECTED_ACCOUNT",
                         wallet.account.value!!.address.toString()
-                    )
-                    .apply()
+                    ).apply()
                 wallet.setSelected(wallet.account.value!!)
             }
     }
 
-
     /** Transaction Biometric Prompt */
-    private suspend fun biometrics(
-        message: SignTransactionsParams
-    ): BiometricPrompt.AuthenticationResult? {
-        return suspendCoroutine { continuation ->
+    private suspend fun biometrics(message: SignTransactionsParams): BiometricPrompt.AuthenticationResult? =
+        suspendCoroutine { continuation ->
             var biometricPrompt =
                 BiometricPrompt(
                     this@AnswerActivity,
                     ContextCompat.getMainExecutor(this@AnswerActivity),
                     object : BiometricPrompt.AuthenticationCallback() {
-                        override fun onAuthenticationSucceeded(
-                            result: BiometricPrompt.AuthenticationResult
-                        ) {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                             super.onAuthenticationSucceeded(result)
                             continuation.resume(result)
                         }
@@ -394,23 +445,22 @@ class AnswerActivity : AppCompatActivity() {
                             super.onAuthenticationFailed()
                             continuation.resume(null)
                         }
-                    }
+                    },
                 )
             promptInfo =
-                BiometricPrompt.PromptInfo.Builder()
+                BiometricPrompt.PromptInfo
+                    .Builder()
                     .setTitle("Transaction(s) ${message.txns.size}")
                     .setSubtitle("Provider: ${message.providerId}")
                     .setNegativeButtonText("Cancel")
                     .build()
             biometricPrompt.authenticate(promptInfo)
         }
-    }
 
     /** Decode Unsigned Transaction */
     @OptIn(ExperimentalEncodingApi::class)
-    private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? {
-        return Encoder.decodeFromMsgPack(Base64.decode(unsignedTxn), Transaction::class.java)
-    }
+    private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? =
+        Encoder.decodeFromMsgPack(Base64.decode(unsignedTxn), Transaction::class.java)
 
     /**
      * Handle Messages
@@ -428,7 +478,7 @@ class AnswerActivity : AppCompatActivity() {
                     val params =
                         provider.encoder.decode<SignTransactionsParams>(
                             provider.encoder.encode(request.params, EncoderType.NONE),
-                            EncoderType.NONE
+                            EncoderType.NONE,
                         )
                     biometrics(params)
                     provider.setKeyPair(keyPair)
@@ -437,8 +487,8 @@ class AnswerActivity : AppCompatActivity() {
                         is SignTransactionsResult -> {
                             signalService!!.send(
                                 Base64.UrlSafe.encode(
-                                    resultMessage.toByteArray(EncoderType.CBOR)
-                                )
+                                    resultMessage.toByteArray(EncoderType.CBOR),
+                                ),
                             )
                         }
 
@@ -468,6 +518,18 @@ class AnswerActivity : AppCompatActivity() {
      * a user is registering the phone as an Authenticator for the first time.
      */
     private fun connect(msg: AuthMessage) {
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🔗 CONNECT() CALLED (Delayed Auto-Connect)")
+        Log.d(TAG, "Origin: ${msg.origin}")
+        Log.d(TAG, "RequestID: ${msg.requestId}")
+        Log.d(TAG, "========================================")
+
+        // Check if message is empty/invalid
+        if (msg.origin.isEmpty() || msg.requestId.isEmpty()) {
+            Log.w(TAG, "⚠️ connect() called with empty AuthMessage, skipping")
+            return
+        }
+
         // Decode Barcode Message
         viewModel.setMessage(msg)
         signalService!!.updateDeepLinkFlag(false)
@@ -500,35 +562,185 @@ class AnswerActivity : AppCompatActivity() {
      * Receives PublicKeyCredentialCreationOptions from the FIDO2 Server and launches the
      * authenticator Intent using the handleAuthenticatorAttestationResult Handler
      */
-    private suspend fun register(msg: AuthMessage, options: JSONObject = JSONObject()) {
-        val account = wallet.account.value!!
-        val selected = wallet.selected.value!!
-        Log.d(TAG, "Registering new Credential with ${account.address} at ${msg.origin}")
+    private suspend fun register(
+        msg: AuthMessage,
+        options: JSONObject = JSONObject(),
+    ) {
+        try {
+            val account = wallet.account.value!!
+            val selected = wallet.selected.value!!
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "🔐 REGISTER() CALLED")
+            Log.d(TAG, "Account: ${account.address}")
+            Log.d(TAG, "Origin: ${msg.origin}")
+            Log.d(TAG, "RequestID: ${msg.requestId}")
+            Log.d(TAG, "========================================")
 
-        // Create Options for FIDO2 Server
-        options.put("username", account.address.toString())
-        options.put("displayName", "Liquid Auth User")
-        options.put("authenticatorSelection", JSONObject().put("userVerification", "required"))
-        val extensions = JSONObject()
-        extensions.put("liquid", true)
-        options.put("extensions", extensions)
+            // Extract the domain from the origin URL for RP ID
+            val rpId =
+                try {
+                    val parsedUri = Uri.parse(msg.origin)
+                    val host = parsedUri.host
+                    if (host.isNullOrEmpty()) {
+                        Log.e(TAG, "Failed to extract host from origin: ${msg.origin}")
+                        throw IllegalArgumentException("Invalid origin URL: ${msg.origin}")
+                    }
+                    Log.d(TAG, "Extracted host from origin: $host")
+                    host
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse origin URL: ${msg.origin}", e)
+                    runOnUiThread {
+                        Toast
+                            .makeText(
+                                this@AnswerActivity,
+                                "Invalid origin URL: ${msg.origin}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                    }
+                    return
+                }
+            Log.d(TAG, "Using RP ID: $rpId for origin: ${msg.origin}")
 
-        // FIDO2 Server API Response for PublicKeyCredentialCreationOptions
-        val response = attestationApi.postAttestationOptions(msg.origin, userAgent, options).await()
-        val session = Cookie.fromResponse(response)
-        session?.let { setSession(Cookie.getID(it)) }
-        // Convert ResponseBody to FIDO2 PublicKeyCredentialCreationOptions
-        val pubKeyCredentialCreationOptions = response.body!!.toPublicKeyCredentialCreationOptions()
-        // Sign the challenge with the algorand account, this is used in the liquid FIDO2 extension
-        signature =
-            KeyPairs.rawSignBytes(
-                pubKeyCredentialCreationOptions.challenge,
-                KeyPairs.getKeyPair(selected.toMnemonic()).private
-            )
-        // Kick off FIDO2 Client Intent
-        val pendingIntent =
-            fido2Client!!.getRegisterPendingIntent(pubKeyCredentialCreationOptions).await()
-        attestationIntentLauncher.launch(IntentSenderRequest.Builder(pendingIntent).build())
+            // Check for tunneling services (ngrok, localhost, etc.)
+            val isTunnel =
+                rpId.contains("ngrok") ||
+                    rpId.contains("localhost") ||
+                    rpId.contains("127.0.0.1") ||
+                    rpId.contains(".local")
+            if (isTunnel) {
+                Log.w(TAG, "⚠️ Detected tunneling/local service: $rpId")
+                Log.w(TAG, "FIDO2 may have issues with tunneling services. Ensure your ngrok/tunnel is properly configured.")
+            }
+
+            // Create Options for FIDO2 Server
+            options.put("username", account.address.toString())
+            options.put("displayName", "Liquid Auth User")
+
+            // Set authenticator selection with explicit requirements
+            val authenticatorSelection = JSONObject()
+            authenticatorSelection.put("authenticatorAttachment", "platform") // Use device biometrics
+            authenticatorSelection.put("userVerification", "required") // Require biometric verification
+            authenticatorSelection.put("requireResidentKey", false) // Don't require resident key
+            options.put("authenticatorSelection", authenticatorSelection)
+
+            Log.d(TAG, "Authenticator selection: $authenticatorSelection")
+
+            // Explicitly set the RP to match the origin
+            val rp = JSONObject()
+            rp.put("id", rpId)
+            rp.put("name", "Liquid Auth")
+            options.put("rp", rp)
+
+            val extensions = JSONObject()
+            extensions.put("liquid", true)
+            options.put("extensions", extensions)
+
+            Log.d(TAG, "Request options: $options")
+
+            // FIDO2 Server API Response for PublicKeyCredentialCreationOptions
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "📡 SENDING HTTP REQUEST")
+            Log.d(TAG, "URL: ${msg.origin}/attestation/request")
+            Log.d(TAG, "User-Agent: $userAgent")
+            Log.d(TAG, "========================================")
+
+            val response =
+                try {
+                    attestationApi.postAttestationOptions(msg.origin, userAgent, options).await()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Network error when contacting FIDO2 server", e)
+                    runOnUiThread {
+                        Toast
+                            .makeText(
+                                this@AnswerActivity,
+                                "Network error: ${e.message}\nCannot reach ${msg.origin}",
+                                Toast.LENGTH_LONG,
+                            ).show()
+                    }
+                    return
+                }
+
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to get attestation options: ${response.code} ${response.message}")
+                val errorBody =
+                    try {
+                        response.body?.string()
+                    } catch (e: Exception) {
+                        "Could not read error body"
+                    }
+                Log.e(TAG, "Error body: $errorBody")
+                runOnUiThread {
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Server error ${response.code}: ${response.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                }
+                return
+            }
+
+            val session = Cookie.fromResponse(response)
+            session?.let { setSession(Cookie.getID(it)) }
+
+            // Convert ResponseBody to FIDO2 PublicKeyCredentialCreationOptions
+            // Override the RP ID to match our origin since the server may return incorrect value
+            val pubKeyCredentialCreationOptions =
+                response.body!!.toPublicKeyCredentialCreationOptions(
+                    overrideRpId = rpId,
+                )
+
+            Log.d(TAG, "PublicKeyCredentialCreationOptions created successfully")
+            Log.d(TAG, "RP ID: ${pubKeyCredentialCreationOptions.rp?.id}")
+            Log.d(TAG, "RP Name: ${pubKeyCredentialCreationOptions.rp?.name}")
+            Log.d(TAG, "User: ${pubKeyCredentialCreationOptions.user?.name}")
+            Log.d(TAG, "Challenge length: ${pubKeyCredentialCreationOptions.challenge?.size}")
+
+            // Sign the challenge with the algorand account, this is used in the liquid FIDO2 extension
+            signature =
+                KeyPairs.rawSignBytes(
+                    pubKeyCredentialCreationOptions.challenge,
+                    KeyPairs.getKeyPair(selected.toMnemonic()).private,
+                )
+
+            Log.d(TAG, "Signature created, launching FIDO2 intent")
+
+            // Kick off FIDO2 Client Intent
+            try {
+                Log.d(TAG, "Calling getRegisterPendingIntent...")
+                val pendingIntent =
+                    fido2Client!!.getRegisterPendingIntent(pubKeyCredentialCreationOptions).await()
+                Log.d(TAG, "PendingIntent received: $pendingIntent")
+
+                val intentSenderRequest = IntentSenderRequest.Builder(pendingIntent).build()
+                Log.d(TAG, "Launching attestation intent...")
+                attestationIntentLauncher.launch(intentSenderRequest)
+                Log.d(TAG, "Intent launched successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to launch FIDO2 intent", e)
+                Log.e(TAG, "Exception type: ${e.javaClass.name}")
+                Log.e(TAG, "Exception message: ${e.message}")
+                e.printStackTrace()
+                runOnUiThread {
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Failed to launch biometric: ${e.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error during registration", e)
+            runOnUiThread {
+                Toast
+                    .makeText(
+                        this@AnswerActivity,
+                        "Registration error: ${e.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
+            }
+        }
     }
 
     /**
@@ -539,106 +751,175 @@ class AnswerActivity : AppCompatActivity() {
      */
     @OptIn(ExperimentalEncodingApi::class)
     private fun handleAuthenticatorAttestationResult(activityResult: ActivityResult) {
-        val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
+        try {
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "📱 ATTESTATION RESULT RECEIVED")
+            Log.d(TAG, "Result code: ${activityResult.resultCode}")
+            Log.d(TAG, "RESULT_OK = $RESULT_OK")
+            Log.d(TAG, "Data: ${activityResult.data}")
+            Log.d(TAG, "========================================")
 
-        when {
-            activityResult.resultCode != RESULT_OK ->
-                Toast.makeText(this@AnswerActivity, "Canceled", Toast.LENGTH_LONG).show()
+            val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
+            Log.d(TAG, "Bytes extracted: ${if (bytes == null) "NULL" else "size=${bytes.size}"}")
+            
+            // Check what extras are in the intent
+            activityResult.data?.extras?.let { extras ->
+                Log.d(TAG, "Intent extras keys: ${extras.keySet().joinToString()}")
+            } ?: Log.d(TAG, "No extras in intent")
 
-            bytes == null -> Toast.makeText(this@AnswerActivity, "Error", Toast.LENGTH_LONG).show()
-            else -> {
-                // Handle PublicKeyCredential Response from Authenticator
-                val credential = PublicKeyCredential.deserializeFromBytes(bytes)
-                val response = credential.response
-                if (response is AuthenticatorErrorResponse) {
-                    if (response.errorCode === ErrorCode.UNKNOWN_ERR) {
-                        Toast.makeText(
-                            this@AnswerActivity,
-                            "Something Went Wrong",
-                            Toast.LENGTH_LONG
-                        )
-                            .show()
-                    } else {
-                        Toast.makeText(
-                            this@AnswerActivity,
-                            response.errorMessage,
-                            Toast.LENGTH_LONG
-                        )
-                            .show()
-                    }
-                } else {
-                    if (signature === null) {
-                        Toast.makeText(this@AnswerActivity, "Signature is null", Toast.LENGTH_LONG)
-                            .show()
-                        return
-                    }
-                    val msg = viewModel.message.value!!
-                    val account = wallet.account.value!!
-                    // Create the Liquid Extension JSON
-                    val liquidExtJSON = JSONObject()
-                    // for falcon account type = falcan-1024
-                    liquidExtJSON.put("type", "algorand")
-                    liquidExtJSON.put("requestId", msg.requestId)
-                    liquidExtJSON.put("address", account.address.toString())
-                    liquidExtJSON.put("signature", Base64.encode(signature!!))
-                    liquidExtJSON.put("device", Build.MODEL)
+            when {
+                activityResult.resultCode != RESULT_OK -> {
+                    Log.e(TAG, "Attestation cancelled or failed. Result code: ${activityResult.resultCode}")
 
-                    lifecycleScope.launch {
-                        // POST Authenticator Results to FIDO2 API
-                        attestationApi
-                            .postAttestationResult(
-                                msg.origin,
-                                userAgent,
-                                credential,
-                                liquidExtJSON
-                            )
-                            .await()
-                        viewModel.saveCredential(
-                            this@AnswerActivity,
-                            wallet.account.value!!,
-                            credential
-                        )
-                        Log.d(TAG, "Credential Saved")
-                        if (mBounded) {
-                            Log.d(TAG, "Service Bonded")
-                            signalService?.peer(msg.requestId, "answer", iceServers)
-                            runOnUiThread {
-                                if (signalService!!.isDeepLink) this@AnswerActivity.onBackPressed()
+                    // Try to get error details from the intent
+                    activityResult.data?.let { data ->
+                        val errorBytes = data.getByteArrayExtra(Fido.FIDO2_KEY_ERROR_EXTRA)
+                        if (errorBytes != null) {
+                            try {
+                                val errorResponse = PublicKeyCredential.deserializeFromBytes(errorBytes)
+                                if (errorResponse.response is AuthenticatorErrorResponse) {
+                                    val error = errorResponse.response as AuthenticatorErrorResponse
+                                    Log.e(TAG, "FIDO2 Error Code: ${error.errorCode}")
+                                    Log.e(TAG, "FIDO2 Error Message: ${error.errorMessage}")
+                                    Toast
+                                        .makeText(
+                                            this@AnswerActivity,
+                                            "FIDO2 Error: ${error.errorMessage}",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                    return
+                                }
+                            } catch (e: Exception) {
+                                Log.e(TAG, "Failed to parse error response", e)
                             }
-                            signalService?.handleMessages(
-                                this@AnswerActivity,
-                                { peerMsg ->
-                                    Log.d(TAG, "handleMessages($peerMsg)")
-                                    handleMessages(peerMsg)
-                                },
-                                {
-                                    Log.d(TAG, "onStateChange($it)")
-                                    if (it === "OPEN") {
-                                        Log.d(TAG, "Sending Credential")
-                                        signalService?.send(
-                                            viewModel
-                                                .getCredentialMessage(
-                                                    wallet.account.value!!,
-                                                    credential
-                                                )
-                                                .toString()
-                                        )
-                                    }
-                                },
-                                notifications.createNotificationBuilder(this@AnswerActivity),
-                                NotificationViewModel.SERVICE_NOTIFICATION_ID,
-                                AnswerActivity::class.java
-                            )
+                        }
+                    }
+
+                    Toast.makeText(this@AnswerActivity, "Attestation canceled", Toast.LENGTH_LONG).show()
+                }
+
+                bytes == null -> {
+                    Log.e(TAG, "Credential bytes are null")
+                    Toast.makeText(this@AnswerActivity, "Error: No credential data", Toast.LENGTH_LONG).show()
+                }
+                else -> {
+                    Log.d(TAG, "✅ Credential bytes received, size: ${bytes.size}")
+
+                    // Handle PublicKeyCredential Response from Authenticator
+                    val credential = PublicKeyCredential.deserializeFromBytes(bytes)
+                    Log.d(TAG, "Credential ID: ${credential.id}")
+                    Log.d(TAG, "Credential Type: ${credential.type}")
+
+                    val response = credential.response
+                    Log.d(TAG, "Response type: ${response.javaClass.simpleName}")
+
+                    if (response is AuthenticatorErrorResponse) {
+                        Log.e(TAG, "❌ FIDO2 AUTHENTICATOR ERROR")
+                        Log.e(TAG, "Error Code: ${response.errorCode}")
+                        Log.e(TAG, "Error Code Name: ${response.errorCode.name}")
+                        Log.e(TAG, "Error Message: ${response.errorMessage}")
+
+                        if (response.errorCode === ErrorCode.UNKNOWN_ERR) {
+                            Toast
+                                .makeText(
+                                    this@AnswerActivity,
+                                    "Something Went Wrong: ${response.errorMessage}",
+                                    Toast.LENGTH_LONG,
+                                ).show()
                         } else {
-                            Toast.makeText(
-                                this@AnswerActivity,
-                                "Couldn't find service",
-                                Toast.LENGTH_LONG
-                            )
+                            Toast
+                                .makeText(
+                                    this@AnswerActivity,
+                                    "FIDO2 Error: ${response.errorMessage}",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                        }
+                        return
+                    } else {
+                        if (signature === null) {
+                            Toast
+                                .makeText(this@AnswerActivity, "Signature is null", Toast.LENGTH_LONG)
                                 .show()
+                            return
+                        }
+                        val msg = viewModel.message.value!!
+                        val account = wallet.account.value!!
+                        // Create the Liquid Extension JSON
+                        val liquidExtJSON = JSONObject()
+                        liquidExtJSON.put("type", "algorand")
+                        liquidExtJSON.put("requestId", msg.requestId)
+                        liquidExtJSON.put("address", account.address.toString())
+                        liquidExtJSON.put("signature", Base64.encode(signature!!))
+                        liquidExtJSON.put("device", Build.MODEL)
+
+                        lifecycleScope.launch {
+                            // POST Authenticator Results to FIDO2 API
+                            attestationApi
+                                .postAttestationResult(
+                                    msg.origin,
+                                    userAgent,
+                                    credential,
+                                    liquidExtJSON,
+                                ).await()
+                            viewModel.saveCredential(
+                                this@AnswerActivity,
+                                wallet.account.value!!,
+                                credential,
+                            )
+                            Log.d(TAG, "Credential Saved")
+                            if (mBounded) {
+                                Log.d(TAG, "Service Bonded")
+                                signalService?.peer(msg.requestId, "answer", iceServers)
+                                runOnUiThread {
+                                    if (signalService!!.isDeepLink) this@AnswerActivity.onBackPressed()
+                                }
+                                signalService?.handleMessages(
+                                    this@AnswerActivity,
+                                    { peerMsg ->
+                                        Log.d(TAG, "handleMessages($peerMsg)")
+                                        handleMessages(peerMsg)
+                                    },
+                                    {
+                                        Log.d(TAG, "onStateChange($it)")
+                                        if (it === "OPEN") {
+                                            Log.d(TAG, "Sending Credential")
+                                            signalService?.send(
+                                                viewModel
+                                                    .getCredentialMessage(
+                                                        wallet.account.value!!,
+                                                        credential,
+                                                    ).toString(),
+                                            )
+                                        }
+                                    },
+                                    notifications.createNotificationBuilder(this@AnswerActivity),
+                                    NotificationViewModel.SERVICE_NOTIFICATION_ID,
+                                    AnswerActivity::class.java,
+                                )
+                            } else {
+                                Toast
+                                    .makeText(
+                                        this@AnswerActivity,
+                                        "Couldn't find service",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                            }
                         }
                     }
                 }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Exception in handleAuthenticatorAttestationResult", e)
+            Log.e(TAG, "Exception type: ${e.javaClass.name}")
+            Log.e(TAG, "Exception message: ${e.message}")
+            e.printStackTrace()
+            runOnUiThread {
+                Toast
+                    .makeText(
+                        this@AnswerActivity,
+                        "Error processing attestation: ${e.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
             }
         }
     }
@@ -649,7 +930,10 @@ class AnswerActivity : AppCompatActivity() {
      * Receives PublicKeyCredentialRequestOptions from the FIDO2 Server and launches the
      * authenticator Intent using the handleAuthenticatorAssertionResult Handler
      */
-    private suspend fun authenticate(msg: AuthMessage, credential: String) {
+    private suspend fun authenticate(
+        msg: AuthMessage,
+        credential: String,
+    ) {
         val response =
             assertionApi
                 .postAssertionOptions(msg.origin, userAgent, credential)
@@ -676,7 +960,8 @@ class AnswerActivity : AppCompatActivity() {
                 Toast.makeText(this@AnswerActivity, "Canceled", Toast.LENGTH_LONG).show()
 
             bytes == null ->
-                Toast.makeText(this@AnswerActivity, "Authenticate Error", Toast.LENGTH_LONG)
+                Toast
+                    .makeText(this@AnswerActivity, "Authenticate Error", Toast.LENGTH_LONG)
                     .show()
 
             else -> {
@@ -684,12 +969,12 @@ class AnswerActivity : AppCompatActivity() {
                 val credential = PublicKeyCredential.deserializeFromBytes(bytes)
                 val pubKeyCredentialResponse = credential.response
                 if (pubKeyCredentialResponse is AuthenticatorErrorResponse) {
-                    Toast.makeText(
-                        this@AnswerActivity,
-                        pubKeyCredentialResponse.errorMessage,
-                        Toast.LENGTH_LONG
-                    )
-                        .show()
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            pubKeyCredentialResponse.errorMessage,
+                            Toast.LENGTH_LONG,
+                        ).show()
                 } else {
                     lifecycleScope.launch {
                         val liquidExtJSON = JSONObject()
@@ -701,9 +986,8 @@ class AnswerActivity : AppCompatActivity() {
                                     viewModel.message.value!!.origin,
                                     userAgent,
                                     credential,
-                                    liquidExtJSON
-                                )
-                                .await()
+                                    liquidExtJSON,
+                                ).await()
 
                         // Update Render/State
                         val data = response.body!!.string()
@@ -740,23 +1024,22 @@ class AnswerActivity : AppCompatActivity() {
                                             viewModel
                                                 .getCredentialMessage(
                                                     wallet.account.value!!,
-                                                    credential
-                                                )
-                                                .toString()
+                                                    credential,
+                                                ).toString(),
                                         )
                                     }
                                 },
                                 notifications.createNotificationBuilder(this@AnswerActivity),
                                 NotificationViewModel.SERVICE_NOTIFICATION_ID,
-                                AnswerActivity::class.java
+                                AnswerActivity::class.java,
                             )
                         } else {
-                            Toast.makeText(
-                                this@AnswerActivity,
-                                "Couldn't find service",
-                                Toast.LENGTH_LONG
-                            )
-                                .show()
+                            Toast
+                                .makeText(
+                                    this@AnswerActivity,
+                                    "Couldn't find service",
+                                    Toast.LENGTH_LONG,
+                                ).show()
                         }
                     }
                 }

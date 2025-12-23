@@ -122,7 +122,6 @@ kotlin {
                 implementation(files("../libs/provider-debug.aar"))
                 implementation(files("../libs/crypto-debug.aar"))
 
-
                 // FIDO2 - Deprecated
                 implementation("com.google.android.gms:play-services-fido:20.1.0")
                 implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
