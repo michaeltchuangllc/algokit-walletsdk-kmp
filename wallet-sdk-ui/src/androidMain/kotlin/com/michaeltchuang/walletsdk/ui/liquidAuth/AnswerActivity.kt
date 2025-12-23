@@ -205,6 +205,38 @@ class AnswerActivity : AppCompatActivity() {
 
         // Create FIDO Client, TODO: refactor to Credential Manager
         fido2Client = Fido2ApiClient(this@AnswerActivity)
+        
+        // Log app signature for debugging FIDO2 verification issues
+        try {
+            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            }
+            
+            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                packageInfo.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+            
+            signatures?.forEach { signature ->
+                val md = java.security.MessageDigest.getInstance("SHA-256")
+                md.update(signature.toByteArray())
+                val hash = md.digest()
+                val hexString = hash.joinToString(":") { byte -> "%02X".format(byte) }
+                Log.d(TAG, "========================================")
+                Log.d(TAG, "📱 APP SIGNATURE (SHA-256)")
+                Log.d(TAG, "Package: $packageName")
+                Log.d(TAG, "Fingerprint: $hexString")
+                Log.d(TAG, "========================================")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get app signature", e)
+        }
+        
         // Load the Shared Preferences
         hydrateSharedPreferences()
         //  fromUri(liquid://debug.liquidauth.com/?requestId=019b41a1-d33c-7559-9eff-98e7644e3bcd)
