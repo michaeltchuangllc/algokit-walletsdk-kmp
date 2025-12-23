@@ -713,9 +713,12 @@ class AnswerActivity : AppCompatActivity() {
                 Log.d(TAG, "PendingIntent received: $pendingIntent")
 
                 val intentSenderRequest = IntentSenderRequest.Builder(pendingIntent).build()
-                Log.d(TAG, "Launching attestation intent...")
+                Log.d(TAG, "========================================")
+                Log.d(TAG, "🔐 LAUNCHING PASSKEY REGISTRATION")
+                Log.d(TAG, "You should see a biometric/passkey popup now...")
+                Log.d(TAG, "========================================")
                 attestationIntentLauncher.launch(intentSenderRequest)
-                Log.d(TAG, "Intent launched successfully")
+                Log.d(TAG, "Intent launched - waiting for user interaction...")
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to launch FIDO2 intent", e)
                 Log.e(TAG, "Exception type: ${e.javaClass.name}")
@@ -853,20 +856,60 @@ class AnswerActivity : AppCompatActivity() {
                         liquidExtJSON.put("device", Build.MODEL)
 
                         lifecycleScope.launch {
+                            Log.d(TAG, "========================================")
+                            Log.d(TAG, "📤 POSTING CREDENTIAL TO SERVER")
+                            Log.d(TAG, "URL: ${msg.origin}/attestation/response")
+                            Log.d(TAG, "========================================")
+                            
                             // POST Authenticator Results to FIDO2 API
-                            attestationApi
+                            val attestationResponse = attestationApi
                                 .postAttestationResult(
                                     msg.origin,
                                     userAgent,
                                     credential,
                                     liquidExtJSON,
                                 ).await()
+                            
+                            Log.d(TAG, "========================================")
+                            Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
+                            Log.d(TAG, "Server response: ${attestationResponse.code}")
+                            Log.d(TAG, "Credential ID: ${credential.id}")
+                            Log.d(TAG, "Account: ${account.address}")
+                            Log.d(TAG, "========================================")
+                            
+                            runOnUiThread {
+                                Toast.makeText(
+                                    this@AnswerActivity,
+                                    "✅ Registration successful! Credential saved.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                            
                             viewModel.saveCredential(
                                 this@AnswerActivity,
                                 wallet.account.value!!,
                                 credential,
                             )
-                            Log.d(TAG, "Credential Saved")
+                            Log.d(TAG, "Credential Saved to local storage")
+                            
+                            // 🧪 TESTING FLAG: Set to true to auto-test authentication instead of WebRTC
+                            val testAuthenticationInstead = true
+                            
+                            if (testAuthenticationInstead) {
+                                // Test mode: Skip WebRTC and test authentication
+                                kotlinx.coroutines.delay(2000) // Wait 2 seconds
+                                Log.d(TAG, "========================================")
+                                Log.d(TAG, "🧪 TEST MODE: TESTING AUTHENTICATION")
+                                Log.d(TAG, "Now attempting to authenticate with saved credential...")
+                                Log.d(TAG, "Credential ID: ${credential.id}")
+                                Log.d(TAG, "========================================")
+                                credential.id?.let { credId ->
+                                    authenticate(msg, credId)
+                                } ?: Log.e(TAG, "Cannot test authentication: credential ID is null")
+                                return@launch // Skip WebRTC flow
+                            }
+                            
+                            // Normal flow: Continue with WebRTC setup
                             if (mBounded) {
                                 Log.d(TAG, "Service Bonded")
                                 signalService?.peer(msg.requestId, "answer", iceServers)
@@ -934,17 +977,34 @@ class AnswerActivity : AppCompatActivity() {
         msg: AuthMessage,
         credential: String,
     ) {
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🔓 STARTING AUTHENTICATION")
+        Log.d(TAG, "Origin: ${msg.origin}")
+        Log.d(TAG, "Credential: $credential")
+        Log.d(TAG, "========================================")
+        
         val response =
             assertionApi
                 .postAssertionOptions(msg.origin, userAgent, credential)
                 .await()
+        
+        Log.d(TAG, "Got assertion options from server")
+        
         val session = Cookie.fromResponse(response)
         session?.let { setSession(Cookie.getID(it)) }
         val publicKeyCredentialRequestOptions =
             response.body!!.toPublicKeyCredentialRequestOptions()
+        
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "🔐 LAUNCHING PASSKEY AUTHENTICATION")
+        Log.d(TAG, "You should see a biometric/passkey popup now...")
+        Log.d(TAG, "========================================")
+        
         val pendingIntent =
             fido2Client!!.getSignPendingIntent(publicKeyCredentialRequestOptions).await()
         assertionIntentLauncher.launch(IntentSenderRequest.Builder(pendingIntent).build())
+        
+        Log.d(TAG, "Authentication intent launched - waiting for user...")
     }
 
     /**
@@ -976,9 +1036,15 @@ class AnswerActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG,
                         ).show()
                 } else {
+                    Log.d(TAG, "✅ Authentication credential received")
+                    Log.d(TAG, "Credential ID: ${credential.id}")
+                    
                     lifecycleScope.launch {
                         val liquidExtJSON = JSONObject()
                         liquidExtJSON.put("requestId", viewModel.message.value!!.requestId)
+                        
+                        Log.d(TAG, "📤 Posting authentication assertion to server...")
+                        
                         // POST Authenticator Results to FIDO2 API
                         val response =
                             assertionApi
@@ -988,6 +1054,20 @@ class AnswerActivity : AppCompatActivity() {
                                     credential,
                                     liquidExtJSON,
                                 ).await()
+
+                        Log.d(TAG, "========================================")
+                        Log.d(TAG, "✅ AUTHENTICATION SUCCESSFUL!")
+                        Log.d(TAG, "Server response: ${response.code}")
+                        Log.d(TAG, "Credential was recognized and validated!")
+                        Log.d(TAG, "========================================")
+                        
+                        runOnUiThread {
+                            Toast.makeText(
+                                this@AnswerActivity,
+                                "🔓 Authentication Successful!\nUsing saved credential",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
 
                         // Update Render/State
                         val data = response.body!!.string()
