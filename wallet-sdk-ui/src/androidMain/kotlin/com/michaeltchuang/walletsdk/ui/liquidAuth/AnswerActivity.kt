@@ -576,6 +576,7 @@ class AnswerActivity : AppCompatActivity() {
                     val account = wallet.account.value!!
                     // Create the Liquid Extension JSON
                     val liquidExtJSON = JSONObject()
+                    // for falcon account type = falcan-1024
                     liquidExtJSON.put("type", "algorand")
                     liquidExtJSON.put("requestId", msg.requestId)
                     liquidExtJSON.put("address", account.address.toString())
