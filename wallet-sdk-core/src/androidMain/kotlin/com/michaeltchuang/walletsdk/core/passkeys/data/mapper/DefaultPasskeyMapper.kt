@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySite
 
 
-internal class DefaultPasskeyMapper constructor() : PasskeyMapper {
+internal class DefaultPasskeyMapper() : PasskeyMapper {
 
     override fun mapToPasskey(entity: PasskeyEntity, siteEntity: SiteEntity): Passkey {
         return Passkey(

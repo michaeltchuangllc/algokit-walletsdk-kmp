@@ -9,6 +9,8 @@ internal val liquidAuthModules =
         module {
             viewModel {
                 LiquidAuthViewModel(
+                    nameRegistrationUseCase = get(),
+                    getBasicAccountInformationUseCase = get(),
                     stateDelegate = get(),
                     eventDelegate = get(),
                 )

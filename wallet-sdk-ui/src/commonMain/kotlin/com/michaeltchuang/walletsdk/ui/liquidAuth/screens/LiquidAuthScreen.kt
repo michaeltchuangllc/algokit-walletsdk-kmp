@@ -1,31 +1,53 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_account
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
+import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.liquidAuth.connect
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
+import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.stringResource
+import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -37,6 +59,7 @@ fun LiquidAuthScreen(
     val viewModel: LiquidAuthViewModel = koinViewModel()
     val viewState = viewModel.state.collectAsStateWithLifecycle().value
     val onConnect = remember { mutableStateOf(false) }
+    var selectedAccount by remember { mutableStateOf("") }
 
     LaunchedEffect(uri) {
         viewModel.initialize(uri)
@@ -49,81 +72,25 @@ fun LiquidAuthScreen(
                     navController.popBackStack()
                 }
 
-                is LiquidAuthViewModel.ViewEvent.AuthenticationError -> {
+                is LiquidAuthViewModel.ViewEvent.ShowError -> {
                 }
             }
         }
     }
+    ScreenContentLiquidAuth(
+        viewState,
+        onAccountSelected = {
+            onConnect.value = true
+            selectedAccount = it
+        }, onBack = {
+            navController.popBackStack()
+        })
 
-    ScreenContent(
-        viewState = viewState,
-        onBackClick = { navController.popBackStack() },
-        onConnect = { onConnect.value = true },
-    )
     if (onConnect.value) {
-        connect(viewModel.authMessage)
+        connect(viewModel.authMessage, selectedAccount)
         onConnect.value = false
     }
-}
 
-@Composable
-internal fun ScreenContent(
-    viewState: LiquidAuthViewModel.ViewState = LiquidAuthViewModel.ViewState.Idle,
-    onBackClick: () -> Unit = {},
-    onConnect: () -> Unit = {},
-) {
-    Column(
-        modifier =
-            Modifier
-                .background(color = AlgoKitTheme.colors.background)
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-    ) {
-        AlgoKitTopBar(
-            title = "Liquid Auth",
-            onClick = onBackClick,
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        when (viewState) {
-            is LiquidAuthViewModel.ViewState.Idle -> {
-                CenteredMessage("Initializing...")
-            }
-
-            is LiquidAuthViewModel.ViewState.Loading -> {
-                CenteredContent {
-                    CircularProgressIndicator(color = AlgoKitTheme.colors.textMain)
-                }
-            }
-
-            is LiquidAuthViewModel.ViewState.Content -> {
-                ContentView(
-                    origin = viewState.origin,
-                    requestId = viewState.requestId,
-                    rawUri = viewState.rawUri,
-                    onConnect = onConnect,
-                )
-            }
-
-            is LiquidAuthViewModel.ViewState.Error -> {
-                CenteredContent {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Error",
-                            style = AlgoKitTheme.typography.title.regular.sansMedium,
-                            color = AlgoKitTheme.colors.textMain,
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = viewState.message,
-                            style = AlgoKitTheme.typography.body.regular.sans,
-                            color = AlgoKitTheme.colors.textGray,
-                        )
-                    }
-                }
-            }
-        }
-    }
 }
 
 @Composable
@@ -183,7 +150,7 @@ private fun ContentView(
 private fun InfoField(
     label: String,
     value: String,
-    valueColor: androidx.compose.ui.graphics.Color = AlgoKitTheme.colors.textMain,
+    valueColor: Color = AlgoKitTheme.colors.textMain,
 ) {
     Text(
         text = label,
@@ -198,8 +165,215 @@ private fun InfoField(
     )
 }
 
+
+@Composable
+fun ScreenContentLiquidAuth(
+    viewState: LiquidAuthViewModel.ViewState,
+    onAccountSelected: (String) -> Unit,
+    onBack: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(AlgoKitTheme.colors.background),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+        ) {
+            AlgoKitTopBar(
+                title = stringResource(Res.string.select_account),
+                onClick = onBack,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            when (viewState) {
+                is LiquidAuthViewModel.ViewState.Loading -> {
+                    CenteredLoader()
+                }
+
+                is LiquidAuthViewModel.ViewState.Content -> {
+                    val accounts =
+                        viewState.accounts
+                    if (accounts.isEmpty()) {
+                        CenteredMessage("No accounts available")
+                    } else {
+                        AccountsList(
+                            accounts = accounts,
+                            onAccountItemClick = { address ->
+                                val account = accounts.find { it.address == address }
+                                if (account != null) {
+                                    onAccountSelected(account.address)
+                                }
+                            },
+                        )
+                    }
+                }
+
+                is LiquidAuthViewModel.ViewState.Error -> {
+                    CenteredMessage(
+                        text = "Error: ${viewState.message}",
+                        color = AlgoKitTheme.colors.negative,
+                    )
+                }
+
+                LiquidAuthViewModel.ViewState.Idle -> {}
+            }
+        }
+    }
+}
+
+@Composable
+private fun CenteredLoader() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            color = AlgoKitTheme.colors.textMain,
+        )
+    }
+}
+
+@Composable
+private fun CenteredMessage(
+    text: String,
+    color: Color = AlgoKitTheme.colors.textMain,
+) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = color,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
+
+@Composable
+private fun AccountsList(
+    accounts: List<AccountLite>,
+    onAccountItemClick: (String) -> Unit,
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        items(accounts) { account ->
+            AccountItem(
+                account = account,
+                onAccountItemClick = onAccountItemClick,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountItem(
+    account: AccountLite,
+    onAccountItemClick: (address: String) -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable(onClick = {
+                    onAccountItemClick(account.address)
+                }),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AlgoKitIconRoundShape(
+                imageVector = vectorResource(getWalletIcon(account.registrationType)),
+                contentDescription = "Wallet Icon",
+                backgroundColor = AlgoKitTheme.colors.wallet4,
+            )
+
+            Column(
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+            ) {
+                Text(
+                    text = account.customName.ifEmpty { account.address.toShortenedAddress() },
+                    style = typography.body.large.sansMedium,
+                    color = AlgoKitTheme.colors.textMain,
+                )
+                Text(
+                    text = getAccountTypeText(account.registrationType),
+                    style = typography.footnote.mono,
+                    color = AlgoKitTheme.colors.textGray,
+                )
+            }
+
+            Column(
+                horizontalAlignment = Alignment.End,
+            ) {
+                Text(
+                    text = "\u00A6${account.balance?.formatAmount() ?: "0.00"}",
+                    fontSize = 16.sp,
+                    style = typography.footnote.sansMedium,
+                    color = AlgoKitTheme.colors.textMain,
+                )
+            }
+        }
+    }
+}
+
+private fun getWalletIcon(registrationType: AccountRegistrationType): DrawableResource =
+    when (registrationType) {
+        is AccountRegistrationType.HdKey -> Res.drawable.ic_hd_wallet
+        else -> Res.drawable.ic_wallet
+    }
+
+private fun getAccountTypeText(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.HdKey -> "HD Account"
+        is AccountRegistrationType.Algo25 -> "Algo25"
+        is AccountRegistrationType.Falcon24 -> "Falcon24"
+        is AccountRegistrationType.NoAuth -> "Watch"
+        is AccountRegistrationType.LedgerBle -> "Ledger"
+    }
+
 @Preview
 @Composable
 fun LiquidAuthScreenPreview() {
-    ScreenContent()
+
+
+    val accounts = mutableListOf<AccountLite>().apply {
+        add(
+            AccountLite(
+                address = "address1",
+                customName = "Account 1",
+                registrationType = AccountRegistrationType.HdKey,
+                balance = "1"
+            )
+        )
+        add(
+            AccountLite(
+                address = "address1",
+                customName = "Account 1",
+                registrationType = AccountRegistrationType.HdKey,
+                balance = "1"
+            )
+        )
+    }
+    ScreenContentLiquidAuth(
+        viewState = LiquidAuthViewModel.ViewState.Content(accounts),
+        onAccountSelected = {
+        },
+        onBack = { },
+    )
 }

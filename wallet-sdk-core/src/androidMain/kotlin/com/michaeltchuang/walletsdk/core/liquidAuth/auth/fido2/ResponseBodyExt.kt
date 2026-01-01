@@ -9,14 +9,23 @@ import okhttp3.ResponseBody
 @Deprecated("Use the new CredentialManager API")
 fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialRequestOptions{
     val builder = PublicKeyCredentialRequestOptions.Builder()
+    var challengeSet = false
+    var rpIdSet = false
+
     JsonReader(this.byteStream().bufferedReader()).use { reader ->
         reader.beginObject()
         while (reader.hasNext()) {
             when (reader.nextName()) {
-                "challenge" -> builder.setChallenge(reader.nextString().decodeBase64())
+                "challenge" -> {
+                    builder.setChallenge(reader.nextString().decodeBase64())
+                    challengeSet = true
+                }
                 "userVerification" -> reader.skipValue()
                 "allowCredentials" -> builder.setAllowList(parseCredentialDescriptors(reader))
-                "rpId" -> builder.setRpId(reader.nextString())
+                "rpId" -> {
+                    builder.setRpId(reader.nextString())
+                    rpIdSet = true
+                }
                 "timeout" -> builder.setTimeoutSeconds(reader.nextDouble())
 
                 else -> reader.skipValue()
@@ -24,6 +33,16 @@ fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialReque
         }
         reader.endObject()
     }
+
+    if (!challengeSet) {
+        Log.e("FIDO2", "Challenge is missing from PublicKeyCredentialRequestOptions!")
+        throw IllegalArgumentException("Challenge is required for PublicKeyCredentialRequestOptions")
+    }
+
+    if (!rpIdSet) {
+        Log.w("FIDO2", "rpId is missing from PublicKeyCredentialRequestOptions - this may cause issues")
+    }
+
     return builder.build()
 }
 
@@ -31,14 +50,26 @@ fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialReque
 fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = null): PublicKeyCredentialCreationOptions {
     val builder = PublicKeyCredentialCreationOptions.Builder()
     var parsedRpEntity: PublicKeyCredentialRpEntity? = null
-    
+    var challengeSet = false
+    var userSet = false
+    var parametersSet = false
+
     JsonReader(this.byteStream().bufferedReader()).use { reader ->
         reader.beginObject()
         while (reader.hasNext()) {
             when (reader.nextName()) {
-                "user" -> builder.setUser(parseUser(reader))
-                "challenge" -> builder.setChallenge(reader.nextString().decodeBase64())
-                "pubKeyCredParams" -> builder.setParameters(parseParameters(reader))
+                "user" -> {
+                    builder.setUser(parseUser(reader))
+                    userSet = true
+                }
+                "challenge" -> {
+                    builder.setChallenge(reader.nextString().decodeBase64())
+                    challengeSet = true
+                }
+                "pubKeyCredParams" -> {
+                    builder.setParameters(parseParameters(reader))
+                    parametersSet = true
+                }
                 "timeout" -> builder.setTimeoutSeconds(reader.nextDouble())
                 "attestation" -> {
                     val attestation = reader.nextString()
@@ -75,7 +106,23 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = nu
         }
         reader.endObject()
     }
-    
+
+    // Validate required fields
+    if (!challengeSet) {
+        Log.e("FIDO2", "Challenge is missing from PublicKeyCredentialCreationOptions!")
+        throw IllegalArgumentException("Challenge is required for PublicKeyCredentialCreationOptions")
+    }
+
+    if (!userSet) {
+        Log.e("FIDO2", "User is missing from PublicKeyCredentialCreationOptions!")
+        throw IllegalArgumentException("User is required for PublicKeyCredentialCreationOptions")
+    }
+
+    if (!parametersSet) {
+        Log.e("FIDO2", "pubKeyCredParams is missing from PublicKeyCredentialCreationOptions!")
+        throw IllegalArgumentException("pubKeyCredParams is required for PublicKeyCredentialCreationOptions")
+    }
+
     // Apply RP ID override if provided
     if (overrideRpId != null && parsedRpEntity != null) {
         Log.w("FIDO2", "Overriding server RP ID '${parsedRpEntity!!.id}' with '$overrideRpId'")
@@ -86,7 +133,7 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = nu
         )
         builder.setRp(overriddenRp)
     }
-    
+
     Log.d("FIDO2", "Parsed PublicKeyCredentialCreationOptions successfully")
     return builder.build()
 }

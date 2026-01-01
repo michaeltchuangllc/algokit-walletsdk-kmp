@@ -11,6 +11,7 @@ interface PasskeyRepository {
     suspend fun getSitePasskeys(url: String): List<Passkey>
     suspend fun addNewPasskey(args: AddPasskeyArgs)
     suspend fun getPasskey(credId: String): Passkey?
+    suspend fun getCredentialIdBySiteId(url: String): String?
     suspend fun removePasskeyByCredentialId(credId: String)
     suspend fun clearAllPasskeys()
     suspend fun setPasskeyLastUsedTime(credId: String, lastUsed: Long)

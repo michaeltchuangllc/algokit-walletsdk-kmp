@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.DefaultCreatePublicKeyCredentialResponseArgsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 import com.michaeltchuang.walletsdk.core.passkeys.validator.GetPasskeyIntentValidator
+import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.DefaultCreatePasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.DefaultGetPasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.mapper.DefaultCreatePasskeyParamsMapper
@@ -45,5 +46,8 @@ val passkeysUiModule =
                 getCredentialResponseProcessor = get(),
                 getPasskeyIntentValidator = get(),
             )
+        }
+        viewModel {
+            AnswerViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get())
         }
     }

@@ -133,6 +133,12 @@ kotlin {
             // Signaling Service
             implementation("io.socket:socket.io-client:2.1.0")
             implementation("io.getstream:stream-webrtc-android:1.1.3")
+
+            implementation("com.fasterxml.jackson.core:jackson-annotations:2.16.1")
+            implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
+            implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.16.1")
+            implementation("net.pwall.json:json-kotlin-schema:0.46")
+
         }
         commonMain.dependencies {
             api(libs.napier)

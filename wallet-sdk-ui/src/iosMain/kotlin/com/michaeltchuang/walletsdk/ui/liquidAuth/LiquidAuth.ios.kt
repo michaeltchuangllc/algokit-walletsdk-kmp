@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 @Composable
 actual fun connect(
     authMessage: AuthMessage
+    ,algoAddress: String
 ) {
     // iOS implementation
 }

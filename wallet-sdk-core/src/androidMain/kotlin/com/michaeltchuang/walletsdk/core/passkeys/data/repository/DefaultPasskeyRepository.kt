@@ -58,6 +58,11 @@ internal class DefaultPasskeyRepository(
         return passkeyMapper.mapToPasskey(passkeyEntity, siteEntity)
     }
 
+    override suspend fun getCredentialIdBySiteId(url: String): String? {
+       val siteId = passkeySiteDao.getSiteId(url) ?: return null
+        return passkeyDao.getCredentialIdBySiteId(siteId)
+    }
+
     override suspend fun removePasskeyByCredentialId(credId: String) {
         val passkey = passkeyDao.getByCredId(credId)
         if (passkey != null) {

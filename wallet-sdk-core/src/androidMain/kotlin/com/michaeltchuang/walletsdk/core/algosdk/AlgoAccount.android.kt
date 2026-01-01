@@ -82,6 +82,50 @@ actual fun signAlgo25Transaction(
     return Encoder.encodeToMsgPack(signedTransaction)
 }
 
+actual fun signHdKeyArbitraryData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? {
+    return SignHdKeyTransactionImpl().signLegacyArbitraryData(
+        data,
+        seed,
+        account,
+        change,
+        key,
+    )
+}
+
+actual fun signHdKeyData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? {
+    return SignHdKeyTransactionImpl().signArbitraryData(
+        data,
+        seed,
+        account,
+        change,
+        key,
+    )
+}
+
+actual fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? {
+    return SignFalcon24TransactionImpl().signLegacyArbitraryData(
+        data,
+        publicKey,
+        privateKey,
+    )
+}
+
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray =
     with(payload) {
         val suggestedParams = txnParams.toSuggestedParams()

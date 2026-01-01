@@ -27,6 +27,10 @@ internal interface PasskeyDao {
     @Query("UPDATE passkey_table SET last_used_time_ms = :lastUsed WHERE credential_id = :credentialId")
     suspend fun updateLastUsedTime(credentialId: String, lastUsed: Long)
 
+    @Query("SELECT credential_id FROM passkey_table WHERE site_id = :siteId LIMIT 1")
+    suspend fun getCredentialIdBySiteId(siteId: Long): String?
+
+
     @Query(
         """
             SELECT EXISTS (

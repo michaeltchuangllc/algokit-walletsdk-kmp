@@ -471,3 +471,67 @@ actual fun makeAssetAcceptanceTxn(
 
     return encodedTx.toByteArray()
 }
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signHdKeyArbitraryData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? {
+    return try {
+        val seedBase64 = seed.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
+
+       /* val signedDataBase64 =
+            bridge.signHdArbitraryDataWithSeedBase64(
+                seedBase64 = seedBase64,
+                account = account.toLong(),
+                change = change.toLong(),
+                key = key.toLong(),
+                dataBase64 = dataBase64,
+            )*/
+
+        Base64.decode("signedDataBase64")
+    } catch (e: Exception) {
+        println("HD arbitrary data signing failed: ${e.message}")
+        null
+    }
+}
+
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? {
+    return try {
+        val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong())
+
+        /*val signedDataBase64 =
+            bridge.signFalconArbitraryDataWithPublicKeyBase64(
+                dataBase64 = dataBase64,
+                publicKeyBase64 = publicKeyBase64,
+                privateKeyBase64 = privateKeyBase64,
+            )*/
+
+        Base64.decode("")
+    } catch (e: Exception) {
+        println("Falcon24 arbitrary data signing failed: ${e.message}")
+        null
+    }
+}
+
+actual fun signHdKeyData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int
+): ByteArray? {
+    TODO("Not yet implemented")
+}

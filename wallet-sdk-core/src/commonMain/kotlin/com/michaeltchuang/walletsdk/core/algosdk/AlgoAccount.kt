@@ -32,6 +32,28 @@ expect fun signFalcon24Transaction(
     privateKey: ByteArray,
 ): ByteArray?
 
+expect fun signHdKeyArbitraryData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray?
+
+expect fun signHdKeyData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray?
+
+expect fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray?
+
 expect fun signAlgo25Transaction(
     secretKey: ByteArray,
     transactionByteArray: ByteArray,

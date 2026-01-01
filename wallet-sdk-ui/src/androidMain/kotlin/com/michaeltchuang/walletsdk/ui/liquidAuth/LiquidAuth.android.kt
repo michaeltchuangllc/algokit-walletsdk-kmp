@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.compose.runtime.Composable
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 
+const val EXTRA_ALGO_ADDRESS = "EXTRA_ALGO_ADDRESS"
 object AuthMessageStorage {
     var AuthMessage =
         com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
@@ -11,19 +12,14 @@ object AuthMessageStorage {
 }
 
 @Composable
-actual fun connect(authMessage: AuthMessage) {
-    /* val context = androidx.compose.ui.platform.LocalContext.current
-     val activity = context as? ComponentActivity
-         ?: throw IllegalArgumentException("Context must be a ComponentActivity for Android")
-     val answer = Answer(activity)
-     LaunchedEffect(Unit) {
-         answer.register(authMessage)
-     }*/
+actual fun connect(authMessage: AuthMessage,algoAddress: String) {
     AuthMessageStorage.AuthMessage =
         com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage(
             authMessage.origin,
             authMessage.requestId,
         )
     val context = androidx.compose.ui.platform.LocalContext.current
-    context.startActivity(Intent(context, AnswerActivity::class.java))
+    val intent = Intent(context, AnswerActivity::class.java)
+    intent.putExtra(EXTRA_ALGO_ADDRESS, algoAddress)
+    context.startActivity(intent)
 }
