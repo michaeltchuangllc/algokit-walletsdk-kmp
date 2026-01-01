@@ -23,8 +23,9 @@ internal class AddHdSeedUseCase(
     }
 
     private suspend fun createNewSeed(entropy: ByteArray): WalletSdkResult<Int> {
-        val seed = getSeedFromEntropy(entropy)
-            ?: return WalletSdkResult.Error(Exception("Failed to generate seed from entropy"))
+        val seed =
+            getSeedFromEntropy(entropy)
+                ?: return WalletSdkResult.Error(Exception("Failed to generate seed from entropy"))
         val newSeedId = addHdSeed(seed.copyOf(), entropy)
         setCustomInfo(newSeedId)
         seed.clearFromMemory()

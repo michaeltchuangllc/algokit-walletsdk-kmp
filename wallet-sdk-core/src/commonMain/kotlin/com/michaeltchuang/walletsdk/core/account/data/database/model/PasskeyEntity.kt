@@ -13,13 +13,13 @@ import androidx.room.PrimaryKey
             entity = SiteEntity::class,
             parentColumns = ["id"],
             childColumns = ["site_id"],
-            onDelete = ForeignKey.CASCADE
-        )
+            onDelete = ForeignKey.CASCADE,
+        ),
     ],
     indices = [
         Index(value = ["site_id"]),
-        Index(value = ["algo_address"])
-    ]
+        Index(value = ["algo_address"]),
+    ],
 )
 internal data class PasskeyEntity(
     @PrimaryKey
@@ -36,5 +36,5 @@ internal data class PasskeyEntity(
     @ColumnInfo(name = "user_display_name")
     val userDisplayName: String?,
     @ColumnInfo(name = "last_used_time_ms")
-    val lastUsedTimeMs: Long?
+    val lastUsedTimeMs: Long?,
 )

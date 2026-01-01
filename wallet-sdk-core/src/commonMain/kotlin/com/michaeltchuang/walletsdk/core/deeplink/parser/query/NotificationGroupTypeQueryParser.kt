@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.deeplink.parser.query
 
-import com.michaeltchuang.walletsdk.core.deeplink.model.NotificationGroupType
 import com.michaeltchuang.walletsdk.core.deeplink.model.AlgorandUri
+import com.michaeltchuang.walletsdk.core.deeplink.model.NotificationGroupType
 
 internal class NotificationGroupTypeQueryParser : DeepLinkQueryParser<NotificationGroupType?> {
     override fun parseQuery(algorandUri: AlgorandUri): NotificationGroupType? =

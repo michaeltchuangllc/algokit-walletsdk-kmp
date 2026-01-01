@@ -13,13 +13,12 @@ import okhttp3.OkHttpClient
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
 
-
 class SignalService : Service() {
     companion object {
         const val TAG = "auth.connect.Service"
         const val LIQUID_NOTIFICATION_ID = 1337
-
     }
+
     // Last known deep-link referrer
     var lastKnownReferer: String? = null
     var isDeepLink: Boolean = true
@@ -34,9 +33,7 @@ class SignalService : Service() {
 
     // Simple service binding
     inner class LocalBinder : Binder() {
-        fun getServerInstance(): SignalService {
-            return this@SignalService
-        }
+        fun getServerInstance(): SignalService = this@SignalService
     }
 
     // Service Binder
@@ -45,14 +42,15 @@ class SignalService : Service() {
     /**
      * Handle Service Binding
      */
-    override fun onBind(intent: Intent): IBinder {
-        return mBinder
-    }
+    override fun onBind(intent: Intent): IBinder = mBinder
 
     /**
      * Start the Service in the Foreground
      */
-    fun startForeground(notificationBuilder: Builder, notificationId: Int) {
+    fun startForeground(
+        notificationBuilder: Builder,
+        notificationId: Int,
+    ) {
         try {
             ServiceCompat.startForeground(
                 this,
@@ -67,8 +65,8 @@ class SignalService : Service() {
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start foreground service", e)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && e is ForegroundServiceStartNotAllowedException
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                e is ForegroundServiceStartNotAllowedException
             ) {
                 Log.e(TAG, "Foreground service not allowed")
             }
@@ -80,12 +78,12 @@ class SignalService : Service() {
      */
     fun notify(
         notificationBuilder: Builder,
-        notificationId: Int
+        notificationId: Int,
     ) {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(
             notificationId,
-            notificationBuilder.build()
+            notificationBuilder.build(),
         )
     }
 
@@ -99,7 +97,7 @@ class SignalService : Service() {
         httpClient: OkHttpClient,
         notificationBuilder: Builder,
         notificationId: Int,
-        activityClass: Class<out Activity>
+        activityClass: Class<out Activity>,
     ) {
         startForeground(notificationBuilder.setContentIntent(createPendingIntent(activityClass, 0)), notificationId)
         val isInitialized = signalClient != null
@@ -129,12 +127,17 @@ class SignalService : Service() {
         peerClient = signalClient?.peerClient
         peerConnection = peerClient?.peerConnection
     }
+
     /**
      * Create a PendingIntent
      *
      * This PendingIntent is used to open the SignTransactionActivity when a transaction message is received
      */
-    fun createPendingIntent(activityClass: Class<out Activity>, requestCode: Int = 0, msg: String? = null): PendingIntent {
+    fun createPendingIntent(
+        activityClass: Class<out Activity>,
+        requestCode: Int = 0,
+        msg: String? = null,
+    ): PendingIntent {
         val answerIntent = Intent(this@SignalService, activityClass)
         answerIntent.setFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         msg?.let {
@@ -144,10 +147,11 @@ class SignalService : Service() {
             addNextIntentWithParentStack(answerIntent)
             getPendingIntent(
                 requestCode,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
             )
         }
     }
+
     /**
      * Handle Messages and State Changes
      *
@@ -160,7 +164,7 @@ class SignalService : Service() {
         onStateChange: ((state: String?) -> Unit)? = null,
         notificationBuilder: Builder,
         notificationId: Int = LIQUID_NOTIFICATION_ID,
-        activityClass: Class<out Activity>
+        activityClass: Class<out Activity>,
     ) {
         var requestCode = 1
         var serviceIntentRequestCode = 0
@@ -177,7 +181,7 @@ class SignalService : Service() {
                     notificationBuilder
                         .setContentText(msg)
                         .setContentIntent(createPendingIntent(activityClass, requestCode, msg)),
-                    notificationId
+                    notificationId,
                 )
                 requestCode += 1
             }, { state ->
@@ -186,8 +190,8 @@ class SignalService : Service() {
                         notificationBuilder
                             .setContentText("Tap to open the app.")
                             .setOnlyAlertOnce(true)
-                            .setContentIntent(createPendingIntent(activityClass, serviceIntentRequestCode,null))
-                    , notificationId
+                            .setContentIntent(createPendingIntent(activityClass, serviceIntentRequestCode, null)),
+                        notificationId,
                     )
                 }
                 onStateChange?.invoke(state)

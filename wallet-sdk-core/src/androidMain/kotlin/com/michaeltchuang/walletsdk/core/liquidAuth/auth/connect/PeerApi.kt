@@ -7,7 +7,9 @@ import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class PeerApi(context: Context) {
+class PeerApi(
+    context: Context,
+) {
     companion object {
         const val TAG = "connect.PeerApi"
     }
@@ -20,17 +22,20 @@ class PeerApi(context: Context) {
 
     init {
         PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions.builder(context)
+            PeerConnectionFactory.InitializationOptions
+                .builder(context)
                 .setEnableInternalTracer(true)
-                .createInitializationOptions()
+                .createInitializationOptions(),
         )
-        peerConnectionFactory = PeerConnectionFactory
-            .builder()
-            .setOptions(PeerConnectionFactory.Options().apply {
-                disableEncryption = false
-                disableNetworkMonitor = false
-            })
-            .createPeerConnectionFactory()
+        peerConnectionFactory =
+            PeerConnectionFactory
+                .builder()
+                .setOptions(
+                    PeerConnectionFactory.Options().apply {
+                        disableEncryption = false
+                        disableNetworkMonitor = false
+                    },
+                ).createPeerConnectionFactory()
     }
 
     // Current Peer Connection
@@ -42,80 +47,93 @@ class PeerApi(context: Context) {
     fun createPeerConnection(
         onIceCandidate: (IceCandidate) -> Unit,
         onDataChannel: (DataChannel) -> Unit,
-        iceServers: List<PeerConnection.IceServer>? = listOf(
-            PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-                .createIceServer()
-        )
+        iceServers: List<PeerConnection.IceServer>? =
+            listOf(
+                PeerConnection.IceServer
+                    .builder("stun:stun.l.google.com:19302")
+                    .createIceServer(),
+            ),
     ) {
         if (peerConnection !== null) {
             peerConnection?.close()
         }
 
-        peerConnection = peerConnectionFactory.createPeerConnection(
-            iceServers,
-            object : PeerConnection.Observer {
-                override fun onIceCandidate(p0: IceCandidate?) {
-                    p0?.let {
-                        onIceCandidate(it)
+        peerConnection =
+            peerConnectionFactory.createPeerConnection(
+                iceServers,
+                object : PeerConnection.Observer {
+                    override fun onIceCandidate(p0: IceCandidate?) {
+                        p0?.let {
+                            onIceCandidate(it)
+                        }
                     }
-                }
 
-                override fun onDataChannel(p0: DataChannel?) {
-                    Log.d(TAG, "onDataChannel($p0)")
-                    dataChannel = p0
-                    onDataChannel(p0!!)
-                }
-
-                override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
-                    Log.d(TAG, "onIceConnectionChange($p0)")
-                    if (p0 === PeerConnection.IceConnectionState.FAILED) {
-                        Log.e(TAG, "ICE Connection Failed")
+                    override fun onDataChannel(p0: DataChannel?) {
+                        Log.d(TAG, "onDataChannel($p0)")
+                        dataChannel = p0
+                        onDataChannel(p0!!)
                     }
-                }
 
-                override fun onIceConnectionReceivingChange(p0: Boolean) {
-                    Log.d(TAG, "onIceConnectionReceivingChange($p0)")
-                }
+                    override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+                        Log.d(TAG, "onIceConnectionChange($p0)")
+                        if (p0 === PeerConnection.IceConnectionState.FAILED) {
+                            Log.e(TAG, "ICE Connection Failed")
+                        }
+                    }
 
-                override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
-                    Log.d(TAG, "onIceGatheringChange($p0)")
-                }
+                    override fun onIceConnectionReceivingChange(p0: Boolean) {
+                        Log.d(TAG, "onIceConnectionReceivingChange($p0)")
+                    }
 
-                override fun onAddStream(p0: MediaStream?) {
-                    Log.d(TAG, "onAddStream($p0)")
-                }
+                    override fun onIceGatheringChange(p0: PeerConnection.IceGatheringState?) {
+                        Log.d(TAG, "onIceGatheringChange($p0)")
+                    }
 
-                override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
-                    Log.d(TAG, "onSignalingChange($p0)")
-                }
+                    override fun onAddStream(p0: MediaStream?) {
+                        Log.d(TAG, "onAddStream($p0)")
+                    }
 
-                override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
-                    Log.d(TAG, "onIceCandidatesRemoved($p0)")
-                }
+                    override fun onSignalingChange(p0: PeerConnection.SignalingState?) {
+                        Log.d(TAG, "onSignalingChange($p0)")
+                    }
 
-                override fun onRemoveStream(p0: MediaStream?) {
-                    Log.d(TAG, "onRemoveStream($p0)")
-                }
+                    override fun onIceCandidatesRemoved(p0: Array<out IceCandidate>?) {
+                        Log.d(TAG, "onIceCandidatesRemoved($p0)")
+                    }
 
-                override fun onRenegotiationNeeded() {
-                    Log.d(TAG, "onRenegotiationNeeded()")
-                }
+                    override fun onRemoveStream(p0: MediaStream?) {
+                        Log.d(TAG, "onRemoveStream($p0)")
+                    }
 
-                override fun onAddTrack(p0: RtpReceiver?, p1: Array<out MediaStream>?) {
-                    Log.d(TAG, "onAddTrack($p0, $p1)")
-                }
-            }
-        )
+                    override fun onRenegotiationNeeded() {
+                        Log.d(TAG, "onRenegotiationNeeded()")
+                    }
+
+                    override fun onAddTrack(
+                        p0: RtpReceiver?,
+                        p1: Array<out MediaStream>?,
+                    ) {
+                        Log.d(TAG, "onAddTrack($p0, $p1)")
+                    }
+                },
+            )
     }
-    suspend fun createPeerConnection(onIceCandidate: (IceCandidate) -> Unit, iceServers: List<PeerConnection.IceServer>? = listOf(
-        PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-            .createIceServer()) ): DataChannel {
-        return suspendCoroutine { continuation ->
-            createPeerConnection(onIceCandidate,{
+
+    suspend fun createPeerConnection(
+        onIceCandidate: (IceCandidate) -> Unit,
+        iceServers: List<PeerConnection.IceServer>? =
+            listOf(
+                PeerConnection.IceServer
+                    .builder("stun:stun.l.google.com:19302")
+                    .createIceServer(),
+            ),
+    ): DataChannel =
+        suspendCoroutine { continuation ->
+            createPeerConnection(onIceCandidate, {
                 continuation.resume(it)
-            },iceServers)
+            }, iceServers)
         }
-    }
+
     /**
      * Add an ICE Candidate
      */
@@ -125,18 +143,26 @@ class PeerApi(context: Context) {
         }
         peerConnection?.addIceCandidate(candidate)
     }
-    fun setLocalDescription(description: SessionDescription, onSessionDescription: (SessionDescription?) -> Unit) {
+
+    fun setLocalDescription(
+        description: SessionDescription,
+        onSessionDescription: (SessionDescription?) -> Unit,
+    ) {
         if (peerConnection === null) {
             throw Exception("peerConnection is null, ensure you are connected")
         }
         peerConnection?.setLocalDescription(createSDPObserver(onSessionDescription), description)
     }
+
     /**
      * Set the Remote Description
      *
      * Handles Remote Description with a Callback Function
      */
-    fun setRemoteDescription(description: SessionDescription, onSessionDescription: (SessionDescription?) -> Unit) {
+    fun setRemoteDescription(
+        description: SessionDescription,
+        onSessionDescription: (SessionDescription?) -> Unit,
+    ) {
         if (peerConnection === null) {
             throw Exception("peerConnection is null, ensure you are connected")
         }
@@ -148,21 +174,20 @@ class PeerApi(context: Context) {
      *
      * Handles Remote Description using Coroutines
      */
-    suspend fun setRemoteDescription(description: SessionDescription): SessionDescription? {
-        return suspendCoroutine { continuation ->
+    suspend fun setRemoteDescription(description: SessionDescription): SessionDescription? =
+        suspendCoroutine { continuation ->
             setRemoteDescription(description) { sessionDescription ->
                 continuation.resume(sessionDescription)
             }
         }
-    }
 
     /**
      * Create an SDP Observer
      *
      * Used for Local and Remote Description handling
      */
-    private fun createSDPObserver(onSessionDescription: (SessionDescription?) -> Unit): SdpObserver {
-        return object : SdpObserver {
+    private fun createSDPObserver(onSessionDescription: (SessionDescription?) -> Unit): SdpObserver =
+        object : SdpObserver {
             override fun onSetFailure(p0: String?) {
                 Log.e(TAG, "onSetFailure: $p0")
             }
@@ -180,10 +205,9 @@ class PeerApi(context: Context) {
             override fun onCreateFailure(p0: String?) {
                 Log.e(TAG, "onCreateFailure: $p0")
                 onSessionDescription(null)
-
             }
         }
-    }
+
     fun createAnswer(onSessionDescription: (SessionDescription?) -> Unit) {
         Log.d(TAG, "createAnswer")
         if (peerConnection === null) {
@@ -191,19 +215,20 @@ class PeerApi(context: Context) {
         }
         peerConnection?.createAnswer(createSDPObserver(onSessionDescription), MediaConstraints())
     }
-    suspend fun createAnswer(): SessionDescription? {
-        return suspendCoroutine { continuation ->
+
+    suspend fun createAnswer(): SessionDescription? =
+        suspendCoroutine { continuation ->
             createAnswer { sessionDescription ->
                 continuation.resume(sessionDescription)
             }
         }
-    }
+
     /**
      * Create an Offer
      *
      * Handles Offer Creation with a Callback Function
      */
-    fun createOffer(onSessionDescription: (SessionDescription?)->Unit) {
+    fun createOffer(onSessionDescription: (SessionDescription?) -> Unit) {
         if (peerConnection === null) {
             throw Exception("peerConnection is null")
         }
@@ -215,18 +240,17 @@ class PeerApi(context: Context) {
      *
      * Handles Offer Creation using Coroutines
      */
-    suspend fun createOffer(): SessionDescription? {
-        return suspendCoroutine { continuation ->
+    suspend fun createOffer(): SessionDescription? =
+        suspendCoroutine { continuation ->
             createOffer { sessionDescription ->
                 continuation.resume(sessionDescription)
             }
         }
-    }
 
     fun createDataChannelObserver(
         onMessage: (String) -> Unit,
         onStateChange: ((String?) -> Unit)? = null,
-        onBufferedAmountChange: ((Long) -> Unit)? = null
+        onBufferedAmountChange: ((Long) -> Unit)? = null,
     ): DataChannel.Observer {
         if (peerConnection === null) {
             throw Exception("peerConnection is null")

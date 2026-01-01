@@ -4,5 +4,5 @@ import androidx.credentials.CreatePublicKeyCredentialResponse
 
 data class CreatePublicKeyCredentialResponseData(
     val credentialId: ByteArray,
-    val response: CreatePublicKeyCredentialResponse
+    val response: CreatePublicKeyCredentialResponse,
 )

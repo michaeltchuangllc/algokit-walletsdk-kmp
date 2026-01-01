@@ -138,7 +138,6 @@ kotlin {
             implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
             implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.16.1")
             implementation("net.pwall.json:json-kotlin-schema:0.46")
-
         }
         commonMain.dependencies {
             api(libs.napier)

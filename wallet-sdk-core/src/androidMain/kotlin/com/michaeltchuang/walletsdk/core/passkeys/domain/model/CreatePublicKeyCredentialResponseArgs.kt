@@ -9,5 +9,5 @@ data class CreatePublicKeyCredentialResponseArgs(
     val request: PublicKeyCredentialCreationOptions,
     val appInfoOrigin: String,
     val appInfo: CallingAppInfo,
-    val clientDataHash: ByteArray?
+    val clientDataHash: ByteArray?,
 )

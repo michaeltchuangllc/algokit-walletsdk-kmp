@@ -6,12 +6,11 @@ import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.model.AssetTran
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.model.SuggestedTransactionParams
 import io.mockk.every
 import io.mockk.mockk
-import java.math.BigInteger
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.math.BigInteger
 
 class AssetTransactionBuilderImplTest {
-
     private val algoSdk: AlgoSdk = mockk()
 
     private val sut = AssetTransactionBuilderImpl(algoSdk)
@@ -25,7 +24,7 @@ class AssetTransactionBuilderImplTest {
                 AMOUNT,
                 ASSET_ID,
                 NOTE,
-                SUGGESTED_PARAMS
+                SUGGESTED_PARAMS,
             )
         } returns TXN_BYTE_ARRAY
 
@@ -43,13 +42,14 @@ class AssetTransactionBuilderImplTest {
         val NOTE = "test note".toByteArray()
         val SUGGESTED_PARAMS = mockk<SuggestedTransactionParams>(relaxed = true)
 
-        val ASSET_TXN_PAYLOAD = AssetTransactionPayload(
-            senderAddress = ADDRESS,
-            receiverAddress = RECEIVER_ADDRESS,
-            amount = AMOUNT,
-            noteInByteArray = NOTE,
-            assetId = ASSET_ID
-        )
+        val ASSET_TXN_PAYLOAD =
+            AssetTransactionPayload(
+                senderAddress = ADDRESS,
+                receiverAddress = RECEIVER_ADDRESS,
+                amount = AMOUNT,
+                noteInByteArray = NOTE,
+                assetId = ASSET_ID,
+            )
         val TXN_BYTE_ARRAY = byteArrayOf(1, 2, 3, 4, 5)
     }
 }

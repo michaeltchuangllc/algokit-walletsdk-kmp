@@ -2,17 +2,22 @@ package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
 import android.content.Context
 import android.graphics.Bitmap
-import okhttp3.OkHttpClient
-import io.socket.client.Socket
-import org.json.JSONObject
-import org.webrtc.PeerConnection
-import org.webrtc.DataChannel
-import org.webrtc.SessionDescription
 import com.fasterxml.uuid.Generators
+import io.socket.client.Socket
+import okhttp3.OkHttpClient
+import org.json.JSONObject
+import org.webrtc.DataChannel
+import org.webrtc.PeerConnection
+import org.webrtc.SessionDescription
 
-class LinkMessage(val requestId: String, val wallet: String, val credId: String? = null) {
+class LinkMessage(
+    val requestId: String,
+    val wallet: String,
+    val credId: String? = null,
+) {
     companion object {
         const val TAG = "connect.LinkMessage"
+
         fun fromJson(json: String): LinkMessage {
             val data = JSONObject(json).get("data") as JSONObject
             val requestId = data.get("requestId").toString()
@@ -21,6 +26,7 @@ class LinkMessage(val requestId: String, val wallet: String, val credId: String?
             return LinkMessage(requestId, wallet, credId)
         }
     }
+
     fun toJson(): JSONObject {
         val result = JSONObject()
         result.put("requestId", requestId)
@@ -51,12 +57,23 @@ interface SignalInterface {
     /**
      * Generate a QR Code
      */
-    fun qrCode(requestId: String, logo: Bitmap?, logoSize: Int? = null, color: String? = null, backgroundColor: String? = null): Bitmap
+    fun qrCode(
+        requestId: String,
+        logo: Bitmap?,
+        logoSize: Int? = null,
+        color: String? = null,
+        backgroundColor: String? = null,
+    ): Bitmap
 
     /**
      * Top Level Peer Connection
      */
-    suspend fun peer(requestId: String, type: String, iceServers: List<PeerConnection.IceServer>?): DataChannel?
+    suspend fun peer(
+        requestId: String,
+        type: String,
+        iceServers: List<PeerConnection.IceServer>?,
+    ): DataChannel?
+
     /**
      * Waits for a remote client to authenticate with the server
      */

@@ -10,8 +10,6 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.fromUri
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel.AccountsState
 import kotlinx.coroutines.launch
 
 data class AuthMessage(

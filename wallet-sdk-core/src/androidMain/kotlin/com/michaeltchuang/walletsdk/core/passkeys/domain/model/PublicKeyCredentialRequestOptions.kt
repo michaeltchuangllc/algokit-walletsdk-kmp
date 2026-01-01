@@ -13,7 +13,9 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-class PublicKeyCredentialRequestOptions(requestJson: String) {
+class PublicKeyCredentialRequestOptions(
+    requestJson: String,
+) {
     private val json: JSONObject = JSONObject(requestJson)
 
     val challenge: ByteArray

@@ -8,15 +8,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AccountAddressDeepLinkBuilderTest {
-
     private val sut = AccountAddressDeepLinkBuilder()
 
     @Test
     fun `EXPECT deeplink meets requirements WHEN only account address is provided`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            rawDeepLinkUri = "algorand://$ADDRESS"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                rawDeepLinkUri = "algorand://$ADDRESS",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -25,11 +25,12 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink meets requirements WHEN account address and label are provided`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            label = LABEL,
-            rawDeepLinkUri = "algorand://$ADDRESS?label=$LABEL"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                label = LABEL,
+                rawDeepLinkUri = "algorand://$ADDRESS?label=$LABEL",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -38,10 +39,11 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN account address is null`() {
-        val payload = DeepLinkPayload(
-            accountAddress = null,
-            rawDeepLinkUri = "algorand://"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = null,
+                rawDeepLinkUri = "algorand://",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -50,11 +52,12 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN asset id is provided`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            assetId = ASSET_ID,
-            rawDeepLinkUri = "algorand://$ADDRESS?asset=$ASSET_ID"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                assetId = ASSET_ID,
+                rawDeepLinkUri = "algorand://$ADDRESS?asset=$ASSET_ID",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -63,11 +66,12 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN wallet connect url is provided`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            walletConnectUrl = "wc://test",
-            rawDeepLinkUri = "wc://test"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                walletConnectUrl = "wc://test",
+                rawDeepLinkUri = "wc://test",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -76,11 +80,12 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN type is keyreg`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            type = "keyreg",
-            rawDeepLinkUri = "algorand://$ADDRESS?type=keyreg"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                type = "keyreg",
+                rawDeepLinkUri = "algorand://$ADDRESS?type=keyreg",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -89,11 +94,12 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT AccountAddress deeplink to be created with address and label`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            label = LABEL,
-            rawDeepLinkUri = "algorand://$ADDRESS?label=$LABEL"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                label = LABEL,
+                rawDeepLinkUri = "algorand://$ADDRESS?label=$LABEL",
+            )
 
         val result = sut.createDeepLink(payload)
 
@@ -104,10 +110,11 @@ class AccountAddressDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT AccountAddress deeplink to be created without label`() {
-        val payload = DeepLinkPayload(
-            accountAddress = ADDRESS,
-            rawDeepLinkUri = "algorand://$ADDRESS"
-        )
+        val payload =
+            DeepLinkPayload(
+                accountAddress = ADDRESS,
+                rawDeepLinkUri = "algorand://$ADDRESS",
+            )
 
         val result = sut.createDeepLink(payload)
 

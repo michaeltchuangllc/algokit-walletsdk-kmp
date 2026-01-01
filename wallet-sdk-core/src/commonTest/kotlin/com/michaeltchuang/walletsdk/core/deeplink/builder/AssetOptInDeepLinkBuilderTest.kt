@@ -8,16 +8,16 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class AssetOptInDeepLinkBuilderTest {
-
     private val sut = AssetOptInDeepLinkBuilder()
 
     @Test
     fun `EXPECT deeplink meets requirements WHEN asset id and amount 0 are provided`() {
-        val payload = DeepLinkPayload(
-            assetId = ASSET_ID,
-            amount = "0",
-            rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=0"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = ASSET_ID,
+                amount = "0",
+                rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=0",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -26,11 +26,12 @@ class AssetOptInDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN amount is not 0`() {
-        val payload = DeepLinkPayload(
-            assetId = ASSET_ID,
-            amount = "100",
-            rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=100"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = ASSET_ID,
+                amount = "100",
+                rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=100",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -39,11 +40,12 @@ class AssetOptInDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN asset id is null`() {
-        val payload = DeepLinkPayload(
-            assetId = null,
-            amount = "0",
-            rawDeepLinkUri = "algorand://?amount=0"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = null,
+                amount = "0",
+                rawDeepLinkUri = "algorand://?amount=0",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -52,12 +54,13 @@ class AssetOptInDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN account address is provided`() {
-        val payload = DeepLinkPayload(
-            assetId = ASSET_ID,
-            amount = "0",
-            accountAddress = ADDRESS,
-            rawDeepLinkUri = "algorand://$ADDRESS?asset=$ASSET_ID&amount=0"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = ASSET_ID,
+                amount = "0",
+                accountAddress = ADDRESS,
+                rawDeepLinkUri = "algorand://$ADDRESS?asset=$ASSET_ID&amount=0",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -66,11 +69,12 @@ class AssetOptInDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT AssetOptIn deeplink to be created`() {
-        val payload = DeepLinkPayload(
-            assetId = ASSET_ID,
-            amount = "0",
-            rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=0"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = ASSET_ID,
+                amount = "0",
+                rawDeepLinkUri = "algorand://?asset=$ASSET_ID&amount=0",
+            )
 
         val result = sut.createDeepLink(payload)
 
@@ -80,11 +84,12 @@ class AssetOptInDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT Undefined deeplink WHEN asset id is null`() {
-        val payload = DeepLinkPayload(
-            assetId = null,
-            amount = "0",
-            rawDeepLinkUri = "algorand://?amount=0"
-        )
+        val payload =
+            DeepLinkPayload(
+                assetId = null,
+                amount = "0",
+                rawDeepLinkUri = "algorand://?amount=0",
+            )
 
         val result = sut.createDeepLink(payload)
 

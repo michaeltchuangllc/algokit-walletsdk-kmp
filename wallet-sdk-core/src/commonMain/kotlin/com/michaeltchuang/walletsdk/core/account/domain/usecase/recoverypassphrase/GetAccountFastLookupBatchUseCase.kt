@@ -7,17 +7,17 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 
-internal class GetAccountFastLookupBatchUseCase (
-    private val getAccountFastLookup: GetAccountFastLookup
+internal class GetAccountFastLookupBatchUseCase(
+    private val getAccountFastLookup: GetAccountFastLookup,
 ) : GetAccountFastLookupBatch {
-
-    override suspend fun invoke(addresses: List<String>): Map<String, AccountFastLookup?> {
-        return coroutineScope {
-            addresses.map { address ->
-                async {
-                    address to getAccountFastLookup(address).getDataOrNull()
-                }
-            }.awaitAll().associate { it }
+    override suspend fun invoke(addresses: List<String>): Map<String, AccountFastLookup?> =
+        coroutineScope {
+            addresses
+                .map { address ->
+                    async {
+                        address to getAccountFastLookup(address).getDataOrNull()
+                    }
+                }.awaitAll()
+                .associate { it }
         }
-    }
 }

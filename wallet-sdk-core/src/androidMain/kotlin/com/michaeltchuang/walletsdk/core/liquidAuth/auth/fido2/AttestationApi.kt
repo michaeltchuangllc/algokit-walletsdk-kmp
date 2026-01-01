@@ -33,108 +33,115 @@ import javax.inject.Inject
  * The result should produce a PublicKeyCredential with an associated AuthenticatorAttestationResponse which
  * is then submitted and verified on the FIDO2 service
  */
-class AttestationApi @Inject constructor(
-    client: OkHttpClient
-) {
-    companion object {
-        const val TAG = "fido2.AttestationApi"
-    }
+class AttestationApi
+    @Inject
+    constructor(
+        client: OkHttpClient,
+    ) {
+        companion object {
+            const val TAG = "fido2.AttestationApi"
+        }
 
-    private val client: OkHttpClient = client.newBuilder()
-        .addInterceptor(LoggingInterceptor())
-        .build()
+        private val client: OkHttpClient =
+            client
+                .newBuilder()
+                .addInterceptor(LoggingInterceptor())
+                .build()
 
-    /**
-     * Logging Interceptor for API responses
-     */
-    private class LoggingInterceptor : Interceptor {
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val request = chain.request()
-            val response = chain.proceed(request)
-            
-            Log.d(TAG, "Response: ${response.code} ${response.message}")
-            Log.d(TAG, "Response URL: ${response.request.url}")
-            
-            // Log response body without consuming it
-            response.body?.let { body ->
-                val source = body.source()
-                source.request(Long.MAX_VALUE)
-                val buffer = source.buffer.clone()
-                val responseBody = buffer.readUtf8()
-                Log.d(TAG, "Response body: $responseBody")
+        /**
+         * Logging Interceptor for API responses
+         */
+        private class LoggingInterceptor : Interceptor {
+            override fun intercept(chain: Interceptor.Chain): Response {
+                val request = chain.request()
+                val response = chain.proceed(request)
+
+                Log.d(TAG, "Response: ${response.code} ${response.message}")
+                Log.d(TAG, "Response URL: ${response.request.url}")
+
+                // Log response body without consuming it
+                response.body?.let { body ->
+                    val source = body.source()
+                    source.request(Long.MAX_VALUE)
+                    val buffer = source.buffer.clone()
+                    val responseBody = buffer.readUtf8()
+                    Log.d(TAG, "Response body: $responseBody")
+                }
+
+                return response
             }
-            
-            return response
+        }
+
+        /**
+         * POST request to retrieve PublicKeyCredentialCreationOptions
+         *
+         * @param origin - Base URL for the service
+         * @param userAgent - User Agent for FIDO Server parsing
+         * @param session - Cookie for the Session
+         * @param options - PublicKeyCredentialCreationOptions in JSON
+         */
+        fun postAttestationOptions(
+            origin: String,
+            userAgent: String,
+            options: JSONObject = JSONObject(),
+        ): Call {
+            val path = "$origin/attestation/request"
+            Log.d(TAG, "POST $path")
+            Log.d(TAG, "Request body: $options")
+            val body = options.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            return client.newCall(
+                Request
+                    .Builder()
+                    .url(path)
+                    .addHeader("User-Agent", userAgent)
+                    .method("POST", body)
+                    .build(),
+            )
+        }
+
+        /**
+         * POST request to register a PublicKeyCredential
+         *
+         * @param origin - Base URL for the service
+         * @param userAgent - User Agent for FIDO Server parsing
+         * @param session - Cookie for the Session
+         * @param credential - PublicKeyCredential from Authenticator Response
+         */
+        fun postAttestationResult(
+            origin: String,
+            userAgent: String,
+            credential: PublicKeyCredential,
+            liquidExt: JSONObject? = null,
+        ): Call {
+            val path = "$origin/attestation/response"
+            val rawId = credential.rawId!!.toBase64()
+            val response = credential.response as AuthenticatorAttestationResponse
+
+            val payload = JSONObject()
+            payload.put("id", rawId)
+            payload.put("type", "${PublicKeyCredentialType.PUBLIC_KEY}")
+            payload.put("rawId", rawId)
+            if (liquidExt != null) {
+                val clientExtensionResults = JSONObject()
+                clientExtensionResults.put("liquid", liquidExt)
+                payload.put("clientExtensionResults", clientExtensionResults)
+            }
+            val jsonResponse = JSONObject()
+            jsonResponse.put("clientDataJSON", response.clientDataJSON.toBase64())
+            jsonResponse.put("attestationObject", response.attestationObject.toBase64())
+            payload.put("response", jsonResponse)
+
+            payload.put("device", android.os.Build.MODEL)
+            Log.d(TAG, "POST $path")
+            Log.d(TAG, "Request body: $payload")
+            val requestBody = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
+            return client.newCall(
+                Request
+                    .Builder()
+                    .url(path)
+                    .addHeader("User-Agent", userAgent)
+                    .method("POST", requestBody)
+                    .build(),
+            )
         }
     }
-    /**
-     * POST request to retrieve PublicKeyCredentialCreationOptions
-     *
-     * @param origin - Base URL for the service
-     * @param userAgent - User Agent for FIDO Server parsing
-     * @param session - Cookie for the Session
-     * @param options - PublicKeyCredentialCreationOptions in JSON
-     */
-    fun postAttestationOptions(
-        origin: String,
-        userAgent: String,
-        options: JSONObject = JSONObject()
-    ): Call {
-        val path = "$origin/attestation/request"
-        Log.d(TAG, "POST $path")
-        Log.d(TAG, "Request body: ${options.toString()}")
-        val body = options.toString().toRequestBody("application/json".toMediaTypeOrNull())
-        return client.newCall(
-            Request.Builder()
-                .url(path)
-                .addHeader("User-Agent", userAgent)
-                .method("POST", body)
-                .build()
-        )
-    }
-
-    /**
-     * POST request to register a PublicKeyCredential
-     *
-     * @param origin - Base URL for the service
-     * @param userAgent - User Agent for FIDO Server parsing
-     * @param session - Cookie for the Session
-     * @param credential - PublicKeyCredential from Authenticator Response
-     */
-    fun postAttestationResult(
-        origin: String,
-        userAgent: String,
-        credential: PublicKeyCredential,
-        liquidExt: JSONObject? = null
-    ): Call {
-        val path = "$origin/attestation/response"
-        val rawId = credential.rawId!!.toBase64()
-        val response = credential.response as AuthenticatorAttestationResponse
-
-        val payload = JSONObject()
-        payload.put("id", rawId)
-        payload.put("type", "${PublicKeyCredentialType.PUBLIC_KEY}")
-        payload.put("rawId", rawId)
-        if(liquidExt != null) {
-            val clientExtensionResults = JSONObject()
-            clientExtensionResults.put("liquid", liquidExt)
-            payload.put("clientExtensionResults", clientExtensionResults)
-        }
-        val jsonResponse = JSONObject()
-        jsonResponse.put("clientDataJSON", response.clientDataJSON.toBase64())
-        jsonResponse.put("attestationObject", response.attestationObject.toBase64())
-        payload.put("response", jsonResponse)
-
-        payload.put("device", android.os.Build.MODEL)
-        Log.d(TAG, "POST $path")
-        Log.d(TAG, "Request body: ${payload.toString()}")
-        val requestBody = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())
-        return client.newCall(
-            Request.Builder()
-                .url(path)
-                .addHeader("User-Agent", userAgent)
-                .method("POST", requestBody)
-                .build()
-        )
-    }
-}

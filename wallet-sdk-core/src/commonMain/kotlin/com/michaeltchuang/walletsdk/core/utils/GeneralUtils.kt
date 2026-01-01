@@ -40,11 +40,12 @@ fun String.toAlgoAmount(): String {
         val decPart = parts.getOrNull(1)
 
         // Format integer part with thousands separators
-        val formattedIntPart = intPart
-            .reversed()
-            .chunked(3)
-            .joinToString(",")
-            .reversed()
+        val formattedIntPart =
+            intPart
+                .reversed()
+                .chunked(3)
+                .joinToString(",")
+                .reversed()
 
         // Add decimal part if it exists
         if (decPart != null) {

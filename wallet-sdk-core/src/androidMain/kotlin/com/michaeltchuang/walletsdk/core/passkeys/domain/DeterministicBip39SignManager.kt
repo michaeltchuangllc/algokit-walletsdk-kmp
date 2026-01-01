@@ -7,19 +7,26 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdEntro
 import com.michaeltchuang.walletsdk.core.encryption.domain.utils.clearFromMemory
 import java.security.KeyPair
 
-
-internal class DeterministicBip39SignManager (
+internal class DeterministicBip39SignManager(
     private val deterministicSigner: DeterministicP256,
     private val getAllHdSeedFirstAddresses: GetAllHdSeedFirstAddresses,
-    private val getHdEntropy: GetHdEntropy
+    private val getHdEntropy: GetHdEntropy,
 ) : Bip39SignManager {
-
-    override suspend fun sign(address: String, origin: String, userHandle: String, payload: ByteArray): ByteArray? {
+    override suspend fun sign(
+        address: String,
+        origin: String,
+        userHandle: String,
+        payload: ByteArray,
+    ): ByteArray? {
         val keyPair = deriveKeyPair(address, origin, userHandle) ?: return null
         return deterministicSigner.signWithDomainSpecificKeyPair(keyPair, payload)
     }
 
-    override suspend fun deriveKeyPair(address: String, origin: String, userHandle: String): KeyPair? {
+    override suspend fun deriveKeyPair(
+        address: String,
+        origin: String,
+        userHandle: String,
+    ): KeyPair? {
         val allFirstAddresses = getAllHdSeedFirstAddresses()
         val seedId = allFirstAddresses.firstOrNull { it.firstAddress == address }?.seedId ?: return null
         val entropy = getHdEntropy(seedId) ?: return null

@@ -26,6 +26,7 @@ actual fun recoverAlgo25Account(mnemonic: String): Algo25Account? = AlgoAccountS
 actual fun createAlgo25Account(): Algo25Account? = AlgoAccountSdkImpl().createAlgo25Account()
 
 actual fun isValidAlgorandAddress(accountAddress: String): Boolean = AlgoAccountSdkImpl().isValidAlgorandAddress(accountAddress)
+
 actual fun getMnemonicFromAlgo25SecretKey(secretKey: ByteArray): String? =
     AlgoAccountSdkImpl().getMnemonicFromAlgo25SecretKey(secretKey = secretKey)
 
@@ -88,15 +89,14 @@ actual fun signHdKeyArbitraryData(
     account: Int,
     change: Int,
     key: Int,
-): ByteArray? {
-    return SignHdKeyTransactionImpl().signLegacyArbitraryData(
+): ByteArray? =
+    SignHdKeyTransactionImpl().signLegacyArbitraryData(
         data,
         seed,
         account,
         change,
         key,
     )
-}
 
 actual fun signHdKeyData(
     data: ByteArray,
@@ -104,27 +104,25 @@ actual fun signHdKeyData(
     account: Int,
     change: Int,
     key: Int,
-): ByteArray? {
-    return SignHdKeyTransactionImpl().signArbitraryData(
+): ByteArray? =
+    SignHdKeyTransactionImpl().signArbitraryData(
         data,
         seed,
         account,
         change,
         key,
     )
-}
 
 actual fun signFalcon24ArbitraryData(
     data: ByteArray,
     publicKey: ByteArray,
     privateKey: ByteArray,
-): ByteArray? {
-    return SignFalcon24TransactionImpl().signLegacyArbitraryData(
+): ByteArray? =
+    SignFalcon24TransactionImpl().signLegacyArbitraryData(
         data,
         publicKey,
         privateKey,
     )
-}
 
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray =
     with(payload) {

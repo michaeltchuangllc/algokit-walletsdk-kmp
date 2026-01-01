@@ -22,36 +22,37 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.recoverypassphra
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.recoverypassphrase.GetRegisteredHdKeysUseCase
 import org.koin.dsl.module
 
-val recoverRegisteredAccountsModule = module {
+val recoverRegisteredAccountsModule =
+    module {
 
-    single<GetLocalAccountsAddresses> {
-        GetLocalAccountsAddressesUseCase(
-            get(),
-            get(),
-            get(),
-            get()
-        )
+        single<GetLocalAccountsAddresses> {
+            GetLocalAccountsAddressesUseCase(
+                get(),
+                get(),
+                get(),
+                get(),
+            )
+        }
+
+        // Recovery passphrase related dependencies
+        single<HdAccountAddressMapper> { DefaultHdAccountAddressMapper() }
+        single<GetAccountFastLookupBatch> { GetAccountFastLookupBatchUseCase(get()) }
+        single<GetActiveHdAccounts> { GetActiveHdAccountsUseCase(get(), get()) }
+        single<GetActiveHdAccountAddresses> { GetActiveHdAccountAddressesUseCase(get(), get()) }
+
+        // Mappers
+        single<AccountCreationHdKeyTypeMapper> { DefaultAccountCreationHdKeyTypeMapperImpl() }
+        single<RegisteredHdKeyItemMapper> { DefaultRegisteredHdKeyItemMapper() }
+        single<RegisteredHdKeyMapper> { DefaultRegisteredHdKeyMapper() }
+
+        // Use Cases
+        single<GetRegisteredHdKeys> { GetRegisteredHdKeysUseCase(get(), get(), get(), get()) }
+
+        // Processors
+        single<RecoverRegisteredAccountsAccountProcessor> {
+            DefaultRecoverRegisteredAccountsAccountProcessor(
+                getRegisteredHdKeys = get<GetRegisteredHdKeys>(),
+                registeredHdKeyItemMapper = get<RegisteredHdKeyItemMapper>(),
+            )
+        }
     }
-
-    // Recovery passphrase related dependencies
-    single<HdAccountAddressMapper> { DefaultHdAccountAddressMapper() }
-    single<GetAccountFastLookupBatch> { GetAccountFastLookupBatchUseCase(get()) }
-    single<GetActiveHdAccounts> { GetActiveHdAccountsUseCase(get(), get()) }
-    single<GetActiveHdAccountAddresses> { GetActiveHdAccountAddressesUseCase(get(), get()) }
-
-    // Mappers
-    single<AccountCreationHdKeyTypeMapper> { DefaultAccountCreationHdKeyTypeMapperImpl() }
-    single<RegisteredHdKeyItemMapper> { DefaultRegisteredHdKeyItemMapper() }
-    single<RegisteredHdKeyMapper> { DefaultRegisteredHdKeyMapper() }
-
-    // Use Cases
-    single<GetRegisteredHdKeys> { GetRegisteredHdKeysUseCase(get(), get(), get(), get()) }
-
-    // Processors
-    single<RecoverRegisteredAccountsAccountProcessor> {
-        DefaultRecoverRegisteredAccountsAccountProcessor(
-            getRegisteredHdKeys = get<GetRegisteredHdKeys>(),
-            registeredHdKeyItemMapper = get<RegisteredHdKeyItemMapper>()
-        )
-    }
-}

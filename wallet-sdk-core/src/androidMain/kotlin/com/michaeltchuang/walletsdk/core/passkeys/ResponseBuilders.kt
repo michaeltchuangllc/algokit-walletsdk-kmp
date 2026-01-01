@@ -9,6 +9,6 @@ fun interface GetCredentialResponseProcessor {
     suspend fun getResponseWithSignature(params: GetCredentialsParams): GetCredentialResponse
 }
 
- fun interface CreatePublicKeyCredentialResponseProcessor {
+fun interface CreatePublicKeyCredentialResponseProcessor {
     operator fun invoke(args: CreatePublicKeyCredentialResponseArgs): CreatePublicKeyCredentialResponseData
 }

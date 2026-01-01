@@ -17,4 +17,3 @@ fun IceCandidate.toJSON(): JSONObject {
         put("sdpMLineIndex", sdpMLineIndex)
     }
 }
-

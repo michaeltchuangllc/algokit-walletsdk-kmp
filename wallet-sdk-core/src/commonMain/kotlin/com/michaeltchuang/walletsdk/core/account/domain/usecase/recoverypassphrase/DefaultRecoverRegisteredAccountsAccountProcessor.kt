@@ -9,16 +9,15 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.clearFromMemory
 
 internal class DefaultRecoverRegisteredAccountsAccountProcessor(
     private val getRegisteredHdKeys: GetRegisteredHdKeys,
-    private val registeredHdKeyItemMapper: RegisteredHdKeyItemMapper
+    private val registeredHdKeyItemMapper: RegisteredHdKeyItemMapper,
 ) : RecoverRegisteredAccountsAccountProcessor {
-
     override suspend fun getRegisteredHdKeyItems(encryptedEntropy: ByteArray): List<RegisteredHdKeyItem> {
         val entropy = decryptByteArray(encryptedEntropy)
         val registeredAccounts = getRegisteredHdKeys(entropy.copyOf())
         entropy.clearFromMemory()
         return registeredAccounts.map { hdKey ->
             registeredHdKeyItemMapper(
-                hdKey
+                hdKey,
             )
         }
     }

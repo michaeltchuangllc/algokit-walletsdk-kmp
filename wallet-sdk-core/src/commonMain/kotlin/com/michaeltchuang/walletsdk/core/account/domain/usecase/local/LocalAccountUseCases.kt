@@ -134,7 +134,6 @@ fun interface GetRegisteredHdKeys {
     suspend operator fun invoke(entropy: ByteArray): List<RegisteredHdKey>
 }
 
-
 internal fun interface GetActiveHdAccountAddresses {
     suspend operator fun invoke(activeHdAccount: ActiveHdAccount): List<ActiveHdAccount.HdAccountAddress>
 }

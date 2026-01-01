@@ -40,7 +40,7 @@ val deepLinkModules =
                     keyRegTransactionDeepLinkBuilder = KeyRegTransactionDeepLinkBuilder(),
                     assetTransferDeepLinkBuilder = AssetTransferDeepLinkBuilder(),
                     accountAddressDeepLinkBuilder = AccountAddressDeepLinkBuilder(),
-                    fidoDeepLinkBuilder = FidoDeepLinkBuilder()
+                    fidoDeepLinkBuilder = FidoDeepLinkBuilder(),
                 )
             }
 

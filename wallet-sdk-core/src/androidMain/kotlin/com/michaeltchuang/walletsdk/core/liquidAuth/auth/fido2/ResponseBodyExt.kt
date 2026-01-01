@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.crypto.decodeBase64
 import okhttp3.ResponseBody
 
 @Deprecated("Use the new CredentialManager API")
-fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialRequestOptions{
+fun ResponseBody.toPublicKeyCredentialRequestOptions(): PublicKeyCredentialRequestOptions {
     val builder = PublicKeyCredentialRequestOptions.Builder()
     var challengeSet = false
     var rpIdSet = false
@@ -75,19 +75,21 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = nu
                     val attestation = reader.nextString()
                     try {
                         builder.setAttestationConveyancePreference(
-                            AttestationConveyancePreference.fromString(attestation)
+                            AttestationConveyancePreference.fromString(attestation),
                         )
                     } catch (e: Exception) {
                         Log.w("FIDO2", "Unknown attestation value: $attestation", e)
                     }
                 }
-                "excludeCredentials" -> builder.setExcludeList(
-                    parseCredentialDescriptors(reader)
-                )
+                "excludeCredentials" ->
+                    builder.setExcludeList(
+                        parseCredentialDescriptors(reader),
+                    )
 
-                "authenticatorSelection" -> builder.setAuthenticatorSelection(
-                    parseSelection(reader)
-                )
+                "authenticatorSelection" ->
+                    builder.setAuthenticatorSelection(
+                        parseSelection(reader),
+                    )
 
                 "rp" -> {
                     parsedRpEntity = parseRp(reader)
@@ -126,11 +128,12 @@ fun ResponseBody.toPublicKeyCredentialCreationOptions(overrideRpId: String? = nu
     // Apply RP ID override if provided
     if (overrideRpId != null && parsedRpEntity != null) {
         Log.w("FIDO2", "Overriding server RP ID '${parsedRpEntity!!.id}' with '$overrideRpId'")
-        val overriddenRp = PublicKeyCredentialRpEntity(
-            overrideRpId,
-            parsedRpEntity!!.name,
-            parsedRpEntity!!.icon
-        )
+        val overriddenRp =
+            PublicKeyCredentialRpEntity(
+                overrideRpId,
+                parsedRpEntity!!.name,
+                parsedRpEntity!!.icon,
+            )
         builder.setRp(overriddenRp)
     }
 
@@ -151,7 +154,7 @@ fun parseRp(reader: JsonReader): PublicKeyCredentialRpEntity {
         }
     }
     reader.endObject()
-    
+
     if (id.isNullOrEmpty()) {
         Log.e("FIDO2", "RP ID is null or empty! This will cause validation errors.")
         throw IllegalArgumentException("RP ID is required for FIDO2 operations")
@@ -160,7 +163,7 @@ fun parseRp(reader: JsonReader): PublicKeyCredentialRpEntity {
         Log.e("FIDO2", "RP name is null or empty! This will cause validation errors.")
         throw IllegalArgumentException("RP name is required for FIDO2 operations")
     }
-    
+
     Log.d("FIDO2", "Parsed RP - ID: $id, Name: $name")
     return PublicKeyCredentialRpEntity(id, name, /* icon */ null)
 }
@@ -171,9 +174,10 @@ private fun parseSelection(reader: JsonReader): AuthenticatorSelectionCriteria {
     reader.beginObject()
     while (reader.hasNext()) {
         when (reader.nextName()) {
-            "authenticatorAttachment" -> builder.setAttachment(
-                Attachment.fromString(reader.nextString())
-            )
+            "authenticatorAttachment" ->
+                builder.setAttachment(
+                    Attachment.fromString(reader.nextString()),
+                )
 
             "userVerification" -> reader.skipValue()
             else -> reader.skipValue()
@@ -184,9 +188,7 @@ private fun parseSelection(reader: JsonReader): AuthenticatorSelectionCriteria {
 }
 
 @Deprecated("Use the new CredentialManager API")
-private fun parseCredentialDescriptors(
-    reader: JsonReader
-): List<PublicKeyCredentialDescriptor> {
+private fun parseCredentialDescriptors(reader: JsonReader): List<PublicKeyCredentialDescriptor> {
     val list = mutableListOf<PublicKeyCredentialDescriptor>()
     reader.beginArray()
     while (reader.hasNext()) {
@@ -205,8 +207,9 @@ private fun parseCredentialDescriptors(
             PublicKeyCredentialDescriptor(
                 PublicKeyCredentialType.PUBLIC_KEY.toString(),
                 id!!.decodeBase64(),
-                /* transports */ null
-            )
+                // transports
+                null,
+            ),
         )
     }
     reader.endArray()
@@ -234,6 +237,7 @@ private fun parseParameters(reader: JsonReader): List<PublicKeyCredentialParamet
     reader.endArray()
     return parameters
 }
+
 @Deprecated("Use the new CredentialManager API")
 private fun parseUser(reader: JsonReader): PublicKeyCredentialUserEntity {
     reader.beginObject()
@@ -253,6 +257,6 @@ private fun parseUser(reader: JsonReader): PublicKeyCredentialUserEntity {
         id!!.decodeBase64(),
         name!!,
         "", // icon
-        displayName
+        displayName,
     )
 }

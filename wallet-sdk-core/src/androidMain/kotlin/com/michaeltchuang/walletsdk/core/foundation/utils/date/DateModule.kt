@@ -5,7 +5,8 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 import java.time.Clock
 
-val dateModule = module {
-    single<TimeProvider> { TimeProviderImpl(Clock.systemDefaultZone()) }
-    singleOf(::PeraRelativeTimeDifference) bind RelativeTimeDifference::class
-}
+val dateModule =
+    module {
+        single<TimeProvider> { TimeProviderImpl(Clock.systemDefaultZone()) }
+        singleOf(::PeraRelativeTimeDifference) bind RelativeTimeDifference::class
+    }

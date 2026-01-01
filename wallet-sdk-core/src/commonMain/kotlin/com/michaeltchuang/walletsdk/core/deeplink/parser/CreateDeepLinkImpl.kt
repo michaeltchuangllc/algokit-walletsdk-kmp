@@ -13,7 +13,7 @@ internal class CreateDeepLinkImpl(
     private val keyRegTransactionDeepLinkBuilder: KeyRegTransactionDeepLinkBuilder,
     private val assetTransferDeepLinkBuilder: AssetTransferDeepLinkBuilder,
     private val accountAddressDeepLinkBuilder: AccountAddressDeepLinkBuilder,
-    private val fidoDeepLinkBuilder: FidoDeepLinkBuilder
+    private val fidoDeepLinkBuilder: FidoDeepLinkBuilder,
 ) : CreateDeepLink {
     override fun invoke(url: String): DeepLink {
         val payload = parseDeepLinkPayload(url)

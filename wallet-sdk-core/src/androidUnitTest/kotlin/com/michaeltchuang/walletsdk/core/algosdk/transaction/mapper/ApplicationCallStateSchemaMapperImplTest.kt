@@ -2,21 +2,21 @@ package com.michaeltchuang.walletsdk.core.algosdk.transaction.mapper
 
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.model.ApplicationCallStateSchema
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.model.payload.RawTransactionApplicationCallStateSchemaPayload
-import java.math.BigInteger.ONE
-import java.math.BigInteger.TEN
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.math.BigInteger.ONE
+import java.math.BigInteger.TEN
 
 class ApplicationCallStateSchemaMapperImplTest {
-
     private val sut = ApplicationCallStateSchemaMapperImpl()
 
     @Test
     fun `EXPECT application call state schema to be mapped`() {
-        val payload = RawTransactionApplicationCallStateSchemaPayload(
-            numberOfInts = TEN,
-            numberOfBytes = ONE
-        )
+        val payload =
+            RawTransactionApplicationCallStateSchemaPayload(
+                numberOfInts = TEN,
+                numberOfBytes = ONE,
+            )
         val result = sut(payload)
 
         val expected = ApplicationCallStateSchema(numberOfBytes = ONE, numberOfInts = TEN)

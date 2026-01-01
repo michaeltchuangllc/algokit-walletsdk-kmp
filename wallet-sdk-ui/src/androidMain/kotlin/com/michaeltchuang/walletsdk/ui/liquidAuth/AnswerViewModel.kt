@@ -5,7 +5,6 @@ import android.os.Build
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.algorand.algosdk.account.Account
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.fasterxml.uuid.Generators
@@ -16,20 +15,26 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25S
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
-import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.AssertionApi
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import foundation.algorand.auth.fido2.AttestationApi
 import foundation.algorand.crypto.EncoderType
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
 import foundation.algorand.crypto.avm.KeyPairs
+import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
@@ -38,7 +43,6 @@ import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import java.security.KeyPair
 import kotlin.io.encoding.Base64
@@ -59,10 +63,30 @@ class AnswerViewModel(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getAccountDetail: GetLocalAccount,
-    private val getSeed: GetHdSeed
+    private val getSeed: GetHdSeed,
 ) : ViewModel() {
     companion object {
         private const val TAG = "AnswerViewModel"
+    }
+
+    // ==================== API Instances ====================
+    private var attestationApi: AttestationApi? = null
+    private var assertionApi: AssertionApi? = null
+
+    // User Agent for API requests
+    val userAgent: String by lazy {
+        val applicationId = "com.michaeltchuang.walletsdk.demo"
+        val versionName = "1.0"
+        "$applicationId/$versionName (Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
+    }
+
+    /**
+     * Initialize API instances with the Activity's httpClient
+     * This ensures cookies are properly maintained
+     */
+    fun initializeApis(attestationApi: AttestationApi, assertionApi: AssertionApi) {
+        this.attestationApi = attestationApi
+        this.assertionApi = assertionApi
     }
 
     // ==================== StateFlow ====================
@@ -112,7 +136,9 @@ class AnswerViewModel(
     val accountAddress: StateFlow<String> = _accountAddress
 
     // Encoder for message processing
-    private val encoder = foundation.algorand.crypto.avm.Encoder()
+    private val encoder =
+        foundation.algorand.crypto.avm
+            .Encoder()
 
     // KeyPair for signing
     private var keyPair: KeyPair? = null
@@ -122,6 +148,7 @@ class AnswerViewModel(
     fun setAccountAddress(address: String) {
         _accountAddress.value = address
     }
+
     fun setKeyPair(keyPair: KeyPair) {
         this.keyPair = keyPair
     }
@@ -131,18 +158,23 @@ class AnswerViewModel(
         context: Context,
         account: String,
         credential: PublicKeyCredential,
-        response: String
+        response: String,
     ) {
         val requestOption = PublicKeyCredentialCreationOptions(response)
         addNewPasskey(
             algoAddress = account,
             requestOptions = requestOption,
-            credId = credential.rawId!!
+            credId = credential.rawId!!,
         )
     }
 
     suspend fun getCredentialId(origin: String): String? {
         val credentialId = passkeyRepository.getCredentialIdBySiteId(origin)
+        return credentialId
+    }
+
+    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? {
+        val credentialId = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
         return credentialId
     }
 
@@ -177,7 +209,10 @@ class AnswerViewModel(
      * Signs the FIDO2 challenge with the Algorand account
      * This is used in the liquid FIDO2 extension
      */
-    suspend fun signFido2Challenge(challenge: ByteArray, address: String): ByteArray? {
+    suspend fun signFido2Challenge(
+        challenge: ByteArray,
+        address: String,
+    ): ByteArray? {
         val accountDetail = getAccountDetail(address) ?: return null
 
         return when (accountDetail) {
@@ -202,6 +237,7 @@ class AnswerViewModel(
     }
 
     // ==================== AVMProvider Message Handling ====================
+
     /**
      * Decode Unsigned Transaction
      */
@@ -217,7 +253,7 @@ class AnswerViewModel(
     @OptIn(ExperimentalEncodingApi::class)
     fun handleMessages(
         msgStr: String,
-        onSignTransaction: (SignTransactionsParams, Message) -> Unit
+        onSignTransaction: (SignTransactionsParams, Message) -> Unit,
     ) {
         try {
             val message = Message(Base64.UrlSafe.decode(msgStr), EncoderType.CBOR)
@@ -248,19 +284,22 @@ class AnswerViewModel(
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
         when (decoded.reference) {
             "arc0027:sign_transactions:request" -> {
-                val params = encoder.decode<SignTransactionsParams>(
-                    encoder.encode(decoded.params, EncoderType.NONE), EncoderType.NONE
-                )
+                val params =
+                    encoder.decode<SignTransactionsParams>(
+                        encoder.encode(decoded.params, EncoderType.NONE),
+                        EncoderType.NONE,
+                    )
                 // Note: processSignTransactions is now suspend, but handleMessage is not
                 // This will need to be called from a coroutine context
-                val result = kotlinx.coroutines.runBlocking {
-                    processSignTransactions(params)
-                }
+                val result =
+                    kotlinx.coroutines.runBlocking {
+                        processSignTransactions(params)
+                    }
                 return ResponseMessage(
                     id = uuidGenerator.generate().toString(),
                     reference = "arc0027:sign_transactions:response",
                     requestId = decoded.id,
-                    result = result
+                    result = result,
                 )
             }
 
@@ -274,10 +313,7 @@ class AnswerViewModel(
      * Process ARC27 Sign Transactions Requests
      */
     @OptIn(ExperimentalEncodingApi::class)
-    suspend fun processSignTransactions(
-        params: SignTransactionsParams,
-    ): SignTransactionsResult {
-
+    suspend fun processSignTransactions(params: SignTransactionsParams): SignTransactionsResult {
         Log.d(TAG, "processSignTransactions")
         require(params.validate())
 
@@ -300,10 +336,10 @@ class AnswerViewModel(
                     if (secretKey == null) {
                         throw IllegalArgumentException("Secret key not found for address: $currentAccountAddress")
                     }
-                    //val signedTransaction = signAlgo25Transaction(secretKey, transactionBytes)
-                  //  signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
+                    // val signedTransaction = signAlgo25Transaction(secretKey, transactionBytes)
+                    //  signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
                     val keyPair = KeyPairs.getKeyPair(getMnemonic(accountAddress.value)!!)
-                     val signature = KeyPairs.rawSignBytes(unsignedTransaction!!.bytesToSign(), keyPair.private)
+                    val signature = KeyPairs.rawSignBytes(unsignedTransaction!!.bytesToSign(), keyPair.private)
                     signedTxns.add(Base64.UrlSafe.encode(signature!!))
                 }
 
@@ -315,13 +351,14 @@ class AnswerViewModel(
                 }
 
                 is LocalAccount.HdKey -> {
-                    val signedTransaction = signHdKeyData(
-                        data = unsignedTransaction!!.bytesToSign(),
-                        seed = getSeed(it.seedId)!!,
-                        account = it.account,
-                        change = it.change,
-                        key = it.keyIndex
-                    )!!
+                    val signedTransaction =
+                        signHdKeyData(
+                            data = unsignedTransaction!!.bytesToSign(),
+                            seed = getSeed(it.seedId)!!,
+                            account = it.account,
+                            change = it.change,
+                            key = it.keyIndex,
+                        )!!
 
                     signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
                 }
@@ -331,7 +368,7 @@ class AnswerViewModel(
                 null -> TODO()
             }
 
-            //txnIds.add(unsignedTransaction!!.txID())
+            // txnIds.add(unsignedTransaction!!.txID())
         }
         // Create the response payload
         return SignTransactionsResult(providerId, signedTxns)
@@ -342,7 +379,80 @@ class AnswerViewModel(
      *
      * Generates a KeyPair from the provided mnemonic
      */
-    fun getKeyPairFromMnemonic(mnemonic: String): KeyPair {
-        return KeyPairs.getKeyPair(mnemonic)
+    fun getKeyPairFromMnemonic(mnemonic: String): KeyPair = KeyPairs.getKeyPair(mnemonic)
+
+    // ==================== Liquid Auth API Methods ====================
+
+    /**
+     * Extension function to convert OkHttp Call to suspend function
+     */
+    private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
+        continuation.invokeOnCancellation {
+            cancel()
+        }
+        enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                continuation.resume(response)
+            }
+        })
+    }
+
+    /**
+     * Post Attestation Options
+     * 
+     * Retrieves PublicKeyCredentialCreationOptions from the FIDO2 server
+     */
+    suspend fun fetchAttestationOptions(
+        origin: String,
+        userAgent: String,
+        options: JSONObject = JSONObject()
+    ): Response {
+        return attestationApi!!.postAttestationOptions(origin, userAgent, options).await()
+    }
+
+    /**
+     * Post Attestation Result
+     * 
+     * Submits the PublicKeyCredential to the FIDO2 server after registration
+     */
+    suspend fun submitAttestationResult(
+        origin: String,
+        userAgent: String,
+        credential: PublicKeyCredential,
+        liquidExt: JSONObject? = null
+    ): Response {
+        return attestationApi!!.postAttestationResult(origin, userAgent, credential, liquidExt).await()
+    }
+
+    /**
+     * Post Assertion Options
+     * 
+     * Retrieves PublicKeyCredentialRequestOptions from the FIDO2 server
+     */
+    suspend fun fetchAssertionOptions(
+        origin: String,
+        userAgent: String,
+        credentialId: String,
+        liquidExt: Boolean? = true
+    ): Response {
+        return assertionApi!!.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
+    }
+
+    /**
+     * Post Assertion Result
+     * 
+     * Submits the PublicKeyCredential to the FIDO2 server after authentication
+     */
+    suspend fun submitAssertionResult(
+        origin: String,
+        userAgent: String,
+        credential: PublicKeyCredential,
+        liquidExt: JSONObject?
+    ): Response {
+        return assertionApi!!.postAssertionResult(origin, userAgent, credential, liquidExt).await()
     }
 }

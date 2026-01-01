@@ -10,5 +10,5 @@ data class RegisteredHdKeyItem(
     val isImportedToDB: Boolean,
     val account: Int,
     val change: Int,
-    val keyIndex: Int
+    val keyIndex: Int,
 )

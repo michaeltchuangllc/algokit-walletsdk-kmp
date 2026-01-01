@@ -7,5 +7,5 @@ data class AddPasskeyArgs(
     val uid: String,
     val username: String,
     val displayName: String,
-    val credId: String
+    val credId: String,
 )

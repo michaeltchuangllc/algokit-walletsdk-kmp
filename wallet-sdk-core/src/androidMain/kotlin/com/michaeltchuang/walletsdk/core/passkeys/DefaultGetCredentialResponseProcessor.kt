@@ -10,31 +10,33 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.FidoPublicKeyCred
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 
-
 internal class DefaultGetCredentialResponseProcessor(
     private val bip39SignManager: Bip39SignManager,
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
-    private val timeProvider: TimeProvider
+    private val timeProvider: TimeProvider,
 ) : GetCredentialResponseProcessor {
-
     override suspend fun getResponseWithSignature(params: GetCredentialsParams): GetCredentialResponse {
         var callingOrigin: String? = params.origin
         if (params.callingAppInfo != null) {
             callingOrigin = params.callingAppInfo
         }
 
-        val authAssertionResponse = getAuthAssertionResponse(params, callingOrigin).apply {
-            signature = bip39SignManager
-                .sign(params.algoAddress, params.origin, params.username, dataToSign())
-                ?: byteArrayOf()
-        }
+        val authAssertionResponse =
+            getAuthAssertionResponse(params, callingOrigin).apply {
+                signature = bip39SignManager
+                    .sign(params.algoAddress, params.origin, params.username, dataToSign())
+                    ?: byteArrayOf()
+            }
         setPasskeyLastUsedTime(params.credId, timeProvider.getCurrentTimeMillis())
         val fidoResponse = FidoPublicKeyCredential(params.credId, authAssertionResponse)
         return GetCredentialResponse(PublicKeyCredential(fidoResponse.json()))
     }
 
-    private fun getAuthAssertionResponse(params: GetCredentialsParams, origin: String?): AuthenticatorAssertionResponse {
-        return AuthenticatorAssertionResponse(
+    private fun getAuthAssertionResponse(
+        params: GetCredentialsParams,
+        origin: String?,
+    ): AuthenticatorAssertionResponse =
+        AuthenticatorAssertionResponse(
             requestOptions = params.request,
             origin = origin,
             authFlags = AuthenticatorFlags(),
@@ -42,5 +44,4 @@ internal class DefaultGetCredentialResponseProcessor(
             packageName = params.packageName,
             clientDataHash = params.clientDataHash,
         )
-    }
 }

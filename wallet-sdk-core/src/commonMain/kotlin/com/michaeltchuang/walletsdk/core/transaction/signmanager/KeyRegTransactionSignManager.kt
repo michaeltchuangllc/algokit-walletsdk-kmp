@@ -30,16 +30,18 @@ class KeyRegTransactionSignManager(
         signResultFlow.map {
             when (it) {
                 is ExternalTransactionSignResult.Success<*> -> {
-                    val result = mapSignedTransaction(
-                        unsignedTransaction,
-                        it.signedTransactionsByteArray,
-                    )
+                    val result =
+                        mapSignedTransaction(
+                            unsignedTransaction,
+                            it.signedTransactionsByteArray,
+                        )
                     unsignedTransaction = null
                     result
                 }
 
                 is ExternalTransactionSignResult.Error,
-                is ExternalTransactionSignResult.TransactionCancelled -> {
+                is ExternalTransactionSignResult.TransactionCancelled,
+                -> {
                     unsignedTransaction = null
                     it
                 }

@@ -6,13 +6,14 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.GetCallingAppOriginCheckingGpmAllowlist
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase.IsAssetLinksValid
 
-
 internal class PasskeyCallingAppInfoValidator(
     private val isAssetLinksValid: IsAssetLinksValid,
     private val getCallingAppOriginCheckingGpmAllowlist: GetCallingAppOriginCheckingGpmAllowlist,
 ) : CallingAppInfoValidator {
-
-    override suspend fun validateCallingApp(rpId: String, callingAppInfo: CallingAppInfo?): AppInfoValidationResult {
+    override suspend fun validateCallingApp(
+        rpId: String,
+        callingAppInfo: CallingAppInfo?,
+    ): AppInfoValidationResult {
         if (callingAppInfo == null) return AppInfoValidationResult.AppInfoNotFound
         return if (isWebRequest(callingAppInfo)) {
             val result = getCallingAppOriginCheckingGpmAllowlist(callingAppInfo)
@@ -22,7 +23,7 @@ internal class PasskeyCallingAppInfoValidator(
                 },
                 onFailed = { exception: Exception, _: Int? ->
                     AppInfoValidationResult.FailedToValidateOrigin(exception)
-                }
+                },
             )
         } else {
             val result = isAssetLinksValid(rpId, callingAppInfo)
@@ -33,7 +34,7 @@ internal class PasskeyCallingAppInfoValidator(
                 },
                 onFailed = { _: Exception, _: Int? ->
                     AppInfoValidationResult.FailedToValidateRP
-                }
+                },
             )
         }
     }
@@ -48,8 +49,8 @@ internal class PasskeyCallingAppInfoValidator(
     }
 
     private companion object {
-
-        const val INVALID_ALLOWLIST = "{\"apps\": [\n" +
+        const val INVALID_ALLOWLIST =
+            "{\"apps\": [\n" +
                 "   {\n" +
                 "      \"type\": \"android\", \n" +
                 "      \"info\": {\n" +

@@ -82,15 +82,16 @@ fun LiquidAuthScreen(
         onAccountSelected = {
             onConnect.value = true
             selectedAccount = it
-        }, onBack = {
+        },
+        onBack = {
             navController.popBackStack()
-        })
+        },
+    )
 
     if (onConnect.value) {
         connect(viewModel.authMessage, selectedAccount)
         onConnect.value = false
     }
-
 }
 
 @Composable
@@ -164,7 +165,6 @@ private fun InfoField(
         color = valueColor,
     )
 }
-
 
 @Composable
 fun ScreenContentLiquidAuth(
@@ -350,26 +350,25 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
 @Preview
 @Composable
 fun LiquidAuthScreenPreview() {
-
-
-    val accounts = mutableListOf<AccountLite>().apply {
-        add(
-            AccountLite(
-                address = "address1",
-                customName = "Account 1",
-                registrationType = AccountRegistrationType.HdKey,
-                balance = "1"
+    val accounts =
+        mutableListOf<AccountLite>().apply {
+            add(
+                AccountLite(
+                    address = "address1",
+                    customName = "Account 1",
+                    registrationType = AccountRegistrationType.HdKey,
+                    balance = "1",
+                ),
             )
-        )
-        add(
-            AccountLite(
-                address = "address1",
-                customName = "Account 1",
-                registrationType = AccountRegistrationType.HdKey,
-                balance = "1"
+            add(
+                AccountLite(
+                    address = "address1",
+                    customName = "Account 1",
+                    registrationType = AccountRegistrationType.HdKey,
+                    balance = "1",
+                ),
             )
-        )
-    }
+        }
     ScreenContentLiquidAuth(
         viewState = LiquidAuthViewModel.ViewState.Content(accounts),
         onAccountSelected = {

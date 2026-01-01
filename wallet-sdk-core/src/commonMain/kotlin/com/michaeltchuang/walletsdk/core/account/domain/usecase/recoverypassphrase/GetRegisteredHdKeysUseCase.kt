@@ -19,7 +19,6 @@ internal class GetRegisteredHdKeysUseCase(
     private val getActiveHdAccountAddresses: GetActiveHdAccountAddresses,
     private val registeredHdKeyMapper: RegisteredHdKeyMapper,
 ) : GetRegisteredHdKeys {
-
     override suspend fun invoke(entropy: ByteArray): List<RegisteredHdKey> {
         val localAccountAddresses = getLocalAccountsAddresses()
         val activeHdAccounts = getActiveHdAccounts(entropy)
@@ -29,30 +28,34 @@ internal class GetRegisteredHdKeysUseCase(
             return getFirstAccountFirstAddress(walletApi, localAccountAddresses)
         }
 
-        val activeHdAccountAddresses = supervisorScope {
-            activeHdAccounts.map { activeHdAccount ->
-                async {
-                    getActiveHdAccountAddresses(activeHdAccount)
-                }
-            }.awaitAll().flatten()
-        }
-
-        return activeHdAccountAddresses.mapNotNull { hdAccountAddress ->
-            if (hdAccountAddress.fastLookup == null || !hdAccountAddress.fastLookup.accountExists) {
-                return@mapNotNull null
+        val activeHdAccountAddresses =
+            supervisorScope {
+                activeHdAccounts
+                    .map { activeHdAccount ->
+                        async {
+                            getActiveHdAccountAddresses(activeHdAccount)
+                        }
+                    }.awaitAll()
+                    .flatten()
             }
-            val isAlreadyImported = localAccountAddresses.contains(hdAccountAddress.address)
-            registeredHdKeyMapper(hdAccountAddress, hdAccountAddress.fastLookup, isAlreadyImported)
-        }.ifEmpty {
-            getFirstAccountFirstAddress(walletApi, localAccountAddresses)
-        }.also {
-            walletApi.invalidate()
-        }
+
+        return activeHdAccountAddresses
+            .mapNotNull { hdAccountAddress ->
+                if (hdAccountAddress.fastLookup == null || !hdAccountAddress.fastLookup.accountExists) {
+                    return@mapNotNull null
+                }
+                val isAlreadyImported = localAccountAddresses.contains(hdAccountAddress.address)
+                registeredHdKeyMapper(hdAccountAddress, hdAccountAddress.fastLookup, isAlreadyImported)
+            }.ifEmpty {
+                getFirstAccountFirstAddress(walletApi, localAccountAddresses)
+            }.also {
+                walletApi.invalidate()
+            }
     }
 
     private fun getFirstAccountFirstAddress(
         bip39Wallet: Bip39Wallet,
-        localAccountAddresses: List<String>
+        localAccountAddresses: List<String>,
     ): List<RegisteredHdKey> {
         val index = HdKeyAddressIndex(accountIndex = 0, changeIndex = 0, keyIndex = 0)
         val address = bip39Wallet.generateAddressLite(index).address

@@ -6,12 +6,11 @@ import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.model.AlgoTrans
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.model.SuggestedTransactionParams
 import io.mockk.every
 import io.mockk.mockk
-import java.math.BigInteger
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.math.BigInteger
 
 class AlgoTransactionBuilderImplTest {
-
     private val algoSdk: AlgoSdk = mockk()
 
     private val sut = AlgoTransactionBuilderImpl(algoSdk)
@@ -25,7 +24,7 @@ class AlgoTransactionBuilderImplTest {
                 AMOUNT,
                 IS_MAX,
                 NOTE,
-                SUGGESTED_PARAMS
+                SUGGESTED_PARAMS,
             )
         } returns TXN_BYTE_ARRAY
 
@@ -43,13 +42,14 @@ class AlgoTransactionBuilderImplTest {
         val NOTE = "test note".toByteArray()
         val SUGGESTED_PARAMS = mockk<SuggestedTransactionParams>(relaxed = true)
 
-        val ALGO_TXN_PAYLOAD = AlgoTransactionPayload(
-            senderAddress = ADDRESS,
-            receiverAddress = RECEIVER_ADDRESS,
-            amount = AMOUNT,
-            isMaxAmount = IS_MAX,
-            noteInByteArray = NOTE
-        )
+        val ALGO_TXN_PAYLOAD =
+            AlgoTransactionPayload(
+                senderAddress = ADDRESS,
+                receiverAddress = RECEIVER_ADDRESS,
+                amount = AMOUNT,
+                isMaxAmount = IS_MAX,
+                noteInByteArray = NOTE,
+            )
         val TXN_BYTE_ARRAY = byteArrayOf(1, 2, 3, 4, 5)
     }
 }

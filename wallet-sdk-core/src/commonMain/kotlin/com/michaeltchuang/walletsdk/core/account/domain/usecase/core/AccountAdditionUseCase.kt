@@ -31,10 +31,11 @@ class AccountAdditionUseCase(
 
             is CreateAccount.Type.Falcon24 -> {
                 // Create the account first, then delete watch account only if successful
-                val success = createFalcon24Account(
-                    createAccount,
-                    createAccount.type,
-                )
+                val success =
+                    createFalcon24Account(
+                        createAccount,
+                        createAccount.type,
+                    )
                 if (success) {
                     deleteWatchAccountIfExists(createAccount.address)
                 }
@@ -61,8 +62,8 @@ class AccountAdditionUseCase(
     private suspend fun createHdKeyAccount(
         createAccount: CreateAccount,
         type: CreateAccount.Type.HdKey,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             with(createAccount) {
                 decryptByteArray(type.encryptedPrivateKey).let { privateKey ->
 
@@ -94,13 +95,12 @@ class AccountAdditionUseCase(
         } catch (e: Exception) {
             false
         }
-    }
 
     private suspend fun createFalcon24Account(
         createAccount: CreateAccount,
         type: CreateAccount.Type.Falcon24,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             with(createAccount) {
                 decryptByteArray(type.encryptedPrivateKey).let { privateKey ->
                     decryptByteArray(type.encryptedEntropy).let { entropy ->
@@ -127,13 +127,12 @@ class AccountAdditionUseCase(
         } catch (e: Exception) {
             false
         }
-    }
 
     private suspend fun createAlgo25Account(
         createAccount: CreateAccount,
         type: CreateAccount.Type.Algo25,
-    ): Boolean {
-        return try {
+    ): Boolean =
+        try {
             with(createAccount) {
                 val secretKey = decryptByteArray(type.encryptedSecretKey)
                 addAlgo25Account(
@@ -149,11 +148,10 @@ class AccountAdditionUseCase(
         } catch (e: Exception) {
             false
         }
-    }
 
     private suspend fun createNoAuthAccount(createAccount: CreateAccount) {
         addNoAuthAccount(
-            createAccount
+            createAccount,
         )
     }
 }

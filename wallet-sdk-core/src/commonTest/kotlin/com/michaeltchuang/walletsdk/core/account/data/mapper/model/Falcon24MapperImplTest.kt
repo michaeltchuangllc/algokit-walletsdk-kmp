@@ -6,17 +6,17 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class Falcon24MapperImplTest {
-
     private val sut = Falcon24MapperImpl()
 
     @Test
     fun `EXPECT LocalAccount Falcon24 to be created from Falcon24Entity`() {
-        val entity = Falcon24Entity(
-            algoAddress = ADDRESS,
-            seedId = SEED_ID,
-            publicKey = PUBLIC_KEY,
-            encryptedSecretKey = ENCRYPTED_SECRET_KEY
-        )
+        val entity =
+            Falcon24Entity(
+                algoAddress = ADDRESS,
+                seedId = SEED_ID,
+                publicKey = PUBLIC_KEY,
+                encryptedSecretKey = ENCRYPTED_SECRET_KEY,
+            )
 
         val result = sut(entity)
 

@@ -7,9 +7,7 @@ import com.michaeltchuang.walletsdk.ui.passkeys.model.CreatePasskeyCredentialCre
 import com.michaeltchuang.walletsdk.ui.passkeys.model.GetPasskeyCredentialEntry
 
 interface PasskeyCreateCredentialEntryBuilder {
-    suspend fun buildEntries(
-        request: BeginCreateCredentialRequest
-    ): AlgoKitResult<List<CreatePasskeyCredentialCreateEntry>>
+    suspend fun buildEntries(request: BeginCreateCredentialRequest): AlgoKitResult<List<CreatePasskeyCredentialCreateEntry>>
 }
 
 interface PasskeyGetCredentialsEntryBuilder {

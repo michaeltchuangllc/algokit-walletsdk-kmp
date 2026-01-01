@@ -28,7 +28,7 @@ fun interface AddNewPasskey {
     suspend operator fun invoke(
         algoAddress: String,
         requestOptions: PublicKeyCredentialCreationOptions,
-        credId: ByteArray
+        credId: ByteArray,
     )
 }
 
@@ -41,9 +41,16 @@ fun interface GetPasskeyByCredentialId {
 }
 
 fun interface SetPasskeyLastUsedTime {
-    suspend operator fun invoke(credId: String, lastUsed: Long)
+    suspend operator fun invoke(
+        credId: String,
+        lastUsed: Long,
+    )
 }
 
 fun interface DoesPasskeyExist {
-    suspend operator fun invoke(rpId: String, username: String, algoAddress: String): Boolean
+    suspend operator fun invoke(
+        rpId: String,
+        username: String,
+        algoAddress: String,
+    ): Boolean
 }

@@ -16,13 +16,12 @@ import org.json.JSONObject
 class FidoPublicKeyCredential(
     val encodedId: String,
     val response: AuthenticatorResponse,
-    val authenticatorAttachment: String = DEFAULT_AUTH_ATTACHMENT
+    val authenticatorAttachment: String = DEFAULT_AUTH_ATTACHMENT,
 ) {
-
     constructor(
         rawId: ByteArray,
         response: AuthenticatorResponse,
-        authenticatorAttachment: String = DEFAULT_AUTH_ATTACHMENT
+        authenticatorAttachment: String = DEFAULT_AUTH_ATTACHMENT,
     ) : this(WebAuthnUtils.b64Encode(rawId), response, authenticatorAttachment)
 
     fun json(): String {

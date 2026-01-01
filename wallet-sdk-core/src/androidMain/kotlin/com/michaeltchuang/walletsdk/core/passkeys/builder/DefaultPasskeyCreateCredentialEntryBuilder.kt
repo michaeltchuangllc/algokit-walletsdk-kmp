@@ -13,12 +13,9 @@ import com.michaeltchuang.walletsdk.ui.passkeys.model.CreatePasskeyCredentialCre
 class DefaultPasskeyCreateCredentialEntryBuilder(
     private val getAllHdSeedFirstAddresses: GetAllHdSeedFirstAddresses,
     private val getSitePasskeyCount: GetSitePasskeyCount,
-    private val getHdSeedCustomName: GetHdSeedCustomName
+    private val getHdSeedCustomName: GetHdSeedCustomName,
 ) : PasskeyCreateCredentialEntryBuilder {
-
-    override suspend fun buildEntries(
-        request: BeginCreateCredentialRequest
-    ): AlgoKitResult<List<CreatePasskeyCredentialCreateEntry>> {
+    override suspend fun buildEntries(request: BeginCreateCredentialRequest): AlgoKitResult<List<CreatePasskeyCredentialCreateEntry>> {
         val hdSeedsAddresses = getAllHdSeedFirstAddresses()
         return if (hdSeedsAddresses.isEmpty()) {
             AlgoKitResult.Error(CreateCredentialNoCreateOptionException())
@@ -29,14 +26,14 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
 
     private suspend fun createEntries(
         request: BeginCreateCredentialRequest,
-        hdSeedsAddresses: List<HdSeedFirstAddress>
+        hdSeedsAddresses: List<HdSeedFirstAddress>,
     ): List<CreatePasskeyCredentialCreateEntry> {
         val registeredRelyingPartyPasskeyCount = getPasskeyCount(request)
         return hdSeedsAddresses.map { hdSeed ->
             CreatePasskeyCredentialCreateEntry(
                 accountName = getHdSeedCustomName(hdSeed.seedId).orEmpty(),
                 passkeyCount = registeredRelyingPartyPasskeyCount,
-                algoAddress = hdSeed.firstAddress
+                algoAddress = hdSeed.firstAddress,
             )
         }
     }
@@ -47,14 +44,13 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
         return getSitePasskeyCount(relyingPartyUrl)
     }
 
-    private fun getCredentialOptions(request: BeginCreateCredentialRequest): PublicKeyCredentialCreationOptions? {
-        return try {
+    private fun getCredentialOptions(request: BeginCreateCredentialRequest): PublicKeyCredentialCreationOptions? =
+        try {
             val requestJson = request.candidateQueryData.getString(BUNDLE_KEY)
             PublicKeyCredentialCreationOptions(requestJson.orEmpty())
         } catch (_: Exception) {
             null
         }
-    }
 
     private companion object {
         const val BUNDLE_KEY = "androidx.credentials.BUNDLE_KEY_REQUEST_JSON"

@@ -8,23 +8,21 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePasskeyParamsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
 
-
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-class DefaultCreatePasskeyParamsMapper() : CreatePasskeyParamsMapper {
-
+class DefaultCreatePasskeyParamsMapper : CreatePasskeyParamsMapper {
     override fun invoke(
         request: ProviderCreateCredentialRequest,
         algoAddress: String,
-        appInfoOrigin: String
+        appInfoOrigin: String,
     ): CreatePasskeyParams {
         val publicKeyRequest = request.callingRequest as CreatePublicKeyCredentialRequest
         return with(publicKeyRequest) {
-           CreatePasskeyParams(
+            CreatePasskeyParams(
                 requestOptions = PublicKeyCredentialCreationOptions(requestJson),
                 callingAppInfo = request.callingAppInfo,
                 clientDataHash = clientDataHash,
                 algoAddress = algoAddress,
-                appInfoOrigin = appInfoOrigin
+                appInfoOrigin = appInfoOrigin,
             )
         }
     }

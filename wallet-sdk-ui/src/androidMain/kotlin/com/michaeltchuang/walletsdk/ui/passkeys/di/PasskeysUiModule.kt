@@ -48,6 +48,16 @@ val passkeysUiModule =
             )
         }
         viewModel {
-            AnswerViewModel(get(), get(), get(), get(), get(), get(), get(), get(), get())
+            AnswerViewModel(
+                addNewPasskey = get(),
+                passkeyRepository = get(),
+                setPasskeyLastUsedTime = get(),
+                getAccountMnemonic = get(),
+                timeProvider = get(),
+                getAlgo25SecretKey = get(),
+                getFalcon24SecretKey = get(),
+                getAccountDetail = get(),
+                getSeed = get(),
+            )
         }
     }

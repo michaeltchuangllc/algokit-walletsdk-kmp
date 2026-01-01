@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RekeyTransactionBuilderImplTest {
-
     private val algoSdk: AlgoSdk = mockk()
 
     private val sut = RekeyTransactionBuilderImpl(algoSdk)
@@ -21,7 +20,7 @@ class RekeyTransactionBuilderImplTest {
             algoSdk.createRekeyTxn(
                 REKEY_ADDRESS,
                 ADDRESS,
-                SUGGESTED_PARAMS
+                SUGGESTED_PARAMS,
             )
         } returns TXN_BYTE_ARRAY
 
@@ -37,9 +36,10 @@ class RekeyTransactionBuilderImplTest {
         val SUGGESTED_PARAMS = mockk<SuggestedTransactionParams>(relaxed = true)
         val TXN_BYTE_ARRAY = byteArrayOf(1, 2, 3, 4, 5)
 
-        val REKEY_TXN_PAYLOAD = RekeyTransactionPayload(
-            address = REKEY_ADDRESS,
-            rekeyAdminAddress = ADDRESS
-        )
+        val REKEY_TXN_PAYLOAD =
+            RekeyTransactionPayload(
+                address = REKEY_ADDRESS,
+                rekeyAdminAddress = ADDRESS,
+            )
     }
 }

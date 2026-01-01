@@ -4,10 +4,9 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastL
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.ActiveHdAccount
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 
-
 internal interface HdAccountAddressMapper {
     operator fun invoke(
         hdKeyDetails: List<HdKeyAddressLite>,
-        accountFastLookupBatch: Map<String, AccountFastLookup?>
+        accountFastLookupBatch: Map<String, AccountFastLookup?>,
     ): List<ActiveHdAccount.HdAccountAddress>
 }

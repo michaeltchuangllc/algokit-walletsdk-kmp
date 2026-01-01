@@ -13,7 +13,9 @@ import org.json.JSONObject
  *
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
-class PublicKeyCredentialCreationOptions(requestJson: String) {
+class PublicKeyCredentialCreationOptions(
+    requestJson: String,
+) {
     private val json: JSONObject = JSONObject(requestJson)
 
     val rp: PublicKeyCredentialRpEntity
@@ -33,9 +35,12 @@ class PublicKeyCredentialCreationOptions(requestJson: String) {
         rp = PublicKeyCredentialRpEntity(rpJson.getString("name"), rpJson.getString("id"))
         val rpUser = json.getJSONObject("user")
         val userId = WebAuthnUtils.b64Decode(rpUser.getString("id"))
-        user = PublicKeyCredentialUserEntity(
-            rpUser.getString("name"), userId, rpUser.getString("displayName"),
-        )
+        user =
+            PublicKeyCredentialUserEntity(
+                rpUser.getString("name"),
+                userId,
+                rpUser.getString("displayName"),
+            )
         val pubKeyCredParamsJson = json.getJSONArray("pubKeyCredParams")
         val pubKeyCredParamsTmp: MutableList<PublicKeyCredentialParameters> = mutableListOf()
         for (i in 0 until pubKeyCredParamsJson.length()) {

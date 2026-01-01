@@ -6,21 +6,21 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class HdKeyMapperImplTest {
-
     private val sut = HdKeyMapperImpl()
 
     @Test
     fun `EXPECT LocalAccount HdKey to be created from HdKeyEntity`() {
-        val entity = HdKeyEntity(
-            algoAddress = ADDRESS,
-            publicKey = PUBLIC_KEY,
-            encryptedPrivateKey = ENCRYPTED_PRIVATE_KEY,
-            seedId = SEED_ID,
-            account = ACCOUNT,
-            change = CHANGE,
-            keyIndex = KEY_INDEX,
-            derivationType = DERIVATION_TYPE
-        )
+        val entity =
+            HdKeyEntity(
+                algoAddress = ADDRESS,
+                publicKey = PUBLIC_KEY,
+                encryptedPrivateKey = ENCRYPTED_PRIVATE_KEY,
+                seedId = SEED_ID,
+                account = ACCOUNT,
+                change = CHANGE,
+                keyIndex = KEY_INDEX,
+                derivationType = DERIVATION_TYPE,
+            )
 
         val result = sut(entity)
 

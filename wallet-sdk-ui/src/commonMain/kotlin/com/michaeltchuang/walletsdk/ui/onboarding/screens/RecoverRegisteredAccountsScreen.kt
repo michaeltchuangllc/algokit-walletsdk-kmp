@@ -203,9 +203,10 @@ private fun TitleText() {
 
 @Composable
 private fun DescriptionText(registeredAccountSize: Int) {
+    val addressWord = if (registeredAccountSize == 1) "address" else "addresses"
     AlgoKitBodyText(
         modifier = Modifier.padding(top = 10.dp),
-        text = "Select the addresses you want to import ($registeredAccountSize ${if (registeredAccountSize == 1) "address" else "addresses"})",
+        text = "Select the addresses you want to import ($registeredAccountSize $addressWord)",
     )
 }
 

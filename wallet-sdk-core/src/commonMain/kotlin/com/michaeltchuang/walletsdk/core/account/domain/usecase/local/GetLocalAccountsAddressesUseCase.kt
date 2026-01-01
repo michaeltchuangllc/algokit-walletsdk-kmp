@@ -13,23 +13,21 @@ import kotlinx.coroutines.withContext
 internal class GetLocalAccountsAddressesUseCase(
     private val hdKeyAccountRepository: HdKeyAccountRepository,
     private val algo25AccountRepository: Algo25AccountRepository,
- /*   private val ledgerBleAccountRepository: LedgerBleAccountRepository,*/
+    // private val ledgerBleAccountRepository: LedgerBleAccountRepository,
     private val noAuthAccountRepository: NoAuthAccountRepository,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : GetLocalAccountsAddresses {
-
-    override suspend fun invoke(): List<String> {
-        return withContext(coroutineDispatcher) {
+    override suspend fun invoke(): List<String> =
+        withContext(coroutineDispatcher) {
             val deferredHdKeyAccountsAddresses = async { hdKeyAccountRepository.getAllAddresses() }
             val deferredAlgo25Accounts = async { algo25AccountRepository.getAllAddresses() }
-           // val deferredLedgerBleAccounts = async { ledgerBleAccountRepository.getAllAddresses() }
+            // val deferredLedgerBleAccounts = async { ledgerBleAccountRepository.getAllAddresses() }
             val deferredNoAuthAccounts = async { noAuthAccountRepository.getAllAddresses() }
             awaitAll(
                 deferredHdKeyAccountsAddresses,
                 deferredAlgo25Accounts,
-              /*  deferredLedgerBleAccounts,*/
-                deferredNoAuthAccounts
+                // deferredLedgerBleAccounts,
+                deferredNoAuthAccounts,
             ).flatten()
         }
-    }
 }

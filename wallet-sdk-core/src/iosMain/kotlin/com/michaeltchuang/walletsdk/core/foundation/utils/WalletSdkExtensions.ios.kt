@@ -5,9 +5,9 @@ import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
+import io.ktor.util.decodeBase64Bytes
 import io.ktor.utils.io.charsets.Charsets
 import io.ktor.utils.io.core.toByteArray
-import io.ktor.util.decodeBase64Bytes
 
 const val ROUND_THRESHOLD = 1000L
 
@@ -61,12 +61,13 @@ actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): Suggested
         genesisID = if (addGenesisId) params.genesisId else "",
         firstRoundValid = params.lastRound,
         lastRoundValid = params.lastRound + ROUND_THRESHOLD,
-        genesisHash = try {
-            params.genesisHash.decodeBase64Bytes()
-        } catch (e: Exception) {
-            println("Error decoding genesis hash: ${e.message}")
-            ByteArray(0)
-        }
+        genesisHash =
+            try {
+                params.genesisHash.decodeBase64Bytes()
+            } catch (e: Exception) {
+                println("Error decoding genesis hash: ${e.message}")
+                ByteArray(0)
+            },
     )
 }
 

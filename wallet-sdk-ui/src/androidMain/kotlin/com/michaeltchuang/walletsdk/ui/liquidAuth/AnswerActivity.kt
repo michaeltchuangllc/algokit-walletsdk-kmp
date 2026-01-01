@@ -58,7 +58,6 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCreden
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialRequestOptions
 import foundation.algorand.auth.fido2.AttestationApi
 import foundation.algorand.crypto.EncoderType
-import foundation.algorand.crypto.avm.KeyPairs
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
@@ -80,14 +79,14 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
-    val TURN_USERNAME: String = "fc7708976bf5d60be20c5a1d"
-    val TURN_CREDENTIAL: String = "sVpEREQGGhXOw4gX"
-    val NODELY_TURN_USERNAME = "liquid-auth"
-    val NODELY_TURN_CREDENTIAL = "sqmcP4MiTKMT4TGEDSk9jgHY"
-
     companion object {
         private const val TAG = "AnswerActivity"
         private const val SHARED_PREFERENCE_SEED_FILE = "ACCOUNT_SEEDS"
+        private const val TURN_USERNAME: String = "fc7708976bf5d60be20c5a1d"
+        private const val TURN_CREDENTIAL: String = "sVpEREQGGhXOw4gX"
+        private const val NODELY_TURN_USERNAME = "liquid-auth"
+        private const val NODELY_TURN_CREDENTIAL = "sqmcP4MiTKMT4TGEDSk9jgHY"
+        const val EXTRA_ALGO_ADDRESS = "EXTRA_ALGO_ADDRESS"
     }
 
     fun createIceServer(
@@ -173,12 +172,14 @@ class AnswerActivity : AppCompatActivity() {
     private val notifications: NotificationViewModel by viewModels() // Handle Notifications
 
     // Third Party APIs
-    private var httpClient = OkHttpClient.Builder()
-        .cookieJar(Cookies())
-        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .build()
+    private var httpClient =
+        OkHttpClient
+            .Builder()
+            .cookieJar(Cookies())
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
     private lateinit var promptInfo: BiometricPrompt.PromptInfo
 
     // FIDO/Auth interfaces
@@ -187,11 +188,6 @@ class AnswerActivity : AppCompatActivity() {
     private val attestationApi = AttestationApi(httpClient)
     private var attestationApiResponse: String? = null
     private val assertionApi = AssertionApi(httpClient)
-    val APPLICATION_ID = "com.michaeltchuang.walletsdk.demo"
-    val VERSION_NAME = "1.0"
-    private val userAgent =
-        "${APPLICATION_ID}/${VERSION_NAME} " +
-                "(Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
     private var signature: ByteArray? = null
 
     private var algoAddress: String? = null
@@ -223,14 +219,18 @@ class AnswerActivity : AppCompatActivity() {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.background,
                 ) {
                     AnswerScreen(
-                        viewModel = viewModel
+                        viewModel = viewModel,
                     )
                 }
             }
         }
+
+        // Initialize ViewModel with API instances that use the Activity's httpClient
+        // This is critical for maintaining cookies/session across requests
+        viewModel.initializeApis(attestationApi, assertionApi)
 
         algoAddress = intent.getStringExtra(EXTRA_ALGO_ADDRESS)
         lifecycleScope.launch {
@@ -256,25 +256,27 @@ class AnswerActivity : AppCompatActivity() {
 
         // Log app signature for debugging FIDO2 verification issues
         try {
-            val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageManager.getPackageInfo(
-                    packageName,
-                    android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                packageManager.getPackageInfo(
-                    packageName,
-                    android.content.pm.PackageManager.GET_SIGNATURES
-                )
-            }
+            val packageInfo =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageManager.getPackageInfo(
+                        packageName,
+                        android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES,
+                    )
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageManager.getPackageInfo(
+                        packageName,
+                        android.content.pm.PackageManager.GET_SIGNATURES,
+                    )
+                }
 
-            val signatures = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                packageInfo.signingInfo?.apkContentsSigners
-            } else {
-                @Suppress("DEPRECATION")
-                packageInfo.signatures
-            }
+            val signatures =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    packageInfo.signingInfo?.apkContentsSigners
+                } else {
+                    @Suppress("DEPRECATION")
+                    packageInfo.signatures
+                }
 
             signatures?.forEach { signature ->
                 val md = java.security.MessageDigest.getInstance("SHA-256")
@@ -301,7 +303,7 @@ class AnswerActivity : AppCompatActivity() {
         if (!hasIntent) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
             Handler().postDelayed({
-                connect(AuthMessageStorage.AuthMessage)
+                connect(AuthMessageStorage.authMessage)
             }, 2000)
         } else {
             Log.d(TAG, "Intent detected, skipping auto-connect (will use scanned QR data)")
@@ -312,7 +314,7 @@ class AnswerActivity : AppCompatActivity() {
     private fun hydrateIntents() {
         val isConnected =
             signalService?.dataChannel is DataChannel &&
-                    signalService?.dataChannel?.state() === DataChannel.State.OPEN
+                signalService?.dataChannel?.state() === DataChannel.State.OPEN
         val isIntent = intent != null
         val isDeepLink = intent?.data != null && intent.data is Uri
         val isDataChannelMessage = intent?.getStringExtra("msg") != null
@@ -378,8 +380,7 @@ class AnswerActivity : AppCompatActivity() {
 
             // Launch the authentication process
             lifecycleScope.launch {
-                //  val savedCredential = viewModel.getCredentialId(origin = msg.origin.removePrefix("https://"))
-                val savedCredential = null
+                val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
                 if (savedCredential === null) {
                     register(msg)
                 } else {
@@ -433,7 +434,6 @@ class AnswerActivity : AppCompatActivity() {
         bindService(startIntent, mConnection as ServiceConnection, BIND_AUTO_CREATE)
     }
 
-
     /** Transaction Biometric Prompt */
     private suspend fun biometrics(message: SignTransactionsParams): BiometricPrompt.AuthenticationResult? =
         suspendCoroutine { continuation ->
@@ -471,21 +471,24 @@ class AnswerActivity : AppCompatActivity() {
      */
     private fun showTransactionConfirmationDialog(
         params: SignTransactionsParams,
-        message: Message
+        message: Message,
     ) {
         // Store the pending transaction parameters
         pendingTransactionParams = params
         pendingTransactionMessage = message
 
         // Build and show the dialog
-        val builder = androidx.appcompat.app.AlertDialog.Builder(this@AnswerActivity)
+        val builder =
+            androidx.appcompat.app.AlertDialog
+                .Builder(this@AnswerActivity)
 
         // Create dialog title
-        val title = if (params.txns.size == 1) {
-            "Sign Transaction"
-        } else {
-            "Sign ${params.txns.size} Transactions"
-        }
+        val title =
+            if (params.txns.size == 1) {
+                "Sign Transaction"
+            } else {
+                "Sign ${params.txns.size} Transactions"
+            }
 
         builder.setTitle(title)
 
@@ -525,11 +528,12 @@ class AnswerActivity : AppCompatActivity() {
                         } else {
                             // Biometric failed or was cancelled
                             runOnUiThread {
-                                Toast.makeText(
-                                    this@AnswerActivity,
-                                    "Transaction signing cancelled",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                Toast
+                                    .makeText(
+                                        this@AnswerActivity,
+                                        "Transaction signing cancelled",
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
                             }
                         }
                     }
@@ -547,11 +551,12 @@ class AnswerActivity : AppCompatActivity() {
             pendingTransactionParams = null
             pendingTransactionMessage = null
             // Show cancellation message
-            Toast.makeText(
-                this@AnswerActivity,
-                "Transaction signing cancelled",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast
+                .makeText(
+                    this@AnswerActivity,
+                    "Transaction signing cancelled",
+                    Toast.LENGTH_SHORT,
+                ).show()
         }
 
         builder.setCancelable(false) // Prevent dialog from being cancelled by clicking outside
@@ -609,8 +614,7 @@ class AnswerActivity : AppCompatActivity() {
         )
         // Connect to Service
         lifecycleScope.launch {
-            //  val savedCredential = viewModel.getCredentialId(msg.origin.removePrefix("https://"))
-            val savedCredential = null
+              val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
             signalClient = SignalClient(msg.origin, this@AnswerActivity, httpClient)
             if (savedCredential === null) {
                 register(msg)
@@ -634,7 +638,7 @@ class AnswerActivity : AppCompatActivity() {
             val account = algoAddress
             Log.d(TAG, "========================================")
             Log.d(TAG, "🔐 REGISTER() CALLED")
-            Log.d(TAG, "Account: ${algoAddress}")
+            Log.d(TAG, "Account: $algoAddress")
             Log.d(TAG, "Origin: ${msg.origin}")
             Log.d(TAG, "RequestID: ${msg.requestId}")
             Log.d(TAG, "========================================")
@@ -667,14 +671,14 @@ class AnswerActivity : AppCompatActivity() {
             // Check for tunneling services (ngrok, localhost, etc.)
             val isTunnel =
                 rpId.contains("ngrok") ||
-                        rpId.contains("localhost") ||
-                        rpId.contains("127.0.0.1") ||
-                        rpId.contains(".local")
+                    rpId.contains("localhost") ||
+                    rpId.contains("127.0.0.1") ||
+                    rpId.contains(".local")
             if (isTunnel) {
                 Log.w(TAG, "⚠️ Detected tunneling/local service: $rpId")
                 Log.w(
                     TAG,
-                    "FIDO2 may have issues with tunneling services. Ensure your ngrok/tunnel is properly configured."
+                    "FIDO2 may have issues with tunneling services. Ensure your ngrok/tunnel is properly configured.",
                 )
             }
 
@@ -686,11 +690,11 @@ class AnswerActivity : AppCompatActivity() {
             val authenticatorSelection = JSONObject()
             authenticatorSelection.put(
                 "authenticatorAttachment",
-                "platform"
+                "platform",
             ) // Use device biometrics
             authenticatorSelection.put(
                 "userVerification",
-                "required"
+                "required",
             ) // Require biometric verification
             authenticatorSelection.put("requireResidentKey", false) // Don't require resident key
             options.put("authenticatorSelection", authenticatorSelection)
@@ -713,12 +717,12 @@ class AnswerActivity : AppCompatActivity() {
             Log.d(TAG, "========================================")
             Log.d(TAG, "📡 SENDING HTTP REQUEST")
             Log.d(TAG, "URL: ${msg.origin}/attestation/request")
-            Log.d(TAG, "User-Agent: $userAgent")
+            Log.d(TAG, "User-Agent: ${viewModel.userAgent}")
             Log.d(TAG, "========================================")
 
             val response =
                 try {
-                    attestationApi.postAttestationOptions(msg.origin, userAgent, options).await()
+                    viewModel.fetchAttestationOptions(msg.origin, viewModel.userAgent, options)
                 } catch (e: Exception) {
                     Log.e(TAG, "Network error when contacting FIDO2 server", e)
                     viewModel.setError("Network error: ${e.message}")
@@ -736,7 +740,7 @@ class AnswerActivity : AppCompatActivity() {
             if (!response.isSuccessful) {
                 Log.e(
                     TAG,
-                    "Failed to get attestation options: ${response.code} ${response.message}"
+                    "Failed to get attestation options: ${response.code} ${response.message}",
                 )
                 val errorBody =
                     try {
@@ -758,7 +762,7 @@ class AnswerActivity : AppCompatActivity() {
             } else {
                 Log.d(TAG, "HTTP request successful")
                 attestationApiResponse = response.peekBody(Long.MAX_VALUE).string()
-                Log.d(TAG, "Mithilesh: FIDO2 Options: ${attestationApiResponse}")
+                Log.d(TAG, "Mithilesh: FIDO2 Options: $attestationApiResponse")
             }
 
             val session = Cookie.fromResponse(response)
@@ -779,10 +783,11 @@ class AnswerActivity : AppCompatActivity() {
             Log.d(TAG, "Challenge length: ${pubKeyCredentialCreationOptions.challenge?.size}")
 
             // Sign the challenge with the algorand account, this is used in the liquid FIDO2 extension
-            val signatureResult = viewModel.signFido2Challenge(
-                pubKeyCredentialCreationOptions.challenge,
-                algoAddress!!
-            )
+            val signatureResult =
+                viewModel.signFido2Challenge(
+                    pubKeyCredentialCreationOptions.challenge,
+                    algoAddress!!,
+                )
 
             /*val signatureResult =
                 KeyPairs.rawSignBytes(
@@ -793,11 +798,12 @@ class AnswerActivity : AppCompatActivity() {
             if (signatureResult == null) {
                 Log.e(TAG, "Failed to sign FIDO2 challenge - signature is null")
                 runOnUiThread {
-                    Toast.makeText(
-                        this@AnswerActivity,
-                        "Failed to sign challenge: unable to retrieve account credentials",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Failed to sign challenge: unable to retrieve account credentials",
+                            Toast.LENGTH_LONG,
+                        ).show()
                 }
                 return
             }
@@ -874,7 +880,7 @@ class AnswerActivity : AppCompatActivity() {
                 activityResult.resultCode != RESULT_OK -> {
                     Log.e(
                         TAG,
-                        "Attestation cancelled or failed. Result code: ${activityResult.resultCode}"
+                        "Attestation cancelled or failed. Result code: ${activityResult.resultCode}",
                     )
 
                     // Try to get error details from the intent
@@ -902,17 +908,19 @@ class AnswerActivity : AppCompatActivity() {
                         }
                     }
 
-                    Toast.makeText(this@AnswerActivity, "Attestation canceled", Toast.LENGTH_LONG)
+                    Toast
+                        .makeText(this@AnswerActivity, "Attestation canceled", Toast.LENGTH_LONG)
                         .show()
                 }
 
                 bytes == null -> {
                     Log.e(TAG, "Credential bytes are null")
-                    Toast.makeText(
-                        this@AnswerActivity,
-                        "Error: No credential data",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Error: No credential data",
+                            Toast.LENGTH_LONG,
+                        ).show()
                 }
 
                 else -> {
@@ -954,9 +962,8 @@ class AnswerActivity : AppCompatActivity() {
                                 .makeText(
                                     this@AnswerActivity,
                                     "Signature is null",
-                                    Toast.LENGTH_LONG
-                                )
-                                .show()
+                                    Toast.LENGTH_LONG,
+                                ).show()
                             return
                         }
                         val msg = viewModel.message.value!!
@@ -975,34 +982,35 @@ class AnswerActivity : AppCompatActivity() {
                             Log.d(TAG, "========================================")
 
                             // POST Authenticator Results to FIDO2 API
-                            val attestationResponse = attestationApi
-                                .postAttestationResult(
+                            val attestationResponse =
+                                viewModel.submitAttestationResult(
                                     msg.origin,
-                                    userAgent,
+                                    viewModel.userAgent,
                                     credential,
                                     liquidExtJSON,
-                                ).await()
+                                )
 
                             Log.d(TAG, "========================================")
                             Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
                             Log.d(TAG, "Server response: ${attestationResponse.code}")
                             Log.d(TAG, "Credential ID: ${credential.id}")
-                            Log.d(TAG, "Account: ${algoAddress}")
+                            Log.d(TAG, "Account: $algoAddress")
                             Log.d(TAG, "========================================")
 
                             runOnUiThread {
-                                Toast.makeText(
-                                    this@AnswerActivity,
-                                    "✅ Registration successful! Credential saved.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                Toast
+                                    .makeText(
+                                        this@AnswerActivity,
+                                        "✅ Registration successful! Credential saved.",
+                                        Toast.LENGTH_LONG,
+                                    ).show()
                             }
 
                             viewModel.saveCredential(
                                 this@AnswerActivity,
                                 algoAddress!!,
                                 credential,
-                                attestationApiResponse!!
+                                attestationApiResponse!!,
                             )
                             Log.d(TAG, "Credential Saved to local storage")
 
@@ -1016,7 +1024,7 @@ class AnswerActivity : AppCompatActivity() {
                                 Log.d(TAG, "🧪 TEST MODE: TESTING AUTHENTICATION")
                                 Log.d(
                                     TAG,
-                                    "Now attempting to authenticate with saved credential..."
+                                    "Now attempting to authenticate with saved credential...",
                                 )
                                 Log.d(TAG, "Credential ID: ${credential.id}")
                                 Log.d(TAG, "========================================")
@@ -1100,10 +1108,7 @@ class AnswerActivity : AppCompatActivity() {
         Log.d(TAG, "Credential: $credential")
         Log.d(TAG, "========================================")
 
-        val response =
-            assertionApi
-                .postAssertionOptions(msg.origin, userAgent, credential)
-                .await()
+        val response = viewModel.fetchAssertionOptions(msg.origin, viewModel.userAgent, credential)
 
         Log.d(TAG, "Got assertion options from server")
         Log.d(TAG, "HTTP Status: ${response.code} ${response.message}")
@@ -1121,40 +1126,44 @@ class AnswerActivity : AppCompatActivity() {
         if (!response.isSuccessful) {
             Log.e(TAG, "Server returned error response: ${response.code} ${response.message}")
             runOnUiThread {
-                Toast.makeText(
-                    this@AnswerActivity,
-                    "Server error: ${response.code} ${response.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast
+                    .makeText(
+                        this@AnswerActivity,
+                        "Server error: ${response.code} ${response.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
             }
             return
         }
 
-        val publicKeyCredentialRequestOptions = try {
-            // Recreate the response body since we consumed it above
-            val recreatedBody = responseBodyString?.let {
-                okhttp3.ResponseBody.create(
-                    response.body?.contentType(),
-                    it
-                )
-            }
+        val publicKeyCredentialRequestOptions =
+            try {
+                // Recreate the response body since we consumed it above
+                val recreatedBody =
+                    responseBodyString?.let {
+                        okhttp3.ResponseBody.create(
+                            response.body?.contentType(),
+                            it,
+                        )
+                    }
 
-            if (recreatedBody == null) {
-                throw IllegalArgumentException("Response body is null")
-            }
+                if (recreatedBody == null) {
+                    throw IllegalArgumentException("Response body is null")
+                }
 
-            recreatedBody.toPublicKeyCredentialRequestOptions()
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse PublicKeyCredentialRequestOptions", e)
-            runOnUiThread {
-                Toast.makeText(
-                    this@AnswerActivity,
-                    "Failed to parse authentication options: ${e.message}",
-                    Toast.LENGTH_LONG
-                ).show()
+                recreatedBody.toPublicKeyCredentialRequestOptions()
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse PublicKeyCredentialRequestOptions", e)
+                runOnUiThread {
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Failed to parse authentication options: ${e.message}",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                }
+                return
             }
-            return
-        }
 
         Log.d(TAG, "========================================")
         Log.d(TAG, "🔐 LAUNCHING PASSKEY AUTHENTICATION")
@@ -1208,13 +1217,12 @@ class AnswerActivity : AppCompatActivity() {
 
                         // POST Authenticator Results to FIDO2 API
                         val response =
-                            assertionApi
-                                .postAssertionResult(
-                                    viewModel.message.value!!.origin,
-                                    userAgent,
-                                    credential,
-                                    liquidExtJSON,
-                                ).await()
+                            viewModel.submitAssertionResult(
+                                viewModel.message.value!!.origin,
+                                viewModel.userAgent,
+                                credential,
+                                liquidExtJSON,
+                            )
 
                         Log.d(TAG, "========================================")
                         Log.d(TAG, "✅ AUTHENTICATION SUCCESSFUL!")
@@ -1223,11 +1231,12 @@ class AnswerActivity : AppCompatActivity() {
                         Log.d(TAG, "========================================")
 
                         runOnUiThread {
-                            Toast.makeText(
-                                this@AnswerActivity,
-                                "🔓 Authentication Successful!\nUsing saved credential",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            Toast
+                                .makeText(
+                                    this@AnswerActivity,
+                                    "🔓 Authentication Successful!\nUsing saved credential",
+                                    Toast.LENGTH_LONG,
+                                ).show()
                         }
 
                         // Update Render/State
@@ -1300,9 +1309,7 @@ class AnswerActivity : AppCompatActivity() {
 }
 
 @Composable
-fun AnswerScreen(
-    viewModel: AnswerViewModel,
-) {
+fun AnswerScreen(viewModel: AnswerViewModel) {
     // Collect StateFlow values as Compose state
     val session by viewModel.session.collectAsState()
     val message by viewModel.message.collectAsState()
@@ -1316,22 +1323,23 @@ fun AnswerScreen(
     val isConnecting = message != null && session == "Logged Out" && !hasError
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
         ) {
             // Header
             Text(
                 text = "Liquid Auth",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                color = MaterialTheme.colorScheme.primary,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1346,7 +1354,7 @@ fun AnswerScreen(
                 session = session,
                 origin = message?.origin,
                 requestId = message?.requestId,
-                accountAddress = accountAddress
+                accountAddress = accountAddress,
             )
 
             // Account Info Card (if account address exists)
@@ -1367,27 +1375,30 @@ fun ConnectionStatusCard(
     session: String,
     origin: String?,
     requestId: String?,
-    accountAddress: String?
+    accountAddress: String?,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                hasError -> MaterialTheme.colorScheme.errorContainer
-                isWaiting -> MaterialTheme.colorScheme.surfaceVariant
-                isConnecting -> MaterialTheme.colorScheme.tertiaryContainer
-                isConnected -> MaterialTheme.colorScheme.primaryContainer
-                else -> MaterialTheme.colorScheme.errorContainer
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        colors =
+            CardDefaults.cardColors(
+                containerColor =
+                    when {
+                        hasError -> MaterialTheme.colorScheme.errorContainer
+                        isWaiting -> MaterialTheme.colorScheme.surfaceVariant
+                        isConnecting -> MaterialTheme.colorScheme.tertiaryContainer
+                        isConnected -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.errorContainer
+                    },
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Status Icon and Loader
             if (hasError) {
@@ -1395,64 +1406,64 @@ fun ConnectionStatusCard(
                 Text(
                     text = "⚠",
                     style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
                 )
                 Text(
                     text = "Connection Failed",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 if (errorMessage != null) {
                     Text(
                         text = errorMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.9f),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
                     )
                 }
                 Text(
                     text = "Session: $session",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f)
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
                 )
             } else if (isWaiting) {
                 // Waiting for connection - show loader
                 CircularProgressIndicator(
                     modifier = Modifier.size(48.dp),
                     color = MaterialTheme.colorScheme.primary,
-                    strokeWidth = 4.dp
+                    strokeWidth = 4.dp,
                 )
                 Text(
                     text = "Waiting for connection...",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = "Scan a QR code or use deep link to connect",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
                 )
             } else if (isConnecting) {
                 // Connecting - show loader with connection info
                 CircularProgressIndicator(
                     modifier = Modifier.size(48.dp),
                     color = MaterialTheme.colorScheme.tertiary,
-                    strokeWidth = 4.dp
+                    strokeWidth = 4.dp,
                 )
                 Text(
                     text = "Connecting...",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                    color = MaterialTheme.colorScheme.onTertiaryContainer,
                 )
                 Text(
                     text = "Establishing secure connection",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
                 )
 
                 // Show connection details while connecting
@@ -1469,13 +1480,13 @@ fun ConnectionStatusCard(
                 Text(
                     text = "✓",
                     style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.primary
+                    color = MaterialTheme.colorScheme.primary,
                 )
                 Text(
                     text = "Connected",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
                 )
 
                 // Connection Details
@@ -1493,18 +1504,18 @@ fun ConnectionStatusCard(
                 Text(
                     text = "⚠",
                     style = MaterialTheme.typography.displayLarge,
-                    color = MaterialTheme.colorScheme.error
+                    color = MaterialTheme.colorScheme.error,
                 )
                 Text(
                     text = "Disconnected",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onErrorContainer
+                    color = MaterialTheme.colorScheme.onErrorContainer,
                 )
                 Text(
                     text = "Session: $session",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f)
+                    color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
                 )
             }
         }
@@ -1515,22 +1526,24 @@ fun ConnectionStatusCard(
 fun AccountInfoCard(accountAddress: String) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.secondaryContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        colors =
+            CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = "Account Information",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
 
             InfoRow(label = "Address", value = accountAddress)
@@ -1539,23 +1552,25 @@ fun AccountInfoCard(accountAddress: String) {
 }
 
 @Composable
-fun InfoRow(label: String, value: String) {
+fun InfoRow(
+    label: String,
+    value: String,
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface,
-            fontWeight = FontWeight.Normal
+            fontWeight = FontWeight.Normal,
         )
     }
 }
-

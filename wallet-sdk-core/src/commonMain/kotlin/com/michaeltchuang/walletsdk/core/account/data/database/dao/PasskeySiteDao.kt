@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 internal interface PasskeySiteDao {
-
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: SiteEntity): Long
 

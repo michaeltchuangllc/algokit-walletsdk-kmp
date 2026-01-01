@@ -5,17 +5,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CustomAccountInfoMapperImplTest {
-
     private val sut = CustomAccountInfoMapperImpl()
 
     @Test
     fun `EXPECT CustomAccountInfo to be created from entity with all values`() {
-        val entity = CustomAccountInfoEntity(
-            algoAddress = ADDRESS,
-            customName = CUSTOM_NAME,
-            orderIndex = ORDER_INDEX,
-            isBackedUp = IS_BACKED_UP
-        )
+        val entity =
+            CustomAccountInfoEntity(
+                algoAddress = ADDRESS,
+                customName = CUSTOM_NAME,
+                orderIndex = ORDER_INDEX,
+                isBackedUp = IS_BACKED_UP,
+            )
 
         val result = sut(ADDRESS, entity)
 
@@ -37,12 +37,13 @@ class CustomAccountInfoMapperImplTest {
 
     @Test
     fun `EXPECT CustomAccountInfo with null custom name WHEN entity has null name`() {
-        val entity = CustomAccountInfoEntity(
-            algoAddress = ADDRESS,
-            customName = null,
-            orderIndex = ORDER_INDEX,
-            isBackedUp = IS_BACKED_UP
-        )
+        val entity =
+            CustomAccountInfoEntity(
+                algoAddress = ADDRESS,
+                customName = null,
+                orderIndex = ORDER_INDEX,
+                isBackedUp = IS_BACKED_UP,
+            )
 
         val result = sut(ADDRESS, entity)
 
