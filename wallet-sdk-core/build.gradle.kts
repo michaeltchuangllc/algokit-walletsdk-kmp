@@ -1,10 +1,3 @@
-import org.gradle.kotlin.dsl.dependencies
-import org.gradle.kotlin.dsl.getting
-import org.gradle.kotlin.dsl.implementation
-import org.gradle.kotlin.dsl.invoke
-import org.gradle.kotlin.dsl.kotlin
-import org.gradle.kotlin.dsl.libs
-import org.gradle.kotlin.dsl.room
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -112,9 +105,11 @@ kotlin {
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
 
-            implementation(files("../libs/provider-debug.aar"))
-            implementation(files("../libs/crypto-debug.aar"))
-            // Deterministic Passkeys
+            // Local .aar dependencies - compileOnly to avoid packaging issues
+            // The app module must include these as implementation dependencies
+            compileOnly(files("../libs/provider-debug.aar"))
+            compileOnly(files("../libs/crypto-debug.aar"))
+            // Deterministic Passkeys (JAR files are supported)
             implementation(files("../libs/dP256.jar"))
 
             // Signaling Service

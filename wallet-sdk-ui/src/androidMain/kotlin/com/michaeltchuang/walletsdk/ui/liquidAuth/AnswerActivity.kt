@@ -71,7 +71,6 @@ import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
-import ru.gildor.coroutines.okhttp.await
 import java.security.Security
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -239,7 +238,7 @@ class AnswerActivity : AppCompatActivity() {
 
                 // Set account address in ViewModel for AVMProvider
                 viewModel.setAccountAddress(it)
-                
+
                 // 🧪 TESTING FLAG: Set to true to clear stored credentials on app start
                 // This forces fresh registration every time (useful for testing)
                 val clearCredentialsOnStart = false
@@ -308,9 +307,10 @@ class AnswerActivity : AppCompatActivity() {
 
         // Only auto-connect if we don't have an intent (deep link or QR scan)
         val hasIntent = intent?.data != null
-        val hasValidAuthMessage = AuthMessageStorage.authMessage.origin.isNotEmpty() && 
-                                 AuthMessageStorage.authMessage.requestId.isNotEmpty()
-        
+        val hasValidAuthMessage =
+            AuthMessageStorage.authMessage.origin.isNotEmpty() &&
+                AuthMessageStorage.authMessage.requestId.isNotEmpty()
+
         if (!hasIntent && hasValidAuthMessage) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
             Handler().postDelayed({
@@ -529,7 +529,7 @@ class AnswerActivity : AppCompatActivity() {
                             Log.d(TAG, "✅ BIOMETRIC AUTHENTICATION SUCCESSFUL")
                             Log.d(TAG, "Processing transaction signing...")
                             Log.d(TAG, "========================================")
-                            
+
                             val resultMessage =
                                 viewModel.handleMessage(transactionMessage) as ResponseMessage
                             when (resultMessage.result) {
@@ -542,18 +542,18 @@ class AnswerActivity : AppCompatActivity() {
                                     Log.d(TAG, "Response ID: ${resultMessage.id}")
                                     Log.d(TAG, "Response Reference: ${resultMessage.reference}")
                                     Log.d(TAG, "Request ID: ${resultMessage.requestId}")
-                                    
+
                                     // Log the response as JSON for debugging
                                     val responseJson = resultMessage.toJson()
                                     Log.d(TAG, "Response JSON: $responseJson")
                                     Log.d(TAG, "========================================")
-                                    
+
                                     signalService!!.send(
                                         Base64.UrlSafe.encode(
                                             resultMessage.toByteArray(EncoderType.CBOR),
                                         ),
                                     )
-                                    
+
                                     Log.d(TAG, "✅ Signed transactions sent successfully!")
                                 }
 
@@ -650,7 +650,7 @@ class AnswerActivity : AppCompatActivity() {
         )
         // Connect to Service
         lifecycleScope.launch {
-              val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
+            val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
             signalClient = SignalClient(msg.origin, this@AnswerActivity, httpClient)
             if (savedCredential === null) {
                 register(msg)
@@ -1003,7 +1003,7 @@ class AnswerActivity : AppCompatActivity() {
                             return
                         }
                         val msg = viewModel.message.value!!
-                        
+
                         lifecycleScope.launch {
                             // Create the Liquid Extension JSON
                             val liquidExtJSON = JSONObject()
@@ -1037,18 +1037,18 @@ class AnswerActivity : AppCompatActivity() {
                             Log.d(TAG, "HTTP Status: ${attestationResponse.code} ${attestationResponse.message}")
                             Log.d(TAG, "Credential ID: ${credential.id}")
                             Log.d(TAG, "Account: $algoAddress")
-                            
+
                             // Log the full response body for debugging
                             val responseBody = attestationResponse.peekBody(Long.MAX_VALUE).string()
                             Log.d(TAG, "Response body: $responseBody")
                             Log.d(TAG, "========================================")
-                            
+
                             if (!attestationResponse.isSuccessful) {
                                 Log.e(TAG, "❌ REGISTRATION FAILED!")
                                 Log.e(TAG, "Server rejected the credential")
                                 Log.e(TAG, "Status: ${attestationResponse.code}")
                                 Log.e(TAG, "Response: $responseBody")
-                                
+
                                 runOnUiThread {
                                     Toast
                                         .makeText(
@@ -1059,7 +1059,7 @@ class AnswerActivity : AppCompatActivity() {
                                 }
                                 return@launch
                             }
-                            
+
                             Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
                             Log.d(TAG, "========================================")
 
@@ -1191,15 +1191,15 @@ class AnswerActivity : AppCompatActivity() {
         // Check if response is successful
         if (!response.isSuccessful) {
             Log.e(TAG, "Server returned error response: ${response.code} ${response.message}")
-            
+
             // If credential not found (401), delete local credential and re-register
             if (response.code == 401 && responseBodyString?.contains("not_found") == true) {
                 Log.w(TAG, "⚠️ Credential not found on server - will re-register")
                 Log.w(TAG, "Deleting local credential: $credential")
-                
+
                 // Delete the invalid credential from local storage
                 viewModel.deleteCredentialByAlgoAddress(algoAddress!!)
-                
+
                 runOnUiThread {
                     Toast
                         .makeText(
@@ -1208,13 +1208,13 @@ class AnswerActivity : AppCompatActivity() {
                             Toast.LENGTH_LONG,
                         ).show()
                 }
-                
+
                 // Re-register with the server
                 Log.d(TAG, "Starting registration process...")
                 register(msg)
                 return
             }
-            
+
             runOnUiThread {
                 Toast
                     .makeText(

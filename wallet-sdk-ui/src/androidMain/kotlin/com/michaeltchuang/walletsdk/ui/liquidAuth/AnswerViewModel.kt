@@ -17,7 +17,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon2
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
@@ -28,14 +27,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import foundation.algorand.auth.fido2.AttestationApi
 import foundation.algorand.crypto.EncoderType
-import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.Call
-import okhttp3.Callback
-import okhttp3.Response
 import foundation.algorand.crypto.avm.KeyPairs
-import java.io.IOException
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
@@ -44,8 +36,15 @@ import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Response
 import org.json.JSONObject
+import java.io.IOException
 import java.security.KeyPair
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -85,7 +84,10 @@ class AnswerViewModel(
      * Initialize API instances with the Activity's httpClient
      * This ensures cookies are properly maintained
      */
-    fun initializeApis(attestationApi: AttestationApi, assertionApi: AssertionApi) {
+    fun initializeApis(
+        attestationApi: AttestationApi,
+        assertionApi: AssertionApi,
+    ) {
         this.attestationApi = attestationApi
         this.assertionApi = assertionApi
     }
@@ -267,7 +269,7 @@ class AnswerViewModel(
         return when (localAccount) {
             is LocalAccount.Falcon24 -> localAccount.publicKey
             is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Algo25 -> Account(localAccount.algoAddress).ed25519PublicKey.bytes
+            is LocalAccount.Algo25 -> Account(getMnemonic(localAccount.algoAddress)).ed25519PublicKey.bytes
             else -> ByteArray(0)
         }
     }
@@ -296,10 +298,10 @@ class AnswerViewModel(
             Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
             Log.d(TAG, "Message length: ${msgStr.length}")
             Log.d(TAG, "========================================")
-            
+
             val message = Message(Base64.UrlSafe.decode(msgStr), EncoderType.CBOR)
             val request = encoder.decode<RequestMessage>(message.data, message.encoding)
-            
+
             Log.d(TAG, "Message decoded - Reference: ${request.reference}")
             Log.d(TAG, "Request ID: ${request.id}")
 
@@ -313,7 +315,7 @@ class AnswerViewModel(
                         )
                     Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
                     Log.d(TAG, "Provider ID: ${params.providerId}")
-                    
+
                     // Callback to handle the transaction signing
                     onSignTransaction(params, message)
                 }
@@ -399,26 +401,18 @@ class AnswerViewModel(
                     signedTxns.add(Base64.UrlSafe.encode(signature!!))
                 }
                 is LocalAccount.Falcon24 -> {
-
-                    // Sign with Falcon
+                    // Falcon24 needs custom format: msgpack-encoded { "txn": <transaction>, "sig": <signature> }
+                    Log.d(TAG, "Signing with Falcon24...")
                     val privateKey = getFalcon24SecretKey(currentAccountAddress)
-                    val signature =
+                    val signedGroupBytes =
                         signFalcon24ArbitraryData(unsignedTransaction!!.bytesToSign(), it.publicKey, privateKey!!)!!
 
-                    // Create the signed transaction structure
-                    // The transaction must be encoded in the canonical msgpack format
-                    val signedTxnMap = mapOf(
-                        "sig" to signature,  // Falcon signature
-                        "txn" to unsignedTransaction.bytesToSign().toMessagePack()  // Transaction as msgpack map
-                    )
+                   /* Log.d(TAG, "Falcon24 signature length: ${signedGroupBytes.size} bytes")
+                    Log.d(TAG, "Transaction bytes length: ${transactionBytes.size} bytes")
 
-                    // Encode the entire structure as msgpack
-                    val encodedStxn = msgpack.encode(signedTxnMap)
-
-                    // Return base64-encoded
-                    val base64Stxn = Base64.encodeToString(encodedStxn, Base64.NO_WRAP)
-
-                    listOf(base64Stxn)
+                    val base64SignedGroup = Base64.UrlSafe.encode(signedGroupBytes)*/
+                    val base64SignedGroup = Base64.UrlSafe.encode(signedGroupBytes)
+                    signedTxns.add(base64SignedGroup)
                 }
 
 //                is LocalAccount.Falcon24 -> {
@@ -464,12 +458,12 @@ class AnswerViewModel(
 
             // txnIds.add(unsignedTransaction!!.txID())
         }
-        
+
         Log.d(TAG, "========================================")
         Log.d(TAG, "✅ TRANSACTION SIGNING COMPLETE")
         Log.d(TAG, "Successfully signed ${signedTxns.size} transaction(s)")
         Log.d(TAG, "========================================")
-        
+
         // Create the response payload
         return SignTransactionsResult(providerId, signedTxns)
     }
@@ -486,73 +480,74 @@ class AnswerViewModel(
     /**
      * Extension function to convert OkHttp Call to suspend function
      */
-    private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation {
-            cancel()
-        }
-        enqueue(object : Callback {
-            override fun onFailure(call: Call, e: IOException) {
-                continuation.resumeWithException(e)
+    private suspend fun Call.await(): Response =
+        suspendCancellableCoroutine { continuation ->
+            continuation.invokeOnCancellation {
+                cancel()
             }
+            enqueue(
+                object : Callback {
+                    override fun onFailure(
+                        call: Call,
+                        e: IOException,
+                    ) {
+                        continuation.resumeWithException(e)
+                    }
 
-            override fun onResponse(call: Call, response: Response) {
-                continuation.resume(response)
-            }
-        })
-    }
+                    override fun onResponse(
+                        call: Call,
+                        response: Response,
+                    ) {
+                        continuation.resume(response)
+                    }
+                },
+            )
+        }
 
     /**
      * Post Attestation Options
-     * 
+     *
      * Retrieves PublicKeyCredentialCreationOptions from the FIDO2 server
      */
     suspend fun fetchAttestationOptions(
         origin: String,
         userAgent: String,
-        options: JSONObject = JSONObject()
-    ): Response {
-        return attestationApi!!.postAttestationOptions(origin, userAgent, options).await()
-    }
+        options: JSONObject = JSONObject(),
+    ): Response = attestationApi!!.postAttestationOptions(origin, userAgent, options).await()
 
     /**
      * Post Attestation Result
-     * 
+     *
      * Submits the PublicKeyCredential to the FIDO2 server after registration
      */
     suspend fun submitAttestationResult(
         origin: String,
         userAgent: String,
         credential: PublicKeyCredential,
-        liquidExt: JSONObject? = null
-    ): Response {
-        return attestationApi!!.postAttestationResult(origin, userAgent, credential, liquidExt).await()
-    }
+        liquidExt: JSONObject? = null,
+    ): Response = attestationApi!!.postAttestationResult(origin, userAgent, credential, liquidExt).await()
 
     /**
      * Post Assertion Options
-     * 
+     *
      * Retrieves PublicKeyCredentialRequestOptions from the FIDO2 server
      */
     suspend fun fetchAssertionOptions(
         origin: String,
         userAgent: String,
         credentialId: String,
-        liquidExt: Boolean? = true
-    ): Response {
-        return assertionApi!!.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
-    }
+        liquidExt: Boolean? = true,
+    ): Response = assertionApi!!.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
 
     /**
      * Post Assertion Result
-     * 
+     *
      * Submits the PublicKeyCredential to the FIDO2 server after authentication
      */
     suspend fun submitAssertionResult(
         origin: String,
         userAgent: String,
         credential: PublicKeyCredential,
-        liquidExt: JSONObject?
-    ): Response {
-        return assertionApi!!.postAssertionResult(origin, userAgent, credential, liquidExt).await()
-    }
+        liquidExt: JSONObject?,
+    ): Response = assertionApi!!.postAssertionResult(origin, userAgent, credential, liquidExt).await()
 }
