@@ -118,7 +118,7 @@ actual fun signFalcon24ArbitraryData(
     publicKey: ByteArray,
     privateKey: ByteArray,
 ): ByteArray? =
-    SignFalcon24TransactionImpl().signLegacyArbitraryData(
+    SignFalcon24TransactionImpl().signArbitraryData(
         data,
         publicKey,
         privateKey,

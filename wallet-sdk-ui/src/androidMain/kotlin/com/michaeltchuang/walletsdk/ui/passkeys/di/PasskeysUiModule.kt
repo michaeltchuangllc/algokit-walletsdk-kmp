@@ -56,7 +56,7 @@ val passkeysUiModule =
                 timeProvider = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
-                getAccountDetail = get(),
+                getLocalAccount = get(),
                 getSeed = get(),
             )
         }

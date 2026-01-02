@@ -7,7 +7,7 @@ interface SignFalcon24Transaction {
         privateKey: ByteArray,
     ): ByteArray?
 
-    fun signLegacyArbitraryData(
+    fun signArbitraryData(
         data: ByteArray,
         publicKey: ByteArray,
         privateKey: ByteArray,

@@ -1,7 +1,7 @@
 [versions]
 agp = "8.10.0"
 algoSdk = "2.10.1"
-algoGoMobilesdk = "2025.4.1"
+algoGoMobilesdk = "2026.1.0"
 algokit-version = "3"
 algokit-walletsdk-calendar-quarter = "202601"
 algokit-walletsdk-quarter-release-number = "0"

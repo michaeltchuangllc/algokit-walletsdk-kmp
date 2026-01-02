@@ -239,6 +239,14 @@ class AnswerActivity : AppCompatActivity() {
 
                 // Set account address in ViewModel for AVMProvider
                 viewModel.setAccountAddress(it)
+                
+                // 🧪 TESTING FLAG: Set to true to clear stored credentials on app start
+                // This forces fresh registration every time (useful for testing)
+                val clearCredentialsOnStart = false
+                if (clearCredentialsOnStart) {
+                    Log.w(TAG, "🧪 TEST MODE: Clearing all stored credentials for $it")
+                    viewModel.deleteCredentialByAlgoAddress(it)
+                }
             }
         }
         // Set Security
@@ -300,13 +308,20 @@ class AnswerActivity : AppCompatActivity() {
 
         // Only auto-connect if we don't have an intent (deep link or QR scan)
         val hasIntent = intent?.data != null
-        if (!hasIntent) {
+        val hasValidAuthMessage = AuthMessageStorage.authMessage.origin.isNotEmpty() && 
+                                 AuthMessageStorage.authMessage.requestId.isNotEmpty()
+        
+        if (!hasIntent && hasValidAuthMessage) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
             Handler().postDelayed({
                 connect(AuthMessageStorage.authMessage)
             }, 2000)
         } else {
-            Log.d(TAG, "Intent detected, skipping auto-connect (will use scanned QR data)")
+            if (!hasValidAuthMessage) {
+                Log.d(TAG, "No valid AuthMessage stored, skipping auto-connect")
+            } else {
+                Log.d(TAG, "Intent detected, skipping auto-connect (will use scanned QR data)")
+            }
         }
     }
 
@@ -510,15 +525,36 @@ class AnswerActivity : AppCompatActivity() {
                         val result = biometrics(transactionParams)
                         if (result != null) {
                             // Biometric succeeded, proceed with signing
+                            Log.d(TAG, "========================================")
+                            Log.d(TAG, "✅ BIOMETRIC AUTHENTICATION SUCCESSFUL")
+                            Log.d(TAG, "Processing transaction signing...")
+                            Log.d(TAG, "========================================")
+                            
                             val resultMessage =
                                 viewModel.handleMessage(transactionMessage) as ResponseMessage
                             when (resultMessage.result) {
                                 is SignTransactionsResult -> {
+                                    val signResult = resultMessage.result as SignTransactionsResult
+                                    Log.d(TAG, "========================================")
+                                    Log.d(TAG, "📤 SENDING SIGNED TRANSACTIONS")
+                                    Log.d(TAG, "Number of signed txns: ${signResult.stxns.size}")
+                                    Log.d(TAG, "Provider ID: ${signResult.providerId}")
+                                    Log.d(TAG, "Response ID: ${resultMessage.id}")
+                                    Log.d(TAG, "Response Reference: ${resultMessage.reference}")
+                                    Log.d(TAG, "Request ID: ${resultMessage.requestId}")
+                                    
+                                    // Log the response as JSON for debugging
+                                    val responseJson = resultMessage.toJson()
+                                    Log.d(TAG, "Response JSON: $responseJson")
+                                    Log.d(TAG, "========================================")
+                                    
                                     signalService!!.send(
                                         Base64.UrlSafe.encode(
                                             resultMessage.toByteArray(EncoderType.CBOR),
                                         ),
                                     )
+                                    
+                                    Log.d(TAG, "✅ Signed transactions sent successfully!")
                                 }
 
                                 else -> {
@@ -967,18 +1003,24 @@ class AnswerActivity : AppCompatActivity() {
                             return
                         }
                         val msg = viewModel.message.value!!
-                        // Create the Liquid Extension JSON
-                        val liquidExtJSON = JSONObject()
-                        liquidExtJSON.put("type", "algorand")
-                        liquidExtJSON.put("requestId", msg.requestId)
-                        liquidExtJSON.put("address", algoAddress.toString())
-                        liquidExtJSON.put("signature", Base64.encode(signature!!))
-                        liquidExtJSON.put("device", Build.MODEL)
-
+                        
                         lifecycleScope.launch {
+                            // Create the Liquid Extension JSON
+                            val liquidExtJSON = JSONObject()
+                            val accountType = viewModel.getAccountTypeForFido2(algoAddress!!)
+                            liquidExtJSON.put("type", accountType)
+                            liquidExtJSON.put("requestId", msg.requestId)
+                            liquidExtJSON.put("address", algoAddress.toString())
+                            liquidExtJSON.put("publicKey", Base64.encode(viewModel.getAccountPublicKey(algoAddress.toString())))
+                            liquidExtJSON.put("signature", Base64.encode(signature!!))
+                            liquidExtJSON.put("device", Build.MODEL)
                             Log.d(TAG, "========================================")
                             Log.d(TAG, "📤 POSTING CREDENTIAL TO SERVER")
                             Log.d(TAG, "URL: ${msg.origin}/attestation/response")
+                            Log.d(TAG, "Account Type: $accountType")
+                            Log.d(TAG, "Algo Address: $algoAddress")
+                            Log.d(TAG, "Credential ID: ${credential.id}")
+                            Log.d(TAG, "Liquid Extension: $liquidExtJSON")
                             Log.d(TAG, "========================================")
 
                             // POST Authenticator Results to FIDO2 API
@@ -991,10 +1033,34 @@ class AnswerActivity : AppCompatActivity() {
                                 )
 
                             Log.d(TAG, "========================================")
-                            Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
-                            Log.d(TAG, "Server response: ${attestationResponse.code}")
+                            Log.d(TAG, "📡 ATTESTATION RESPONSE RECEIVED")
+                            Log.d(TAG, "HTTP Status: ${attestationResponse.code} ${attestationResponse.message}")
                             Log.d(TAG, "Credential ID: ${credential.id}")
                             Log.d(TAG, "Account: $algoAddress")
+                            
+                            // Log the full response body for debugging
+                            val responseBody = attestationResponse.peekBody(Long.MAX_VALUE).string()
+                            Log.d(TAG, "Response body: $responseBody")
+                            Log.d(TAG, "========================================")
+                            
+                            if (!attestationResponse.isSuccessful) {
+                                Log.e(TAG, "❌ REGISTRATION FAILED!")
+                                Log.e(TAG, "Server rejected the credential")
+                                Log.e(TAG, "Status: ${attestationResponse.code}")
+                                Log.e(TAG, "Response: $responseBody")
+                                
+                                runOnUiThread {
+                                    Toast
+                                        .makeText(
+                                            this@AnswerActivity,
+                                            "❌ Registration failed: ${attestationResponse.code} - Check server logs",
+                                            Toast.LENGTH_LONG,
+                                        ).show()
+                                }
+                                return@launch
+                            }
+                            
+                            Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
                             Log.d(TAG, "========================================")
 
                             runOnUiThread {
@@ -1029,9 +1095,9 @@ class AnswerActivity : AppCompatActivity() {
                                 Log.d(TAG, "Credential ID: ${credential.id}")
                                 Log.d(TAG, "========================================")
                                 credential.id?.let { credId ->
-                                    //     authenticate(msg, credId)
+                                    authenticate(msg, credId)
                                 } ?: Log.e(TAG, "Cannot test authentication: credential ID is null")
-                                //   return@launch // Skip WebRTC flow
+                                return@launch // Skip WebRTC flow
                             }
 
                             // Normal flow: Continue with WebRTC setup
@@ -1125,6 +1191,30 @@ class AnswerActivity : AppCompatActivity() {
         // Check if response is successful
         if (!response.isSuccessful) {
             Log.e(TAG, "Server returned error response: ${response.code} ${response.message}")
+            
+            // If credential not found (401), delete local credential and re-register
+            if (response.code == 401 && responseBodyString?.contains("not_found") == true) {
+                Log.w(TAG, "⚠️ Credential not found on server - will re-register")
+                Log.w(TAG, "Deleting local credential: $credential")
+                
+                // Delete the invalid credential from local storage
+                viewModel.deleteCredentialByAlgoAddress(algoAddress!!)
+                
+                runOnUiThread {
+                    Toast
+                        .makeText(
+                            this@AnswerActivity,
+                            "Credential not found on server. Re-registering...",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                }
+                
+                // Re-register with the server
+                Log.d(TAG, "Starting registration process...")
+                register(msg)
+                return
+            }
+            
             runOnUiThread {
                 Toast
                     .makeText(
@@ -1211,6 +1301,8 @@ class AnswerActivity : AppCompatActivity() {
 
                     lifecycleScope.launch {
                         val liquidExtJSON = JSONObject()
+                        val accountType = viewModel.getAccountTypeForFido2(algoAddress!!)
+                        liquidExtJSON.put("type", accountType)
                         liquidExtJSON.put("requestId", viewModel.message.value!!.requestId)
 
                         Log.d(TAG, "📤 Posting authentication assertion to server...")

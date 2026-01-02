@@ -22,16 +22,14 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             null
         }
 
-    override fun signLegacyArbitraryData(
+    override fun signArbitraryData(
         data: ByteArray,
         publicKey: ByteArray,
         privateKey: ByteArray,
     ): ByteArray? =
         try {
-            // For Falcon24, we can use the same signing method as transactions
-            // The SDK's signFalconTransaction should work for arbitrary data too
             val signedBytes =
-                Sdk.signFalconTransaction(
+                Sdk.rawSign(
                     data,
                     publicKey,
                     privateKey,

@@ -5,6 +5,7 @@ import android.os.Build
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.algorand.algosdk.account.Account
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.fasterxml.uuid.Generators
@@ -62,7 +63,7 @@ class AnswerViewModel(
     private val timeProvider: TimeProvider,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
-    private val getAccountDetail: GetLocalAccount,
+    private val getLocalAccount: GetLocalAccount,
     private val getSeed: GetHdSeed,
 ) : ViewModel() {
     companion object {
@@ -178,6 +179,16 @@ class AnswerViewModel(
         return credentialId
     }
 
+    suspend fun deleteCredentialByAlgoAddress(algoAddress: String) {
+        val credentialId = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
+        if (credentialId != null) {
+            Log.d(TAG, "Deleting credential: $credentialId for address: $algoAddress")
+            passkeyRepository.removePasskeyByCredentialId(credentialId)
+        } else {
+            Log.w(TAG, "No credential found to delete for address: $algoAddress")
+        }
+    }
+
     fun getCredentialMessage(
         account: String,
         credential: PublicKeyCredential,
@@ -213,9 +224,9 @@ class AnswerViewModel(
         challenge: ByteArray,
         address: String,
     ): ByteArray? {
-        val accountDetail = getAccountDetail(address) ?: return null
+        val localAccount = getLocalAccount(address) ?: return null
 
-        return when (accountDetail) {
+        return when (localAccount) {
             is LocalAccount.Algo25 -> {
                 val mnemonic = getMnemonic(address) ?: return null
                 // Use KeyPairs.rawSignBytes for AVM-compatible signing (same as AnswerActivity)
@@ -223,16 +234,41 @@ class AnswerViewModel(
                 KeyPairs.rawSignBytes(challenge, keyPair.private)
             }
             is LocalAccount.HdKey -> {
-                val seed = getSeed(accountDetail.seedId) ?: return null
+                val seed = getSeed(localAccount.seedId) ?: return null
                 // Use signHdKeyData for AVM-compatible signing without prefix
-                signHdKeyData(challenge, seed, accountDetail.account, accountDetail.change, accountDetail.keyIndex)
+                signHdKeyData(challenge, seed, localAccount.account, localAccount.change, localAccount.keyIndex)
             }
             is LocalAccount.Falcon24 -> {
                 // Falcon24 uses a different signing approach
                 val privateKey = getFalcon24SecretKey(address) ?: return null
-                signFalcon24ArbitraryData(challenge, accountDetail.publicKey, privateKey)
+                signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
             }
             else -> null
+        }
+    }
+
+    /**
+     * Get Account Type String for FIDO2
+     *
+     * Returns the appropriate type string for liquidExtJSON based on the account type
+     * - "falcon-1024" for Falcon24 accounts
+     * - "algorand" for all other account types (Algo25, HdKey, etc.)
+     */
+    suspend fun getAccountTypeForFido2(address: String): String {
+        val localAccount = getLocalAccount(address)
+        return when (localAccount) {
+            is LocalAccount.Falcon24 -> "falcon-1024"
+            else -> "algorand"
+        }
+    }
+
+    suspend fun getAccountPublicKey(address: String): ByteArray {
+        val localAccount = getLocalAccount(address)
+        return when (localAccount) {
+            is LocalAccount.Falcon24 -> localAccount.publicKey
+            is LocalAccount.HdKey -> localAccount.publicKey
+            is LocalAccount.Algo25 -> Account(localAccount.algoAddress).ed25519PublicKey.bytes
+            else -> ByteArray(0)
         }
     }
 
@@ -256,22 +292,37 @@ class AnswerViewModel(
         onSignTransaction: (SignTransactionsParams, Message) -> Unit,
     ) {
         try {
+            Log.d(TAG, "========================================")
+            Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
+            Log.d(TAG, "Message length: ${msgStr.length}")
+            Log.d(TAG, "========================================")
+            
             val message = Message(Base64.UrlSafe.decode(msgStr), EncoderType.CBOR)
             val request = encoder.decode<RequestMessage>(message.data, message.encoding)
+            
+            Log.d(TAG, "Message decoded - Reference: ${request.reference}")
+            Log.d(TAG, "Request ID: ${request.id}")
 
             if (request.reference == "arc0027:sign_transactions:request") {
+                Log.d(TAG, "✅ Transaction signing request detected")
                 viewModelScope.launch {
                     val params =
                         encoder.decode<SignTransactionsParams>(
                             encoder.encode(request.params, EncoderType.NONE),
                             EncoderType.NONE,
                         )
+                    Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
+                    Log.d(TAG, "Provider ID: ${params.providerId}")
+                    
                     // Callback to handle the transaction signing
                     onSignTransaction(params, message)
                 }
+            } else {
+                Log.w(TAG, "⚠️ Unknown request reference: ${request.reference}")
             }
         } catch (e: Throwable) {
-            Log.e(TAG, "Error handling message: $e")
+            Log.e(TAG, "❌ Error handling message: $e")
+            e.printStackTrace()
         }
     }
 
@@ -314,20 +365,26 @@ class AnswerViewModel(
      */
     @OptIn(ExperimentalEncodingApi::class)
     suspend fun processSignTransactions(params: SignTransactionsParams): SignTransactionsResult {
-        Log.d(TAG, "processSignTransactions")
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "📝 PROCESSING SIGN TRANSACTIONS")
+        Log.d(TAG, "Number of transactions: ${params.txns.size}")
+        Log.d(TAG, "Provider ID: $providerId")
+        Log.d(TAG, "Account Address: ${_accountAddress.value}")
+        Log.d(TAG, "========================================")
         require(params.validate())
 
         val currentAccountAddress = _accountAddress.value
 
         val signedTxns = mutableListOf<String>()
         // val txnIds = mutableListOf<String>()
-        params.txns.forEach { txn ->
+        params.txns.forEachIndexed { index, txn ->
+            Log.d(TAG, "Signing transaction ${index + 1}/${params.txns.size}")
             val transactionBytes =
                 Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
             val unsignedTransaction = decodeUnsignedTransaction(Base64.encode(transactionBytes))
             // val inst = decodeUnsignedTransaction(Base64.encode(Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)))
             // Sign the transaction using the secret key
-            when (val it = getAccountDetail(currentAccountAddress)) {
+            when (val it = getLocalAccount(currentAccountAddress)) {
                 is LocalAccount.Algo25 -> {
                     // Get the secret key using the provided function
                     val secretKey = getAlgo25SecretKey.invoke(currentAccountAddress)
@@ -336,22 +393,59 @@ class AnswerViewModel(
                     if (secretKey == null) {
                         throw IllegalArgumentException("Secret key not found for address: $currentAccountAddress")
                     }
-                    // val signedTransaction = signAlgo25Transaction(secretKey, transactionBytes)
-                    //  signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
+                    // Return just the signature (not the full signed transaction)
                     val keyPair = KeyPairs.getKeyPair(getMnemonic(accountAddress.value)!!)
                     val signature = KeyPairs.rawSignBytes(unsignedTransaction!!.bytesToSign(), keyPair.private)
                     signedTxns.add(Base64.UrlSafe.encode(signature!!))
                 }
-
                 is LocalAccount.Falcon24 -> {
+
+                    // Sign with Falcon
                     val privateKey = getFalcon24SecretKey(currentAccountAddress)
-                    val signedTransaction =
-                        signFalcon24Transaction(transactionBytes, it.publicKey, privateKey!!)!!
-                    signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
+                    val signature =
+                        signFalcon24ArbitraryData(unsignedTransaction!!.bytesToSign(), it.publicKey, privateKey!!)!!
+
+                    // Create the signed transaction structure
+                    // The transaction must be encoded in the canonical msgpack format
+                    val signedTxnMap = mapOf(
+                        "sig" to signature,  // Falcon signature
+                        "txn" to unsignedTransaction.bytesToSign().toMessagePack()  // Transaction as msgpack map
+                    )
+
+                    // Encode the entire structure as msgpack
+                    val encodedStxn = msgpack.encode(signedTxnMap)
+
+                    // Return base64-encoded
+                    val base64Stxn = Base64.encodeToString(encodedStxn, Base64.NO_WRAP)
+
+                    listOf(base64Stxn)
                 }
 
+//                is LocalAccount.Falcon24 -> {
+//                    // Falcon24 needs custom format: msgpack-encoded { "txn": <transaction>, "sig": <signature> }
+//                    Log.d(TAG, "Signing with Falcon24...")
+//                    val privateKey = getFalcon24SecretKey(currentAccountAddress)
+//                    val signature =
+//                        signFalcon24ArbitraryData(unsignedTransaction!!.bytesToSign(), it.publicKey, privateKey!!)!!
+//
+//                    Log.d(TAG, "Falcon24 signature length: ${signature.size} bytes")
+//                    Log.d(TAG, "Transaction bytes length: ${transactionBytes.size} bytes")
+//
+//                    // Create the custom signed transaction format for Falcon24
+//                    val signedTxnMap = mapOf(
+//                        "txn" to transactionBytes,  // Original transaction bytes
+//                        "sig" to signature           // Falcon signature
+//                    )
+//
+//                    // Encode to msgpack
+//                    val signedTxnBytes = Encoder.encodeToMsgPack(signedTxnMap)
+//                    Log.d(TAG, "Falcon24 signed transaction (msgpack) length: ${signedTxnBytes.size} bytes")
+//                    signedTxns.add(Base64.UrlSafe.encode(signedTxnBytes))
+//                }
+
                 is LocalAccount.HdKey -> {
-                    val signedTransaction =
+                    // Return just the signature (not the full signed transaction)
+                    val signature =
                         signHdKeyData(
                             data = unsignedTransaction!!.bytesToSign(),
                             seed = getSeed(it.seedId)!!,
@@ -360,7 +454,7 @@ class AnswerViewModel(
                             key = it.keyIndex,
                         )!!
 
-                    signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
+                    signedTxns.add(Base64.UrlSafe.encode(signature))
                 }
 
                 is LocalAccount.LedgerBle -> TODO()
@@ -370,6 +464,12 @@ class AnswerViewModel(
 
             // txnIds.add(unsignedTransaction!!.txID())
         }
+        
+        Log.d(TAG, "========================================")
+        Log.d(TAG, "✅ TRANSACTION SIGNING COMPLETE")
+        Log.d(TAG, "Successfully signed ${signedTxns.size} transaction(s)")
+        Log.d(TAG, "========================================")
+        
         // Create the response payload
         return SignTransactionsResult(providerId, signedTxns)
     }
