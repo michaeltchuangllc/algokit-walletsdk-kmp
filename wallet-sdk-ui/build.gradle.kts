@@ -121,8 +121,8 @@ kotlin {
                 implementation(libs.algorand.go.mobile)
                 // Local .aar dependencies - compileOnly to avoid packaging issues
                 // The app module must include these as implementation dependencies
-                compileOnly(files("../libs/provider-debug.aar"))
-                compileOnly(files("../libs/crypto-debug.aar"))
+                implementation(files("../libs/provider-debug.aar"))
+                implementation(files("../libs/crypto-debug.aar"))
 
                 // FIDO2 - Deprecated
                 implementation("com.google.android.gms:play-services-fido:20.1.0")

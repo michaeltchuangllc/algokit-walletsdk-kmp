@@ -1,8 +1,15 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import android.util.Log
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat.Builder
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.algorand.algosdk.account.Account
@@ -12,20 +19,34 @@ import com.fasterxml.uuid.Generators
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.AssertionApi
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
-import foundation.algorand.auth.fido2.AttestationApi
+import com.michaeltchuang.walletsdk.ui.R
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.AssertionApiUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.AssertionIntentLauncherUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.AttestationApiUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.AttestationIntentLauncherUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.HandleAssertionResultUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.HandleAttestationResultUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.LogAppSignatureUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.ManageSignalServiceUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.PrepareAuthenticationUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.ProcessBiometricTransactionSigningUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.ProcessSignTransactionsUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.ProvideHttpClientUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.ShowTransactionConfirmationDialogUseCase
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.KeyPairs
 import foundation.algorand.provider.Message
@@ -33,18 +54,13 @@ import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
-import okhttp3.Call
-import okhttp3.Callback
+import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.json.JSONObject
-import java.io.IOException
-import java.security.KeyPair
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -60,36 +76,36 @@ class AnswerViewModel(
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     private val getAccountMnemonic: GetAccountMnemonic,
     private val timeProvider: TimeProvider,
-    private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getLocalAccount: GetLocalAccount,
     private val getSeed: GetHdSeed,
-) : ViewModel() {
+    private val showTransactionConfirmationDialogUseCase: ShowTransactionConfirmationDialogUseCase,
+    private val processBiometricTransactionSigningUseCase: ProcessBiometricTransactionSigningUseCase,
+    private val registerPasskeyUseCase: RegisterPasskeyUseCase,
+    private val prepareAuthenticationUseCase: PrepareAuthenticationUseCase,
+    private val manageSignalServiceUseCase: ManageSignalServiceUseCase,
+    private val processSignTransactionsUseCase: ProcessSignTransactionsUseCase,
+    private val attestationIntentLauncherUseCase: AttestationIntentLauncherUseCase,
+    private val assertionIntentLauncherUseCase: AssertionIntentLauncherUseCase,
+    private val eventDelegate: EventDelegate<ViewEvent>,
+    private val logAppSignatureUseCase: LogAppSignatureUseCase,
+    private val attestationApiUseCase: AttestationApiUseCase,
+    private val assertionApiUseCase: AssertionApiUseCase,
+    private val providerHttpClientUseCase: ProvideHttpClientUseCase
+) : ViewModel(),
+    EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
         private const val TAG = "AnswerViewModel"
+        const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
+        const val SERVICE_NOTIFICATION_ID = 1000
     }
-
-    // ==================== API Instances ====================
-    private var attestationApi: AttestationApi? = null
-    private var assertionApi: AssertionApi? = null
+    override val viewEvent: Flow<ViewEvent> get() = eventDelegate.viewEvent
 
     // User Agent for API requests
     val userAgent: String by lazy {
         val applicationId = "com.michaeltchuang.walletsdk.demo"
         val versionName = "1.0"
         "$applicationId/$versionName (Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
-    }
-
-    /**
-     * Initialize API instances with the Activity's httpClient
-     * This ensures cookies are properly maintained
-     */
-    fun initializeApis(
-        attestationApi: AttestationApi,
-        assertionApi: AssertionApi,
-    ) {
-        this.attestationApi = attestationApi
-        this.assertionApi = assertionApi
     }
 
     // ==================== StateFlow ====================
@@ -143,22 +159,43 @@ class AnswerViewModel(
         foundation.algorand.crypto.avm
             .Encoder()
 
-    // KeyPair for signing
-    private var keyPair: KeyPair? = null
-
-    fun getProviderId(): String = providerId
-
     fun setAccountAddress(address: String) {
         _accountAddress.value = address
     }
 
-    fun setKeyPair(keyPair: KeyPair) {
-        this.keyPair = keyPair
+    var currentChallenge: ByteArray? = null
+
+    private var signalServiceConnection: android.content.ServiceConnection? = null
+    private val _signalService =
+        MutableStateFlow<com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService?>(
+            null
+        )
+    val signalService = _signalService
+
+    /**
+     * Binds to SignalService using the given Context.
+     *
+     * IMPORTANT: For proper lifecycle safety, always pass an Activity context
+     * (never Application context) from your UI layer!
+     */
+    fun bindSignalService(context: Context) {
+        signalServiceConnection = manageSignalServiceUseCase(context) {
+            _signalService.value = it
+        }
+    }
+
+    /**
+     * Unbinds from the SignalService using the given Context.
+     *
+     * IMPORTANT: Always use the same Activity context used for binding.
+     */
+    fun unbindSignalService(context: Context) {
+        signalServiceConnection?.let { manageSignalServiceUseCase.unbind(context, it) }
+        _signalService.value = null // Explicitly clear reference
     }
 
     // ==================== Credential Methods ====================
     suspend fun saveCredential(
-        context: Context,
         account: String,
         credential: PublicKeyCredential,
         response: String,
@@ -169,11 +206,8 @@ class AnswerViewModel(
             requestOptions = requestOption,
             credId = credential.rawId!!,
         )
-    }
-
-    suspend fun getCredentialId(origin: String): String? {
-        val credentialId = passkeyRepository.getCredentialIdBySiteId(origin)
-        return credentialId
+        Log.d(TAG, "✅ Credential saved to local storage")
+        eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Registration successful! Credential saved."))
     }
 
     suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? {
@@ -235,16 +269,25 @@ class AnswerViewModel(
                 val keyPair = KeyPairs.getKeyPair(mnemonic)
                 KeyPairs.rawSignBytes(challenge, keyPair.private)
             }
+
             is LocalAccount.HdKey -> {
                 val seed = getSeed(localAccount.seedId) ?: return null
                 // Use signHdKeyData for AVM-compatible signing without prefix
-                signHdKeyData(challenge, seed, localAccount.account, localAccount.change, localAccount.keyIndex)
+                signHdKeyData(
+                    challenge,
+                    seed,
+                    localAccount.account,
+                    localAccount.change,
+                    localAccount.keyIndex
+                )
             }
+
             is LocalAccount.Falcon24 -> {
                 // Falcon24 uses a different signing approach
                 val privateKey = getFalcon24SecretKey(address) ?: return null
                 signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
             }
+
             else -> null
         }
     }
@@ -283,7 +326,7 @@ class AnswerViewModel(
     private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? =
         Encoder.decodeFromMsgPack(Base64.decode(unsignedTxn), Transaction::class.java)
 
-    /**xxx
+    /**
      * Handle Messages from DataChannel
      *
      * Processes incoming messages and handles transaction signing requests
@@ -367,142 +410,14 @@ class AnswerViewModel(
      */
     @OptIn(ExperimentalEncodingApi::class)
     suspend fun processSignTransactions(params: SignTransactionsParams): SignTransactionsResult {
-        Log.d(TAG, "========================================")
-        Log.d(TAG, "📝 PROCESSING SIGN TRANSACTIONS")
-        Log.d(TAG, "Number of transactions: ${params.txns.size}")
-        Log.d(TAG, "Provider ID: $providerId")
-        Log.d(TAG, "Account Address: ${_accountAddress.value}")
-        Log.d(TAG, "========================================")
-        require(params.validate())
-
-        val currentAccountAddress = _accountAddress.value
-
-        val signedTxns = mutableListOf<String>()
-        // val txnIds = mutableListOf<String>()
-        params.txns.forEachIndexed { index, txn ->
-            Log.d(TAG, "Signing transaction ${index + 1}/${params.txns.size}")
-            val transactionBytes =
-                Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
-            val unsignedTransaction = decodeUnsignedTransaction(Base64.encode(transactionBytes))
-            // val inst = decodeUnsignedTransaction(Base64.encode(Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)))
-            // Sign the transaction using the secret key
-            when (val it = getLocalAccount(currentAccountAddress)) {
-                is LocalAccount.Algo25 -> {
-                    // Get the secret key using the provided function
-                    val secretKey = getAlgo25SecretKey.invoke(currentAccountAddress)
-                    Log.d("AnswerViewModel", "Algo25 secret key: ${secretKey?.toHexString()}")
-
-                    if (secretKey == null) {
-                        throw IllegalArgumentException("Secret key not found for address: $currentAccountAddress")
-                    }
-                    // Return just the signature (not the full signed transaction)
-                    val keyPair = KeyPairs.getKeyPair(getMnemonic(accountAddress.value)!!)
-                    val signature = KeyPairs.rawSignBytes(unsignedTransaction!!.bytesToSign(), keyPair.private)
-                    signedTxns.add(Base64.UrlSafe.encode(signature!!))
-                }
-                is LocalAccount.Falcon24 -> {
-                    // Falcon24 needs custom format: msgpack-encoded { "txn": <transaction>, "sig": <signature> }
-                    Log.d(TAG, "Signing with Falcon24...")
-                    val privateKey = getFalcon24SecretKey(currentAccountAddress)
-                    val signedGroupBytes =
-                        signFalcon24ArbitraryData(unsignedTransaction!!.bytesToSign(), it.publicKey, privateKey!!)!!
-
-                   /* Log.d(TAG, "Falcon24 signature length: ${signedGroupBytes.size} bytes")
-                    Log.d(TAG, "Transaction bytes length: ${transactionBytes.size} bytes")
-
-                    val base64SignedGroup = Base64.UrlSafe.encode(signedGroupBytes)*/
-                    val base64SignedGroup = Base64.UrlSafe.encode(signedGroupBytes)
-                    signedTxns.add(base64SignedGroup)
-                }
-
-//                is LocalAccount.Falcon24 -> {
-//                    // Falcon24 needs custom format: msgpack-encoded { "txn": <transaction>, "sig": <signature> }
-//                    Log.d(TAG, "Signing with Falcon24...")
-//                    val privateKey = getFalcon24SecretKey(currentAccountAddress)
-//                    val signature =
-//                        signFalcon24ArbitraryData(unsignedTransaction!!.bytesToSign(), it.publicKey, privateKey!!)!!
-//
-//                    Log.d(TAG, "Falcon24 signature length: ${signature.size} bytes")
-//                    Log.d(TAG, "Transaction bytes length: ${transactionBytes.size} bytes")
-//
-//                    // Create the custom signed transaction format for Falcon24
-//                    val signedTxnMap = mapOf(
-//                        "txn" to transactionBytes,  // Original transaction bytes
-//                        "sig" to signature           // Falcon signature
-//                    )
-//
-//                    // Encode to msgpack
-//                    val signedTxnBytes = Encoder.encodeToMsgPack(signedTxnMap)
-//                    Log.d(TAG, "Falcon24 signed transaction (msgpack) length: ${signedTxnBytes.size} bytes")
-//                    signedTxns.add(Base64.UrlSafe.encode(signedTxnBytes))
-//                }
-
-                is LocalAccount.HdKey -> {
-                    // Return just the signature (not the full signed transaction)
-                    val signature =
-                        signHdKeyData(
-                            data = unsignedTransaction!!.bytesToSign(),
-                            seed = getSeed(it.seedId)!!,
-                            account = it.account,
-                            change = it.change,
-                            key = it.keyIndex,
-                        )!!
-
-                    signedTxns.add(Base64.UrlSafe.encode(signature))
-                }
-
-                is LocalAccount.LedgerBle -> TODO()
-                is LocalAccount.NoAuth -> TODO()
-                null -> TODO()
-            }
-
-            // txnIds.add(unsignedTransaction!!.txID())
-        }
-
-        Log.d(TAG, "========================================")
-        Log.d(TAG, "✅ TRANSACTION SIGNING COMPLETE")
-        Log.d(TAG, "Successfully signed ${signedTxns.size} transaction(s)")
-        Log.d(TAG, "========================================")
-
-        // Create the response payload
-        return SignTransactionsResult(providerId, signedTxns)
+        return processSignTransactionsUseCase(
+            params = params,
+            providerId = providerId,
+            accountAddress = _accountAddress.value
+        )
     }
 
-    /**
-     * Get KeyPair from Mnemonic
-     *
-     * Generates a KeyPair from the provided mnemonic
-     */
-    fun getKeyPairFromMnemonic(mnemonic: String): KeyPair = KeyPairs.getKeyPair(mnemonic)
-
     // ==================== Liquid Auth API Methods ====================
-
-    /**
-     * Extension function to convert OkHttp Call to suspend function
-     */
-    private suspend fun Call.await(): Response =
-        suspendCancellableCoroutine { continuation ->
-            continuation.invokeOnCancellation {
-                cancel()
-            }
-            enqueue(
-                object : Callback {
-                    override fun onFailure(
-                        call: Call,
-                        e: IOException,
-                    ) {
-                        continuation.resumeWithException(e)
-                    }
-
-                    override fun onResponse(
-                        call: Call,
-                        response: Response,
-                    ) {
-                        continuation.resume(response)
-                    }
-                },
-            )
-        }
 
     /**
      * Post Attestation Options
@@ -513,7 +428,7 @@ class AnswerViewModel(
         origin: String,
         userAgent: String,
         options: JSONObject = JSONObject(),
-    ): Response = attestationApi!!.postAttestationOptions(origin, userAgent, options).await()
+    ): Response = attestationApiUseCase.postAttestationOptions(origin, userAgent, options)
 
     /**
      * Post Attestation Result
@@ -525,7 +440,7 @@ class AnswerViewModel(
         userAgent: String,
         credential: PublicKeyCredential,
         liquidExt: JSONObject? = null,
-    ): Response = attestationApi!!.postAttestationResult(origin, userAgent, credential, liquidExt).await()
+    ): Response = attestationApiUseCase.postAttestationResult(origin, userAgent, credential, liquidExt)
 
     /**
      * Post Assertion Options
@@ -537,7 +452,7 @@ class AnswerViewModel(
         userAgent: String,
         credentialId: String,
         liquidExt: Boolean? = true,
-    ): Response = assertionApi!!.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
+    ): Response = assertionApiUseCase.postAssertionOptions(origin, userAgent, credentialId, liquidExt)
 
     /**
      * Post Assertion Result
@@ -549,5 +464,318 @@ class AnswerViewModel(
         userAgent: String,
         credential: PublicKeyCredential,
         liquidExt: JSONObject?,
-    ): Response = assertionApi!!.postAssertionResult(origin, userAgent, credential, liquidExt).await()
+    ): Response = assertionApiUseCase.postAssertionResult(origin, userAgent, credential, liquidExt)
+
+    // ==================== Biometric Transaction Management ====================
+
+    /**
+     * Show transaction confirmation dialog
+     *
+     * Delegates to use case for displaying confirmation dialog
+     */
+    fun showTransactionConfirmationDialog(
+        context: Context,
+        params: SignTransactionsParams,
+        onConfirm: () -> Unit,
+        onCancel: () -> Unit,
+    ) {
+        showTransactionConfirmationDialogUseCase(
+            context = context,
+            params = params,
+            onConfirm = onConfirm,
+            onCancel = onCancel
+        )
+    }
+
+    /**
+     * Process biometric transaction signing
+     *
+     * Orchestrates the complete flow of biometric authentication and transaction signing
+     * through the use case layer. Emits ViewEvents based on the result.
+     */
+    suspend fun processBiometricTransactionSigning(
+        activity: androidx.fragment.app.FragmentActivity,
+        params: SignTransactionsParams,
+        message: Message,
+    ) {
+        when (val result = processBiometricTransactionSigningUseCase(
+            activity = activity,
+            viewModel = this,
+            params = params,
+            message = message
+        )) {
+            is ProcessBiometricTransactionSigningUseCase.Result.Success -> {
+                eventDelegate.sendEvent(
+                    ViewEvent.TransactionSigned(
+                        result.resultMessage,
+                        result.signResult
+                    )
+                )
+                eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Transaction signed successfully!"))
+            }
+
+            is ProcessBiometricTransactionSigningUseCase.Result.Cancelled -> {
+                eventDelegate.sendEvent(ViewEvent.ShowToast(result.reason))
+            }
+
+            is ProcessBiometricTransactionSigningUseCase.Result.Error -> {
+                eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+            }
+        }
+    }
+
+    /**
+     * Prepare passkey registration
+     *
+     * Handles the complete flow of fetching attestation options and preparing
+     * for FIDO2 registration through the use case layer. Returns result for further processing.
+     */
+    suspend fun preparePasskeyRegistration(
+        authMessage: AuthMessage,
+        algoAddress: String,
+        options: JSONObject = JSONObject(),
+        onSessionUpdate: (String?) -> Unit = {}
+    ): RegisterPasskeyUseCase.Result {
+
+        val result = registerPasskeyUseCase(
+            authMessage = authMessage,
+            algoAddress = algoAddress,
+            viewModel = this,
+            options = options,
+            onSessionUpdate = onSessionUpdate
+        )
+
+        when (result) {
+            is RegisterPasskeyUseCase.Result.Success -> {
+                // Success - caller will handle navigation to registration intent
+            }
+
+            is RegisterPasskeyUseCase.Result.Error -> {
+                eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+            }
+        }
+
+        return result
+    }
+
+    fun registerPasskey(
+        authMessage: AuthMessage,
+        algoAddress: String,
+        options: JSONObject = JSONObject(),
+    ) {
+        viewModelScope.launch {
+            val result = preparePasskeyRegistration(
+                authMessage = authMessage,
+                algoAddress = algoAddress,
+                options = options,
+                onSessionUpdate = { sessionId ->
+                    sessionId?.let { setSession(it) }
+                }
+            )
+            when (result) {
+                is RegisterPasskeyUseCase.Result.Success -> {
+                    setAttestationApiResponse(result.attestationApiResponse)
+                    eventDelegate.sendEvent(
+                        ViewEvent.RegistrationSuccess(
+                            result.pubKeyCredentialCreationOptions,
+                            algoAddress
+                        )
+                    )
+                }
+                is RegisterPasskeyUseCase.Result.Error -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+                }
+            }
+        }
+    }
+
+    /**
+     * Prepare authentication
+     *
+     * Fetches assertion options and prepares for FIDO2 authentication.
+     * Returns result for further processing.
+     */
+    suspend fun prepareAuthentication(
+        authMessage: AuthMessage,
+        credentialId: String,
+        onSessionUpdate: (String?) -> Unit = {},
+        onCredentialNotFound: () -> Unit = {}
+    ): PrepareAuthenticationUseCase.Result {
+
+        val result = prepareAuthenticationUseCase(
+            authMessage = authMessage,
+            credentialId = credentialId,
+            viewModel = this,
+            onSessionUpdate = onSessionUpdate,
+            onCredentialNotFound = onCredentialNotFound
+        )
+        return result
+    }
+
+    fun authenticate(
+        authMessage: AuthMessage,
+        credentialId: String,
+        setSession: ((String?) -> Unit)? = null,
+        onCredentialNotFound: (() -> Unit)? = null,
+    ) {
+        viewModelScope.launch {
+            val result = prepareAuthentication(
+                authMessage = authMessage,
+                credentialId = credentialId,
+                onSessionUpdate = { sessionId -> setSession?.invoke(sessionId) },
+                onCredentialNotFound = { onCredentialNotFound?.invoke() }
+            )
+            when (result) {
+                is PrepareAuthenticationUseCase.Result.Success -> {
+                    eventDelegate.sendEvent(
+                        ViewEvent.AuthenticationSuccess(
+                            result.publicKeyCredentialRequestOptions,
+                            credentialId
+                        )
+                    )
+                }
+                is PrepareAuthenticationUseCase.Result.CredentialNotFound -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+                }
+                is PrepareAuthenticationUseCase.Result.Error -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+                }
+            }
+        }
+    }
+
+    fun logAppSignature(context: Context) {
+        logAppSignatureUseCase(context, context.javaClass.simpleName)
+    }
+
+    fun getAttestationIntentLauncher(
+        activity: AppCompatActivity,
+        callback: (HandleAttestationResultUseCase.Result) -> Unit
+    ): ActivityResultLauncher<IntentSenderRequest> {
+        return attestationIntentLauncherUseCase(activity, this, callback)
+    }
+
+    fun getAssertionIntentLauncher(
+        activity: AppCompatActivity,
+        callback: (HandleAssertionResultUseCase.Result) -> Unit
+    ): ActivityResultLauncher<IntentSenderRequest> {
+        return assertionIntentLauncherUseCase(activity, this,callback)
+    }
+
+    fun handleAssertionResultFromLauncher(result: HandleAssertionResultUseCase.Result) {
+        viewModelScope.launch {
+            when (result) {
+                is HandleAssertionResultUseCase.Result.Success -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowToast("Authentication Successful!"))
+                    eventDelegate.sendEvent(ViewEvent.AssertionSuccess(result.credential))
+                }
+                is HandleAssertionResultUseCase.Result.Cancelled -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowToast(result.message))
+                }
+                is HandleAssertionResultUseCase.Result.Error -> {
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
+                }
+            }
+        }
+    }
+
+    /**
+     * Create a Notification Channel
+     *
+     * This notification channel is used to group notifications from the Liquid WebRTC Service
+     */
+    fun createChannels(notificationManager: NotificationManager) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel =
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "WebRTC Service",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    /**
+     * Create a Notification Builder with Defaults
+     *
+     * This notification builder is used to communicate to the user when the peer connection state changes.
+     * It also relays transaction messages that need to be signed to the AnswerActivity
+     */
+    fun createNotificationBuilder(
+        context: Context,
+        contentText: String = "Tap to open the app.",
+        contentTitle: String = "Liquid Auth",
+        channelId: String = NOTIFICATION_CHANNEL_ID,
+    ): Builder =
+        Builder(context, channelId)
+            .setContentTitle(contentTitle)
+            .setContentText(contentText)
+            .setColor(
+                ContextCompat.getColor(
+                    context,
+                    androidx.biometric.R.color.biometric_error_color
+                )
+            )
+            .setSmallIcon(R.drawable.ic_key)
+
+    private var attestationApiResponse: String? = null
+    fun getAttestationApiResponse(): String? = attestationApiResponse
+    fun setAttestationApiResponse(value: String?) {
+        attestationApiResponse = value
+    }
+
+    fun handleAttestationResultFromLauncher(
+        result: HandleAttestationResultUseCase.Result,
+        algoAddress: String?
+    ) {
+        when (result) {
+            is HandleAttestationResultUseCase.Result.Success -> {
+                if (algoAddress != null && getAttestationApiResponse() != null) {
+                    viewModelScope.launch {
+                        saveCredential(
+                            account = algoAddress,
+                            credential = result.credential,
+                            response = getAttestationApiResponse()!!,
+                        )
+                        eventDelegate.sendEvent(ViewEvent.AttestationSuccess(result.credential))
+                    }
+                } else {
+                    viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationError("Missing account or API response for credential save")) }
+                }
+            }
+
+            is HandleAttestationResultUseCase.Result.Cancelled -> {
+                viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationCancelled) }
+            }
+
+            is HandleAttestationResultUseCase.Result.Error -> {
+                viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationError(result.message)) }
+            }
+        }
+    }
+
+    fun getProvideHttpClient(): OkHttpClient =  providerHttpClientUseCase.invoke()
+
+    sealed interface ViewEvent {
+        data class ShowToast(val message: String) : ViewEvent
+        data class TransactionSigned(
+            val resultMessage: ResponseMessage,
+            val signResult: SignTransactionsResult
+        ) : ViewEvent
+
+        data class ShowError(val message: String) : ViewEvent
+        data class AttestationSuccess(val credential: PublicKeyCredential) : ViewEvent
+        object AttestationCancelled : ViewEvent
+        data class AttestationError(val message: String) : ViewEvent
+        data class AssertionSuccess(val credential: PublicKeyCredential) : ViewEvent
+        data class AuthenticationSuccess(
+            val publicKeyCredentialRequestOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions,
+            val credentialId: String
+        ) : ViewEvent
+        data class RegistrationSuccess(
+            val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
+            val algoAddress: String
+        ) : ViewEvent
+    }
 }
