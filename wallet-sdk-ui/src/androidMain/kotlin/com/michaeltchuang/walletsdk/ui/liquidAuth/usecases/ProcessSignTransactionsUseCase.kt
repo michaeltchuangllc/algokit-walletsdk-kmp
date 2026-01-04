@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25S
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import foundation.algorand.crypto.avm.KeyPairs
 import foundation.algorand.provider.avm.models.SignTransactionsParams
@@ -54,8 +54,8 @@ class ProcessSignTransactionsUseCase(
                 }
                 is LocalAccount.Falcon24 -> {
                     val privateKey = getFalcon24SecretKey(accountAddress)
-                    val signedGroupBytes = signFalcon24ArbitraryData(
-                        unsignedTransaction!!.bytesToSign(),
+                    val signedGroupBytes = signFalcon24Transaction(
+                        transactionBytes,
                         it.publicKey,
                         privateKey!!
                     )!!

@@ -96,7 +96,10 @@ class AnswerActivity : AppCompatActivity() {
             viewModel.viewEvent.collect { event ->
                 when (event) {
                     is AnswerViewModel.ViewEvent.AttestationSuccess -> {
+                        Log.d(TAG, "✅ Attestation Success - setting up WebRTC")
                         showToast("✅ Registration successful! Credential saved.", Toast.LENGTH_LONG)
+                        // Update session to show connected state
+                        setSession("Connected")  // Update session to stop spinner
                         handleWebRTCSetup(event.credential)
                     }
                     is AnswerViewModel.ViewEvent.AttestationCancelled -> {
@@ -116,6 +119,11 @@ class AnswerActivity : AppCompatActivity() {
                         sendSignedTransactions(event.resultMessage, event.signResult)
                     }
                     is AnswerViewModel.ViewEvent.AssertionSuccess -> {
+                        Log.d(TAG, "✅ Assertion Success - setting up WebRTC")
+                        // Update session to show connected state
+                        viewModel.message.value?.let { msg ->
+                            setSession("Connected")  // Update session to stop spinner
+                        }
                         lifecycleScope.launch {
                             handleWebRTCSetup(event.credential)
                         }
@@ -345,13 +353,14 @@ class AnswerActivity : AppCompatActivity() {
         Log.d(TAG, "Response ID: ${resultMessage.id}")
         Log.d(TAG, "========================================")
 
-        viewModel.signalService.value?.send(
-            Base64.UrlSafe.encode(
-                resultMessage.toByteArray(EncoderType.CBOR),
-            ),
-        )
+        // Use JSON instead of CBOR to avoid indefinite-length encoding issues
+        val jsonString = resultMessage.toJson()
+        Log.d(TAG, "JSON response length: ${jsonString.length} chars")
+        Log.d(TAG, "JSON response (first 500 chars): ${jsonString.take(500)}...")
 
-        Log.d(TAG, "✅ Signed transactions sent successfully!")
+        viewModel.signalService.value?.send(jsonString)
+
+        Log.d(TAG, "✅ Signed transactions sent successfully as JSON!")
         showToast("Transactions signed successfully!")
     }
 
