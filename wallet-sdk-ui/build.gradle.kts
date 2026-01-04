@@ -124,19 +124,14 @@ kotlin {
                 implementation(files("../libs/provider-debug.aar"))
                 implementation(files("../libs/crypto-debug.aar"))
 
-                // FIDO2 - Deprecated
-                implementation("com.google.android.gms:play-services-fido:20.1.0")
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.7.3")
-
-                val okhttpVersion by extra { "4.12.0" }
-                implementation("com.squareup.okhttp3:okhttp:$okhttpVersion")
-                implementation("com.squareup.okhttp3:logging-interceptor:$okhttpVersion")
-                implementation("ru.gildor.coroutines:kotlin-coroutines-okhttp:1.0")
-                implementation("io.socket:socket.io-client:2.1.0")
-                implementation("io.getstream:stream-webrtc-android:1.1.3")
-
-                // UUID Generator
-                implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
+                implementation(libs.play.services.fido)
+                implementation(libs.kotlinx.coroutines.play.services)
+                implementation(libs.okhttp)
+                implementation(libs.okhttp.logging.interceptor)
+                implementation(libs.coroutines.okhttp)
+                implementation(libs.socketio.client)
+                implementation(libs.stream.webrtc.android)
+                implementation(libs.uuid.generator)
             }
         }
 

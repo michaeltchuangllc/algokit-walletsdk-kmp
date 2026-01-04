@@ -28,7 +28,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 fun AnswerScreen(viewModel: AnswerViewModel) {
     // Collect StateFlow values as Compose state
     val session by viewModel.session.collectAsState()
-    val message by viewModel.message.collectAsState()
+    val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
 

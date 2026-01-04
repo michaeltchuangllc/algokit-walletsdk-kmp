@@ -13,6 +13,10 @@ import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.fido.fido2.Fido2ApiClient
@@ -22,8 +26,9 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalClient
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERVICE_NOTIFICATION_ID
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreen
-import com.michaeltchuang.walletsdk.ui.liquidAuth.usecases.HandleAssertionResultUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
@@ -55,6 +60,9 @@ class AnswerActivity : AppCompatActivity() {
     private var algoAddress: String? = null
     private var mnemonic: String? = null
 
+    private lateinit var params: SignTransactionsParams
+    private lateinit var message: Message
+
     // Authenticate/Assertion Intent Channel
     private lateinit var assertionIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
 
@@ -77,7 +85,6 @@ class AnswerActivity : AppCompatActivity() {
         }
     }
 
-    // --- Helper methods for clean initialization ---
     private fun setupUi() {
         setContent {
             AlgoKitTheme {
@@ -85,7 +92,38 @@ class AnswerActivity : AppCompatActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = AlgoKitTheme.colors.background,
                 ) {
+                    val scope = rememberCoroutineScope()
+                    val showDialogState = viewModel.showConfirmationDialog.collectAsState()
+                    val authMessage = viewModel.authMessage.collectAsState().value
+                    val session = viewModel.session.collectAsState().value
+                    val accountBalance = viewModel.accountBalance.collectAsState().value
                     AnswerScreen(viewModel = viewModel)
+                    if (showDialogState.value) {
+                        LaunchedEffect(Unit) {
+                            viewModel.fetchAccountBalance()
+                        }
+                        val feeState = produceState("") {
+                            value = viewModel.getFee()
+                        }
+                        ConfirmTransferScreen(
+                            provider = authMessage?.requestId ?: "",
+                            origin = authMessage?.origin ?: "",
+                            session = session,
+                            fee = feeState.value,
+                            accountBalance = accountBalance?:"Loading...",
+                            address = algoAddress!!,
+                            onTransactionClick = {
+                                scope.launch {
+                                    processTransactionSigning(params, message)
+                                    viewModel.showConfirmationDialog.value = false
+                                }
+                            },
+                            onClose = {
+                                viewModel.showConfirmationDialog.value = false
+                                showToast("Transaction signing cancelled")
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -102,32 +140,39 @@ class AnswerActivity : AppCompatActivity() {
                         setSession("Connected")  // Update session to stop spinner
                         handleWebRTCSetup(event.credential)
                     }
+
                     is AnswerViewModel.ViewEvent.AttestationCancelled -> {
                         showToast("Attestation cancelled.")
                     }
+
                     is AnswerViewModel.ViewEvent.AttestationError -> {
                         showToast("Attestation failed: ${event.message}")
                     }
+
                     is AnswerViewModel.ViewEvent.ShowToast -> {
                         showToast(event.message)
                     }
+
                     is AnswerViewModel.ViewEvent.ShowError -> {
                         showToast(event.message, Toast.LENGTH_LONG)
                     }
+
                     is AnswerViewModel.ViewEvent.TransactionSigned -> {
                         Log.d(TAG, "✅ Transaction signed event received")
                         sendSignedTransactions(event.resultMessage, event.signResult)
                     }
+
                     is AnswerViewModel.ViewEvent.AssertionSuccess -> {
                         Log.d(TAG, "✅ Assertion Success - setting up WebRTC")
                         // Update session to show connected state
-                        viewModel.message.value?.let { msg ->
+                        viewModel.authMessage.value?.let { msg ->
                             setSession("Connected")  // Update session to stop spinner
                         }
                         lifecycleScope.launch {
                             handleWebRTCSetup(event.credential)
                         }
                     }
+
                     is AnswerViewModel.ViewEvent.RegistrationSuccess -> {
                         lifecycleScope.launch {
                             signChallengeAndLaunchRegistration(
@@ -136,6 +181,7 @@ class AnswerActivity : AppCompatActivity() {
                             )
                         }
                     }
+
                     is AnswerViewModel.ViewEvent.AuthenticationSuccess -> {
                         lifecycleScope.launch {
                             val pendingIntent = fido2Client!!.getSignPendingIntent(
@@ -309,18 +355,19 @@ class AnswerActivity : AppCompatActivity() {
         params: SignTransactionsParams,
         message: Message,
     ) {
-        viewModel.showTransactionConfirmationDialog(
-            context = this@AnswerActivity,
-            params = params,
-            onConfirm = {
-                lifecycleScope.launch {
-                    processTransactionSigning(params, message)
-                }
-            },
-            onCancel = {
-                showToast("Transaction signing cancelled")
-            }
-        )
+
+        /* viewModel.showTransactionConfirmationDialog(
+             context = this@AnswerActivity,
+             params = params,
+             onConfirm = {
+                 lifecycleScope.launch {
+                     processTransactionSigning(params, message)
+                 }
+             },
+             onCancel = {
+                 showToast("Transaction signing cancelled")
+             }
+         )*/
     }
 
     /**
@@ -382,8 +429,10 @@ class AnswerActivity : AppCompatActivity() {
     private fun handleMessages(msgStr: String) {
         // Use ViewModel's handleMessages method
         viewModel.handleMessages(msgStr) { params, message ->
+            this.params = params
+            this.message = message
             // Show confirmation dialog - the signing logic is inside the OK button handler
-            showTransactionConfirmationDialog(params, message)
+            viewModel.showConfirmationDialog.value = true
         }
     }
 
@@ -425,7 +474,8 @@ class AnswerActivity : AppCompatActivity() {
         // Connect to Service
         lifecycleScope.launch {
             val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
-            signalClient = SignalClient(msg.origin, this@AnswerActivity, viewModel.getProvideHttpClient())
+            signalClient =
+                SignalClient(msg.origin, this@AnswerActivity, viewModel.getProvideHttpClient())
             if (savedCredential === null) {
                 register(msg)
             } else {
@@ -453,7 +503,7 @@ class AnswerActivity : AppCompatActivity() {
      * Handle WebRTC setup after successful registration
      */
     private suspend fun handleWebRTCSetup(credential: PublicKeyCredential) {
-        val msg = viewModel.message.value ?: return
+        val msg = viewModel.authMessage.value ?: return
 
         if (viewModel.signalService.value != null) {
             Log.d(TAG, "Setting up WebRTC connection...")

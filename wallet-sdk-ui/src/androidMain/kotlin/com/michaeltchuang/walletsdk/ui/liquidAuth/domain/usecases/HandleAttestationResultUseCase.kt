@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.app.Activity
 import android.os.Build
@@ -8,6 +8,7 @@ import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.ErrorCode
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import io.ktor.http.origin
 import org.json.JSONObject
@@ -26,7 +27,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  *
  * This separates complex attestation result handling from the Activity
  */
-class HandleAttestationResultUseCase {
+class HandleAttestationResultUseCase(private val attestationApiUseCase: AttestationApiUseCase) {
     companion object {
         private const val TAG = "HandleAttestationResultUseCase"
     }
@@ -101,20 +102,20 @@ class HandleAttestationResultUseCase {
             // Step 6: Build liquid extension JSON
             val liquidExtJSON = buildLiquidExtensionJson(
                 algoAddress = viewModel.accountAddress.value,
-                requestId = viewModel.message.value!!.requestId,
+                requestId = viewModel.authMessage.value!!.requestId,
                 currentChallenge = viewModel.currentChallenge!!,
                 viewModel = viewModel
             )
 
             Log.d(TAG, "========================================")
             Log.d(TAG, "📤 SUBMITTING CREDENTIAL TO SERVER")
-            Log.d(TAG, "URL: ${viewModel.message.value!!.origin}/attestation/response")
+            Log.d(TAG, "URL: ${viewModel.authMessage.value!!.origin}/attestation/response")
             Log.d(TAG, "Credential ID: ${credential.id}")
             Log.d(TAG, "========================================")
 
             // Step 7: Submit to server
-            val attestationResponse = viewModel.submitAttestationResult(
-                viewModel.message.value!!.origin,
+            val attestationResponse = attestationApiUseCase.postAttestationResult(
+                viewModel.authMessage.value!!.origin,
                 viewModel.userAgent,
                 credential,
                 liquidExtJSON,

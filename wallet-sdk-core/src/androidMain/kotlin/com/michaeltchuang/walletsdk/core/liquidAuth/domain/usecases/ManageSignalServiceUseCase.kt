@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
 import android.content.ComponentName
 import android.content.Context

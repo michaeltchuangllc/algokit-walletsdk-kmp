@@ -1,5 +1,6 @@
-package foundation.algorand.auth.fido2
+package com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2
 
+import android.os.Build
 import android.util.Log
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorAttestationResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
@@ -131,7 +132,7 @@ class AttestationApi
             jsonResponse.put("attestationObject", response.attestationObject.toBase64())
             payload.put("response", jsonResponse)
 
-            payload.put("device", android.os.Build.MODEL)
+            payload.put("device", Build.MODEL)
             Log.d(TAG, "POST $path")
             Log.d(TAG, "Request body: $payload")
             val requestBody = payload.toString().toRequestBody("application/json".toMediaTypeOrNull())

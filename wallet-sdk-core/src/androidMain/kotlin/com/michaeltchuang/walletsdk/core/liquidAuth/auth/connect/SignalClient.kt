@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.system.Os.socket
 import android.util.Log
 import io.socket.client.Ack
 import io.socket.client.IO
@@ -19,9 +18,8 @@ import org.webrtc.SessionDescription
 import qrcode.QRCode
 import qrcode.color.Colors
 import java.io.ByteArrayOutputStream
-import java.util.*
+import java.util.Locale
 import javax.inject.Inject
-import kotlin.collections.get
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 

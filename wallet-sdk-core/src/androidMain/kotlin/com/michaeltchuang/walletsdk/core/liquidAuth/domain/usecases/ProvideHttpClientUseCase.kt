@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit

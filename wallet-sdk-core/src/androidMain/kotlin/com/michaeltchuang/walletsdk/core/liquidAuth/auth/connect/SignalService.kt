@@ -1,6 +1,11 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
-import android.app.*
+import android.app.Activity
+import android.app.ForegroundServiceStartNotAllowedException
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.app.TaskStackBuilder
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Binder

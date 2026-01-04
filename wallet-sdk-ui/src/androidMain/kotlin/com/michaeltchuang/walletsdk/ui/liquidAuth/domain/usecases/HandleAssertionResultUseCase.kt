@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.app.Activity
 import android.util.Log
@@ -6,6 +6,8 @@ import androidx.activity.result.ActivityResult
 import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import io.ktor.http.origin
 import org.json.JSONArray
@@ -24,7 +26,7 @@ import org.json.JSONObject
  *
  * This separates assertion result handling from the Activity
  */
-class HandleAssertionResultUseCase {
+class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionApiUseCase,) {
     companion object {
         private const val TAG = "HandleAssertionResultUseCase"
     }
@@ -91,14 +93,14 @@ class HandleAssertionResultUseCase {
             // Step 5: Build liquid extension JSON
             val liquidExtJSON = buildLiquidExtensionJson(
                 accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
-                requestId = viewModel.message.value!!.requestId
+                requestId = viewModel.authMessage.value!!.requestId
             )
 
-            Log.d(TAG, "📤 Posting authentication assertion to server...")
+            Log.d(TAG, "Posting authentication assertion to server...")
 
             // Step 6: Submit to server
-            val serverResponse = viewModel.submitAssertionResult(
-                viewModel.message.value!!.origin,
+            val serverResponse = assertionApiUseCase.postAssertionResult(
+                viewModel.authMessage.value!!.origin,
                 viewModel.userAgent,
                 credential,
                 liquidExtJSON,

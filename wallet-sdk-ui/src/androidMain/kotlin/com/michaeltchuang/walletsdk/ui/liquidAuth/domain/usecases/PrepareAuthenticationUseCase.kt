@@ -1,10 +1,14 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.util.Log
+import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialRequestOptions
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
+import okhttp3.Response
+import okhttp3.ResponseBody
 
 /**
  * Use case for preparing FIDO2 authentication
@@ -17,7 +21,7 @@ import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOp
  *
  * This separates authentication preparation logic from the Activity
  */
-class PrepareAuthenticationUseCase {
+class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApiUseCase) {
     companion object {
         private const val TAG = "PrepareAuthenticationUseCase"
     }
@@ -60,7 +64,7 @@ class PrepareAuthenticationUseCase {
             Log.d(TAG, "========================================")
 
             // Step 1: Fetch assertion options from server
-            val response = viewModel.fetchAssertionOptions(
+            val response = assertionApiUseCase.postAssertionOptions(
                 authMessage.origin,
                 viewModel.userAgent,
                 credentialId
@@ -100,7 +104,7 @@ class PrepareAuthenticationUseCase {
             val publicKeyCredentialRequestOptions = try {
                 // Recreate response body since we consumed it
                 val recreatedBody = responseBodyString?.let {
-                    okhttp3.ResponseBody.create(
+                    ResponseBody.Companion.create(
                         response.body?.contentType(),
                         it
                     )
@@ -135,10 +139,10 @@ class PrepareAuthenticationUseCase {
     /**
      * Extract session ID from HTTP response
      */
-    private fun extractSessionFromResponse(response: okhttp3.Response): String? {
+    private fun extractSessionFromResponse(response: Response): String? {
         return try {
-            val cookie = com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie.fromResponse(response)
-            cookie?.let { com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie.getID(it) }
+            val cookie = Cookie.fromResponse(response)
+            cookie?.let { Cookie.getID(it) }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract session from response", e)
             null

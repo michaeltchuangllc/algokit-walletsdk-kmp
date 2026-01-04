@@ -112,27 +112,19 @@ kotlin {
             // Deterministic Passkeys (JAR files are supported)
             implementation(files("../libs/dP256.jar"))
 
-            // Signaling Service
-            implementation("io.socket:socket.io-client:2.1.0")
-            implementation("io.getstream:stream-webrtc-android:1.1.3")
-            // QR Code Generator
-            implementation("io.github.g0dkar:qrcode-kotlin:4.1.1")
-            // UUID Generator
-            implementation("com.fasterxml.uuid:java-uuid-generator:5.1.0")
-
-            // FIDO2
-            implementation("com.google.android.gms:play-services-fido:21.0.0")
-            // Barcode Scanner
-            implementation("com.google.mlkit:barcode-scanning-common:17.0.0")
-            implementation("com.google.mlkit:camera:16.0.0-beta3")
-            // Signaling Service
-            implementation("io.socket:socket.io-client:2.1.0")
-            implementation("io.getstream:stream-webrtc-android:1.1.3")
-
-            implementation("com.fasterxml.jackson.core:jackson-annotations:2.16.1")
-            implementation("org.msgpack:jackson-dataformat-msgpack:0.9.8")
-            implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.16.1")
-            implementation("net.pwall.json:json-kotlin-schema:0.46")
+            implementation(libs.socketio.client)
+            implementation(libs.stream.webrtc.android)
+            implementation(libs.qrcode.kotlin)
+            implementation(libs.uuid.generator)
+            implementation(libs.play.services.fido)
+            implementation(libs.mlkit.barcode.scanning.common)
+            implementation(libs.mlkit.camera)
+            implementation(libs.socketio.client)
+            implementation(libs.stream.webrtc.android)
+            implementation(libs.jackson.annotations)
+            implementation(libs.jackson.dataformat.msgpack)
+            implementation(libs.jackson.dataformat.cbor)
+            implementation(libs.json.kotlin.schema)
         }
         commonMain.dependencies {
             api(libs.napier)

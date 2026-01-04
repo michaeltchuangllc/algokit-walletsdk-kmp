@@ -1,4 +1,5 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+@file:OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
 import android.util.Log
 import com.algorand.algosdk.transaction.Transaction

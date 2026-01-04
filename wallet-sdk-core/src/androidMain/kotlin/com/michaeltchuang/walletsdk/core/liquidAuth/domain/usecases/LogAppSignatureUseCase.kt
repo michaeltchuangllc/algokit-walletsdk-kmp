@@ -1,8 +1,10 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
+import java.security.MessageDigest
 
 class LogAppSignatureUseCase {
     operator fun invoke(context: Context, tag: String = context.javaClass.simpleName) {
@@ -11,13 +13,13 @@ class LogAppSignatureUseCase {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
                     context.packageManager.getPackageInfo(
                         context.packageName,
-                        android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES,
+                        PackageManager.GET_SIGNING_CERTIFICATES,
                     )
                 } else {
                     @Suppress("DEPRECATION")
                     context.packageManager.getPackageInfo(
                         context.packageName,
-                        android.content.pm.PackageManager.GET_SIGNATURES,
+                        PackageManager.GET_SIGNATURES,
                     )
                 }
 
@@ -30,7 +32,7 @@ class LogAppSignatureUseCase {
                 }
 
             signatures?.forEach { signature ->
-                val md = java.security.MessageDigest.getInstance("SHA-256")
+                val md = MessageDigest.getInstance("SHA-256")
                 md.update(signature.toByteArray())
                 val hash = md.digest()
                 val hexString = hash.joinToString(":") { byte -> "%02X".format(byte) }

@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import androidx.activity.result.ActivityResultCallback
 import androidx.activity.result.ActivityResultLauncher

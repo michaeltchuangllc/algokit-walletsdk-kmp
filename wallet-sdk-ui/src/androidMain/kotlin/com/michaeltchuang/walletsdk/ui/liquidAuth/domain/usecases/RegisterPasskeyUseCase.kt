@@ -1,9 +1,12 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.usecases
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.net.Uri
 import android.util.Log
+import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialCreationOptions
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import okhttp3.Response
 import org.json.JSONObject
@@ -19,7 +22,7 @@ import org.json.JSONObject
  *
  * This separates the complex registration logic from the Activity
  */
-class RegisterPasskeyUseCase {
+class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUseCase) {
     companion object {
         private const val TAG = "RegisterPasskeyUseCase"
     }
@@ -29,7 +32,7 @@ class RegisterPasskeyUseCase {
      */
     sealed class Result {
         data class Success(
-            val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
+            val pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
             val attestationApiResponse: String,
             val sessionId: String?
         ) : Result()
@@ -77,7 +80,7 @@ class RegisterPasskeyUseCase {
             Log.d(TAG, "User-Agent: ${viewModel.userAgent}")
             Log.d(TAG, "========================================")
 
-            val response = viewModel.fetchAttestationOptions(
+            val response = attestationApiUseCase.postAttestationOptions(
                 authMessage.origin,
                 viewModel.userAgent,
                 attestationOptions
@@ -97,9 +100,10 @@ class RegisterPasskeyUseCase {
             onSessionUpdate(sessionId)
 
             // Step 5: Convert to PublicKeyCredentialCreationOptions
-            val pubKeyCredentialCreationOptions = response.body!!.toPublicKeyCredentialCreationOptions(
-                overrideRpId = rpId,
-            )
+            val pubKeyCredentialCreationOptions =
+                response.body!!.toPublicKeyCredentialCreationOptions(
+                    overrideRpId = rpId,
+                )
 
             Log.d(TAG, "✅ PublicKeyCredentialCreationOptions created")
             Log.d(TAG, "RP ID: ${pubKeyCredentialCreationOptions.rp?.id}")
@@ -188,8 +192,8 @@ class RegisterPasskeyUseCase {
      */
     private fun extractSessionFromResponse(response: Response): String? {
         return try {
-            val cookie = com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie.fromResponse(response)
-            cookie?.let { com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie.getID(it) }
+            val cookie = Cookie.fromResponse(response)
+            cookie?.let { Cookie.getID(it) }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract session from response", e)
             null
