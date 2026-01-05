@@ -26,6 +26,7 @@ actual fun recoverAlgo25Account(mnemonic: String): Algo25Account? = AlgoAccountS
 actual fun createAlgo25Account(): Algo25Account? = AlgoAccountSdkImpl().createAlgo25Account()
 
 actual fun isValidAlgorandAddress(accountAddress: String): Boolean = AlgoAccountSdkImpl().isValidAlgorandAddress(accountAddress)
+
 actual fun getMnemonicFromAlgo25SecretKey(secretKey: ByteArray): String? =
     AlgoAccountSdkImpl().getMnemonicFromAlgo25SecretKey(secretKey = secretKey)
 
@@ -81,6 +82,47 @@ actual fun signAlgo25Transaction(
     val signedTransaction: SignedTransaction = account.signTransaction(transaction)
     return Encoder.encodeToMsgPack(signedTransaction)
 }
+
+actual fun signHdKeyArbitraryData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? =
+    SignHdKeyTransactionImpl().signLegacyArbitraryData(
+        data,
+        seed,
+        account,
+        change,
+        key,
+    )
+
+actual fun signHdKeyData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? =
+    SignHdKeyTransactionImpl().signArbitraryData(
+        data,
+        seed,
+        account,
+        change,
+        key,
+    )
+
+actual fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? =
+    SignFalcon24TransactionImpl().signArbitraryData(
+        data,
+        publicKey,
+        privateKey,
+    )
 
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray =
     with(payload) {

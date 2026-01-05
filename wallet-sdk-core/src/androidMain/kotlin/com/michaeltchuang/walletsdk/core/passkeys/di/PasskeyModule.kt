@@ -36,76 +36,77 @@ import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
 
-val passkeyModule = module {
-    // Passkey DAOs from AlgoKitDatabase
-    single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeyDao() }
-    single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeySiteDao() }
+val passkeyModule =
+    module {
+        // Passkey DAOs from AlgoKitDatabase
+        single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeyDao() }
+        single { get<com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase>().passkeySiteDao() }
 
-    // Repository
-    singleOf(::DefaultPasskeyRepository) bind PasskeyRepository::class
+        // Repository
+        singleOf(::DefaultPasskeyRepository) bind PasskeyRepository::class
 
-    // Mappers
-    singleOf(::DefaultPasskeyMapper) bind PasskeyMapper::class
-    singleOf(::DefaultPasskeyEntityMapper) bind PasskeyEntityMapper::class
-    singleOf(::DefaultCoseMapper) bind CoseMapper::class
+        // Mappers
+        singleOf(::DefaultPasskeyMapper) bind PasskeyMapper::class
+        singleOf(::DefaultPasskeyEntityMapper) bind PasskeyEntityMapper::class
+        singleOf(::DefaultCoseMapper) bind CoseMapper::class
 
-    // Builders
-    singleOf(::DefaultPasskeyCreateCredentialEntryBuilder) bind PasskeyCreateCredentialEntryBuilder::class
-    singleOf(::DefaultPasskeyGetCredentialsEntryBuilder) bind PasskeyGetCredentialsEntryBuilder::class
+        // Builders
+        singleOf(::DefaultPasskeyCreateCredentialEntryBuilder) bind PasskeyCreateCredentialEntryBuilder::class
+        singleOf(::DefaultPasskeyGetCredentialsEntryBuilder) bind PasskeyGetCredentialsEntryBuilder::class
 
-    // Use Cases
-    factory<AddNewPasskey> { AddNewPasskeyUseCase(get()) }
+        // Use Cases
+        factory<AddNewPasskey> { AddNewPasskeyUseCase(get()) }
 
-    factory<GetSitePasskeyCount> {
-        GetSitePasskeyCount(get<PasskeyRepository>()::getSitePasskeysCount)
+        factory<GetSitePasskeyCount> {
+            GetSitePasskeyCount(get<PasskeyRepository>()::getSitePasskeysCount)
+        }
+
+        factory<GetSitePasskeys> {
+            GetSitePasskeys(get<PasskeyRepository>()::getSitePasskeys)
+        }
+
+        factory<GetPasskeyByCredentialId> {
+            GetPasskeyByCredentialId(get<PasskeyRepository>()::getPasskey)
+        }
+
+        factory<GetAllPasskeysAsFlow> {
+            GetAllPasskeysAsFlow(get<PasskeyRepository>()::getAllPasskeysAsFlow)
+        }
+
+        factory<RemovePasskeyByCredentialId> {
+            RemovePasskeyByCredentialId(get<PasskeyRepository>()::removePasskeyByCredentialId)
+        }
+
+        factory<ClearAllPasskeys> {
+            ClearAllPasskeys(get<PasskeyRepository>()::clearAllPasskeys)
+        }
+
+        factory<SetPasskeyLastUsedTime> {
+            SetPasskeyLastUsedTime(get<PasskeyRepository>()::setPasskeyLastUsedTime)
+        }
+
+        factory<DoesPasskeyExist> {
+            DoesPasskeyExist(get<PasskeyRepository>()::doesPasskeyExist)
+        }
+
+        // TODO: Bip39SignManager depends on actual implementation
+        single<Bip39SignManager> {
+            DeterministicBip39SignManager(
+                DeterministicP256(),
+                get<GetAllHdSeedFirstAddresses>(),
+                get<GetHdEntropy>(),
+            )
+        }
+
+        // View Model Processors
+        single<GetCredentialResponseProcessor> {
+            DefaultGetCredentialResponseProcessor(
+                get<Bip39SignManager>(),
+                get<SetPasskeyLastUsedTime>(),
+                get<TimeProvider>(),
+            )
+        }
+        single<CreatePublicKeyCredentialResponseProcessor> {
+            DefaultCreatePublicKeyCredentialResponseProcessor(get())
+        }
     }
-
-    factory<GetSitePasskeys> {
-        GetSitePasskeys(get<PasskeyRepository>()::getSitePasskeys)
-    }
-
-    factory<GetPasskeyByCredentialId> {
-        GetPasskeyByCredentialId(get<PasskeyRepository>()::getPasskey)
-    }
-
-    factory<GetAllPasskeysAsFlow> {
-        GetAllPasskeysAsFlow(get<PasskeyRepository>()::getAllPasskeysAsFlow)
-    }
-
-    factory<RemovePasskeyByCredentialId> {
-        RemovePasskeyByCredentialId(get<PasskeyRepository>()::removePasskeyByCredentialId)
-    }
-
-    factory<ClearAllPasskeys> {
-        ClearAllPasskeys(get<PasskeyRepository>()::clearAllPasskeys)
-    }
-
-    factory<SetPasskeyLastUsedTime> {
-        SetPasskeyLastUsedTime(get<PasskeyRepository>()::setPasskeyLastUsedTime)
-    }
-
-    factory<DoesPasskeyExist> {
-        DoesPasskeyExist(get<PasskeyRepository>()::doesPasskeyExist)
-    }
-
-    // TODO: Bip39SignManager depends on actual implementation
-    single<Bip39SignManager> {
-        DeterministicBip39SignManager(
-            DeterministicP256(),
-            get<GetAllHdSeedFirstAddresses>(),
-            get<GetHdEntropy>()
-        )
-    }
-
-    // View Model Processors
-    single<GetCredentialResponseProcessor> {
-        DefaultGetCredentialResponseProcessor(
-            get<Bip39SignManager>(),
-            get<SetPasskeyLastUsedTime>(),
-            get<TimeProvider>()
-        )
-    }
-    single<CreatePublicKeyCredentialResponseProcessor> {
-        DefaultCreatePublicKeyCredentialResponseProcessor(get())
-    }
-}

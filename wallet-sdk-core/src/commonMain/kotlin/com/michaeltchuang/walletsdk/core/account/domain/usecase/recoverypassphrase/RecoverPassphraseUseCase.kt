@@ -74,16 +74,17 @@ class RecoverPassphraseUseCase(
                     address = "",
                     customName = "",
                     isBackedUp = true,
-                    type = AccountCreation.Type.HdKey(
-                        publicKey = ByteArray(0),
-                        encryptedPrivateKey = ByteArray(0),
-                        encryptedEntropy = encryptByteArray(entropy),
-                        account = 0,
-                        change = 0,
-                        keyIndex = 0,
-                        derivationType = 0
-                    ),
-                    creationType = CreationType.RECOVER
+                    type =
+                        AccountCreation.Type.HdKey(
+                            publicKey = ByteArray(0),
+                            encryptedPrivateKey = ByteArray(0),
+                            encryptedEntropy = encryptByteArray(entropy),
+                            account = 0,
+                            change = 0,
+                            keyIndex = 0,
+                            derivationType = 0,
+                        ),
+                    creationType = CreationType.RECOVER,
                 )
             }
         }

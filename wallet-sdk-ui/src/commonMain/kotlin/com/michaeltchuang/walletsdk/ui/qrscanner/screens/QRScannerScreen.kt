@@ -72,6 +72,9 @@ fun QRCodeScannerScreen(
                     closeSheet()
                     launchFidoDeepLink.value = it.uri
                 }
+                is QRScannerViewModel.ViewEvent.NavigateToLiquidAuthScreen -> {
+                    navController.navigate(AlgoKitScreens.LIQUID_AUTH_SCREEN.name + "?uri=${it.uri}")
+                }
 
                 is QRScannerViewModel.ViewEvent.ShowUnrecognizedDeeplink -> {
                     onQrScanned("Unrecognized QR Code")

@@ -1,10 +1,3 @@
-import org.gradle.kotlin.dsl.dependencies
-import org.gradle.kotlin.dsl.getting
-import org.gradle.kotlin.dsl.implementation
-import org.gradle.kotlin.dsl.invoke
-import org.gradle.kotlin.dsl.kotlin
-import org.gradle.kotlin.dsl.libs
-import org.gradle.kotlin.dsl.room
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -94,7 +87,7 @@ kotlin {
             implementation(libs.algorand.go.mobile)
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)
-            implementation(libs.p256)
+
             // toml files don't support aar files yet
             implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
@@ -111,6 +104,26 @@ kotlin {
             implementation(libs.kotlinfixture)
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
+
+            // Local .aar dependencies - compileOnly to avoid packaging issues
+            // The app module must include these as implementation dependencies
+            compileOnly(files("../libs/provider-debug.aar"))
+            compileOnly(files("../libs/crypto-debug.aar"))
+            implementation(libs.p256)
+
+            implementation(libs.socketio.client)
+            implementation(libs.stream.webrtc.android)
+            implementation(libs.qrcode.kotlin)
+            implementation(libs.uuid.generator)
+            implementation(libs.play.services.fido)
+            implementation(libs.mlkit.barcode.scanning.common)
+            implementation(libs.mlkit.camera)
+            implementation(libs.socketio.client)
+            implementation(libs.stream.webrtc.android)
+            implementation(libs.jackson.annotations)
+            implementation(libs.jackson.dataformat.msgpack)
+            implementation(libs.jackson.dataformat.cbor)
+            implementation(libs.json.kotlin.schema)
         }
         commonMain.dependencies {
             api(libs.napier)
@@ -240,7 +253,7 @@ room {
 configurations.all {
     resolutionStrategy {
         // Force a single version of BouncyCastle to avoid conflicts
-        force("org.bouncycastle:bcprov-jdk18on:1.82")
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
 
         // Exclude the older version
         exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")

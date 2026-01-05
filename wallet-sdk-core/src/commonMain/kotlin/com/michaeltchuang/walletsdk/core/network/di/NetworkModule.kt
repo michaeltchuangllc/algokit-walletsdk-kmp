@@ -67,9 +67,8 @@ val networkModule =
         single<AccountFastLookupApiService> {
             AccountFastLookupRepositoryImpl(
                 httpClient = get(),
-                accountFastLookupMapper = get()
+                accountFastLookupMapper = get(),
             )
         }
         single { GetAccountFastLookup(get<AccountFastLookupApiService>()::getAccountFastLookup) }
-
     }

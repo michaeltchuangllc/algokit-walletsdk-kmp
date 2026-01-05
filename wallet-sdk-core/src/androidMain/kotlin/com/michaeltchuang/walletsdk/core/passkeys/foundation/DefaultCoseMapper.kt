@@ -6,9 +6,7 @@ import android.util.Base64
 import java.math.BigInteger
 import java.security.interfaces.ECPublicKey
 
-
 internal class DefaultCoseMapper constructor() : CoseMapper {
-
     override fun mapPublicKeyToCose(key: ECPublicKey): MutableMap<Int, Any> {
         val x = bigIntToFixedArray(key.w.affineX)
         val y = bigIntToFixedArray(key.w.affineY)

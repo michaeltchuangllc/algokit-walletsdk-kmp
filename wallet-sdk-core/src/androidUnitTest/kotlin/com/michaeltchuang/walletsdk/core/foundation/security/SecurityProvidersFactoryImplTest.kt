@@ -5,7 +5,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SecurityProvidersFactoryImplTest {
-
     private val sut = SecurityProvidersFactoryImpl()
 
     @Test

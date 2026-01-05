@@ -9,7 +9,7 @@ data class AccountCreation(
     val isBackedUp: Boolean,
     val type: Type,
     val creationType: CreationType,
-    val isRecoverRegisteredAccount: Boolean=false
+    val isRecoverRegisteredAccount: Boolean = false,
 ) {
     sealed interface Type {
         data class HdKey(

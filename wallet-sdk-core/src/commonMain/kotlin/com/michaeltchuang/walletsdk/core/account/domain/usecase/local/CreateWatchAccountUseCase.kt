@@ -11,8 +11,8 @@ class CreateWatchAccountUseCase(
     private val noAuthAccountRepository: NoAuthAccountRepository,
     private val getLocalAccounts: GetLocalAccounts,
 ) {
-    suspend operator fun invoke(createAccount: CreateAccount): Result<Unit> {
-        return try {
+    suspend operator fun invoke(createAccount: CreateAccount): Result<Unit> =
+        try {
             // Check if address already exists in ANY account type
             val existingAccounts = getLocalAccounts()
             val addressExists = existingAccounts.any { it.algoAddress == createAccount.address }
@@ -27,8 +27,8 @@ class CreateWatchAccountUseCase(
                         createAccount.address,
                         createAccount.customName,
                         createAccount.orderIndex,
-                        isBackedUp = true
-                    )
+                        isBackedUp = true,
+                    ),
                 )
                 noAuthAccountRepository.addAccount(watchAccount)
                 Result.success(Unit)
@@ -36,5 +36,4 @@ class CreateWatchAccountUseCase(
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 }

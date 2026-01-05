@@ -67,12 +67,12 @@ class AuthenticatorAttestationResponse(
         val credIdLen = byteArrayOf((credentialId.size shr 8).toByte(), credentialId.size.toByte())
 
         return rpHash +
-                byteArrayOf(flags.toByte()) +
-                byteArrayOf(0, 0, 0, 0) +
-                aaguid +
-                credIdLen +
-                credentialId +
-                credentialPublicKey
+            byteArrayOf(flags.toByte()) +
+            byteArrayOf(0, 0, 0, 0) +
+            aaguid +
+            credIdLen +
+            credentialId +
+            credentialPublicKey
     }
 
     @Suppress("MagicNumber")

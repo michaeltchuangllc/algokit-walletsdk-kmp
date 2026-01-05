@@ -36,6 +36,7 @@ import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreen
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewPlatformScreen
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.AccountRecoveryTypeSelectionScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.AddressNamingScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreen
@@ -101,6 +102,7 @@ enum class AlgoKitScreens {
     TRANSACTING_TIPS_SCREEN,
     ADDRESS_NAMING_SCREEN,
     PASSKEYS_SCREEN,
+    LIQUID_AUTH_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -605,6 +607,20 @@ fun NavigationBottomSheetNavHost(
                     PasskeysScreen {
                         navController.popBackStack()
                     }
+                }
+                composable(
+                    route = AlgoKitScreens.LIQUID_AUTH_SCREEN.name + "?uri={uri}",
+                    arguments =
+                        listOf(
+                            navArgument("uri") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val uri = backStackEntry.arguments?.getString("uri")
+                    LiquidAuthScreen(navController = navController, uri = uri)
                 }
             }
         }

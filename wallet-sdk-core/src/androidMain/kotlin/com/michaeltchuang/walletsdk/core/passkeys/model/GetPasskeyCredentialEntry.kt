@@ -6,5 +6,5 @@ data class GetPasskeyCredentialEntry(
     val option: BeginGetPublicKeyCredentialOption,
     val credentialId: String,
     val username: String?,
-    val userDisplayName: String?
+    val userDisplayName: String?,
 )

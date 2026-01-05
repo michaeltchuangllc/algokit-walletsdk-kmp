@@ -1,0 +1,41 @@
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
+
+import androidx.activity.result.ActivityResultCallback
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.appcompat.app.AppCompatActivity
+import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+
+/**
+ * Use case to encapsulate registration and result handling for attestation ActivityResultLauncher.
+ */
+class AttestationIntentLauncherUseCase(
+    private val handleAttestationResultUseCase: HandleAttestationResultUseCase
+) {
+    /**
+     * Registers a launcher for attestation intent, wiring the provided callback to receive Result type.
+     */
+    operator fun invoke(
+        activity: AppCompatActivity,
+        viewModel: AnswerViewModel,
+        callback: (HandleAttestationResultUseCase.Result) -> Unit
+    ): ActivityResultLauncher<IntentSenderRequest> {
+        return activity.registerForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult(),
+            ActivityResultCallback { activityResult ->
+                CoroutineScope(Dispatchers.Main).launch {
+                    val result = handleAttestationResultUseCase.invoke(
+                        activityResult,
+                        viewModel
+                    )
+                    callback(result)
+                }
+            }
+        )
+    }
+}
+

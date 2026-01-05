@@ -63,7 +63,7 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
         return txIdPrefix + tx
     }
 
-    override fun signLegacyArbitaryData(
+    override fun signLegacyArbitraryData(
         transactionByteArray: ByteArray,
         seed: ByteArray,
         account: Int,
@@ -102,5 +102,39 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
     private fun prefixData(data: ByteArray): ByteArray {
         val prefix = "MX".toByteArray(Charsets.UTF_8)
         return prefix + data
+    }
+
+    override fun signArbitraryData(
+        data: ByteArray,
+        seed: ByteArray,
+        account: Int,
+        change: Int,
+        key: Int,
+    ): ByteArray? {
+        return try {
+            val xHDWalletAPI = XHDWalletAPIAndroid(seed)
+            val (accountIndex, changeIndex, keyIndex) =
+                listOf(
+                    account.toUInt(),
+                    change.toUInt(),
+                    key.toUInt(),
+                )
+
+            val stx =
+                xHDWalletAPI.rawSign(
+                    getBIP44PathFromContext(
+                        context = KeyContext.Address,
+                        account = accountIndex,
+                        change = changeIndex,
+                        keyIndex = keyIndex,
+                    ),
+                    data, // Sign the raw data without any prefix
+                    Bip32DerivationType.Peikert,
+                )
+
+            return stx
+        } catch (e: Exception) {
+            null
+        }
     }
 }

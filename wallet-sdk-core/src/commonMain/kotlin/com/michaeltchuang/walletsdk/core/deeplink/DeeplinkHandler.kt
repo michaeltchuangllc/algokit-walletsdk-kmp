@@ -88,7 +88,10 @@ class DeeplinkHandler(
             var accountAddress: DeepLink.AccountAddress,
         ) : DeepLinkState()
 
-        data class FidoDeepLink(var uri: String): DeepLinkState()
+        data class FidoDeepLink(
+            var uri: String,
+        ) : DeepLinkState()
+
         object OnUnrecognizedDeepLink : DeepLinkState()
     }
 }

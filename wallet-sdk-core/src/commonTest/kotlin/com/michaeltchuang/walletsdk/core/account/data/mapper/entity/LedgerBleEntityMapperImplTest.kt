@@ -5,17 +5,17 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LedgerBleEntityMapperImplTest {
-
     private val sut = LedgerBleEntityMapperImpl()
 
     @Test
     fun `EXPECT LedgerBleEntity to be created from LocalAccount LedgerBle`() {
-        val localAccount = LocalAccount.LedgerBle(
-            algoAddress = ADDRESS,
-            deviceMacAddress = MAC_ADDRESS,
-            bluetoothName = BLUETOOTH_NAME,
-            indexInLedger = INDEX_IN_LEDGER
-        )
+        val localAccount =
+            LocalAccount.LedgerBle(
+                algoAddress = ADDRESS,
+                deviceMacAddress = MAC_ADDRESS,
+                bluetoothName = BLUETOOTH_NAME,
+                indexInLedger = INDEX_IN_LEDGER,
+            )
 
         val result = sut(localAccount)
 
@@ -27,12 +27,13 @@ class LedgerBleEntityMapperImplTest {
 
     @Test
     fun `EXPECT LedgerBleEntity to be created with null bluetooth name`() {
-        val localAccount = LocalAccount.LedgerBle(
-            algoAddress = ADDRESS,
-            deviceMacAddress = MAC_ADDRESS,
-            bluetoothName = null,
-            indexInLedger = INDEX_IN_LEDGER
-        )
+        val localAccount =
+            LocalAccount.LedgerBle(
+                algoAddress = ADDRESS,
+                deviceMacAddress = MAC_ADDRESS,
+                bluetoothName = null,
+                indexInLedger = INDEX_IN_LEDGER,
+            )
 
         val result = sut(localAccount)
 

@@ -8,15 +8,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class WalletConnectConnectionDeepLinkBuilderTest {
-
     private val sut = WalletConnectConnectionDeepLinkBuilder()
 
     @Test
     fun `EXPECT deeplink meets requirements WHEN only wallet connect url is provided`() {
-        val payload = DeepLinkPayload(
-            walletConnectUrl = WC_URL,
-            rawDeepLinkUri = WC_URL
-        )
+        val payload =
+            DeepLinkPayload(
+                walletConnectUrl = WC_URL,
+                rawDeepLinkUri = WC_URL,
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -25,10 +25,11 @@ class WalletConnectConnectionDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN wallet connect url is null`() {
-        val payload = DeepLinkPayload(
-            walletConnectUrl = null,
-            rawDeepLinkUri = "algorand://"
-        )
+        val payload =
+            DeepLinkPayload(
+                walletConnectUrl = null,
+                rawDeepLinkUri = "algorand://",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -37,11 +38,12 @@ class WalletConnectConnectionDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN account address is also provided`() {
-        val payload = DeepLinkPayload(
-            walletConnectUrl = WC_URL,
-            accountAddress = ADDRESS,
-            rawDeepLinkUri = WC_URL
-        )
+        val payload =
+            DeepLinkPayload(
+                walletConnectUrl = WC_URL,
+                accountAddress = ADDRESS,
+                rawDeepLinkUri = WC_URL,
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -50,11 +52,12 @@ class WalletConnectConnectionDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN asset id is also provided`() {
-        val payload = DeepLinkPayload(
-            walletConnectUrl = WC_URL,
-            assetId = ASSET_ID,
-            rawDeepLinkUri = WC_URL
-        )
+        val payload =
+            DeepLinkPayload(
+                walletConnectUrl = WC_URL,
+                assetId = ASSET_ID,
+                rawDeepLinkUri = WC_URL,
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -63,10 +66,11 @@ class WalletConnectConnectionDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT WalletConnectConnection deeplink to be created`() {
-        val payload = DeepLinkPayload(
-            walletConnectUrl = WC_URL,
-            rawDeepLinkUri = WC_URL
-        )
+        val payload =
+            DeepLinkPayload(
+                walletConnectUrl = WC_URL,
+                rawDeepLinkUri = WC_URL,
+            )
 
         val result = sut.createDeepLink(payload)
 

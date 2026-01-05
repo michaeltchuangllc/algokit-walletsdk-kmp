@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class RemoveAssetTransactionBuilderImplTest {
-
     private val algoSdk: AlgoSdk = mockk()
 
     private val sut = RemoveAssetTransactionBuilderImpl(algoSdk)
@@ -33,10 +32,11 @@ class RemoveAssetTransactionBuilderImplTest {
         const val CREATOR_ADDRESS = "7IBEAXHK62XEJATU6Q4QYQCDFY475CEKNXGLYQO6QSGCLVMMK4SLVTYLMY"
         val SUGGESTED_PARAMS = mockk<SuggestedTransactionParams>(relaxed = true)
         val TXN_BYTE_ARRAY = byteArrayOf(1, 2, 3, 4, 5)
-        val REMOVE_ASSET_PAYLOAD = RemoveAssetTransactionPayload(
-            senderAddress = ADDRESS,
-            assetId = ASSET_ID,
-            creatorAddress = CREATOR_ADDRESS
-        )
+        val REMOVE_ASSET_PAYLOAD =
+            RemoveAssetTransactionPayload(
+                senderAddress = ADDRESS,
+                assetId = ASSET_ID,
+                creatorAddress = CREATOR_ADDRESS,
+            )
     }
 }

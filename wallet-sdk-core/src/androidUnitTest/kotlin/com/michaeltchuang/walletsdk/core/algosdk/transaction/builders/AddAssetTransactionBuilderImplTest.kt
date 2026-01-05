@@ -10,7 +10,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AddAssetTransactionBuilderImplTest {
-
     private val algoSdk: AlgoSdk = mockk()
 
     private val sut = AddAssetTransactionBuilderBuilderImpl(algoSdk)
@@ -21,7 +20,7 @@ class AddAssetTransactionBuilderImplTest {
             algoSdk.createAddAssetTxn(
                 ADDRESS,
                 ASSET_ID,
-                SUGGESTED_PARAMS
+                SUGGESTED_PARAMS,
             )
         } returns TXN_BYTE_ARRAY
 
@@ -35,10 +34,11 @@ class AddAssetTransactionBuilderImplTest {
         const val ADDRESS = "WOLFYW4VEVVGEGVLQWEL4EMJ5SFCD3UCNKDH2DCUB5HQ6HLM6URZBMPXLI"
         const val ASSET_ID = 226701642L
 
-        val ADD_ASSET_PAYLOAD = AddAssetTransactionPayload(
-            address = ADDRESS,
-            assetId = ASSET_ID
-        )
+        val ADD_ASSET_PAYLOAD =
+            AddAssetTransactionPayload(
+                address = ADDRESS,
+                assetId = ASSET_ID,
+            )
 
         val SUGGESTED_PARAMS = mockk<SuggestedTransactionParams>(relaxed = true)
 

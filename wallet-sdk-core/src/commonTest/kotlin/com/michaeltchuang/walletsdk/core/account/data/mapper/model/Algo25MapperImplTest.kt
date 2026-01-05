@@ -5,15 +5,15 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class Algo25MapperImplTest {
-
     private val sut = Algo25MapperImpl()
 
     @Test
     fun `EXPECT LocalAccount Algo25 to be created from Algo25Entity`() {
-        val entity = Algo25Entity(
-            algoAddress = ADDRESS,
-            encryptedSecretKey = ENCRYPTED_KEY
-        )
+        val entity =
+            Algo25Entity(
+                algoAddress = ADDRESS,
+                encryptedSecretKey = ENCRYPTED_KEY,
+            )
 
         val result = sut(entity)
 

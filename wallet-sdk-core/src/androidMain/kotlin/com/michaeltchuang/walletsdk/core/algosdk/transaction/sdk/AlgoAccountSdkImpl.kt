@@ -4,7 +4,6 @@ import com.algorand.algosdk.account.Account
 import com.algorand.algosdk.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
 import com.michaeltchuang.walletsdk.core.encryption.domain.utils.clearFromMemory
-import okhttp3.Address
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.NoSuchAlgorithmException
 import java.security.Security

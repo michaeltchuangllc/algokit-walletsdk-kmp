@@ -55,8 +55,8 @@ class AuthenticatorAssertionResponse(
             flags = flags or 0x10
         }
         return rpHash +
-                byteArrayOf(flags.toByte()) +
-                byteArrayOf(0, 0, 0, 0)
+            byteArrayOf(flags.toByte()) +
+            byteArrayOf(0, 0, 0, 0)
     }
 
     fun dataToSign(): ByteArray {

@@ -16,5 +16,5 @@ internal data class SiteEntity(
     @ColumnInfo(name = "url")
     val url: String,
     @ColumnInfo(name = "name")
-    val name: String
+    val name: String,
 )

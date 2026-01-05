@@ -5,12 +5,11 @@ import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthA
 class DeleteNoAuthAccountUseCase(
     private val noAuthAccountRepository: NoAuthAccountRepository,
 ) {
-    suspend operator fun invoke(address: String): Result<Unit> {
-        return try {
+    suspend operator fun invoke(address: String): Result<Unit> =
+        try {
             noAuthAccountRepository.deleteAccount(address)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
-    }
 }

@@ -50,7 +50,10 @@ class Cbor {
     }
 
     @Suppress("MagicNumber")
-    private fun createArg(type: Int, arg: Long): ByteArray {
+    private fun createArg(
+        type: Int,
+        arg: Long,
+    ): ByteArray {
         val t = type shl 5
         val a = arg.toInt()
         if (arg < 24) {

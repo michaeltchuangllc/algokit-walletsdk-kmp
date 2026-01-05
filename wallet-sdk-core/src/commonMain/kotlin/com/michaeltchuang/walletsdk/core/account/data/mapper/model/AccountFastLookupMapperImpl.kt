@@ -6,13 +6,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastL
 import com.michaeltchuang.walletsdk.core.network.model.AccountFastLookupResponse
 
 internal class AccountFastLookupMapperImpl : AccountFastLookupMapper {
-    override fun invoke(
-        response: AccountFastLookupResponse
-    ): AccountFastLookup {
-        return AccountFastLookup(
+    override fun invoke(response: AccountFastLookupResponse): AccountFastLookup =
+        AccountFastLookup(
             algoValue = response.algoValue?.toBigDecimal() ?: BigDecimal.ZERO,
             usdValue = response.usdValue?.toBigDecimal() ?: BigDecimal.ZERO,
             accountExists = response.accountExists ?: false,
         )
-    }
 }

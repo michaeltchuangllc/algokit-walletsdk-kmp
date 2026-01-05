@@ -13,6 +13,8 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdKeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdSeedDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.LedgerBleDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.NoAuthDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeyDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDao
 import com.michaeltchuang.walletsdk.core.account.data.database.model.Algo25Entity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomAccountInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomHdSeedInfoEntity
@@ -21,8 +23,6 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.HdKeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntity
-import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeyDao
-import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDao
 import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 
@@ -66,7 +66,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun passkeySiteDao(): PasskeySiteDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 2  // Bumped for passkey tables
+        const val DATABASE_VERSION = 2 // Bumped for passkey tables
         const val DATABASE_NAME = "algokit_database"
     }
 }

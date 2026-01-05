@@ -10,14 +10,14 @@ internal interface GStaticApiService {
 }
 
 internal class KtorGStaticApiService(
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
 ) : GStaticApiService {
-    override suspend fun getPrivilegedAppAllowlist(): JsonElement? {
-        return try {
-            httpClient.get("https://www.gstatic.com/gpm-passkeys-privileged-apps/apps.json")
+    override suspend fun getPrivilegedAppAllowlist(): JsonElement? =
+        try {
+            httpClient
+                .get("https://www.gstatic.com/gpm-passkeys-privileged-apps/apps.json")
                 .body<JsonElement>()
         } catch (e: Exception) {
             null
         }
-    }
 }

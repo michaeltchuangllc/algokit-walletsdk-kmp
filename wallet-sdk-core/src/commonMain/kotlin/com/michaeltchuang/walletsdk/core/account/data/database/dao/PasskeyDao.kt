@@ -8,7 +8,6 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEnti
 
 @Dao
 internal interface PasskeyDao {
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entity: PasskeyEntity): Long
 
@@ -25,7 +24,16 @@ internal interface PasskeyDao {
     suspend fun deleteAll()
 
     @Query("UPDATE passkey_table SET last_used_time_ms = :lastUsed WHERE credential_id = :credentialId")
-    suspend fun updateLastUsedTime(credentialId: String, lastUsed: Long)
+    suspend fun updateLastUsedTime(
+        credentialId: String,
+        lastUsed: Long,
+    )
+
+    @Query("SELECT credential_id FROM passkey_table WHERE site_id = :siteId LIMIT 1")
+    suspend fun getCredentialIdBySiteId(siteId: Long): String?
+
+    @Query("SELECT credential_id FROM passkey_table WHERE algo_address = :algoAddress LIMIT 1")
+    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String?
 
     @Query(
         """
@@ -37,7 +45,11 @@ internal interface PasskeyDao {
                 AND passkey_table.user_name = :username
                 AND passkey_table.algo_address = :algoAddress
         )
-        """
+        """,
     )
-    suspend fun doesPasskeyExist(siteUrl: String, username: String, algoAddress: String): Boolean
+    suspend fun doesPasskeyExist(
+        siteUrl: String,
+        username: String,
+        algoAddress: String,
+    ): Boolean
 }

@@ -6,7 +6,6 @@ import org.junit.Before
 import org.junit.Test
 
 class Base64ManagerImplTest {
-
     private lateinit var sut: Base64ManagerImpl
 
     @Before

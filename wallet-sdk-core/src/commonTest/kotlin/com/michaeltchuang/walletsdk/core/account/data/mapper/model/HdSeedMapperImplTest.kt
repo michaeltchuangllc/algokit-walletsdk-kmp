@@ -5,16 +5,16 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class HdSeedMapperImplTest {
-
     private val sut = HdSeedMapperImpl()
 
     @Test
     fun `EXPECT HdSeed to be created from HdSeedEntity`() {
-        val entity = HdSeedEntity(
-            seedId = SEED_ID,
-            encryptedEntropy = ENCRYPTED_ENTROPY,
-            encryptedSeed = ENCRYPTED_SEED
-        )
+        val entity =
+            HdSeedEntity(
+                seedId = SEED_ID,
+                encryptedEntropy = ENCRYPTED_ENTROPY,
+                encryptedSeed = ENCRYPTED_SEED,
+            )
 
         val result = sut(entity)
 

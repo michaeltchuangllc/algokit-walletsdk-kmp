@@ -4,11 +4,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastL
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.ActiveHdAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
 
-
 internal interface RegisteredHdKeyMapper {
     operator fun invoke(
         hdAccountAddress: ActiveHdAccount.HdAccountAddress,
         fastLookupAccount: AccountFastLookup?,
-        isAlreadyImported: Boolean
+        isAlreadyImported: Boolean,
     ): RegisteredHdKey
 }

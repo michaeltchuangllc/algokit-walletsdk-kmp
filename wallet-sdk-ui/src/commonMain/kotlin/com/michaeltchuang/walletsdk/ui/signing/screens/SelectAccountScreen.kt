@@ -41,6 +41,7 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -89,6 +90,7 @@ fun SelectAccountScreen(
     )
 }
 
+@Preview()
 @Composable
 fun ScreenContent(
     viewState: SelectAccountViewModel.AccountsState,

@@ -7,7 +7,7 @@ data class Passkey(
     val userId: String,
     val username: String,
     val displayName: String,
-    val lastUsed: Long?
+    val lastUsed: Long?,
 ) {
     val origin: String
         get() = site.url

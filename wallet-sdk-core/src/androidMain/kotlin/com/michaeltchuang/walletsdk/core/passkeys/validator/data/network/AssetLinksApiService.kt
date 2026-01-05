@@ -10,24 +10,24 @@ internal interface AssetLinksApiService {
         websiteUrl: String,
         packageName: String,
         certification: String,
-        relation: String = "delegate_permission/common.handle_all_urls"
+        relation: String = "delegate_permission/common.handle_all_urls",
     ): String
 }
 
 internal class KtorAssetLinksApiService(
-    private val httpClient: HttpClient
+    private val httpClient: HttpClient,
 ) : AssetLinksApiService {
     override suspend fun getAssetLinksCheckResult(
         websiteUrl: String,
         packageName: String,
         certification: String,
-        relation: String
-    ): String {
-        return httpClient.get("https://digitalassetlinks.googleapis.com/v1/assetlinks:check") {
-            parameter("source.web.site", websiteUrl)
-            parameter("target.android_app.package_name", packageName)
-            parameter("target.android_app.certificate.sha256_fingerprint", certification)
-            parameter("relation", relation)
-        }.body()
-    }
+        relation: String,
+    ): String =
+        httpClient
+            .get("https://digitalassetlinks.googleapis.com/v1/assetlinks:check") {
+                parameter("source.web.site", websiteUrl)
+                parameter("target.android_app.package_name", packageName)
+                parameter("target.android_app.certificate.sha256_fingerprint", certification)
+                parameter("relation", relation)
+            }.body()
 }

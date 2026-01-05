@@ -8,15 +8,15 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class MnemonicDeepLinkBuilderTest {
-
     private val sut = MnemonicDeepLinkBuilder()
 
     @Test
     fun `EXPECT deeplink meets requirements WHEN only mnemonic is provided`() {
-        val payload = DeepLinkPayload(
-            mnemonic = MNEMONIC,
-            rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC"
-        )
+        val payload =
+            DeepLinkPayload(
+                mnemonic = MNEMONIC,
+                rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -25,10 +25,11 @@ class MnemonicDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN mnemonic is null`() {
-        val payload = DeepLinkPayload(
-            mnemonic = null,
-            rawDeepLinkUri = "algorand://"
-        )
+        val payload =
+            DeepLinkPayload(
+                mnemonic = null,
+                rawDeepLinkUri = "algorand://",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -37,11 +38,12 @@ class MnemonicDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN account address is also provided`() {
-        val payload = DeepLinkPayload(
-            mnemonic = MNEMONIC,
-            accountAddress = ADDRESS,
-            rawDeepLinkUri = "algorand://$ADDRESS?m=$MNEMONIC"
-        )
+        val payload =
+            DeepLinkPayload(
+                mnemonic = MNEMONIC,
+                accountAddress = ADDRESS,
+                rawDeepLinkUri = "algorand://$ADDRESS?m=$MNEMONIC",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -50,11 +52,12 @@ class MnemonicDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT deeplink does not meet requirements WHEN asset id is also provided`() {
-        val payload = DeepLinkPayload(
-            mnemonic = MNEMONIC,
-            assetId = ASSET_ID,
-            rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC&asset=$ASSET_ID"
-        )
+        val payload =
+            DeepLinkPayload(
+                mnemonic = MNEMONIC,
+                assetId = ASSET_ID,
+                rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC&asset=$ASSET_ID",
+            )
 
         val result = sut.doesDeeplinkMeetTheRequirements(payload)
 
@@ -63,10 +66,11 @@ class MnemonicDeepLinkBuilderTest {
 
     @Test
     fun `EXPECT Mnemonic deeplink to be created`() {
-        val payload = DeepLinkPayload(
-            mnemonic = MNEMONIC,
-            rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC"
-        )
+        val payload =
+            DeepLinkPayload(
+                mnemonic = MNEMONIC,
+                rawDeepLinkUri = "algorand://mnemonic?m=$MNEMONIC",
+            )
 
         val result = sut.createDeepLink(payload)
 

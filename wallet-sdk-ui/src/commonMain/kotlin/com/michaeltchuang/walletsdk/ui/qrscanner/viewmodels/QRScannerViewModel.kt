@@ -10,13 +10,14 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
-import kotlin.String
 
 class QRScannerViewModel(
     private val deeplinkHandler: DeeplinkHandler,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     EventViewModel<QRScannerViewModel.ViewEvent> by eventDelegate {
+    private lateinit var uri: String
+
     init {
         viewModelScope.launch {
             deeplinkHandler.deepLinkState.collect {
@@ -36,12 +37,13 @@ class QRScannerViewModel(
                     is DeeplinkHandler.DeepLinkState.AccountAddress -> {
                         handleAccountAddressDeepLink(it.accountAddress)
                     }
+
                     is DeeplinkHandler.DeepLinkState.FidoDeepLink -> {
                         eventDelegate.sendEvent(ViewEvent.NavigateToFidoDeepLink(it.uri))
                     }
 
                     is DeeplinkHandler.DeepLinkState.OnUnrecognizedDeepLink -> {
-                        eventDelegate.sendEvent(ViewEvent.ShowUnrecognizedDeeplink)
+                        eventDelegate.sendEvent(ViewEvent.NavigateToLiquidAuthScreen(uri))
                     }
                 }
             }
@@ -101,6 +103,8 @@ class QRScannerViewModel(
     }
 
     fun handleDeeplink(uri: String) {
+        println("Handling deeplink: $uri")
+        this.uri = uri
         viewModelScope.launch(Dispatchers.IO) {
             // First try to handle as a deeplink
             deeplinkHandler.handleDeepLink(uri)
@@ -144,6 +148,10 @@ class QRScannerViewModel(
         ) : ViewEvent
 
         data class NavigateToFidoDeepLink(
+            val uri: String,
+        ) : ViewEvent
+
+        data class NavigateToLiquidAuthScreen(
             val uri: String,
         ) : ViewEvent
 

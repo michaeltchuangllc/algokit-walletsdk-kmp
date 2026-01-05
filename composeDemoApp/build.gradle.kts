@@ -104,6 +104,16 @@ kotlin {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        // Force a single version of BouncyCastle to avoid conflicts
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
+
+        // Exclude the older version
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
+    }
+}
+
 android {
     namespace = "com.michaeltchuang.walletsdk.demo"
     compileSdk =

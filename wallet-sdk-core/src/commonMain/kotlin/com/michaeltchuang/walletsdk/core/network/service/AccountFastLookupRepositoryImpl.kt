@@ -13,11 +13,10 @@ import io.ktor.http.isSuccess
 
 internal class AccountFastLookupRepositoryImpl(
     private val httpClient: HttpClient,
-    private val accountFastLookupMapper: AccountFastLookupMapper
+    private val accountFastLookupMapper: AccountFastLookupMapper,
 ) : AccountFastLookupApiService {
-
-    override suspend fun getAccountFastLookup(address: String): AlgoKitResult<AccountFastLookup> {
-        return try {
+    override suspend fun getAccountFastLookup(address: String): AlgoKitResult<AccountFastLookup> =
+        try {
             val response: HttpResponse =
                 httpClient.get("https://testnet.api.perawallet.app/v1/accounts/fast-lookup/$address")
 
@@ -55,5 +54,4 @@ internal class AccountFastLookupRepositoryImpl(
                 code = -1,
             )
         }
-    }
 }

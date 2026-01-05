@@ -14,18 +14,14 @@ import androidx.credentials.provider.CallingAppInfo
  * The functionality and structure are preserved as-is for compatibility and maintainability.
  */
 internal class WebAuthnUtils {
-
     companion object {
-        fun b64Decode(str: String): ByteArray {
-            return Base64.decode(str, Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE)
-        }
+        fun b64Decode(str: String): ByteArray = Base64.decode(str, Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE)
 
-        fun b64Encode(data: ByteArray): String {
-            return Base64.encodeToString(
+        fun b64Encode(data: ByteArray): String =
+            Base64.encodeToString(
                 data,
-                Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE
+                Base64.NO_PADDING or Base64.NO_WRAP or Base64.URL_SAFE,
             )
-        }
 
         fun appInfoToOrigin(info: CallingAppInfo): String {
             val cert = info.signingInfo.apkContentsSigners[0].toByteArray()

@@ -14,9 +14,8 @@ import kotlinx.coroutines.supervisorScope
 
 internal class GetActiveHdAccountsUseCase(
     private val getAccountFastLookupBatch: GetAccountFastLookupBatch,
-    private val hdAccountAddressMapper: HdAccountAddressMapper
+    private val hdAccountAddressMapper: HdAccountAddressMapper,
 ) : GetActiveHdAccounts {
-
     override suspend fun invoke(entropy: ByteArray): List<ActiveHdAccount> {
         val activeHdAccounts = mutableListOf<ActiveHdAccount>()
         var accountIndex = 0
@@ -37,21 +36,20 @@ internal class GetActiveHdAccountsUseCase(
     private suspend fun getActiveAccountsBatchDeferred(
         accountIndex: Int,
         entropy: ByteArray,
-        bip39Wallet: Bip39Wallet
-    ): List<ActiveHdAccount> {
-        return supervisorScope {
+        bip39Wallet: Bip39Wallet,
+    ): List<ActiveHdAccount> =
+        supervisorScope {
             (accountIndex until accountIndex + SEARCH_BATCH_COUNT).map { index ->
                 async {
                     getActiveHdAccountIfExist(index, entropy, bip39Wallet)
                 }
             }
         }.awaitAll().filterNotNull()
-    }
 
     private suspend fun getActiveHdAccountIfExist(
         accountIndex: Int,
         entropy: ByteArray,
-        bip39Wallet: Bip39Wallet
+        bip39Wallet: Bip39Wallet,
     ): ActiveHdAccount? {
         val firstBatchHdKeyDetails = getFirstHdKeyDetailsBatch(accountIndex, bip39Wallet)
         val addresses = firstBatchHdKeyDetails.map { it.address }
@@ -65,7 +63,10 @@ internal class GetActiveHdAccountsUseCase(
         }
     }
 
-    private fun getFirstHdKeyDetailsBatch(accountIndex: Int, bip39Wallet: Bip39Wallet): List<HdKeyAddressLite> {
+    private fun getFirstHdKeyDetailsBatch(
+        accountIndex: Int,
+        bip39Wallet: Bip39Wallet,
+    ): List<HdKeyAddressLite> {
         val range = 0 until SEARCH_BATCH_COUNT
         return range.map { keyIndex ->
             val index = HdKeyAddressIndex(accountIndex, 0, keyIndex)

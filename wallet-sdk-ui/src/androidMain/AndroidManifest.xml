@@ -30,5 +30,10 @@
             </intent-filter>
             <!-- Note: Apps using this library must provide their own @xml/provider resource -->
         </service>
+
+        <activity android:name=".liquidAuth.AnswerActivity"
+            android:theme="@style/Theme.AppCompat"
+            />
+
     </application>
 </manifest>

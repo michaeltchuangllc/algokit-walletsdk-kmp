@@ -3,15 +3,13 @@ package com.michaeltchuang.walletsdk.core.account.data.mapper.model
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKeyItem
 
-
-internal class DefaultRegisteredHdKeyItemMapper() : RegisteredHdKeyItemMapper {
-
+internal class DefaultRegisteredHdKeyItemMapper : RegisteredHdKeyItemMapper {
     override fun invoke(
         hdKey: RegisteredHdKey,
        /* usdToSelectedCurrencyMultiplier: BigDecimal,
         selectedCurrencySymbol: String*/
-    ): RegisteredHdKeyItem {
-        return with(hdKey) {
+    ): RegisteredHdKeyItem =
+        with(hdKey) {
             RegisteredHdKeyItem(
                 address = address,
                 algoValue = algoValue,
@@ -20,10 +18,9 @@ internal class DefaultRegisteredHdKeyItemMapper() : RegisteredHdKeyItemMapper {
                 isImportedToDB = isImportedToDB,
                 account = account,
                 change = change,
-                keyIndex = keyIndex
+                keyIndex = keyIndex,
             )
         }
-    }
 
 /*    private fun BigDecimal.formatAsSelectedCurrency(
         usdToSelectedCurrencyMultiplier: BigDecimal,

@@ -5,14 +5,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class NoAuthMapperImplTest {
-
     private val sut = NoAuthMapperImpl()
 
     @Test
     fun `EXPECT LocalAccount NoAuth to be created from NoAuthEntity`() {
-        val entity = NoAuthEntity(
-            algoAddress = ADDRESS
-        )
+        val entity =
+            NoAuthEntity(
+                algoAddress = ADDRESS,
+            )
 
         val result = sut(entity)
 

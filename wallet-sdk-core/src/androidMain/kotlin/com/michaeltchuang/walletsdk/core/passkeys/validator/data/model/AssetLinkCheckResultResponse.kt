@@ -10,5 +10,5 @@ internal data class AssetLinkCheckResultResponse(
     @SerialName("maxAge")
     val maxAge: String?,
     @SerialName("debugString")
-    val debugMessage: String?
+    val debugMessage: String?,
 )

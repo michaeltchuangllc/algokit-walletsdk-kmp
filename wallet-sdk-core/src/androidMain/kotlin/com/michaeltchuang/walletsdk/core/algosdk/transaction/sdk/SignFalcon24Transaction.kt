@@ -6,4 +6,10 @@ interface SignFalcon24Transaction {
         publicKey: ByteArray,
         privateKey: ByteArray,
     ): ByteArray?
+
+    fun signArbitraryData(
+        data: ByteArray,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): ByteArray?
 }

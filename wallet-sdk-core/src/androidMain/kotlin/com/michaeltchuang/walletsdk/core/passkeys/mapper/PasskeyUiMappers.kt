@@ -8,13 +8,13 @@ fun interface CreatePasskeyParamsMapper {
     operator fun invoke(
         request: ProviderCreateCredentialRequest,
         algoAddress: String,
-        appInfoOrigin: String
+        appInfoOrigin: String,
     ): CreatePasskeyParams
 }
 
- fun interface CreatePublicKeyCredentialResponseArgsMapper {
+fun interface CreatePublicKeyCredentialResponseArgsMapper {
     suspend operator fun invoke(
         params: CreatePasskeyParams,
-        appInfoOrigin: String
+        appInfoOrigin: String,
     ): CreatePublicKeyCredentialResponseArgs
 }

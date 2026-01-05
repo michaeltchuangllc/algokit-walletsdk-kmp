@@ -5,15 +5,13 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastL
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.ActiveHdAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
 
-
 internal class DefaultRegisteredHdKeyMapper : RegisteredHdKeyMapper {
-
     override fun invoke(
         hdAccountAddress: ActiveHdAccount.HdAccountAddress,
         fastLookupAccount: AccountFastLookup?,
-        isAlreadyImported: Boolean
-    ): RegisteredHdKey {
-        return RegisteredHdKey(
+        isAlreadyImported: Boolean,
+    ): RegisteredHdKey =
+        RegisteredHdKey(
             address = hdAccountAddress.address,
             algoValue = fastLookupAccount?.algoValue ?: BigDecimal.ZERO,
             usdValue = fastLookupAccount?.usdValue ?: BigDecimal.ZERO,
@@ -21,7 +19,6 @@ internal class DefaultRegisteredHdKeyMapper : RegisteredHdKeyMapper {
             account = hdAccountAddress.accountIndex,
             change = hdAccountAddress.changeIndex,
             keyIndex = hdAccountAddress.keyIndex,
-            isImportedToDB = isAlreadyImported
+            isImportedToDB = isAlreadyImported,
         )
-    }
 }

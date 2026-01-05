@@ -117,6 +117,20 @@ kotlin {
                 implementation(libs.biometric)
                 implementation(libs.bcprov.jdk18on)
                 implementation(libs.androidx.credentials)
+                implementation(libs.algosdk)
+                implementation(libs.algorand.go.mobile)
+
+                implementation(files("../libs/provider-debug.aar"))
+                implementation(files("../libs/crypto-debug.aar"))
+
+                implementation(libs.play.services.fido)
+                implementation(libs.kotlinx.coroutines.play.services)
+                implementation(libs.okhttp)
+                implementation(libs.okhttp.logging.interceptor)
+                implementation(libs.coroutines.okhttp)
+                implementation(libs.socketio.client)
+                implementation(libs.stream.webrtc.android)
+                implementation(libs.uuid.generator)
             }
         }
 
@@ -139,6 +153,16 @@ kotlin {
         iosMain {
             dependencies {}
         }
+    }
+}
+
+configurations.all {
+    resolutionStrategy {
+        // Force a single version of BouncyCastle to avoid conflicts
+        force("org.bouncycastle:bcprov-jdk18on:1.83")
+
+        // Exclude the older version
+        exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
     }
 }
 

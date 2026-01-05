@@ -22,5 +22,23 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             null
         }
 
+    override fun signArbitraryData(
+        data: ByteArray,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): ByteArray? =
+        try {
+            val signedBytes =
+                Sdk.rawSign(
+                    data,
+                    publicKey,
+                    privateKey,
+                )
+            signedBytes
+        } catch (e: Exception) {
+            Log.e(TAG, "Error signing arbitrary data + ${e.message}")
+            null
+        }
+
     private val TAG = SignFalcon24TransactionImpl::class.java.simpleName
 }

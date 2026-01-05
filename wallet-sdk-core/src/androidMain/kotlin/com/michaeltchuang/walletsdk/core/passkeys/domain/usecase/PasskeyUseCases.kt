@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.passkeys.domain.usecase
 
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
+import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import kotlinx.coroutines.flow.Flow
 
 fun interface GetAllPasskeysAsFlow {
@@ -28,18 +28,29 @@ fun interface AddNewPasskey {
     suspend operator fun invoke(
         algoAddress: String,
         requestOptions: PublicKeyCredentialCreationOptions,
-        credId: ByteArray
+        credId: ByteArray,
     )
 }
 
- fun interface GetPasskeyByCredentialId {
+fun interface GetCredentialBySiteUseCase {
+    suspend operator fun invoke(site: String): String?
+}
+
+fun interface GetPasskeyByCredentialId {
     suspend operator fun invoke(credentialId: String): Passkey?
 }
 
 fun interface SetPasskeyLastUsedTime {
-    suspend operator fun invoke(credId: String, lastUsed: Long)
+    suspend operator fun invoke(
+        credId: String,
+        lastUsed: Long,
+    )
 }
 
 fun interface DoesPasskeyExist {
-    suspend operator fun invoke(rpId: String, username: String, algoAddress: String): Boolean
+    suspend operator fun invoke(
+        rpId: String,
+        username: String,
+        algoAddress: String,
+    ): Boolean
 }

@@ -94,9 +94,7 @@ actual fun createAlgo25Account(): Algo25Account? {
 }
 
 @OptIn(ExperimentalForeignApi::class)
-actual fun isValidAlgorandAddress(accountAddress: String): Boolean {
-    return bridge.isValidAlgorandAddressWithAddress(accountAddress)
-}
+actual fun isValidAlgorandAddress(accountAddress: String): Boolean = bridge.isValidAlgorandAddressWithAddress(accountAddress)
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun getMnemonicFromAlgo25SecretKey(secretKey: ByteArray): String? {
@@ -389,20 +387,23 @@ actual fun makeAssetTransferTxn(
 ): ByteArray {
     val noteBase64 = noteInByteArray?.toNSData()?.base64EncodedStringWithOptions(0.toULong())
 
-    val encodedTx = bridge.makeAssetTransferTxnWithSenderAddress(
-        senderAddress = senderAddress,
-        receiverAddress = receiverAddress,
-        amount = amount,
-        assetId = assetId,
-        noteBase64 = noteBase64,
-        fee = suggestedParams.fee,
-        flatFee = suggestedParams.flatFee,
-        firstRound = suggestedParams.firstRoundValid,
-        lastRound = suggestedParams.lastRoundValid,
-        genesisHashBase64 = suggestedParams.genesisHash.toNSData()
-            .base64EncodedStringWithOptions(0.toULong()),
-        genesisID = suggestedParams.genesisID,
-    )
+    val encodedTx =
+        bridge.makeAssetTransferTxnWithSenderAddress(
+            senderAddress = senderAddress,
+            receiverAddress = receiverAddress,
+            amount = amount,
+            assetId = assetId,
+            noteBase64 = noteBase64,
+            fee = suggestedParams.fee,
+            flatFee = suggestedParams.flatFee,
+            firstRound = suggestedParams.firstRoundValid,
+            lastRound = suggestedParams.lastRoundValid,
+            genesisHashBase64 =
+                suggestedParams.genesisHash
+                    .toNSData()
+                    .base64EncodedStringWithOptions(0.toULong()),
+            genesisID = suggestedParams.genesisID,
+        )
 
     if (encodedTx.length == 0UL) {
         println("Failed to create asset transfer transaction")
@@ -423,20 +424,23 @@ actual fun makePaymentTxn(
 ): ByteArray {
     val noteBase64 = noteInByteArray?.toNSData()?.base64EncodedStringWithOptions(0.toULong())
 
-    val encodedTx = bridge.makePaymentTxnWithSenderAddress(
-        senderAddress = senderAddress,
-        receiverAddress = receiverAddress,
-        amount = amount,
-        isMax = isMax,
-        noteBase64 = noteBase64,
-        fee = suggestedParams.fee,
-        flatFee = suggestedParams.flatFee,
-        firstRound = suggestedParams.firstRoundValid,
-        lastRound = suggestedParams.lastRoundValid,
-        genesisHashBase64 = suggestedParams.genesisHash.toNSData()
-            .base64EncodedStringWithOptions(0.toULong()),
-        genesisID = suggestedParams.genesisID,
-    )
+    val encodedTx =
+        bridge.makePaymentTxnWithSenderAddress(
+            senderAddress = senderAddress,
+            receiverAddress = receiverAddress,
+            amount = amount,
+            isMax = isMax,
+            noteBase64 = noteBase64,
+            fee = suggestedParams.fee,
+            flatFee = suggestedParams.flatFee,
+            firstRound = suggestedParams.firstRoundValid,
+            lastRound = suggestedParams.lastRoundValid,
+            genesisHashBase64 =
+                suggestedParams.genesisHash
+                    .toNSData()
+                    .base64EncodedStringWithOptions(0.toULong()),
+            genesisID = suggestedParams.genesisID,
+        )
 
     if (encodedTx.length == 0UL) {
         println("Failed to create payment transaction")
@@ -452,17 +456,20 @@ actual fun makeAssetAcceptanceTxn(
     assetId: Long,
     suggestedParams: SuggestedParams,
 ): ByteArray {
-    val encodedTx = bridge.makeAssetAcceptanceTxnWithPublicKey(
-        publicKey = publicKey,
-        assetId = assetId,
-        fee = suggestedParams.fee,
-        flatFee = suggestedParams.flatFee,
-        firstRound = suggestedParams.firstRoundValid,
-        lastRound = suggestedParams.lastRoundValid,
-        genesisHashBase64 = suggestedParams.genesisHash.toNSData()
-            .base64EncodedStringWithOptions(0.toULong()),
-        genesisID = suggestedParams.genesisID,
-    )
+    val encodedTx =
+        bridge.makeAssetAcceptanceTxnWithPublicKey(
+            publicKey = publicKey,
+            assetId = assetId,
+            fee = suggestedParams.fee,
+            flatFee = suggestedParams.flatFee,
+            firstRound = suggestedParams.firstRoundValid,
+            lastRound = suggestedParams.lastRoundValid,
+            genesisHashBase64 =
+                suggestedParams.genesisHash
+                    .toNSData()
+                    .base64EncodedStringWithOptions(0.toULong()),
+            genesisID = suggestedParams.genesisID,
+        )
 
     if (encodedTx.length == 0UL) {
         println("Failed to create asset acceptance transaction")
@@ -470,4 +477,65 @@ actual fun makeAssetAcceptanceTxn(
     }
 
     return encodedTx.toByteArray()
+}
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signHdKeyArbitraryData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? =
+    try {
+        val seedBase64 = seed.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
+
+       /* val signedDataBase64 =
+            bridge.signHdArbitraryDataWithSeedBase64(
+                seedBase64 = seedBase64,
+                account = account.toLong(),
+                change = change.toLong(),
+                key = key.toLong(),
+                dataBase64 = dataBase64,
+            )*/
+
+        Base64.decode("signedDataBase64")
+    } catch (e: Exception) {
+        println("HD arbitrary data signing failed: ${e.message}")
+        null
+    }
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? =
+    try {
+        val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong())
+
+        /*val signedDataBase64 =
+            bridge.signFalconArbitraryDataWithPublicKeyBase64(
+                dataBase64 = dataBase64,
+                publicKeyBase64 = publicKeyBase64,
+                privateKeyBase64 = privateKeyBase64,
+            )*/
+
+        Base64.decode("")
+    } catch (e: Exception) {
+        println("Falcon24 arbitrary data signing failed: ${e.message}")
+        null
+    }
+
+actual fun signHdKeyData(
+    data: ByteArray,
+    seed: ByteArray,
+    account: Int,
+    change: Int,
+    key: Int,
+): ByteArray? {
+    TODO("Not yet implemented")
 }

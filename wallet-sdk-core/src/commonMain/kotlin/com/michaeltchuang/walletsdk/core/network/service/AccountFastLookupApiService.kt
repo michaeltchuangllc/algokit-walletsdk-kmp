@@ -4,8 +4,5 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountFastL
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 
 internal interface AccountFastLookupApiService {
-    suspend fun getAccountFastLookup(
-        address: String
-    ): AlgoKitResult<AccountFastLookup>
+    suspend fun getAccountFastLookup(address: String): AlgoKitResult<AccountFastLookup>
 }
-

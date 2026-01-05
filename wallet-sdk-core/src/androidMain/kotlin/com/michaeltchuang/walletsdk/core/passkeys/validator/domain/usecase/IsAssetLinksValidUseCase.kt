@@ -2,22 +2,24 @@ package com.michaeltchuang.walletsdk.core.passkeys.validator.domain.usecase
 
 import android.content.pm.SigningInfo
 import androidx.credentials.provider.CallingAppInfo
+import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.passkeys.domain.PeraMessageDigest
 import com.michaeltchuang.walletsdk.core.passkeys.validator.domain.repository.AppInfoValidationRepository
-import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
-
 
 internal class IsAssetLinksValidUseCase constructor(
-    private val appInfoValidationRepository: AppInfoValidationRepository
+    private val appInfoValidationRepository: AppInfoValidationRepository,
 ) : IsAssetLinksValid {
-
-    override suspend fun invoke(rpId: String, callingAppInfo: CallingAppInfo): AlgoKitResult<Boolean> {
+    override suspend fun invoke(
+        rpId: String,
+        callingAppInfo: CallingAppInfo,
+    ): AlgoKitResult<Boolean> {
         val websiteUrl = getWebsiteUrl(rpId)
-        return appInfoValidationRepository.getAssetLinkCheckResult(
-            url = websiteUrl,
-            pkgName = callingAppInfo.packageName,
-            certId = computeLatestCertification(callingAppInfo.signingInfo).orEmpty()
-        ).map { it.isLinked }
+        return appInfoValidationRepository
+            .getAssetLinkCheckResult(
+                url = websiteUrl,
+                pkgName = callingAppInfo.packageName,
+                certId = computeLatestCertification(callingAppInfo.signingInfo).orEmpty(),
+            ).map { it.isLinked }
     }
 
     private fun getWebsiteUrl(rpId: String): String {
@@ -37,7 +39,5 @@ internal class IsAssetLinksValidUseCase constructor(
         return bytesToHexString(md.digest(signature))
     }
 
-    private fun bytesToHexString(bytes: ByteArray): String {
-        return bytes.joinToString(":") { "%02X".format(it) }
-    }
+    private fun bytesToHexString(bytes: ByteArray): String = bytes.joinToString(":") { "%02X".format(it) }
 }

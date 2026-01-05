@@ -5,6 +5,6 @@ import androidx.credentials.provider.CallingAppInfo
 interface CallingAppInfoValidator {
     suspend fun validateCallingApp(
         rpId: String,
-        callingAppInfo: CallingAppInfo?
+        callingAppInfo: CallingAppInfo?,
     ): AppInfoValidationResult
 }

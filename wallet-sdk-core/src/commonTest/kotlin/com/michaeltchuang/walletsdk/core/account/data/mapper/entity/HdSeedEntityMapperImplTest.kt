@@ -11,16 +11,16 @@ import kotlin.test.assertTrue
  * They will be skipped if encryption is not available in the test environment.
  */
 class HdSeedEntityMapperImplTest {
-
     private val sut = HdSeedEntityMapperImpl()
 
     @Test
     fun `EXPECT HdSeedEntity to be created with encrypted values`() {
-        val result = sut(
-            seedId = SEED_ID,
-            entropy = ENTROPY,
-            seed = SEED
-        )
+        val result =
+            sut(
+                seedId = SEED_ID,
+                entropy = ENTROPY,
+                seed = SEED,
+            )
 
         // Room will auto-generate the ID, so it should be 0
         assertEquals(0, result.seedId)
@@ -31,11 +31,12 @@ class HdSeedEntityMapperImplTest {
 
     @Test
     fun `EXPECT encrypted values to be different from original`() {
-        val result = sut(
-            seedId = SEED_ID,
-            entropy = ENTROPY,
-            seed = SEED
-        )
+        val result =
+            sut(
+                seedId = SEED_ID,
+                entropy = ENTROPY,
+                seed = SEED,
+            )
 
         // The encrypted values should not match the originals
         assertTrue(!result.encryptedEntropy.contentEquals(ENTROPY))
