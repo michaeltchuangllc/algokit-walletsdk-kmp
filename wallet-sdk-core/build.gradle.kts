@@ -87,7 +87,7 @@ kotlin {
             implementation(libs.algorand.go.mobile)
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)
-            implementation(libs.p256)
+
             // toml files don't support aar files yet
             implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
@@ -109,8 +109,7 @@ kotlin {
             // The app module must include these as implementation dependencies
             compileOnly(files("../libs/provider-debug.aar"))
             compileOnly(files("../libs/crypto-debug.aar"))
-            // Deterministic Passkeys (JAR files are supported)
-            implementation(files("../libs/dP256.jar"))
+            implementation(libs.p256)
 
             implementation(libs.socketio.client)
             implementation(libs.stream.webrtc.android)

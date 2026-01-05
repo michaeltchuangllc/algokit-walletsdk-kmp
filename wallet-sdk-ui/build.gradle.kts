@@ -119,8 +119,7 @@ kotlin {
                 implementation(libs.androidx.credentials)
                 implementation(libs.algosdk)
                 implementation(libs.algorand.go.mobile)
-                // Local .aar dependencies - compileOnly to avoid packaging issues
-                // The app module must include these as implementation dependencies
+
                 implementation(files("../libs/provider-debug.aar"))
                 implementation(files("../libs/crypto-debug.aar"))
 
