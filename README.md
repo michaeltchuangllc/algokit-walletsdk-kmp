@@ -94,7 +94,7 @@ timeline
             : ✅ Onboarding - Recover HD account flow
             : ✅ Settings - Localization (English, Italian, Hindi)
             : ✅ Testing - Setup unit test coverage and screenshot testing foundation infrastructure
-            : 🔄 Onboarding - ECC Passkeys & Liquid Auth (Android)
+            : ✅ Onboarding - ECC Passkeys & Liquid Auth (Android)
 
     section Future
     2026Q1  : Onboarding - ECC Passkeys & Liquid Auth (iOS)

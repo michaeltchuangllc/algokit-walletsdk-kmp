@@ -120,8 +120,8 @@ kotlin {
                 implementation(libs.algosdk)
                 implementation(libs.algorand.go.mobile)
 
-                implementation(files("../libs/provider-debug.aar"))
-                implementation(files("../libs/crypto-debug.aar"))
+                implementation(libs.algorand.foundation.crypto)
+                implementation(libs.algorand.foundation.provider)
 
                 implementation(libs.play.services.fido)
                 implementation(libs.kotlinx.coroutines.play.services)
