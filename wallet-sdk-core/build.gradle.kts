@@ -105,10 +105,8 @@ kotlin {
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
 
-            // Local .aar dependencies - compileOnly to avoid packaging issues
-            // The app module must include these as implementation dependencies
-            compileOnly(files("../libs/provider-debug.aar"))
-            compileOnly(files("../libs/crypto-debug.aar"))
+            implementation(libs.algorand.foundation.crypto)
+            implementation(libs.algorand.foundation.provider)
             implementation(libs.p256)
 
             implementation(libs.socketio.client)
