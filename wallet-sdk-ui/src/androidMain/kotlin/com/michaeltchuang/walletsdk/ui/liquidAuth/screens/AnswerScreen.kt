@@ -15,15 +15,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 
-/**
- * Answer Screen - Main screen for Liquid Auth
- *
- * Displays connection status and account information
- */
 @Composable
 fun AnswerScreen(viewModel: AnswerViewModel) {
     // Collect StateFlow values as Compose state
@@ -38,11 +35,35 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     val isConnected = message != null && session != "Logged Out" && !hasError
     val isConnecting = message != null && session == "Logged Out" && !hasError
 
+    ScreenContentAnswer(
+        isConnected = isConnected,
+        isWaiting = isWaiting,
+        isConnecting = isConnecting,
+        hasError = hasError,
+        errorMessage = errorMessage,
+        session = session,
+        origin = message?.origin,
+        requestId = message?.requestId,
+        accountAddress = accountAddress,
+    )
+}
+
+@Composable
+fun ScreenContentAnswer(
+    isConnected: Boolean,
+    isWaiting: Boolean,
+    isConnecting: Boolean,
+    hasError: Boolean,
+    errorMessage: String?,
+    session: String,
+    origin: String?,
+    requestId: String?,
+    accountAddress: String,
+) {
     Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -52,7 +73,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
         ) {
             // Header
             Text(
-                text = "Liquid Auth",
+                text = stringResource(R.string.liquid_auth_header),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -68,8 +89,8 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                 hasError = hasError,
                 errorMessage = errorMessage,
                 session = session,
-                origin = message?.origin,
-                requestId = message?.requestId,
+                origin = origin,
+                requestId = requestId,
                 accountAddress = accountAddress,
             )
 

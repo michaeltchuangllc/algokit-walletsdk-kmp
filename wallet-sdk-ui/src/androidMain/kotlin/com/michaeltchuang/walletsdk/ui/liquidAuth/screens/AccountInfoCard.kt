@@ -12,6 +12,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.michaeltchuang.walletsdk.ui.R
 
 /**
  * Account Info Card
@@ -36,13 +38,13 @@ fun AccountInfoCard(accountAddress: String) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                text = "Account Information",
+                text = stringResource(R.string.account_info),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
             )
 
-            InfoRow(label = "Address", value = accountAddress)
+            InfoRow(label = stringResource(id = R.string.address), value = accountAddress)
         }
     }
 }

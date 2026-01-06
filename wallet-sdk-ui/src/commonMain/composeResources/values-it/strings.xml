@@ -1485,4 +1485,16 @@
     <string name="send_funds_to_another_account">Invia fondi a un altro account</string>
     <string name="dispenser_add_funds_to_your_account">Dispenser - Aggiungi fondi al tuo account</string>
     <string name="send_algo">Invia ALGO</string>
+
+    <string name="liquid_auth_header">Autenticazione Liquida</string>
+    <string name="waiting_connection">In attesa di connessione...</string>
+    <string name="scan_qr_connect">Scansiona un codice QR o usa il deep link per connetterti</string>
+    <string name="connecting">Connessione in corso...</string>
+    <string name="secure_connection">Connessione sicura in corso</string>
+    <string name="session">Sessione</string>
+    <string name="origin">Origine</string>
+    <string name="request_id">ID Richiesta</string>
+    <string name="account_info">Informazioni Account</string>
+    <string name="provider">Fornitore</string>
+    <string name="close_popup">Chiudi popup</string>
 </resources>

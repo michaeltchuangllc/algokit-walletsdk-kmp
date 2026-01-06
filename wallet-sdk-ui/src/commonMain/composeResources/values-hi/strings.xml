@@ -1622,4 +1622,16 @@
     <string name="delete_passkey_icon_description">पासकी हटाएँ</string>
     <string name="last_used">अंतिम उपयोग</string>
     <string name="username">उपयोगकर्ता नाम</string>
+
+    <string name="liquid_auth_header">लिक्विड ऑथ</string>
+    <string name="waiting_connection">कनेक्शन का इंतजार...</string>
+    <string name="scan_qr_connect">कनेक्ट करने के लिए QR कोड स्कैन करें या डीप लिंक का उपयोग करें</string>
+    <string name="connecting">कनेक्ट हो रहा है...</string>
+    <string name="secure_connection">सुरक्षित कनेक्शन स्थापित हो रहा है</string>
+    <string name="session">सेशन</string>
+    <string name="origin">मूल</string>
+    <string name="request_id">अनुरोध आईडी</string>
+    <string name="account_info">खाता जानकारी</string>
+    <string name="provider">प्रदाता</string>
+    <string name="close_popup">पॉपअप बंद करें</string>
 </resources>

@@ -65,39 +65,58 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
     LaunchedEffect(Unit) {
         viewModel.fetchPasskeys()
     }
+    ScreenContentPasskeys(
+        viewState = viewState,
+        onBackClick = onBackClick,
+        onDeletePasskey = { passkey ->
+            selectedPasskey.value = passkey
+            showDeleteConfirm.value = true
+        },
+        showDeleteConfirm = showDeleteConfirm.value,
+        selectedPasskey = selectedPasskey.value,
+        onDeleteConfirm = {
+            selectedPasskey.value?.let {
+                viewModel.deletePasskey(it.credId)
+                showDeleteConfirm.value = false
+                selectedPasskey.value = null
+            }
+        },
+        onDeleteDismiss = {
+            showDeleteConfirm.value = false
+        }
+    )
+}
+
+@Composable
+fun ScreenContentPasskeys(
+    viewState: PasskeysViewModel.ViewState,
+    onBackClick: () -> Unit = {},
+    onDeletePasskey: (PasskeysViewModel.Passkey) -> Unit = {},
+    showDeleteConfirm: Boolean = false,
+    selectedPasskey: PasskeysViewModel.Passkey? = null,
+    onDeleteConfirm: () -> Unit = {},
+    onDeleteDismiss: () -> Unit = {},
+) {
     Box(
-        modifier =
-            Modifier
-                .background(color = AlgoKitTheme.colors.background)
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
+        modifier = Modifier.background(color = AlgoKitTheme.colors.background).fillMaxSize().padding(horizontal = 16.dp),
     ) {
         ScreenContent(
             viewState = viewState,
             onBackClick = onBackClick,
-            onDeletePasskey = { passkey ->
-                selectedPasskey.value = passkey
-                showDeleteConfirm.value = true
-            },
+            onDeletePasskey = onDeletePasskey,
         )
-        if (showDeleteConfirm.value && selectedPasskey.value != null) {
+        if (showDeleteConfirm && selectedPasskey != null) {
             AlertDialog(
-                onDismissRequest = { showDeleteConfirm.value = false },
+                onDismissRequest = onDeleteDismiss,
                 title = { Text(localizedStringResource(Res.string.remove_passkey)) },
                 text = { Text(localizedStringResource(Res.string.are_you_sure_remove_passkey)) },
                 confirmButton = {
-                    Button(onClick = {
-                        selectedPasskey.value?.let {
-                            viewModel.deletePasskey(it.credId)
-                            showDeleteConfirm.value = false
-                            selectedPasskey.value = null
-                        }
-                    }) {
+                    Button(onClick = onDeleteConfirm) {
                         Text(localizedStringResource(Res.string.remove))
                     }
                 },
                 dismissButton = {
-                    OutlinedButton(onClick = { showDeleteConfirm.value = false }) {
+                    OutlinedButton(onClick = onDeleteDismiss) {
                         Text(localizedStringResource(Res.string.cancel))
                     }
                 },
