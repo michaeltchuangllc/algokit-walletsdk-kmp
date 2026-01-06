@@ -73,6 +73,7 @@ fun ConfirmTransferScreen(
             ) {
                 IconButton(onClick = onClose) {
                     Icon(
+                        tint = AlgoKitTheme.colors.textMain,
                         imageVector = Icons.Filled.Close,
                         contentDescription = stringResource(Res.string.close_popup)
                     )
