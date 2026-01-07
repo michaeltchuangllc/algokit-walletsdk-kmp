@@ -15,9 +15,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.michaeltchuang.walletsdk.ui.R
 
 /**
  * Connection Status Card
@@ -84,7 +86,7 @@ private fun ErrorState(errorMessage: String?, session: String) {
         color = MaterialTheme.colorScheme.error,
     )
     Text(
-        text = "Connection Failed",
+        text = stringResource(R.string.connection_failed),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onErrorContainer,
@@ -98,7 +100,7 @@ private fun ErrorState(errorMessage: String?, session: String) {
         )
     }
     Text(
-        text = "Session: $session",
+        text = stringResource(R.string.session) + ": $session",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.7f),
     )
@@ -113,13 +115,13 @@ private fun WaitingState() {
         strokeWidth = 4.dp,
     )
     Text(
-        text = "Waiting for connection...",
+        text = stringResource(R.string.waiting_connection),
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
     Text(
-        text = "Scan a QR code or use deep link to connect",
+        text = stringResource(R.string.scan_qr),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
         textAlign = TextAlign.Center,
@@ -135,13 +137,13 @@ private fun ConnectingState(origin: String?, requestId: String?) {
         strokeWidth = 4.dp,
     )
     Text(
-        text = "Connecting...",
+        text = stringResource(R.string.connecting),
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onTertiaryContainer,
     )
     Text(
-        text = "Establishing secure connection",
+        text = stringResource(R.string.secure_connection),
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f),
         textAlign = TextAlign.Center,
@@ -151,10 +153,10 @@ private fun ConnectingState(origin: String?, requestId: String?) {
     Spacer(modifier = Modifier.height(8.dp))
 
     if (origin != null) {
-        InfoRow(label = "Origin", value = origin)
+        InfoRow(label = stringResource(R.string.origin), value = origin)
     }
     if (requestId != null) {
-        InfoRow(label = "Request ID", value = requestId)
+        InfoRow(label = stringResource(R.string.request_id), value = requestId)
     }
 }
 
@@ -167,7 +169,7 @@ private fun ConnectedState(origin: String?, requestId: String?, session: String)
         color = MaterialTheme.colorScheme.primary,
     )
     Text(
-        text = "Connected",
+        text = stringResource(R.string.connected),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -177,12 +179,12 @@ private fun ConnectedState(origin: String?, requestId: String?, session: String)
     Spacer(modifier = Modifier.height(8.dp))
 
     if (origin != null) {
-        InfoRow(label = "Origin", value = origin)
+        InfoRow(label = stringResource(id = R.string.origin), value = origin)
     }
     if (requestId != null) {
-        InfoRow(label = "Request ID", value = requestId)
+        InfoRow(label = stringResource(id = R.string.request_id), value = requestId)
     }
-    InfoRow(label = "Session", value = session)
+    InfoRow(label = stringResource(id = R.string.session), value = session)
 }
 
 @Composable
@@ -194,13 +196,13 @@ private fun DisconnectedState(session: String) {
         color = MaterialTheme.colorScheme.error,
     )
     Text(
-        text = "Disconnected",
+        text = stringResource(R.string.disconnected),
         style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onErrorContainer,
     )
     Text(
-        text = "Session: $session",
+        text = stringResource(R.string.session) + ": $session",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.8f),
     )

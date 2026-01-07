@@ -3,9 +3,13 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.balance
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.close_popup
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.confirm_transfer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.fee
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.origin
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.provider
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.session
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -34,6 +38,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -68,8 +73,9 @@ fun ConfirmTransferScreen(
             ) {
                 IconButton(onClick = onClose) {
                     Icon(
+                        tint = AlgoKitTheme.colors.textMain,
                         imageVector = Icons.Filled.Close,
-                        contentDescription = "Close popup"
+                        contentDescription = stringResource(Res.string.close_popup)
                     )
                 }
             }
@@ -116,16 +122,16 @@ fun ConfirmTransferContentItems(
         )
 
         ConfirmTransferLabeledText(
-            label = "Origin",
+            label = stringResource(Res.string.origin),
             value = origin
         )
         ConfirmTransferLabeledText(
-            label = "Provider",
+            label = stringResource(Res.string.provider),
             value = provider
         )
 
         ConfirmTransferLabeledText(
-            label = "Session",
+            label = stringResource(Res.string.session),
             value = session
         )
 

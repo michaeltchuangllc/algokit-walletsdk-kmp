@@ -170,6 +170,10 @@ android {
     namespace = "com.michaeltchuang.walletsdk.ui"
     compileSdk = 36
 
+    packagingOptions {
+        exclude("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+    }
+
     defaultConfig {
         minSdk =
             libs.versions.android.minSdk

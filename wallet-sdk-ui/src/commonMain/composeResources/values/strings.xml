@@ -1621,5 +1621,16 @@
     <string name="last_used">Last Used</string>
     <string name="username">Username</string>
 
+    <string name="liquid_auth_header">Liquid Auth</string>
+    <string name="waiting_connection">Waiting for connection...</string>
+    <string name="scan_qr_connect">Scan a QR code or use deep link to connect</string>
+    <string name="connecting">Connecting...</string>
+    <string name="secure_connection">Establishing secure connection</string>
+    <string name="session">Session</string>
+    <string name="origin">Origin</string>
+    <string name="request_id">Request ID</string>
+    <string name="account_info">Account Information</string>
+    <string name="provider">Provider</string>
+    <string name="close_popup">Close popup</string>
 
 </resources>
