@@ -89,7 +89,7 @@ kotlin {
             implementation(libs.biometric)
 
             // toml files don't support aar files yet
-           // implementation("net.java.dev.jna:jna:5.17.0@aar")
+          //  implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
             implementation(libs.kotlin.bip39)
             implementation(libs.bcprov.jdk18on)
