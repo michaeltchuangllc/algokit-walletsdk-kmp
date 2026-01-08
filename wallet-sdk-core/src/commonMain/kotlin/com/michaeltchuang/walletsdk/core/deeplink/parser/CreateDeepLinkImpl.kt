@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.deeplink.builder.AccountAddressDeepLink
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetTransferDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.FidoDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.KeyRegTransactionDeepLinkBuilder
+import com.michaeltchuang.walletsdk.core.deeplink.builder.LiquidAuthDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.MnemonicDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.model.DeepLink
 
@@ -14,7 +15,8 @@ internal class CreateDeepLinkImpl(
     private val assetTransferDeepLinkBuilder: AssetTransferDeepLinkBuilder,
     private val accountAddressDeepLinkBuilder: AccountAddressDeepLinkBuilder,
     private val fidoDeepLinkBuilder: FidoDeepLinkBuilder,
-) : CreateDeepLink {
+    private val liquidAuthDeepLinkBuilder: LiquidAuthDeepLinkBuilder,
+    ) : CreateDeepLink {
     override fun invoke(url: String): DeepLink {
         val payload = parseDeepLinkPayload(url)
 
@@ -33,6 +35,9 @@ internal class CreateDeepLinkImpl(
             }
             fidoDeepLinkBuilder.doesDeeplinkMeetTheRequirements(payload) -> {
                 fidoDeepLinkBuilder.createDeepLink(payload)
+            }
+            liquidAuthDeepLinkBuilder.doesDeeplinkMeetTheRequirements(payload) -> {
+                liquidAuthDeepLinkBuilder.createDeepLink(payload)
             }
             else -> DeepLink.Undefined(url)
         }

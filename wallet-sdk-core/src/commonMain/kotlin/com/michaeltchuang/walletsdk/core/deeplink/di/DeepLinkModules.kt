@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.deeplink.builder.AccountAddressDeepLink
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetTransferDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.FidoDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.KeyRegTransactionDeepLinkBuilder
+import com.michaeltchuang.walletsdk.core.deeplink.builder.LiquidAuthDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.MnemonicDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.parser.AlgorandUriParser
 import com.michaeltchuang.walletsdk.core.deeplink.parser.AlgorandUriParserImpl
@@ -41,6 +42,7 @@ val deepLinkModules =
                     assetTransferDeepLinkBuilder = AssetTransferDeepLinkBuilder(),
                     accountAddressDeepLinkBuilder = AccountAddressDeepLinkBuilder(),
                     fidoDeepLinkBuilder = FidoDeepLinkBuilder(),
+                    liquidAuthDeepLinkBuilder = LiquidAuthDeepLinkBuilder()
                 )
             }
 
