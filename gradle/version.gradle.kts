@@ -13,10 +13,8 @@ extra["calculateVersionCode"] = fun(): Int {
 
 extra["calculateVersionName"] = fun(): String {
     val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
-    val algoKitVersion: Int = libs.versions.algokit.version.get().toInt()
-    val calendarQuarter: Int = libs.versions.algokit.walletsdk.calendar.quarter.get().toInt()
-    val releaseNumber: Int = libs.versions.algokit.walletsdk.quarter.release.number.get().toInt()
-    return "$algoKitVersion.$calendarQuarter.$releaseNumber"
+    val walletSdkVersion: String = libs.versions.algokit.walletSdk.get()
+    return walletSdkVersion
 }
 
 extra["getGitHash"] = fun(): String {
