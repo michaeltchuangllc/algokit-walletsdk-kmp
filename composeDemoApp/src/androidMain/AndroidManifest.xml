@@ -2,62 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="false" />
-
-    <uses-permission android:name="android.permission.INTERNET"/>
-    <uses-permission android:name="android.permission.CAMERA" android:required="false"/>
-
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-
-    <queries>
-        <package android:name="com.android.chrome" />
-        <package android:name="com.chrome.beta" />
-        <package android:name="com.chrome.dev" />
-        <package android:name="com.chrome.canary" />
-        <package android:name="org.chromium.chrome" />
-        <package android:name="com.google.android.apps.chrome" />
-        <package android:name="org.mozilla.fennec_webauthndebug" />
-        <package android:name="org.mozilla.firefox" />
-        <package android:name="org.mozilla.firefox_beta" />
-        <package android:name="org.mozilla.focus" />
-        <package android:name="org.mozilla.fennec_aurora" />
-        <package android:name="org.mozilla.rocket" />
-        <package android:name="com.microsoft.emmx.canary" />
-        <package android:name="com.microsoft.emmx.dev" />
-        <package android:name="com.microsoft.emmx.beta" />
-        <package android:name="com.microsoft.emmx" />
-        <package android:name="com.microsoft.emmx.rolling" />
-        <package android:name="com.microsoft.emmx.local" />
-        <package android:name="com.brave.browser" />
-        <package android:name="com.brave.browser_beta" />
-        <package android:name="com.brave.browser_nightly" />
-        <package android:name="app.vanadium.browser" />
-        <package android:name="com.vivaldi.browser" />
-        <package android:name="com.vivaldi.browser.snapshot" />
-        <package android:name="com.vivaldi.browser.sopranos" />
-        <package android:name="com.citrix.Receiver" />
-        <package android:name="com.android.browser" />
-        <package android:name="com.sec.android.app.sbrowser" />
-        <package android:name="com.sec.android.app.sbrowser.beta" />
-        <package android:name="com.google.android.gms" />
-        <package android:name="com.yandex.browser" />
-        <package android:name="com.yandex.browser.beta" />
-        <package android:name="com.yandex.browser.alpha" />
-        <package android:name="com.yandex.browser.corp" />
-        <package android:name="com.yandex.browser.canary" />
-        <package android:name="com.yandex.browser.broteam" />
-        <package android:name="com.talonsec.talon" />
-        <package android:name="com.talonsec.talon_beta" />
-        <package android:name="com.duckduckgo.mobile.android.debug" />
-        <package android:name="com.duckduckgo.mobile.android" />
-    </queries>
-
     <application
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:enableOnBackInvokedCallback="true"
@@ -89,13 +33,5 @@
                 android:name="android.credentials.provider"
                 android:resource="@xml/provider" />
         </service>
-
-        <service
-            android:name="com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="dataSync"
-            android:icon="@drawable/fingerprint_dialog_fp_icon"
-            android:label="@string/app_name"/>
     </application>
 </manifest>

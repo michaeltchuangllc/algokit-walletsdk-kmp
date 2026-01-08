@@ -280,5 +280,4 @@ play {
     serviceAccountCredentials.set(file("../service-account.json"))
     track.set("internal")
     defaultToAppBundles.set(true)
-    commit.set(false)
 }
