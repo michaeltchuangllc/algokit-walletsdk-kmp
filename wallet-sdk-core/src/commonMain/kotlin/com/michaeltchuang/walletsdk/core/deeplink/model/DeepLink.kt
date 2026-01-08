@@ -130,4 +130,8 @@ sealed interface DeepLink {
     data class Fido(
         val uri: String,
     ) : DeepLink
+
+    data class LiquidAuth(
+        val uri: String,
+    ) : DeepLink
 }
