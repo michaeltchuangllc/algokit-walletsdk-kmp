@@ -7,8 +7,7 @@
             android:name=".passkeys.PasskeyActivity"
             android:enabled="true"
             android:exported="true"
-            android:screenOrientation="portrait"
-            tools:targetApi="34">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="com.algorand.android.credentials.CREATE_PASSKEY" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -23,8 +22,7 @@
             android:name=".passkeys.PasskeyProviderService"
             android:enabled="true"
             android:exported="true"
-            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE"
-            tools:targetApi="34">
+            android:permission="android.permission.BIND_CREDENTIAL_PROVIDER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.credentials.CredentialProviderService" />
             </intent-filter>
