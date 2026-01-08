@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202504.6")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202504.6")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.0")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.0")
 }
 ```
 
@@ -96,7 +96,8 @@ timeline
             : ✅ Onboarding - ECC Passkeys & Testnet Liquid Auth (Android)
 
     section In Progress 🔄
-    2026Q1  : 🔄 Onboarding - Mainnet Liquid Auth (Android)
+    2026Q1  : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
+            : 🔄 Onboarding - Mainnet Liquid Auth (Android)
             : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : Onboarding - ECC Passkeys & Liquid Auth (iOS)
             : Onboarding - Add Use-Wallet Liquid Auth Integration for xGov Website

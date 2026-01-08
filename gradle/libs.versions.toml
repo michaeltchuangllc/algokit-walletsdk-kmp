@@ -2,10 +2,7 @@
 agp = "8.10.0"
 algoGoMobilesdk = "2026.1.0"
 algoSdk = "2.10.1"
-algokit-version = "3"
-algokit-walletsdk-calendar-quarter = "202601"
-algokit-walletsdk-maven = "3.202601.0"
-algokit-walletsdk-quarter-release-number = "0"
+algokit-walletSdk = "3.202601.1"
 algorand-foundation = "0.1.0"
 android-compileSdk = "36"
 android-minSdk = "34"
@@ -106,7 +103,6 @@ compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", versi
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview", version.ref = "compose-ui" }
 compose-ui-testManifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "compose-ui" }
 compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "compose-ui" }
-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "appCompat" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 lifecycle-common-java8 = { module = "androidx.lifecycle:lifecycle-common-java8", version.ref = "lifecycle" }
 lifecycle-extensions = { module = "androidx.lifecycle:lifecycle-extensions", version.ref = "lifecycleExt" }
@@ -176,18 +172,17 @@ bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bc
 bignum = { group = "com.ionspin.kotlin", name ="bignum", version.ref = "bignum" }
 bitcoin-kmp = { module = "fr.acinq.bitcoin:bitcoin-kmp", version.ref = "bitcoin-kmp" }
 khex = { module = "com.github.komputing:khex", version.ref = "khex" }
-#xhdwalletapi = { module = "foundation.algorand.xhdwalletapi:xhdwalletapi-android", version.ref = "xhdwalletapi" }
-xhdwalletapi = { module = "app.perawallet:xhdwalletapi-android", version.ref = "xhdwalletapi" }
 kotlin-bip39 = { module = "cash.z.ecc.android:kotlin-bip39", version.ref = "bip39" }
 p256 = { module = "app.perawallet:dP256", version.ref = "dP256" }
-walletsdk-ui = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-ui" , version.ref = "algokit-walletsdk-maven"}
-walletsdk-core = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-core", version.ref = "algokit-walletsdk-maven" }
+walletsdk-ui = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-ui" , version.ref = "algokit-walletSdk"}
+walletsdk-core = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-core", version.ref = "algokit-walletSdk" }
+#xhdwalletapi = { module = "foundation.algorand.xhdwalletapi:xhdwalletapi-android", version.ref = "xhdwalletapi" }
+xhdwalletapi = { module = "app.perawallet:xhdwalletapi-android", version.ref = "xhdwalletapi" }
 
 # Testing / Utilities
 androidx-core = { module = "androidx.test:core", version.ref = "core" }
 androidx-junit = { module = "androidx.test.ext:junit", version.ref = "junitKtx" }
 androidx-junit-ktx = { module = "androidx.test.ext:junit-ktx", version.ref = "junitKtx" }
-androidx-rules = { module = "androidx.test:rules", version.ref = "core" }
 androidx-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 desugar-jdk = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
 detekt-formatting = { module = "io.gitlab.arturbosch.detekt:detekt-formatting", version.ref = "detekt" }
@@ -218,7 +213,7 @@ kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-cor
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-iosArm64 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosArm64", version.ref = "coroutines" }
-kotlinx-coroutines-iosX64 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines--core-iosX64", version.ref = "coroutines" }
+kotlinx-coroutines-iosX64 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosX64", version.ref = "coroutines" }
 kotlinx-coroutines-iosSimulatorArm64 = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core-iosSimulatorArm64", version.ref = "coroutines" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinxDatetime" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
