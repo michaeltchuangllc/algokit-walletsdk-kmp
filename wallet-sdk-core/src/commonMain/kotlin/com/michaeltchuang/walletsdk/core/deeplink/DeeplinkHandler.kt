@@ -29,6 +29,7 @@ class DeeplinkHandler(
             is DeepLink.AssetTransfer -> handleAssetTransfer(deepLink)
             is DeepLink.AccountAddress -> handleAccountAddress(deepLink)
             is DeepLink.Fido -> handleFidoDeepLink(deepLink)
+            is DeepLink.LiquidAuth -> handleLiquidAuthDeepLink(deepLink)
             else -> {
                 handleUnrecognizedDeepLink()
             }
@@ -71,6 +72,12 @@ class DeeplinkHandler(
         }
     }
 
+    private fun handleLiquidAuthDeepLink(deepLink: DeepLink.LiquidAuth) {
+        CoroutineScope(Dispatchers.Main).launch {
+            _deepLinkState.emit(DeepLinkState.LiquAuthDeepLink(deepLink.uri))
+        }
+    }
+
     sealed class DeepLinkState {
         data class OnImportAccountDeepLink(
             var mnemonic: String,
@@ -89,6 +96,10 @@ class DeeplinkHandler(
         ) : DeepLinkState()
 
         data class FidoDeepLink(
+            var uri: String,
+        ) : DeepLinkState()
+
+        data class LiquAuthDeepLink(
             var uri: String,
         ) : DeepLinkState()
 

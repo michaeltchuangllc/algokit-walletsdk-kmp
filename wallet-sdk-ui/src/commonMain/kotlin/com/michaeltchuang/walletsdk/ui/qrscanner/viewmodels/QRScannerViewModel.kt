@@ -7,12 +7,16 @@ import com.michaeltchuang.walletsdk.core.deeplink.model.DeepLink
 import com.michaeltchuang.walletsdk.core.deeplink.model.KeyRegTransactionDetail
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class QRScannerViewModel(
     private val deeplinkHandler: DeeplinkHandler,
+    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     EventViewModel<QRScannerViewModel.ViewEvent> by eventDelegate {
@@ -42,8 +46,19 @@ class QRScannerViewModel(
                         eventDelegate.sendEvent(ViewEvent.NavigateToFidoDeepLink(it.uri))
                     }
 
+                    is DeeplinkHandler.DeepLinkState.LiquAuthDeepLink -> {
+                        viewModelScope.launch {
+                            val currentNetwork = getCurrentNetworkUseCase().first()
+                            if (currentNetwork == AlgorandNetwork.MAINNET) {
+                                eventDelegate.sendEvent(ViewEvent.ShowLiquidAuthMainnetNotSupported)
+                            } else {
+                                eventDelegate.sendEvent(ViewEvent.NavigateToLiquidAuthScreen(it.uri))
+                            }
+                        }
+                    }
+
                     is DeeplinkHandler.DeepLinkState.OnUnrecognizedDeepLink -> {
-                        eventDelegate.sendEvent(ViewEvent.NavigateToLiquidAuthScreen(uri))
+                        eventDelegate.sendEvent(ViewEvent.ShowUnrecognizedDeeplink)
                     }
                 }
             }
@@ -154,6 +169,8 @@ class QRScannerViewModel(
         data class NavigateToLiquidAuthScreen(
             val uri: String,
         ) : ViewEvent
+
+        object ShowLiquidAuthMainnetNotSupported : ViewEvent
 
         object ShowUnrecognizedDeeplink : ViewEvent
     }
