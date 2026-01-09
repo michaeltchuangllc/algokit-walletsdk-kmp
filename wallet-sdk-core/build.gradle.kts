@@ -88,6 +88,8 @@ kotlin {
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)
 
+            // toml files don't support aar files yet
+            implementation("net.java.dev.jna:jna:5.17.0@aar")
             implementation(libs.xhdwalletapi)
             implementation(libs.kotlin.bip39)
             implementation(libs.bcprov.jdk18on)
@@ -103,8 +105,8 @@ kotlin {
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
 
-            implementation(libs.algorand.foundation.crypto)
-            implementation(libs.algorand.foundation.provider)
+            api(libs.algorand.foundation.crypto)
+            api(libs.algorand.foundation.provider)
             implementation(libs.p256)
 
             implementation(libs.socketio.client)
