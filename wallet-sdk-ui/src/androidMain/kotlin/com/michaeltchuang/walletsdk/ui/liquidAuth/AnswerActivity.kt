@@ -136,7 +136,6 @@ class AnswerActivity : AppCompatActivity() {
                 when (event) {
                     is AnswerViewModel.ViewEvent.AttestationSuccess -> {
                         Log.d(TAG, "✅ Attestation Success - setting up WebRTC")
-                        showToast("✅ Registration successful! Credential saved.", Toast.LENGTH_LONG)
                         // Update session to show connected state
                         setSession("Connected") // Update session to stop spinner
                         handleWebRTCSetup(event.credential)
