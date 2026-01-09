@@ -499,13 +499,16 @@ class AnswerViewModel(
                     onCredentialNotFound = { onCredentialNotFound?.invoke() },
                 )
             when (result) {
-                is PrepareAuthenticationUseCase.Result.Success ->
+                is PrepareAuthenticationUseCase.Result.Success ->{
                     eventDelegate.sendEvent(
                         ViewEvent.AuthenticationSuccess(
                             result.publicKeyCredentialRequestOptions,
                             credentialId,
                         ),
                     )
+                    setPasskeyLastUsedTime(credentialId,timeProvider.getCurrentTimeMillis())
+                }
+
 
                 is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
                     eventDelegate.sendEvent(
