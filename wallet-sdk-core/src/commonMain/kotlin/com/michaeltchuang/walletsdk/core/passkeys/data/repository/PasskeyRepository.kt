@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.passkeys.domain.repository
+package com.michaeltchuang.walletsdk.core.passkeys.data.repository
 
 import com.michaeltchuang.walletsdk.core.passkeys.model.AddPasskeyArgs
 import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
@@ -20,6 +20,9 @@ interface PasskeyRepository {
     suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String?
 
     suspend fun removePasskeyByCredentialId(credId: String)
+    
+
+    suspend fun removePasskeyByAddress(address: String)
 
     suspend fun clearAllPasskeys()
 
@@ -34,5 +37,3 @@ interface PasskeyRepository {
         algoAddress: String,
     ): Boolean
 }
-
-expect fun getPasskeyRepository(): PasskeyRepository

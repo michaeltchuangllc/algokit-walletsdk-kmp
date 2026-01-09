@@ -60,7 +60,7 @@ internal val settingsModules =
                 )
             }
             viewModel {
-                PasskeysViewModel(get(), get())
+                PasskeysViewModel(get(), get(),get())
             }
         },
     )

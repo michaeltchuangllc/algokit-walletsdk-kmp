@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.passkeys.model
+package com.michaeltchuang.walletsdk.core.passkeys.model
 
 data class CreatePasskeyCredentialCreateEntry(
     val accountName: String,

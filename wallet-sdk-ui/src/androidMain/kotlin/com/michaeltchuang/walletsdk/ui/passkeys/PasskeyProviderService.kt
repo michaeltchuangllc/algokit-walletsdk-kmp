@@ -24,7 +24,7 @@ import androidx.credentials.provider.ProviderClearCredentialStateRequest
 import androidx.credentials.provider.PublicKeyCredentialEntry
 import com.michaeltchuang.walletsdk.core.passkeys.builder.PasskeyCreateCredentialEntryBuilder
 import com.michaeltchuang.walletsdk.core.passkeys.builder.PasskeyGetCredentialsEntryBuilder
-import com.michaeltchuang.walletsdk.ui.passkeys.model.CreatePasskeyCredentialCreateEntry
+import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyCredentialCreateEntry
 import com.michaeltchuang.walletsdk.ui.passkeys.model.GetPasskeyCredentialEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

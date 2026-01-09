@@ -52,4 +52,7 @@ internal interface PasskeyDao {
         username: String,
         algoAddress: String,
     ): Boolean
+
+    @Query("DELETE FROM passkey_table WHERE algo_address = :algoAddress")
+    suspend fun deleteByAlgoAddress(algoAddress: String): Int
 }

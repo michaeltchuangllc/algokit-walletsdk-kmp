@@ -8,7 +8,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSe
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetSitePasskeyCount
-import com.michaeltchuang.walletsdk.ui.passkeys.model.CreatePasskeyCredentialCreateEntry
+import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyCredentialCreateEntry
 
 class DefaultPasskeyCreateCredentialEntryBuilder(
     private val getAllHdSeedFirstAddresses: GetAllHdSeedFirstAddresses,
