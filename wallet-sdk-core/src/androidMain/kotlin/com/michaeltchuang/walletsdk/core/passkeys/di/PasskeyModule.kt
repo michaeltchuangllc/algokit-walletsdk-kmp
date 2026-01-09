@@ -19,7 +19,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.repository.DefaultPasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.DeterministicBip39SignManager
-import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.data.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskeyUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.ClearAllPasskeys

@@ -7,7 +7,8 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
-import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.getPasskeyRepository
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.passkeys.data.repository.PasskeyRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ import kotlin.math.abs
 class PasskeysViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
+    private val passkeyRepository: PasskeyRepository
 ) : ViewModel(),
     StateViewModel<PasskeysViewModel.ViewState> by stateDelegate,
     EventViewModel<PasskeysViewModel.ViewEvent> by eventDelegate {
@@ -34,18 +36,16 @@ class PasskeysViewModel(
             stateDelegate.updateState {
                 ViewState.Loading
             }
-            val repo = getPasskeyRepository()
-
-            repo.getAllPasskeysAsFlow().collect { passkeys ->
+            passkeyRepository.getAllPasskeysAsFlow().collect { passkeys ->
                 val now = Clock.System.now().toEpochMilliseconds()
                 val uiPasskeys =
                     passkeys.map { domainPasskey ->
                         Passkey(
                             credId = domainPasskey.credId,
-                            title = domainPasskey.displayName,
+                            title = domainPasskey.displayName.toShortenedAddress(),
                             domain = domainPasskey.site.url,
                             lastUsed = formatLastUsedLabel(domainPasskey.lastUsed, now),
-                            username = domainPasskey.username,
+                            username = domainPasskey.username.toShortenedAddress(),
                         )
                     }
                 stateDelegate.updateState {
@@ -58,8 +58,7 @@ class PasskeysViewModel(
     fun deletePasskey(credId: String) {
         viewModelScope.launch {
             withContext(Dispatchers.IO) {
-                val repo = getPasskeyRepository()
-                repo.removePasskeyByCredentialId(credId)
+                passkeyRepository.removePasskeyByCredentialId(credId)
                 fetchPasskeys()
             }
         }

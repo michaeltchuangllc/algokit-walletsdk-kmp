@@ -34,7 +34,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignal
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
-import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.data.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.ui.R
