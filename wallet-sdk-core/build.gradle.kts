@@ -105,8 +105,8 @@ kotlin {
             implementation(libs.ktor.client.android)
             implementation(libs.ktor.client.okhttp)
 
-            api(libs.algorand.foundation.crypto)
-            api(libs.algorand.foundation.provider)
+            implementation(libs.algorand.foundation.crypto)
+            implementation(libs.algorand.foundation.provider)
             implementation(libs.p256)
 
             implementation(libs.socketio.client)
