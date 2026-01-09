@@ -14,9 +14,10 @@ private const val TEST_KEY = "TEST_ENCRYPTION_KEY_FOR_UNIT_TESTS_1234567890"
 fun encryptByteArray(data: ByteArray): ByteArray {
     // Simple XOR encryption with a fixed key for testing
     val keyBytes = TEST_KEY.encodeToByteArray()
-    return data.mapIndexed { index, byte ->
-        (byte.toInt() xor keyBytes[index % keyBytes.size].toInt()).toByte()
-    }.toByteArray()
+    return data
+        .mapIndexed { index, byte ->
+            (byte.toInt() xor keyBytes[index % keyBytes.size].toInt()).toByte()
+        }.toByteArray()
 }
 
 @OptIn(ExperimentalEncodingApi::class)

@@ -81,7 +81,8 @@ class AnswerViewModel(
     private val logAppSignatureUseCase: LogAppSignatureUseCase,
     private val providerHttpClientUseCase: ProvideHttpClientUseCase,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
-) : ViewModel(), EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
+) : ViewModel(),
+    EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
         private const val TAG = "AnswerViewModel"
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
@@ -109,17 +110,18 @@ class AnswerViewModel(
     private val providerId = uuidGenerator.generate().toString()
     private val _accountAddress = MutableStateFlow("")
     val accountAddress: StateFlow<String> = _accountAddress
-    private val encoder = foundation.algorand.crypto.avm.Encoder()
+    private val encoder =
+        foundation.algorand.crypto.avm
+            .Encoder()
     var currentChallenge: ByteArray? = null
     var showConfirmationDialog = MutableStateFlow(false)
     private var signalServiceConnection: android.content.ServiceConnection? = null
     private val _signalService =
         MutableStateFlow<com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService?>(
-            null
+            null,
         )
     val signalService = _signalService
     private var attestationApiResponse: String? = null
-
 
     // --- Public Setters and Helpers ---
     fun setSession(cookie: String?) {
@@ -149,6 +151,7 @@ class AnswerViewModel(
     fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
 
     fun getAttestationApiResponse(): String? = attestationApiResponse
+
     fun setAttestationApiResponse(value: String?) {
         attestationApiResponse = value
     }
@@ -181,19 +184,22 @@ class AnswerViewModel(
     }
 
     // --- Credential Management ---
-    suspend fun saveCredential(account: String, credential: PublicKeyCredential, response: String) {
+    suspend fun saveCredential(
+        account: String,
+        credential: PublicKeyCredential,
+        response: String,
+    ) {
         val requestOption = PublicKeyCredentialCreationOptions(response)
         addNewPasskey(
             algoAddress = account,
             requestOptions = requestOption,
-            credId = credential.rawId
+            credId = credential.rawId,
         )
         Log.d(TAG, "✅ Credential saved to local storage")
         eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Registration successful! Credential saved."))
     }
 
-    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? =
-        passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
+    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
 
     suspend fun deleteCredentialByAlgoAddress(algoAddress: String) {
         val credentialId = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
@@ -205,7 +211,10 @@ class AnswerViewModel(
         }
     }
 
-    fun getCredentialMessage(account: String, credential: PublicKeyCredential): JSONObject {
+    fun getCredentialMessage(
+        account: String,
+        credential: PublicKeyCredential,
+    ): JSONObject {
         val credMessage = JSONObject()
         credMessage.put("address", account)
         credMessage.put("device", Build.MODEL)
@@ -221,12 +230,15 @@ class AnswerViewModel(
         var mnemonicValue: String? = null
         getAccountMnemonic(address).use(
             onSuccess = { mnemonic -> mnemonicValue = mnemonic.words.joinToString(" ") },
-            onFailed = { _, _ -> return@use null }
+            onFailed = { _, _ -> return@use null },
         )
         return mnemonicValue
     }
 
-    suspend fun signFido2Challenge(challenge: ByteArray, address: String): ByteArray? {
+    suspend fun signFido2Challenge(
+        challenge: ByteArray,
+        address: String,
+    ): ByteArray? {
         val localAccount = getLocalAccount(address) ?: return null
         return when (localAccount) {
             is LocalAccount.Algo25 -> {
@@ -242,7 +254,7 @@ class AnswerViewModel(
                     seed,
                     localAccount.account,
                     localAccount.change,
-                    localAccount.keyIndex
+                    localAccount.keyIndex,
                 )
             }
 
@@ -289,7 +301,7 @@ class AnswerViewModel(
     @OptIn(ExperimentalEncodingApi::class)
     fun handleMessages(
         msgStr: String,
-        onSignTransaction: (SignTransactionsParams, Message) -> Unit
+        onSignTransaction: (SignTransactionsParams, Message) -> Unit,
     ) {
         try {
             Log.d(TAG, "========================================")
@@ -303,12 +315,14 @@ class AnswerViewModel(
             if (request.reference == "arc0027:sign_transactions:request") {
                 Log.d(TAG, "✅ Transaction signing request detected")
                 viewModelScope.launch {
-                    val params = encoder.decode<SignTransactionsParams>(
-                        encoder.encode(
-                            request.params,
-                            EncoderType.NONE
-                        ), EncoderType.NONE
-                    )
+                    val params =
+                        encoder.decode<SignTransactionsParams>(
+                            encoder.encode(
+                                request.params,
+                                EncoderType.NONE,
+                            ),
+                            EncoderType.NONE,
+                        )
                     Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
                     Log.d(TAG, "Provider ID: ${params.providerId}")
                     onSignTransaction(params, message)
@@ -326,12 +340,14 @@ class AnswerViewModel(
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
         when (decoded.reference) {
             "arc0027:sign_transactions:request" -> {
-                val params = encoder.decode<SignTransactionsParams>(
-                    encoder.encode(
-                        decoded.params,
-                        EncoderType.NONE
-                    ), EncoderType.NONE
-                )
+                val params =
+                    encoder.decode<SignTransactionsParams>(
+                        encoder.encode(
+                            decoded.params,
+                            EncoderType.NONE,
+                        ),
+                        EncoderType.NONE,
+                    )
                 val result = kotlinx.coroutines.runBlocking { processSignTransactions(params) }
                 return ResponseMessage(
                     id = uuidGenerator.generate().toString(),
@@ -346,42 +362,46 @@ class AnswerViewModel(
     }
 
     @OptIn(ExperimentalEncodingApi::class)
-    suspend fun processSignTransactions(params: SignTransactionsParams): SignTransactionsResult {
-        return processSignTransactionsUseCase(
+    suspend fun processSignTransactions(params: SignTransactionsParams): SignTransactionsResult =
+        processSignTransactionsUseCase(
             params = params,
             providerId = providerId,
-            accountAddress = _accountAddress.value
+            accountAddress = _accountAddress.value,
         )
-    }
 
     suspend fun processBiometricTransactionSigning(
         activity: androidx.fragment.app.FragmentActivity,
         params: SignTransactionsParams,
-        message: Message
+        message: Message,
     ) {
-        when (val result = processBiometricTransactionSigningUseCase(
-            activity = activity,
-            viewModel = this,
-            params = params,
-            message = message
-        )) {
+        when (
+            val result =
+                processBiometricTransactionSigningUseCase(
+                    activity = activity,
+                    viewModel = this,
+                    params = params,
+                    message = message,
+                )
+        ) {
             is ProcessBiometricTransactionSigningUseCase.Result.Success -> {
                 eventDelegate.sendEvent(
                     ViewEvent.TransactionSigned(
                         result.resultMessage,
-                        result.signResult
-                    )
+                        result.signResult,
+                    ),
                 )
                 eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Transaction signed successfully!"))
             }
 
-            is ProcessBiometricTransactionSigningUseCase.Result.Cancelled -> eventDelegate.sendEvent(
-                ViewEvent.ShowToast(result.reason)
-            )
+            is ProcessBiometricTransactionSigningUseCase.Result.Cancelled ->
+                eventDelegate.sendEvent(
+                    ViewEvent.ShowToast(result.reason),
+                )
 
-            is ProcessBiometricTransactionSigningUseCase.Result.Error -> eventDelegate.sendEvent(
-                ViewEvent.ShowError(result.message)
-            )
+            is ProcessBiometricTransactionSigningUseCase.Result.Error ->
+                eventDelegate.sendEvent(
+                    ViewEvent.ShowError(result.message),
+                )
         }
     }
 
@@ -389,24 +409,26 @@ class AnswerViewModel(
         authMessage: AuthMessage,
         algoAddress: String,
         options: JSONObject = JSONObject(),
-        onSessionUpdate: (String?) -> Unit = {}
+        onSessionUpdate: (String?) -> Unit = {},
     ): RegisterPasskeyUseCase.Result {
-        val result = registerPasskeyUseCase(
-            authMessage = authMessage,
-            algoAddress = algoAddress,
-            viewModel = this,
-            options = options,
-            onSessionUpdate = onSessionUpdate
-        )
+        val result =
+            registerPasskeyUseCase(
+                authMessage = authMessage,
+                algoAddress = algoAddress,
+                viewModel = this,
+                options = options,
+                onSessionUpdate = onSessionUpdate,
+            )
         when (result) {
-            is RegisterPasskeyUseCase.Result.Success -> { /* NOOP: navigation handled by caller */
+            is RegisterPasskeyUseCase.Result.Success -> { // NOOP: navigation handled by caller
             }
 
-            is RegisterPasskeyUseCase.Result.Error -> eventDelegate.sendEvent(
-                ViewEvent.ShowError(
-                    result.message
+            is RegisterPasskeyUseCase.Result.Error ->
+                eventDelegate.sendEvent(
+                    ViewEvent.ShowError(
+                        result.message,
+                    ),
                 )
-            )
         }
         return result
     }
@@ -414,30 +436,33 @@ class AnswerViewModel(
     fun registerPasskey(
         authMessage: AuthMessage,
         algoAddress: String,
-        options: JSONObject = JSONObject()
+        options: JSONObject = JSONObject(),
     ) {
         viewModelScope.launch {
-            val result = preparePasskeyRegistration(
-                authMessage,
-                algoAddress,
-                options,
-                onSessionUpdate = { sessionId -> sessionId?.let { setSession(it) } })
+            val result =
+                preparePasskeyRegistration(
+                    authMessage,
+                    algoAddress,
+                    options,
+                    onSessionUpdate = { sessionId -> sessionId?.let { setSession(it) } },
+                )
             when (result) {
                 is RegisterPasskeyUseCase.Result.Success -> {
                     setAttestationApiResponse(result.attestationApiResponse)
                     eventDelegate.sendEvent(
                         ViewEvent.RegistrationSuccess(
                             result.pubKeyCredentialCreationOptions,
-                            algoAddress
-                        )
+                            algoAddress,
+                        ),
                     )
                 }
 
-                is RegisterPasskeyUseCase.Result.Error -> eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        result.message
+                is RegisterPasskeyUseCase.Result.Error ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.ShowError(
+                            result.message,
+                        ),
                     )
-                )
             }
         }
     }
@@ -446,15 +471,16 @@ class AnswerViewModel(
         authMessage: AuthMessage,
         credentialId: String,
         onSessionUpdate: (String?) -> Unit = {},
-        onCredentialNotFound: () -> Unit = {}
+        onCredentialNotFound: () -> Unit = {},
     ): PrepareAuthenticationUseCase.Result {
-        val result = prepareAuthenticationUseCase(
-            authMessage = authMessage,
-            credentialId = credentialId,
-            viewModel = this,
-            onSessionUpdate = onSessionUpdate,
-            onCredentialNotFound = onCredentialNotFound
-        )
+        val result =
+            prepareAuthenticationUseCase(
+                authMessage = authMessage,
+                credentialId = credentialId,
+                viewModel = this,
+                onSessionUpdate = onSessionUpdate,
+                onCredentialNotFound = onCredentialNotFound,
+            )
         return result
     }
 
@@ -462,46 +488,49 @@ class AnswerViewModel(
         authMessage: AuthMessage,
         credentialId: String,
         setSession: ((String?) -> Unit)? = null,
-        onCredentialNotFound: (() -> Unit)? = null
+        onCredentialNotFound: (() -> Unit)? = null,
     ) {
         viewModelScope.launch {
-            val result = prepareAuthentication(
-                authMessage,
-                credentialId,
-                onSessionUpdate = { sessionId -> setSession?.invoke(sessionId) },
-                onCredentialNotFound = { onCredentialNotFound?.invoke() })
+            val result =
+                prepareAuthentication(
+                    authMessage,
+                    credentialId,
+                    onSessionUpdate = { sessionId -> setSession?.invoke(sessionId) },
+                    onCredentialNotFound = { onCredentialNotFound?.invoke() },
+                )
             when (result) {
-                is PrepareAuthenticationUseCase.Result.Success -> eventDelegate.sendEvent(
-                    ViewEvent.AuthenticationSuccess(
-                        result.publicKeyCredentialRequestOptions,
-                        credentialId
+                is PrepareAuthenticationUseCase.Result.Success ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.AuthenticationSuccess(
+                            result.publicKeyCredentialRequestOptions,
+                            credentialId,
+                        ),
                     )
-                )
 
-                is PrepareAuthenticationUseCase.Result.CredentialNotFound -> eventDelegate.sendEvent(
-                    ViewEvent.ShowError(result.message)
-                )
-
-                is PrepareAuthenticationUseCase.Result.Error -> eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        result.message
+                is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.ShowError(result.message),
                     )
-                )
+
+                is PrepareAuthenticationUseCase.Result.Error ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.ShowError(
+                            result.message,
+                        ),
+                    )
             }
         }
     }
 
     fun getAttestationIntentLauncher(
         activity: AppCompatActivity,
-        callback: (HandleAttestationResultUseCase.Result) -> Unit
-    ): ActivityResultLauncher<IntentSenderRequest> =
-        attestationIntentLauncherUseCase(activity, this, callback)
+        callback: (HandleAttestationResultUseCase.Result) -> Unit,
+    ): ActivityResultLauncher<IntentSenderRequest> = attestationIntentLauncherUseCase(activity, this, callback)
 
     fun getAssertionIntentLauncher(
         activity: AppCompatActivity,
-        callback: (HandleAssertionResultUseCase.Result) -> Unit
-    ): ActivityResultLauncher<IntentSenderRequest> =
-        assertionIntentLauncherUseCase(activity, this, callback)
+        callback: (HandleAssertionResultUseCase.Result) -> Unit,
+    ): ActivityResultLauncher<IntentSenderRequest> = assertionIntentLauncherUseCase(activity, this, callback)
 
     fun handleAssertionResultFromLauncher(result: HandleAssertionResultUseCase.Result) {
         viewModelScope.launch {
@@ -511,22 +540,24 @@ class AnswerViewModel(
                     eventDelegate.sendEvent(ViewEvent.AssertionSuccess(result.credential))
                 }
 
-                is HandleAssertionResultUseCase.Result.Cancelled -> eventDelegate.sendEvent(
-                    ViewEvent.ShowToast(result.message)
-                )
-
-                is HandleAssertionResultUseCase.Result.Error -> eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        result.message
+                is HandleAssertionResultUseCase.Result.Cancelled ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.ShowToast(result.message),
                     )
-                )
+
+                is HandleAssertionResultUseCase.Result.Error ->
+                    eventDelegate.sendEvent(
+                        ViewEvent.ShowError(
+                            result.message,
+                        ),
+                    )
             }
         }
     }
 
     fun handleAttestationResultFromLauncher(
         result: HandleAttestationResultUseCase.Result,
-        algoAddress: String?
+        algoAddress: String?,
     ) {
         when (result) {
             is HandleAttestationResultUseCase.Result.Success -> {
@@ -535,34 +566,43 @@ class AnswerViewModel(
                         saveCredential(
                             account = algoAddress,
                             credential = result.credential,
-                            response = getAttestationApiResponse()!!
+                            response = getAttestationApiResponse()!!,
                         )
                         eventDelegate.sendEvent(ViewEvent.AttestationSuccess(result.credential))
                     }
                 } else {
-                    viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationError("Missing account or API response for credential save")) }
+                    viewModelScope.launch {
+                        eventDelegate.sendEvent(
+                            ViewEvent.AttestationError("Missing account or API response for credential save"),
+                        )
+                    }
                 }
             }
 
-            is HandleAttestationResultUseCase.Result.Cancelled -> viewModelScope.launch {
-                eventDelegate.sendEvent(
-                    ViewEvent.AttestationCancelled
-                )
-            }
+            is HandleAttestationResultUseCase.Result.Cancelled ->
+                viewModelScope.launch {
+                    eventDelegate.sendEvent(
+                        ViewEvent.AttestationCancelled,
+                    )
+                }
 
-            is HandleAttestationResultUseCase.Result.Error -> viewModelScope.launch {
-                eventDelegate.sendEvent(
-                    ViewEvent.AttestationError(result.message)
-                )
-            }
+            is HandleAttestationResultUseCase.Result.Error ->
+                viewModelScope.launch {
+                    eventDelegate.sendEvent(
+                        ViewEvent.AttestationError(result.message),
+                    )
+                }
         }
     }
 
     fun createChannels(notificationManager: NotificationManager) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                NOTIFICATION_CHANNEL_ID, "WebRTC Service", NotificationManager.IMPORTANCE_DEFAULT
-            )
+            val channel =
+                NotificationChannel(
+                    NOTIFICATION_CHANNEL_ID,
+                    "WebRTC Service",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                )
             notificationManager.createNotificationChannel(channel)
         }
     }
@@ -572,33 +612,50 @@ class AnswerViewModel(
         contentText: String = "Tap to open the app.",
         contentTitle: String = "Liquid Auth",
         channelId: String = NOTIFICATION_CHANNEL_ID,
-    ): Builder = Builder(context, channelId)
-        .setContentTitle(contentTitle)
-        .setContentText(contentText)
-        .setColor(ContextCompat.getColor(context, androidx.biometric.R.color.biometric_error_color))
-        .setSmallIcon(R.drawable.ic_key)
+    ): Builder =
+        Builder(context, channelId)
+            .setContentTitle(contentTitle)
+            .setContentText(contentText)
+            .setColor(ContextCompat.getColor(context, androidx.biometric.R.color.biometric_error_color))
+            .setSmallIcon(R.drawable.ic_key)
 
     // --- ViewEvents ---
     sealed interface ViewEvent {
-        data class ShowToast(val message: String) : ViewEvent
-        data class TransactionSigned(
-            val resultMessage: ResponseMessage,
-            val signResult: SignTransactionsResult
+        data class ShowToast(
+            val message: String,
         ) : ViewEvent
 
-        data class ShowError(val message: String) : ViewEvent
-        data class AttestationSuccess(val credential: PublicKeyCredential) : ViewEvent
+        data class TransactionSigned(
+            val resultMessage: ResponseMessage,
+            val signResult: SignTransactionsResult,
+        ) : ViewEvent
+
+        data class ShowError(
+            val message: String,
+        ) : ViewEvent
+
+        data class AttestationSuccess(
+            val credential: PublicKeyCredential,
+        ) : ViewEvent
+
         object AttestationCancelled : ViewEvent
-        data class AttestationError(val message: String) : ViewEvent
-        data class AssertionSuccess(val credential: PublicKeyCredential) : ViewEvent
+
+        data class AttestationError(
+            val message: String,
+        ) : ViewEvent
+
+        data class AssertionSuccess(
+            val credential: PublicKeyCredential,
+        ) : ViewEvent
+
         data class AuthenticationSuccess(
             val publicKeyCredentialRequestOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions,
-            val credentialId: String
+            val credentialId: String,
         ) : ViewEvent
 
         data class RegistrationSuccess(
             val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
-            val algoAddress: String
+            val algoAddress: String,
         ) : ViewEvent
     }
 }

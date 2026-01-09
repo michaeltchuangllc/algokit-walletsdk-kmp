@@ -27,7 +27,9 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  *
  * This separates complex attestation result handling from the Activity
  */
-class HandleAttestationResultUseCase(private val attestationApiUseCase: AttestationApiUseCase) {
+class HandleAttestationResultUseCase(
+    private val attestationApiUseCase: AttestationApiUseCase,
+) {
     companion object {
         private const val TAG = "HandleAttestationResultUseCase"
     }
@@ -38,11 +40,17 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
     sealed class Result {
         data class Success(
             val credential: PublicKeyCredential,
-            val responseBody: String
+            val responseBody: String,
         ) : Result()
 
-        data class Cancelled(val message: String) : Result()
-        data class Error(val message: String, val isFido2Error: Boolean = false) : Result()
+        data class Cancelled(
+            val message: String,
+        ) : Result()
+
+        data class Error(
+            val message: String,
+            val isFido2Error: Boolean = false,
+        ) : Result()
     }
 
     /**
@@ -59,7 +67,7 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
     @OptIn(ExperimentalEncodingApi::class)
     suspend operator fun invoke(
         activityResult: ActivityResult,
-        viewModel: AnswerViewModel
+        viewModel: AnswerViewModel,
     ): Result {
         try {
             Log.d(TAG, "========================================")
@@ -100,12 +108,13 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
             }
 
             // Step 6: Build liquid extension JSON
-            val liquidExtJSON = buildLiquidExtensionJson(
-                algoAddress = viewModel.accountAddress.value,
-                requestId = viewModel.authMessage.value!!.requestId,
-                currentChallenge = viewModel.currentChallenge!!,
-                viewModel = viewModel
-            )
+            val liquidExtJSON =
+                buildLiquidExtensionJson(
+                    algoAddress = viewModel.accountAddress.value,
+                    requestId = viewModel.authMessage.value!!.requestId,
+                    currentChallenge = viewModel.currentChallenge!!,
+                    viewModel = viewModel,
+                )
 
             Log.d(TAG, "========================================")
             Log.d(TAG, "📤 SUBMITTING CREDENTIAL TO SERVER")
@@ -114,12 +123,13 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
             Log.d(TAG, "========================================")
 
             // Step 7: Submit to server
-            val attestationResponse = attestationApiUseCase.postAttestationResult(
-                viewModel.authMessage.value!!.origin,
-                viewModel.userAgent,
-                credential,
-                liquidExtJSON,
-            )
+            val attestationResponse =
+                attestationApiUseCase.postAttestationResult(
+                    viewModel.authMessage.value!!.origin,
+                    viewModel.userAgent,
+                    credential,
+                    liquidExtJSON,
+                )
 
             val responseBody = attestationResponse.peekBody(Long.MAX_VALUE).string()
 
@@ -135,7 +145,7 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
                 Log.e(TAG, "Status: ${attestationResponse.code}")
                 Log.e(TAG, "Response: $responseBody")
                 return Result.Error(
-                    "Registration failed: ${attestationResponse.code} - Check server logs"
+                    "Registration failed: ${attestationResponse.code} - Check server logs",
                 )
             }
 
@@ -149,7 +159,6 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
             )
 
             return Result.Success(credential, responseBody)
-
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception in handleAttestationResult", e)
             Log.e(TAG, "Exception type: ${e.javaClass.name}")
@@ -177,7 +186,7 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
                         Log.e(TAG, "FIDO2 Error Message: ${error.errorMessage}")
                         return Result.Error(
                             "FIDO2 Error: ${error.errorMessage}",
-                            isFido2Error = true
+                            isFido2Error = true,
                         )
                     }
                 } catch (e: Exception) {
@@ -198,11 +207,12 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
         Log.e(TAG, "Error Code Name: ${response.errorCode.name}")
         Log.e(TAG, "Error Message: ${response.errorMessage}")
 
-        val message = if (response.errorCode === ErrorCode.UNKNOWN_ERR) {
-            "Something Went Wrong: ${response.errorMessage}"
-        } else {
-            "FIDO2 Error: ${response.errorMessage}"
-        }
+        val message =
+            if (response.errorCode === ErrorCode.UNKNOWN_ERR) {
+                "Something Went Wrong: ${response.errorMessage}"
+            } else {
+                "FIDO2 Error: ${response.errorMessage}"
+            }
 
         return Result.Error(message, isFido2Error = true)
     }
@@ -215,7 +225,7 @@ class HandleAttestationResultUseCase(private val attestationApiUseCase: Attestat
         algoAddress: String,
         requestId: String,
         currentChallenge: ByteArray,
-        viewModel: AnswerViewModel
+        viewModel: AnswerViewModel,
     ): JSONObject {
         val accountType = viewModel.getAccountTypeForFido2(algoAddress)
         val publicKey = viewModel.getAccountPublicKey(algoAddress)

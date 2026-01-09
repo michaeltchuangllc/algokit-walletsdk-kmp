@@ -11,7 +11,9 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
  * Manages SignalService binding/unbinding and lifecycle for an Activity.
  * Ensures proper cleanup and leak safety.
  */
-class SignalServiceManager(private val context: Context) {
+class SignalServiceManager(
+    private val context: Context,
+) {
     private var serviceConnection: ServiceConnection? = null
     private var _signalService: SignalService? = null
 
@@ -24,16 +26,21 @@ class SignalServiceManager(private val context: Context) {
      */
     fun bind(onConnected: (() -> Unit)? = null) {
         if (_signalService != null || serviceConnection != null) return
-        val conn = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-                val localBinder = binder as? SignalService.LocalBinder
-                _signalService = localBinder?.getServerInstance()
-                onConnected?.invoke()
+        val conn =
+            object : ServiceConnection {
+                override fun onServiceConnected(
+                    name: ComponentName?,
+                    binder: IBinder?,
+                ) {
+                    val localBinder = binder as? SignalService.LocalBinder
+                    _signalService = localBinder?.getServerInstance()
+                    onConnected?.invoke()
+                }
+
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    _signalService = null
+                }
             }
-            override fun onServiceDisconnected(name: ComponentName?) {
-                _signalService = null
-            }
-        }
         val intent = Intent(context, SignalService::class.java)
         context.startService(intent)
         context.bindService(intent, conn, Context.BIND_AUTO_CREATE)
@@ -47,7 +54,8 @@ class SignalServiceManager(private val context: Context) {
         serviceConnection?.let { conn ->
             try {
                 context.unbindService(conn)
-            } catch (_: Exception) {}
+            } catch (_: Exception) {
+            }
         }
         serviceConnection = null
         _signalService = null

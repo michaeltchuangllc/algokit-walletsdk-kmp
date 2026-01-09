@@ -78,7 +78,10 @@ fun ConnectionStatusCard(
 }
 
 @Composable
-private fun ErrorState(errorMessage: String?, session: String) {
+private fun ErrorState(
+    errorMessage: String?,
+    session: String,
+) {
     // Error state - show error icon and message
     Text(
         text = "⚠",
@@ -129,7 +132,10 @@ private fun WaitingState() {
 }
 
 @Composable
-private fun ConnectingState(origin: String?, requestId: String?) {
+private fun ConnectingState(
+    origin: String?,
+    requestId: String?,
+) {
     // Connecting - show loader with connection info
     CircularProgressIndicator(
         modifier = Modifier.size(48.dp),
@@ -161,7 +167,11 @@ private fun ConnectingState(origin: String?, requestId: String?) {
 }
 
 @Composable
-private fun ConnectedState(origin: String?, requestId: String?, session: String) {
+private fun ConnectedState(
+    origin: String?,
+    requestId: String?,
+    session: String,
+) {
     // Connected - show success icon
     Text(
         text = "✓",

@@ -16,7 +16,7 @@ internal class CreateDeepLinkImpl(
     private val accountAddressDeepLinkBuilder: AccountAddressDeepLinkBuilder,
     private val fidoDeepLinkBuilder: FidoDeepLinkBuilder,
     private val liquidAuthDeepLinkBuilder: LiquidAuthDeepLinkBuilder,
-    ) : CreateDeepLink {
+) : CreateDeepLink {
     override fun invoke(url: String): DeepLink {
         val payload = parseDeepLinkPayload(url)
 

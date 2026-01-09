@@ -1,9 +1,9 @@
 package com.michaeltchuang.walletsdk.core.passkeys.domain.usecase
 
 import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AddPasskeyArgs
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
-import com.michaeltchuang.walletsdk.core.passkeys.model.AddPasskeyArgs
 
 internal class AddNewPasskeyUseCase(
     private val passkeyRepository: PasskeyRepository,

@@ -30,34 +30,39 @@ class AuthenticateWithBiometricsUseCase {
     suspend operator fun invoke(
         activity: FragmentActivity,
         params: SignTransactionsParams,
-    ): Boolean = suspendCoroutine { continuation ->
-        val biometricPrompt = BiometricPrompt(
-            activity,
-            ContextCompat.getMainExecutor(activity),
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    Log.d(TAG, "✅ Biometric authentication successful")
-                    continuation.resume(true)
-                }
+    ): Boolean =
+        suspendCoroutine { continuation ->
+            val biometricPrompt =
+                BiometricPrompt(
+                    activity,
+                    ContextCompat.getMainExecutor(activity),
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            super.onAuthenticationSucceeded(result)
+                            Log.d(TAG, "✅ Biometric authentication successful")
+                            continuation.resume(true)
+                        }
 
-                override fun onAuthenticationFailed() {
-                    super.onAuthenticationFailed()
-                    Log.w(TAG, "⚠️ Biometric authentication failed")
-                    continuation.resume(false)
-                }
+                        override fun onAuthenticationFailed() {
+                            super.onAuthenticationFailed()
+                            Log.w(TAG, "⚠️ Biometric authentication failed")
+                            continuation.resume(false)
+                        }
 
-                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
-                    super.onAuthenticationError(errorCode, errString)
-                    Log.e(TAG, "❌ Biometric authentication error: $errString (code: $errorCode)")
-                    continuation.resume(false)
-                }
-            },
-        )
+                        override fun onAuthenticationError(
+                            errorCode: Int,
+                            errString: CharSequence,
+                        ) {
+                            super.onAuthenticationError(errorCode, errString)
+                            Log.e(TAG, "❌ Biometric authentication error: $errString (code: $errorCode)")
+                            continuation.resume(false)
+                        }
+                    },
+                )
 
-        val promptInfo = buildPromptInfo(params)
-        biometricPrompt.authenticate(promptInfo)
-    }
+            val promptInfo = buildPromptInfo(params)
+            biometricPrompt.authenticate(promptInfo)
+        }
 
     /**
      * Build biometric prompt info based on transaction parameters
@@ -66,13 +71,15 @@ class AuthenticateWithBiometricsUseCase {
      * @return BiometricPrompt.PromptInfo configured for the transaction
      */
     private fun buildPromptInfo(params: SignTransactionsParams): BiometricPrompt.PromptInfo {
-        val title = if (params.txns.size == 1) {
-            "Sign Transaction"
-        } else {
-            "Sign ${params.txns.size} Transactions"
-        }
+        val title =
+            if (params.txns.size == 1) {
+                "Sign Transaction"
+            } else {
+                "Sign ${params.txns.size} Transactions"
+            }
 
-        return BiometricPrompt.PromptInfo.Builder()
+        return BiometricPrompt.PromptInfo
+            .Builder()
             .setTitle(title)
             .setSubtitle("Provider: ${params.providerId}")
             .setNegativeButtonText("Cancel")

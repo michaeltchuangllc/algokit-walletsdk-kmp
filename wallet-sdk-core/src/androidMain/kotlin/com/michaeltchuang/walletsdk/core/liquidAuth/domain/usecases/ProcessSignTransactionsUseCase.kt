@@ -1,4 +1,5 @@
 @file:OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
 import android.util.Log
@@ -21,12 +22,12 @@ class ProcessSignTransactionsUseCase(
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getSeed: GetHdSeed,
     private val getMnemonic: suspend (String) -> String?,
-    private val decodeUnsignedTransaction: (String) -> Transaction?
+    private val decodeUnsignedTransaction: (String) -> Transaction?,
 ) {
     suspend operator fun invoke(
         params: SignTransactionsParams,
         providerId: String,
-        accountAddress: String
+        accountAddress: String,
     ): SignTransactionsResult {
         Log.d("ProcessSignTxUC", "========================================")
         Log.d("ProcessSignTxUC", "📝 PROCESSING SIGN TRANSACTIONS")
@@ -55,21 +56,23 @@ class ProcessSignTransactionsUseCase(
                 }
                 is LocalAccount.Falcon24 -> {
                     val privateKey = getFalcon24SecretKey(accountAddress)
-                    val signedGroupBytes = signFalcon24Transaction(
-                        transactionBytes,
-                        it.publicKey,
-                        privateKey!!
-                    )!!
+                    val signedGroupBytes =
+                        signFalcon24Transaction(
+                            transactionBytes,
+                            it.publicKey,
+                            privateKey!!,
+                        )!!
                     signedTxns.add(Base64.UrlSafe.encode(signedGroupBytes))
                 }
                 is LocalAccount.HdKey -> {
-                    val signature = signHdKeyData(
-                        data = unsignedTransaction!!.bytesToSign(),
-                        seed = getSeed(it.seedId)!!,
-                        account = it.account,
-                        change = it.change,
-                        key = it.keyIndex,
-                    )!!
+                    val signature =
+                        signHdKeyData(
+                            data = unsignedTransaction!!.bytesToSign(),
+                            seed = getSeed(it.seedId)!!,
+                            account = it.account,
+                            change = it.change,
+                            key = it.keyIndex,
+                        )!!
                     signedTxns.add(Base64.UrlSafe.encode(signature))
                 }
                 is LocalAccount.LedgerBle -> TODO()

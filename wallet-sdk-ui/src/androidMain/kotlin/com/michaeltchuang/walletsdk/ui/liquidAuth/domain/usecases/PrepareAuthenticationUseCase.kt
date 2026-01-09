@@ -21,7 +21,9 @@ import okhttp3.ResponseBody
  *
  * This separates authentication preparation logic from the Activity
  */
-class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApiUseCase) {
+class PrepareAuthenticationUseCase(
+    private val assertionApiUseCase: AssertionApiUseCase,
+) {
     companion object {
         private const val TAG = "PrepareAuthenticationUseCase"
     }
@@ -32,11 +34,17 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
     sealed class Result {
         data class Success(
             val publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions,
-            val sessionId: String?
+            val sessionId: String?,
         ) : Result()
 
-        data class CredentialNotFound(val message: String) : Result()
-        data class Error(val message: String, val statusCode: Int? = null) : Result()
+        data class CredentialNotFound(
+            val message: String,
+        ) : Result()
+
+        data class Error(
+            val message: String,
+            val statusCode: Int? = null,
+        ) : Result()
     }
 
     /**
@@ -54,7 +62,7 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
         credentialId: String,
         viewModel: AnswerViewModel,
         onSessionUpdate: (String?) -> Unit = {},
-        onCredentialNotFound: () -> Unit = {}
+        onCredentialNotFound: () -> Unit = {},
     ): Result {
         return try {
             Log.d(TAG, "========================================")
@@ -64,11 +72,12 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
             Log.d(TAG, "========================================")
 
             // Step 1: Fetch assertion options from server
-            val response = assertionApiUseCase.postAssertionOptions(
-                authMessage.origin,
-                viewModel.userAgent,
-                credentialId
-            )
+            val response =
+                assertionApiUseCase.postAssertionOptions(
+                    authMessage.origin,
+                    viewModel.userAgent,
+                    credentialId,
+                )
 
             Log.d(TAG, "Server response received")
             Log.d(TAG, "HTTP Status: ${response.code} ${response.message}")
@@ -86,13 +95,13 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
                     Log.w(TAG, "⚠️ Credential not found on server")
                     onCredentialNotFound()
                     return Result.CredentialNotFound(
-                        "Credential not found on server. Please re-register."
+                        "Credential not found on server. Please re-register.",
                     )
                 }
 
                 return Result.Error(
                     "Server error: ${response.code} ${response.message}",
-                    response.code
+                    response.code,
                 )
             }
 
@@ -101,35 +110,36 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
             onSessionUpdate(sessionId)
 
             // Step 5: Convert to PublicKeyCredentialRequestOptions
-            val publicKeyCredentialRequestOptions = try {
-                // Recreate response body since we consumed it
-                val recreatedBody = responseBodyString?.let {
-                    ResponseBody.Companion.create(
-                        response.body?.contentType(),
-                        it
+            val publicKeyCredentialRequestOptions =
+                try {
+                    // Recreate response body since we consumed it
+                    val recreatedBody =
+                        responseBodyString?.let {
+                            ResponseBody.Companion.create(
+                                response.body?.contentType(),
+                                it,
+                            )
+                        }
+
+                    if (recreatedBody == null) {
+                        throw IllegalArgumentException("Response body is null")
+                    }
+
+                    recreatedBody.toPublicKeyCredentialRequestOptions()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse PublicKeyCredentialRequestOptions", e)
+                    return Result.Error(
+                        "Failed to parse authentication options: ${e.message}",
                     )
                 }
-
-                if (recreatedBody == null) {
-                    throw IllegalArgumentException("Response body is null")
-                }
-
-                recreatedBody.toPublicKeyCredentialRequestOptions()
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse PublicKeyCredentialRequestOptions", e)
-                return Result.Error(
-                    "Failed to parse authentication options: ${e.message}"
-                )
-            }
 
             Log.d(TAG, "✅ Authentication preparation successful")
             Log.d(TAG, "========================================")
 
             Result.Success(
                 publicKeyCredentialRequestOptions = publicKeyCredentialRequestOptions,
-                sessionId = sessionId
+                sessionId = sessionId,
             )
-
         } catch (e: Exception) {
             Log.e(TAG, "Error during authentication preparation", e)
             Result.Error("Authentication preparation failed: ${e.message}")
@@ -139,13 +149,12 @@ class PrepareAuthenticationUseCase(private val assertionApiUseCase: AssertionApi
     /**
      * Extract session ID from HTTP response
      */
-    private fun extractSessionFromResponse(response: Response): String? {
-        return try {
+    private fun extractSessionFromResponse(response: Response): String? =
+        try {
             val cookie = Cookie.fromResponse(response)
             cookie?.let { Cookie.getID(it) }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract session from response", e)
             null
         }
-    }
 }

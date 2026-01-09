@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  * Use case to encapsulate registration and result handling for attestation ActivityResultLauncher.
  */
 class AttestationIntentLauncherUseCase(
-    private val handleAttestationResultUseCase: HandleAttestationResultUseCase
+    private val handleAttestationResultUseCase: HandleAttestationResultUseCase,
 ) {
     /**
      * Registers a launcher for attestation intent, wiring the provided callback to receive Result type.
@@ -22,20 +22,19 @@ class AttestationIntentLauncherUseCase(
     operator fun invoke(
         activity: AppCompatActivity,
         viewModel: AnswerViewModel,
-        callback: (HandleAttestationResultUseCase.Result) -> Unit
-    ): ActivityResultLauncher<IntentSenderRequest> {
-        return activity.registerForActivityResult(
+        callback: (HandleAttestationResultUseCase.Result) -> Unit,
+    ): ActivityResultLauncher<IntentSenderRequest> =
+        activity.registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
             ActivityResultCallback { activityResult ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    val result = handleAttestationResultUseCase.invoke(
-                        activityResult,
-                        viewModel
-                    )
+                    val result =
+                        handleAttestationResultUseCase.invoke(
+                            activityResult,
+                            viewModel,
+                        )
                     callback(result)
                 }
-            }
+            },
         )
-    }
 }
-

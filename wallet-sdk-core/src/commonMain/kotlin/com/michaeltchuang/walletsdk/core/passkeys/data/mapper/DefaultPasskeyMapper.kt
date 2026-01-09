@@ -2,8 +2,8 @@ package com.michaeltchuang.walletsdk.core.passkeys.data.mapper
 
 import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
-import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySite
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PasskeySite
 
 internal class DefaultPasskeyMapper : PasskeyMapper {
     override fun mapToPasskey(

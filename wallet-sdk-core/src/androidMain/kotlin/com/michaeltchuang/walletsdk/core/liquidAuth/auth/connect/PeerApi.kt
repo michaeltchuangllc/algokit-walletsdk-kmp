@@ -206,7 +206,7 @@ class PeerApi(
             }
 
             override fun onCreateSuccess(p0: SessionDescription?) {
-                Log.e(TAG, "onCreateSuccess")
+                Log.d(TAG, "onCreateSuccess")
                 onSessionDescription(p0)
             }
 

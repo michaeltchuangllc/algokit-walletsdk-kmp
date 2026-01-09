@@ -7,6 +7,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.copy_address
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_funds_to_your_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_copy
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_edit
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
@@ -99,6 +100,7 @@ fun AccountDetailScreen(
         address = address,
         viewState = viewState,
         onDeleteAccount = { viewModel.deleteAccount(address) },
+        onRenameAccount = { navController.navigate("${AlgoKitScreens.ADDRESS_NAMING_SCREEN.name}?address=$address") },
         showSnackBar = showSnackBar,
     )
 }
@@ -109,6 +111,7 @@ internal fun ScreenContent(
     address: String,
     viewState: AccountDetailViewModel.ViewState,
     onDeleteAccount: () -> Unit,
+    onRenameAccount: () -> Unit = {},
     showSnackBar: (String) -> Unit,
 ) {
     Column(
@@ -210,6 +213,16 @@ internal fun ScreenContent(
                                 "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
                             )
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    AccountDetailItem(
+                        icon = Res.drawable.ic_edit,
+                        isRemoveAccount = false,
+                        title = "Rename Account",
+                    ) {
+                        onRenameAccount()
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))

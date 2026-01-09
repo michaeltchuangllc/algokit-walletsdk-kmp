@@ -39,12 +39,16 @@ val liquidAuthUIModule =
         singleOf(::LogAppSignatureUseCase)
         single {
             val getMnemonic: suspend (String) -> String? = { algoAddr ->
-                get<GetAccountMnemonic>().invoke(algoAddr).getDataOrNull()?.words?.joinToString(" ")
+                get<GetAccountMnemonic>()
+                    .invoke(algoAddr)
+                    .getDataOrNull()
+                    ?.words
+                    ?.joinToString(" ")
             }
             val decodeUnsignedTransaction: (String) -> Transaction? = { s ->
                 Encoder.decodeFromMsgPack(
                     Base64.decode(s),
-                    Transaction::class.java
+                    Transaction::class.java,
                 )
             }
             ProcessSignTransactionsUseCase(
@@ -53,7 +57,7 @@ val liquidAuthUIModule =
                 getFalcon24SecretKey = get(),
                 getSeed = get(),
                 getMnemonic = getMnemonic,
-                decodeUnsignedTransaction = decodeUnsignedTransaction
+                decodeUnsignedTransaction = decodeUnsignedTransaction,
             )
         }
         single { AttestationIntentLauncherUseCase(get()) }

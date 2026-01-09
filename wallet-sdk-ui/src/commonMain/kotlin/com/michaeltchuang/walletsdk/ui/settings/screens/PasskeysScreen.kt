@@ -83,7 +83,7 @@ fun PasskeysScreen(onBackClick: () -> Unit) {
         },
         onDeleteDismiss = {
             showDeleteConfirm.value = false
-        }
+        },
     )
 }
 

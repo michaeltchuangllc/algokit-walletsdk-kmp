@@ -28,9 +28,6 @@ val passkeysUiModule =
         singleOf(::DefaultCreatePasskeyIntentValidator) bind CreatePasskeyIntentValidator::class
         singleOf(::DefaultGetPasskeyIntentValidator) bind GetPasskeyIntentValidator::class
 
-
-
-
         // ViewModels
         viewModel {
             CreatePasskeyViewModel(

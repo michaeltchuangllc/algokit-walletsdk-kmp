@@ -42,7 +42,7 @@ val deepLinkModules =
                     assetTransferDeepLinkBuilder = AssetTransferDeepLinkBuilder(),
                     accountAddressDeepLinkBuilder = AccountAddressDeepLinkBuilder(),
                     fidoDeepLinkBuilder = FidoDeepLinkBuilder(),
-                    liquidAuthDeepLinkBuilder = LiquidAuthDeepLinkBuilder()
+                    liquidAuthDeepLinkBuilder = LiquidAuthDeepLinkBuilder(),
                 )
             }
 

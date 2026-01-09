@@ -5,9 +5,9 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDa
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyEntityMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyMapper
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AddPasskeyArgs
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
-import com.michaeltchuang.walletsdk.core.passkeys.model.AddPasskeyArgs
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -93,4 +93,8 @@ internal class DefaultPasskeyRepository(
         username: String,
         algoAddress: String,
     ): Boolean = passkeyDao.doesPasskeyExist(rpId, username, algoAddress)
+
+    override suspend fun removePasskeyByAddress(address: String) {
+        passkeyDao.deleteByAlgoAddress(address)
+    }
 }

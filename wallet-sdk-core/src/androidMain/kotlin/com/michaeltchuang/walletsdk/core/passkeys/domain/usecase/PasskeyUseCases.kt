@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.passkeys.domain.usecase
 
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import kotlinx.coroutines.flow.Flow
 
 fun interface GetAllPasskeysAsFlow {
