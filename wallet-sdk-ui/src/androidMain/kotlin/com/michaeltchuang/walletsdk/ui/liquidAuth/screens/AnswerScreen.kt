@@ -61,9 +61,10 @@ fun ScreenContentAnswer(
     accountAddress: String,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(24.dp),
         contentAlignment = Alignment.Center,
     ) {
         Column(

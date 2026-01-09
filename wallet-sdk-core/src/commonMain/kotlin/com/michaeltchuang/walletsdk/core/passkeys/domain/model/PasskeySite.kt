@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.passkeys.model
+package com.michaeltchuang.walletsdk.core.passkeys.domain.model
 
 data class PasskeySite(
     val id: Long,

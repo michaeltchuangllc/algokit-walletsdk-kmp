@@ -7,7 +7,10 @@ import android.util.Log
 import java.security.MessageDigest
 
 class LogAppSignatureUseCase {
-    operator fun invoke(context: Context, tag: String = context.javaClass.simpleName) {
+    operator fun invoke(
+        context: Context,
+        tag: String = context.javaClass.simpleName,
+    ) {
         try {
             val packageInfo =
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {

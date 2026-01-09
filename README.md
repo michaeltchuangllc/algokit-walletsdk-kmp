@@ -97,11 +97,11 @@ timeline
 
     section In Progress 🔄
     2026Q1  : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
-            : 🔄 Onboarding - Mainnet Liquid Auth (Android)
             : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
-            : Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : Onboarding - Add Use-Wallet Liquid Auth Integration for xGov Website
+            : 🔄 Onboarding - ECC Passkeys & Liquid Auth (iOS)
+            : Onboarding - Mainnet Liquid Auth (Android)
             : Onboarding - Re-enable Use-Wallet Liquid Auth Functionality
+            : Onboarding - Add Use-Wallet Liquid Auth Integration for xGov Website
             : Onboarding - Rekey flow
             : Account Details - Opt-In / Opt-Out USDC QR flow
             : Transaction - Send USDC using account detail or QR code flows (between accounts)

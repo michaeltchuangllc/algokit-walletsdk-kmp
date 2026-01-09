@@ -22,7 +22,9 @@ import org.json.JSONObject
  *
  * This separates the complex registration logic from the Activity
  */
-class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUseCase) {
+class RegisterPasskeyUseCase(
+    private val attestationApiUseCase: AttestationApiUseCase,
+) {
     companion object {
         private const val TAG = "RegisterPasskeyUseCase"
     }
@@ -34,10 +36,13 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
         data class Success(
             val pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
             val attestationApiResponse: String,
-            val sessionId: String?
+            val sessionId: String?,
         ) : Result()
 
-        data class Error(val message: String, val exception: Exception? = null) : Result()
+        data class Error(
+            val message: String,
+            val exception: Exception? = null,
+        ) : Result()
     }
 
     /**
@@ -55,7 +60,7 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
         algoAddress: String,
         viewModel: AnswerViewModel,
         options: JSONObject = JSONObject(),
-        onSessionUpdate: (String?) -> Unit = {}
+        onSessionUpdate: (String?) -> Unit = {},
     ): Result {
         return try {
             Log.d(TAG, "========================================")
@@ -66,8 +71,9 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
             Log.d(TAG, "========================================")
 
             // Step 1: Extract RP ID from origin
-            val rpId = extractRpIdFromOrigin(authMessage.origin)
-                ?: return Result.Error("Failed to extract RP ID from origin")
+            val rpId =
+                extractRpIdFromOrigin(authMessage.origin)
+                    ?: return Result.Error("Failed to extract RP ID from origin")
 
             // Step 2: Build attestation options
             val attestationOptions = buildAttestationOptions(algoAddress, rpId, options)
@@ -80,11 +86,12 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
             Log.d(TAG, "User-Agent: ${viewModel.userAgent}")
             Log.d(TAG, "========================================")
 
-            val response = attestationApiUseCase.postAttestationOptions(
-                authMessage.origin,
-                viewModel.userAgent,
-                attestationOptions
-            )
+            val response =
+                attestationApiUseCase.postAttestationOptions(
+                    authMessage.origin,
+                    viewModel.userAgent,
+                    attestationOptions,
+                )
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string() ?: "Unknown error"
@@ -114,7 +121,7 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
             Result.Success(
                 pubKeyCredentialCreationOptions = pubKeyCredentialCreationOptions,
                 attestationApiResponse = attestationApiResponse,
-                sessionId = sessionId
+                sessionId = sessionId,
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error during registration preparation", e)
@@ -138,8 +145,10 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
             Log.d(TAG, "Extracted RP ID: $host from origin: $origin")
 
             // Warn about tunneling services
-            if (host.contains("ngrok") || host.contains("localhost") ||
-                host.contains("127.0.0.1") || host.contains(".local")
+            if (host.contains("ngrok") ||
+                host.contains("localhost") ||
+                host.contains("127.0.0.1") ||
+                host.contains(".local")
             ) {
                 Log.w(TAG, "⚠️ Detected tunneling/local service: $host")
                 Log.w(TAG, "FIDO2 may have issues with tunneling services")
@@ -159,44 +168,45 @@ class RegisterPasskeyUseCase(private val attestationApiUseCase: AttestationApiUs
         algoAddress: String,
         rpId: String,
         baseOptions: JSONObject = JSONObject(),
-    ): JSONObject {
-        return baseOptions.apply {
+    ): JSONObject =
+        baseOptions.apply {
             put("username", algoAddress)
             put("displayName", "Liquid Auth User")
 
             // Authenticator selection
-            val authenticatorSelection = JSONObject().apply {
-                put("authenticatorAttachment", "platform")
-                put("userVerification", "required")
-                put("requireResidentKey", false)
-            }
+            val authenticatorSelection =
+                JSONObject().apply {
+                    put("authenticatorAttachment", "platform")
+                    put("userVerification", "required")
+                    put("requireResidentKey", false)
+                }
             put("authenticatorSelection", authenticatorSelection)
 
             // Relying Party
-            val rp = JSONObject().apply {
-                put("id", rpId)
-                put("name", "Liquid Auth")
-            }
+            val rp =
+                JSONObject().apply {
+                    put("id", rpId)
+                    put("name", "Liquid Auth")
+                }
             put("rp", rp)
 
             // Extensions
-            val extensions = JSONObject().apply {
-                put("liquid", true)
-            }
+            val extensions =
+                JSONObject().apply {
+                    put("liquid", true)
+                }
             put("extensions", extensions)
         }
-    }
 
     /**
      * Extract session ID from HTTP response cookies
      */
-    private fun extractSessionFromResponse(response: Response): String? {
-        return try {
+    private fun extractSessionFromResponse(response: Response): String? =
+        try {
             val cookie = Cookie.fromResponse(response)
             cookie?.let { Cookie.getID(it) }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to extract session from response", e)
             null
         }
-    }
 }

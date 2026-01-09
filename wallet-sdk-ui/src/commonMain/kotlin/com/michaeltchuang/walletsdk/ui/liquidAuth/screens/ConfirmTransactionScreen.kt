@@ -51,14 +51,18 @@ fun ConfirmTransferScreen(
     accountBalance: String,
     address: String,
     onTransactionClick: () -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
 ) {
     Box(
         modifier =
             Modifier
-                .background(color = androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f))
-                .fillMaxSize()
-                .padding(16.dp), contentAlignment = Alignment.Center
+                .background(
+                    color =
+                        androidx.compose.ui.graphics.Color.Black
+                            .copy(alpha = 0.75f),
+                ).fillMaxSize()
+                .padding(16.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Column(
             modifier =
@@ -69,13 +73,13 @@ fun ConfirmTransferScreen(
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.End,
             ) {
                 IconButton(onClick = onClose) {
                     Icon(
                         tint = AlgoKitTheme.colors.textMain,
                         imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(Res.string.close_popup)
+                        contentDescription = stringResource(Res.string.close_popup),
                     )
                 }
             }
@@ -85,7 +89,7 @@ fun ConfirmTransferScreen(
                 fee = fee,
                 provider = provider,
                 origin = origin,
-                session = session
+                session = session,
             )
 
             AlgoKitPrimaryButton(
@@ -95,7 +99,6 @@ fun ConfirmTransferScreen(
                     Modifier.fillMaxWidth(),
             )
         }
-
     }
 }
 
@@ -106,7 +109,7 @@ fun ConfirmTransferContentItems(
     fee: String,
     provider: String,
     origin: String,
-    session: String
+    session: String,
 ) {
     Column(
         modifier =
@@ -115,7 +118,6 @@ fun ConfirmTransferContentItems(
                 .fillMaxSize()
                 .padding(bottom = 72.dp),
     ) {
-
         ConfirmTransferAccountLabeledText(
             label = localizedStringResource(Res.string.account),
             value = senderAddress,
@@ -123,21 +125,21 @@ fun ConfirmTransferContentItems(
 
         ConfirmTransferLabeledText(
             label = stringResource(Res.string.origin),
-            value = origin
+            value = origin,
         )
         ConfirmTransferLabeledText(
             label = stringResource(Res.string.provider),
-            value = provider
+            value = provider,
         )
 
         ConfirmTransferLabeledText(
             label = stringResource(Res.string.session),
-            value = session
+            value = session,
         )
 
         ConfirmTransferLabeledText(
             label = localizedStringResource(Res.string.fee),
-            value = fee.toAlgoCurrency()
+            value = fee.toAlgoCurrency(),
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -158,7 +160,6 @@ fun ConfirmTransferContentItems(
         )
     }
 }
-
 
 @Composable
 fun ConfirmTransferAccountLabeledText(
@@ -234,7 +235,7 @@ fun ConfirmTransferScreenPreview() {
             accountBalance = "1000000",
             address = "XWJQV6G54JU62F7ZL7K5HJXH3Z3WZ44Q4ZMZ5W4",
             onTransactionClick = {},
-            onClose = {}, 
+            onClose = {},
         )
     }
 }

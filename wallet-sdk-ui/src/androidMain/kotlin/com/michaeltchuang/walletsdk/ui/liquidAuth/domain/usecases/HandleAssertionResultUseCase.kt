@@ -7,7 +7,6 @@ import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
-import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import io.ktor.http.origin
 import org.json.JSONArray
@@ -26,7 +25,9 @@ import org.json.JSONObject
  *
  * This separates assertion result handling from the Activity
  */
-class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionApiUseCase,) {
+class HandleAssertionResultUseCase(
+    private val assertionApiUseCase: AssertionApiUseCase,
+) {
     companion object {
         private const val TAG = "HandleAssertionResultUseCase"
     }
@@ -38,11 +39,16 @@ class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionAp
         data class Success(
             val credential: PublicKeyCredential,
             val responseBody: String,
-            val prevCounter: Int
+            val prevCounter: Int,
         ) : Result()
 
-        data class Cancelled(val message: String) : Result()
-        data class Error(val message: String) : Result()
+        data class Cancelled(
+            val message: String,
+        ) : Result()
+
+        data class Error(
+            val message: String,
+        ) : Result()
     }
 
     /**
@@ -57,7 +63,7 @@ class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionAp
      */
     suspend operator fun invoke(
         activityResult: ActivityResult,
-        viewModel: AnswerViewModel
+        viewModel: AnswerViewModel,
     ): Result {
         try {
             Log.d(TAG, "========================================")
@@ -91,20 +97,22 @@ class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionAp
             }
 
             // Step 5: Build liquid extension JSON
-            val liquidExtJSON = buildLiquidExtensionJson(
-                accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
-                requestId = viewModel.authMessage.value!!.requestId
-            )
+            val liquidExtJSON =
+                buildLiquidExtensionJson(
+                    accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
+                    requestId = viewModel.authMessage.value!!.requestId,
+                )
 
             Log.d(TAG, "Posting authentication assertion to server...")
 
             // Step 6: Submit to server
-            val serverResponse = assertionApiUseCase.postAssertionResult(
-                viewModel.authMessage.value!!.origin,
-                viewModel.userAgent,
-                credential,
-                liquidExtJSON,
-            )
+            val serverResponse =
+                assertionApiUseCase.postAssertionResult(
+                    viewModel.authMessage.value!!.origin,
+                    viewModel.userAgent,
+                    credential,
+                    liquidExtJSON,
+                )
 
             Log.d(TAG, "========================================")
             Log.d(TAG, "✅ AUTHENTICATION SUCCESSFUL!")
@@ -119,9 +127,8 @@ class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionAp
             return Result.Success(
                 credential = credential,
                 responseBody = responseBody,
-                prevCounter = prevCounter
+                prevCounter = prevCounter,
             )
-
         } catch (e: Exception) {
             Log.e(TAG, "❌ Exception in handleAssertionResult", e)
             Log.e(TAG, "Exception type: ${e.javaClass.name}")
@@ -136,18 +143,20 @@ class HandleAssertionResultUseCase( private val assertionApiUseCase: AssertionAp
      */
     private fun buildLiquidExtensionJson(
         accountType: String,
-        requestId: String
-    ): JSONObject {
-        return JSONObject().apply {
+        requestId: String,
+    ): JSONObject =
+        JSONObject().apply {
             put("type", accountType)
             put("requestId", requestId)
         }
-    }
 
     /**
      * Extract previous counter from server response
      */
-    private fun extractPrevCounter(responseBody: String, credentialId: String?): Int {
+    private fun extractPrevCounter(
+        responseBody: String,
+        credentialId: String?,
+    ): Int {
         return try {
             val json = JSONObject(responseBody)
             val creds = json.get("credentials") as? JSONArray

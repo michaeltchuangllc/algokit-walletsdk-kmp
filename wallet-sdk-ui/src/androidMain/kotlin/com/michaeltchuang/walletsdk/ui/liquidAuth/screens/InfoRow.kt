@@ -7,9 +7,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import com.michaeltchuang.walletsdk.ui.R
 
 /**
@@ -27,12 +27,13 @@ fun InfoRow(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
-            text = when(label) {
-                "Session" -> stringResource(R.string.account_details)
-                "Origin" -> stringResource(R.string.origin)
-                "Request ID" -> stringResource(R.string.request_id)
-                else -> label
-            },
+            text =
+                when (label) {
+                    "Session" -> stringResource(R.string.account_details)
+                    "Origin" -> stringResource(R.string.origin)
+                    "Request ID" -> stringResource(R.string.request_id)
+                    else -> label
+                },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             fontWeight = FontWeight.Medium,

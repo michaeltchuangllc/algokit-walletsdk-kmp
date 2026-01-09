@@ -1,7 +1,7 @@
-package com.michaeltchuang.walletsdk.core.passkeys.data.repository
+package com.michaeltchuang.walletsdk.core.passkeys.domain.repository
 
-import com.michaeltchuang.walletsdk.core.passkeys.model.AddPasskeyArgs
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AddPasskeyArgs
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import kotlinx.coroutines.flow.Flow
 
 interface PasskeyRepository {
@@ -20,7 +20,6 @@ interface PasskeyRepository {
     suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String?
 
     suspend fun removePasskeyByCredentialId(credId: String)
-    
 
     suspend fun removePasskeyByAddress(address: String)
 

@@ -4,9 +4,9 @@ import androidx.credentials.exceptions.NoCredentialException
 import androidx.credentials.provider.BeginGetCredentialRequest
 import androidx.credentials.provider.BeginGetPublicKeyCredentialOption
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetSitePasskeys
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import com.michaeltchuang.walletsdk.ui.passkeys.model.GetPasskeyCredentialEntry
 
 class DefaultPasskeyGetCredentialsEntryBuilder constructor(

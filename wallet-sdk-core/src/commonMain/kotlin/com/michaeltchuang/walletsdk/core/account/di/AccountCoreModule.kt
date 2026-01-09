@@ -90,7 +90,7 @@ val accountCoreModule =
                 get(),
                 get(),
                 get(),
-                get()
+                get(),
             )
         }
         single<AccountCreationHdKeyTypeMapper> { DefaultAccountCreationHdKeyTypeMapperImpl() }

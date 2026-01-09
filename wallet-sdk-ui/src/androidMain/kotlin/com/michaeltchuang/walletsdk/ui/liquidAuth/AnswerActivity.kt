@@ -75,12 +75,14 @@ class AnswerActivity : AppCompatActivity() {
         setupSecurityProviders()
         setupFidoClient()
         viewModel.logAppSignature(this)
-        attestationIntentLauncher = viewModel.getAttestationIntentLauncher(this) { result ->
-            viewModel.handleAttestationResultFromLauncher(result, algoAddress)
-        }
-        assertionIntentLauncher = viewModel.getAssertionIntentLauncher(this) { result ->
-            handleAuthenticatorAssertionResultCallback(result)
-        }
+        attestationIntentLauncher =
+            viewModel.getAttestationIntentLauncher(this) { result ->
+                viewModel.handleAttestationResultFromLauncher(result, algoAddress)
+            }
+        assertionIntentLauncher =
+            viewModel.getAssertionIntentLauncher(this) { result ->
+                handleAuthenticatorAssertionResultCallback(result)
+            }
     }
 
     private fun setupUi() {
@@ -100,15 +102,16 @@ class AnswerActivity : AppCompatActivity() {
                         LaunchedEffect(Unit) {
                             viewModel.fetchAccountBalance()
                         }
-                        val feeState = produceState("") {
-                            value = viewModel.getFee()
-                        }
+                        val feeState =
+                            produceState("") {
+                                value = viewModel.getFee()
+                            }
                         ConfirmTransferScreen(
                             provider = authMessage?.requestId ?: "",
                             origin = authMessage?.origin ?: "",
                             session = session,
                             fee = feeState.value,
-                            accountBalance = accountBalance?:"Loading...",
+                            accountBalance = accountBalance ?: "Loading...",
                             address = algoAddress!!,
                             onTransactionClick = {
                                 scope.launch {
@@ -119,7 +122,7 @@ class AnswerActivity : AppCompatActivity() {
                             onClose = {
                                 viewModel.showConfirmationDialog.value = false
                                 showToast("Transaction signing cancelled")
-                            }
+                            },
                         )
                     }
                 }
@@ -135,7 +138,7 @@ class AnswerActivity : AppCompatActivity() {
                         Log.d(TAG, "✅ Attestation Success - setting up WebRTC")
                         showToast("✅ Registration successful! Credential saved.", Toast.LENGTH_LONG)
                         // Update session to show connected state
-                        setSession("Connected")  // Update session to stop spinner
+                        setSession("Connected") // Update session to stop spinner
                         handleWebRTCSetup(event.credential)
                     }
 
@@ -164,7 +167,7 @@ class AnswerActivity : AppCompatActivity() {
                         Log.d(TAG, "✅ Assertion Success - setting up WebRTC")
                         // Update session to show connected state
                         viewModel.authMessage.value?.let { msg ->
-                            setSession("Connected")  // Update session to stop spinner
+                            setSession("Connected") // Update session to stop spinner
                         }
                         lifecycleScope.launch {
                             handleWebRTCSetup(event.credential)
@@ -175,18 +178,20 @@ class AnswerActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             signChallengeAndLaunchRegistration(
                                 event.pubKeyCredentialCreationOptions,
-                                event.algoAddress
+                                event.algoAddress,
                             )
                         }
                     }
 
                     is AnswerViewModel.ViewEvent.AuthenticationSuccess -> {
                         lifecycleScope.launch {
-                            val pendingIntent = fido2Client!!.getSignPendingIntent(
-                                event.publicKeyCredentialRequestOptions
-                            ).await()
+                            val pendingIntent =
+                                fido2Client!!
+                                    .getSignPendingIntent(
+                                        event.publicKeyCredentialRequestOptions,
+                                    ).await()
                             assertionIntentLauncher.launch(
-                                IntentSenderRequest.Builder(pendingIntent).build()
+                                IntentSenderRequest.Builder(pendingIntent).build(),
                             )
                         }
                     }
@@ -211,7 +216,11 @@ class AnswerActivity : AppCompatActivity() {
     }
 
     private fun setupSecurityProviders() {
-        val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
+        val policy =
+            StrictMode.ThreadPolicy
+                .Builder()
+                .permitAll()
+                .build()
         StrictMode.setThreadPolicy(policy)
         Security.removeProvider("BC")
         Security.insertProviderAt(BouncyCastleProvider(), 0)
@@ -229,7 +238,7 @@ class AnswerActivity : AppCompatActivity() {
         val hasIntent = intent?.data != null
         val hasValidAuthMessage =
             AuthMessageStorage.authMessage.origin.isNotEmpty() &&
-                    AuthMessageStorage.authMessage.requestId.isNotEmpty()
+                AuthMessageStorage.authMessage.requestId.isNotEmpty()
 
         if (!hasIntent && hasValidAuthMessage) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
@@ -249,7 +258,9 @@ class AnswerActivity : AppCompatActivity() {
     private fun hydrateIntents() {
         val isConnected =
             viewModel.signalService.value?.dataChannel is DataChannel &&
-                    viewModel.signalService.value?.dataChannel?.state() === DataChannel.State.OPEN
+                viewModel.signalService.value
+                    ?.dataChannel
+                    ?.state() === DataChannel.State.OPEN
         val isIntent = intent != null
         val isDeepLink = intent?.data != null && intent.data is Uri
         val isDataChannelMessage = intent?.getStringExtra("msg") != null
@@ -353,7 +364,6 @@ class AnswerActivity : AppCompatActivity() {
         params: SignTransactionsParams,
         message: Message,
     ) {
-
         /* viewModel.showTransactionConfirmationDialog(
              context = this@AnswerActivity,
              params = params,
@@ -379,7 +389,7 @@ class AnswerActivity : AppCompatActivity() {
         viewModel.processBiometricTransactionSigning(
             activity = this@AnswerActivity,
             params = params,
-            message = message
+            message = message,
         )
     }
 
@@ -412,7 +422,10 @@ class AnswerActivity : AppCompatActivity() {
     /**
      * Helper to show toast messages
      */
-    private fun showToast(message: String, length: Int = Toast.LENGTH_SHORT) {
+    private fun showToast(
+        message: String,
+        length: Int = Toast.LENGTH_SHORT,
+    ) {
         runOnUiThread {
             Toast.makeText(this@AnswerActivity, message, length).show()
         }
@@ -556,11 +569,11 @@ class AnswerActivity : AppCompatActivity() {
                     viewModel.deleteCredentialByAlgoAddress(algoAddress!!)
                     showToast(
                         "Credential not found on server. Re-registering...",
-                        Toast.LENGTH_LONG
+                        Toast.LENGTH_LONG,
                     )
                     register(msg)
                 }
-            }
+            },
         )
     }
 
@@ -592,16 +605,17 @@ class AnswerActivity : AppCompatActivity() {
         algoAddress: String,
     ) {
         // Sign the challenge with the Algorand account
-        val signature = viewModel.signFido2Challenge(
-            pubKeyCredentialCreationOptions.challenge,
-            algoAddress,
-        )
+        val signature =
+            viewModel.signFido2Challenge(
+                pubKeyCredentialCreationOptions.challenge,
+                algoAddress,
+            )
 
         if (signature == null) {
             Log.e(TAG, "Failed to sign FIDO2 challenge")
             showToast(
                 "Failed to sign challenge: unable to retrieve account credentials",
-                Toast.LENGTH_LONG
+                Toast.LENGTH_LONG,
             )
             return
         }
@@ -617,9 +631,7 @@ class AnswerActivity : AppCompatActivity() {
     /**
      * Launch FIDO2 registration intent
      */
-    private suspend fun launchRegistrationIntent(
-        pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
-    ) {
+    private suspend fun launchRegistrationIntent(pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions) {
         try {
             Log.d(TAG, "========================================")
             Log.d(TAG, "🔐 LAUNCHING PASSKEY REGISTRATION")

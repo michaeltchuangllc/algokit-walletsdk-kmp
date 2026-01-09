@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
  * Use case to encapsulate registration and result handling for assertion ActivityResultLauncher.
  */
 class AssertionIntentLauncherUseCase(
-    private val handleAssertionResultUseCase: HandleAssertionResultUseCase
+    private val handleAssertionResultUseCase: HandleAssertionResultUseCase,
 ) {
     /**
      * Registers a launcher for assertion intent, wiring the provided callback to receive Result type.
@@ -22,19 +22,19 @@ class AssertionIntentLauncherUseCase(
     operator fun invoke(
         activity: AppCompatActivity,
         viewModel: AnswerViewModel,
-        callback: (HandleAssertionResultUseCase.Result) -> Unit
-    ): ActivityResultLauncher<IntentSenderRequest> {
-        return activity.registerForActivityResult(
+        callback: (HandleAssertionResultUseCase.Result) -> Unit,
+    ): ActivityResultLauncher<IntentSenderRequest> =
+        activity.registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult(),
             ActivityResultCallback { activityResult ->
                 CoroutineScope(Dispatchers.Main).launch {
-                    val result = handleAssertionResultUseCase(
-                        activityResult = activityResult,
-                        viewModel = viewModel
-                    )
+                    val result =
+                        handleAssertionResultUseCase(
+                            activityResult = activityResult,
+                            viewModel = viewModel,
+                        )
                     callback(result)
                 }
-            }
+            },
         )
-    }
 }

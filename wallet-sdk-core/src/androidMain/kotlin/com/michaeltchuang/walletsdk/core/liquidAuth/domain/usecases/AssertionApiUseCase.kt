@@ -11,9 +11,17 @@ class AssertionApiUseCase(
 ) {
     private val assertionApi by lazy { AssertionApi(httpClient) }
 
-    suspend fun postAssertionOptions(origin: String, userAgent: String, credentialId: String, liquidExt: Boolean? = true): Response =
-        assertionApi.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
+    suspend fun postAssertionOptions(
+        origin: String,
+        userAgent: String,
+        credentialId: String,
+        liquidExt: Boolean? = true,
+    ): Response = assertionApi.postAssertionOptions(origin, userAgent, credentialId, liquidExt).await()
 
-    suspend fun postAssertionResult(origin: String, userAgent: String, credential: PublicKeyCredential, liquidExt: JSONObject?): Response =
-        assertionApi.postAssertionResult(origin, userAgent, credential, liquidExt).await()
+    suspend fun postAssertionResult(
+        origin: String,
+        userAgent: String,
+        credential: PublicKeyCredential,
+        liquidExt: JSONObject?,
+    ): Response = assertionApi.postAssertionResult(origin, userAgent, credential, liquidExt).await()
 }

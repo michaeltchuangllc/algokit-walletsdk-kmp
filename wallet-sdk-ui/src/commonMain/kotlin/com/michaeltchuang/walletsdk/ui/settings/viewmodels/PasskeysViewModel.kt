@@ -8,7 +8,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
-import com.michaeltchuang.walletsdk.core.passkeys.data.repository.PasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
@@ -22,7 +22,7 @@ import kotlin.math.abs
 class PasskeysViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
-    private val passkeyRepository: PasskeyRepository
+    private val passkeyRepository: PasskeyRepository,
 ) : ViewModel(),
     StateViewModel<PasskeysViewModel.ViewState> by stateDelegate,
     EventViewModel<PasskeysViewModel.ViewEvent> by eventDelegate {

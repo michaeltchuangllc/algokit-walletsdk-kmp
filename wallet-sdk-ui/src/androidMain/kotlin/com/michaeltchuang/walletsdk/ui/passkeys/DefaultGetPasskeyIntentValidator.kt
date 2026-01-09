@@ -6,11 +6,11 @@ import androidx.annotation.RequiresApi
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.provider.PendingIntentHandler
 import androidx.credentials.provider.ProviderGetCredentialRequest
+import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetPasskeyByCredentialId
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetPasskeyIntentValidationResult
-import com.michaeltchuang.walletsdk.core.passkeys.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult
 import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValidator
 import com.michaeltchuang.walletsdk.core.passkeys.validator.GetPasskeyIntentValidator

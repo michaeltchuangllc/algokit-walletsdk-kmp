@@ -100,7 +100,7 @@ fun AccountDetailScreen(
         address = address,
         viewState = viewState,
         onDeleteAccount = { viewModel.deleteAccount(address) },
-        onRenameAccount = { navController.navigate("${AlgoKitScreens.ADDRESS_NAMING_SCREEN.name}?address=${address}") },
+        onRenameAccount = { navController.navigate("${AlgoKitScreens.ADDRESS_NAMING_SCREEN.name}?address=$address") },
         showSnackBar = showSnackBar,
     )
 }

@@ -31,9 +31,19 @@ class ProcessBiometricTransactionSigningUseCase(
      * Result of the biometric transaction signing process
      */
     sealed class Result {
-        data class Success(val resultMessage: ResponseMessage, val signResult: SignTransactionsResult) : Result()
-        data class Cancelled(val reason: String) : Result()
-        data class Error(val message: String, val exception: Exception?) : Result()
+        data class Success(
+            val resultMessage: ResponseMessage,
+            val signResult: SignTransactionsResult,
+        ) : Result()
+
+        data class Cancelled(
+            val reason: String,
+        ) : Result()
+
+        data class Error(
+            val message: String,
+            val exception: Exception?,
+        ) : Result()
     }
 
     /**
@@ -54,7 +64,7 @@ class ProcessBiometricTransactionSigningUseCase(
     ): Result {
         // Step 1: Authenticate with biometrics
         val biometricSuccess = authenticateWithBiometricsUseCase(activity, params)
-        
+
         if (!biometricSuccess) {
             Log.w(TAG, "Biometric authentication cancelled or failed")
             return Result.Cancelled("User cancelled biometric authentication")
@@ -68,7 +78,7 @@ class ProcessBiometricTransactionSigningUseCase(
 
             // Step 2: Process transaction signing through ViewModel
             val resultMessage = viewModel.handleMessage(message) as ResponseMessage
-            
+
             // Step 3: Extract and validate result
             when (val result = resultMessage.result) {
                 is SignTransactionsResult -> {
