@@ -196,7 +196,7 @@ class AnswerViewModel(
             credId = credential.rawId,
         )
         Log.d(TAG, "✅ Credential saved to local storage")
-        eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Registration successful! Credential saved."))
+        eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Credential saved to local storage"))
     }
 
     suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
@@ -390,7 +390,6 @@ class AnswerViewModel(
                         result.signResult,
                     ),
                 )
-                eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Transaction signed successfully!"))
             }
 
             is ProcessBiometricTransactionSigningUseCase.Result.Cancelled ->
@@ -499,13 +498,16 @@ class AnswerViewModel(
                     onCredentialNotFound = { onCredentialNotFound?.invoke() },
                 )
             when (result) {
-                is PrepareAuthenticationUseCase.Result.Success ->
+                is PrepareAuthenticationUseCase.Result.Success ->{
                     eventDelegate.sendEvent(
                         ViewEvent.AuthenticationSuccess(
                             result.publicKeyCredentialRequestOptions,
                             credentialId,
                         ),
                     )
+                    setPasskeyLastUsedTime(credentialId,timeProvider.getCurrentTimeMillis())
+                }
+
 
                 is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
                     eventDelegate.sendEvent(
