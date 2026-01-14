@@ -4,7 +4,7 @@ import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import org.junit.Test
 import java.util.Locale
 
-class ConfirmTransactionScreenScreenshotTest(
+class ConfirmTransactionScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {

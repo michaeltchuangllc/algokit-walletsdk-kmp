@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.junit.Test
 import java.util.Locale
 
-class LiquidAuthScreenScreenshotTest(
+class LiquidAuthScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
