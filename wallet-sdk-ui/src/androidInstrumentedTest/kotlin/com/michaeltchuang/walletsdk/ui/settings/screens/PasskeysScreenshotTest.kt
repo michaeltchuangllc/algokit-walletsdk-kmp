@@ -5,7 +5,7 @@ import com.michaeltchuang.walletsdk.ui.settings.viewmodels.PasskeysViewModel
 import org.junit.Test
 import java.util.Locale
 
-class PasskeysScreenScreenshotTest(
+class PasskeysScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
