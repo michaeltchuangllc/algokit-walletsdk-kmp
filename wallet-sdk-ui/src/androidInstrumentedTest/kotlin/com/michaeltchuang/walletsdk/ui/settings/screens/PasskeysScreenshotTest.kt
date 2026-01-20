@@ -16,17 +16,17 @@ class PasskeysScreenshotTest(
                 listOf(
                     PasskeysViewModel.Passkey(
                         credId = "credId123",
-                        title = "Liquid Auth Passkey",
-                        domain = "liquid-auth.onrender.com",
-                        lastUsed = "Today",
-                        username = "kyle007",
+                        title = "michaeltchuang",
+                        domain = "github.com",
+                        lastUsed = "8 days ago",
+                        username = "michaeltchuang",
                     ),
                     PasskeysViewModel.Passkey(
                         credId = "credId124",
-                        title = "Pera Passkey",
-                        domain = "pera-wallet.com",
+                        title = "6ZTU...RCGY",
+                        domain = "michaeltchuang.ngrok.dev",
                         lastUsed = "5d ago",
-                        username = "ru12345",
+                        username = "6ZTU...RCGY",
                     ),
                 )
             val fakeViewState = PasskeysViewModel.ViewState.Content(passkeys = fakePasskeys)
