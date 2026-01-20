@@ -150,6 +150,12 @@ This project is developed using [Android Studio](https://developer.android.com/s
 
 This command will run all screenshot tests and save the captured screenshots as reference images.
 
+```bash
+./gradlew :wallet-sdk-ui:executeScreenshotTests -Pandroid.testInstrumentationRunnerArguments.class=com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreenshotTest -Precord
+```
+
+This command will run screenshot tests for a single class and save the captured screenshots as reference images.
+
 **Verify Screenshots:**
 
 ```bash
