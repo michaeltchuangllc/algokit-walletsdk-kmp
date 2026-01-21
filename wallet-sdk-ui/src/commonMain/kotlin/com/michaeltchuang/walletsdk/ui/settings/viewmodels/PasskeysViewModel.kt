@@ -13,11 +13,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.datetime.Clock
-import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.math.abs
+import kotlin.time.Clock
+import kotlin.time.Instant
 
 class PasskeysViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
@@ -31,6 +31,7 @@ class PasskeysViewModel(
         stateDelegate.setDefaultState(ViewState.Idle)
     }
 
+    @OptIn(kotlin.time.ExperimentalTime::class)
     fun fetchPasskeys() {
         viewModelScope.launch {
             stateDelegate.updateState {
@@ -87,6 +88,7 @@ class PasskeysViewModel(
     }
 
     companion object {
+        @OptIn(kotlin.time.ExperimentalTime::class)
         private fun formatLastUsedLabel(
             lastUsedEpochMillis: Long?,
             now: Long,

@@ -49,8 +49,8 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64(),
         iosX64(),
-    ).forEach {
-        it.binaries.framework {
+    ).forEach { target ->
+        target.binaries.framework {
             baseName = "composeDemoApp"
             isStatic = true
         }
@@ -64,6 +64,7 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.material)
             implementation(compose.material3)
+            implementation(compose.materialIconsExtended)
             implementation(compose.runtime)
             implementation(project.dependencies.platform(libs.koin.bom))
             implementation(libs.koin.core)
