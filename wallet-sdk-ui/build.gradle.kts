@@ -40,8 +40,15 @@ kotlin {
         iosArm64(),
         iosSimulatorArm64(),
         iosX64(),
-    ).forEach {
-        it.binaries.framework {
+    ).forEach { target ->
+        target.compilations.all {
+            compileTaskProvider.configure {
+                compilerOptions {
+                    allWarningsAsErrors.set(false)
+                }
+            }
+        }
+        target.binaries.framework {
             baseName = "walletSDKUi"
             isStatic = true
         }

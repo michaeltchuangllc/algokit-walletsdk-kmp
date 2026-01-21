@@ -7,7 +7,7 @@
       "location" : "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git",
       "state" : {
         "branch" : "fix/upgrade_sodium",
-        "revision" : "06dd3c369eb311090af7994855a6c62961186fa4"
+        "revision" : "1c30d763ef8f9dd663891456b7d2cd8419d5b724"
       }
     },
     {

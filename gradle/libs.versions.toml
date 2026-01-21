@@ -10,7 +10,6 @@ android-namespace = "com.michaelchuang.walletsdk"
 android-targetSdk = "36"
 android-versionCode-offset = "8"
 androidx-compose-activity = "1.10.1"
-androidx-compose-material3 = "1.3.2"
 appCompat = "1.7.0"
 bcprovJdk18on = "1.83"
 bignum = "0.3.10"
@@ -24,7 +23,7 @@ coil = "3.3.0"
 compose = "1.7.3"
 compose-ui = "1.8.2"
 composeFoundation = "1.8.2"
-composeWebview = "1.9.40"
+composeWebview = "2.0.3"
 compottie = "1.1.2"
 core = "1.6.1"
 coreKtx = "1.16.0"
@@ -52,7 +51,7 @@ koin = "4.0.1-Beta1"
 kotlin = "2.2.21"
 kotlinfixture = "1.2.0"
 kotlinx-coroutines-play-services = "1.7.3"
-kotlinxDatetime = "0.6.2"
+kotlinxDatetime = "0.7.1"
 kotlinxSerialization = "1.7.3"
 kover = "0.9.4"
 ksp = "2.2.21-2.0.4"
@@ -60,7 +59,6 @@ ktlint = "13.0.0"
 ktor = "3.0.0"
 lifecycle = "2.9.0"
 lifecycleExt = "2.2.0"
-material = "1.12.0"
 mavenPublish = "0.34.0"
 mlkit-barcode = "17.0.0"
 mlkit-camera = "16.0.0-beta3"
@@ -94,7 +92,6 @@ xhdwalletapi = "1.2.0"
 androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-compose-activity" }
 browser = { module = "androidx.browser:browser", version.ref = "browser" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
-androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "androidx-compose-material3" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
@@ -203,7 +200,6 @@ agp = { module = "com.android.tools.build:gradle", version.ref = "agp" }
 flexbox = { module = "com.google.android.flexbox:flexbox", version.ref = "flexbox" }
 installreferrer = { group = "com.android.installreferrer", name = "installreferrer", version.ref = "installreferrer" }
 ksp-gradle-plugin = { module = "com.google.devtools.ksp:com.google.devtools.ksp.gradle.plugin", version.ref = "ksp" }
-material = { module = "com.google.android.material:material", version.ref = "material" }
 review-ktx = { module = "com.google.android.play:review-ktx", version.ref = "review" }
 
 # Jetbrain / KMP

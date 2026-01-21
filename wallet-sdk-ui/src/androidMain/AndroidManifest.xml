@@ -4,6 +4,7 @@
 
     <!-- Network and connectivity -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Camera for QR code scanning -->
     <uses-feature
