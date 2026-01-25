@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -16,7 +16,32 @@
 		BA38E79F2E94987500388513 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA38E79E2E94987500388513 /* x-hd-wallet-api */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
+		C2F9B40B2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C2F9B4162F2483D600E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
+		C2F9B4202F2483D600E5B9C2 /* AuthenticationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C2F9B4152F2483D600E5B9C2 /* AuthenticationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		C2F9B4252F2489C500E5B9C2 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
+		C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
+		C2F9B52E2F25E12E00E5B9C2 /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */; };
+		C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C2F9B4082F2480CD00E5B9C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A93A952F29CC810C00F8E227 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C2F9B3FC2F2480CD00E5B9C2;
+			remoteInfo = AutofillCredentialExtension;
+		};
+		C2F9B41E2F2483D600E5B9C2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A93A952F29CC810C00F8E227 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C2F9B4142F2483D600E5B9C2;
+			remoteInfo = AuthenticationService;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		BA38E79C2E94982E00388513 /* Embed Frameworks */ = {
@@ -30,6 +55,18 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C2F9B40A2F2480CD00E5B9C2 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C2F9B4202F2483D600E5B9C2 /* AuthenticationService.appex in Embed Foundation Extensions */,
+				C2F9B40B2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
@@ -39,7 +76,33 @@
 		A93A954129CC810D00F8E227 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BA0473392CF53E5E004A8EBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
+		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
+		C2F9B4102F24819E00E5B9C2 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
+		C2F9B4152F2483D600E5B9C2 /* AuthenticationService.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AuthenticationService.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C2F9B4142F2483D600E5B9C2 /* AuthenticationService */;
+		};
+		C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = C2F9B3FC2F2480CD00E5B9C2 /* AutofillCredentialExtension */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AutofillCredentialExtension; sourceTree = "<group>"; };
+		C2F9B4172F2483D600E5B9C2 /* AuthenticationService */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AuthenticationService; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		A93A953429CC810C00F8E227 /* Frameworks */ = {
@@ -54,6 +117,26 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C2F9B3FA2F2480CD00E5B9C2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
+				C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */,
+				C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */,
+				C2F9B52E2F25E12E00E5B9C2 /* deterministicP256-swift in Frameworks */,
+				C2F9B4252F2489C500E5B9C2 /* MnemonicSwift in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2F9B4122F2483D600E5B9C2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C2F9B4162F2483D600E5B9C2 /* AuthenticationServices.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -62,6 +145,8 @@
 			children = (
 				BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */,
 				A93A953929CC810C00F8E227 /* iosApp */,
+				C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */,
+				C2F9B4172F2483D600E5B9C2 /* AuthenticationService */,
 				A93A953829CC810C00F8E227 /* Products */,
 				C4127409AE3703430489E7BC /* Frameworks */,
 			);
@@ -71,6 +156,8 @@
 			isa = PBXGroup;
 			children = (
 				A93A953729CC810C00F8E227 /* WalletSDK Demo.app */,
+				C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */,
+				C2F9B4152F2483D600E5B9C2 /* AuthenticationService.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -78,6 +165,7 @@
 		A93A953929CC810C00F8E227 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
+				C2F9B4102F24819E00E5B9C2 /* iosApp.entitlements */,
 				BA0473392CF53E5E004A8EBF /* Info.plist */,
 				A93A953A29CC810C00F8E227 /* iosApp.swift */,
 				A93A953E29CC810D00F8E227 /* Assets.xcassets */,
@@ -97,6 +185,7 @@
 		C4127409AE3703430489E7BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -114,15 +203,66 @@
 				A93A953429CC810C00F8E227 /* Frameworks */,
 				A93A953529CC810C00F8E227 /* Resources */,
 				BA38E79C2E94982E00388513 /* Embed Frameworks */,
+				C2F9B40A2F2480CD00E5B9C2 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C2F9B4092F2480CD00E5B9C2 /* PBXTargetDependency */,
+				C2F9B41F2F2483D600E5B9C2 /* PBXTargetDependency */,
 			);
 			name = iosApp;
 			productName = iosApp;
 			productReference = A93A953729CC810C00F8E227 /* WalletSDK Demo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C2F9B3FC2F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C2F9B40F2F2480CD00E5B9C2 /* Build configuration list for PBXNativeTarget "AutofillCredentialExtension" */;
+			buildPhases = (
+				C2F9B3F92F2480CD00E5B9C2 /* Sources */,
+				C2F9B3FA2F2480CD00E5B9C2 /* Frameworks */,
+				C2F9B3FB2F2480CD00E5B9C2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */,
+			);
+			name = AutofillCredentialExtension;
+			packageProductDependencies = (
+				BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */,
+				BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */,
+				C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */,
+				C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */,
+			);
+			productName = AutofillCredentialExtension;
+			productReference = C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		C2F9B4142F2483D600E5B9C2 /* AuthenticationService */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C2F9B4222F2483D600E5B9C2 /* Build configuration list for PBXNativeTarget "AuthenticationService" */;
+			buildPhases = (
+				C2F9B4112F2483D600E5B9C2 /* Sources */,
+				C2F9B4122F2483D600E5B9C2 /* Frameworks */,
+				C2F9B4132F2483D600E5B9C2 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				C2F9B4172F2483D600E5B9C2 /* AuthenticationService */,
+			);
+			name = AuthenticationService;
+			packageProductDependencies = (
+			);
+			productName = AuthenticationService;
+			productReference = C2F9B4152F2483D600E5B9C2 /* AuthenticationService.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -130,11 +270,17 @@
 		A93A952F29CC810C00F8E227 /* Project object */ = {
 			isa = PBXProject;
 			attributes = {
-				LastSwiftUpdateCheck = 1420;
+				LastSwiftUpdateCheck = 1640;
 				LastUpgradeCheck = 1420;
 				TargetAttributes = {
 					A93A953629CC810C00F8E227 = {
 						CreatedOnToolsVersion = 14.2;
+					};
+					C2F9B3FC2F2480CD00E5B9C2 = {
+						CreatedOnToolsVersion = 16.4;
+					};
+					C2F9B4142F2483D600E5B9C2 = {
+						CreatedOnToolsVersion = 16.4;
 					};
 				};
 			};
@@ -151,12 +297,17 @@
 				BA1BD23E2E86CBA2005CAA71 /* XCRemoteSwiftPackageReference "ed25519swift" */,
 				BA1BD2412E86CBB3005CAA71 /* XCRemoteSwiftPackageReference "MnemonicSwift" */,
 				BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */,
+				C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */,
+				C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */,
+				C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
 			);
 			productRefGroup = A93A953829CC810C00F8E227 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
 				A93A953629CC810C00F8E227 /* iosApp */,
+				C2F9B3FC2F2480CD00E5B9C2 /* AutofillCredentialExtension */,
+				C2F9B4142F2483D600E5B9C2 /* AuthenticationService */,
 			);
 		};
 /* End PBXProject section */
@@ -168,6 +319,20 @@
 			files = (
 				A93A954229CC810D00F8E227 /* Preview Assets.xcassets in Resources */,
 				A93A953F29CC810D00F8E227 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2F9B3FB2F2480CD00E5B9C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2F9B4132F2483D600E5B9C2 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,14 +348,14 @@
 			);
 			name = "Compile Kotlin";
 			outputPaths = (
+				"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/composeDemoApp.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n";
 		};
 		A9D80A052AAB5CDE006C8738 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
@@ -201,10 +366,11 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"$(DERIVED_FILE_DIR)/composeDemoApp-xcode-run-script.stamp",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n\n# Mark script output for dependency analysis\ntouch \"$DERIVED_FILE_DIR/composeDemoApp-xcode-run-script.stamp\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -217,7 +383,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C2F9B3F92F2480CD00E5B9C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C2F9B4112F2483D600E5B9C2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C2F9B4092F2480CD00E5B9C2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C2F9B3FC2F2480CD00E5B9C2 /* AutofillCredentialExtension */;
+			targetProxy = C2F9B4082F2480CD00E5B9C2 /* PBXContainerItemProxy */;
+		};
+		C2F9B41F2F2483D600E5B9C2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C2F9B4142F2483D600E5B9C2 /* AuthenticationService */;
+			targetProxy = C2F9B41E2F2483D600E5B9C2 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A93A954329CC810D00F8E227 /* Debug */ = {
@@ -343,6 +536,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 19;
@@ -385,6 +579,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 19;
@@ -423,6 +618,136 @@
 			};
 			name = Release;
 		};
+		C2F9B40C2F2480CD00E5B9C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = AutofillCredentialExtension/AutofillCredentialExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8W2L568H7X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AutofillCredentialExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AutofillCredentialExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AutofillCredentialExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C2F9B40D2F2480CD00E5B9C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_ENTITLEMENTS = AutofillCredentialExtension/AutofillCredentialExtension.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8W2L568H7X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AutofillCredentialExtension/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AutofillCredentialExtension;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AutofillCredentialExtension;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		C2F9B4232F2483D600E5B9C2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 8W2L568H7X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuthenticationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AuthenticationService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AuthenticationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		C2F9B4242F2483D600E5B9C2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 8W2L568H7X;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = AuthenticationService/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = AuthenticationService;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AuthenticationService;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -440,6 +765,24 @@
 			buildConfigurations = (
 				A93A954629CC810D00F8E227 /* Debug */,
 				A93A954729CC810D00F8E227 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C2F9B40F2F2480CD00E5B9C2 /* Build configuration list for PBXNativeTarget "AutofillCredentialExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C2F9B40C2F2480CD00E5B9C2 /* Debug */,
+				C2F9B40D2F2480CD00E5B9C2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C2F9B4222F2483D600E5B9C2 /* Build configuration list for PBXNativeTarget "AuthenticationService" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C2F9B4232F2483D600E5B9C2 /* Debug */,
+				C2F9B4242F2483D600E5B9C2 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -475,7 +818,31 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
 			requirement = {
-				branch = fix/upgrade_sodium;
+				branch = main;
+				kind = branch;
+			};
+		};
+		C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/norio-nomura/Base32";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.0;
+			};
+		};
+		C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/algorandfoundation/deterministic-P256-swift/";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
+		C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/valpackett/SwiftCBOR";
+			requirement = {
+				branch = master;
 				kind = branch;
 			};
 		};
@@ -501,6 +868,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
 			productName = "x-hd-wallet-api";
+		};
+		C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */;
+			productName = "deterministicP256-swift";
+		};
+		C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
+			productName = SwiftCBOR;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
