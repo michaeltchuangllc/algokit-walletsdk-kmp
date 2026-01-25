@@ -41,6 +41,11 @@ class PasskeyManager {
         return try await passkeyRepository.getPasskey(credId: credentialId)
     }
     
+    func updateLastUsedTime(credentialId: String) async throws {
+        let currentTimeMs = Int64(Date().timeIntervalSince1970 * 1000)
+        try await passkeyRepository.setPasskeyLastUsedTime(credId: credentialId, lastUsed: currentTimeMs)
+    }
+
     func getAllPasskeys() async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
         // Get all passkeys from the repository
         // Note: You may need to convert Flow to async/await or use Combine

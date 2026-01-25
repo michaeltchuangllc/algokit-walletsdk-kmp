@@ -18,18 +18,19 @@ fun MainViewController() = ComposeUIViewController { App() }
 /**
  * Set the app group directory for sharing data between app and extensions.
  * MUST be called BEFORE initializeKoin() to take effect.
- * 
+ *
  * @param directory The path to the app group's shared container directory
  */
 fun setAppGroupDirectory(directory: String) {
     // Forward to wallet-sdk-core
-    com.michaeltchuang.walletsdk.core.foundation.di.setSharedAppGroupDirectory(directory)
+    com.michaeltchuang.walletsdk.core.foundation.di
+        .setSharedAppGroupDirectory(directory)
 }
 
 /**
  * Initialize Koin for iOS app extensions (e.g., AutofillCredentialExtension).
  * Call this function before accessing any Koin dependencies from Swift.
- * 
+ *
  * Note: This should only be called once per process. If Koin is already started,
  * this will stop and restart it.
  */
@@ -40,7 +41,7 @@ fun initializeKoin() {
     } catch (e: Exception) {
         // Koin wasn't started, ignore
     }
-    
+
     startKoin(initKoinConfig)
 }
 
@@ -48,14 +49,10 @@ fun initializeKoin() {
  * Get the Koin instance for dependency injection.
  * Call initializeKoin() first before using this.
  */
-fun getKoin(): Koin {
-    return KoinPlatform.getKoin()
-}
+fun getKoin(): Koin = KoinPlatform.getKoin()
 
 /**
  * Get PasskeyRepository instance from Koin.
  * Call initializeKoin() first before using this.
  */
-fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository {
-    return KoinPlatform.getKoin().get()
-}
+fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository = KoinPlatform.getKoin().get()

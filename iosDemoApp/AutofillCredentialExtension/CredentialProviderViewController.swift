@@ -124,6 +124,14 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                 credentialID: credentialID
             )
             
+            // Update last used timestamp
+            do {
+                try await passkeyManager.updateLastUsedTime(credentialId: credentialIDString)
+            } catch {
+                // Non-fatal: log but continue with authentication
+                NSLog("Failed to update lastUsed time: \(error)")
+            }
+
             await extensionContext.completeAssertionRequest(using: credential)
         } catch {
             NSLog("Failed to handle credential list request: \(error)")
