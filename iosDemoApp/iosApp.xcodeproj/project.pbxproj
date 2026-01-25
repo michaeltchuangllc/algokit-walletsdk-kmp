@@ -10,6 +10,9 @@
 		A93A953B29CC810C00F8E227 /* iosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A93A953A29CC810C00F8E227 /* iosApp.swift */; };
 		A93A953F29CC810D00F8E227 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A953E29CC810D00F8E227 /* Assets.xcassets */; };
 		A93A954229CC810D00F8E227 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A954129CC810D00F8E227 /* Preview Assets.xcassets */; };
+		BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E22F25E99000A6DC27 /* SwiftCBOR */; };
+		BA1017E62F25E9F400A6DC27 /* LiquidAuthSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E52F25E9F400A6DC27 /* LiquidAuthSDK */; };
+		BA1017E82F25EA3500A6DC27 /* LiquidAuthSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */; };
 		BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
 		BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23F2E86CBA2005CAA71 /* ed25519swift */; };
 		BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
@@ -111,9 +114,11 @@
 			files = (
 				BA38E79F2E94987500388513 /* x-hd-wallet-api in Frameworks */,
 				BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */,
+				BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */,
 				BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */,
 				BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */,
 				BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */,
+				BA1017E62F25E9F400A6DC27 /* LiquidAuthSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -126,6 +131,7 @@
 				C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */,
 				C2F9B52E2F25E12E00E5B9C2 /* deterministicP256-swift in Frameworks */,
 				C2F9B4252F2489C500E5B9C2 /* MnemonicSwift in Frameworks */,
+				BA1017E82F25EA3500A6DC27 /* LiquidAuthSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,6 +243,7 @@
 				BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */,
 				C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */,
 				C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */,
+				BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */,
 			);
 			productName = AutofillCredentialExtension;
 			productReference = C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */;
@@ -300,6 +307,7 @@
 				C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */,
 				C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */,
 				C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
+				BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */,
 			);
 			productRefGroup = A93A953829CC810C00F8E227 /* Products */;
 			projectDirPath = "";
@@ -790,6 +798,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/algorandfoundation/liquid-auth-ios/";
+			requirement = {
+				branch = main;
+				kind = branch;
+			};
+		};
 		BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
@@ -818,7 +834,7 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
 			requirement = {
-				branch = main;
+				branch = fix/upgrade_sodium;
 				kind = branch;
 			};
 		};
@@ -842,13 +858,28 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/valpackett/SwiftCBOR";
 			requirement = {
-				branch = master;
-				kind = branch;
+				kind = revision;
+				revision = ea5ece79b0efde241495bfaa74eccceeffc382bc;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		BA1017E22F25E99000A6DC27 /* SwiftCBOR */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
+			productName = SwiftCBOR;
+		};
+		BA1017E52F25E9F400A6DC27 /* LiquidAuthSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */;
+			productName = LiquidAuthSDK;
+		};
+		BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */;
+			productName = LiquidAuthSDK;
+		};
 		BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
