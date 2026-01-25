@@ -1,12 +1,6 @@
-//
-//  CredentialProviderViewController.swift
-//  AutofillCredentialExtension
-//
-//  Created by Mithilesh on 24/01/26.
-//
-
 import AuthenticationServices
 import Base32
+import composeDemoApp
 import CryptoKit
 import deterministicP256_swift
 import LiquidAuthSDK
@@ -25,9 +19,14 @@ import x_hd_wallet_api
  *
  * It uses LiquidAuthSDK for shared WebAuthn utilities like AuthenticatorData,
  * but doesn't use the custom LiquidAuth signaling protocol (no QR codes, no P2P).
+ *
+ * Passkeys are stored in the shared database via PasskeyManager (using Koin DI).
  */
 
 class CredentialProviderViewController: ASCredentialProviderViewController {
+    // PasskeyManager for database operations
+    private let passkeyManager = PasskeyManager()
+    
     // Registration flow
     override func prepareInterface(forPasskeyRegistration request: ASCredentialRequest) {
         if #available(iOSApplicationExtension 17.0, *) {
@@ -43,12 +42,15 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                 }
                 do {
                     let credential = try await createRegistrationCredential(for: passkeyRequest)
-                    // Save userHandle for this RP
-                    if let passkeyIdentity = passkeyRequest.credentialIdentity as? ASPasskeyCredentialIdentity,
-                       let userHandle = String(data: passkeyIdentity.userHandle, encoding: .utf8)
-                    {
-                        saveRegisteredUserHandle(userHandle, forRP: passkeyIdentity.relyingPartyIdentifier)
+                    
+                    // Save passkey to database
+                    if let passkeyIdentity = passkeyRequest.credentialIdentity as? ASPasskeyCredentialIdentity {
+                        try await savePasskeyToDatabase(
+                            passkeyIdentity: passkeyIdentity,
+                            credentialID: credential.credentialID
+                        )
                     }
+                    
                     await extensionContext.completeRegistrationRequest(using: credential)
                 } catch let error as NSError {
                     if error.domain == "Credential already exists for this site" {
@@ -66,55 +68,70 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
         for _: [ASCredentialServiceIdentifier],
         requestParameters: ASPasskeyCredentialRequestParameters
     ) {
-//        var credentials: [ASPasskeyAssertionCredential] = []
-//
-//        // Use relyingPartyIdentifier from requestParameters
-//        let origin = requestParameters.relyingPartyIdentifier
-//        if let walletInfo = try? getWalletInfo(origin: origin) {
-//            let credentialID = Data(Utility.hashSHA256(walletInfo.p256KeyPair.publicKey.rawRepresentation))
-//            let userHandleData = Data(walletInfo.address.utf8)
-//            let clientDataHash = requestParameters.clientDataHash
-//
-//            // Authenticator data
-//            let rpIdHash = Utility.hashSHA256(origin.data(using: .utf8)!)
-//            let authenticatorData = LiquidAuthSDK.AuthenticatorData.assertion(
-//                rpIdHash: rpIdHash,
-//                userPresent: true,
-//                userVerified: true,
-//                backupEligible: true,
-//                backupState: true,
-//                signCount: 0
-//            ).toData()
-//
-//            // Signature: sign authenticatorData || clientDataHash
-//            let dataToSign = authenticatorData + clientDataHash
-//            let signature: Data
-//            do {
-//                signature = try walletInfo.p256KeyPair.signature(for: dataToSign).derRepresentation
-//            } catch {
-//                NSLog("Failed to sign assertion: \(error)")
-//                signature = Data()
-//            }
-//
-//            let credential = ASPasskeyAssertionCredential(
-//                userHandle: userHandleData,
-//                relyingParty: origin,
-//                signature: signature,
-//                clientDataHash: clientDataHash,
-//                authenticatorData: authenticatorData,
-//                credentialID: credentialID
-//            )
-//            credentials.append(credential)
-//        }
-//
-//        // Only 0 or 1 credential is ever present; auto-select if available
-//        Task { [weak self] in
-//            if let credential = credentials.first {
-//                await self?.extensionContext.completeAssertionRequest(using: credential)
-//            } else {
-//                self?.extensionContext.cancelRequest(withError: NSError(domain: ASExtensionErrorDomain, code: ASExtensionError.Code.userCanceled.rawValue))
-//            }
-//        }
+        Task {
+            await handleCredentialListRequest(requestParameters: requestParameters)
+        }
+    }
+    
+    private func handleCredentialListRequest(requestParameters: ASPasskeyCredentialRequestParameters) async {
+        let origin = requestParameters.relyingPartyIdentifier
+        
+        do {
+            // Check if we have a passkey registered for this site in the database
+            // For now, we'll generate the credential as before, but this could be enhanced
+            // to query the database for all passkeys for this origin
+            
+            let walletInfo = try getWalletInfo(origin: origin)
+            let credentialID = Data(Utility.hashSHA256(walletInfo.p256KeyPair.publicKey.rawRepresentation))
+            
+            // Check if this credential exists in database (optional verification)
+            let credentialIDString = credentialID.base64EncodedString()
+            let existsInDB = try await checkPasskeyExists(credentialID: credentialIDString)
+            
+            // Only provide credential if it exists in database
+            guard existsInDB else {
+                extensionContext.cancelRequest(withError: NSError(
+                    domain: ASExtensionErrorDomain,
+                    code: ASExtensionError.Code.credentialIdentityNotFound.rawValue
+                ))
+                return
+            }
+            
+            let userHandleData = Data(walletInfo.address.utf8)
+            let clientDataHash = requestParameters.clientDataHash
+
+            // Authenticator data
+            let rpIdHash = Utility.hashSHA256(origin.data(using: .utf8)!)
+            let authenticatorData = LiquidAuthSDK.AuthenticatorData.assertion(
+                rpIdHash: rpIdHash,
+                userPresent: true,
+                userVerified: true,
+                backupEligible: true,
+                backupState: true,
+                signCount: 0
+            ).toData()
+
+            // Signature: sign authenticatorData || clientDataHash
+            let dataToSign = authenticatorData + clientDataHash
+            let signature = try walletInfo.p256KeyPair.signature(for: dataToSign).derRepresentation
+
+            let credential = ASPasskeyAssertionCredential(
+                userHandle: userHandleData,
+                relyingParty: origin,
+                signature: signature,
+                clientDataHash: clientDataHash,
+                authenticatorData: authenticatorData,
+                credentialID: credentialID
+            )
+            
+            await extensionContext.completeAssertionRequest(using: credential)
+        } catch {
+            NSLog("Failed to handle credential list request: \(error)")
+            extensionContext.cancelRequest(withError: NSError(
+                domain: ASExtensionErrorDomain,
+                code: ASExtensionError.Code.failed.rawValue
+            ))
+        }
     }
 
     func presentUserConsentAlert(title: String, message: String) async -> Bool {
@@ -147,13 +164,21 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
         let credentialID = Data([UInt8](Utility.hashSHA256(pubkey)))
 
         // --- ExcludeCredentials check ---
+        // Check if credential already exists in database
+        let credentialIDString = credentialID.base64EncodedString()
+        if try await checkPasskeyExists(credentialID: credentialIDString) {
+            let shouldCancel = await presentCredentialExistsAlert()
+            if shouldCancel {
+                throw NSError(domain: "Credential already exists for this site", code: -2)
+            }
+        }
+        
+        // Also check excludedCredentials from the request
         if let excludedCredentials = request.excludedCredentials {
             for excluded in excludedCredentials {
                 if excluded.credentialID == credentialID {
-                    // Optionally show a UI to the user here
                     let shouldCancel = await presentCredentialExistsAlert()
                     if shouldCancel {
-                        // Throw error as before; delay is handled in prepareInterface
                         throw NSError(domain: "Credential already exists for this site", code: -2)
                     }
                 }
@@ -181,12 +206,14 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
             extensions: nil
         ).toData()
 
-        let attObj: [String: CBOR] = [
-            "attStmt": CBOR.map([:]),
-            "authData": CBOR.byteString([UInt8](authData)),
-            "fmt": CBOR.utf8String("none"),
-        ]
-        let cborEncoded = try CBOR.encode(attObj)
+        let attObj: [CBOR: CBOR] = [
+                    .utf8String("attStmt"): .map([:]),
+                    .utf8String("authData"): .byteString([UInt8](authData)),
+                    .utf8String("fmt"): .utf8String("none"),
+                ]
+
+        let cborObject = CBOR.map(attObj)
+        let cborEncoded = cborObject.encode()
         let attestationObject = Data(cborEncoded)
 
         return ASPasskeyRegistrationCredential(
@@ -240,14 +267,33 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
         }
     }
 
-    private func saveRegisteredUserHandle(_ userHandle: String, forRP rp: String) {
-        var dict = UserDefaults.standard.dictionary(forKey: "registeredUserHandles") as? [String: [String]] ?? [:]
-        var handles = dict[rp] ?? []
-        if !handles.contains(userHandle) {
-            handles.append(userHandle)
-            dict[rp] = handles
-            UserDefaults.standard.set(dict, forKey: "registeredUserHandles")
-        }
+    private func savePasskeyToDatabase(
+        passkeyIdentity: ASPasskeyCredentialIdentity,
+        credentialID: Data
+    ) async throws {
+        let origin = passkeyIdentity.relyingPartyIdentifier
+        let walletInfo = try getWalletInfo(origin: origin)
+        
+        // Extract user info
+        let username = passkeyIdentity.user
+        let displayName = passkeyIdentity.user // Use username as displayName if not available separately
+        let userHandle = String(data: passkeyIdentity.userHandle, encoding: .utf8) ?? walletInfo.address
+        
+        // Save to database via PasskeyManager
+        try await passkeyManager.savePasskey(
+            siteUrl: origin,
+            siteName: origin, // Use origin as siteName (could be enhanced to parse domain)
+            algoAddress: walletInfo.address,
+            uid: userHandle,
+            username: username,
+            displayName: displayName,
+            credentialId: credentialID.base64EncodedString()
+        )
+    }
+    
+    private func checkPasskeyExists(credentialID: String) async throws -> Bool {
+        let passkey = try await passkeyManager.getPasskey(credentialId: credentialID)
+        return passkey != nil
     }
 }
 
