@@ -48,6 +48,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdSeedUs
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.CreateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddressesUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24WalletSummaries
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdEntropy
@@ -160,36 +162,5 @@ val localAccountsModule =
         single { CreateWatchAccountUseCase(get(), get(), get()) }
         single { DeleteNoAuthAccountUseCase(get()) }
         single { ValidateWatchAccountUseCase(get()) }
-
-        // GetAllHdSeedFirstAddresses - queries all HD seeds and their first (index 0) addresses
-        factory {
-            com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses {
-                val hdSeedRepository = get<HdSeedRepository>()
-                val hdKeyRepository = get<HdKeyAccountRepository>()
-                val falconRepository = get<Falcon24AccountRepository>()
-
-                // Get all HD seeds
-                val allSeeds = hdSeedRepository.getAllHdSeeds()
-
-                // For each seed, find the account with index 0 (first address)
-                allSeeds.mapNotNull { seed ->
-                    // Get all accounts for this seed and find the one with account index 0
-                    // val allAccounts = hdKeyRepository.getAll()
-                    val falcon24Account = falconRepository.getAll()
-                    // val all = allAccounts + falcon24Account
-                    val firstAccount =
-                        falcon24Account.firstOrNull { account ->
-                            account.seedId == seed.seedId // && account == 0
-                        }
-
-                    // If we found the first address, return it
-                    firstAccount?.let {
-                        com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstAddress(
-                            seedId = seed.seedId,
-                            firstAddress = it.algoAddress,
-                        )
-                    }
-                }
-            }
-        }
+        single<GetAllHdSeedFirstAddresses> { GetAllHdSeedFirstAddressesUseCase(get(), get(), get()) }
     }
