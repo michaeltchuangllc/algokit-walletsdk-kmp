@@ -8,5 +8,10 @@
 	<string>WalletSDK Demo</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Allow checking if external FIDO apps are installed -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fido</string>
+	</array>
 </dict>
 </plist>
