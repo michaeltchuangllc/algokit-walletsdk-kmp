@@ -19,7 +19,7 @@ fun setSharedAppGroupDirectory(directory: String) {
 
 internal actual fun platformKoinModule(): Module =
     module {
-        single<AlgoKitDatabase> { 
+        single<AlgoKitDatabase> {
             createAlgoKitDatabase(customDirectory = sharedAppGroupDirectory).build()
         }
         includes(passkeyModule)

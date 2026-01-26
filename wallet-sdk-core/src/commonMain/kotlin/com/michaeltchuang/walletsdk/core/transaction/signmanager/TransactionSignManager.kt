@@ -24,7 +24,9 @@ import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult
-import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.*
+import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.Api
+import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.Defined
+import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.MinBalanceError
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionSignData
 import com.michaeltchuang.walletsdk.core.utils.TransactionSignSigningHelper
 import com.michaeltchuang.walletsdk.core.utils.flatten
@@ -160,9 +162,9 @@ open class TransactionSignManager(
 
     /* suspend fun createArc59SendTransactionList(transactionData: TransactionSignData): List<Arc59TransactionData>? {
          return transactionData.createArc59SendTransactions()
-     }*/
+     }
 
-    /*   suspend fun getReceiverMinBalanceFee(transactionData: TransactionSignData): Long? {
+       suspend fun getReceiverMinBalanceFee(transactionData: TransactionSignData): Long? {
            val transactionParams = getTransactionParams(transactionData) ?: return null
            this@TransactionSignManager.transactionParams = transactionParams
 
@@ -507,17 +509,16 @@ open class TransactionSignManager(
                 searchForDevice(bluetoothAddress)
             }
         }
-     */
 
-    /*    private fun searchForDevice(ledgerAddress: String) {
+        private fun searchForDevice(ledgerAddress: String) {
             ledgerBleSearchManager.scan(
                 newScanCallback = scanCallback,
                 filteredAddress = ledgerAddress,
                 coroutineScope = currentScope
             )
-        }*/
+        }
 
-    /*  // this also stops LedgerBleOperationManager.
+      // this also stops LedgerBleOperationManager.
       fun manualStopAllResources() {
           this.stopAllResources()
           currentScope.coroutineContext.cancelChildren()

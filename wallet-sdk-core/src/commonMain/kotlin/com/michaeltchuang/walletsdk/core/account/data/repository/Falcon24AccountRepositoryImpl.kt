@@ -36,8 +36,8 @@ internal class Falcon24AccountRepositoryImpl(
 
     override suspend fun getAll(): List<Falcon24> =
         withContext(coroutineDispatcher) {
-            val Falcon24Entities = falcon24Dao.getAll()
-            Falcon24Entities.map { falcon24Mapper(it) }
+            val falcon24Entities = falcon24Dao.getAll()
+            falcon24Entities.map { falcon24Mapper(it) }
         }
 
     override suspend fun getAllAddresses(): List<String> =
@@ -56,8 +56,8 @@ internal class Falcon24AccountRepositoryImpl(
         privateKey: ByteArray,
     ) {
         withContext(coroutineDispatcher) {
-            val Falcon24Entity = falcon24EntityMapper(account, seedId, privateKey)
-            falcon24Dao.insert(Falcon24Entity)
+            val falcon24Entity = falcon24EntityMapper(account, seedId, privateKey)
+            falcon24Dao.insert(falcon24Entity)
         }
     }
 

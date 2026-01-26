@@ -22,10 +22,10 @@ internal fun createAlgoKitDatabase(customDirectory: String? = null): RoomDatabas
     if (customDirectory != null) {
         migrateOldDatabaseIfNeeded(customDirectory)
     }
-    
+
     val baseDir = customDirectory ?: documentDirectory()
     val dbFilePath = "$baseDir/${AlgoKitDatabase.DATABASE_NAME}.db"
-    
+
     // Debug logging
     println("🗄️ Database location: $dbFilePath")
     if (customDirectory != null) {
@@ -33,7 +33,7 @@ internal fun createAlgoKitDatabase(customDirectory: String? = null): RoomDatabas
     } else {
         println("⚠️ Using default Documents directory (App Group not configured)")
     }
-    
+
     return Room
         .databaseBuilder<AlgoKitDatabase>(
             name = dbFilePath,
@@ -50,7 +50,7 @@ private fun migrateOldDatabaseIfNeeded(newDirectory: String) {
     val fileManager = NSFileManager.defaultManager
     val oldDbPath = "${documentDirectory()}/${AlgoKitDatabase.DATABASE_NAME}.db"
     val newDbPath = "$newDirectory/${AlgoKitDatabase.DATABASE_NAME}.db"
-    
+
     println("📦 Migration check:")
     println("  Old path: $oldDbPath")
     println("  New path: $newDbPath")
@@ -60,7 +60,7 @@ private fun migrateOldDatabaseIfNeeded(newDirectory: String) {
         println("  ✅ Database already exists at App Group location (no migration needed)")
         return
     }
-    
+
     // Check if database exists at old location (needs migration)
     if (!fileManager.fileExistsAtPath(oldDbPath)) {
         println("  ℹ️ No old database found (fresh install)")
@@ -74,11 +74,12 @@ private fun migrateOldDatabaseIfNeeded(newDirectory: String) {
         // Copy main database file
         memScoped {
             val errorPtr = alloc<ObjCObjectVar<NSError?>>()
-            val success = fileManager.copyItemAtPath(
-                oldDbPath,
-                toPath = newDbPath,
-                error = errorPtr.ptr
-            )
+            val success =
+                fileManager.copyItemAtPath(
+                    oldDbPath,
+                    toPath = newDbPath,
+                    error = errorPtr.ptr,
+                )
 
             if (success) {
                 println("  ✅ Main database file migrated successfully")
@@ -89,11 +90,12 @@ private fun migrateOldDatabaseIfNeeded(newDirectory: String) {
                     val newFile = "$newDbPath$suffix"
                     if (fileManager.fileExistsAtPath(oldFile)) {
                         val walErrorPtr = alloc<ObjCObjectVar<NSError?>>()
-                        val walSuccess = fileManager.copyItemAtPath(
-                            oldFile, 
-                            toPath = newFile, 
-                            error = walErrorPtr.ptr
-                        )
+                        val walSuccess =
+                            fileManager.copyItemAtPath(
+                                oldFile,
+                                toPath = newFile,
+                                error = walErrorPtr.ptr,
+                            )
                         if (walSuccess) {
                             println("  ✅ Migrated $suffix file")
                         } else {

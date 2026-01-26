@@ -48,9 +48,11 @@ allprojects {
     afterEvaluate {
         tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintCheckTask> {
             exclude("**/generated/**")
+            exclude("**/build/**")
         }
         tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.KtLintFormatTask> {
             exclude("**/generated/**")
+            exclude("**/build/**")
         }
     }
 }

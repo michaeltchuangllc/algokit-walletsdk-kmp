@@ -248,6 +248,19 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+configure<org.jlleitschuh.gradle.ktlint.KtlintExtension> {
+    filter {
+        exclude("**/generated/**")
+        exclude("**/build/**")
+    }
+}
+
+tasks.withType<org.jlleitschuh.gradle.ktlint.tasks.BaseKtLintCheckTask>().configureEach {
+    exclude {
+        it.file.path.contains("generated") || it.file.path.contains("build/")
+    }
+}
+
 configurations.all {
     resolutionStrategy {
         // Force a single version of BouncyCastle to avoid conflicts

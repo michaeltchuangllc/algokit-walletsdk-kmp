@@ -24,7 +24,7 @@ actual fun launchIntentWithUri(uri: String) {
                         } else {
                             println("❌ iOS: Failed to open URL: $uri")
                         }
-                    }
+                    },
                 )
             } else {
                 println("⚠️ iOS: Cannot open URL (app needs to register URL scheme in Info.plist): $uri")

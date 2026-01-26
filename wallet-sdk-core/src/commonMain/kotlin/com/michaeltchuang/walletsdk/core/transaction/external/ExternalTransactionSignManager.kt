@@ -34,7 +34,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
         MutableStateFlow<ExternalTransactionSignResult>(
             ExternalTransactionSignResult.NotInitialized,
         )
-    protected val signResultFlow: StateFlow<ExternalTransactionSignResult>
+    val signResultFlow: StateFlow<ExternalTransactionSignResult>
         get() = _signResultFlow
 
     protected var transaction: List<TRANSACTION>? = null

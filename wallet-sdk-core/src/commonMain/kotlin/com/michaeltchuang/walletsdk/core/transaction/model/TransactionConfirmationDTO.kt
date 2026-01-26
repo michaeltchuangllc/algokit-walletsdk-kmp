@@ -23,24 +23,6 @@ data class TransactionConfirmationDTO(
      */
     var confirmedRound: Long?,
     /**
-     * (gd) Global state key/value changes for the application being executed by this
-     * transaction.
-     */
-    // No need for now, if we need, we need to create our domain model for EvalDeltaKeyValue
-    // var globalStateDelta: List<EvalDeltaKeyValue>?,
-    /**
-     * Inner transactions produced by application execution.
-     */
-    // No need for now, if we need, we need to create our domain model for PendingTransactionResponse
-    // which is TransactionConfirmationDTO
-    // var innerTxns: List<PendingTransactionResponse>?,
-    /**
-     * (ld) Local state key/value changes for the application being executed by this
-     * transaction.
-     */
-    // No need for now, if we need, we need to create our domain model for AccountStateDelta
-    // var localStateDelta: List<AccountStateDelta>?,
-    /**
      * (lg) Logs for the application being executed by this transaction.
      */
     var logs: List<ByteArray>?,
@@ -59,9 +41,4 @@ data class TransactionConfirmationDTO(
      * Rewards in microalgos applied to the sender account.
      */
     var senderRewards: Long?,
-    /**
-     * The raw signed transaction.
-     */
-    // No need for now, if we need, we need to create our domain model for SignedTransaction
-    // var txn: SignedTransaction?,
 )
