@@ -17,7 +17,7 @@
 		BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23F2E86CBA2005CAA71 /* ed25519swift */; };
 		BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
 		BA38E79F2E94987500388513 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA38E79E2E94987500388513 /* x-hd-wallet-api */; };
-		BAB26D212F26CDF5003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */; };
+		BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* composeDemoApp.framework */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
@@ -80,6 +80,7 @@
 		A93A954129CC810D00F8E227 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BA0473392CF53E5E004A8EBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphoneos18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
+		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
 		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
 		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
@@ -128,7 +129,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BAB26D212F26CDF5003B0073 /* composeDemoApp.framework in Frameworks */,
+				BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */,
 				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
 				C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */,
 				C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */,
@@ -195,6 +196,7 @@
 			isa = PBXGroup;
 			children = (
 				BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */,
+				BAB26D222F28348C003B0073 /* composeDemoApp.framework */,
 				C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */,
 			);
 			name = Frameworks;
@@ -207,11 +209,10 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A93A954529CC810D00F8E227 /* Build configuration list for PBXNativeTarget "iosApp" */;
 			buildPhases = (
-				6C43C7D714A85EE639B80709 /* Compile Kotlin */,
-				A9D80A052AAB5CDE006C8738 /* ShellScript */,
 				A93A953329CC810C00F8E227 /* Sources */,
 				A93A953429CC810C00F8E227 /* Frameworks */,
 				A93A953529CC810C00F8E227 /* Resources */,
+				C2F9B5322F28360000E5B9C2 /* Copy Compose Resources */,
 				BA38E79C2E94982E00388513 /* Embed Frameworks */,
 				C2F9B40A2F2480CD00E5B9C2 /* Embed Foundation Extensions */,
 			);
@@ -230,9 +231,11 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C2F9B40F2F2480CD00E5B9C2 /* Build configuration list for PBXNativeTarget "AutofillCredentialExtension" */;
 			buildPhases = (
+				C2F9B5312F28352100E5B9C2 /* Compile Kotlin Framework for Extension */,
 				C2F9B3F92F2480CD00E5B9C2 /* Sources */,
 				C2F9B3FA2F2480CD00E5B9C2 /* Frameworks */,
 				C2F9B3FB2F2480CD00E5B9C2 /* Resources */,
+				C2F9B5322F28360000E5B9C2 /* Copy Compose Resources */,
 			);
 			buildRules = (
 			);
@@ -383,6 +386,35 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "if [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n\n# Mark script output for dependency analysis\ntouch \"$DERIVED_FILE_DIR/composeDemoApp-xcode-run-script.stamp\"\n";
+		};
+		C2F9B5312F28352100E5B9C2 /* Compile Kotlin Framework for Extension */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Compile Kotlin Framework for Extension";
+			outputPaths = (
+				"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/composeDemoApp.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n";
+		};
+		C2F9B5322F28360000E5B9C2 /* Copy Compose Resources */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Compose Resources";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Determine the architecture based on SDK\nif [[ \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  if [[ \"$ARCHS\" == *\"arm64\"* ]] || [[ \"$(uname -m)\" == \"arm64\" ]]; then\n    ARCH_DIR=\"iosSimulatorArm64Main\"\n  else\n    ARCH_DIR=\"iosX64Main\"\n  fi\nelse\n  ARCH_DIR=\"iosArm64Main\"\nfi\n\n# List of modules with Compose resources\nMODULES=(\"composeDemoApp\" \"wallet-sdk-ui\" \"wallet-sdk-core\")\n\n# Destination path (note: includes composeResources subdirectory)\nRESOURCE_DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/compose-resources/composeResources\"\n\necho \"📦 Copying Compose resources for architecture: $ARCH_DIR\"\n\n# Create the destination directory if it doesn't exist\nmkdir -p \"$RESOURCE_DEST\"\n\n# Copy resources from each module\nfor MODULE in \"${MODULES[@]}\"; do\n  RESOURCE_SRC=\"$SRCROOT/../$MODULE/build/generated/compose/resourceGenerator/assembledResources/$ARCH_DIR/composeResources\"\n  \n  if [ -d \"$RESOURCE_SRC\" ]; then\n    echo \"  ✅ Copying resources from $MODULE\"\n    cp -R \"$RESOURCE_SRC/\"* \"$RESOURCE_DEST/\" 2>/dev/null || true\n  else\n    echo \"  ℹ️  No resources found for $MODULE (this is OK if module has no resources)\"\n  fi\ndone\n\necho \"📦 Compose resources copy complete\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
