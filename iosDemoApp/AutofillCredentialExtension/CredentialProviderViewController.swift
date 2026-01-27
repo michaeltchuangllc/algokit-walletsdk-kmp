@@ -42,7 +42,7 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                 }
                 do {
                     let credential = try await createRegistrationCredential(for: passkeyRequest)
-                    
+
                     // Save passkey to database
                     if let passkeyIdentity = passkeyRequest.credentialIdentity as? ASPasskeyCredentialIdentity {
                         try await savePasskeyToDatabase(
@@ -50,12 +50,21 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                             credentialID: credential.credentialID
                         )
                     }
-                    
+
                     await extensionContext.completeRegistrationRequest(using: credential)
                 } catch let error as NSError {
-                    if error.domain == "Credential already exists for this site" {
+                    NSLog("❌ [CredentialProvider] Registration error: \(error.localizedDescription)")
+
+                    // Check if it's a "no account" error
+                    if error.code == 1001 || error.code == 1002 {
+                        await self.presentErrorAlert(
+                            title: "Account Required",
+                            message: error.localizedDescription
+                        )
+                    } else if error.domain == "Credential already exists for this site" {
                         try? await Task.sleep(nanoseconds: 2_000_000_000)
                     }
+
                     self.extensionContext.cancelRequest(withError: error)
                 }
             }
@@ -83,7 +92,7 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
             
             let walletInfo = try getWalletInfo(origin: origin)
             let credentialID = Data(Utility.hashSHA256(walletInfo.p256KeyPair.publicKey.rawRepresentation))
-            
+
             // Check if this credential exists in database (optional verification)
             let credentialIDString = credentialID.base64EncodedString()
             let existsInDB = try await checkPasskeyExists(credentialID: credentialIDString)
@@ -96,7 +105,7 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                 ))
                 return
             }
-            
+
             let userHandleData = Data(walletInfo.address.utf8)
             let clientDataHash = requestParameters.clientDataHash
 
@@ -133,8 +142,17 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
             }
 
             await extensionContext.completeAssertionRequest(using: credential)
-        } catch {
-            NSLog("Failed to handle credential list request: \(error)")
+        } catch let error as NSError {
+            NSLog("❌ [CredentialProvider] Assertion error: \(error.localizedDescription)")
+
+            // Check if it's a "no account" error
+            if error.code == 1001 || error.code == 1002 {
+                await presentErrorAlert(
+                    title: "Account Required",
+                    message: error.localizedDescription
+                )
+            }
+
             extensionContext.cancelRequest(withError: NSError(
                 domain: ASExtensionErrorDomain,
                 code: ASExtensionError.Code.failed.rawValue
@@ -150,6 +168,19 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
             })
             alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in
                 continuation.resume(returning: false)
+            })
+            // Present on the main thread
+            DispatchQueue.main.async {
+                self.present(alert, animated: true, completion: nil)
+            }
+        }
+    }
+    
+    func presentErrorAlert(title: String, message: String) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            let alert = UIAlertController(title: title, message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
+                continuation.resume()
             })
             // Present on the main thread
             DispatchQueue.main.async {
@@ -180,7 +211,7 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
                 throw NSError(domain: "Credential already exists for this site", code: -2)
             }
         }
-        
+
         // Also check excludedCredentials from the request
         if let excludedCredentials = request.excludedCredentials {
             for excluded in excludedCredentials {

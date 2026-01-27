@@ -16,13 +16,13 @@ class GetAllHdSeedFirstAddressesUseCase(
 
         // For each seed, find the account with index 0 (first address)
         return allSeeds.mapNotNull { seed ->
-            // Get all accounts for this seed and find the one with account index 0
-            // val allAccounts = hdKeyRepository.getAll()
-            val falcon24Account = falconRepository.getAll()
-            // val all = allAccounts + falcon24Account
+            // Get all Falcon24 accounts for this seed
+            val falcon24Accounts = falconRepository.getAll()
+            
+            // Find the first account (index 0) for this seed
             val firstAccount =
-                falcon24Account.firstOrNull { account ->
-                    account.seedId == seed.seedId // && account == 0
+                falcon24Accounts.firstOrNull { account ->
+                    account.seedId == seed.seedId
                 }
 
             // If we found the first address, return it

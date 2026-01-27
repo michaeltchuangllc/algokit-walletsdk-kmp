@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.demo.di.initKoinConfig
+import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.context.startKoin
 import org.koin.core.context.stopKoin
@@ -56,3 +58,36 @@ fun getKoin(): Koin = KoinPlatform.getKoin()
  * Call initializeKoin() first before using this.
  */
 fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository = KoinPlatform.getKoin().get()
+
+/**
+ * Get all HD seed first addresses from the database (synchronous for iOS).
+ * Call initializeKoin() first before using this.
+ * Throws an exception if the operation fails.
+ */
+@Throws(Exception::class)
+fun getAllHdSeedFirstAddresses(): List<com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstAddress> {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses = 
+        KoinPlatform.getKoin().get()
+    return kotlinx.coroutines.runBlocking {
+        useCase()
+    }
+}
+
+/**
+ * Get the mnemonic for a given account address (synchronous for iOS).
+ * Call initializeKoin() first before using this.
+ * Returns AccountMnemonic or throws an exception if not found.
+ */
+@Throws(Exception::class)
+fun getAccountMnemonic(address: String): com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic = 
+        KoinPlatform.getKoin().get()
+    
+    return kotlinx.coroutines.runBlocking {
+        when (val result = useCase(address)) {
+            is com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult.Success -> result.data
+            is com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult.Error -> 
+                throw result.exception
+        }
+    }
+}

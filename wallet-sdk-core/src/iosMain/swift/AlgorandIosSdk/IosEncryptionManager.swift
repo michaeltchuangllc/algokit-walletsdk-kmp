@@ -20,6 +20,10 @@ public enum EncryptionError: Error {
     private static let keyAlias = "com.michaeltchuang.walletsdk.aes_key"
     private static let secureEnclaveKeyAlias = "com.michaeltchuang.walletsdk.se_key"
     private static let wrappedKeyAlias = "com.michaeltchuang.walletsdk.wrapped_aes_key"
+    
+    // Access group for Keychain sharing between app and extension
+    // IMPORTANT: This must match the App Group ID from entitlements
+    private static let accessGroup = "group.com.michaeltchuang.walletsdk.demo"
 
     private var symmetricKey: SymmetricKey?
     private let queue = DispatchQueue(label: "com.michaeltchuang.walletsdk.encryption", attributes: .concurrent)
@@ -124,6 +128,7 @@ public enum EncryptionError: Error {
             kSecPrivateKeyAttrs as String: [
                 kSecAttrIsPermanent as String: true,
                 kSecAttrApplicationTag as String: seKeyTag,
+                kSecAttrAccessGroup as String: accessGroup,
                 kSecAttrAccessControl as String: access
             ]
         ]
@@ -162,6 +167,7 @@ public enum EncryptionError: Error {
         let wrappedKeyQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: wrappedKeyAlias,
+            kSecAttrAccessGroup as String: accessGroup,
             kSecValueData as String: wrappedKey,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
@@ -196,6 +202,7 @@ public enum EncryptionError: Error {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keyAlias,
+            kSecAttrAccessGroup as String: accessGroup,
             kSecValueData as String: keyData,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
@@ -229,30 +236,80 @@ public enum EncryptionError: Error {
         // Step 1: Retrieve the Secure Enclave private key
         let seKeyTag = secureEnclaveKeyAlias.data(using: .utf8)!
 
-        let seQuery: [String: Any] = [
+        // Try with access group first (new way)
+        let seQueryWithGroup: [String: Any] = [
             kSecClass as String: kSecClassKey,
             kSecAttrApplicationTag as String: seKeyTag,
+            kSecAttrAccessGroup as String: accessGroup,
             kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
             kSecReturnRef as String: true
         ]
 
         var seItem: CFTypeRef?
-        let seStatus = SecItemCopyMatching(seQuery as CFDictionary, &seItem)
+        var seStatus = SecItemCopyMatching(seQueryWithGroup as CFDictionary, &seItem)
+
+        // If not found with access group, try without it (backward compatibility)
+        // Note: SE keys can't be migrated once created, so we just try both
+        if seStatus != errSecSuccess {
+            let seQueryWithoutGroup: [String: Any] = [
+                kSecClass as String: kSecClassKey,
+                kSecAttrApplicationTag as String: seKeyTag,
+                kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
+                kSecReturnRef as String: true
+            ]
+            seStatus = SecItemCopyMatching(seQueryWithoutGroup as CFDictionary, &seItem)
+        }
 
         guard seStatus == errSecSuccess,
               let sePrivateKey = seItem else {
             return nil
         }
 
-        // Step 2: Retrieve the wrapped symmetric key
-        let wrappedKeyQuery: [String: Any] = [
+        // Step 2: Retrieve the wrapped symmetric key (try with access group first, then without)
+        let wrappedKeyQueryWithGroup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: wrappedKeyAlias,
+            kSecAttrAccessGroup as String: accessGroup,
             kSecReturnData as String: true
         ]
 
         var wrappedItem: CFTypeRef?
-        let wrappedStatus = SecItemCopyMatching(wrappedKeyQuery as CFDictionary, &wrappedItem)
+        var wrappedStatus = SecItemCopyMatching(wrappedKeyQueryWithGroup as CFDictionary, &wrappedItem)
+
+        // If not found with access group, try without it (backward compatibility)
+        if wrappedStatus != errSecSuccess {
+            let wrappedKeyQueryWithoutGroup: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: wrappedKeyAlias,
+                kSecReturnData as String: true
+            ]
+            
+            wrappedStatus = SecItemCopyMatching(wrappedKeyQueryWithoutGroup as CFDictionary, &wrappedItem)
+            
+            // If we found the old wrapped key, migrate it
+            if wrappedStatus == errSecSuccess, let wrappedKeyData = wrappedItem as? Data {
+                print("🔄 Migrating wrapped encryption key to use access group...")
+                
+                // Delete old wrapped key
+                SecItemDelete(wrappedKeyQueryWithoutGroup as CFDictionary)
+                
+                // Add wrapped key with access group
+                let addQuery: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrAccount as String: wrappedKeyAlias,
+                    kSecAttrAccessGroup as String: accessGroup,
+                    kSecValueData as String: wrappedKeyData,
+                    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                ]
+                
+                let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+                if addStatus == errSecSuccess {
+                    print("✅ Successfully migrated wrapped encryption key")
+                } else {
+                    print("⚠️ Failed to migrate wrapped key, but will continue with old key")
+                }
+            }
+        }
 
         guard wrappedStatus == errSecSuccess,
               let wrappedKeyData = wrappedItem as? Data else {
@@ -278,14 +335,54 @@ public enum EncryptionError: Error {
 
     /// Retrieves a regular symmetric key from Keychain
     private static func retrieveRegularKey() throws -> SymmetricKey? {
-        let query: [String: Any] = [
+        // First, try to retrieve key with access group (new way)
+        let queryWithGroup: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: keyAlias,
+            kSecAttrAccessGroup as String: accessGroup,
             kSecReturnData as String: true
         ]
 
         var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        var status = SecItemCopyMatching(queryWithGroup as CFDictionary, &item)
+
+        // If not found with access group, try without it (backward compatibility)
+        if status != errSecSuccess {
+            let queryWithoutGroup: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrAccount as String: keyAlias,
+                kSecReturnData as String: true
+            ]
+            
+            status = SecItemCopyMatching(queryWithoutGroup as CFDictionary, &item)
+            
+            // If we found the old key, migrate it to use the access group
+            if status == errSecSuccess, let keyData = item as? Data {
+                print("🔄 Migrating encryption key to use access group...")
+                let key = SymmetricKey(data: keyData)
+                
+                // Delete old key
+                SecItemDelete(queryWithoutGroup as CFDictionary)
+                
+                // Add key with access group
+                let addQuery: [String: Any] = [
+                    kSecClass as String: kSecClassGenericPassword,
+                    kSecAttrAccount as String: keyAlias,
+                    kSecAttrAccessGroup as String: accessGroup,
+                    kSecValueData as String: keyData,
+                    kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+                ]
+                
+                let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+                if addStatus == errSecSuccess {
+                    print("✅ Successfully migrated encryption key")
+                } else {
+                    print("⚠️ Failed to migrate key, but will continue with old key")
+                }
+                
+                return key
+            }
+        }
 
         guard status == errSecSuccess,
               let keyData = item as? Data else {
@@ -466,7 +563,8 @@ public enum EncryptionError: Error {
             // Only delete old key after successful creation
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
-                kSecAttrAccount as String: Self.keyAlias
+                kSecAttrAccount as String: Self.keyAlias,
+                kSecAttrAccessGroup as String: Self.accessGroup
             ]
             SecItemDelete(query as CFDictionary)
 
@@ -483,25 +581,36 @@ public enum EncryptionError: Error {
             // Delete regular key
             let regularQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
-                kSecAttrAccount as String: Self.keyAlias
+                kSecAttrAccount as String: Self.keyAlias,
+                kSecAttrAccessGroup as String: Self.accessGroup
             ]
             SecItemDelete(regularQuery as CFDictionary)
 
             // Delete wrapped key
             let wrappedQuery: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
-                kSecAttrAccount as String: Self.wrappedKeyAlias
+                kSecAttrAccount as String: Self.wrappedKeyAlias,
+                kSecAttrAccessGroup as String: Self.accessGroup
             ]
             SecItemDelete(wrappedQuery as CFDictionary)
 
-            // Delete Secure Enclave key
+            // Delete Secure Enclave key (try both with and without access group)
             let seKeyTag = Self.secureEnclaveKeyAlias.data(using: .utf8)!
-            let seQuery: [String: Any] = [
+            let seQueryWithGroup: [String: Any] = [
+                kSecClass as String: kSecClassKey,
+                kSecAttrApplicationTag as String: seKeyTag,
+                kSecAttrAccessGroup as String: Self.accessGroup,
+                kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom
+            ]
+            SecItemDelete(seQueryWithGroup as CFDictionary)
+            
+            // Also try without access group for old keys
+            let seQueryWithoutGroup: [String: Any] = [
                 kSecClass as String: kSecClassKey,
                 kSecAttrApplicationTag as String: seKeyTag,
                 kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom
             ]
-            SecItemDelete(seQuery as CFDictionary)
+            SecItemDelete(seQueryWithoutGroup as CFDictionary)
 
             // Clear preferences
             UserDefaults.standard.removeObject(forKey: "useSecureEnclave")
