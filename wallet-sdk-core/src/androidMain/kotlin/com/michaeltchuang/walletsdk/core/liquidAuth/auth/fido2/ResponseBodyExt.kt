@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2
 
 import android.util.JsonReader
@@ -165,7 +167,8 @@ fun parseRp(reader: JsonReader): PublicKeyCredentialRpEntity {
     }
 
     Log.d("FIDO2", "Parsed RP - ID: $id, Name: $name")
-    return PublicKeyCredentialRpEntity(id, name, /* icon */ null)
+    // icon parameter is null
+    return PublicKeyCredentialRpEntity(id, name, null)
 }
 
 @Deprecated("Use the new CredentialManager API")

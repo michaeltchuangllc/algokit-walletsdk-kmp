@@ -1,5 +1,5 @@
 {
-  "originHash" : "695552b85450f4327b8b00f9f77fe1ac452d2c4d688d98e0363e0a32fe98f807",
+  "originHash" : "e8344731976305350be17c74dafd160f96d23fe80a051bd7a722449dae57b167",
   "pins" : [
     {
       "identity" : "algorand-devrel-xhd-wallet-api-swift",
@@ -8,6 +8,15 @@
       "state" : {
         "branch" : "fix/upgrade_sodium",
         "revision" : "1c30d763ef8f9dd663891456b7d2cd8419d5b724"
+      }
+    },
+    {
+      "identity" : "base32",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/norio-nomura/Base32",
+      "state" : {
+        "revision" : "c4bc0a49689999ae2c7c778f3830a6a6e694efb8",
+        "version" : "0.9.0"
       }
     },
     {
@@ -29,6 +38,15 @@
       }
     },
     {
+      "identity" : "deterministic-p256-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/algorandfoundation/deterministic-P256-swift/",
+      "state" : {
+        "branch" : "main",
+        "revision" : "4fe03ee04894cb3dcf706b9e70a39588c1cec1c9"
+      }
+    },
+    {
       "identity" : "ed25519swift",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pebble8888/ed25519swift",
@@ -44,6 +62,15 @@
       "state" : {
         "revision" : "92385c024dee684e0b6b9dee6ee067844bf61f38",
         "version" : "0.7.0"
+      }
+    },
+    {
+      "identity" : "liquid-auth-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/algorandfoundation/liquid-auth-ios/",
+      "state" : {
+        "branch" : "main",
+        "revision" : "384c926d334f69e744b80b6166af3d034970170d"
       }
     },
     {
@@ -74,12 +101,29 @@
       }
     },
     {
+      "identity" : "socket.io-client-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/socketio/socket.io-client-swift.git",
+      "state" : {
+        "revision" : "42da871d9369f290d6ec4930636c40672143905b"
+      }
+    },
+    {
       "identity" : "spectre",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/kylef/Spectre.git",
       "state" : {
         "revision" : "26cc5e9ae0947092c7139ef7ba612e34646086c7",
         "version" : "0.10.1"
+      }
+    },
+    {
+      "identity" : "starscream",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/daltoniam/Starscream",
+      "state" : {
+        "revision" : "c6bfd1af48efcc9a9ad203665db12375ba6b145a",
+        "version" : "4.0.8"
       }
     },
     {
@@ -114,8 +158,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio",
       "state" : {
-        "revision" : "a18bddb0acf7a40d982b2f128ce73ce4ee31f352",
-        "version" : "2.86.2"
+        "revision" : "233f61bc2cfbb22d0edeb2594da27a20d2ce514e",
+        "version" : "2.93.0"
       }
     },
     {
@@ -132,8 +176,25 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-system.git",
       "state" : {
-        "revision" : "395a77f0aa927f0ff73941d7ac35f2b46d47c9db",
-        "version" : "1.6.3"
+        "revision" : "7c6ad0fc39d0763e0b699210e4124afd5041c5df",
+        "version" : "1.6.4"
+      }
+    },
+    {
+      "identity" : "swiftcbor",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/valpackett/SwiftCBOR",
+      "state" : {
+        "revision" : "ea5ece79b0efde241495bfaa74eccceeffc382bc"
+      }
+    },
+    {
+      "identity" : "webrtc",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/stasel/WebRTC.git",
+      "state" : {
+        "revision" : "820d216010b6bb5695139852ec6740edd6f790ff",
+        "version" : "138.0.0"
       }
     }
   ],

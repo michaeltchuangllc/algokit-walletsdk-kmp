@@ -8,5 +8,16 @@
 	<string>WalletSDK Demo</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
+	<!-- Camera permission (for QR code scanning) -->
+	<key>NSCameraUsageDescription</key>
+	<string>WalletSDK Demo needs camera access to scan QR codes for connecting to dApps and signing transactions.</string>
+	<!-- Photo library permission -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>WalletSDK Demo needs photo library access to save QR codes and transaction receipts.</string>
+	<!-- Allow checking if external FIDO apps are installed -->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>fido</string>
+	</array>
 </dict>
 </plist>

@@ -184,9 +184,8 @@ class SignalClient
                             Log.d(TAG, "createAnswer(${answerDescription.description})")
                             socket!!.emit("answer-description", answerDescription.description.toString())
                         }
-                    }
-                    // Create an Offer, wait for answer
-                    else if (type === "answer") {
+                    } else if (type === "answer") {
+                        // Create an Offer, wait for answer
                         // Create the DataChannel
                         val dc = peerClient?.createDataChannel("liquid")
                         // Create the Peering Offer

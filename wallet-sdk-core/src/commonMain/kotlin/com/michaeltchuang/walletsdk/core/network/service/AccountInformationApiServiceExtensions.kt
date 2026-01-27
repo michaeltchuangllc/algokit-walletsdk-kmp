@@ -5,11 +5,6 @@ import com.michaeltchuang.walletsdk.core.network.model.AccountInformationRespons
 import com.michaeltchuang.walletsdk.core.network.model.ApiResult
 
 /**
- * Extension functions for AccountInformationApiService to provide convenient methods
- * for common query patterns
- */
-
-/**
  * Get basic account information excluding heavy data like apps and assets
  */
 suspend fun AccountInformationApiService.getBasicAccountInformation(address: String): ApiResult<AccountInformationResponse> =

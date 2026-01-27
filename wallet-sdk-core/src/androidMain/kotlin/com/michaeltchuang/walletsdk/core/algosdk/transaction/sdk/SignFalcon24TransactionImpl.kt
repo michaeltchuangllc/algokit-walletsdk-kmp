@@ -40,5 +40,7 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             null
         }
 
-    private val TAG = SignFalcon24TransactionImpl::class.java.simpleName
+    companion object {
+        private val TAG = SignFalcon24TransactionImpl::class.java.simpleName
+    }
 }
