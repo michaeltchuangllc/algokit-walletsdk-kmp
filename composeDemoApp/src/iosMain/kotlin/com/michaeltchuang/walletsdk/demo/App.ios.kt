@@ -91,3 +91,34 @@ fun getAccountMnemonic(address: String): com.michaeltchuang.walletsdk.core.accou
         }
     }
 }
+
+/**
+ * Get the account type for FIDO2 (for liquid auth extension).
+ * Returns "falcon-1024" for Falcon24 accounts, "algorand" for all others.
+ */
+fun getAccountTypeForFido2(address: String): String {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount =
+        KoinPlatform.getKoin().get()
+
+    return kotlinx.coroutines.runBlocking {
+        val account = useCase(address)
+        when (account) {
+            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> "falcon-1024"
+            else -> "algorand"
+        }
+    }
+}
+
+/**
+ * Set the handler for iOS Liquid Auth.
+ * This bridges the wallet-sdk-ui module to Swift.
+ * Call this from Swift during app initialization.
+ * 
+ * @param handler Callback that receives (origin, requestId, algoAddress)
+ */
+fun setIosLiquidAuthHandler(handler: (String, String, String) -> Unit) {
+    com.michaeltchuang.walletsdk.ui.liquidAuth.iosLiquidAuthHandler = handler
+    platform.Foundation.NSLog("✅ iOS Liquid Auth handler registered")
+}
+
+

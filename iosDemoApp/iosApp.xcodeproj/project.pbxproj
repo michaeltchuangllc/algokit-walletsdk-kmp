@@ -14,8 +14,13 @@
 		BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
 		BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23F2E86CBA2005CAA71 /* ed25519swift */; };
 		BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
-		BA38E79F2E94987500388513 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA38E79E2E94987500388513 /* x-hd-wallet-api */; };
 		BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* composeDemoApp.framework */; };
+		BAC161E42F296BFE0050270D /* LiquidAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E22F296BFE0050270D /* LiquidAuthService.swift */; };
+		BAC161E52F296BFE0050270D /* LiquidAuthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */; };
+		BAC1623A2F2974D20050270D /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162392F2974D20050270D /* SocketIO */; };
+		BAC1623C2F2974E40050270D /* Base32 in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623B2F2974E40050270D /* Base32 */; };
+		BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623F2F2974EB0050270D /* deterministicP256-swift */; };
+		BAC162832F29772F0050270D /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162822F29772F0050270D /* WebRTC */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E12F292EC700AA5CA6 /* SocketIO */; };
@@ -82,6 +87,8 @@
 		BA0473392CF53E5E004A8EBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphoneos18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
 		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
+		BAC161E22F296BFE0050270D /* LiquidAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthService.swift; sourceTree = "<group>"; };
+		BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthViewController.swift; sourceTree = "<group>"; };
 		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
 		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
@@ -90,6 +97,29 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BAC161E72F296DE40050270D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				AppGroupHelper.swift,
+				CredentialProviderViewController.swift,
+				LiquidAuthSDK/AssertionApi.swift,
+				LiquidAuthSDK/AttestationApi.swift,
+				LiquidAuthSDK/auth.request.json,
+				LiquidAuthSDK/AuthenticatorData.swift,
+				LiquidAuthSDK/DataChannelDelegate.swift,
+				LiquidAuthSDK/LiquidAuthError.swift,
+				LiquidAuthSDK/Logger.swift,
+				LiquidAuthSDK/PeerApi.swift,
+				LiquidAuthSDK/SignalClient.swift,
+				LiquidAuthSDK/SignalService.swift,
+				LiquidAuthSDK/URLSessionProtocol.swift,
+				LiquidAuthSDK/Utility.swift,
+				PasskeyManager.swift,
+				SHA512_256.swift,
+				WalletUtils.swift,
+			);
+			target = A93A953629CC810C00F8E227 /* iosApp */;
+		};
 		C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
@@ -107,7 +137,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AutofillCredentialExtension; sourceTree = "<group>"; };
+		C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (BAC161E72F296DE40050270D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AutofillCredentialExtension; sourceTree = "<group>"; };
 		C2F9B4172F2483D600E5B9C2 /* AuthenticationService */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AuthenticationService; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
@@ -116,12 +146,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BA38E79F2E94987500388513 /* x-hd-wallet-api in Frameworks */,
 				BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */,
+				BAC1623A2F2974D20050270D /* SocketIO in Frameworks */,
 				BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */,
 				BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */,
+				BAC162832F29772F0050270D /* WebRTC in Frameworks */,
 				BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */,
+				BAC1623C2F2974E40050270D /* Base32 in Frameworks */,
 				BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */,
+				BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,6 +210,8 @@
 		A93A953929CC810C00F8E227 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
+				BAC161E22F296BFE0050270D /* LiquidAuthService.swift */,
+				BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */,
 				C2F9B4102F24819E00E5B9C2 /* iosApp.entitlements */,
 				BA0473392CF53E5E004A8EBF /* Info.plist */,
 				A93A953A29CC810C00F8E227 /* iosApp.swift */,
@@ -396,6 +431,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				A93A953B29CC810C00F8E227 /* iosApp.swift in Sources */,
+				BAC161E42F296BFE0050270D /* LiquidAuthService.swift in Sources */,
+				BAC161E52F296BFE0050270D /* LiquidAuthViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -570,6 +607,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "WalletSDK Demo photos description.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -613,6 +651,7 @@
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "WalletSDK Demo photos description.";
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				IPHONEOS_DEPLOYMENT_TARGET = 18.5;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -919,10 +958,25 @@
 			package = BA1BD2412E86CBB3005CAA71 /* XCRemoteSwiftPackageReference "MnemonicSwift" */;
 			productName = MnemonicSwift;
 		};
-		BA38E79E2E94987500388513 /* x-hd-wallet-api */ = {
+		BAC162392F2974D20050270D /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
-			productName = "x-hd-wallet-api";
+			package = C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
+			productName = SocketIO;
+		};
+		BAC1623B2F2974E40050270D /* Base32 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */;
+			productName = Base32;
+		};
+		BAC1623F2F2974EB0050270D /* deterministicP256-swift */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */;
+			productName = "deterministicP256-swift";
+		};
+		BAC162822F29772F0050270D /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C291B1E32F292F0500AA5CA6 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
 		};
 		C291B1E12F292EC700AA5CA6 /* SocketIO */ = {
 			isa = XCSwiftPackageProductDependency;

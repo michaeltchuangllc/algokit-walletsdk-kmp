@@ -34,8 +34,13 @@ public class SignalClient {
     init(url: String, service: SignalService) {
         self.service = service
 
+        // Strip protocol if present to avoid double https://
+        let cleanUrl = url
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+        
         // Initialize the Socket.IO manager and client
-        manager = SocketManager(socketURL: URL(string: "https://\(url)")!, config: [.log(false), .compress])
+        manager = SocketManager(socketURL: URL(string: "https://\(cleanUrl)")!, config: [.log(false), .compress])
         socket = manager.defaultSocket
 
         // Set up event listeners
@@ -239,7 +244,9 @@ public class SignalClient {
             self.handleDisconnect()
         }
 
-        if service?.currentPeerType == "offer" {
+        // FIXED: When we are "answer", we listen for "offer-description" from the browser
+        // When we are "offer", we listen for "answer-description" from the browser
+        if service?.currentPeerType == "answer" {
             socket.on("offer-description") { [weak self] data, _ in
                 guard let self, let eventData = data.first as? [String: Any] else { return }
                 Logger.debug("Received SDP offer: \(eventData)")

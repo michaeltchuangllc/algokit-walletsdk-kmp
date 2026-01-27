@@ -13,6 +13,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Configure app group for database sharing BEFORE Compose initializes Koin
         configureAppGroup()
         
+        // Register Liquid Auth callback for iOS
+        registerLiquidAuthCallback()
+        
         window = UIWindow(frame: UIScreen.main.bounds)
         if let window = window {
             window.rootViewController = App_iosKt.MainViewController()
@@ -30,5 +33,73 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             print("⚠️ Warning: App Group '\(appGroupIdentifier)' not configured!")
             print("⚠️ Add App Group in Xcode: Signing & Capabilities → + Capability → App Groups")
         }
+    }
+    
+    private func registerLiquidAuthCallback() {
+        NSLog("📱 Registering Liquid Auth callback for iOS")
+        
+        // Register the callback using the bridge function in composeDemoApp
+        App_iosKt.setIosLiquidAuthHandler { [weak self] origin, requestId, algoAddress in
+            NSLog("🔗 Liquid Auth callback triggered")
+            NSLog("   Origin: \(origin)")
+            NSLog("   RequestID: \(requestId)")
+            NSLog("   AlgoAddress: \(algoAddress)")
+            
+            // Present Liquid Auth on main thread
+            DispatchQueue.main.async {
+                self?.presentLiquidAuthFlow(
+                    origin: origin,
+                    requestId: requestId,
+                    algoAddress: algoAddress
+                )
+            }
+        }
+        
+        NSLog("✅ Liquid Auth callback registered successfully")
+    }
+    
+    /// Present the Liquid Auth flow
+    private func presentLiquidAuthFlow(origin: String, requestId: String, algoAddress: String) {
+        NSLog("🌉 Presenting Liquid Auth flow")
+        
+        guard let rootViewController = window?.rootViewController else {
+            NSLog("❌ Could not find root view controller")
+            return
+        }
+        
+        // Find the top-most view controller
+        let topViewController = findTopViewController(from: rootViewController)
+        
+        // Use the static present method from LiquidAuthViewController
+        LiquidAuthViewController.present(
+            from: topViewController,
+            origin: origin,
+            requestId: requestId,
+            algoAddress: algoAddress,
+            onCompletion: {
+                NSLog("✅ Liquid Auth completed")
+            }
+        )
+        
+        NSLog("✅ LiquidAuthViewController presented")
+    }
+    
+    /// Find the top-most view controller in the hierarchy
+    private func findTopViewController(from viewController: UIViewController) -> UIViewController {
+        if let presentedViewController = viewController.presentedViewController {
+            return findTopViewController(from: presentedViewController)
+        }
+        
+        if let navigationController = viewController as? UINavigationController,
+           let visibleViewController = navigationController.visibleViewController {
+            return findTopViewController(from: visibleViewController)
+        }
+        
+        if let tabBarController = viewController as? UITabBarController,
+           let selectedViewController = tabBarController.selectedViewController {
+            return findTopViewController(from: selectedViewController)
+        }
+        
+        return viewController
     }
 }

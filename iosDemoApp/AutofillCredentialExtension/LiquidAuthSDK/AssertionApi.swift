@@ -43,7 +43,12 @@ public class AssertionApi {
             throw LiquidAuthError.invalidURL("Origin cannot be empty")
         }
 
-        let path = "https://\(origin)/assertion/request/\(credentialId)"
+        // Strip protocol if present to avoid double https://
+        let cleanOrigin = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+
+        let path = "https://\(cleanOrigin)/assertion/request/\(credentialId)"
         Logger.debug("AssertionApi: POST \(path)")
         Logger.debug("AssertionApi: credentialId: \(credentialId)")
         Logger.debug("AssertionApi: liquidExt: \(String(describing: liquidExt))")
@@ -125,7 +130,12 @@ public class AssertionApi {
             throw LiquidAuthError.invalidURL("Origin cannot be empty")
         }
 
-        let path = "https://\(origin)/assertion/response"
+        // Strip protocol if present to avoid double https://
+        let cleanOrigin = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+
+        let path = "https://\(cleanOrigin)/assertion/response"
         Logger.debug("AssertionApi: POST \(path)")
         Logger.debug("AssertionApi: credential: \(credential)")
         if let liquidExt {

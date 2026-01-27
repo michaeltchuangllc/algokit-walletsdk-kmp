@@ -47,10 +47,29 @@ public class AttestationApi {
             throw LiquidAuthError.invalidURL("Origin cannot be empty")
         }
 
+        // Strip protocol if present to avoid double https://
+        let cleanOrigin = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+        
         // Construct the URL
-        let path = "https://\(origin)/attestation/request"
+        let path = "https://\(cleanOrigin)/attestation/request"
         Logger.debug("AttestationApi: POST \(path)")
         Logger.debug("AttestationApi: Request options: \(options)")
+        
+        // Check if username and address are in the options
+        if let username = options["username"] as? String {
+            Logger.debug("AttestationApi: ✅ Username found in options: \(username)")
+        } else {
+            Logger.error("AttestationApi: ❌ Username NOT found in options!")
+        }
+        
+        if let address = options["address"] as? String {
+            Logger.debug("AttestationApi: ✅ Address found in options: \(address)")
+        } else {
+            Logger.error("AttestationApi: ❌ Address NOT found in options!")
+        }
+        
         guard let url = URL(string: path) else {
             throw LiquidAuthError.invalidURL(path)
         }
@@ -68,6 +87,7 @@ public class AttestationApi {
         request.httpBody = body
 
         Logger.debug("AttestationApi: Request body (raw): \(String(data: body, encoding: .utf8) ?? "nil")")
+        Logger.debug("AttestationApi: Request body size: \(body.count) bytes")
 
         do {
             // Perform the request
@@ -125,12 +145,34 @@ public class AttestationApi {
             throw LiquidAuthError.invalidURL("Origin cannot be empty")
         }
 
+        // Strip protocol if present to avoid double https://
+        let cleanOrigin = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+
         // Construct the URL
-        let path = "https://\(origin)/attestation/response"
-        Logger.debug("AttestationApi: POST \(path)")
-        Logger.debug("AttestationApi: Credential: \(credential)")
+        let path = "https://\(cleanOrigin)/attestation/response"
+        
+        Logger.debug("========================================")
+        Logger.debug("📤 POST /attestation/response")
+        Logger.debug("URL: \(path)")
+        Logger.debug("========================================")
+        
+        Logger.debug("📋 Credential Dictionary:")
+        for (key, value) in credential {
+            Logger.debug("   \(key): \(value)")
+        }
+        
         if let liquidExt {
-            Logger.debug("AttestationApi: Liquid extension: \(liquidExt)")
+            Logger.debug("========================================")
+            Logger.debug("🔷 LIQUID Extension Content:")
+            if let jsonData = try? JSONSerialization.data(withJSONObject: liquidExt, options: .prettyPrinted),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                Logger.debug(jsonString)
+            } else {
+                Logger.debug("   \(liquidExt)")
+            }
+            Logger.debug("========================================")
         }
 
         guard let url = URL(string: path) else {
@@ -146,12 +188,19 @@ public class AttestationApi {
         // Add device information
         payload["device"] = device
 
-        Logger.debug("AttestationApi: Full payload: \(payload)")
+        Logger.debug("========================================")
+        Logger.debug("📦 Full Request Payload (with liquid):")
+        if let jsonData = try? JSONSerialization.data(withJSONObject: payload, options: .prettyPrinted),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            Logger.debug(jsonString)
+        }
+        Logger.debug("========================================")
 
         guard let body = try? JSONSerialization.data(withJSONObject: payload, options: []) else {
             throw LiquidAuthError.invalidJSON("Failed to serialize attestation result")
         }
-        Logger.debug("AttestationApi: Request body (raw): \(String(data: body, encoding: .utf8) ?? "nil")")
+        
+        Logger.debug("📏 Request body size: \(body.count) bytes")
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -160,10 +209,28 @@ public class AttestationApi {
         request.httpBody = body
 
         do {
-            let (data, _) = try await session.data(for: request)
-            Logger.debug("AttestationApi: Response data: \(String(data: data, encoding: .utf8) ?? "nil")")
+            let (data, response) = try await session.data(for: request)
+            
+            Logger.debug("========================================")
+            Logger.debug("✅ POST /attestation/response - Response Received")
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                Logger.debug("Status Code: \(httpResponse.statusCode)")
+                Logger.debug("Headers: \(httpResponse.allHeaderFields)")
+            }
+            
+            Logger.debug("Response Body:")
+            if let responseString = String(data: data, encoding: .utf8) {
+                Logger.debug(responseString)
+            } else {
+                Logger.debug("(binary data, \(data.count) bytes)")
+            }
+            Logger.debug("========================================")
+            
             return data
         } catch {
+            Logger.error("❌ POST /attestation/response - Failed")
+            Logger.error("Error: \(error)")
             throw LiquidAuthError.networkError(error)
         }
     }
