@@ -11,8 +11,6 @@
 		A93A953F29CC810D00F8E227 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A953E29CC810D00F8E227 /* Assets.xcassets */; };
 		A93A954229CC810D00F8E227 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A954129CC810D00F8E227 /* Preview Assets.xcassets */; };
 		BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E22F25E99000A6DC27 /* SwiftCBOR */; };
-		BA1017E62F25E9F400A6DC27 /* LiquidAuthSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E52F25E9F400A6DC27 /* LiquidAuthSDK */; };
-		BA1017E82F25EA3500A6DC27 /* LiquidAuthSDK in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */; };
 		BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
 		BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23F2E86CBA2005CAA71 /* ed25519swift */; };
 		BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
@@ -20,6 +18,9 @@
 		BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* composeDemoApp.framework */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E12F292EC700AA5CA6 /* SocketIO */; };
+		C291B1E52F292F0500AA5CA6 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E42F292F0500AA5CA6 /* WebRTC */; };
+		C291B2022F29304900AA5CA6 /* Base32 in Frameworks */ = {isa = PBXBuildFile; productRef = C291B2012F29304900AA5CA6 /* Base32 */; };
 		C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
 		C2F9B40B2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C2F9B4162F2483D600E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
@@ -121,7 +122,6 @@
 				BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */,
 				BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */,
 				BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */,
-				BA1017E62F25E9F400A6DC27 /* LiquidAuthSDK in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -130,12 +130,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */,
+				C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */,
 				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
 				C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */,
+				C291B1E52F292F0500AA5CA6 /* WebRTC in Frameworks */,
 				C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */,
 				C2F9B52E2F25E12E00E5B9C2 /* deterministicP256-swift in Frameworks */,
 				C2F9B4252F2489C500E5B9C2 /* MnemonicSwift in Frameworks */,
-				BA1017E82F25EA3500A6DC27 /* LiquidAuthSDK in Frameworks */,
+				C291B2022F29304900AA5CA6 /* Base32 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -250,7 +252,9 @@
 				BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */,
 				C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */,
 				C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */,
-				BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */,
+				C291B1E12F292EC700AA5CA6 /* SocketIO */,
+				C291B1E42F292F0500AA5CA6 /* WebRTC */,
+				C291B2012F29304900AA5CA6 /* Base32 */,
 			);
 			productName = AutofillCredentialExtension;
 			productReference = C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */;
@@ -314,7 +318,8 @@
 				C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */,
 				C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */,
 				C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
-				BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */,
+				C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
+				C291B1E32F292F0500AA5CA6 /* XCRemoteSwiftPackageReference "WebRTC" */,
 			);
 			productRefGroup = A93A953829CC810C00F8E227 /* Products */;
 			projectDirPath = "";
@@ -819,14 +824,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/algorandfoundation/liquid-auth-ios/";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
@@ -857,6 +854,22 @@
 			requirement = {
 				branch = fix/upgrade_sodium;
 				kind = branch;
+			};
+		};
+		C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/socketio/socket.io-client-swift.git";
+			requirement = {
+				kind = revision;
+				revision = 42da871d9369f290d6ec4930636c40672143905b;
+			};
+		};
+		C291B1E32F292F0500AA5CA6 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC.git";
+			requirement = {
+				kind = exactVersion;
+				version = 138.0.0;
 			};
 		};
 		C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */ = {
@@ -891,16 +904,6 @@
 			package = C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
 			productName = SwiftCBOR;
 		};
-		BA1017E52F25E9F400A6DC27 /* LiquidAuthSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */;
-			productName = LiquidAuthSDK;
-		};
-		BA1017E72F25EA3500A6DC27 /* LiquidAuthSDK */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BA1017E42F25E9F400A6DC27 /* XCRemoteSwiftPackageReference "liquid-auth-ios" */;
-			productName = LiquidAuthSDK;
-		};
 		BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
@@ -920,6 +923,21 @@
 			isa = XCSwiftPackageProductDependency;
 			package = BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
 			productName = "x-hd-wallet-api";
+		};
+		C291B1E12F292EC700AA5CA6 /* SocketIO */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */;
+			productName = SocketIO;
+		};
+		C291B1E42F292F0500AA5CA6 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C291B1E32F292F0500AA5CA6 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+		C291B2012F29304900AA5CA6 /* Base32 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */;
+			productName = Base32;
 		};
 		C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */ = {
 			isa = XCSwiftPackageProductDependency;
