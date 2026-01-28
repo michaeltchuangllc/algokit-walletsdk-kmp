@@ -54,6 +54,11 @@ expect fun signFalcon24ArbitraryData(
     privateKey: ByteArray,
 ): ByteArray?
 
+expect fun signAlgo25ArbitraryData(
+    data: ByteArray,
+    secretKey: ByteArray,
+): ByteArray?
+
 expect fun signAlgo25Transaction(
     secretKey: ByteArray,
     transactionByteArray: ByteArray,

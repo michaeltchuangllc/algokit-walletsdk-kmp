@@ -530,6 +530,27 @@ actual fun signFalcon24ArbitraryData(
         null
     }
 
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signAlgo25ArbitraryData(
+    data: ByteArray,
+    secretKey: ByteArray,
+): ByteArray? =
+    try {
+        val secretKeyBase64 = Base64.encode(secretKey)
+        val dataBase64 = Base64.encode(data)
+        val signedDataBase64 =
+            bridge.signAlgo25ArbitraryDataWithBase64WithSkBase64(
+                skBase64 = secretKeyBase64,
+                dataBase64 = dataBase64,
+            )
+        val result = Base64.decode(signedDataBase64)
+
+        result
+    } catch (e: Exception) {
+        println("Algo25 arbitrary data signing failed: ${e.message}")
+        null
+    }
+
 actual fun signHdKeyData(
     data: ByteArray,
     seed: ByteArray,

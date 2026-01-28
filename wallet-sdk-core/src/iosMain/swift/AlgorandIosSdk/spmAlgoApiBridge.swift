@@ -242,6 +242,41 @@ import AlgoSDK
 
         return result
     }
+    
+    public func signAlgo25ArbitraryDataWithBase64(skBase64: String, dataBase64: String) -> String {
+        guard let skData = Data(base64Encoded: skBase64) else {
+            print("Error: Failed to decode secret key from Base64")
+            return ""
+        }
+        
+        guard let data = Data(base64Encoded: dataBase64) else {
+            print("Error: Failed to decode data from Base64")
+            return ""
+        }
+        
+        guard skData.count == 64 else {
+            print("Error signing data: Secret key (sk) must be 64 bytes long, but received \(skData.count) bytes.")
+            return ""
+        }
+        
+        guard !data.isEmpty else {
+            print("Error signing data: Data is empty.")
+            return ""
+        }
+        
+        // Use AlgoSDK's raw signing function
+        var error: NSError?
+        guard let signature = AlgoSDK.AlgoSdkSignBytes(skData, data, &error) else {
+            if let error = error {
+                print("Error signing data (SDK failed): \(error.localizedDescription)")
+            } else {
+                print("Failed to sign data (SDK failed): unknown error.")
+            }
+            return ""
+        }
+        
+        return signature.base64EncodedString()
+    }
 
     public func getFalconAddressFromMnemonic(mnemonic: String) -> String {
         var error: NSError?

@@ -124,6 +124,22 @@ actual fun signFalcon24ArbitraryData(
         privateKey,
     )
 
+actual fun signAlgo25ArbitraryData(
+    data: ByteArray,
+    secretKey: ByteArray,
+): ByteArray? {
+    Security.removeProvider("BC")
+    Security.insertProviderAt(BouncyCastleProvider(), 0)
+    return try {
+        val account = Account(secretKey)
+        val signature = account.signBytes(data)
+        signature?.bytes
+    } catch (e: Exception) {
+        println("Algo25 arbitrary data signing failed: ${e.message}")
+        null
+    }
+}
+
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray =
     with(payload) {
         val suggestedParams = txnParams.toSuggestedParams()

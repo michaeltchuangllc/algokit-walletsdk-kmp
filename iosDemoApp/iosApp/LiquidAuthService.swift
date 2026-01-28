@@ -207,8 +207,9 @@ public class LiquidAuthService {
             
             // For now, use mock attestation options
             // TODO: Parse actual response from server
+            let challengeB64 = Data.random(count: 32).base64EncodedString()
             let attestationOptions: [String: Any] = [
-                "challenge": Data.random(count: 32).base64EncodedString()
+                "challenge": challengeB64
             ]
             
             // Create attestation credential
@@ -237,13 +238,22 @@ public class LiquidAuthService {
             let accountType = App_iosKt.getAccountTypeForFido2(address: algoAddress)
             NSLog("📋 Account type: \(accountType)")
             
+            // Sign the challenge with Algorand wallet (NOT with P256 key!)
+            let challengeData = Data(base64Encoded: challengeB64)!
+            let algoSignature = try signWithAlgorandWallet(
+                challenge: challengeData,
+                address: algoAddress
+            )
+            
+            NSLog("✅ Algorand signature computed: \(algoSignature.base64EncodedString().prefix(20))...")
+            
             // Build liquid extension JSON (matching Android)
             let liquidExt: [String: Any] = [
                 "type": accountType,  // "algorand" or "falcon-1024"
                 "requestId": requestId,
                 "address": algoAddress,
                 "publicKey": walletInfo.p256KeyPair.publicKey.rawRepresentation.base64EncodedString(),
-                "signature": credential.clientDataJSON.base64EncodedString(),  // Challenge signature
+                "signature": algoSignature.base64EncodedString(),  // Algorand wallet signature of challenge
                 "device": UIDevice.current.model
             ]
             
@@ -393,10 +403,19 @@ public class LiquidAuthService {
         let cborEncoded = cborObject.encode()
         let attestationObject = Data(cborEncoded)
         
+        let clientData: [String: Any] = [
+            "type": "webauthn.create",
+            "challenge": challengeB64,  // Keep as base64url string
+            "origin": origin,
+            "crossOrigin": false
+        ]
+
+        let clientDataJSON = try JSONSerialization.data(withJSONObject: clientData)
+        
         return AttestationCredential(
             credentialID: credentialID,
             attestationObject: attestationObject,
-            clientDataJSON: challengeData
+            clientDataJSON: clientDataJSON
         )
     }
     
@@ -642,6 +661,102 @@ public class LiquidAuthService {
         }
     }
     
+    /// Sign challenge data with Algorand wallet's private key using KMP functions
+    /// - Parameters:
+    ///   - challenge: The challenge data to sign
+    ///   - address: The Algorand address to sign with
+    /// - Returns: The signature bytes
+    /// - Throws: Error if account not found or signing fails
+    private func signWithAlgorandWallet(
+        challenge: Data,
+        address: String
+    ) throws -> Data {
+        NSLog("🔐 Signing challenge with Algorand wallet (using KMP)")
+        NSLog("   Address: \(address)")
+        NSLog("   Challenge size: \(challenge.count) bytes")
+        
+        // Get the account's mnemonic
+        guard let mnemonic = self.mnemonic else {
+            throw NSError(domain: "Mnemonic not available", code: -1)
+        }
+        
+        do {
+            let localAccount = try App_iosKt.getLocalAccount(address: address)
+            
+            let challengeKotlin = challenge.toKotlinByteArray()
+            
+            // Sign based on account type
+            if localAccount is LocalAccountAlgo25 {
+                // Algo25 account - use KMP's signAlgo25ArbitraryData
+                guard let algo25Account = AlgoAccountKt.recoverAlgo25Account(mnemonic: mnemonic) else {
+                    throw NSError(domain: "Failed to recover Algo25 account", code: -1)
+                }
+                
+                let secretKeyKotlin = algo25Account.secretKey.toKotlinByteArray()
+                
+                guard let signature = AlgoAccountKt.signAlgo25ArbitraryData(
+                    data: challengeKotlin,
+                    secretKey: secretKeyKotlin
+                ) else {
+                    throw NSError(domain: "Algo25 signing failed", code: -1)
+                }
+                
+                let signatureData = signature.toSwiftData()
+                NSLog("✅ Signed with Algo25 (KMP), signature size: \(signatureData.count) bytes")
+                return signatureData
+                
+            } else if let hdKey = localAccount as? LocalAccountHdKey {
+                // HD Key account - use KMP's signHdKeyData
+                guard let seed = try? App_iosKt.getHdSeed(seedId: hdKey.seedId) else {
+                    throw NSError(domain: "Failed to get HD seed", code: -1)
+                }
+                
+                let seedKotlin = seed.seed.toKotlinByteArray()
+                
+                guard let signature = AlgoAccountKt.signHdKeyData(
+                    data: challengeKotlin,
+                    seed: seedKotlin,
+                    account: hdKey.account,
+                    change: hdKey.change,
+                    key: hdKey.keyIndex
+                ) else {
+                    throw NSError(domain: "HD Key signing failed", code: -1)
+                }
+                
+                let signatureData = signature.toSwiftData()
+                NSLog("✅ Signed with HD Key (KMP), signature size: \(signatureData.count) bytes")
+                return signatureData
+                
+            } else if let falcon = localAccount as? LocalAccountFalcon24 {
+                // Falcon account - use KMP's signFalcon24ArbitraryData
+                guard let privateKey = try? App_iosKt.getFalcon24SecretKey(address: address) else {
+                    throw NSError(domain: "Failed to get Falcon24 private key", code: -1)
+                }
+                
+                guard let signature = AlgoAccountKt.signFalcon24ArbitraryData(
+                    data: challengeKotlin,
+                    publicKey: falcon.publicKey,
+                    privateKey: privateKey
+                ) else {
+                    throw NSError(domain: "Falcon24 signing failed", code: -1)
+                }
+                
+                let signatureData = signature.toSwiftData()
+                NSLog("✅ Signed with Falcon24 (KMP), signature size: \(signatureData.count) bytes")
+                return signatureData
+                
+            } else {
+                throw NSError(
+                    domain: "Unsupported account type: \(type(of: localAccount))",
+                    code: -1
+                )
+            }
+        } catch {
+            NSLog("❌ Failed to get local account or sign: \(error)")
+            throw error
+        }
+    }
+    
     // MARK: - Cleanup
     
     public func disconnect() {
@@ -675,5 +790,37 @@ extension Data {
         var bytes = [UInt8](repeating: 0, count: count)
         _ = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
         return Data(bytes)
+    }
+    
+    /// Convert Swift Data to Kotlin ByteArray
+    func toKotlinByteArray() -> KotlinByteArray {
+        let byteArray = KotlinByteArray(size: Int32(self.count))
+        for i in 0..<self.count {
+            byteArray.set(index: Int32(i), value: Int8(bitPattern: self[i]))
+        }
+        return byteArray
+    }
+}
+
+extension KotlinByteArray {
+    /// Convert Kotlin ByteArray to Swift Data
+    func toSwiftData() -> Data {
+        var data = Data()
+        for i in 0..<self.size {
+            let byte = self.get(index: i)
+            data.append(UInt8(bitPattern: byte))
+        }
+        return data
+    }
+}
+
+extension Array where Element == UInt8 {
+    /// Convert [UInt8] to Kotlin ByteArray
+    func toKotlinByteArray() -> KotlinByteArray {
+        let byteArray = KotlinByteArray(size: Int32(self.count))
+        for i in 0..<self.count {
+            byteArray.set(index: Int32(i), value: Int8(bitPattern: self[i]))
+        }
+        return byteArray
     }
 }
