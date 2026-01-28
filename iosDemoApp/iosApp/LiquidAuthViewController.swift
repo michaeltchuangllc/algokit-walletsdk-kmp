@@ -36,11 +36,22 @@ public class LiquidAuthViewController: UIViewController {
     // MARK: - Initialization
     
     public init(origin: String, requestId: String, algoAddress: String, onCompletion: (() -> Void)? = nil) {
+        NSLog("🎬 LiquidAuthViewController.init() called")
+        NSLog("   📥 Received parameters:")
+        NSLog("      origin: '\(origin)'")
+        NSLog("      requestId: '\(requestId)'")
+        NSLog("      requestId.count: \(requestId.count)")
+        NSLog("      requestId.isEmpty: \(requestId.isEmpty)")
+        NSLog("      algoAddress: '\(algoAddress)'")
+        
         self.origin = origin
         self.requestId = requestId
         self.algoAddress = algoAddress
         self.onCompletion = onCompletion
         super.init(nibName: nil, bundle: nil)
+        
+        NSLog("   ✅ Stored in instance variables:")
+        NSLog("      self.requestId: '\(self.requestId)'")
     }
     
     required init?(coder: NSCoder) {
@@ -90,11 +101,17 @@ public class LiquidAuthViewController: UIViewController {
     
     private func startLiquidAuth() {
         NSLog("🚀 Starting Liquid Auth flow...")
+        NSLog("   📤 Creating LiquidAuthService with:")
+        NSLog("      self.origin: '\(self.origin)'")
+        NSLog("      self.requestId: '\(self.requestId)'")
+        NSLog("      self.requestId.count: \(self.requestId.count)")
+        NSLog("      self.requestId.isEmpty: \(self.requestId.isEmpty)")
+        NSLog("      self.algoAddress: '\(self.algoAddress)'")
         
         liquidAuthService = LiquidAuthService(
-            origin: origin,
-            requestId: requestId,
-            algoAddress: algoAddress
+            origin: self.origin,
+            requestId: self.requestId,
+            algoAddress: self.algoAddress
         )
         
         liquidAuthService?.connect(
@@ -107,19 +124,39 @@ public class LiquidAuthViewController: UIViewController {
                 DispatchQueue.main.async {
                     self?.handleError(error)
                 }
+            },
+            onConnected: { [weak self] in
+                DispatchQueue.main.async {
+                    self?.handleConnected()
+                }
             }
         )
     }
     
-    private func handleSuccess() {
-        NSLog("✅ Liquid Auth completed successfully")
+    private func handleConnected() {
+        NSLog("✅ Connected to server, waiting for requests...")
         activityIndicator.stopAnimating()
-        statusLabel.text = "Connected successfully!"
+        statusLabel.text = "Connected!\n\nWaiting for transaction requests...\n\nSwipe down to disconnect"
+        statusLabel.numberOfLines = 0
+        statusLabel.textAlignment = .center
+        statusLabel.textColor = .systemGreen
+        
+        // Connection stays alive until:
+        // 1. User swipes down to dismiss
+        // 2. Server closes connection
+        // 3. An error occurs
+    }
+    
+    private func handleSuccess() {
+        NSLog("✅ Liquid Auth session ended")
+        activityIndicator.stopAnimating()
+        statusLabel.text = "Session completed!"
         statusLabel.textColor = .systemGreen
         
         // Dismiss after a short delay
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             self?.onCompletion?()
+            self?.liquidAuthService?.disconnect()
             self?.dismiss(animated: true)
         }
     }
@@ -159,6 +196,14 @@ public extension LiquidAuthViewController {
         algoAddress: String,
         onCompletion: (() -> Void)? = nil
     ) {
+        NSLog("📺 LiquidAuthViewController.present() called")
+        NSLog("   📥 Static method received:")
+        NSLog("      origin: '\(origin)'")
+        NSLog("      requestId: '\(requestId)'")
+        NSLog("      requestId.count: \(requestId.count)")
+        NSLog("      requestId.isEmpty: \(requestId.isEmpty)")
+        NSLog("      algoAddress: '\(algoAddress)'")
+        
         let liquidAuthVC = LiquidAuthViewController(
             origin: origin,
             requestId: requestId,

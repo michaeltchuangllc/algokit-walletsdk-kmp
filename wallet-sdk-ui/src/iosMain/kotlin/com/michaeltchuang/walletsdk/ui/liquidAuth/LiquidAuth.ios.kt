@@ -18,13 +18,27 @@ actual fun connect(
 ) {
     LaunchedEffect(authMessage, algoAddress) {
         NSLog("🔗 iOS Liquid Auth connect() called")
-        NSLog("   Origin: ${authMessage.origin}")
-        NSLog("   RequestID: ${authMessage.requestId}")
-        NSLog("   AlgoAddress: $algoAddress")
+        NSLog("   Origin: '${authMessage.origin}'")
+        NSLog("   RequestID: '${authMessage.requestId}'")
+        NSLog("   RequestID length: ${authMessage.requestId.length}")
+        NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
+        NSLog("   AlgoAddress: '$algoAddress'")
         
+        // Verify requestId is not empty
+        if (authMessage.requestId.isEmpty()) {
+            NSLog("❌ ERROR: RequestID is empty!")
+            NSLog("   This usually means the URL wasn't parsed correctly")
+            NSLog("   Expected URL format: liquid://host/?requestId=...")
+            return@LaunchedEffect
+        }
+
         // Call the registered handler
         val handler = iosLiquidAuthHandler
         if (handler != null) {
+            NSLog("✅ Calling iOS handler with:")
+            NSLog("   - origin: '${authMessage.origin}'")
+            NSLog("   - requestId: '${authMessage.requestId}'")
+            NSLog("   - algoAddress: '$algoAddress'")
             handler(authMessage.origin, authMessage.requestId, algoAddress)
         } else {
             NSLog("⚠️ No iOS Liquid Auth handler registered!")

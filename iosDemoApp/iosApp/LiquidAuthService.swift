@@ -66,6 +66,7 @@ public class LiquidAuthService {
     // Callbacks
     private var onSuccess: (() -> Void)?
     private var onError: ((Error) -> Void)?
+    private var onConnected: (() -> Void)?  // Called when connection established
     
     // MARK: - Initialization
     
@@ -85,10 +86,12 @@ public class LiquidAuthService {
     /// Start the Liquid Auth connection flow
     public func connect(
         onSuccess: @escaping () -> Void,
-        onError: @escaping (Error) -> Void
+        onError: @escaping (Error) -> Void,
+        onConnected: (() -> Void)? = nil
     ) {
         self.onSuccess = onSuccess
         self.onError = onError
+        self.onConnected = onConnected
         
         NSLog("========================================")
         NSLog("🔗 Starting Liquid Auth Connection")
@@ -285,10 +288,14 @@ public class LiquidAuthService {
             NSLog("✅ Algorand public key: \(algoPublicKey.prefix(20))...")
             
             // Build liquid extension JSON (matching Android)
+            NSLog("🔍 Building liquid extension (registration):")
+            NSLog("   requestId: '\(self.requestId)'")
+            NSLog("   accountType: '\(accountType)'")
+            
             let liquidExt: [String: Any] = await [
                 "type": accountType,  // "algorand" or "falcon-1024"
-                "requestId": requestId,
-                "address": algoAddress,
+                "requestId": self.requestId,  // ✅ Explicitly use self.requestId
+                "address": self.algoAddress,  // ✅ Explicitly use self.algoAddress
                 "publicKey": algoPublicKey,  // Algorand wallet public key (not P256 key)
                 "signature": algoSignature.base64EncodedString(),  // Algorand wallet signature of challenge
                 "device": UIDevice.current.model
@@ -347,6 +354,14 @@ public class LiquidAuthService {
         NSLog("========================================")
         NSLog("🔐 AUTHENTICATION FLOW STARTED")
         NSLog("========================================")
+        
+        if let url = URL(string: "https://\(origin)"),
+               let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+                NSLog("🧹 Clearing \(cookies.count) old cookies")
+                for cookie in cookies {
+                    HTTPCookieStorage.shared.deleteCookie(cookie)
+                }
+            }
         
         do {
             guard let walletInfo = self.walletInfo,
@@ -454,21 +469,35 @@ public class LiquidAuthService {
             NSLog("   Signature size: \(algoSignature.count) bytes")
             
             // Build liquid extension JSON (matching Android)
+            NSLog("🔍 Building liquid extension:")
+            NSLog("   requestId (instance var): '\(self.requestId)'")
+            NSLog("   requestId isEmpty: \(self.requestId.isEmpty)")
+            NSLog("   accountType: '\(accountType)'")
+            NSLog("   address: '\(algoAddress)'")
+            
             let liquidExt: [String: Any] = [
                 "type": accountType,
-                "requestId": requestId,
+                "requestId": self.requestId,  // ✅ Explicitly use self.requestId
                 "address": algoAddress,
                 "publicKey": algoPublicKey,
                 "signature": algoSignature.base64EncodedString(),
                 "device": "iPhone"
             ]
             
+            NSLog("🔍 Liquid extension built:")
+            if let reqId = liquidExt["requestId"] as? String {
+                NSLog("   requestId in dict: '\(reqId)'")
+            } else {
+                NSLog("   ❌ requestId not found or not a String!")
+            }
+            
             // Create assertion credential
             let credential = try await createAssertionCredential(
                 options: assertionOptions,
                 walletInfo: walletInfo,
                 credentialID: credentialID,
-                challengeData: challengeData
+                challengeData: challengeData,
+                originalChallengeString: originalChallengeString
             )
             
             NSLog("✅ Assertion credential created, sending to server...")
@@ -518,8 +547,18 @@ public class LiquidAuthService {
             )
             
             NSLog("✅ Assertion response sent successfully!")
-            NSLog("✅ Authentication successful, setting up WebRTC...")
             
+            // Update passkey lastUsed timestamp
+            do {
+                try await passkeyManager.updateLastUsedTime(credentialId: credentialID)
+                NSLog("✅ Updated passkey lastUsed timestamp")
+            } catch {
+                NSLog("⚠️ Failed to update passkey lastUsed timestamp: \(error)")
+                // Non-fatal error, continue with authentication
+            }
+            
+            NSLog("✅ Authentication successful, setting up WebRTC...")
+
             // Setup WebRTC connection
             await setupWebRTC(credential: credential)
             
@@ -609,7 +648,8 @@ public class LiquidAuthService {
         options: [String: Any],
         walletInfo: WalletInfo,
         credentialID: String,
-        challengeData: Data
+        challengeData: Data,
+        originalChallengeString: String
     ) async throws -> AssertionCredential {
 
         // Credential ID is stored as base64url, decode it
@@ -627,7 +667,7 @@ public class LiquidAuthService {
         let challengeB64 = challengeData.base64EncodedString()
         let clientData: [String: Any] = [
             "type": "webauthn.get",
-            "challenge": challengeB64,
+            "challenge": originalChallengeString,
             "origin": "https://\(rpId)"
         ]
         
@@ -663,8 +703,8 @@ public class LiquidAuthService {
     
     private func setupWebRTC(credential: Any) async {
         NSLog("🌐 Setting up WebRTC connection...")
-        NSLog("   Request ID: \(requestId)")
-        NSLog("   Origin: \(origin)")
+        NSLog("   Request ID: '\(self.requestId)'")
+        NSLog("   Origin: '\(self.origin)'")
         
         guard let signalService = self.signalService else {
             NSLog("❌ SignalService not initialized")
@@ -682,9 +722,9 @@ public class LiquidAuthService {
         
         // Connect to peer using SignalService
         signalService.connectToPeer(
-            requestId: requestId,
+            requestId: self.requestId,  // ✅ Explicitly use self.requestId
             type: "answer",  // iOS wallet acts as the "answer" side
-            origin: origin,
+            origin: self.origin,  // ✅ Explicitly use self.origin
             iceServers: iceServers,
             onMessage: { [weak self] message in
                 guard let self = self else { return }
@@ -713,11 +753,14 @@ public class LiquidAuthService {
     
     private func sendCredentialMessage(credential: Any) {
         NSLog("📤 Sending credential message as JSON")
+        NSLog("   requestId: '\(self.requestId)'")
+        NSLog("   address: '\(self.algoAddress)'")
         
         // Send as JSON (not CBOR) - matches Android implementation
         let credentialMessage: [String: Any] = [
             "type": "credential",
-            "address": algoAddress,
+            "address": self.algoAddress,  // ✅ Explicitly use self.algoAddress
+            "requestId": self.requestId,  // ✅ Explicitly use self.requestId
             "provider": "WalletSDK-iOS"
         ]
         
@@ -725,11 +768,20 @@ public class LiquidAuthService {
            let jsonString = String(data: jsonData, encoding: .utf8) {
             signalService?.sendMessage(jsonString)
             NSLog("✅ Credential message sent as JSON (not CBOR)")
+            NSLog("   Full message: \(jsonString)")
+            NSLog("✅ RequestId in message: '\(self.requestId)'")
+            NSLog("⏳ Connection remains open, waiting for messages from server...")
             
-            // Notify success
+            // Notify UI that we're connected and waiting
             DispatchQueue.main.async { [weak self] in
-                self?.onSuccess?()
+                self?.onConnected?()
             }
+            
+            // Don't call onSuccess() yet - keep connection open to receive transaction requests
+            // The connection will be closed when:
+            // 1. User dismisses the view manually
+            // 2. An error occurs
+            // 3. Server closes the connection
         }
     }
     
@@ -791,9 +843,22 @@ public class LiquidAuthService {
         switch reference {
         case "arc0027:sign_transactions:request":
             NSLog("📝 Transaction signing request received")
-            // TODO: Implement transaction signing
-            // For now, send an error response
-            sendTransactionErrorResponse(requestId: requestId ?? "unknown")
+            
+            // Extract params from CBOR message
+            guard let paramsValue = messageMap[.utf8String("params")],
+                  case let .map(paramsMap) = paramsValue else {
+                NSLog("❌ Failed to extract params from CBOR message")
+                sendTransactionErrorResponse(requestId: requestId ?? "unknown")
+                return
+            }
+            
+            // Sign transactions asynchronously
+            Task {
+                await handleTransactionSigningRequest(
+                    requestId: requestId ?? "unknown",
+                    paramsMap: paramsMap
+                )
+            }
             
         default:
             NSLog("⚠️ Unknown CBOR message reference: \(reference ?? "nil")")
@@ -819,9 +884,127 @@ public class LiquidAuthService {
         }
     }
     
+    /// Handle transaction signing request from server
+    private func handleTransactionSigningRequest(
+        requestId: String,
+        paramsMap: [CBOR: CBOR]
+    ) async {
+        NSLog("========================================")
+        NSLog("📝 PROCESSING TRANSACTION SIGNING REQUEST")
+        NSLog("   RequestId: \(requestId)")
+        
+        // Debug: Log all keys in params map
+        NSLog("🔍 Params map keys:")
+        for (key, value) in paramsMap {
+            if case let .utf8String(keyStr) = key {
+                NSLog("   Key: '\(keyStr)', Value type: \(value)")
+            } else {
+                NSLog("   Key (non-string): \(key)")
+            }
+        }
+        
+        // Extract transactions array from params
+        guard let txnsValue = paramsMap[.utf8String("txns")],
+              case let .array(txnsArray) = txnsValue else {
+            NSLog("❌ Failed to extract txns array from params")
+            NSLog("   txnsValue: \(paramsMap[.utf8String("txns")] ?? "nil")")
+            sendTransactionErrorResponse(requestId: requestId)
+            return
+        }
+        
+        NSLog("   Number of transactions: \(txnsArray.count)")
+        
+        // Parse and sign each transaction
+        var signedTxns: [String] = []
+        
+        for (index, txnCBOR) in txnsArray.enumerated() {
+            guard case let .map(txnMap) = txnCBOR else {
+                NSLog("❌ Transaction \(index) is not a map")
+                sendTransactionErrorResponse(requestId: requestId)
+                return
+            }
+            
+            // Debug: Log all keys in the transaction map
+            NSLog("🔍 Transaction \(index) map keys:")
+            for (key, value) in txnMap {
+                if case let .utf8String(keyStr) = key {
+                    NSLog("   Key: '\(keyStr)', Value type: \(value)")
+                } else {
+                    NSLog("   Key (non-string): \(key), Value type: \(value)")
+                }
+            }
+            
+            // Extract transaction bytes - might be byteString instead of utf8String
+            var txnData: Data?
+            
+            // Try different possible formats
+            if let txnValue = txnMap[.utf8String("txn")] {
+                switch txnValue {
+                case let .utf8String(txnBase64url):
+                    // Base64url-encoded string (WebAuthn standard)
+                    // Try base64url first, then fall back to standard base64
+                    if let data = txnBase64url.base64urlToData() {
+                        txnData = data
+                        NSLog("📄 Transaction \(index): base64url string format")
+                    } else if let data = Data(base64Encoded: txnBase64url) {
+                        txnData = data
+                        NSLog("📄 Transaction \(index): standard base64 string format")
+                    } else {
+                        NSLog("❌ Failed to decode base64/base64url string")
+                        NSLog("   String (first 50 chars): \(txnBase64url.prefix(50))...")
+                    }
+                case let .byteString(txnBytes):
+                    // Raw bytes
+                    txnData = Data(txnBytes)
+                    NSLog("📄 Transaction \(index): raw bytes format")
+                default:
+                    NSLog("❌ Transaction \(index) has unexpected value type: \(txnValue)")
+                }
+            }
+            
+            guard let txnData = txnData else {
+                NSLog("❌ Failed to extract transaction \(index) bytes")
+                sendTransactionErrorResponse(requestId: requestId)
+                return
+            }
+            
+            NSLog("📄 Transaction \(index): \(txnData.count) bytes")
+            
+            // Sign the transaction using KMP transaction signing function
+            let txnKotlin = txnData.toKotlinByteArray()
+            
+            guard let signedTxnKotlin = App_iosKt.signTxnWithAlgorandWallet(
+                address: self.algoAddress,
+                txnBytes: txnKotlin
+            ) else {
+                NSLog("❌ Failed to sign transaction \(index)")
+                sendTransactionErrorResponse(requestId: requestId)
+                return
+            }
+            
+            // Convert signed transaction to base64
+            let signedTxnData = signedTxnKotlin.toSwiftData()
+            let signedTxnBase64 = signedTxnData.base64EncodedString()
+            signedTxns.append(signedTxnBase64)
+            
+            NSLog("✅ Transaction \(index) signed: \(signedTxnData.count) bytes")
+        }
+        
+        NSLog("✅ All \(signedTxns.count) transactions signed successfully")
+        NSLog("========================================")
+        
+        // Send response (providerId extracted from params if needed)
+        let providerId = "liquid-auth-ios"
+        sendTransactionResponse(
+            requestId: requestId,
+            signedTxns: signedTxns,
+            providerId: providerId
+        )
+    }
+    
     private func sendTransactionErrorResponse(requestId: String) {
         NSLog("📤 Sending transaction error response as JSON")
-        
+
         // Send response as JSON (matching Android change)
         // Note: Android switched from CBOR to JSON to avoid indefinite-length encoding issues
         let errorResponse: [String: Any] = [
@@ -829,10 +1012,10 @@ public class LiquidAuthService {
             "reference": "arc0027:sign_transactions:response",
             "error": [
                 "code": 4100,
-                "message": "Transaction signing not yet implemented on iOS"
+                "message": "Transaction signing failed"
             ]
         ]
-        
+
         if let jsonData = try? JSONSerialization.data(withJSONObject: errorResponse),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             signalService?.sendMessage(jsonString)

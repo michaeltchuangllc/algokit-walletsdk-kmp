@@ -243,6 +243,126 @@ fun signWithAlgorandWallet(
  * @return The signature bytes, or null if signing fails
  */
 /**
+ * Sign a transaction with an Algorand wallet account.
+ * This is specifically for signing transactions received via WebRTC (Liquid Auth).
+ * Uses transaction-specific signing methods for each account type.
+ *
+ * @param address The Algorand address to sign with
+ * @param txnBytes The transaction bytes to sign
+ * @return The signed transaction bytes, or null if signing fails
+ */
+fun signTxnWithAlgorandWallet(address: String, txnBytes: ByteArray): ByteArray? {
+    return try {
+        platform.Foundation.NSLog("🔏 Signing transaction with Algorand wallet")
+        platform.Foundation.NSLog("   Address: $address")
+        platform.Foundation.NSLog("   Transaction size: ${txnBytes.size} bytes")
+        
+        // Get the local account
+        val localAccount = getLocalAccount(address) ?: run {
+            platform.Foundation.NSLog("❌ Account not found: $address")
+            return null
+        }
+        
+        // Get mnemonic
+        val accountMnemonic = getAccountMnemonic(address)
+        val mnemonic = accountMnemonic.words.joinToString(" ")
+        
+        platform.Foundation.NSLog("📋 Account type: ${localAccount::class.simpleName}")
+        
+        // Sign based on account type (using transaction-specific signing)
+        when (localAccount) {
+            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+                // Algo25 account - recover from mnemonic and sign transaction
+                val algo25Account = com.michaeltchuang.walletsdk.core.algosdk.recoverAlgo25Account(mnemonic)
+                    ?: return null.also { platform.Foundation.NSLog("❌ Failed to recover Algo25 account") }
+                
+                val signedTxn = com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction(
+                    secretKey = algo25Account.secretKey,
+                    transactionByteArray = txnBytes
+                )
+                
+                if (signedTxn == null || signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ Algo25 transaction signing failed")
+                    return null
+                }
+                
+                platform.Foundation.NSLog("✅ Signed with Algo25, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+            
+            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+                // HD Key account - get seed and sign transaction
+                val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
+                    KoinPlatform.getKoin().get()
+                
+                val seedData = kotlinx.coroutines.runBlocking {
+                    hdSeedRepo.getSeed(localAccount.seedId)
+                } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get HD seed") }
+                
+                val signedTxn = com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
+                    transactionByteArray = txnBytes,
+                    seed = seedData,
+                    account = localAccount.account,
+                    change = localAccount.change,
+                    key = localAccount.keyIndex
+                )
+                
+                if (signedTxn == null || signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ HD Key transaction signing failed")
+                    return null
+                }
+                
+                platform.Foundation.NSLog("✅ Signed with HD Key, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+            
+            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+                // Falcon24 account - get private key and sign transaction
+                val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
+                    KoinPlatform.getKoin().get()
+                
+                val privateKey = kotlinx.coroutines.runBlocking {
+                    falcon24Repo.getSecretKey(address)
+                } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
+                
+                platform.Foundation.NSLog("🔍 Falcon24 transaction signing debug:")
+                platform.Foundation.NSLog("   Public key size: ${localAccount.publicKey.size} bytes")
+                platform.Foundation.NSLog("   Private key size: ${privateKey.size} bytes")
+                platform.Foundation.NSLog("   Transaction size: ${txnBytes.size} bytes")
+                
+                val signedTxn = com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction(
+                    transactionByteArray = txnBytes,
+                    publicKey = localAccount.publicKey,
+                    privateKey = privateKey
+                )
+                
+                if (signedTxn == null) {
+                    platform.Foundation.NSLog("❌ Falcon24 transaction signing returned null")
+                    return null
+                }
+                
+                if (signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ Falcon24 transaction signing returned empty array!")
+                    return null
+                }
+                
+                platform.Foundation.NSLog("✅ Signed with Falcon24, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+            
+            else -> {
+                platform.Foundation.NSLog("❌ Unsupported account type: ${localAccount::class.simpleName}")
+                null
+            }
+        }
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Transaction signing failed: ${e.message}")
+        e.printStackTrace()
+        null
+    }
+}
+
+/**
  * Get the Algorand wallet public key for a given address.
  * Returns the public key as a base64-encoded string.
  * 

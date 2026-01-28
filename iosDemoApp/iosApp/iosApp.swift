@@ -40,10 +40,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         
         // Register the callback using the bridge function in composeDemoApp
         App_iosKt.setIosLiquidAuthHandler { [weak self] origin, requestId, algoAddress in
-            NSLog("🔗 Liquid Auth callback triggered")
-            NSLog("   Origin: \(origin)")
-            NSLog("   RequestID: \(requestId)")
-            NSLog("   AlgoAddress: \(algoAddress)")
+            NSLog("🔗 Liquid Auth callback triggered from Kotlin")
+            NSLog("   Origin: '\(origin)'")
+            NSLog("   RequestID: '\(requestId)'")
+            NSLog("   RequestID count: \(requestId.count) chars")
+            NSLog("   RequestID isEmpty: \(requestId.isEmpty)")
+            NSLog("   AlgoAddress: '\(algoAddress)'")
             
             // Present Liquid Auth on main thread
             DispatchQueue.main.async {
@@ -61,7 +63,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     /// Present the Liquid Auth flow
     private func presentLiquidAuthFlow(origin: String, requestId: String, algoAddress: String) {
         NSLog("🌉 Presenting Liquid Auth flow")
-        
+        NSLog("   📥 Received parameters:")
+        NSLog("      origin: '\(origin)'")
+        NSLog("      requestId: '\(requestId)'")
+        NSLog("      requestId count: \(requestId.count) chars")
+        NSLog("      requestId isEmpty: \(requestId.isEmpty)")
+        NSLog("      algoAddress: '\(algoAddress)'")
+
         guard let rootViewController = window?.rootViewController else {
             NSLog("❌ Could not find root view controller")
             return
