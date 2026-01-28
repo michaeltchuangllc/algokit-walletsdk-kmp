@@ -356,6 +356,50 @@ import AlgoSDK
 
         return signedBytes
     }
+    
+    public func signFalconArbitraryDataWithBase64(
+        dataBase64: String,
+        publicKeyBase64: String,
+        privateKeyBase64: String
+    ) -> String {
+        guard let data = Data(base64Encoded: dataBase64) else {
+            print("Error: Failed to decode data from Base64")
+            return ""
+        }
+        
+        guard let publicKeyData = Data(base64Encoded: publicKeyBase64) else {
+            print("Error: Failed to decode public key from Base64")
+            return ""
+        }
+        
+        guard let privateKeyData = Data(base64Encoded: privateKeyBase64) else {
+            print("Error: Failed to decode private key from Base64")
+            return ""
+        }
+        
+        guard !data.isEmpty else {
+            print("Error signing data: Data is empty.")
+            return ""
+        }
+        
+        // Use AlgoSDK's RawSign function (same as Android's Sdk.rawSign)
+        var error: NSError?
+        guard let signature = AlgoSDK.AlgoSdkRawSign(
+            data,
+            publicKeyData,
+            privateKeyData,
+            &error
+        ) else {
+            if let error = error {
+                print("Error signing Falcon data (SDK failed): \(error.localizedDescription)")
+            } else {
+                print("Failed to sign Falcon data (SDK failed): unknown error.")
+            }
+            return ""
+        }
+        
+        return signature.base64EncodedString()
+    }
 
     public func createOfflineKeyRegTransaction(
         senderAddress: String,

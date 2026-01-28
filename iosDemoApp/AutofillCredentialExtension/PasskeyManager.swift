@@ -53,6 +53,10 @@ class PasskeyManager {
         return []
     }
     
+    func deletePasskey(credId: String) async throws {
+        try await passkeyRepository.removePasskeyByCredentialId(credId: credId)
+    }
+    
     /// Get passkeys for a specific Algorand address
     func getPasskeysByAlgoAddress(algoAddress: String) async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
         // Get credential ID for this address

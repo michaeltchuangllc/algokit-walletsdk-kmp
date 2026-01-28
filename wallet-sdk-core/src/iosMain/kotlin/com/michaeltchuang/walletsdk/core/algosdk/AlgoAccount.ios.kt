@@ -517,14 +517,14 @@ actual fun signFalcon24ArbitraryData(
         val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0.toULong())
         val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong())
 
-        /*val signedDataBase64 =
-            bridge.signFalconArbitraryDataWithPublicKeyBase64(
+        val signedDataBase64 =
+            bridge.signFalconArbitraryDataWithBase64WithDataBase64(
                 dataBase64 = dataBase64,
                 publicKeyBase64 = publicKeyBase64,
                 privateKeyBase64 = privateKeyBase64,
-            )*/
+            )
 
-        Base64.decode("")
+        Base64.decode(signedDataBase64)
     } catch (e: Exception) {
         println("Falcon24 arbitrary data signing failed: ${e.message}")
         null

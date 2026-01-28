@@ -38,7 +38,7 @@ public class AssertionApi {
         userAgent: String,
         credentialId: String,
         liquidExt: Bool? = true
-    ) async throws -> (Data, HTTPCookie?) {
+    ) async throws -> (Data, HTTPURLResponse) {
         guard !origin.isEmpty else {
             throw LiquidAuthError.invalidURL("Origin cannot be empty")
         }
@@ -88,20 +88,8 @@ public class AssertionApi {
             }
             Logger.debug("AssertionApi: Response headers: \(httpResponse.allHeaderFields)")
 
-            // Check for HTTP errors
-            guard 200 ... 299 ~= httpResponse.statusCode else {
-                throw LiquidAuthError.serverError("HTTP \(httpResponse.statusCode)")
-            }
-
-            // Extract the session cookie
-            let cookies = HTTPCookie.cookies(
-                withResponseHeaderFields: httpResponse.allHeaderFields as? [String: String] ?? [:],
-                for: url
-            )
-            let sessionCookie = cookies.first(where: { $0.name == "connect.sid" })
-            Logger.debug("AssertionApi: Session cookie: \(String(describing: sessionCookie))")
-
-            return (data, sessionCookie)
+            // Return data and response (don't throw on non-2xx, let caller handle it)
+            return (data, httpResponse)
         } catch {
             if error is LiquidAuthError {
                 throw error

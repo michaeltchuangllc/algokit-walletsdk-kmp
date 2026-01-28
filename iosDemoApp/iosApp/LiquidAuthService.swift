@@ -199,18 +199,29 @@ public class LiquidAuthService {
             NSLog("   rpId: \(rpId)")
             NSLog("   Full options: \(options)")
             
-            let (_, _) = try await attestationApi.postAttestationOptions(
+            let (responseData, sessionCookie) = try await attestationApi.postAttestationOptions(
                 origin: origin,
                 userAgent: userAgent,
                 options: options
             )
             
-            // For now, use mock attestation options
-            // TODO: Parse actual response from server
-            let challengeB64 = Data.random(count: 32).base64EncodedString()
-            let attestationOptions: [String: Any] = [
-                "challenge": challengeB64
-            ]
+            // Store the session cookie for subsequent requests
+            if let cookie = sessionCookie {
+                NSLog("🍪 Received session cookie: \(cookie.name)=\(cookie.value)")
+                HTTPCookieStorage.shared.setCookie(cookie)
+            } else {
+                NSLog("⚠️ No session cookie received from server")
+            }
+            
+            // Parse the server response to get the actual challenge
+            guard let attestationOptions = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+                throw NSError(domain: "Failed to parse attestation options from server", code: -1)
+            }
+            
+            NSLog("📥 Received attestation options from server")
+            if let challenge = attestationOptions["challenge"] as? String {
+                NSLog("   Challenge: \(challenge.prefix(20))...")
+            }
             
             // Create attestation credential
             let credential = try await createAttestationCredential(
@@ -218,8 +229,9 @@ public class LiquidAuthService {
                 walletInfo: walletInfo
             )
             
-            // Save to database
+            // Save to database with base64url encoded credential ID
             let passkeyManager = PasskeyManager()
+            let credentialIDString = credential.credentialID.base64urlEncodedString()
             try await passkeyManager.savePasskey(
                 siteUrl: origin,
                 siteName: origin,
@@ -227,10 +239,11 @@ public class LiquidAuthService {
                 uid: algoAddress,
                 username: algoAddress,
                 displayName: algoAddress,
-                credentialId: credential.credentialID.base64EncodedString()
+                credentialId: credentialIDString
             )
             
-            self.credentialID = credential.credentialID.base64EncodedString()
+            self.credentialID = credentialIDString
+            NSLog("✅ Saved credential ID: \(credentialIDString.prefix(20))...")
             
             NSLog("✅ Credential created locally, sending to server...")
             
@@ -238,8 +251,24 @@ public class LiquidAuthService {
             let accountType = App_iosKt.getAccountTypeForFido2(address: algoAddress)
             NSLog("📋 Account type: \(accountType)")
             
-            // Sign the challenge with Algorand wallet (NOT with P256 key!)
-            let challengeData = Data(base64Encoded: challengeB64)!
+            // Extract challenge from server response and sign it with Algorand wallet
+            guard let challengeB64 = attestationOptions["challenge"] as? String else {
+                NSLog("❌ No challenge found in attestation options")
+                throw NSError(domain: "No challenge in server response", code: -1)
+            }
+            
+            NSLog("📥 Challenge from server: \(challengeB64)")
+            NSLog("   Challenge length: \(challengeB64.count) chars")
+            
+            // Convert base64url to Data (WebAuthn uses base64url encoding)
+            guard let challengeData = challengeB64.base64urlToData() else {
+                NSLog("❌ Failed to decode challenge as base64url")
+                NSLog("   Original: \(challengeB64)")
+                throw NSError(domain: "Invalid challenge encoding", code: -1)
+            }
+            
+            NSLog("✅ Challenge decoded: \(challengeData.count) bytes")
+            
             let algoSignature = try signWithAlgorandWallet(
                 challenge: challengeData,
                 address: algoAddress
@@ -247,29 +276,51 @@ public class LiquidAuthService {
             
             NSLog("✅ Algorand signature computed: \(algoSignature.base64EncodedString().prefix(20))...")
             
+            // Get Algorand wallet public key (not P256 key)
+            guard let algoPublicKey = App_iosKt.getPublicKeyForAlgorandWallet(address: algoAddress) else {
+                NSLog("❌ Failed to get Algorand public key")
+                throw NSError(domain: "Failed to get Algorand public key", code: -1)
+            }
+            
+            NSLog("✅ Algorand public key: \(algoPublicKey.prefix(20))...")
+            
             // Build liquid extension JSON (matching Android)
-            let liquidExt: [String: Any] = [
+            let liquidExt: [String: Any] = await [
                 "type": accountType,  // "algorand" or "falcon-1024"
                 "requestId": requestId,
                 "address": algoAddress,
-                "publicKey": walletInfo.p256KeyPair.publicKey.rawRepresentation.base64EncodedString(),
+                "publicKey": algoPublicKey,  // Algorand wallet public key (not P256 key)
                 "signature": algoSignature.base64EncodedString(),  // Algorand wallet signature of challenge
                 "device": UIDevice.current.model
             ]
             
-            // Build credential dictionary for server
+            // Build credential dictionary for server with base64url encoding (WebAuthn standard)
             let credentialDict: [String: Any] = [
-                "id": credential.credentialID.base64EncodedString(),
-                "rawId": credential.credentialID.base64EncodedString(),
+                "id": credential.credentialID.base64urlEncodedString(),  // ✅ base64url encoding
+                "rawId": credential.credentialID.base64urlEncodedString(),
                 "type": "public-key",
                 "response": [
-                    "attestationObject": credential.attestationObject.base64EncodedString(),
-                    "clientDataJSON": credential.clientDataJSON.base64EncodedString()
+                    "attestationObject": credential.attestationObject.base64urlEncodedString(),
+                    "clientDataJSON": credential.clientDataJSON.base64urlEncodedString()
                 ]
             ]
             
+            NSLog("🔍 Registration credential ID (first 20 chars): \(credential.credentialID.base64urlEncodedString().prefix(20))...")
+            
             // Send attestation response to server
             NSLog("📤 Sending attestation response to server...")
+            
+            // Verify session cookie is present
+            if let url = URL(string: "https://\(origin)"),
+               let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+                NSLog("🍪 Sending \(cookies.count) cookie(s) with request:")
+                for cookie in cookies {
+                    NSLog("   - \(cookie.name)=\(cookie.value.prefix(10))...")
+                }
+            } else {
+                NSLog("⚠️ No cookies found for \(origin)")
+            }
+            
             let _ = try await attestationApi.postAttestationResult(
                 origin: origin,
                 userAgent: userAgent,
@@ -279,10 +330,11 @@ public class LiquidAuthService {
             )
             
             NSLog("✅ Attestation response sent successfully!")
-            NSLog("✅ Registration complete, setting up WebRTC...")
+            NSLog("✅ Registration complete!")
+            NSLog("🔐 Now authenticating to establish login session...")
             
-            // Setup WebRTC connection
-            await setupWebRTC(credential: credential)
+            // After successful registration, authenticate to establish the login session
+            await authenticate()
             
         } catch {
             NSLog("❌ Registration failed: \(error)")
@@ -310,11 +362,12 @@ public class LiquidAuthService {
             
             // Get assertion options from server
             let assertionApi = AssertionApi()
+            let passkeyManager = PasskeyManager()
             
             // Build user-agent (matching Android format)
             let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-            let systemVersion = UIDevice.current.systemVersion
-            let deviceModel = UIDevice.current.model
+            let systemVersion = await UIDevice.current.systemVersion
+            let deviceModel = await UIDevice.current.model
             let userAgent = "com.michaeltchuang.walletsdk.demo/\(appVersion) (iOS \(systemVersion); \(deviceModel); Apple)"
             
             let (responseData, httpResponse) = try await assertionApi.postAssertionOptions(
@@ -324,19 +377,147 @@ public class LiquidAuthService {
                 liquidExt: true
             )
             
-            // For now, use mock assertion options
-            // TODO: Parse actual response from server
-            let assertionOptions: [String: Any] = [
-                "challenge": Data.random(count: 32).base64EncodedString()
+            NSLog("📡 Assertion request response:")
+            NSLog("   Status code: \(httpResponse.statusCode)")
+            NSLog("   Response data size: \(responseData.count) bytes")
+            if let responseString = String(data: responseData, encoding: .utf8) {
+                NSLog("   Response body (first 500 chars): \(responseString.prefix(500))")
+            }
+            
+            // Check for HTTP errors
+            if httpResponse.statusCode == 401 {
+                if let responseString = String(data: responseData, encoding: .utf8),
+                   responseString.contains("not_found") {
+                    NSLog("⚠️ Credential not found on server, need to register")
+                    // Delete local credential and re-register
+                    try? await passkeyManager.deletePasskey(credId: credentialID)
+                    await register()
+                    return
+                }
+                throw NSError(domain: "HTTP 401 Unauthorized", code: 401)
+            } else if !(200...299).contains(httpResponse.statusCode) {
+                NSLog("❌ HTTP error: \(httpResponse.statusCode)")
+                if let responseString = String(data: responseData, encoding: .utf8) {
+                    NSLog("   Error response: \(responseString)")
+                }
+                throw NSError(domain: "HTTP error \(httpResponse.statusCode)", code: httpResponse.statusCode)
+            }
+            
+            // Parse the server response to get the actual challenge
+            guard let assertionOptions = try? JSONSerialization.jsonObject(with: responseData) as? [String: Any] else {
+                NSLog("❌ Failed to parse assertion options as JSON")
+                NSLog("   Response data: \(String(data: responseData, encoding: .utf8) ?? "nil")")
+                throw NSError(domain: "Failed to parse assertion options from server", code: -1)
+            }
+            
+            NSLog("📥 Received assertion options from server")
+            NSLog("   Keys: \(assertionOptions.keys.joined(separator: ", "))")
+            if let challenge = assertionOptions["challenge"] {
+                NSLog("   Challenge type: \(type(of: challenge))")
+                NSLog("   Challenge value: \(challenge)")
+            } else {
+                NSLog("   ❌ No 'challenge' key in response!")
+            }
+            
+            // Parse and log challenge
+            guard let challengeB64url = assertionOptions["challenge"] as? String else {
+                NSLog("❌ Challenge is not a String or is missing")
+                NSLog("   Full response: \(assertionOptions)")
+                throw NSError(domain: "Invalid challenge from server (not a string)", code: -1)
+            }
+            
+            let originalChallengeString = challengeB64url
+            
+            guard let challengeData = challengeB64url.base64urlToData() else {
+                NSLog("❌ Failed to decode challenge as base64url")
+                NSLog("   Challenge string: \(challengeB64url)")
+                NSLog("   Challenge length: \(challengeB64url.count)")
+                throw NSError(domain: "Invalid challenge encoding (base64url decode failed)", code: -1)
+            }
+            
+            NSLog("📥 Challenge from server: \(challengeB64url.prefix(20))...")
+            NSLog("   Challenge length: \(challengeB64url.count) chars")
+            NSLog("✅ Challenge decoded: \(challengeData.count) bytes")
+            
+            // Get account type for FIDO2 (matching Android)
+            let accountType = App_iosKt.getAccountTypeForFido2(address: algoAddress)
+            NSLog("📋 Account type: \(accountType)")
+            
+            // Get Algorand wallet public key (not P256 key)
+            guard let algoPublicKey = App_iosKt.getPublicKeyForAlgorandWallet(address: algoAddress) else {
+                throw NSError(domain: "Failed to get Algorand public key", code: -1)
+            }
+            
+            // Sign challenge with Algorand wallet
+            let algoSignature = try signWithAlgorandWallet(challenge: challengeData, address: algoAddress)
+            NSLog("✅ Algorand signature computed: \(algoSignature.base64EncodedString().prefix(20))...")
+            NSLog("   Signature size: \(algoSignature.count) bytes")
+            
+            // Build liquid extension JSON (matching Android)
+            let liquidExt: [String: Any] = [
+                "type": accountType,
+                "requestId": requestId,
+                "address": algoAddress,
+                "publicKey": algoPublicKey,
+                "signature": algoSignature.base64EncodedString(),
+                "device": "iPhone"
             ]
             
             // Create assertion credential
             let credential = try await createAssertionCredential(
                 options: assertionOptions,
                 walletInfo: walletInfo,
-                credentialID: credentialID
+                credentialID: credentialID,
+                challengeData: challengeData
             )
             
+            NSLog("✅ Assertion credential created, sending to server...")
+            
+            // Build credential dictionary with base64url encoding (WebAuthn standard)
+            let credentialDict: [String: Any] = [
+                "id": credential.credentialID.base64urlEncodedString(),  // ✅ base64url encoding
+                "rawId": credential.credentialID.base64urlEncodedString(),
+                "type": "public-key",
+                "response": [
+                    "authenticatorData": credential.authenticatorData.base64urlEncodedString(),
+                    "clientDataJSON": credential.clientDataJSON.base64urlEncodedString(),
+                    "signature": credential.signature.base64urlEncodedString(),
+                    "userHandle": credential.userHandle.base64urlEncodedString()
+                ],
+                "clientExtensionResults": [
+                    "liquid": liquidExt
+                ],
+                "device": "iPhone"
+            ]
+            
+            NSLog("🔍 Credential ID (first 20 chars): \(credential.credentialID.base64urlEncodedString().prefix(20))...")
+            
+            // Convert to JSON string
+            guard let credentialJSON = try? JSONSerialization.data(withJSONObject: credentialDict),
+                  let credentialString = String(data: credentialJSON, encoding: .utf8) else {
+                throw NSError(domain: "Failed to serialize credential to JSON", code: -1)
+            }
+            
+            // Send assertion response to server
+            NSLog("📤 Sending assertion response to server...")
+            
+            // Verify session cookie is present before sending
+            if let url = URL(string: "https://\(origin)"),
+               let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+                NSLog("🍪 Sending \(cookies.count) cookie(s) with request:")
+                for cookie in cookies {
+                    NSLog("   - \(cookie.name)=\(cookie.value.prefix(10))...")
+                }
+            }
+            
+            try await assertionApi.postAssertionResult(
+                origin: origin,
+                userAgent: userAgent,
+                credential: credentialString,
+                liquidExt: liquidExt
+            )
+            
+            NSLog("✅ Assertion response sent successfully!")
             NSLog("✅ Authentication successful, setting up WebRTC...")
             
             // Setup WebRTC connection
@@ -371,11 +552,17 @@ public class LiquidAuthService {
             publicKey: pubkey
         )
         
-        let rpIdHash = Utility.hashSHA256(origin.data(using: .utf8)!)
+        // Extract RP ID from origin (remove https:// or http://)
+        let rpId = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
         
-        // Get challenge from options
-        guard let challengeB64 = options["challenge"] as? String,
-              let challengeData = Data(base64Encoded: challengeB64) else {
+        // Hash the RP ID (NOT the full origin URL)
+        let rpIdHash = Utility.hashSHA256(rpId.data(using: .utf8)!)
+        
+        // Get challenge from options (as base64url string from server)
+        guard let challengeB64url = options["challenge"] as? String,
+              let challengeData = challengeB64url.base64urlToData() else {
             throw NSError(domain: "Invalid challenge", code: -1)
         }
         
@@ -393,19 +580,18 @@ public class LiquidAuthService {
         // Note: CBOR encoding is REQUIRED here for WebAuthn attestationObject
         // This is different from data channel messages which use JSON
         // See: https://www.w3.org/TR/webauthn-2/#attestation-object
-        let attObj: [CBOR: CBOR] = [
-            .utf8String("attStmt"): .map([:]),
-            .utf8String("authData"): .byteString([UInt8](authData)),
-            .utf8String("fmt"): .utf8String("none"),
-        ]
-        
-        let cborObject = CBOR.map(attObj)
-        let cborEncoded = cborObject.encode()
+        let attObj: [String: Any] = [
+                    "attStmt": [:],
+                    "authData": authData,
+                    "fmt": "none",
+                ]
+    
+        let cborEncoded = try CBOR.encodeMap(attObj)
         let attestationObject = Data(cborEncoded)
         
         let clientData: [String: Any] = [
             "type": "webauthn.create",
-            "challenge": challengeB64,  // Keep as base64url string
+            "challenge": challengeB64url,  // Keep as base64url string (WebAuthn spec)
             "origin": origin,
             "crossOrigin": false
         ]
@@ -422,20 +608,37 @@ public class LiquidAuthService {
     private func createAssertionCredential(
         options: [String: Any],
         walletInfo: WalletInfo,
-        credentialID: String
+        credentialID: String,
+        challengeData: Data
     ) async throws -> AssertionCredential {
-        
-        // Get challenge from options
-        guard let challengeB64 = options["challenge"] as? String,
-              let challengeData = Data(base64Encoded: challengeB64) else {
-            throw NSError(domain: "Invalid challenge", code: -1)
+
+        // Credential ID is stored as base64url, decode it
+        guard let credIDData = credentialID.base64urlToData() else {
+            throw NSError(domain: "Invalid credential ID encoding", code: -1)
         }
-        
-        let credIDData = Data(base64Encoded: credentialID)!
         let userHandleData = Data(walletInfo.address.utf8)
         
-        // Authenticator data
-        let rpIdHash = Utility.hashSHA256(origin.data(using: .utf8)!)
+        // Extract RP ID from origin (remove https:// or http://)
+        let rpId = origin
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+        
+        // Build clientDataJSON (matching WebAuthn spec for assertion)
+        let challengeB64 = challengeData.base64EncodedString()
+        let clientData: [String: Any] = [
+            "type": "webauthn.get",
+            "challenge": challengeB64,
+            "origin": "https://\(rpId)"
+        ]
+        
+        guard let clientDataJSON = try? JSONSerialization.data(withJSONObject: clientData) else {
+            throw NSError(domain: "Failed to serialize clientDataJSON", code: -1)
+        }
+        
+        let clientDataHash = Utility.hashSHA256(clientDataJSON)
+        
+        // Authenticator data - hash the RP ID (NOT the full origin URL)
+        let rpIdHash = Utility.hashSHA256(rpId.data(using: .utf8)!)
         let authenticatorData = AuthenticatorData.assertion(
             rpIdHash: rpIdHash,
             userPresent: true,
@@ -445,8 +648,8 @@ public class LiquidAuthService {
             signCount: 0
         ).toData()
         
-        // Signature: sign authenticatorData || clientDataHash
-        let dataToSign = authenticatorData + challengeData
+        // Signature: sign authenticatorData || clientDataHash (using P256 FIDO2 key)
+        let dataToSign = authenticatorData + clientDataHash
         let signature = try walletInfo.p256KeyPair.signature(for: dataToSign).derRepresentation
         
         return AssertionCredential(
@@ -454,7 +657,7 @@ public class LiquidAuthService {
             authenticatorData: authenticatorData,
             signature: signature,
             userHandle: userHandleData,
-            clientDataJSON: challengeData
+            clientDataJSON: clientDataJSON
         )
     }
     
@@ -661,100 +864,44 @@ public class LiquidAuthService {
         }
     }
     
-    /// Sign challenge data with Algorand wallet's private key using KMP functions
+    /// Sign challenge data with Algorand wallet's private key using KMP
     /// - Parameters:
     ///   - challenge: The challenge data to sign
     ///   - address: The Algorand address to sign with
     /// - Returns: The signature bytes
-    /// - Throws: Error if account not found or signing fails
+    /// - Throws: Error if signing fails
     private func signWithAlgorandWallet(
         challenge: Data,
         address: String
     ) throws -> Data {
-        NSLog("🔐 Signing challenge with Algorand wallet (using KMP)")
-        NSLog("   Address: \(address)")
-        NSLog("   Challenge size: \(challenge.count) bytes")
+        // Convert Swift Data to Kotlin ByteArray
+        let challengeKotlin = challenge.toKotlinByteArray()
         
-        // Get the account's mnemonic
-        guard let mnemonic = self.mnemonic else {
-            throw NSError(domain: "Mnemonic not available", code: -1)
+        NSLog("🔍 Swift signing debug:")
+        NSLog("   Challenge Data size: \(challenge.count) bytes")
+        NSLog("   Challenge Kotlin size: \(challengeKotlin.size) bytes")
+        
+        // Call KMP function that handles all account types
+        guard let signatureKotlin = App_iosKt.signWithAlgorandWallet(
+            address: address,
+            challenge: challengeKotlin
+        ) else {
+            NSLog("❌ KMP signWithAlgorandWallet returned nil")
+            throw NSError(domain: "Signing failed (returned nil)", code: -1)
         }
         
-        do {
-            let localAccount = try App_iosKt.getLocalAccount(address: address)
-            
-            let challengeKotlin = challenge.toKotlinByteArray()
-            
-            // Sign based on account type
-            if localAccount is LocalAccountAlgo25 {
-                // Algo25 account - use KMP's signAlgo25ArbitraryData
-                guard let algo25Account = AlgoAccountKt.recoverAlgo25Account(mnemonic: mnemonic) else {
-                    throw NSError(domain: "Failed to recover Algo25 account", code: -1)
-                }
-                
-                let secretKeyKotlin = algo25Account.secretKey.toKotlinByteArray()
-                
-                guard let signature = AlgoAccountKt.signAlgo25ArbitraryData(
-                    data: challengeKotlin,
-                    secretKey: secretKeyKotlin
-                ) else {
-                    throw NSError(domain: "Algo25 signing failed", code: -1)
-                }
-                
-                let signatureData = signature.toSwiftData()
-                NSLog("✅ Signed with Algo25 (KMP), signature size: \(signatureData.count) bytes")
-                return signatureData
-                
-            } else if let hdKey = localAccount as? LocalAccountHdKey {
-                // HD Key account - use KMP's signHdKeyData
-                guard let seed = try? App_iosKt.getHdSeed(seedId: hdKey.seedId) else {
-                    throw NSError(domain: "Failed to get HD seed", code: -1)
-                }
-                
-                let seedKotlin = seed.seed.toKotlinByteArray()
-                
-                guard let signature = AlgoAccountKt.signHdKeyData(
-                    data: challengeKotlin,
-                    seed: seedKotlin,
-                    account: hdKey.account,
-                    change: hdKey.change,
-                    key: hdKey.keyIndex
-                ) else {
-                    throw NSError(domain: "HD Key signing failed", code: -1)
-                }
-                
-                let signatureData = signature.toSwiftData()
-                NSLog("✅ Signed with HD Key (KMP), signature size: \(signatureData.count) bytes")
-                return signatureData
-                
-            } else if let falcon = localAccount as? LocalAccountFalcon24 {
-                // Falcon account - use KMP's signFalcon24ArbitraryData
-                guard let privateKey = try? App_iosKt.getFalcon24SecretKey(address: address) else {
-                    throw NSError(domain: "Failed to get Falcon24 private key", code: -1)
-                }
-                
-                guard let signature = AlgoAccountKt.signFalcon24ArbitraryData(
-                    data: challengeKotlin,
-                    publicKey: falcon.publicKey,
-                    privateKey: privateKey
-                ) else {
-                    throw NSError(domain: "Falcon24 signing failed", code: -1)
-                }
-                
-                let signatureData = signature.toSwiftData()
-                NSLog("✅ Signed with Falcon24 (KMP), signature size: \(signatureData.count) bytes")
-                return signatureData
-                
-            } else {
-                throw NSError(
-                    domain: "Unsupported account type: \(type(of: localAccount))",
-                    code: -1
-                )
-            }
-        } catch {
-            NSLog("❌ Failed to get local account or sign: \(error)")
-            throw error
+        NSLog("🔍 Signature returned from KMP:")
+        NSLog("   Kotlin ByteArray size: \(signatureKotlin.size)")
+        
+        // Convert Kotlin ByteArray back to Swift Data
+        let signatureData = signatureKotlin.toSwiftData()
+        NSLog("   Swift Data size: \(signatureData.count) bytes")
+        
+        if signatureData.isEmpty {
+            NSLog("❌ WARNING: Signature is empty after conversion!")
         }
+        
+        return signatureData
     }
     
     // MARK: - Cleanup
@@ -784,7 +931,39 @@ public struct AssertionCredential {
 
 // MARK: - Extensions
 
+extension String {
+    /// Convert base64url string to Data
+    /// WebAuthn uses base64url encoding (RFC 4648) which uses - and _ instead of + and /
+    func base64urlToData() -> Data? {
+        // Convert base64url to base64
+        let base64 = self
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        
+        // Add padding if needed
+        let remainder = base64.count % 4
+        let paddedBase64 = remainder > 0 
+            ? base64 + String(repeating: "=", count: 4 - remainder)
+            : base64
+        
+        return Data(base64Encoded: paddedBase64)
+    }
+}
+
 extension Data {
+    /// Convert Data to base64url encoded string
+    /// WebAuthn uses base64url encoding (RFC 4648) which uses - and _ instead of + and /
+    func base64urlEncodedString() -> String {
+        // Encode to standard base64
+        let base64 = self.base64EncodedString()
+        
+        // Convert to base64url by replacing characters and removing padding
+        return base64
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")  // Remove padding
+    }
+    
     /// Generate random data of specified length
     static func random(count: Int) -> Data {
         var bytes = [UInt8](repeating: 0, count: count)
