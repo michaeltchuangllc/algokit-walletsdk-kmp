@@ -2,6 +2,8 @@ import Foundation
 import x_hd_wallet_api
 import MnemonicSwift
 import AlgoSDK
+import CryptoKit
+import AlgoKitTransact
 
 @objcMembers public class spmAlgoApiBridge: NSObject {
 
@@ -139,6 +141,50 @@ import AlgoSDK
         }
     }
 
+    @_optimize(none)
+    public func signHdArbitraryDataWithSeedBase64(
+        seedBase64: String,
+        account: Int,
+        change: Int,
+        keyIndex: Int,
+        dataBase64: String
+    ) -> String {
+        do {
+            guard let seedData = Data(base64Encoded: seedBase64) else {
+                NSLog("❌ Failed to decode seed from Base64")
+                return ""
+            }
+
+            guard let data = Data(base64Encoded: dataBase64) else {
+                NSLog("❌ Failed to decode data from Base64")
+                return ""
+            }
+
+            let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
+
+            guard let wallet = XHDWalletAPI(seed: seedHex) else {
+                NSLog("❌ Failed to create XHDWalletAPI wallet")
+                return ""
+            }
+
+            // Sign the data with Ed25519
+            let signature = try wallet.sign(
+                context: .Address,
+                account: UInt32(account),
+                change: UInt32(change),
+                keyIndex: UInt32(keyIndex),
+                message: data,
+                derivationType: .Peikert
+            )
+
+            return signature.base64EncodedString()
+
+        } catch {
+            NSLog("❌ HD arbitrary data signing failed: \(error.localizedDescription)")
+            return ""
+        }
+    }
+
     public func getAlgo25SecretKey(mnemonic: String?) -> String {
         if let mnemonic = mnemonic {
             var error: NSError?
@@ -199,48 +245,94 @@ import AlgoSDK
     }
 
     public func signAlgo25TransactionWithBase64(skBase64: String, encodedTxBase64: String) -> String {
-
         guard let skData = Data(base64Encoded: skBase64) else {
-            print("Error: Failed to decode secret key from Base64")
+            NSLog("❌ Failed to decode secret key from Base64")
             return ""
         }
 
         guard let encodedTxData = Data(base64Encoded: encodedTxBase64) else {
-            print("Error: Failed to decode transaction from Base64")
+            NSLog("❌ Failed to decode transaction from Base64")
             return ""
         }
 
         guard skData.count == 64 else {
-            print("Error signing transaction: Secret key (sk) must be 64 bytes long, but received \(skData.count) bytes.")
+            NSLog("❌ Secret key must be 64 bytes, received \(skData.count) bytes")
             return ""
         }
 
         guard !encodedTxData.isEmpty else {
-            print("Error signing transaction: Unsigned transaction data (encodedTx) is empty.")
+            NSLog("❌ Transaction data is empty")
             return ""
         }
 
-        let result = skData.withUnsafeBytes { (skPtr: UnsafeRawBufferPointer) -> String in
-            let sk = Data(bytes: skPtr.baseAddress!, count: skData.count)
-
-            return encodedTxData.withUnsafeBytes { (txPtr: UnsafeRawBufferPointer) -> String in
-                let encodedTx = Data(bytes: txPtr.baseAddress!, count: encodedTxData.count)
-
-                var error: NSError?
-                guard let signedTxn = AlgoSDK.AlgoSdkSignTransaction(sk, encodedTx, &error) else {
-                    if let error = error {
-                        print("Error signing transaction (SDK failed): \(error.localizedDescription)")
-                    } else {
-                        print("Failed to sign transaction (SDK failed): unknown error.")
-                    }
-                    return ""
-                }
-
-                return signedTxn.base64EncodedString()
-            }
+        do {
+            // Step 1: Decode the unsigned transaction using AlgoKitTransact
+            let transaction = try decodeTransaction(encodedTx: encodedTxData)
+            
+            // Step 2: Sign with CryptoKit (Ed25519)
+            // Extract the 32-byte seed (first half of 64-byte key)
+            let seedData = skData.prefix(32)
+            let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seedData)
+            
+            // Add "TX" prefix to transaction bytes before signing
+            let txPrefix = "TX".data(using: .utf8)!
+            let dataToSign = txPrefix + encodedTxData
+            
+            let signature = try privateKey.signature(for: dataToSign)
+            let signatureData = Data(signature)
+            
+            // Step 3: Create SignedTransaction with AlgoKitTransact
+            let signedTransaction = SignedTransaction(
+                transaction: transaction,
+                signature: signatureData,
+                authAddress: nil,
+                multisignature: nil
+            )
+            
+            // Step 4: Encode to MessagePack using AlgoKitTransact
+            let encodedSignedTx = try encodeSignedTransaction(signedTransaction: signedTransaction)
+            
+            return encodedSignedTx.base64EncodedString()
+        } catch {
+            NSLog("❌ Algo25 transaction signing failed: \(error.localizedDescription)")
+            return ""
+        }
+    }
+    
+    public func signAlgo25ArbitraryDataWithBase64(skBase64: String, dataBase64: String) -> String {
+        guard let skData = Data(base64Encoded: skBase64) else {
+            NSLog("Failed to decode secret key from Base64")
+            return ""
         }
 
-        return result
+        guard let data = Data(base64Encoded: dataBase64) else {
+            NSLog("Failed to decode data from Base64")
+            return ""
+        }
+
+        guard skData.count == 64 else {
+            NSLog("Secret key must be 64 bytes, received: \(skData.count) bytes")
+            return ""
+        }
+
+        guard !data.isEmpty else {
+            NSLog("Message data is empty")
+            return ""
+        }
+
+        // Use Apple's native CryptoKit Ed25519 implementation (Curve25519.Signing)
+        // Ed25519 secret key format: first 32 bytes = seed, last 32 bytes = public key
+        // CryptoKit expects just the 32-byte seed
+        let seedData = skData.prefix(32)
+        
+        do {
+            let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seedData)
+            let signature = try privateKey.signature(for: data)
+            return Data(signature).base64EncodedString()
+        } catch {
+            NSLog("Algo25 arbitrary data signing failed: \(error.localizedDescription)")
+            return ""
+        }
     }
 
     public func getFalconAddressFromMnemonic(mnemonic: String) -> String {
@@ -320,6 +412,50 @@ import AlgoSDK
         }
 
         return signedBytes
+    }
+    
+    public func signFalconArbitraryDataWithBase64(
+        dataBase64: String,
+        publicKeyBase64: String,
+        privateKeyBase64: String
+    ) -> String {
+        guard let data = Data(base64Encoded: dataBase64) else {
+            print("Error: Failed to decode data from Base64")
+            return ""
+        }
+        
+        guard let publicKeyData = Data(base64Encoded: publicKeyBase64) else {
+            print("Error: Failed to decode public key from Base64")
+            return ""
+        }
+        
+        guard let privateKeyData = Data(base64Encoded: privateKeyBase64) else {
+            print("Error: Failed to decode private key from Base64")
+            return ""
+        }
+        
+        guard !data.isEmpty else {
+            print("Error signing data: Data is empty.")
+            return ""
+        }
+        
+        // Use AlgoSDK's RawSign function (same as Android's Sdk.rawSign)
+        var error: NSError?
+        guard let signature = AlgoSDK.AlgoSdkRawSign(
+            data,
+            publicKeyData,
+            privateKeyData,
+            &error
+        ) else {
+            if let error = error {
+                print("Error signing Falcon data (SDK failed): \(error.localizedDescription)")
+            } else {
+                print("Failed to sign Falcon data (SDK failed): unknown error.")
+            }
+            return ""
+        }
+        
+        return signature.base64EncodedString()
     }
 
     public func createOfflineKeyRegTransaction(

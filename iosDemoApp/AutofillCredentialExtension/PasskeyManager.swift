@@ -52,4 +52,23 @@ class PasskeyManager {
         // For now, this is a placeholder - you'll need to handle the Flow conversion
         return []
     }
+    
+    func deletePasskey(credId: String) async throws {
+        try await passkeyRepository.removePasskeyByCredentialId(credId: credId)
+    }
+    
+    /// Get passkeys for a specific Algorand address
+    func getPasskeysByAlgoAddress(algoAddress: String) async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
+        // Get credential ID for this address
+        guard let credId = try await passkeyRepository.getCredentialIdByAlgoAddress(algoAddress: algoAddress) else {
+            return []
+        }
+        
+        // Get the passkey using the credential ID
+        if let passkey = try await passkeyRepository.getPasskey(credId: credId) {
+            return [passkey]
+        }
+        
+        return []
+    }
 }

@@ -1,5 +1,5 @@
 {
-  "originHash" : "e8344731976305350be17c74dafd160f96d23fe80a051bd7a722449dae57b167",
+  "originHash" : "b735e2922a45c29b5f34198069f8d9868b189145302393cfcba86d3189ec98a0",
   "pins" : [
     {
       "identity" : "algorand-devrel-xhd-wallet-api-swift",
@@ -62,15 +62,6 @@
       "state" : {
         "revision" : "92385c024dee684e0b6b9dee6ee067844bf61f38",
         "version" : "0.7.0"
-      }
-    },
-    {
-      "identity" : "liquid-auth-ios",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/algorandfoundation/liquid-auth-ios/",
-      "state" : {
-        "branch" : "main",
-        "revision" : "384c926d334f69e744b80b6166af3d034970170d"
       }
     },
     {

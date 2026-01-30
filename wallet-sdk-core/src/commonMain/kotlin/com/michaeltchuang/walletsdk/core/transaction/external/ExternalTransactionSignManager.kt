@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.transaction.model.ExternalTransaction
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.ExternalTransactionQueuingHelper
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.ExternalTransactionSignResult
 import com.michaeltchuang.walletsdk.utils.LifecycleScopedCoroutineOwner
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
 ) : LifecycleScopedCoroutineOwner() {
+    
     private val _signResultFlow =
         MutableStateFlow<ExternalTransactionSignResult>(
             ExternalTransactionSignResult.NotInitialized,
@@ -52,6 +54,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
                 currentItemIndex: Int,
                 totalItemCount: Int,
             ) {
+                Napier.d("Signing transaction ${currentItemIndex + 1} of $totalItemCount", tag = "TxnSign")
                 transaction.signTransaction(
                     currentTransactionIndex = currentItemIndex,
                     totalTransactionCount = totalItemCount,
@@ -65,6 +68,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
     }
 
     open fun signTransaction(transaction: List<TRANSACTION>) {
+        Napier.d("Signing ${transaction.size} transaction(s)", tag = "TxnSign")
         postResult(ExternalTransactionSignResult.Loading)
         this.transaction = transaction
         externalTransactionQueuingHelper.initItemsToBeEnqueued(transaction)
@@ -75,8 +79,11 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
         totalTransactionCount: Int?,
     ) {
         currentScope.launch {
-            when (val transactionSigner = getTransactionSigner(accountAddress)) {
+            val transactionSigner = getTransactionSigner(accountAddress)
+            
+            when (transactionSigner) {
                 is TransactionSigner.SignerNotFound -> {
+                    Napier.e("Signer not found for address: $accountAddress", tag = "TxnSign")
                     externalTransactionQueuingHelper.cacheDequeuedItem(null)
                 }
                 is TransactionSigner.Algo25 -> {
@@ -99,9 +106,25 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
         transaction: ExternalTransaction,
         accountAddress: String,
     ) {
-        val transactionBytes = transaction.transactionByteArray ?: return handleSignError(transaction)
-        val secretKey = getAlgo25SecretKey(accountAddress) ?: return handleSignError(transaction)
+        val transactionBytes = transaction.transactionByteArray
+        if (transactionBytes == null) {
+            Napier.e("Transaction bytes are null for address: $accountAddress", tag = "TxnSign")
+            return handleSignError(transaction)
+        }
+        
+        val secretKey = getAlgo25SecretKey(accountAddress)
+        if (secretKey == null) {
+            Napier.e("Secret key not found for address: $accountAddress", tag = "TxnSign")
+            return handleSignError(transaction)
+        }
+        
         val transactionSignedByteArray = signAlgo25Transaction(secretKey, transactionBytes)
+        
+        if (transactionSignedByteArray.isEmpty()) {
+            Napier.e("Algo25 transaction signing failed for address: $accountAddress", tag = "TxnSign")
+            return handleSignError(transaction)
+        }
+        
         onTransactionSigned(transaction, transactionSignedByteArray)
     }
 

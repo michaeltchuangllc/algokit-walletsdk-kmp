@@ -3,7 +3,6 @@ import Base32
 import composeDemoApp
 import CryptoKit
 import deterministicP256_swift
-import LiquidAuthSDK
 import LocalAuthentication
 import MnemonicSwift
 import SwiftCBOR
@@ -111,7 +110,7 @@ class CredentialProviderViewController: ASCredentialProviderViewController {
 
             // Authenticator data
             let rpIdHash = Utility.hashSHA256(origin.data(using: .utf8)!)
-            let authenticatorData = LiquidAuthSDK.AuthenticatorData.assertion(
+            let authenticatorData = AuthenticatorData.assertion(
                 rpIdHash: rpIdHash,
                 userPresent: true,
                 userVerified: true,

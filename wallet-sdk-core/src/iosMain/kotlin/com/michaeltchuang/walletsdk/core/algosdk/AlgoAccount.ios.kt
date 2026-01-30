@@ -14,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
 import com.michaeltchuang.walletsdk.core.foundation.utils.SuggestedParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
+import io.github.aakira.napier.Napier
 import io.ktor.util.decodeBase64Bytes
 import io.ktor.utils.io.core.toByteArray
 import kotlinx.cinterop.ExperimentalForeignApi
@@ -191,22 +192,24 @@ actual fun signFalcon24Transaction(
 actual fun signAlgo25Transaction(
     secretKey: ByteArray,
     transactionByteArray: ByteArray,
-): ByteArray =
-    try {
+): ByteArray {
+    return try {
         val secretKeyBase64 = Base64.encode(secretKey)
         val transactionBase64 = Base64.encode(transactionByteArray)
+
         val signedDataBase64 =
             bridge.signAlgo25TransactionWithBase64WithSkBase64(
                 skBase64 = secretKeyBase64,
                 encodedTxBase64 = transactionBase64,
             )
-        val result = Base64.decode(signedDataBase64)
 
+        val result = Base64.decode(signedDataBase64)
         result
     } catch (e: Exception) {
-        println("Algo25 transaction signing failed: ${e.message}")
+        Napier.e("Algo25 transaction signing failed: ${e.message}", tag = "Algo25Sign")
         ByteArray(0)
     }
+}
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray {
@@ -486,25 +489,33 @@ actual fun signHdKeyArbitraryData(
     account: Int,
     change: Int,
     key: Int,
-): ByteArray? =
-    try {
+): ByteArray? {
+    return try {
+        // Convert seed and data to Base64 strings
         val seedBase64 = seed.toNSData().base64EncodedStringWithOptions(0.toULong())
         val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
-
-       /* val signedDataBase64 =
-            bridge.signHdArbitraryDataWithSeedBase64(
-                seedBase64 = seedBase64,
-                account = account.toLong(),
-                change = change.toLong(),
-                key = key.toLong(),
-                dataBase64 = dataBase64,
-            )*/
-
-        Base64.decode("signedDataBase64")
+        
+        // Call Swift bridge to sign with Ed25519 (using Peikert derivation)
+        val signatureBase64 = bridge.signHdArbitraryDataWithSeedBase64WithSeedBase64(
+            seedBase64 = seedBase64,
+            account = account.toLong(),
+            change = change.toLong(),
+            keyIndex = key.toLong(),
+            dataBase64 = dataBase64
+        )
+        
+        if (signatureBase64.isEmpty()) {
+            Napier.e("HD Key signing returned empty string", tag = "HdKeySign")
+            return null
+        }
+        
+        // Decode Base64 signature to ByteArray
+        Base64.decode(signatureBase64)
     } catch (e: Exception) {
-        println("HD arbitrary data signing failed: ${e.message}")
+        Napier.e("HD Key arbitrary data signing failed: ${e.message}", tag = "HdKeySign")
         null
     }
+}
 
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
 actual fun signFalcon24ArbitraryData(
@@ -517,16 +528,37 @@ actual fun signFalcon24ArbitraryData(
         val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0.toULong())
         val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong())
 
-        /*val signedDataBase64 =
-            bridge.signFalconArbitraryDataWithPublicKeyBase64(
+        val signedDataBase64 =
+            bridge.signFalconArbitraryDataWithBase64WithDataBase64(
                 dataBase64 = dataBase64,
                 publicKeyBase64 = publicKeyBase64,
                 privateKeyBase64 = privateKeyBase64,
-            )*/
+            )
 
-        Base64.decode("")
+        Base64.decode(signedDataBase64)
     } catch (e: Exception) {
         println("Falcon24 arbitrary data signing failed: ${e.message}")
+        null
+    }
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signAlgo25ArbitraryData(
+    data: ByteArray,
+    secretKey: ByteArray,
+): ByteArray? =
+    try {
+        val secretKeyBase64 = Base64.encode(secretKey)
+        val dataBase64 = Base64.encode(data)
+        
+        val signedDataBase64 =
+            bridge.signAlgo25ArbitraryDataWithBase64WithSkBase64(
+                skBase64 = secretKeyBase64,
+                dataBase64 = dataBase64,
+            )
+        
+        Base64.decode(signedDataBase64)
+    } catch (e: Exception) {
+        Napier.e("Algo25 arbitrary data signing failed: ${e.message}", tag = "Algo25Sign")
         null
     }
 
@@ -537,5 +569,7 @@ actual fun signHdKeyData(
     change: Int,
     key: Int,
 ): ByteArray? {
-    TODO("Not yet implemented")
+    // This function is just an alias for signHdKeyArbitraryData
+    // Both sign arbitrary data (not transactions) with HD keys
+    return signHdKeyArbitraryData(data, seed, account, change, key)
 }

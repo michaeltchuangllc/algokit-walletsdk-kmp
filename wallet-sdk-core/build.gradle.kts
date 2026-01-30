@@ -63,6 +63,13 @@ kotlin {
                     packageName = "AlgoSDK",
                     exportToKotlin = false,
                 )
+                // AlgoKitTransact as Swift package (for accessing Swift types)
+                localPackage(
+                    path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoKitTransact",
+                    products = {
+                        add("AlgoKitTransact")
+                    },
+                )
                 remotePackageVersion(
                     url = uri("https://github.com/Electric-Coin-Company/MnemonicSwift.git"),
                     products = {
