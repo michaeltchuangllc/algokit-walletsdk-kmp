@@ -3,8 +3,10 @@ package com.michaeltchuang.walletsdk.core.foundation.utils
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
+import io.github.aakira.napier.Napier
 import io.ktor.util.decodeBase64Bytes
 import io.ktor.utils.io.charsets.Charsets
 import io.ktor.utils.io.core.toByteArray
@@ -71,7 +73,16 @@ actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): Suggested
     )
 }
 
-actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray = ByteArray(0)
+actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray {
+    // Sign transaction using CryptoKit + AlgoKitTransact implementation
+    val result = signAlgo25Transaction(secretKey, this)
+    
+    if (result.isEmpty()) {
+        Napier.e("Transaction signing failed - empty result", tag = "signTx")
+    }
+    
+    return result
+}
 
 actual fun TransactionParams.makeAlgoTx(
     senderAddress: String,

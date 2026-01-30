@@ -21,6 +21,9 @@
 		BAC1623C2F2974E40050270D /* Base32 in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623B2F2974E40050270D /* Base32 */; };
 		BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623F2F2974EB0050270D /* deterministicP256-swift */; };
 		BAC162832F29772F0050270D /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162822F29772F0050270D /* WebRTC */; };
+		BAC1630D2F2C3BE10050270D /* algokit_transact.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; };
+		BAC1630E2F2C3BE10050270D /* algokit_transact.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		BAC1630F2F2C3BF80050270D /* algokit_transact.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E12F292EC700AA5CA6 /* SocketIO */; };
@@ -61,6 +64,7 @@
 			dstSubfolderSpec = 10;
 			files = (
 				BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */,
+				BAC1630E2F2C3BE10050270D /* algokit_transact.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -89,6 +93,7 @@
 		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
 		BAC161E22F296BFE0050270D /* LiquidAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthService.swift; sourceTree = "<group>"; };
 		BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthViewController.swift; sourceTree = "<group>"; };
+		BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = algokit_transact.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoKitTransact/Frameworks/algokit_transact.xcframework"; sourceTree = "<group>"; };
 		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
 		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
@@ -147,6 +152,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */,
+				BAC1630D2F2C3BE10050270D /* algokit_transact.xcframework in Frameworks */,
 				BAC1623A2F2974D20050270D /* SocketIO in Frameworks */,
 				BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */,
 				BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */,
@@ -163,6 +169,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */,
+				BAC1630F2F2C3BF80050270D /* algokit_transact.xcframework in Frameworks */,
 				C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */,
 				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
 				C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */,
@@ -232,6 +239,7 @@
 		C4127409AE3703430489E7BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */,
 				BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */,
 				BAB26D222F28348C003B0073 /* composeDemoApp.framework */,
 				C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */,

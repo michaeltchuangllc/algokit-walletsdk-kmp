@@ -251,7 +251,7 @@ public class LiquidAuthViewController: UIViewController {
         statusLabel.text = """
         Connected successfully
 
-        Waiting for transaction requests…
+        Waiting to sign transaction requests…
         """
         statusLabel.textColor = .systemGreen
     }

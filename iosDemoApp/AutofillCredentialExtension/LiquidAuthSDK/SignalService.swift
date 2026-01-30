@@ -36,6 +36,7 @@ public class SignalService {
     private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
 
     private var messageQueue: [String] = []
+    private var keepAliveTimer: Timer?
 
     private var lastKnownReferer: String?
     private var isDeepLink: Bool = true
@@ -64,6 +65,7 @@ public class SignalService {
 
     /// Stops the signaling service and cleans up resources
     func stop() {
+        stopKeepAlive()
         signalClient?.disconnectSocket()
         signalClient = nil
         peerClient = nil
@@ -74,6 +76,7 @@ public class SignalService {
 
     /// Disconnects from the signaling service
     func disconnect() {
+        stopKeepAlive()
         signalClient?.disconnectSocket()
         delegate?.signalService(
             self,
@@ -129,11 +132,8 @@ public class SignalService {
                     Logger.debug("Data channel is open and ready: \(dataChannel.label)")
                     if dataChannel.readyState == .open {
                         self?.flushMessageQueue()
-                        for i in 0 ..< 10 {
-                            DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.5) {
-                                self?.sendMessage("ping")
-                            }
-                        }
+                        // Start continuous keep-alive mechanism
+                        self?.startKeepAlive()
                     }
                 },
                 onMessage: { message in
@@ -190,5 +190,36 @@ public class SignalService {
             Logger.info("Flushed queued message: \(message)")
         }
         messageQueue.removeAll()
+    }
+    
+    // MARK: - Keep-Alive Management
+    
+    /// Starts a continuous keep-alive ping mechanism to prevent WebRTC connection timeout
+    private func startKeepAlive() {
+        stopKeepAlive() // Clean up any existing timer
+        
+        Logger.info("Starting continuous keep-alive (ping every 15 seconds)")
+        
+        // Send initial ping immediately
+        sendMessage("ping")
+        
+        // Schedule repeating timer to send ping every 15 seconds
+        keepAliveTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+            guard let self = self else { return }
+            if self.dataChannel?.readyState == .open {
+                self.sendMessage("ping")
+                Logger.info("Keep-alive ping sent")
+            } else {
+                Logger.info("Data channel not open, stopping keep-alive")
+                self.stopKeepAlive()
+            }
+        }
+    }
+    
+    /// Stops the keep-alive timer
+    private func stopKeepAlive() {
+        keepAliveTimer?.invalidate()
+        keepAliveTimer = nil
+        Logger.debug("Keep-alive timer stopped")
     }
 }

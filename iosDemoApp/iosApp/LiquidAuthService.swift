@@ -107,7 +107,8 @@ public class LiquidAuthService {
             self.mnemonic = accountMnemonic.words.joined(separator: " ")
             
             // Get wallet info (using the origin for the liquid auth server)
-            self.walletInfo = try getWalletInfo(origin: origin)
+            // Pass the specific algoAddress to create account-specific P256 credential
+            self.walletInfo = try getWalletInfo(origin: origin, forAddress: algoAddress)
             
             // Get or create credential ID
             Task {
@@ -260,8 +261,9 @@ public class LiquidAuthService {
                 throw NSError(domain: "No challenge in server response", code: -1)
             }
             
-            NSLog("📥 Challenge from server: \(challengeB64)")
+            NSLog("📥 Challenge from server (REGISTRATION): \(challengeB64)")
             NSLog("   Challenge length: \(challengeB64.count) chars")
+            NSLog("   Challenge (full): '\(challengeB64)'")
             
             // Convert base64url to Data (WebAuthn uses base64url encoding)
             guard let challengeData = challengeB64.base64urlToData() else {
@@ -271,6 +273,9 @@ public class LiquidAuthService {
             }
             
             NSLog("✅ Challenge decoded: \(challengeData.count) bytes")
+            NSLog("   Challenge hex: \(challengeData.map { String(format: "%02x", $0) }.joined())")
+            NSLog("   Challenge base64 (standard): \(challengeData.base64EncodedString())")
+            NSLog("   Challenge base64url: \(challengeData.base64urlEncodedString())")
             
             let algoSignature = try signWithAlgorandWallet(
                 challenge: challengeData,
@@ -278,6 +283,8 @@ public class LiquidAuthService {
             )
             
             NSLog("✅ Algorand signature computed: \(algoSignature.base64EncodedString().prefix(20))...")
+            NSLog("   Signature (full base64): \(algoSignature.base64EncodedString())")
+            NSLog("   Signature size: \(algoSignature.count) bytes")
             
             // Get Algorand wallet public key (not P256 key)
             guard let algoPublicKey = App_iosKt.getPublicKeyForAlgorandWallet(address: algoAddress) else {
@@ -363,6 +370,9 @@ public class LiquidAuthService {
                 }
             }
         
+        // Wait 2 seconds to allow authentication session to establish
+        try? await Task.sleep(nanoseconds: 2_000_000_000)
+
         do {
             guard let walletInfo = self.walletInfo,
                   let credentialID = self.credentialID else {
@@ -450,7 +460,7 @@ public class LiquidAuthService {
                 throw NSError(domain: "Invalid challenge encoding (base64url decode failed)", code: -1)
             }
             
-            NSLog("📥 Challenge from server: \(challengeB64url.prefix(20))...")
+            NSLog("📥 Challenge from server (AUTHENTICATION): \(challengeB64url.prefix(20))...")
             NSLog("   Challenge length: \(challengeB64url.count) chars")
             NSLog("✅ Challenge decoded: \(challengeData.count) bytes")
             
@@ -468,28 +478,25 @@ public class LiquidAuthService {
             NSLog("✅ Algorand signature computed: \(algoSignature.base64EncodedString().prefix(20))...")
             NSLog("   Signature size: \(algoSignature.count) bytes")
             
-            // Build liquid extension JSON (matching Android)
-            NSLog("🔍 Building liquid extension:")
-            NSLog("   requestId (instance var): '\(self.requestId)'")
-            NSLog("   requestId isEmpty: \(self.requestId.isEmpty)")
+            // Build liquid extension JSON (matching server requirements)
+            NSLog("🔍 Building liquid extension (authentication):")
+            NSLog("   requestId: '\(self.requestId)'")
             NSLog("   accountType: '\(accountType)'")
             NSLog("   address: '\(algoAddress)'")
             
             let liquidExt: [String: Any] = [
                 "type": accountType,
-                "requestId": self.requestId,  // ✅ Explicitly use self.requestId
+                "requestId": self.requestId,
                 "address": algoAddress,
                 "publicKey": algoPublicKey,
                 "signature": algoSignature.base64EncodedString(),
                 "device": "iPhone"
             ]
             
-            NSLog("🔍 Liquid extension built:")
-            if let reqId = liquidExt["requestId"] as? String {
-                NSLog("   requestId in dict: '\(reqId)'")
-            } else {
-                NSLog("   ❌ requestId not found or not a String!")
-            }
+            NSLog("✅ Liquid extension built (authentication - WITH signature)")
+            NSLog("   Type: \(accountType)")
+            NSLog("   RequestId: \(self.requestId)")
+            NSLog("   Signature: \(algoSignature.base64EncodedString().prefix(20))...")
             
             // Create assertion credential
             let credential = try await createAssertionCredential(

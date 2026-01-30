@@ -10,8 +10,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
-        // Configure app group for database sharing BEFORE Compose initializes Koin
+        // Configure app group for database sharing
         configureAppGroup()
+        
+        // Initialize Napier logging BEFORE Compose starts
+        // Note: Koin will be initialized by Compose's KoinApplication automatically
+        App_iosKt.initializeNapierLogging()
         
         // Register Liquid Auth callback for iOS
         registerLiquidAuthCallback()

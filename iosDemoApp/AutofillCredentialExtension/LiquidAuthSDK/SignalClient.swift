@@ -15,6 +15,7 @@
  */
 
 import CoreImage
+import Foundation
 import SocketIO
 import WebRTC
 
@@ -39,8 +40,29 @@ public class SignalClient {
             .replacingOccurrences(of: "https://", with: "")
             .replacingOccurrences(of: "http://", with: "")
         
-        // Initialize the Socket.IO manager and client
-        manager = SocketManager(socketURL: URL(string: "https://\(cleanUrl)")!, config: [.log(false), .compress])
+        // Get session cookies for Socket.IO connection
+        var socketConfig: SocketIOClientConfiguration = [.log(false), .compress]
+        
+        // Add cookies from HTTPCookieStorage to Socket.IO connection
+        if let url = URL(string: "https://\(cleanUrl)"),
+           let cookies = HTTPCookieStorage.shared.cookies(for: url) {
+            Logger.debug("SignalClient: Configuring Socket.IO with \(cookies.count) cookie(s)")
+            for cookie in cookies {
+                Logger.debug("  - \(cookie.name)=\(cookie.value.prefix(10))...")
+            }
+            
+            // Convert cookies to headers format for Socket.IO
+            if !cookies.isEmpty {
+                let cookieHeader = cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+                socketConfig.insert(.extraHeaders(["Cookie": cookieHeader]))
+                Logger.info("SignalClient: Cookie header configured: \(cookieHeader.prefix(50))...")
+            }
+        } else {
+            Logger.info("SignalClient: No cookies found for \(cleanUrl) - WebRTC connection may fail")
+        }
+        
+        // Initialize the Socket.IO manager and client with cookie support
+        manager = SocketManager(socketURL: URL(string: "https://\(cleanUrl)")!, config: socketConfig)
         socket = manager.defaultSocket
 
         // Set up event listeners

@@ -23,15 +23,9 @@ import MnemonicSwift
 import x_hd_wallet_api
 
 public struct WalletInfo {
-  public let ed25519Wallet: XHDWalletAPI
-  public let dp256: DeterministicP256
-  public let derivedMainKey: Data
   public let p256KeyPair: P256.Signing.PrivateKey
   public let address: String
-  public init(ed25519Wallet: XHDWalletAPI, dp256: DeterministicP256, derivedMainKey: Data, p256KeyPair: P256.Signing.PrivateKey, address: String) {
-    self.ed25519Wallet = ed25519Wallet
-    self.dp256 = dp256
-    self.derivedMainKey = derivedMainKey
+  public init(p256KeyPair: P256.Signing.PrivateKey, address: String) {
     self.p256KeyPair = p256KeyPair
     self.address = address
   }
@@ -66,59 +60,84 @@ public func encodeAddress(bytes: Data) throws -> String {
   return res
 }
 
-public func getWalletInfo(origin: String) throws -> WalletInfo {
+public func getWalletInfo(origin: String, forAddress: String? = nil) throws -> WalletInfo {
     // Initialize Koin and App Group before anything else
     AppGroupHelper.configureAppGroup()
     App_iosKt.initializeKoin()
 
     let phrase: String
+    let targetAddress: String
 
     do {
-        let hdSeedFirstAddresses = try App_iosKt.getAllHdSeedFirstAddresses()
+        // If specific address provided, use it; otherwise use first HD seed
+        if let forAddress = forAddress {
+            targetAddress = forAddress
+            let accountMnemonic = try App_iosKt.getAccountMnemonic(address: forAddress)
+            phrase = accountMnemonic.words.joined(separator: " ")
+        } else {
+            let hdSeedFirstAddresses = try App_iosKt.getAllHdSeedFirstAddresses()
 
-        guard let firstHdSeed = hdSeedFirstAddresses.first else {
-            throw NSError(
-                domain: "com.michaeltchuang.walletsdk.demo",
-                code: 1001,
-                userInfo: [
-                    NSLocalizedDescriptionKey: "No valid Falcon account found. Please create one in the WalletSDK Demo app first.",
-                    NSLocalizedFailureReasonErrorKey: "Account not found in database"
-                ]
-            )
+            guard let firstHdSeed = hdSeedFirstAddresses.first else {
+                throw NSError(
+                    domain: "com.michaeltchuang.walletsdk.demo",
+                    code: 1001,
+                    userInfo: [
+                        NSLocalizedDescriptionKey: "No valid account found. Please create one in the WalletSDK Demo app first.",
+                        NSLocalizedFailureReasonErrorKey: "Account not found in database"
+                    ]
+                )
+            }
+            
+            targetAddress = firstHdSeed.firstAddress
+            let accountMnemonic = try App_iosKt.getAccountMnemonic(address: targetAddress)
+            phrase = accountMnemonic.words.joined(separator: " ")
         }
-        
-        let accountMnemonic = try App_iosKt.getAccountMnemonic(address: firstHdSeed.firstAddress)
-        phrase = accountMnemonic.words.joined(separator: " ")
     } catch {
         // Convert Kotlin exception to proper NSError for XPC compatibility
         throw NSError(
             domain: "com.michaeltchuang.walletsdk.demo",
             code: 1002,
             userInfo: [
-                NSLocalizedDescriptionKey: "Unable to retrieve account. Please ensure you have created a Falcon account in the WalletSDK Demo app.",
+                NSLocalizedDescriptionKey: "Unable to retrieve account. Please ensure you have created an account in the WalletSDK Demo app.",
                 NSLocalizedFailureReasonErrorKey: error.localizedDescription
             ]
         )
     }
 
-    // Wallet Derivation Logic
-    let seed = try Mnemonic.deterministicSeedString(from: phrase)
-    guard let ed25519Wallet = XHDWalletAPI(seed: seed) else {
-        throw NSError(domain: "Wallet creation failed", code: -1, userInfo: nil)
-    }
-
-    let pk = try ed25519Wallet.keyGen(context: KeyContext.Address, account: 0, change: 0, keyIndex: 0)
-    let address = try encodeAddress(bytes: pk)
-
+    // Check if this is an Algo25 account (25 words) or HD/Falcon (24 words)
+    let wordCount = phrase.components(separatedBy: " ").count
+    let isAlgo25 = (wordCount == 25)
+    
     let dp256 = DeterministicP256()
-    let derivedMainKey = try dp256.genDerivedMainKeyWithBIP39(phrase: phrase)
-    let p256KeyPair = dp256.genDomainSpecificKeyPair(derivedMainKey: derivedMainKey, origin: origin, userHandle: address)
-
+    let derivedMainKey: Data
+    
+    if isAlgo25 {
+        // Algo25: Use Ed25519 secret key for P256 derivation (25-word mnemonic is NOT BIP39)
+        // Get the secret key from the Algo25 account
+        guard let algo25SecretKeyKotlin = App_iosKt.getAlgo25SecretKeyFromMnemonic(phrase: phrase) else {
+            throw NSError(domain: "Failed to get Algo25 secret key", code: -1, userInfo: nil)
+        }
+        
+        // Convert Kotlin ByteArray to Swift Data
+        var secretKeyBytes = [UInt8]()
+        for i in 0..<algo25SecretKeyKotlin.size {
+            let byte = algo25SecretKeyKotlin.get(index: i)
+            secretKeyBytes.append(UInt8(bitPattern: byte))
+        }
+        
+        // Use first 32 bytes (seed) of Ed25519 secret key for P256 derivation
+        derivedMainKey = Data(secretKeyBytes.prefix(32))
+    } else {
+        // HD/Falcon: Use standard BIP39 derivation (24-word mnemonic)
+        derivedMainKey = try dp256.genDerivedMainKeyWithBIP39(phrase: phrase)
+    }
+    
+    // IMPORTANT: Use targetAddress for P256 derivation - this creates unique credentials per account!
+    let p256KeyPair = dp256.genDomainSpecificKeyPair(derivedMainKey: derivedMainKey, origin: origin, userHandle: targetAddress)
+    
+    // We already have the address from targetAddress parameter - no need to derive it!
     return WalletInfo(
-        ed25519Wallet: ed25519Wallet,
-        dp256: dp256,
-        derivedMainKey: derivedMainKey,
         p256KeyPair: p256KeyPair,
-        address: address
+        address: targetAddress  // Use the provided address directly
     )
 }

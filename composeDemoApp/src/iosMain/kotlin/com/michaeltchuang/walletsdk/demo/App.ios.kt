@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.demo.di.initKoinConfig
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlinx.coroutines.MainScope
@@ -32,13 +34,30 @@ fun setAppGroupDirectory(directory: String) {
 }
 
 /**
+ * Initialize ONLY Napier logging for iOS (uses NSLog).
+ * Call this at app startup to enable logging BEFORE Compose starts.
+ * 
+ * This does NOT initialize Koin - Compose's KoinApplication will handle that.
+ */
+fun initializeNapierLogging() {
+    Napier.base(DebugAntilog())
+    Napier.d("✅ Napier logging initialized for iOS", tag = "Napier")
+}
+
+/**
  * Initialize Koin for iOS app extensions (e.g., AutofillCredentialExtension).
  * Call this function before accessing any Koin dependencies from Swift.
  *
  * Note: This should only be called once per process. If Koin is already started,
  * this will stop and restart it.
+ * 
+ * WARNING: Don't call this in the main app - Compose's KoinApplication handles Koin init.
+ * This is only for extensions that don't use Compose.
  */
 fun initializeKoin() {
+    // Initialize Napier for logging (uses NSLog on iOS)
+    initializeNapierLogging()
+    
     try {
         // Stop existing Koin instance if it exists
         stopKoin()
@@ -358,6 +377,23 @@ fun signTxnWithAlgorandWallet(address: String, txnBytes: ByteArray): ByteArray? 
     } catch (e: Exception) {
         platform.Foundation.NSLog("❌ Transaction signing failed: ${e.message}")
         e.printStackTrace()
+        null
+    }
+}
+
+/**
+ * Get Algo25 secret key from mnemonic (for P256 derivation).
+ * Returns the 64-byte Ed25519 secret key.
+ * 
+ * @param phrase The 25-word Algorand mnemonic
+ * @return 64-byte Ed25519 secret key, or null if recovery fails
+ */
+fun getAlgo25SecretKeyFromMnemonic(phrase: String): ByteArray? {
+    return try {
+        val algo25Account = com.michaeltchuang.walletsdk.core.algosdk.recoverAlgo25Account(phrase)
+        algo25Account?.secretKey
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Failed to recover Algo25 account: ${e.message}")
         null
     }
 }
