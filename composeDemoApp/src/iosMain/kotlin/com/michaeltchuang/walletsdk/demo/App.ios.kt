@@ -1,9 +1,11 @@
 package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
+import com.michaeltchuang.walletsdk.demo.di.initKoinConfig
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import org.koin.core.Koin
+import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -54,14 +56,13 @@ fun initializeKoin() {
     initializeNapierLogging()
 
     try {
-        // Stop existing Koin instance if it exists
-       // stopKoin()
+        getKoin()
     } catch (e: Exception) {
-        // Koin wasn't started, ignore
+        // Koin wasn't started
+        startKoin(initKoinConfig)
     }
-
-   // startKoin(initKoinConfig)
 }
+
 
 /**
  * Get the Koin instance for dependency injection.
@@ -73,7 +74,8 @@ fun getKoin(): Koin = KoinPlatform.getKoin()
  * Get PasskeyRepository instance from Koin.
  * Call initializeKoin() first before using this.
  */
-fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository = KoinPlatform.getKoin().get()
+fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository =
+    KoinPlatform.getKoin().get()
 
 /**
  * Get all HD seed first addresses from the database (synchronous for iOS).
@@ -218,7 +220,8 @@ fun signWithAlgorandWallet(
                 val privateKey =
                     kotlinx.coroutines.runBlocking {
                         falcon24Repo.getSecretKey(address)
-                    } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
+                    }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
 
                 platform.Foundation.NSLog("🔍 Falcon24 signing debug:")
                 platform.Foundation.NSLog("   Public key size: ${localAccount.publicKey.size} bytes")
@@ -357,7 +360,8 @@ fun signTxnWithAlgorandWallet(
                 val privateKey =
                     kotlinx.coroutines.runBlocking {
                         falcon24Repo.getSecretKey(address)
-                    } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
+                    }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
 
                 platform.Foundation.NSLog("🔍 Falcon24 transaction signing debug:")
                 platform.Foundation.NSLog("   Public key size: ${localAccount.publicKey.size} bytes")
@@ -473,7 +477,11 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
         // Convert ByteArray to base64 string
         val publicKeyBase64 = Base64.encode(publicKey)
         platform.Foundation.NSLog(
-            "✅ ${localAccount::class.simpleName} public key (${publicKey.size} bytes): ${publicKeyBase64.take(20)}...",
+            "✅ ${localAccount::class.simpleName} public key (${publicKey.size} bytes): ${
+                publicKeyBase64.take(
+                    20
+                )
+            }...",
         )
         publicKeyBase64
     } catch (e: Exception) {
