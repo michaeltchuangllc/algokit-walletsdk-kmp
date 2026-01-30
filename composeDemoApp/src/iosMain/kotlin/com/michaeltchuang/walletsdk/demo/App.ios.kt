@@ -1,12 +1,9 @@
 package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
-import com.michaeltchuang.walletsdk.demo.di.initKoinConfig
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import org.koin.core.Koin
-import org.koin.core.context.startKoin
-import org.koin.core.context.stopKoin
 import org.koin.mp.KoinPlatform
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -58,12 +55,12 @@ fun initializeKoin() {
 
     try {
         // Stop existing Koin instance if it exists
-        stopKoin()
+       // stopKoin()
     } catch (e: Exception) {
         // Koin wasn't started, ignore
     }
 
-    startKoin(initKoinConfig)
+   // startKoin(initKoinConfig)
 }
 
 /**
