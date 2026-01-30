@@ -171,7 +171,7 @@ class RegisterPasskeyUseCase(
     ): JSONObject =
         baseOptions.apply {
             put("username", algoAddress)
-            put("address", algoAddress)  // Server needs this too!
+            put("address", algoAddress) // Server needs this too!
             put("displayName", "Liquid Auth User")
 
             // Authenticator selection

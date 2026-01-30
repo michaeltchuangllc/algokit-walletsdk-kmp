@@ -23,7 +23,7 @@ actual fun connect(
         NSLog("   RequestID length: ${authMessage.requestId.length}")
         NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
         NSLog("   AlgoAddress: '$algoAddress'")
-        
+
         // Verify requestId is not empty
         if (authMessage.requestId.isEmpty()) {
             NSLog("❌ ERROR: RequestID is empty!")

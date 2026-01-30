@@ -490,13 +490,31 @@ actual fun signHdKeyArbitraryData(
     change: Int,
     key: Int,
 ): ByteArray? {
-    // TODO: HD Key arbitrary data signing not yet implemented for iOS
-    // Note: HD Key transaction signing works, but arbitrary data signing
-    // for Liquid Auth challenges requires additional Swift bridge work.
-    // For iOS Liquid Auth, use Falcon24 accounts instead.
-    println("⚠️ HD Key arbitrary data signing not yet implemented on iOS")
-    println("   Use Falcon24 accounts for iOS Liquid Auth instead")
-    return null
+    return try {
+        // Convert seed and data to Base64 strings
+        val seedBase64 = seed.toNSData().base64EncodedStringWithOptions(0.toULong())
+        val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
+        
+        // Call Swift bridge to sign with Ed25519 (using Peikert derivation)
+        val signatureBase64 = bridge.signHdArbitraryDataWithSeedBase64WithSeedBase64(
+            seedBase64 = seedBase64,
+            account = account.toLong(),
+            change = change.toLong(),
+            keyIndex = key.toLong(),
+            dataBase64 = dataBase64
+        )
+        
+        if (signatureBase64.isEmpty()) {
+            Napier.e("HD Key signing returned empty string", tag = "HdKeySign")
+            return null
+        }
+        
+        // Decode Base64 signature to ByteArray
+        Base64.decode(signatureBase64)
+    } catch (e: Exception) {
+        Napier.e("HD Key arbitrary data signing failed: ${e.message}", tag = "HdKeySign")
+        null
+    }
 }
 
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)

@@ -7,20 +7,21 @@ private fun String.findParameterValue(parameterName: String): String? {
     val queryStart = this.indexOf('?')
     println("   🔍 findParameterValue('$parameterName'):")
     println("      queryStart index: $queryStart")
-    
+
     val query = if (queryStart != -1) this.substring(queryStart + 1) else null
     println("      query string: '$query'")
-    
-    val pairs = query
-        ?.split('&')
-        ?.map {
-            val parts = it.split('=')
-            val name = parts.firstOrNull() ?: ""
-            val value = parts.drop(1).joinToString("=")  // Join back in case value had '='
-            println("      found param: '$name' = '$value'")
-            Pair(name, value)
-        }
-    
+
+    val pairs =
+        query
+            ?.split('&')
+            ?.map {
+                val parts = it.split('=')
+                val name = parts.firstOrNull() ?: ""
+                val value = parts.drop(1).joinToString("=") // Join back in case value had '='
+                println("      found param: '$name' = '$value'")
+                Pair(name, value)
+            }
+
     val result = pairs?.firstOrNull { it.first == parameterName }?.second
     println("      result for '$parameterName': '$result'")
     return result
@@ -35,15 +36,16 @@ fun fromUri(uri: String): AuthMessage {
     val origin = "https://$host"
     println("   Host: $host")
     println("   Origin: $origin")
-    
+
     // Try multiple parameter names for requestId
-    val requestId = uri.findParameterValue("requestId") 
-        ?: uri.findParameterValue("request_id")
-        ?: uri.findParameterValue("rid")
-        ?: ""  // Default to empty string if not found
-    
+    val requestId =
+        uri.findParameterValue("requestId")
+            ?: uri.findParameterValue("request_id")
+            ?: uri.findParameterValue("rid")
+            ?: "" // Default to empty string if not found
+
     println("   RequestId found: '$requestId'")
-    
+
     if (requestId.isEmpty()) {
         println("   ⚠️ WARNING: RequestId is empty! Check URL format.")
         println("   Expected format: liquid://host/?requestId=...")

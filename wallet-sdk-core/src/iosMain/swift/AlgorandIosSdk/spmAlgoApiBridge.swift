@@ -77,7 +77,7 @@ import AlgoKitTransact
             return ""
         }
     }
-
+    
     @_optimize(none)
     public func signHdKeyTransaction(
         transactionBytes: Data,
@@ -151,24 +151,23 @@ import AlgoKitTransact
     ) -> String {
         do {
             guard let seedData = Data(base64Encoded: seedBase64) else {
-                print("Failed to decode seed from Base64")
+                NSLog("❌ Failed to decode seed from Base64")
                 return ""
             }
 
             guard let data = Data(base64Encoded: dataBase64) else {
-                print("Failed to decode data from Base64")
+                NSLog("❌ Failed to decode data from Base64")
                 return ""
             }
 
             let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
 
             guard let wallet = XHDWalletAPI(seed: seedHex) else {
-                print("Failed to create wallet")
+                NSLog("❌ Failed to create XHDWalletAPI wallet")
                 return ""
             }
 
-            // For arbitrary data signing (like FIDO2 challenges), sign the data directly
-            // without any prefix. This is different from transaction signing which adds "TX" prefix.
+            // Sign the data with Ed25519
             let signature = try wallet.sign(
                 context: .Address,
                 account: UInt32(account),
@@ -181,7 +180,7 @@ import AlgoKitTransact
             return signature.base64EncodedString()
 
         } catch {
-            print("Error signing HD key arbitrary data: \(error)")
+            NSLog("❌ HD arbitrary data signing failed: \(error.localizedDescription)")
             return ""
         }
     }

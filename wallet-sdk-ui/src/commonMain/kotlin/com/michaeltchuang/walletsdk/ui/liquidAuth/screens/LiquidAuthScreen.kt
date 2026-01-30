@@ -63,19 +63,20 @@ fun LiquidAuthScreen(
 
     LaunchedEffect(uri) {
         // Decode the URI if it was encoded during navigation
-        val decodedUri = uri?.let { encoded ->
-            encoded
-                .replace("%23", "#")
-                .replace("%3D", "=")
-                .replace("%26", "&")
-                .replace("%3F", "?")
-                .replace("%25", "%")  // Must be last to avoid double-decoding!
-        }
-        
+        val decodedUri =
+            uri?.let { encoded ->
+                encoded
+                    .replace("%23", "#")
+                    .replace("%3D", "=")
+                    .replace("%26", "&")
+                    .replace("%3F", "?")
+                    .replace("%25", "%") // Must be last to avoid double-decoding!
+            }
+
         println("📥 LiquidAuthScreen received URI:")
         println("   Encoded: $uri")
         println("   Decoded: $decodedUri")
-        
+
         viewModel.initialize(decodedUri)
     }
 

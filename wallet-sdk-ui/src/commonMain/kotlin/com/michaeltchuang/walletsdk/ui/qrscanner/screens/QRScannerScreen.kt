@@ -75,17 +75,18 @@ fun QRCodeScannerScreen(
                 is QRScannerViewModel.ViewEvent.NavigateToLiquidAuthScreen -> {
                     // URL encode special characters that confuse navigation parsing
                     // The navigation argument parser uses ? and & to parse, so we must encode these
-                    val encodedUri = it.uri
-                        .replace("%", "%25")  // Must be first to avoid double-encoding!
-                        .replace("?", "%3F")  // Question mark
-                        .replace("&", "%26")  // Ampersand
-                        .replace("=", "%3D")  // Equals
-                        .replace("#", "%23")  // Hash
-                    
+                    val encodedUri =
+                        it.uri
+                            .replace("%", "%25") // Must be first to avoid double-encoding!
+                            .replace("?", "%3F") // Question mark
+                            .replace("&", "%26") // Ampersand
+                            .replace("=", "%3D") // Equals
+                            .replace("#", "%23") // Hash
+
                     println("🔗 Navigating to Liquid Auth screen")
                     println("   Original URI: ${it.uri}")
                     println("   Encoded URI: $encodedUri")
-                    
+
                     navController.navigate(AlgoKitScreens.LIQUID_AUTH_SCREEN.name + "?uri=$encodedUri")
                 }
 
