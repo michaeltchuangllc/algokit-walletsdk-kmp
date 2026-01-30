@@ -77,7 +77,7 @@ import AlgoKitTransact
             return ""
         }
     }
-    
+
     @_optimize(none)
     public func signHdKeyTransaction(
         transactionBytes: Data,
