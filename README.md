@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.1")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.1")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.2")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.2")
 }
 ```
 
@@ -97,23 +97,23 @@ timeline
 
     section In Progress 🔄
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
+            : ✅ Transaction - Integrate new algokit-core transact rust library (iOS)
             : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
-            : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
-            : Onboarding - Mainnet Liquid Auth (Android/iOS)
-            : Onboarding - Re-enable Use-Wallet Liquid Auth Functionality
+            : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Testnet)
             : Onboarding - Add Liquid Auth Integration for xGov Website
-            : Onboarding - Rekey flow
-            : Account Details - Opt-In / Opt-Out USDC QR flow
-            : Transaction - Send USDC using account detail or QR code flows (between accounts)
-            : TBD
+            : Onboarding - Integrate new algokit-core account rust library (iOS/Android)
+            : Onboarding - Mainnet Liquid Auth (Android/iOS)
+            : Transaction - Opt-In / Opt-Out USDC QR flow
+            : Transaction - Send USDC using QR code flow (between accounts)
+            : Account Details - Send USDC in account detail (between accounts)
 
     section Future
-    2026Q2   
+    2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
+            : Onboarding - Rekey flow
             : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Onboarding - PQ Passkeys
             : Onboarding - Multi-sig flow
             : Onboarding - Ledger flow
-            : Transaction - Integrate new AlgoKit-Core Transact rust library
             : Android - Wallet SDK as a background service integration
             : Add In Landscape (Tablet/Desktop) UI Support
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
