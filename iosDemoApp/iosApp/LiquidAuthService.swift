@@ -81,8 +81,6 @@ public class LiquidAuthService {
         NSLog("   AlgoAddress: \(algoAddress)")
     }
     
-    
-    
     // MARK: - Public Methods
     
     /// Start the Liquid Auth connection flow
@@ -1160,7 +1158,6 @@ extension UIViewController {
         return self
     }
 }
-
 
 // MARK: - Supporting Types
 
