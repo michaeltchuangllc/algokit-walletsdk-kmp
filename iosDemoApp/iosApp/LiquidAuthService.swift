@@ -736,7 +736,8 @@ public class LiquidAuthService {
             onMessage: { [weak self] message in
                 guard let self = self else { return }
                 NSLog("💬 Received message: \(message)")
-                self.handleMessage(message)
+               // self.handleMessage(message)
+                self.showConfirmationDialog(message: message)
             },
             onStateChange: { [weak self] state in
                 guard let self = self else { return }
@@ -1100,6 +1101,61 @@ public class LiquidAuthService {
         NSLog("🔌 Disconnecting Liquid Auth")
         signalService?.disconnect()
         dataChannel = nil
+    }
+    
+    private func showConfirmationDialog(message: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+
+            guard let topVC = UIApplication.shared
+                .connectedScenes
+                .compactMap({ $0 as? UIWindowScene })
+                .flatMap({ $0.windows })
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController?
+                .topMostViewController()
+            else {
+                NSLog("❌ Unable to find top ViewController")
+                return
+            }
+
+            let alert = UIAlertController(
+                title: "Confirmation Required",
+                message: "A request has been received. Do you want to sign the dApp-generated transactions?",
+                preferredStyle: .alert
+            )
+
+            let confirmAction = UIAlertAction(title: "Confirm", style: .default) { _ in
+                NSLog("✅ User confirmed message handling")
+                self.handleMessage(message)
+            }
+
+            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in
+                NSLog("❌ User cancelled message handling")
+            }
+
+            alert.addAction(cancelAction)
+            alert.addAction(confirmAction)
+
+            topVC.present(alert, animated: true)
+        }
+    }
+
+    
+}
+
+extension UIViewController {
+    func topMostViewController() -> UIViewController {
+        if let presented = self.presentedViewController {
+            return presented.topMostViewController()
+        }
+        if let nav = self as? UINavigationController {
+            return nav.visibleViewController?.topMostViewController() ?? nav
+        }
+        if let tab = self as? UITabBarController {
+            return tab.selectedViewController?.topMostViewController() ?? tab
+        }
+        return self
     }
 }
 

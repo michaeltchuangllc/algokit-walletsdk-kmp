@@ -63,7 +63,6 @@ fun initializeKoin() {
     }
 }
 
-
 /**
  * Get the Koin instance for dependency injection.
  * Call initializeKoin() first before using this.
@@ -74,8 +73,7 @@ fun getKoin(): Koin = KoinPlatform.getKoin()
  * Get PasskeyRepository instance from Koin.
  * Call initializeKoin() first before using this.
  */
-fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository =
-    KoinPlatform.getKoin().get()
+fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository = KoinPlatform.getKoin().get()
 
 /**
  * Get all HD seed first addresses from the database (synchronous for iOS).
@@ -479,7 +477,7 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
         platform.Foundation.NSLog(
             "✅ ${localAccount::class.simpleName} public key (${publicKey.size} bytes): ${
                 publicKeyBase64.take(
-                    20
+                    20,
                 )
             }...",
         )
