@@ -22,7 +22,6 @@
 		BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623F2F2974EB0050270D /* deterministicP256-swift */; };
 		BAC162832F29772F0050270D /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162822F29772F0050270D /* WebRTC */; };
 		BAC1630D2F2C3BE10050270D /* algokit_transact.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; };
-		BAC1630E2F2C3BE10050270D /* algokit_transact.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		BAC1630F2F2C3BF80050270D /* algokit_transact.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */; };
 		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
 		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
@@ -64,7 +63,6 @@
 			dstSubfolderSpec = 10;
 			files = (
 				BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */,
-				BAC1630E2F2C3BE10050270D /* algokit_transact.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
