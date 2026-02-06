@@ -336,6 +336,13 @@ class AnswerViewModel(
         }
     }
 
+    /**
+     * Encode ResponseMessage to CBOR bytes
+     */
+    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray {
+        return encoder.encode(responseMessage, EncoderType.CBOR)
+    }
+
     fun handleMessage(message: Message): Any {
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
         when (decoded.reference) {

@@ -40,6 +40,7 @@ import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
+import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
@@ -407,14 +408,15 @@ class AnswerActivity : AppCompatActivity() {
         Log.d(TAG, "Response ID: ${resultMessage.id}")
         Log.d(TAG, "========================================")
 
-        // Use JSON instead of CBOR to avoid indefinite-length encoding issues
-        val jsonString = resultMessage.toJson()
-        Log.d(TAG, "JSON response length: ${jsonString.length} chars")
-        Log.d(TAG, "JSON response (first 500 chars): ${jsonString.take(500)}...")
+        // Encode using CBOR
+        val cborBytes = viewModel.encodeResponseMessage(resultMessage)
+        val base64String = Base64.UrlSafe.encode(cborBytes)
+        Log.d(TAG, "CBOR response length: ${cborBytes.size} bytes")
+        Log.d(TAG, "Base64 encoded length: ${base64String.length} chars")
 
-        viewModel.signalService.value?.send(jsonString)
+        viewModel.signalService.value?.send(base64String)
 
-        Log.d(TAG, "✅ Signed transactions sent successfully as JSON!")
+        Log.d(TAG, "✅ Signed transactions sent successfully as CBOR!")
         showToast("Transactions signed successfully!")
     }
 
