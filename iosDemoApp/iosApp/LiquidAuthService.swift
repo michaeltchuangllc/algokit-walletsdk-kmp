@@ -37,11 +37,11 @@ import x_hd_wallet_api
  *    - Format: CBOR-encoded attestationObject
  *    - Why: Part of WebAuthn standard specification
  *
- * 2. Data Channel Messages → JSON (matching Android)
+ * 2. Data Channel Messages (matching Android)
  *    - Incoming: Base64-encoded CBOR (from provider-sdk)
- *    - Outgoing: JSON (responses, credentials, transactions)
- *    - Why: Avoids indefinite-length encoding issues with CBOR
- *    - Changed: Both Android and iOS now use JSON for responses
+ *    - Credential Handshake: JSON (initial connection)
+ *    - Transaction Responses: Base64-encoded CBOR (ARC-0027 protocol)
+ *    - Why: CBOR is more efficient and matches ARC-0027 standard
  *
  * See: docs/iOS-LiquidAuth-Setup.md for full details
  */
@@ -71,12 +71,14 @@ public class LiquidAuthService {
     // MARK: - Initialization
     
     public init(origin: String, requestId: String, algoAddress: String) {
-        self.origin = origin
+        // Normalize origin - remove trailing slash if present
+        self.origin = origin.hasSuffix("/") ? String(origin.dropLast()) : origin
         self.requestId = requestId
         self.algoAddress = algoAddress
         
         NSLog("🔗 LiquidAuthService initialized")
-        NSLog("   Origin: \(origin)")
+        NSLog("   Origin (original): \(origin)")
+        NSLog("   Origin (normalized): \(self.origin)")
         NSLog("   RequestID: \(requestId)")
         NSLog("   AlgoAddress: \(algoAddress)")
     }
@@ -764,7 +766,8 @@ public class LiquidAuthService {
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
         
-        // Send as JSON (not CBOR) - matches Android implementation
+        // Send credential handshake as JSON (matches Android implementation)
+        // Note: Transaction responses use CBOR, but credential handshake uses JSON
         let credentialMessage: [String: Any] = [
             "type": "credential",
             "address": self.algoAddress,  // ✅ Explicitly use self.algoAddress
@@ -775,7 +778,7 @@ public class LiquidAuthService {
         if let jsonData = try? JSONSerialization.data(withJSONObject: credentialMessage),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             signalService?.sendMessage(jsonString)
-            NSLog("✅ Credential message sent as JSON (not CBOR)")
+            NSLog("✅ Credential handshake sent as JSON")
             NSLog("   Full message: \(jsonString)")
             NSLog("✅ RequestId in message: '\(self.requestId)'")
             NSLog("⏳ Connection remains open, waiting for messages from server...")
@@ -798,7 +801,7 @@ public class LiquidAuthService {
         NSLog("   Message length: \(message.count)")
         
         // Messages come in as Base64-encoded CBOR (matching Android)
-        // But we respond with JSON (matching Android change to avoid indefinite-length encoding issues)
+        // And we respond with Base64-encoded CBOR (matching Android)
         
         do {
             // Try to decode as Base64 CBOR first (for transaction requests from provider-sdk)
@@ -815,6 +818,15 @@ public class LiquidAuthService {
     }
     
     private func handleCBORMessage(_ data: Data) throws {
+        // Log first bytes to verify incoming CBOR encoding type
+        if !data.isEmpty {
+            let firstBytes = data.prefix(10).map { String(format: "0x%02X", $0) }.joined(separator: " ")
+            NSLog("📥 Incoming CBOR first bytes: \(firstBytes)")
+            let firstByte = data[0]
+            let isIndefinite = (firstByte & 0x1F) == 0x1F
+            NSLog("   Incoming CBOR encoding: \(isIndefinite ? "INDEFINITE-LENGTH" : "DEFINITE-LENGTH")")
+        }
+        
         // Decode CBOR message
         let cborValue = try CBOR.decode([UInt8](data))
         
@@ -1011,47 +1023,74 @@ public class LiquidAuthService {
     }
     
     private func sendTransactionErrorResponse(requestId: String) {
-        NSLog("📤 Sending transaction error response as JSON")
+        NSLog("📤 Sending transaction error response as CBOR")
 
-        // Send response as JSON (matching Android change)
-        // Note: Android switched from CBOR to JSON to avoid indefinite-length encoding issues
-        let errorResponse: [String: Any] = [
-            "id": requestId,
-            "reference": "arc0027:sign_transactions:response",
-            "error": [
-                "code": 4100,
-                "message": "Transaction signing failed"
+        do {
+            // Build error response structure
+            let errorResponse: [String: Any] = [
+                "id": requestId,
+                "reference": "arc0027:sign_transactions:response",
+                "error": [
+                    "code": 4100,
+                    "message": "Transaction signing failed"
+                ]
             ]
-        ]
-
-        if let jsonData = try? JSONSerialization.data(withJSONObject: errorResponse),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            signalService?.sendMessage(jsonString)
-            NSLog("✅ Error response sent as JSON (not CBOR)")
+            
+            // Convert to CBOR
+            let cborData = try encodeToCBOR(errorResponse)
+            
+            // Base64 encode
+            let base64String = cborData.base64EncodedString()
+            
+            NSLog("   CBOR error response length: \(cborData.count) bytes")
+            NSLog("   Base64 encoded length: \(base64String.count) chars")
+            
+            signalService?.sendMessage(base64String)
+            NSLog("✅ Error response sent as CBOR!")
+        } catch {
+            NSLog("❌ Failed to encode error response as CBOR: \(error)")
         }
     }
     
-    /// Send signed transaction response as JSON
+    /// Send signed transaction response as CBOR
     /// Use this when transaction signing is implemented
-    /// Important: Send as JSON, NOT CBOR (to match Android and avoid encoding issues)
+    /// Important: Send as CBOR (to match Android)
     private func sendTransactionResponse(requestId: String, signedTxns: [String], providerId: String?) {
-        NSLog("📤 Sending signed transactions as JSON")
+        NSLog("📤 Sending signed transactions as CBOR")
         
-        let response: [String: Any] = [
-            "id": requestId,
-            "reference": "arc0027:sign_transactions:response",
-            "result": [
-                "stxns": signedTxns,
-                "providerId": providerId ?? "WalletSDK-iOS"
+        do {
+            // Build response structure
+            let response: [String: Any] = [
+                "id": requestId,
+                "reference": "arc0027:sign_transactions:response",
+                "result": [
+                    "stxns": signedTxns,
+                    "providerId": providerId ?? "WalletSDK-iOS"
+                ]
             ]
-        ]
-        
-        if let jsonData = try? JSONSerialization.data(withJSONObject: response),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            NSLog("   JSON response length: \(jsonString.count) chars")
-            NSLog("   JSON response (first 500 chars): \(jsonString.prefix(500))...")
-            signalService?.sendMessage(jsonString)
-            NSLog("✅ Signed transactions sent successfully as JSON (not CBOR)!")
+            
+            // Convert to CBOR
+            let cborData = try encodeToCBOR(response)
+            
+            // Base64 encode
+            let base64String = cborData.base64EncodedString()
+            
+            NSLog("   CBOR response length: \(cborData.count) bytes")
+            NSLog("   Base64 encoded length: \(base64String.count) chars")
+            
+            // Log first bytes to verify CBOR encoding type
+            if !cborData.isEmpty {
+                let firstBytes = cborData.prefix(10).map { String(format: "0x%02X", $0) }.joined(separator: " ")
+                NSLog("   CBOR first bytes: \(firstBytes)")
+                let firstByte = cborData[0]
+                let isIndefinite = (firstByte & 0x1F) == 0x1F
+                NSLog("   CBOR encoding: \(isIndefinite ? "INDEFINITE-LENGTH (needs 0xFF break)" : "DEFINITE-LENGTH")")
+            }
+            
+            signalService?.sendMessage(base64String)
+            NSLog("✅ Signed transactions sent successfully as CBOR!")
+        } catch {
+            NSLog("❌ Failed to encode transaction response as CBOR: \(error)")
         }
     }
     
@@ -1093,6 +1132,42 @@ public class LiquidAuthService {
         }
         
         return signatureData
+    }
+    
+    /// Encode a dictionary to CBOR using SwiftCBOR library
+    /// - Parameter dict: Dictionary to encode
+    /// - Returns: CBOR-encoded data
+    /// - Throws: Error if encoding fails
+    private func encodeToCBOR(_ dict: [String: Any]) throws -> Data {
+        // Convert dictionary to CBOR-compatible format
+        func convertValue(_ value: Any) -> CBOR {
+            switch value {
+            case let str as String:
+                return .utf8String(str)
+            case let num as Int:
+                return .unsignedInt(UInt64(num))
+            case let num as UInt64:
+                return .unsignedInt(num)
+            case let dict as [String: Any]:
+                var cborMap: [CBOR: CBOR] = [:]
+                for (key, val) in dict {
+                    cborMap[.utf8String(key)] = convertValue(val)
+                }
+                return .map(cborMap)
+            case let array as [Any]:
+                return .array(array.map { convertValue($0) })
+            case let array as [String]:
+                return .array(array.map { .utf8String($0) })
+            default:
+                NSLog("⚠️ Unknown value type in CBOR encoding: \(type(of: value))")
+                return .null
+            }
+        }
+        
+        let cborValue = convertValue(dict)
+        // Use explicit type annotation to resolve ambiguity
+        let cborBytes: [UInt8] = cborValue.encode()
+        return Data(cborBytes)
     }
     
     // MARK: - Cleanup
