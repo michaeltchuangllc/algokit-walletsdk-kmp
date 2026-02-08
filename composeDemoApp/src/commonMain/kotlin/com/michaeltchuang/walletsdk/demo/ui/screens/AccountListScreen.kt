@@ -26,7 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,8 +40,9 @@ import com.michaeltchuang.walletsdk.demo.ui.components.LottieConfetti
 import com.michaeltchuang.walletsdk.demo.ui.navigation.ACTIONS
 import com.michaeltchuang.walletsdk.demo.ui.viewmodel.AccountListViewModel
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
-import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
-import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet
+import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
+import com.michaeltchuang.walletsdk.ui.initializeSdk.rememberWalletSDKBottomSheetState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.stringResource
@@ -62,13 +62,9 @@ fun AccountListScreen(
     val viewModel: AccountListViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
-    var showSheet by rememberSaveable { mutableStateOf(false) }
+    val walletState = rememberWalletSDKBottomSheetState()
     val scope = rememberCoroutineScope()
     var showConfetti by remember { mutableStateOf(false) }
-    var qrScanClick by rememberSaveable { mutableStateOf(false) }
-    var settingsClick by rememberSaveable { mutableStateOf(false) }
-    var onAccountItemClick by rememberSaveable { mutableStateOf(false) }
-    var address by rememberSaveable { mutableStateOf("") }
     // val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -76,19 +72,17 @@ fun AccountListScreen(
     var isRefreshing by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        ACTIONS.qrClickEvent.collect {
-            qrScanClick = it
-            settingsClick = false
-            onAccountItemClick = false
-            showSheet = it
+        ACTIONS.qrClickEvent.collect { shouldShow ->
+            if (shouldShow) {
+                walletState.show(initialScreen = AlgoKitScreens.QR_CODE_SCANNER_SCREEN)
+            }
         }
     }
     LaunchedEffect(Unit) {
-        ACTIONS.settingsClickEvent.collect {
-            qrScanClick = false
-            onAccountItemClick = false
-            settingsClick = it
-            showSheet = it
+        ACTIONS.settingsClickEvent.collect { shouldShow ->
+            if (shouldShow) {
+                walletState.show(initialScreen = AlgoKitScreens.SETTINGS_SCREEN)
+            }
         }
     }
     LaunchedEffect(Unit) {
@@ -99,10 +93,7 @@ fun AccountListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = {
-                    settingsClick = false
-                    qrScanClick = false
-                    onAccountItemClick = false
-                    showSheet = true
+                    walletState.show()
                 },
                 modifier = Modifier.padding(end = FAB_PADDING, bottom = FAB_PADDING),
             ) {
@@ -131,47 +122,34 @@ fun AccountListScreen(
             AccountListContent(
                 state = state,
                 padding = padding,
-                onAccountItemClick = { it ->
-                    scope.launch {
-                        address = it
-                        onAccountItemClick = true
-                        showSheet = true
-                    }
+                onAccountItemClick = { address ->
+                    walletState.show(
+                        initialScreen = AlgoKitScreens.ACCOUNT_STATUS_SCREEN,
+                        address = address
+                    )
                 },
             )
         }
     }
 
-    OnBoardingBottomSheet(
-        showSheet = showSheet,
-        accounts = viewModel.accountLite.size,
-        launchQRScanScreen = qrScanClick,
-        launchSettingsScreen = settingsClick,
-        launchAccountStatusScreen = onAccountItemClick,
-        address = address,
+    WalletSDK.ShowAlgoKitWalletBottomSheet(
+        state = walletState,
         onAccountDeleted = {
-            showSheet = false
             viewModel.fetchAccounts()
         },
-    ) { event ->
-        handleBottomSheetEvent(
-            event = event,
-            onCloseSheet = {
-                showSheet = false
-                // Refresh accounts to get latest data whenever bottom sheet closes
-                scope.launch {
-                    viewModel.fetchAccounts()
-                }
-            },
-            onAccountCreated = {
-                showConfetti = true
-                showSheet = false
-                scope.launch {
-                    viewModel.fetchAccounts()
-                }
-            },
-        )
-    }
+        onDismiss = {
+            // Refresh accounts to get latest data whenever bottom sheet closes
+            scope.launch {
+                viewModel.fetchAccounts()
+            }
+        },
+        onAccountCreated = {
+            showConfetti = true
+            scope.launch {
+                viewModel.fetchAccounts()
+            }
+        }
+    )
 
     if (showConfetti) {
         ConfettiEffect(
@@ -280,23 +258,5 @@ private fun ConfettiEffect(onComplete: () -> Unit) {
     LaunchedEffect(Unit) {
         delay(CONFETTI_DURATION)
         onComplete()
-    }
-}
-
-private fun handleBottomSheetEvent(
-    event: AlgoKitEvent,
-    onCloseSheet: () -> Unit,
-    onAccountCreated: () -> Unit,
-) {
-    when (event) {
-        AlgoKitEvent.CLOSE_BOTTOMSHEET -> {
-            onCloseSheet()
-        }
-
-        AlgoKitEvent.ALGO25_ACCOUNT_CREATED,
-        AlgoKitEvent.HD_ACCOUNT_CREATED,
-        -> {
-            onAccountCreated()
-        }
     }
 }

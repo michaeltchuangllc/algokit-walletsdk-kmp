@@ -108,20 +108,36 @@ enum class AlgoKitScreens {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OnBoardingBottomSheet(
-    showSheet: Boolean,
     accounts: Int,
-    launchQRScanScreen: Boolean = false,
-    launchSettingsScreen: Boolean = false,
-    launchAccountStatusScreen: Boolean = false,
+    initialScreen: AlgoKitScreens? = null,
     address: String? = null,
     onAccountDeleted: () -> Unit,
     onAlgoKitEvent: (event: AlgoKitEvent) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    if (showSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
-            onDismissRequest = {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = {
+            scope.launch {
+                scope
+                    .async {
+                        sheetState.hide()
+                    }.await()
+                onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
+            }
+        },
+        sheetState = sheetState,
+        dragHandle = null,
+        containerColor = AlgoKitTheme.colors.background,
+        contentColor = AlgoKitTheme.colors.textMain,
+    ) {
+        NavigationBottomSheetNavHost(
+            startDestination = startDestination(accounts, initialScreen),
+            address = address,
+            onAccountDeleted = {
+                onAccountDeleted()
+            },
+            closeSheet = {
                 scope.launch {
                     scope
                         .async {
@@ -130,35 +146,8 @@ fun OnBoardingBottomSheet(
                     onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
                 }
             },
-            sheetState = sheetState,
-            dragHandle = null,
-            containerColor = AlgoKitTheme.colors.background,
-            contentColor = AlgoKitTheme.colors.textMain,
         ) {
-            NavigationBottomSheetNavHost(
-                startDestination =
-                    startDestination(
-                        accounts,
-                        launchQRScanScreen,
-                        launchSettingsScreen,
-                        launchAccountStatusScreen,
-                    ),
-                address = address,
-                onAccountDeleted = {
-                    onAccountDeleted()
-                },
-                closeSheet = {
-                    scope.launch {
-                        scope
-                            .async {
-                                sheetState.hide()
-                            }.await()
-                        onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
-                    }
-                },
-            ) {
-                onAlgoKitEvent(AlgoKitEvent.ALGO25_ACCOUNT_CREATED)
-            }
+            onAlgoKitEvent(AlgoKitEvent.ALGO25_ACCOUNT_CREATED)
         }
     }
 }
@@ -629,14 +618,10 @@ fun NavigationBottomSheetNavHost(
 
 fun startDestination(
     accounts: Int,
-    qrScanFlow: Boolean,
-    launchSettingsScreen: Boolean,
-    launchAccountStatusScreen: Boolean,
+    initialScreen: AlgoKitScreens? = null,
 ): String =
     when {
-        launchAccountStatusScreen -> AlgoKitScreens.ACCOUNT_STATUS_SCREEN.name
-        launchSettingsScreen -> AlgoKitScreens.SETTINGS_SCREEN.name
-        qrScanFlow -> AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name
+        initialScreen != null -> initialScreen.name
         accounts == 0 -> AlgoKitScreens.INITIAL_REGISTER_INTRO_SCREEN.name
         else -> AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN.name
     }
