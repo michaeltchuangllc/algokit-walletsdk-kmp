@@ -29,12 +29,12 @@ fun MainViewController(): platform.UIKit.UIViewController {
         // Koin not started yet, initialize WalletSDK
         WalletSDK.initialize(
             context = null, // iOS doesn't need context
-            enableLogging = false // Set to true for debugging
+            enableLogging = false, // Set to true for debugging
         )
         // Load demo app's ViewModel modules
         loadKoinModules(provideViewModelModules)
     }
-    
+
     // Return the view controller
     return ComposeUIViewController { App() }
 }
@@ -82,7 +82,7 @@ fun initializeKoin() {
         // Koin wasn't started - initialize WalletSDK with all modules
         WalletSDK.initialize(
             context = null, // iOS doesn't need context
-            enableLogging = true
+            enableLogging = true,
         )
         // Load demo app's ViewModel modules
         loadKoinModules(provideViewModelModules)
@@ -283,15 +283,6 @@ fun signWithAlgorandWallet(
         null
     }
 }
-
-/**
- * Sign arbitrary data with an Algorand wallet account.
- * This handles all account types (Algo25, HD Key, Falcon24).
- *
- * @param address The Algorand address to sign with
- * @param challenge The challenge data to sign
- * @return The signature bytes, or null if signing fails
- */
 
 /**
  * Sign a transaction with an Algorand wallet account.

@@ -7,7 +7,6 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 
 class AppViewModel : ViewModel() {
-
     init {
         initializeNetworkStatus()
     }

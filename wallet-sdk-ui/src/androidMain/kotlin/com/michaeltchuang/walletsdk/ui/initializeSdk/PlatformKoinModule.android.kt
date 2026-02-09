@@ -13,7 +13,7 @@ import org.koin.core.logger.Level
  */
 internal actual fun KoinApplication.platformConfiguration(
     context: Any,
-    enableLogging: Boolean
+    enableLogging: Boolean,
 ) {
     val androidContext = (context as Context).applicationContext
     AndroidContextHolder.applicationContext = androidContext

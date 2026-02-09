@@ -125,7 +125,7 @@ fun AccountListScreen(
                 onAccountItemClick = { address ->
                     walletState.show(
                         initialScreen = AlgoKitScreens.ACCOUNT_STATUS_SCREEN,
-                        address = address
+                        address = address,
                     )
                 },
             )
@@ -148,7 +148,7 @@ fun AccountListScreen(
             scope.launch {
                 viewModel.fetchAccounts()
             }
-        }
+        },
     )
 
     if (showConfetti) {

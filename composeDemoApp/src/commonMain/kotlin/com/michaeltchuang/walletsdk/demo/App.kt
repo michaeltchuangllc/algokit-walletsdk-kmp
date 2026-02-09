@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocaleAwareC
 
 /**
  * Main composable for the demo app.
- * 
+ *
  * Note: WalletSDK.initialize() and loadKoinModules() must be called BEFORE
  * this composable is rendered:
  * - Android: In AndroidApp.onCreate()
@@ -21,4 +21,3 @@ internal fun App() {
         }
     }
 }
-

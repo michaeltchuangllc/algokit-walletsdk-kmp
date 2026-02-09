@@ -8,7 +8,7 @@ import org.koin.core.KoinApplication
  */
 internal actual fun KoinApplication.platformConfiguration(
     context: Any,
-    enableLogging: Boolean
+    enableLogging: Boolean,
 ) {
     // iOS doesn't require additional context configuration
     // Logging can be added here if needed in the future

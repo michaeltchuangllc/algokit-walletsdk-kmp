@@ -25,35 +25,35 @@ import org.koin.mp.KoinPlatform.getKoin
 
 /**
  * State holder for the AlgoKit Wallet bottom sheet.
- * 
+ *
  * This class manages the visibility and configuration of the wallet bottom sheet.
  */
 @Stable
 class WalletBottomSheetState {
     var isVisible by mutableStateOf(false)
         private set
-    
+
     var initialScreen by mutableStateOf<AlgoKitScreens?>(null)
         private set
-    
+
     var address by mutableStateOf<String?>(null)
         private set
-    
+
     /**
      * Show the wallet bottom sheet.
-     * 
+     *
      * @param initialScreen Optional specific screen to open directly (e.g., AlgoKitScreens.QR_CODE_SCANNER_SCREEN)
      * @param address Optional account address to view details for (required if initialScreen is ACCOUNT_STATUS_SCREEN)
      */
     fun show(
         initialScreen: AlgoKitScreens? = null,
-        address: String? = null
+        address: String? = null,
     ) {
         this.initialScreen = initialScreen
         this.address = address
         isVisible = true
     }
-    
+
     /**
      * Hide the wallet bottom sheet.
      */
@@ -62,12 +62,13 @@ class WalletBottomSheetState {
         initialScreen = null
         address = null
     }
-    
+
     companion object {
-        val Saver: Saver<WalletBottomSheetState, Boolean> = Saver(
-            save = { it.isVisible },
-            restore = { WalletBottomSheetState().apply { isVisible = it } }
-        )
+        val Saver: Saver<WalletBottomSheetState, Boolean> =
+            Saver(
+                save = { it.isVisible },
+                restore = { WalletBottomSheetState().apply { isVisible = it } },
+            )
     }
 }
 
@@ -75,11 +76,10 @@ class WalletBottomSheetState {
  * Remember a [WalletBottomSheetState] across recompositions.
  */
 @Composable
-fun rememberWalletSDKBottomSheetState(): WalletBottomSheetState {
-    return rememberSaveable(saver = WalletBottomSheetState.Saver) {
+fun rememberWalletSDKBottomSheetState(): WalletBottomSheetState =
+    rememberSaveable(saver = WalletBottomSheetState.Saver) {
         WalletBottomSheetState()
     }
-}
 
 /**
  * WalletSDK initialization object.
@@ -105,11 +105,11 @@ object WalletSDK {
      */
     fun initialize(
         context: Any? = null,
-        enableLogging: Boolean = false
+        enableLogging: Boolean = false,
     ) {
         val modules = walletSdkUiModules
 
-        // Check if Koin is already started 
+        // Check if Koin is already started
         val isKoinStarted = runCatching { getKoin() }.isSuccess
 
         if (isKoinStarted) {
@@ -129,7 +129,6 @@ object WalletSDK {
         }
     }
 
-
     suspend fun getAccountsWithBalances(): List<AccountLite> {
         val accounts = nameRegistrationUseCase.getAccountLite()
 
@@ -143,9 +142,7 @@ object WalletSDK {
         nameRegistrationUseCase.deleteAccount(address)
     }
 
-    fun getCurrentNetwork(): Flow<AlgorandNetwork> {
-        return getCurrentNetworkUseCase()
-    }
+    fun getCurrentNetwork(): Flow<AlgorandNetwork> = getCurrentNetworkUseCase()
 
     /**
      * Composable function to show the AlgoKit wallet bottom sheet.
@@ -163,13 +160,13 @@ object WalletSDK {
         state: WalletBottomSheetState,
         onAccountDeleted: () -> Unit = {},
         onDismiss: () -> Unit = {},
-        onAccountCreated: () -> Unit = {}
+        onAccountCreated: () -> Unit = {},
     ) {
         // Get current account count
         val accountCount = remember { mutableStateOf(0) }
-        
+
         // Fetch account count when sheet becomes visible
-       LaunchedEffect(state.isVisible) {
+        LaunchedEffect(state.isVisible) {
             if (state.isVisible) {
                 accountCount.value = nameRegistrationUseCase.getAccountLite().size
             }
@@ -192,15 +189,15 @@ object WalletSDK {
                             onDismiss()
                         }
                         AlgoKitEvent.ALGO25_ACCOUNT_CREATED,
-                        AlgoKitEvent.HD_ACCOUNT_CREATED -> {
+                        AlgoKitEvent.HD_ACCOUNT_CREATED,
+                        -> {
                             onAccountCreated()
                             state.hide()
                             onDismiss()
                         }
                     }
-                }
+                },
             )
         }
     }
-
 }

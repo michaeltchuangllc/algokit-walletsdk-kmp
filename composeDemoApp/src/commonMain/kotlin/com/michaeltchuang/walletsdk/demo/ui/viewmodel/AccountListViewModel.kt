@@ -38,7 +38,7 @@ class AccountListViewModel(
             try {
                 // Fetch all accounts with their current balances
                 accountLite = WalletSDK.getAccountsWithBalances()
-                
+
                 stateDelegate.updateState {
                     AccountsState.Content(accountLite)
                 }

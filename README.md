@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.2")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.2")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.4")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.4")
 }
 ```
 
@@ -97,24 +97,24 @@ timeline
 
     section In Progress 🔄
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : ✅ Transaction - Integrate new algokit-core transact rust library (iOS)
+            : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
             : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Testnet)
+            : 🔄 Android - Wallet SDK as a background service integration
             : Onboarding - Add Liquid Auth Integration for xGov Website
-            : Onboarding - Integrate new algokit-core account rust library (iOS/Android)
+            : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : Onboarding - Mainnet Liquid Auth (Android/iOS)
             : Transaction - Opt-In / Opt-Out USDC QR flow
             : Transaction - Send USDC using QR code flow (between accounts)
-            : Account Details - Send USDC in account detail (between accounts)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
+            : Account Details - Send USDC in account detail (between accounts)
             : Onboarding - Rekey flow
             : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Onboarding - PQ Passkeys
             : Onboarding - Multi-sig flow
             : Onboarding - Ledger flow
-            : Android - Wallet SDK as a background service integration
             : Add In Landscape (Tablet/Desktop) UI Support
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : TBD
@@ -284,4 +284,9 @@ algorand://ANUR5SYMURBFD3ELITINYNTHVAKKBCWJ7LGHJRPMQM3KQG25ENMIHYEBNY?type=keyre
 ### Asset Transfer (receiver address & amount in microAlgos)
 ```
 algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer
+```
+
+### Liquid Auth (sample uri)
+```
+liquid://michaeltchuang.ngrok.dev/?requestId=019c3ff0-70fd-7663-823b-2ce5bbc5fca6
 ```

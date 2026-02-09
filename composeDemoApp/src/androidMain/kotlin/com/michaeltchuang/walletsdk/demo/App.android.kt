@@ -31,9 +31,9 @@ class AndroidApp : Application() {
 
         WalletSDK.initialize(
             context = applicationContext,
-            enableLogging = false
+            enableLogging = false,
         )
-        
+
         // Load demo app's ViewModel modules
         loadKoinModules(provideViewModelModules)
     }

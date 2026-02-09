@@ -76,11 +76,11 @@ actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): Suggested
 actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray {
     // Sign transaction using CryptoKit + AlgoKitTransact implementation
     val result = signAlgo25Transaction(secretKey, this)
-    
+
     if (result.isEmpty()) {
         Napier.e("Transaction signing failed - empty result", tag = "signTx")
     }
-    
+
     return result
 }
 

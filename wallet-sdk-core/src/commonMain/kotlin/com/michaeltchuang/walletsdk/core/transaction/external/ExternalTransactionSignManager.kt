@@ -31,7 +31,6 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
 ) : LifecycleScopedCoroutineOwner() {
-    
     private val _signResultFlow =
         MutableStateFlow<ExternalTransactionSignResult>(
             ExternalTransactionSignResult.NotInitialized,
@@ -80,7 +79,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
     ) {
         currentScope.launch {
             val transactionSigner = getTransactionSigner(accountAddress)
-            
+
             when (transactionSigner) {
                 is TransactionSigner.SignerNotFound -> {
                     Napier.e("Signer not found for address: $accountAddress", tag = "TxnSign")
@@ -111,20 +110,20 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
             Napier.e("Transaction bytes are null for address: $accountAddress", tag = "TxnSign")
             return handleSignError(transaction)
         }
-        
+
         val secretKey = getAlgo25SecretKey(accountAddress)
         if (secretKey == null) {
             Napier.e("Secret key not found for address: $accountAddress", tag = "TxnSign")
             return handleSignError(transaction)
         }
-        
+
         val transactionSignedByteArray = signAlgo25Transaction(secretKey, transactionBytes)
-        
+
         if (transactionSignedByteArray.isEmpty()) {
             Napier.e("Algo25 transaction signing failed for address: $accountAddress", tag = "TxnSign")
             return handleSignError(transaction)
         }
-        
+
         onTransactionSigned(transaction, transactionSignedByteArray)
     }
 

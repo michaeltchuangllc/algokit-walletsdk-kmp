@@ -5,6 +5,4 @@ import com.michaeltchuang.walletsdk.demo.AndroidApp
 /**
  * Returns the Android application context for Koin initialization.
  */
-actual fun getPlatformContext(): Any? {
-    return AndroidApp.instance.applicationContext
-}
+actual fun getPlatformContext(): Any? = AndroidApp.instance.applicationContext
