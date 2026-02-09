@@ -192,8 +192,8 @@ actual fun signFalcon24Transaction(
 actual fun signAlgo25Transaction(
     secretKey: ByteArray,
     transactionByteArray: ByteArray,
-): ByteArray {
-    return try {
+): ByteArray =
+    try {
         val secretKeyBase64 = Base64.encode(secretKey)
         val transactionBase64 = Base64.encode(transactionByteArray)
 
@@ -209,7 +209,6 @@ actual fun signAlgo25Transaction(
         Napier.e("Algo25 transaction signing failed: ${e.message}", tag = "Algo25Sign")
         ByteArray(0)
     }
-}
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray {
@@ -494,21 +493,22 @@ actual fun signHdKeyArbitraryData(
         // Convert seed and data to Base64 strings
         val seedBase64 = seed.toNSData().base64EncodedStringWithOptions(0.toULong())
         val dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong())
-        
+
         // Call Swift bridge to sign with Ed25519 (using Peikert derivation)
-        val signatureBase64 = bridge.signHdArbitraryDataWithSeedBase64WithSeedBase64(
-            seedBase64 = seedBase64,
-            account = account.toLong(),
-            change = change.toLong(),
-            keyIndex = key.toLong(),
-            dataBase64 = dataBase64
-        )
-        
+        val signatureBase64 =
+            bridge.signHdArbitraryDataWithSeedBase64WithSeedBase64(
+                seedBase64 = seedBase64,
+                account = account.toLong(),
+                change = change.toLong(),
+                keyIndex = key.toLong(),
+                dataBase64 = dataBase64,
+            )
+
         if (signatureBase64.isEmpty()) {
             Napier.e("HD Key signing returned empty string", tag = "HdKeySign")
             return null
         }
-        
+
         // Decode Base64 signature to ByteArray
         Base64.decode(signatureBase64)
     } catch (e: Exception) {
@@ -549,13 +549,13 @@ actual fun signAlgo25ArbitraryData(
     try {
         val secretKeyBase64 = Base64.encode(secretKey)
         val dataBase64 = Base64.encode(data)
-        
+
         val signedDataBase64 =
             bridge.signAlgo25ArbitraryDataWithBase64WithSkBase64(
                 skBase64 = secretKeyBase64,
                 dataBase64 = dataBase64,
             )
-        
+
         Base64.decode(signedDataBase64)
     } catch (e: Exception) {
         Napier.e("Algo25 arbitrary data signing failed: ${e.message}", tag = "Algo25Sign")

@@ -18,7 +18,7 @@ class GetAllHdSeedFirstAddressesUseCase(
         return allSeeds.mapNotNull { seed ->
             // Get all Falcon24 accounts for this seed
             val falcon24Accounts = falconRepository.getAll()
-            
+
             // Find the first account (index 0) for this seed
             val firstAccount =
                 falcon24Accounts.firstOrNull { account ->

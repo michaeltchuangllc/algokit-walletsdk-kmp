@@ -1,11 +1,12 @@
 package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
-import com.michaeltchuang.walletsdk.demo.di.initKoinConfig
+import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import org.koin.core.Koin
-import org.koin.core.context.startKoin
+import org.koin.core.context.loadKoinModules
 import org.koin.mp.KoinPlatform
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -14,9 +15,29 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 object IosApp
 
 /**
- * Create the main view controller for iOS app
+ * Create the main view controller for iOS app.
+ * Initializes WalletSDK before creating the Compose view controller.
  */
-fun MainViewController() = ComposeUIViewController { App() }
+fun MainViewController(): platform.UIKit.UIViewController {
+    // Initialize WalletSDK and load modules before Compose renders
+    // This ensures Koin is ready when composables try to access it
+    try {
+        getKoin()
+        // Koin already started , just load ViewModel modules
+        loadKoinModules(provideViewModelModules)
+    } catch (e: Exception) {
+        // Koin not started yet, initialize WalletSDK
+        WalletSDK.initialize(
+            context = null, // iOS doesn't need context
+            enableLogging = false, // Set to true for debugging
+        )
+        // Load demo app's ViewModel modules
+        loadKoinModules(provideViewModelModules)
+    }
+
+    // Return the view controller
+    return ComposeUIViewController { App() }
+}
 
 /**
  * Set the app group directory for sharing data between app and extensions.
@@ -58,8 +79,13 @@ fun initializeKoin() {
     try {
         getKoin()
     } catch (e: Exception) {
-        // Koin wasn't started
-        startKoin(initKoinConfig)
+        // Koin wasn't started - initialize WalletSDK with all modules
+        WalletSDK.initialize(
+            context = null, // iOS doesn't need context
+            enableLogging = true,
+        )
+        // Load demo app's ViewModel modules
+        loadKoinModules(provideViewModelModules)
     }
 }
 
@@ -257,15 +283,6 @@ fun signWithAlgorandWallet(
         null
     }
 }
-
-/**
- * Sign arbitrary data with an Algorand wallet account.
- * This handles all account types (Algo25, HD Key, Falcon24).
- *
- * @param address The Algorand address to sign with
- * @param challenge The challenge data to sign
- * @return The signature bytes, or null if signing fails
- */
 
 /**
  * Sign a transaction with an Algorand wallet account.

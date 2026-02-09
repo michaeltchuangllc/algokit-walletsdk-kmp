@@ -1,8 +1,6 @@
 package com.michaeltchuang.walletsdk.demo.di
 
-import org.koin.dsl.koinConfiguration
-
-actual fun nativeConfig() =
-    koinConfiguration {
-        printLogger()
-    }
+/**
+ * Returns null for iOS as it doesn't require a context for Koin initialization.
+ */
+actual fun getPlatformContext(): Any? = null

@@ -3,19 +3,16 @@ package com.michaeltchuang.walletsdk.demo.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 
 class AccountListViewModel(
-    private val nameRegistrationUseCase: NameRegistrationUseCase,
-    private val getBasicAccountInformationUseCase: GetBasicAccountInformationUseCase,
     private val stateDelegate: StateDelegate<AccountsState>,
     private val eventDelegate: EventDelegate<AccountsEvent>,
 ) : ViewModel(),
@@ -39,16 +36,9 @@ class AccountListViewModel(
         stateDelegate.updateState { AccountsState.Loading }
         viewModelScope.launch {
             try {
-                accountLite = nameRegistrationUseCase.getAccountLite()
+                // Fetch all accounts with their current balances
+                accountLite = WalletSDK.getAccountsWithBalances()
 
-                // Fetch account details for all accounts to get their amounts
-                val accountsWithAmounts =
-                    accountLite.map { account ->
-                        val accountInfo = getBasicAccountInformationUseCase(account.address)
-                        account.copy(balance = accountInfo?.amount ?: "0")
-                    }
-
-                accountLite = accountsWithAmounts
                 stateDelegate.updateState {
                     AccountsState.Content(accountLite)
                 }
@@ -67,7 +57,7 @@ class AccountListViewModel(
         stateDelegate.updateState { AccountsState.Loading }
         viewModelScope.launch {
             try {
-                nameRegistrationUseCase.deleteAccount(address)
+                WalletSDK.deleteAccount(address)
                 eventDelegate.sendEvent(AccountsEvent.ShowMessage("Account deleted successfully."))
                 fetchAccounts() // Refresh the list after deletion
             } catch (e: Exception) {

@@ -7,7 +7,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.lifecycle.lifecycleScope
-import com.michaeltchuang.walletsdk.core.network.domain.AndroidContextHolder
+import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalizationManager
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalizationPreference
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalizationPreferenceRepository
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.runBlocking
+import org.koin.core.context.loadKoinModules
 
 class AndroidApp : Application() {
     companion object {
@@ -26,7 +28,14 @@ class AndroidApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        AndroidContextHolder.applicationContext = applicationContext
+
+        WalletSDK.initialize(
+            context = applicationContext,
+            enableLogging = false,
+        )
+
+        // Load demo app's ViewModel modules
+        loadKoinModules(provideViewModelModules)
     }
 }
 

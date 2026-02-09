@@ -10,14 +10,12 @@ val provideViewModelModules =
     module {
         single { SnackbarViewModel() }
         viewModel<AppViewModel> {
-            AppViewModel(get())
+            AppViewModel()
         }
         viewModel<AccountListViewModel> {
             AccountListViewModel(
-                get(),
-                get(),
-                get(),
-                get(),
+                stateDelegate = get(),
+                eventDelegate = get(),
             )
         }
     }
