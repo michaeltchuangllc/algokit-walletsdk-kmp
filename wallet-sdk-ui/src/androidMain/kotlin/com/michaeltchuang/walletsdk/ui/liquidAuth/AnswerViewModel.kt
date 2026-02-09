@@ -308,7 +308,16 @@ class AnswerViewModel(
             Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
             Log.d(TAG, "Message length: ${msgStr.length}")
             Log.d(TAG, "========================================")
-            val message = Message(Base64.UrlSafe.decode(msgStr), EncoderType.CBOR)
+            val cborBytes = Base64.UrlSafe.decode(msgStr)
+            
+            // Log first bytes to verify incoming CBOR encoding type
+            if (cborBytes.isNotEmpty()) {
+                val firstBytes = cborBytes.take(10).joinToString(" ") { "0x%02X".format(it) }
+                Log.d(TAG, "Incoming CBOR first bytes: $firstBytes")
+                Log.d(TAG, "Incoming CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH" else "DEFINITE-LENGTH"}")
+            }
+            
+            val message = Message(cborBytes, EncoderType.CBOR)
             val request = encoder.decode<RequestMessage>(message.data, message.encoding)
             Log.d(TAG, "Message decoded - Reference: ${request.reference}")
             Log.d(TAG, "Request ID: ${request.id}")
@@ -334,6 +343,13 @@ class AnswerViewModel(
             Log.e(TAG, "❌ Error handling message: $e")
             e.printStackTrace()
         }
+    }
+
+    /**
+     * Encode ResponseMessage to CBOR bytes
+     */
+    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray {
+        return encoder.encode(responseMessage, EncoderType.CBOR)
     }
 
     fun handleMessage(message: Message): Any {

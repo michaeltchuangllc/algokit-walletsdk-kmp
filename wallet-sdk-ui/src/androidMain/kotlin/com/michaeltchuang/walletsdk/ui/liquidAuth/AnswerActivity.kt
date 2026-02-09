@@ -40,6 +40,7 @@ import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
+import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
@@ -407,14 +408,24 @@ class AnswerActivity : AppCompatActivity() {
         Log.d(TAG, "Response ID: ${resultMessage.id}")
         Log.d(TAG, "========================================")
 
-        // Use JSON instead of CBOR to avoid indefinite-length encoding issues
-        val jsonString = resultMessage.toJson()
-        Log.d(TAG, "JSON response length: ${jsonString.length} chars")
-        Log.d(TAG, "JSON response (first 500 chars): ${jsonString.take(500)}...")
+        // Encode using CBOR
+        val cborBytes = viewModel.encodeResponseMessage(resultMessage)
+        val base64String = Base64.UrlSafe.encode(cborBytes)
+        Log.d(TAG, "CBOR response length: ${cborBytes.size} bytes")
+        Log.d(TAG, "Base64 encoded length: ${base64String.length} chars")
+        
+        // Log first bytes to verify CBOR encoding type (definite vs indefinite)
+        // Definite-length: 0xA0-0xB7 (map), 0x80-0x97 (array), 0x40-0x57 (bytes), 0x60-0x77 (text)
+        // Indefinite-length: 0xBF (map), 0x9F (array), 0x5F (bytes), 0x7F (text) + 0xFF break
+        if (cborBytes.isNotEmpty()) {
+            val firstBytes = cborBytes.take(10).joinToString(" ") { "0x%02X".format(it) }
+            Log.d(TAG, "CBOR first bytes: $firstBytes")
+            Log.d(TAG, "CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH (needs 0xFF break)" else "DEFINITE-LENGTH"}")
+        }
 
-        viewModel.signalService.value?.send(jsonString)
+        viewModel.signalService.value?.send(base64String)
 
-        Log.d(TAG, "✅ Signed transactions sent successfully as JSON!")
+        Log.d(TAG, "✅ Signed transactions sent successfully as CBOR!")
         showToast("Transactions signed successfully!")
     }
 
