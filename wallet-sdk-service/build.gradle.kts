@@ -75,14 +75,25 @@ android {
     }
 }
 
+configurations.all {
+    resolutionStrategy {
+        // Force consistent test dependency versions across all configurations
+        force("androidx.test.ext:junit:${libs.versions.junitKtx.get()}")
+        force("androidx.test.espresso:espresso-core:${libs.versions.espresso.get()}")
+        force("androidx.test:core:${libs.versions.core.get()}")
+        force("androidx.test:rules:${libs.versions.rules.get()}")
+        force("androidx.test:runner:${libs.versions.runner.get()}")
+    }
+}
+
 dependencies {
     // Embed wallet-sdk-ui and wallet-sdk-core
     implementation(project(":wallet-sdk-ui"))
     implementation(project(":wallet-sdk-core"))
     
     // Compose for overlay Activity  
-    implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
+    implementation(libs.androidx.activityCompose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     
     // Coroutines for suspend functions
     implementation(libs.kotlinx.coroutines.core)
