@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.service.demo
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -197,6 +198,64 @@ fun WalletServiceDemoScreen() {
                     enabled = serviceConnected && !loading
                 ) {
                     Text("Fetch Accounts")
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Action Buttons Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Create Account Button
+                Button(
+                    onClick = {
+                        try {
+                            // Get the activity class from service and launch it
+                            val activityClass = walletClient.getService().walletUIActivityClass
+                        val intent = Intent().apply {
+                            setClassName(
+                                "com.michaeltchuang.walletsdk.service",
+                                activityClass
+                            )
+                            putExtra("initial_screen", WalletScreens.ONBOARDING)
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            errorMessage = "Failed to open wallet UI: ${e.message}"
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = serviceConnected && !loading
+                ) {
+                    Text("Create/Manage")
+                }
+                
+                // Settings Button
+                Button(
+                    onClick = {
+                        try {
+                            // Launch settings screen
+                            val activityClass = walletClient.getService().walletUIActivityClass
+                            val intent = Intent().apply {
+                                setClassName(
+                                    "com.michaeltchuang.walletsdk.service",
+                                    activityClass
+                                )
+                                putExtra("initial_screen", WalletScreens.SETTINGS)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            errorMessage = "Failed to open settings: ${e.message}"
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    enabled = serviceConnected && !loading
+                ) {
+                    Text("Settings")
                 }
             }
             

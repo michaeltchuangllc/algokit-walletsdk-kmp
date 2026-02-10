@@ -3,6 +3,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.compose.compiler)
     alias(libs.plugins.kotlinx.serialization)
 }
 
@@ -28,6 +29,7 @@ android {
 
     buildFeatures {
         aidl = true
+        compose = true
     }
 
     buildTypes {
@@ -77,6 +79,10 @@ dependencies {
     // Embed wallet-sdk-ui and wallet-sdk-core
     implementation(project(":wallet-sdk-ui"))
     implementation(project(":wallet-sdk-core"))
+    
+    // Compose for overlay Activity  
+    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.0")
     
     // Coroutines for suspend functions
     implementation(libs.kotlinx.coroutines.core)

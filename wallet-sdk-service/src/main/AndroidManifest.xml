@@ -3,7 +3,12 @@
 
     <!-- Permissions needed for wallet operations -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    
+    <!-- Permission to draw over other apps (for overlay UI) -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <application
         android:name=".WalletServiceApp"
@@ -22,11 +27,26 @@
             </intent-filter>
         </activity>
         
+        <!-- Overlay Activity for wallet UI (launched by CLIENT apps) -->
+        <activity
+            android:name=".WalletOverlayActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Translucent"
+            android:taskAffinity=""
+            android:excludeFromRecents="true">
+            <!-- Allow client apps to launch this activity -->
+            <intent-filter>
+                <action android:name="com.michaeltchuang.walletsdk.service.WALLET_UI" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+        
         <!-- Bound Service that other apps can connect to -->
         <service
             android:name=".AlgoKitWalletService"
             android:enabled="true"
-            android:exported="true">
+            android:exported="true"
+            android:foregroundServiceType="dataSync">
             <intent-filter>
                 <action android:name="com.michaeltchuang.walletsdk.service.WALLET_SERVICE" />
                 <category android:name="android.intent.category.DEFAULT" />

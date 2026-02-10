@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
+import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import com.michaeltchuang.walletsdk.service.IWalletService
@@ -72,6 +73,20 @@ class WalletServiceClient(private val context: Context) {
         
         val intent = Intent(SERVICE_ACTION).apply {
             setPackage(SERVICE_PACKAGE)
+        }
+        
+        // CRITICAL: Start as foreground service FIRST (Android 8+)
+        // This allows the service to call startForeground() and launch activities
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+                Log.d(TAG, "Started foreground service")
+            } else {
+                context.startService(intent)
+                Log.d(TAG, "Started service")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start service", e)
         }
         
         return try {
