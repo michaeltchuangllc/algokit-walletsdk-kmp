@@ -4,6 +4,7 @@
     <!-- Permissions needed for wallet operations -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
@@ -12,20 +13,16 @@
 
     <application
         android:name=".WalletServiceApp"
-        android:icon="@android:drawable/ic_dialog_info"
         android:label="@string/app_name"
         android:theme="@android:style/Theme.Material.Light">
         
-        <!-- Launcher Activity (for development/testing only) -->
+        <!-- Main Activity (no launcher - background service only) -->
+        <!-- This activity is not exported and has no launcher intent -->
+        <!-- The service is accessed by client apps like serviceDemoApp -->
         <activity
             android:name=".MainActivity"
-            android:exported="true"
-            >
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
+            android:exported="false" />
+        
         
         <!-- Overlay Activity for wallet UI (launched by CLIENT apps) -->
         <activity
