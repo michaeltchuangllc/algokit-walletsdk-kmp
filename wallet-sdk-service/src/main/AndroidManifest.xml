@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Permissions needed for wallet operations -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <application
+        android:name=".WalletServiceApp"
+        android:icon="@android:drawable/ic_dialog_info"
+        android:label="@string/app_name"
+        android:theme="@android:style/Theme.Material.Light">
+        
+        <!-- Launcher Activity (for development/testing only) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        
+        <!-- Bound Service that other apps can connect to -->
+        <service
+            android:name=".AlgoKitWalletService"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.michaeltchuang.walletsdk.service.WALLET_SERVICE" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+        
+    </application>
+
+</manifest>
