@@ -83,7 +83,12 @@ class MainActivity : ComponentActivity() {
 fun WalletServiceDemoScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val json = remember { Json { ignoreUnknownKeys = true } }
+    val json = remember { 
+        Json { 
+            ignoreUnknownKeys = true
+            classDiscriminator = "type"
+        } 
+    }
     
     var serviceConnected by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }

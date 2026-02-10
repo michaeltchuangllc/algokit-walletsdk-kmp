@@ -25,6 +25,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.cancel
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.modules.SerializersModule
 
 /**
  * Bound service that provides wallet functionality to other apps.
@@ -47,8 +48,14 @@ class AlgoKitWalletService : Service() {
     
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val json = Json { 
-        ignoreUnknownKeys = true 
+        ignoreUnknownKeys = true
         prettyPrint = true
+        // Required for sealed classes/interfaces
+        classDiscriminator = "type"
+        // Allow polymorphic serialization
+        serializersModule = SerializersModule {
+            // Register polymorphic serializers if needed
+        }
     }
     private var isForeground = false
     private var clientCount = 0
