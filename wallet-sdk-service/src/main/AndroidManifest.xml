@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:tools="http://schemas.android.com/tools"
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
     <!-- Permissions needed for wallet operations -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -14,19 +15,12 @@
     <application
         android:name=".WalletServiceApp"
         android:label="@string/app_name"
-        android:theme="@android:style/Theme.Material.Light">
-        
-        <!-- Main Activity (no launcher - background service only) -->
-        <!-- This activity is not exported and has no launcher intent -->
-        <!-- The service is accessed by client apps like serviceDemoApp -->
-        <activity
-            android:name=".MainActivity"
-            android:exported="false" />
-        
-        
+        android:theme="@android:style/Theme.Material.Light"
+        tools:ignore="MissingApplicationIcon">
+
         <!-- Overlay Activity for wallet UI (launched by CLIENT apps) -->
         <activity
-            android:name=".WalletOverlayActivity"
+            android:name=".ui.WalletOverlayActivity"
             android:exported="true"
             android:theme="@style/Theme.AppCompat.Translucent"
             android:taskAffinity=""

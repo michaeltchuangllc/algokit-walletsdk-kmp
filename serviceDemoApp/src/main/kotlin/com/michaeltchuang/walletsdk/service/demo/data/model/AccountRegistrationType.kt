@@ -1,0 +1,23 @@
+package com.michaeltchuang.walletsdk.service.demo.data.model
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+sealed interface AccountRegistrationType {
+    @Serializable
+    @SerialName("Algo25")
+    data object Algo25 : AccountRegistrationType
+    @Serializable
+    @SerialName("LedgerBle")
+    data object LedgerBle : AccountRegistrationType
+    @Serializable
+    @SerialName("NoAuth")
+    data object NoAuth : AccountRegistrationType
+    @Serializable
+    @SerialName("HdKey")
+    data object HdKey : AccountRegistrationType
+    @Serializable
+    @SerialName("Falcon24")
+    data object Falcon24 : AccountRegistrationType
+}

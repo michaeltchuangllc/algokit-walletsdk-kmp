@@ -1,10 +1,6 @@
-package com.michaeltchuang.walletsdk.service.demo
+package com.michaeltchuang.walletsdk.service.demo.ui
 
 import android.content.Intent
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,7 +17,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -35,74 +30,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.michaeltchuang.walletsdk.service.demo.WalletScreens
 import com.michaeltchuang.walletsdk.service.demo.client.WalletServiceClient
+import com.michaeltchuang.walletsdk.service.demo.data.model.AccountLite
 import kotlinx.coroutines.launch
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
-
-@Serializable
-sealed interface AccountRegistrationType {
-    @Serializable
-    @SerialName("Algo25")
-    data object Algo25 : AccountRegistrationType
-    @Serializable
-    @SerialName("LedgerBle")
-    data object LedgerBle : AccountRegistrationType
-    @Serializable
-    @SerialName("NoAuth")
-    data object NoAuth : AccountRegistrationType
-    @Serializable
-    @SerialName("HdKey")
-    data object HdKey : AccountRegistrationType
-    @Serializable
-    @SerialName("Falcon24")
-    data object Falcon24 : AccountRegistrationType
-}
-
-@Serializable
-data class AccountLite(
-    val address: String,
-    val customName: String,
-    val registrationType: AccountRegistrationType,
-    val balance: String? = null
-)
-
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent {
-            MaterialTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    WalletServiceDemoScreen()
-                }
-            }
-        }
-    }
-}
 
 @Composable
 fun WalletServiceDemoScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val json = remember { 
-        Json { 
+    val json = remember {
+        Json {
             ignoreUnknownKeys = true
             classDiscriminator = "type"
-        } 
+        }
     }
-    
+
     var serviceConnected by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var accounts by remember { mutableStateOf<List<AccountLite>>(emptyList()) }
-    
+
     val walletClient = remember { WalletServiceClient(context) }
-    
+
     fun connectToService() {
         loading = true
         errorMessage = null
@@ -119,13 +70,13 @@ fun WalletServiceDemoScreen() {
             }
         }
     }
-    
+
     fun fetchAccounts() {
         if (!serviceConnected) {
             errorMessage = "Not connected to service"
             return
         }
-        
+
         loading = true
         errorMessage = null
         scope.launch {
@@ -140,12 +91,12 @@ fun WalletServiceDemoScreen() {
             }
         }
     }
-    
+
     // Auto-connect on start
     LaunchedEffect(Unit) {
         connectToService()
     }
-    
+
     Scaffold { padding ->
         Column(
             modifier = Modifier
@@ -161,16 +112,16 @@ fun WalletServiceDemoScreen() {
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
-            
+
             Spacer(modifier = Modifier.height(24.dp))
-            
+
             // Status Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (serviceConnected) 
-                        MaterialTheme.colorScheme.primaryContainer 
-                    else 
+                    containerColor = if (serviceConnected)
+                        MaterialTheme.colorScheme.primaryContainer
+                    else
                         MaterialTheme.colorScheme.errorContainer
                 )
             ) {
@@ -187,9 +138,9 @@ fun WalletServiceDemoScreen() {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -202,7 +153,7 @@ fun WalletServiceDemoScreen() {
                 ) {
                     Text("Connect")
                 }
-                
+
                 Button(
                     onClick = { fetchAccounts() },
                     modifier = Modifier.weight(1f),
@@ -211,9 +162,9 @@ fun WalletServiceDemoScreen() {
                     Text("Fetch Accounts")
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             // Action Buttons Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -225,14 +176,14 @@ fun WalletServiceDemoScreen() {
                         try {
                             // Get the activity class from service and launch it
                             val activityClass = walletClient.getService().walletUIActivityClass
-                        val intent = Intent().apply {
-                            setClassName(
-                                "com.michaeltchuang.walletsdk.service",
-                                activityClass
-                            )
-                            putExtra("initial_screen", WalletScreens.ONBOARDING)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        }
+                            val intent = Intent().apply {
+                                setClassName(
+                                    "com.michaeltchuang.walletsdk.service",
+                                    activityClass
+                                )
+                                putExtra("initial_screen", WalletScreens.ONBOARDING)
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
                             context.startActivity(intent)
                         } catch (e: Exception) {
                             errorMessage = "Failed to open wallet UI: ${e.message}"
@@ -243,7 +194,7 @@ fun WalletServiceDemoScreen() {
                 ) {
                     Text("Create/Manage")
                 }
-                
+
                 // Settings Button
                 Button(
                     onClick = {
@@ -269,14 +220,14 @@ fun WalletServiceDemoScreen() {
                     Text("Settings")
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Loading Indicator
             if (loading) {
                 CircularProgressIndicator()
             }
-            
+
             // Error Message
             if (errorMessage != null) {
                 Card(
@@ -292,9 +243,9 @@ fun WalletServiceDemoScreen() {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // Accounts List
             if (accounts.isNotEmpty()) {
                 Text(
@@ -302,9 +253,9 @@ fun WalletServiceDemoScreen() {
                     style = MaterialTheme.typography.titleMedium,
                     modifier = Modifier.fillMaxWidth()
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)

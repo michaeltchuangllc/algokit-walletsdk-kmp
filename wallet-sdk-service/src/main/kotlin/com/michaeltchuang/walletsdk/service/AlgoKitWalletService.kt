@@ -1,11 +1,9 @@
 package com.michaeltchuang.walletsdk.service
 
-import android.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
@@ -17,13 +15,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.cancel
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 
@@ -117,7 +110,7 @@ class AlgoKitWalletService : Service() {
         
         override fun getWalletUIActivityClass(): String {
             Log.d(TAG, "getWalletUIActivityClass() called")
-            return "com.michaeltchuang.walletsdk.service.WalletOverlayActivity"
+            return "com.michaeltchuang.walletsdk.service.ui.WalletOverlayActivity"
         }
     }
     
@@ -173,7 +166,7 @@ class AlgoKitWalletService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("AlgoKit Wallet Service")
             .setContentText("Service is active")
-            .setSmallIcon(R.drawable.ic_dialog_info)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()
