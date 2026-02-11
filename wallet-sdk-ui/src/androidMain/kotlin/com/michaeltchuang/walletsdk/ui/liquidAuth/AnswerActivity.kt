@@ -413,14 +413,17 @@ class AnswerActivity : AppCompatActivity() {
         val base64String = Base64.UrlSafe.encode(cborBytes)
         Log.d(TAG, "CBOR response length: ${cborBytes.size} bytes")
         Log.d(TAG, "Base64 encoded length: ${base64String.length} chars")
-        
+
         // Log first bytes to verify CBOR encoding type (definite vs indefinite)
         // Definite-length: 0xA0-0xB7 (map), 0x80-0x97 (array), 0x40-0x57 (bytes), 0x60-0x77 (text)
         // Indefinite-length: 0xBF (map), 0x9F (array), 0x5F (bytes), 0x7F (text) + 0xFF break
         if (cborBytes.isNotEmpty()) {
             val firstBytes = cborBytes.take(10).joinToString(" ") { "0x%02X".format(it) }
             Log.d(TAG, "CBOR first bytes: $firstBytes")
-            Log.d(TAG, "CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH (needs 0xFF break)" else "DEFINITE-LENGTH"}")
+            Log.d(
+                TAG,
+                "CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH (needs 0xFF break)" else "DEFINITE-LENGTH"}",
+            )
         }
 
         viewModel.signalService.value?.send(base64String)

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Wallet Service Demo</string>
+    <string name="connect_button">Connect to Service</string>
+    <string name="refresh_button">Refresh Accounts</string>
+    <string name="status_label">Service Status:</string>
+    <string name="accounts_label">Accounts:</string>
+</resources>
