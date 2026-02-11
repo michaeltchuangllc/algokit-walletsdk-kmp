@@ -31,8 +31,9 @@ graph TD
     end
 
     subgraph wallet["AlgoKit Wallet SDK"]
-        SDK1["Wallet SDK UI<br/>(Embedded Wallet UI)"]
-        SDK2["Wallet SDK Core<br/>(Headless Wallet Engine)"]
+        SDK1["Wallet SDK Service<br/>(Android Only)"]
+        SDK2["Wallet SDK UI<br/>(Embedded Wallet UI)"]
+        SDK3["Wallet SDK Core<br/>(Headless Wallet Engine)"]
     end
 
     subgraph "Algorand SDKs"
@@ -45,10 +46,11 @@ graph TD
     App1 <--> wallet
     App2 <--> wallet
     SDK1 <--> SDK2
-    SDK2 <--> Core
-    SDK2 <--> xHD
-    SDK2 <--> JavaSDK
-    SDK2 <--> GoSDK
+    SDK2 <--> SDK3
+    SDK3 <--> Core
+    SDK3 <--> xHD
+    SDK3 <--> JavaSDK
+    SDK3 <--> GoSDK
 ```
 
 The demo apps (Android & iOS) in this repo demonstrate `wallet-sdk` library usage through a simplified "Pera-lite" sample wallet application. Current and planned features include:
@@ -135,6 +137,8 @@ This repo has the following modules:
 - **iosDemoApp**: The iOS app for `composeSampleApp`. Open this module in Xcode if needed.
 - **wallet-sdk-core**: The AlgoKit Wallet SDK core module - a headless wallet utils library built with [Kotlin Multiplatform](https://developer.android.com/kotlin/multiplatform). It provides foundational wallet functionality and is built on top of [AlgoKit-Core SDK](https://github.com/algorandfoundation/algokit-core), [Algo xHD Swift SDK](https://github.com/algorandfoundation/xHD-Wallet-API-swift), [Algo xHD Kotlin SDK](https://github.com/algorandfoundation/xHD-Wallet-API-kt), [Algo Java SDK](https://github.com/algorand/java-algorand-sdk), and [Algo Go SDK](https://github.com/perawallet/algorand-go-mobile-sdk).
 - **wallet-sdk-ui**: The AlgoKit Wallet SDK UI module - an embedded wallet utils library built with [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform). This module extends wallet-sdk-core and provides ready-to-use UI components for developers who want an integrated wallet interface in their applications.
+- **wallet-sdk-service**: The AlgoKit Wallet SDK Service - an [Android Service](https://developer.android.com/develop/background-work/services) that provides a headless app that many android applications on the same device can share interact with same wallet-sdk-core wallet-sdk-ui instance (using AIDL).
+- **serviceDemoApp**: A secondary Android only (non-KMP) demo app to be able to test wallet-sdk-service functionality quickly.
 
 This project is developed using [Android Studio](https://developer.android.com/studio) (stable version) and the [Kotlin Multiplatform Plugin](https://plugins.jetbrains.com/plugin/14936-kotlin-multiplatform). As a mobile development project, it is primarily developed on macOS, support for Windows and Linux is quite limited.  We also follow the [KMP compatibility guide](https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-compatibility-guide.html).
 
