@@ -10,18 +10,17 @@ android-namespace = "com.michaelchuang.walletsdk"
 android-targetSdk = "36"
 android-versionCode-offset = "8"
 androidx-compose-activity = "1.10.1"
-appCompat = "1.7.0"
 bcprovJdk18on = "1.83"
 bignum = "0.3.10"
 biometric = "1.1.0"
 bip39 = "1.0.9"
 bitcoin-kmp = "0.28.1"
 ble = "2.8.0"
-browser = "1.8.0"
 buildConfig = "5.6.5"
 coil = "3.3.0"
 compose = "1.7.3"
 compose-ui = "1.8.2"
+composeBom = "2026.01.01"
 composeFoundation = "1.8.2"
 composeWebview = "2.0.3"
 compottie = "1.1.2"
@@ -59,6 +58,8 @@ ktlint = "13.0.0"
 ktor = "3.0.0"
 lifecycle = "2.9.0"
 lifecycleExt = "2.2.0"
+lifecycleRuntimeCompose = "2.10.0"
+material = "1.13.0"
 mavenPublish = "0.34.0"
 mlkit-barcode = "17.0.0"
 mlkit-camera = "16.0.0-beta3"
@@ -90,7 +91,10 @@ xhdwalletapi = "1.2.0"
 
 # AndroidX / Compose
 androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-compose-activity" }
-browser = { module = "androidx.browser:browser", version.ref = "browser" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
+androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics" }
 androidx-compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
@@ -116,10 +120,9 @@ koin-core-viewmodel = { module = "io.insert-koin:koin-core-viewmodel" }
 javax-inject = { module = "javax.inject:javax.inject", version.ref = "javaxInject" }
 
 # Navigation
+material = { module = "com.google.android.material:material", version.ref = "material" }
 navigation-compose = { group = "org.jetbrains.androidx.navigation", name = "navigation-compose", version.ref = "navigation-compose" }
-navigation-fragment-ktx = { module = "androidx.navigation:navigation-fragment-ktx", version.ref = "navigation" }
 navigation-safe-args-gradle-plugin = { module = "androidx.navigation:navigation-safe-args-gradle-plugin", version.ref = "navigation" }
-navigation-ui-ktx = { module = "androidx.navigation:navigation-ui-ktx", version.ref = "navigation" }
 
 # Networking / Json Parsing
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
