@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.service
+package com.michaeltchuang.walletsdk.demo.service
 
 /**
  * Constants for wallet UI screens.

@@ -1,5 +1,6 @@
-package com.michaeltchuang.walletsdk.service
+package com.michaeltchuang.walletsdk.demo.service
 
+import android.R
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,6 +11,8 @@ import android.os.IBinder
 import android.os.Process
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.michaeltchuang.walletsdk.demo.AndroidApp
+import com.michaeltchuang.walletsdk.service.IWalletService
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -100,7 +103,7 @@ class AlgoKitWalletService : Service() {
         override fun isServiceReady(): Boolean {
             return try {
                 // Check if Koin is initialized (indicates SDK is ready)
-                WalletServiceApp.instance
+                AndroidApp.instance
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Service not ready", e)
@@ -110,7 +113,7 @@ class AlgoKitWalletService : Service() {
         
         override fun getWalletUIActivityClass(): String {
             Log.d(TAG, "getWalletUIActivityClass() called")
-            return "com.michaeltchuang.walletsdk.service.ui.WalletOverlayActivity"
+            return "com.michaeltchuang.walletsdk.demo.service.ui.WalletOverlayActivity"
         }
     }
     
@@ -166,7 +169,7 @@ class AlgoKitWalletService : Service() {
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("AlgoKit Wallet Service")
             .setContentText("Service is active")
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_dialog_info)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setOngoing(true)
             .build()

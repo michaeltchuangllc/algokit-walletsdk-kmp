@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.service.ui
+package com.michaeltchuang.walletsdk.demo.service.ui
 
 import android.os.Bundle
 import android.util.Log
@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.michaeltchuang.walletsdk.service.WalletScreens
+import com.michaeltchuang.walletsdk.demo.service.WalletScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet

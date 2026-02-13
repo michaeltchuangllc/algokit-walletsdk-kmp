@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.service.client
+package com.michaeltchuang.walletsdk.demo.service.client
 
 import android.content.ComponentName
 import android.content.Context
