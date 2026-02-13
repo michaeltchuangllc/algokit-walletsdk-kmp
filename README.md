@@ -133,12 +133,11 @@ timeline
 
 This repo has the following modules:
 
-- **composeDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) sample wallet app that demonstrates `wallet-sdk` usage.
+- **composeDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) sample wallet app that demonstrates `wallet-sdk` usage.  This app on Android also contains a [service](https://developer.android.com/develop/background-work/services) that provides a headless way for other android applications on the same device to share the same wallet-sdk-core wallet-sdk-ui instance (using AIDL).
 - **iosDemoApp**: The iOS app for `composeSampleApp`. Open this module in Xcode if needed.
 - **wallet-sdk-core**: The AlgoKit Wallet SDK core module - a headless wallet utils library built with [Kotlin Multiplatform](https://developer.android.com/kotlin/multiplatform). It provides foundational wallet functionality and is built on top of [AlgoKit-Core SDK](https://github.com/algorandfoundation/algokit-core), [Algo xHD Swift SDK](https://github.com/algorandfoundation/xHD-Wallet-API-swift), [Algo xHD Kotlin SDK](https://github.com/algorandfoundation/xHD-Wallet-API-kt), [Algo Java SDK](https://github.com/algorand/java-algorand-sdk), and [Algo Go SDK](https://github.com/perawallet/algorand-go-mobile-sdk).
 - **wallet-sdk-ui**: The AlgoKit Wallet SDK UI module - an embedded wallet utils library built with [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform). This module extends wallet-sdk-core and provides ready-to-use UI components for developers who want an integrated wallet interface in their applications.
-- **wallet-sdk-service**: The AlgoKit Wallet SDK Service - an [Android Service](https://developer.android.com/develop/background-work/services) that provides a headless app that many android applications on the same device can share interact with same wallet-sdk-core wallet-sdk-ui instance (using AIDL).
-- **serviceDemoApp**: A secondary Android only (non-KMP) demo app to be able to test wallet-sdk-service functionality quickly.
+- **serviceDemoApp**: A secondary Android only (non-KMP) demo app that is able to test service functionality in composeDemoApp.
 
 This project is developed using [Android Studio](https://developer.android.com/studio) (stable version) and the [Kotlin Multiplatform Plugin](https://plugins.jetbrains.com/plugin/14936-kotlin-multiplatform). As a mobile development project, it is primarily developed on macOS, support for Windows and Linux is quite limited.  We also follow the [KMP compatibility guide](https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-compatibility-guide.html).
 
