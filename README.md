@@ -100,19 +100,19 @@ timeline
     section In Progress 🔄
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
             : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
-            : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
-            : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Testnet)
-            : 🔄 Android - Wallet SDK as a background service integration
+            : ✅ Android - Wallet SDK as a background service integration
+            : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
+            : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : Onboarding - Add Liquid Auth Integration for xGov Website
             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
-            : Onboarding - Mainnet Liquid Auth (Android/iOS)
             : Transaction - Opt-In / Opt-Out USDC QR flow
             : Transaction - Send USDC using QR code flow (between accounts)
+            : Account Details - Send USDC in account detail (between accounts)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
-            : Account Details - Send USDC in account detail (between accounts)
             : Onboarding - Rekey flow
+            : Onboarding - Mainnet Liquid Auth (Rekey Accounts)
             : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
             : Onboarding - PQ Passkeys
             : Onboarding - Multi-sig flow
