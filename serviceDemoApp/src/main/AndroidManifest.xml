@@ -3,9 +3,9 @@
 
     <uses-permission android:name="android.permission.INTERNET" />
 
-    <!-- Package visibility for Android 11+ -->
+    <!-- Package visibility for Android 11+ to query the wallet service app -->
     <queries>
-        <package android:name="com.michaeltchuang.walletsdk.service" />
+        <package android:name="com.michaeltchuang.walletsdk.demo" />
         <intent>
             <action android:name="com.michaeltchuang.walletsdk.service.WALLET_SERVICE" />
         </intent>
@@ -18,8 +18,7 @@
         
         <activity
             android:name=".ui.MainActivity"
-            android:exported="true"
-            >
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

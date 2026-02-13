@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.service.ui
+package com.michaeltchuang.walletsdk.demo.service.ui
 
 import android.os.Bundle
 import android.util.Log
@@ -9,7 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import com.michaeltchuang.walletsdk.service.WalletScreens
+import com.michaeltchuang.walletsdk.demo.service.WalletScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet
@@ -25,7 +25,6 @@ import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
  * - Viewing account details
  */
 class WalletOverlayActivity : ComponentActivity() {
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -33,11 +32,12 @@ class WalletOverlayActivity : ComponentActivity() {
 
         // Get initial screen from intent
         val screenName = intent.getStringExtra(EXTRA_INITIAL_SCREEN)
-        val initialScreen = when (screenName) {
-            WalletScreens.ONBOARDING -> AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN
-            WalletScreens.SETTINGS -> AlgoKitScreens.SETTINGS_SCREEN
-            else -> null
-        }
+        val initialScreen =
+            when (screenName) {
+                WalletScreens.ONBOARDING -> AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN
+                WalletScreens.SETTINGS -> AlgoKitScreens.SETTINGS_SCREEN
+                else -> null
+            }
 
         Log.d(TAG, "Initial screen: $initialScreen")
 
@@ -71,11 +71,12 @@ class WalletOverlayActivity : ComponentActivity() {
                         }
 
                         AlgoKitEvent.ALGO25_ACCOUNT_CREATED,
-                        AlgoKitEvent.HD_ACCOUNT_CREATED -> {
+                        AlgoKitEvent.HD_ACCOUNT_CREATED,
+                        -> {
                             finish()
                         }
                     }
-                }
+                },
             )
         }
     }

@@ -1,5 +1,4 @@
 import com.android.build.api.dsl.ManagedVirtualDevice
-import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.compose.ExperimentalComposeLibrary
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
@@ -93,10 +92,12 @@ kotlin {
         androidMain.dependencies {
             implementation(compose.uiTooling)
             implementation(libs.androidx.activityCompose)
+            implementation(libs.androidx.lifecycle.runtime.compose)
             implementation(libs.koin.android)
             implementation(libs.kotlinx.coroutines.android)
             implementation(libs.ktor.client.okhttp)
             implementation(libs.datastore.preferences)
+            implementation(libs.lifecycle.common.java8)
         }
 
         iosMain.dependencies {
@@ -138,9 +139,14 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    buildFeatures {
+        compose = true
+        aidl = true
+    }
     sourceSets["main"].apply {
         manifest.srcFile("src/androidMain/AndroidManifest.xml")
         res.srcDirs("src/androidMain/res")
+        aidl.srcDirs("src/androidMain/aidl")
     }
     // https://developer.android.com/studio/test/gradle-managed-devices
     @Suppress("UnstableApiUsage")
