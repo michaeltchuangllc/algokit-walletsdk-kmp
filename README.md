@@ -107,26 +107,28 @@ timeline
             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : Transaction - Opt-In / Opt-Out USDC QR flow
             : Transaction - Send USDC using QR code flow (between accounts)
-            : Account Details - Send USDC in account detail (between accounts)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
+            : Seed Vault - Sign test transactions using Seed Vault in emulator app
+            : Seed Vault - Modify Seed Vault emulator to allow Algorand seeds
+            : Seed Vault - Sign Liquid Auth using Algorand seeds
+            : Seed Vault - Sign Liquid Auth using cross-chain seeds
+            : Seed Vault - Integrate Use Wallet with cross-chain seeds
+            : Onboarding - Add Use Wallet Liquid Auth Integration for Lora
+            : Design - Create Landscape (Tablet/Desktop) UI
+            : TBD
+    Backlog
             : Onboarding - Rekey flow
             : Onboarding - Mainnet Liquid Auth (Rekey Accounts)
-            : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
+            : Research - React Native sample app talking to service
             : Onboarding - PQ Passkeys
-            : Onboarding - Multi-sig flow
             : Onboarding - Ledger flow
-            : Add In Landscape (Tablet/Desktop) UI Support
-            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : TBD
-    2026Q3
-            : Research - React Native sample app that can use wallet-sdk (through bridging)
-            : Onboarding - Decentralized Identity
             : Account Details - Asset Inbox
-            : Account Details - Swap
             : Onboarding - Fun app animations
-            : TBD
+            : Onboarding - Multi-sig flow
+            : Account Details - Send USDC in account detail (between accounts)
+            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
 ```
 
 ## Project structure
