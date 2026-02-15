@@ -33,6 +33,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -111,6 +113,7 @@ fun SendAlgoScreen(
         onNextPressed = { viewModel.onNextPressed() },
         onBackClick = { navController.popBackStack() },
         onInfoClick = { navController.navigate(AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) },
+        onMinBalanceAlertDismiss = { viewModel.onMinimumBalanceAlertDismissed() },
     )
 }
 
@@ -125,6 +128,7 @@ fun ScreenContent(
     onNextPressed: () -> Unit = {},
     onBackClick: () -> Unit = {},
     onInfoClick: () -> Unit = {},
+    onMinBalanceAlertDismiss: () -> Unit = {},
 ) {
     Box(
         modifier =
@@ -169,6 +173,28 @@ fun ScreenContent(
                     ) {
                         Text(viewState.message, color = AlgoKitTheme.colors.negative)
                     }
+                }
+
+                is SendAlgoViewModel.ViewState.MinimumBalanceAlert -> {
+                    SendAlgoContent(
+                        state = viewState.toContent(),
+                        noteText = noteText,
+                        onAmountChange = onAmountChange,
+                        onDeletePressed = onDeletePressed,
+                        onMaxPressed = onMaxPressed,
+                        onNextPressed = onNextPressed,
+                    )
+
+                    AlertDialog(
+                        onDismissRequest = onMinBalanceAlertDismiss,
+                        title = { Text("Insufficient Balance", color = AlgoKitTheme.colors.textMain) },
+                        text = { Text(viewState.message, color = AlgoKitTheme.colors.textMain) },
+                        confirmButton = {
+                            Button(onClick = onMinBalanceAlertDismiss) {
+                                Text("OK")
+                            }
+                        },
+                    )
                 }
             }
         }

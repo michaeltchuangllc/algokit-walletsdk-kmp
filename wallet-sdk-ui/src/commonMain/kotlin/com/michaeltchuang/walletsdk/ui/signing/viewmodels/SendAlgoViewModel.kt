@@ -49,11 +49,14 @@ class SendAlgoViewModel(
 
     private fun updateContentState() {
         val currentState = stateDelegate.state.value
-        val currentAmount = if (currentState is ViewState.Content) currentState.amount else ""
+        val currentAmount = when (currentState) {
+            is ViewState.Content -> currentState.amount
+            is ViewState.MinimumBalanceAlert -> currentState.previousAmount
+            else -> ""
+        }
 
         val balanceInAlgos = accountBalance.toString().toDouble() / 1_000_000.0
-        val balanceFormatted =
-            if (currentState is ViewState.Content) balanceInAlgos.toString().take(6) else null
+        val balanceFormatted = balanceInAlgos.toString().take(6)
         val balanceUsdValue = "$${(balanceInAlgos * algoUsdPrice).toString().take(6)}"
 
         val amountUsdValue =
@@ -148,6 +151,20 @@ class SendAlgoViewModel(
     fun onNextPressed() {
         val currentState = stateDelegate.state.value
         if (currentState is ViewState.Content && currentState.amount.isNotEmpty() && currentState.amount != "0") {
+            // Check minimum balance for gas fees (0.004 ALGO = 4000 microAlgos)
+            val minGasFeeMicroAlgos = 4000L.toBigInteger()
+            if (accountBalance < minGasFeeMicroAlgos) {
+                stateDelegate.updateState {
+                    ViewState.MinimumBalanceAlert(
+                        message = "You need at least 0.004 ALGO for gas fees",
+                        previousAmount = currentState.amount,
+                        previousBalance = currentState.balance,
+                        previousAssetUsdValue = currentState.assetUsdValue,
+                    )
+                }
+                return
+            }
+
             try {
                 val amountDouble = currentState.amount.toDouble()
                 val amountInMicroAlgos = (amountDouble * 1_000_000).toLong().toString()
@@ -157,6 +174,13 @@ class SendAlgoViewModel(
             } catch (e: Exception) {
                 stateDelegate.updateState { ViewState.Error("Invalid amount format") }
             }
+        }
+    }
+
+    fun onMinimumBalanceAlertDismissed() {
+        val currentState = stateDelegate.state.value
+        if (currentState is ViewState.MinimumBalanceAlert) {
+            updateContentState()
         }
     }
 
@@ -214,6 +238,22 @@ class SendAlgoViewModel(
         data class Error(
             val message: String,
         ) : ViewState
+
+        data class MinimumBalanceAlert(
+            val message: String,
+            val previousAmount: String,
+            val previousBalance: String?,
+            val previousAssetUsdValue: String?,
+        ) : ViewState {
+            fun toContent(): Content =
+                Content(
+                    amount = previousAmount,
+                    usdValue = "$0.00",
+                    balance = previousBalance,
+                    assetUsdValue = previousAssetUsdValue,
+                    showUSDAmount = false,
+                )
+        }
     }
 
     sealed interface ViewEvent {
