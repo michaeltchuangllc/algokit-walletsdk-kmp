@@ -20,6 +20,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountR
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetBasicAccountInformationUseCaseImpl
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetTransactionFeeForAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteAlgo25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteFalcon24Account
@@ -30,6 +31,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.recoverypassphrase.RecoverPassphraseUseCase
 import org.koin.dsl.module
 
@@ -77,6 +79,8 @@ val accountCoreModule =
         single<GetAccountAlgoBalance> { get<GetAccountAlgoBalanceUseCase>() }
         single { GetAccountMinimumBalanceUseCase(get()) }
         single<GetAccountMinimumBalance> { get<GetAccountMinimumBalanceUseCase>() }
+        single { GetTransactionFeeForAccountUseCase(get()) }
+        single<GetTransactionFeeForAccount> { get<GetTransactionFeeForAccountUseCase>() }
         single<GetBasicAccountInformationUseCase> { GetBasicAccountInformationUseCaseImpl(get()) }
         single { GetAccountRegistrationTypeUseCase(get()) }
 

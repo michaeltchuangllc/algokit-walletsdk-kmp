@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstA
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.network.model.AccountInformation
@@ -120,6 +121,10 @@ fun interface GetAccountAlgoBalance {
 
 fun interface GetAccountMinimumBalance {
     suspend operator fun invoke(address: String): Long?
+}
+
+fun interface GetTransactionFeeForAccount {
+    suspend operator fun invoke(address: String): TransactionFee
 }
 
 fun interface GetBasicAccountInformationUseCase {
