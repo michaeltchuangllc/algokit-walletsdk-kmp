@@ -6,10 +6,9 @@ import androidx.lifecycle.viewModelScope
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.toBigInteger
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionSigner
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -32,7 +31,7 @@ class AssetTransferConfirmViewModel(
     private val getTransactionSigner: GetTransactionSigner,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
     private val getAccountMinimumBalance: GetAccountMinimumBalance,
-    private val getLocalAccount: GetLocalAccount,
+    private val getTransactionFeeForAccount: GetTransactionFeeForAccount,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -333,13 +332,8 @@ class AssetTransferConfirmViewModel(
 
     fun calculateMinimumFee(address: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val account = getLocalAccount.invoke(address)
-            val fee =
-                when (account) {
-                    is LocalAccount.Falcon24 -> "0.004"
-                    else -> "0.001"
-                }
-            currentFee = fee
+            val transactionFee = getTransactionFeeForAccount(address)
+            currentFee = transactionFee.feeInAlgos
             updateContentState()
         }
     }
