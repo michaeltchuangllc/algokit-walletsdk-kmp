@@ -187,6 +187,7 @@ fun ScreenContent(
 
                     AlertDialog(
                         onDismissRequest = onMinBalanceAlertDismiss,
+                        containerColor = AlgoKitTheme.colors.background,
                         title = { Text("Insufficient Balance", color = AlgoKitTheme.colors.textMain) },
                         text = { Text(viewState.message, color = AlgoKitTheme.colors.textMain) },
                         confirmButton = {

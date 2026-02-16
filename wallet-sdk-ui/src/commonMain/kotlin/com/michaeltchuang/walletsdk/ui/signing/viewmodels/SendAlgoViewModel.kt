@@ -48,11 +48,12 @@ class SendAlgoViewModel(
 
     private fun updateContentState() {
         val currentState = stateDelegate.state.value
-        val currentAmount = when (currentState) {
-            is ViewState.Content -> currentState.amount
-            is ViewState.MinimumBalanceAlert -> currentState.previousAmount
-            else -> ""
-        }
+        val currentAmount =
+            when (currentState) {
+                is ViewState.Content -> currentState.amount
+                is ViewState.MinimumBalanceAlert -> currentState.previousAmount
+                else -> ""
+            }
 
         val balanceInAlgos = accountBalance.toString().toDouble() / 1_000_000.0
         val balanceFormatted = balanceInAlgos.toString().take(6)
