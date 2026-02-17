@@ -49,27 +49,50 @@ fun SelectAccountScreen(
     navController: NavController,
     receiverAddress: String,
     amount: String,
+    note: String,
 ) {
     val viewModel: SelectAccountViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
 
-    LaunchedEffect(receiverAddress, amount) {
-        viewModel.setup(receiverAddress, amount)
+    LaunchedEffect(receiverAddress, amount, note) {
+        viewModel.setup(receiverAddress, amount, note)
     }
 
     LaunchedEffect(events.value) {
         events.value?.let { event ->
             when (event) {
                 is SelectAccountViewModel.ViewEvent.NavigateToAssetTransfer -> {
-                    navController.navigate(
-                        AlgoKitScreens.SEND_ALGO_SCREEN.name +
-                            "?senderAddress=${event.senderAddress}" +
-                            "&receiverAddress=${event.receiverAddress}" +
-                            "&amount=${event.amount}",
-                    ) {
-                        popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
-                            inclusive = true
+                    val shouldSkipToConfirm = event.receiverAddress.isNotBlank() &&
+                        event.amount.isNotBlank() &&
+                        event.amount != "0" &&
+                        event.amount != "0.00"
+
+                    if (shouldSkipToConfirm) {
+                        // Skip to confirm screen when receiver and amount are provided via deeplink
+                        navController.navigate(
+                            AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
+                                "?sender=${event.senderAddress}" +
+                                "&receiver=${event.receiverAddress}" +
+                                "&amount=${event.amount}" +
+                                "&note=${event.note}",
+                        ) {
+                            popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
+                                inclusive = true
+                            }
+                        }
+                    } else {
+                        // Normal flow - go to send algo screen to enter amount
+                        navController.navigate(
+                            AlgoKitScreens.SEND_ALGO_SCREEN.name +
+                                "?senderAddress=${event.senderAddress}" +
+                                "&receiverAddress=${event.receiverAddress}" +
+                                "&amount=${event.amount}" +
+                                "&note=${event.note}",
+                        ) {
+                            popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
+                                inclusive = true
+                            }
                         }
                     }
                 }
@@ -90,7 +113,7 @@ fun SelectAccountScreen(
     )
 }
 
-@Preview()
+@Preview
 @Composable
 fun ScreenContent(
     viewState: SelectAccountViewModel.AccountsState,

@@ -49,11 +49,12 @@ fun QRCodeScannerScreen(
                 }
 
                 is QRScannerViewModel.ViewEvent.NavigateToSelectAccountScreen -> {
-                    // Navigate to SelectAccountScreen with receiver address and amount
+                    // Navigate to SelectAccountScreen with receiver address, amount, and note
                     navController.navigate(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
                             "?receiver=${it.assetTransfer.receiverAccountAddress}" +
-                            "&amount=${it.assetTransfer.amount}",
+                            "&amount=${it.assetTransfer.amount}" +
+                            "&note=${it.assetTransfer.note ?: ""}",
                     )
                 }
 

@@ -472,7 +472,7 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?receiver={receiver}&amount={amount}",
+                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("receiver") {
@@ -485,19 +485,26 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = "0" // in microalgos big integer
                             },
+                            navArgument("note") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
                         ),
                 ) { backStackEntry ->
                     val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
                     val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
+                    val note = backStackEntry.arguments?.getString("note") ?: ""
 
                     SelectAccountScreen(
                         navController = navController,
                         receiverAddress = receiver,
                         amount = amount,
+                        note = note,
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SEND_ALGO_SCREEN.name + "?sender={sender}",
+                    route = AlgoKitScreens.SEND_ALGO_SCREEN.name + "?sender={sender}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -506,6 +513,16 @@ fun NavigationBottomSheetNavHost(
                                 defaultValue = ""
                             },
                             navArgument("receiver") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                            navArgument("amount") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                            navArgument("note") {
                                 type = NavType.StringType
                                 nullable = false
                                 defaultValue = ""

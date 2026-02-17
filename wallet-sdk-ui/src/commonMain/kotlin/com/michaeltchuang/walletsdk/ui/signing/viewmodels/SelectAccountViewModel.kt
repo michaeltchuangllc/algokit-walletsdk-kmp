@@ -21,6 +21,7 @@ class SelectAccountViewModel(
     EventViewModel<SelectAccountViewModel.ViewEvent> by eventDelegate {
     private var receiverAddress: String = ""
     private var amount: String = ""
+    private var note: String = ""
 
     init {
         stateDelegate.setDefaultState(AccountsState.Loading)
@@ -29,9 +30,11 @@ class SelectAccountViewModel(
     fun setup(
         receiverAddress: String,
         amount: String,
+        note: String,
     ) {
         this.receiverAddress = receiverAddress
         this.amount = amount
+        this.note = note
         fetchAccounts()
     }
 
@@ -71,6 +74,7 @@ class SelectAccountViewModel(
                     senderAddress = senderAddress,
                     receiverAddress = receiverAddress,
                     amount = amount,
+                    note = note,
                 ),
             )
         }
@@ -97,6 +101,7 @@ class SelectAccountViewModel(
             val senderAddress: String,
             val receiverAddress: String,
             val amount: String,
+            val note: String,
         ) : ViewEvent
     }
 }
