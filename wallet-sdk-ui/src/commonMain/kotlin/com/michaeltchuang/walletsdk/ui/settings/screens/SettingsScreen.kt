@@ -144,15 +144,6 @@ fun SettingsScreen(navController: NavController) {
             navController.navigate(AlgoKitScreens.DEVELOPER_SETTINGS_SCREEN.name)
         }
 
-        SettingsItem(
-            Res.drawable.ic_code,
-            "Add Asset",
-        ) {
-            navController.navigate(
-                AlgoKitScreens.ADD_ASSET_SCREEN.name + "?assetId=10458941&assetName=ASDFG&accountAddress=ASDFGHJKLASDFGHJKL",
-            )
-        }
-
         Spacer(modifier = Modifier.height(32.dp))
 
         DisplayVersionInfo()
