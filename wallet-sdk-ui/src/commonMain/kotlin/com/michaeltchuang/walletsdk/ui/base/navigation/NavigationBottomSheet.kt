@@ -55,6 +55,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
+import com.michaeltchuang.walletsdk.ui.signing.screens.AddAssetScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.ConfirmTransactionRequestScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreen
@@ -103,6 +104,7 @@ enum class AlgoKitScreens {
     ADDRESS_NAMING_SCREEN,
     PASSKEYS_SCREEN,
     LIQUID_AUTH_SCREEN,
+    ADD_ASSET_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -472,9 +474,14 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?receiver={receiver}&amount={amount}&note={note}",
+                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?assetId={assetId}&receiver={receiver}&amount={amount}",
                     arguments =
                         listOf(
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = 0L
+                            },
                             navArgument("receiver") {
                                 type = NavType.StringType
                                 nullable = false
@@ -492,12 +499,14 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: 0L
                     val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
                     val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
                     val note = backStackEntry.arguments?.getString("note") ?: ""
 
                     SelectAccountScreen(
                         navController = navController,
+                        assetId = assetId,
                         receiverAddress = receiver,
                         amount = amount,
                         note = note,
@@ -627,6 +636,30 @@ fun NavigationBottomSheetNavHost(
                 ) { backStackEntry ->
                     val uri = backStackEntry.arguments?.getString("uri")
                     LiquidAuthScreen(navController = navController, uri = uri)
+                }
+                composable(
+                    route = AlgoKitScreens.ADD_ASSET_SCREEN.name + "?assetId={assetId}&accountAddress={accountAddress}",
+                    arguments =
+                        listOf(
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = 0L
+                            },
+                            navArgument("accountAddress") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: 0L
+                    val accountAddress = backStackEntry.arguments?.getString("accountAddress") ?: ""
+                    AddAssetScreen(
+                        navController = navController,
+                        assetId = assetId,
+                        accountAddress = accountAddress,
+                    )
                 }
             }
         }

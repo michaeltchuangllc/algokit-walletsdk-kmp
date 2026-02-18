@@ -11,6 +11,8 @@ import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupApiSer
 import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupRepositoryImpl
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiService
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiService
+import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiServiceImpl
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
@@ -71,4 +73,10 @@ val networkModule =
             )
         }
         single { GetAccountFastLookup(get<AccountFastLookupApiService>()::getAccountFastLookup) }
+
+        single<AssetDetailApiService> {
+            AssetDetailApiServiceImpl(
+                httpClient = get(),
+            )
+        }
     }

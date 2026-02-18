@@ -47,6 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun SelectAccountScreen(
     navController: NavController,
+    assetId: Long = 0L,
     receiverAddress: String,
     amount: String,
     note: String,
@@ -63,10 +64,11 @@ fun SelectAccountScreen(
         events.value?.let { event ->
             when (event) {
                 is SelectAccountViewModel.ViewEvent.NavigateToAssetTransfer -> {
-                    val shouldSkipToConfirm = event.receiverAddress.isNotBlank() &&
-                        event.amount.isNotBlank() &&
-                        event.amount != "0" &&
-                        event.amount != "0.00"
+                    val shouldSkipToConfirm =
+                        event.receiverAddress.isNotBlank() &&
+                            event.amount.isNotBlank() &&
+                            event.amount != "0" &&
+                            event.amount != "0.00"
 
                     if (shouldSkipToConfirm) {
                         // Skip to confirm screen when receiver and amount are provided via deeplink
@@ -83,20 +85,28 @@ fun SelectAccountScreen(
                         }
                     } else {
                         // Normal flow - go to send algo screen to enter amount
-                        navController.navigate(
-                            AlgoKitScreens.SEND_ALGO_SCREEN.name +
-                                "?senderAddress=${event.senderAddress}" +
-                                "&receiverAddress=${event.receiverAddress}" +
-                                "&amount=${event.amount}" +
-                                "&note=${event.note}",
-                        ) {
-                            popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
-                                inclusive = true
+
+                        if (receiverAddress.isEmpty()) {
+                            navController.navigate(
+                                AlgoKitScreens.ADD_ASSET_SCREEN.name +
+                                    "?assetId=$assetId" +
+                                    "&accountAddress=${event.senderAddress}",
+                            )
+                        } else {
+                            navController.navigate(
+                                AlgoKitScreens.SEND_ALGO_SCREEN.name +
+                                    "?senderAddress=${event.senderAddress}" +
+                                    "&receiverAddress=${event.receiverAddress}" +
+                                    "&amount=${event.amount}" +
+                                    "&note=${event.note}",
+                            ) {
+                                popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
+                                    inclusive = true
+                                }
                             }
                         }
                     }
                 }
-
                 is SelectAccountViewModel.ViewEvent.ShowError -> {
                     // Error is already shown in the UI
                 }
