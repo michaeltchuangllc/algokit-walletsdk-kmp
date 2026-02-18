@@ -14,6 +14,8 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.network.model.ApiResult
+import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiService
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
 import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
 import com.michaeltchuang.walletsdk.core.transaction.model.TargetUser
@@ -32,6 +34,7 @@ class AssetTransferConfirmViewModel(
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
     private val getAccountMinimumBalance: GetAccountMinimumBalance,
     private val getTransactionFeeForAccount: GetTransactionFeeForAccount,
+    private val getAssetDetailApiService: AssetDetailApiService,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -40,6 +43,7 @@ class AssetTransferConfirmViewModel(
     private var senderAddress: String = ""
     private var receiverAddress: String = ""
     private var assetId: Long = -7L
+    private var assetName: String = ""
     private var transferAmount: String = ""
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
@@ -109,7 +113,32 @@ class AssetTransferConfirmViewModel(
 
     fun setAssetId(asset: Long) {
         assetId = asset
-        updateContentState()
+        if (assetId != -7L) {
+            fetchAssetDetail(assetId)
+        } else {
+            assetName = ""
+            updateContentState()
+        }
+    }
+
+    private fun fetchAssetDetail(id: Long) {
+        viewModelScope.launch {
+            when (val result = getAssetDetailApiService.getAssetDetail(id)) {
+                is ApiResult.Success -> {
+                    val assetDetail = result.data
+                    assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset"
+                    updateContentState()
+                }
+                is ApiResult.Error -> {
+                    assetName = "Asset $id"
+                    updateContentState()
+                }
+                is ApiResult.NetworkError -> {
+                    assetName = "Asset $id"
+                    updateContentState()
+                }
+            }
+        }
     }
 
     fun setAmount(amount: String) {
@@ -139,6 +168,8 @@ class AssetTransferConfirmViewModel(
                 accountBalance = currentBalance,
                 note = transferNote,
                 fee = currentFee,
+                assetId = assetId,
+                assetName = assetName,
             )
         }
     }
@@ -174,6 +205,8 @@ class AssetTransferConfirmViewModel(
                 amount = transferAmount,
                 accountBalance = (it as? ViewState.Content)?.accountBalance,
                 fee = currentFee,
+                assetId = assetId,
+                assetName = assetName,
             )
         }
     }
@@ -291,6 +324,8 @@ class AssetTransferConfirmViewModel(
     fun reset() {
         senderAddress = ""
         receiverAddress = ""
+        assetId = -7L
+        assetName = ""
         transferAmount = ""
         transferNote = ""
         currentFee = "0.001"
@@ -360,6 +395,8 @@ class AssetTransferConfirmViewModel(
             val accountBalance: String?,
             val note: String = "",
             val fee: String = "",
+            val assetId: Long = -7L,
+            val assetName: String = "",
         ) : ViewState
 
         data class Error(

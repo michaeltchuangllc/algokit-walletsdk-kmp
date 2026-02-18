@@ -65,7 +65,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun AddAssetScreen(
     navController: NavController,
-    assetId: Long = 0L,
+    assetId: Long = -7L,
     accountAddress: String = "",
 ) {
     val viewModel: AddAssetViewModel = koinViewModel()

@@ -102,11 +102,11 @@ timeline
             : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
             : ✅ Android - Wallet SDK as a background service integration
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
+            : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
+            : 🔄 Transaction - Send USDC using QR code flow (between accounts)
             : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : Onboarding - Add Liquid Auth Integration for xGov Website
             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
-            : Transaction - Opt-In / Opt-Out USDC QR flow
-            : Transaction - Send USDC using QR code flow (between accounts)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
