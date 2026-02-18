@@ -19,6 +19,7 @@ internal class AssetOptInDeepLinkBuilder : DeepLinkBuilder {
             val hasNoLabel = label == null
             val hasNoWebImport = webImportQrCode == null
             val hasNoNotification = notificationGroupType == null
+            val hasNoAccountAddress = accountAddress == null
 
             hasAssetParam &&
                 hasZeroAmount &&
@@ -27,7 +28,8 @@ internal class AssetOptInDeepLinkBuilder : DeepLinkBuilder {
                 hasNoUrl &&
                 hasNoLabel &&
                 hasNoWebImport &&
-                hasNoNotification
+                hasNoNotification &&
+                hasNoAccountAddress
         }
 
     override fun createDeepLink(payload: DeepLinkPayload): DeepLink =
