@@ -436,7 +436,7 @@ fun NavigationBottomSheetNavHost(
                     }
                 }
                 composable(
-                    route = AlgoKitScreens.ASSET_TRANSFER_SCREEN.name + "?sender={sender}&receiver={receiver}&amount={amount}&note={note}",
+                    route = AlgoKitScreens.ASSET_TRANSFER_SCREEN.name + "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -459,16 +459,23 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = "0" // in microalgos big integer
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                         ),
                 ) { backStackEntry ->
                     val sender = backStackEntry.arguments?.getString("sender") ?: ""
                     val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
                     val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
                     val note = backStackEntry.arguments?.getString("note") ?: ""
                     AssetTransferConfirmScreen(
                         navController = navController,
                         senderAddress = sender,
                         receiverAddress = receiver,
+                        assetId = assetId,
                         note = note,
                         amount = amount,
                     )
@@ -480,7 +487,7 @@ fun NavigationBottomSheetNavHost(
                             navArgument("assetId") {
                                 type = NavType.LongType
                                 nullable = false
-                                defaultValue = 0L
+                                defaultValue = -7L
                             },
                             navArgument("receiver") {
                                 type = NavType.StringType

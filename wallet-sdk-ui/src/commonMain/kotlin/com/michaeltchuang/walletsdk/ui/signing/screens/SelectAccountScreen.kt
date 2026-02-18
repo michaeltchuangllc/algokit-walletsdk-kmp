@@ -47,7 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun SelectAccountScreen(
     navController: NavController,
-    assetId: Long = 0L,
+    assetId: Long = -7L,
     receiverAddress: String,
     amount: String,
     note: String,
@@ -57,7 +57,7 @@ fun SelectAccountScreen(
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
 
     LaunchedEffect(receiverAddress, amount, note) {
-        viewModel.setup(receiverAddress, amount, note)
+        viewModel.setup(receiverAddress, assetId, amount, note)
     }
 
     LaunchedEffect(events.value) {
@@ -76,6 +76,7 @@ fun SelectAccountScreen(
                             AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
                                 "?sender=${event.senderAddress}" +
                                 "&receiver=${event.receiverAddress}" +
+                                "&assetId=${event.assetId}" +
                                 "&amount=${event.amount}" +
                                 "&note=${event.note}",
                         ) {
@@ -97,6 +98,7 @@ fun SelectAccountScreen(
                                 AlgoKitScreens.SEND_ALGO_SCREEN.name +
                                     "?senderAddress=${event.senderAddress}" +
                                     "&receiverAddress=${event.receiverAddress}" +
+                                    "&assetId=${event.assetId}" +
                                     "&amount=${event.amount}" +
                                     "&note=${event.note}",
                             ) {

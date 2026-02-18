@@ -76,6 +76,7 @@ fun AssetTransferConfirmScreen(
     navController: NavController,
     senderAddress: String = "",
     receiverAddress: String = "",
+    assetId: Long = -7L,
     note: String = "",
     amount: String = "0",
 ) {
@@ -113,7 +114,7 @@ fun AssetTransferConfirmScreen(
         }
     }
 
-    LaunchedEffect(senderAddress, receiverAddress, amount, note) {
+    LaunchedEffect(senderAddress, receiverAddress, assetId, amount, note) {
         if (senderAddress.isNotEmpty()) {
             viewModel.setSenderAddress(senderAddress)
         }
@@ -126,6 +127,7 @@ fun AssetTransferConfirmScreen(
         if (note.isNotEmpty()) {
             viewModel.setNote(note)
         }
+        viewModel.setAssetId(assetId)
     }
 
     ScreenContent(

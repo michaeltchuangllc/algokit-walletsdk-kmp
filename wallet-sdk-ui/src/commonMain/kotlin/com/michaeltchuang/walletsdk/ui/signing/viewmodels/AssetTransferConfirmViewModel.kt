@@ -39,6 +39,7 @@ class AssetTransferConfirmViewModel(
     EventViewModel<AssetTransferConfirmViewModel.ViewEvent> by eventDelegate {
     private var senderAddress: String = ""
     private var receiverAddress: String = ""
+    private var assetId: Long = -7L
     private var transferAmount: String = ""
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
@@ -103,6 +104,11 @@ class AssetTransferConfirmViewModel(
 
     fun setReceiverAddress(address: String) {
         receiverAddress = address
+        updateContentState()
+    }
+
+    fun setAssetId(asset: Long) {
+        assetId = asset
         updateContentState()
     }
 
@@ -259,7 +265,6 @@ class AssetTransferConfirmViewModel(
             }
         }
 
-        val assetId = -7L
         return TransactionSignData.Send(
             senderAccountAddress = senderAddress,
             senderAuthAddress = null,
