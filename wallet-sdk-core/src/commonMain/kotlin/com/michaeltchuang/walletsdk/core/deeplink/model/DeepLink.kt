@@ -27,6 +27,7 @@ sealed interface DeepLink {
      */
     data class AssetOptIn(
         val assetId: Long,
+        val amount: String,
     ) : DeepLink
 
     /**

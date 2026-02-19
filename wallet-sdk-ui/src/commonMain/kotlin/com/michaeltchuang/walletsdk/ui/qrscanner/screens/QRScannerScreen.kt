@@ -54,6 +54,7 @@ fun QRCodeScannerScreen(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
                             "?receiver=${it.assetTransfer.receiverAccountAddress}" +
                             "&amount=${it.assetTransfer.amount}" +
+                            "&assetId=${it.assetTransfer.assetId}" +
                             "&note=${it.assetTransfer.note ?: ""}",
                     )
                 }
@@ -69,10 +70,12 @@ fun QRCodeScannerScreen(
                         onQrScanned(it.accountAddress.address)
                     }
                 }
+
                 is QRScannerViewModel.ViewEvent.NavigateToFidoDeepLink -> {
                     closeSheet()
                     launchFidoDeepLink.value = it.uri
                 }
+
                 is QRScannerViewModel.ViewEvent.NavigateToLiquidAuthScreen -> {
                     // URL encode special characters that confuse navigation parsing
                     // The navigation argument parser uses ? and & to parse, so we must encode these

@@ -21,6 +21,7 @@ class SelectAccountViewModel(
     EventViewModel<SelectAccountViewModel.ViewEvent> by eventDelegate {
     private var receiverAddress: String = ""
     private var amount: String = ""
+    private var assetId: Long = -7L
     private var note: String = ""
 
     init {
@@ -29,10 +30,12 @@ class SelectAccountViewModel(
 
     fun setup(
         receiverAddress: String,
+        assetId: Long,
         amount: String,
         note: String,
     ) {
         this.receiverAddress = receiverAddress
+        this.assetId = assetId
         this.amount = amount
         this.note = note
         fetchAccounts()
@@ -73,6 +76,7 @@ class SelectAccountViewModel(
                 ViewEvent.NavigateToAssetTransfer(
                     senderAddress = senderAddress,
                     receiverAddress = receiverAddress,
+                    assetId = assetId,
                     amount = amount,
                     note = note,
                 ),
@@ -100,6 +104,7 @@ class SelectAccountViewModel(
         data class NavigateToAssetTransfer(
             val senderAddress: String,
             val receiverAddress: String,
+            val assetId: Long,
             val amount: String,
             val note: String,
         ) : ViewEvent

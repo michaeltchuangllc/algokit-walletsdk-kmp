@@ -76,6 +76,7 @@ fun AssetTransferConfirmScreen(
     navController: NavController,
     senderAddress: String = "",
     receiverAddress: String = "",
+    assetId: Long = -7L,
     note: String = "",
     amount: String = "0",
 ) {
@@ -113,7 +114,7 @@ fun AssetTransferConfirmScreen(
         }
     }
 
-    LaunchedEffect(senderAddress, receiverAddress, amount, note) {
+    LaunchedEffect(senderAddress, receiverAddress, assetId, amount, note) {
         if (senderAddress.isNotEmpty()) {
             viewModel.setSenderAddress(senderAddress)
         }
@@ -126,6 +127,7 @@ fun AssetTransferConfirmScreen(
         if (note.isNotEmpty()) {
             viewModel.setNote(note)
         }
+        viewModel.setAssetId(assetId)
     }
 
     ScreenContent(
@@ -223,6 +225,8 @@ fun AssetTransferContent(
                 accountBalance = state.accountBalance,
                 fee = state.fee,
                 note = state.note,
+                assetId = state.assetId,
+                assetName = state.assetName,
                 onSetNote = onSetNote,
             )
         }
@@ -246,6 +250,8 @@ fun AssetTransferContentItems(
     accountBalance: String?,
     fee: String,
     note: String,
+    assetId: Long,
+    assetName: String,
     onSetNote: (String) -> Unit,
 ) {
     Column(
@@ -260,6 +266,8 @@ fun AssetTransferContentItems(
         AssetTransferAmountLabeledText(
             label = localizedStringResource(Res.string.amount),
             value = amount.formatAmount(),
+            assetId = assetId,
+            assetName = assetName,
         )
 
         AssetTransferDivider()
@@ -312,7 +320,11 @@ fun AssetTransferDivider() {
 fun AssetTransferAmountLabeledText(
     label: String,
     value: String,
+    assetId: Long = -7L,
+    assetName: String = "",
 ) {
+    val displayAssetName = if (assetId != -7L && assetName.isNotEmpty()) assetName else "ALGO"
+
     Row(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
             modifier = Modifier.fillMaxWidth(.25f),
@@ -322,7 +334,7 @@ fun AssetTransferAmountLabeledText(
         )
         Column {
             Text(
-                text = "$value ALGO",
+                text = "$value $displayAssetName",
                 fontSize = 18.sp,
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.body.regular.sansMedium,

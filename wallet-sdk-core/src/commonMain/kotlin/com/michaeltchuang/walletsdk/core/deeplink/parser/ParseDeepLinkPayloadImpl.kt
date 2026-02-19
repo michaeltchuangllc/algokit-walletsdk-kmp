@@ -7,11 +7,13 @@ internal class ParseDeepLinkPayloadImpl(
     private val algorandUriParser: AlgorandUriParser,
     private val accountAddressQueryParser: DeepLinkQueryParser<String?>,
     private val mnemonicQueryParser: DeepLinkQueryParser<String?>,
+    private val assetIdQueryParser: DeepLinkQueryParser<Long?>,
 ) : ParseDeepLinkPayload {
     override fun invoke(url: String): DeepLinkPayload {
         val algorandUri = algorandUriParser.parseUri(url)
         return DeepLinkPayload(
             accountAddress = accountAddressQueryParser.parseQuery(algorandUri),
+            assetId = assetIdQueryParser.parseQuery(algorandUri),
             amount = algorandUri.getQueryParam(AMOUNT_QUERY_KEY),
             note = algorandUri.getQueryParam(NOTE_QUERY_KEY),
             xnote = algorandUri.getQueryParam(XNOTE_QUERY_KEY),

@@ -102,11 +102,11 @@ timeline
             : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
             : ✅ Android - Wallet SDK as a background service integration
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
+            : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
+            : 🔄 Transaction - Send USDC using QR code flow (between accounts)
             : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : Onboarding - Add Liquid Auth Integration for xGov Website
             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
-            : Transaction - Opt-In / Opt-Out USDC QR flow
-            : Transaction - Send USDC using QR code flow (between accounts)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
@@ -286,9 +286,19 @@ For QR code importing, you can use a tool like [Cyber Chef](https://gchq.github.
 algorand://ANUR5SYMURBFD3ELITINYNTHVAKKBCWJ7LGHJRPMQM3KQG25ENMIHYEBNY?type=keyreg
 ```
 
-### Asset Transfer (receiver address & amount in microAlgos)
+### Asset Opt-In (select account screen will pop up after scanning) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://?amount=0&asset=10458941
+```
+
+### Algo Transfer (receiver address & amount in microAlgos)
 ```
 algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer
+```
+
+### ASA Transfer (receiver address & amount in microAlgos) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&asset=10458941&note=1_ALGO_Transfer
 ```
 
 ### Liquid Auth (sample uri)

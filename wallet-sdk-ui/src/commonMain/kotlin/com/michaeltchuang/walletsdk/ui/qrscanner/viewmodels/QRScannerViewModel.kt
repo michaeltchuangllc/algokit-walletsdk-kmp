@@ -37,6 +37,9 @@ class QRScannerViewModel(
                     is DeeplinkHandler.DeepLinkState.AssetTransfer -> {
                         handleAssetTransferLink(it.assetTransfer)
                     }
+                    is DeeplinkHandler.DeepLinkState.AssetOptIn -> {
+                        handleAssetTransferLink(it.assetTransfer)
+                    }
 
                     is DeeplinkHandler.DeepLinkState.AccountAddress -> {
                         handleAccountAddressDeepLink(it.accountAddress)
@@ -74,6 +77,23 @@ class QRScannerViewModel(
                 note = deepLink.note,
                 xnote = deepLink.xnote,
                 label = deepLink.label,
+            )
+
+        eventDelegate.sendEvent(
+            scope = viewModelScope,
+            newEvent = ViewEvent.NavigateToSelectAccountScreen(assetTransfer),
+        )
+    }
+
+    fun handleAssetTransferLink(deepLink: DeepLink.AssetOptIn) {
+        val assetTransfer =
+            DeepLink.AssetTransfer(
+                assetId = deepLink.assetId,
+                amount = deepLink.amount,
+                receiverAccountAddress = "",
+                note = null,
+                xnote = null,
+                label = null,
             )
 
         eventDelegate.sendEvent(

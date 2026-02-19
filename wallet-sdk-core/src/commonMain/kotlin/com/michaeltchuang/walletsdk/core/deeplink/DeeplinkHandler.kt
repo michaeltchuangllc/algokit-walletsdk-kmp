@@ -27,6 +27,7 @@ class DeeplinkHandler(
             is DeepLink.Mnemonic -> handleMnemonicDeepLink(deepLink)
             is DeepLink.KeyReg -> handleKeyReg(deepLink)
             is DeepLink.AssetTransfer -> handleAssetTransfer(deepLink)
+            is DeepLink.AssetOptIn -> handleAssetOptIn(deepLink)
             is DeepLink.AccountAddress -> handleAccountAddress(deepLink)
             is DeepLink.Fido -> handleFidoDeepLink(deepLink)
             is DeepLink.LiquidAuth -> handleLiquidAuthDeepLink(deepLink)
@@ -51,6 +52,16 @@ class DeeplinkHandler(
     private fun handleAssetTransfer(deepLink: DeepLink.AssetTransfer) {
         CoroutineScope(Dispatchers.Main).launch {
             _deepLinkState.emit(DeepLinkState.AssetTransfer(deepLink))
+        }
+    }
+
+    private fun handleAssetOptIn(deepLink: DeepLink.AssetOptIn) {
+        CoroutineScope(Dispatchers.Main).launch {
+            _deepLinkState.emit(
+                DeepLinkState.AssetOptIn(
+                    deepLink,
+                ),
+            )
         }
     }
 
@@ -89,6 +100,10 @@ class DeeplinkHandler(
 
         data class AssetTransfer(
             var assetTransfer: DeepLink.AssetTransfer,
+        ) : DeepLinkState()
+
+        data class AssetOptIn(
+            var assetTransfer: DeepLink.AssetOptIn,
         ) : DeepLinkState()
 
         data class AccountAddress(
