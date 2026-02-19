@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.foundation.utils
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.algosdk.makeAssetAcceptanceTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
@@ -136,7 +137,11 @@ actual fun TransactionParams.makeTx(
 actual fun TransactionParams.makeAddAssetTx(
     publicKey: String,
     assetId: Long,
-): ByteArray = ByteArray(0)
+): ByteArray = makeAssetAcceptanceTxn(
+    publicKey = publicKey,
+    assetId = assetId,
+    suggestedParams = toSuggestedParams(),
+)
 
 actual fun TransactionParams.makeRemoveAssetTx(
     senderAddress: String,
