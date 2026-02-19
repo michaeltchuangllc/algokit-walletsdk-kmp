@@ -6,6 +6,8 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.IND
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.INDEXER_TESTNET_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.PERA_WALLET_MAINNET_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.PERA_WALLET_TESTNET_URL
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import kotlinx.coroutines.CoroutineScope
@@ -41,5 +43,15 @@ suspend fun getExplorerBaseUrl(): String =
             when (networkType) {
                 AlgorandNetwork.TESTNET -> EXPLORER_TESTNET_URL
                 AlgorandNetwork.MAINNET -> EXPLORER_MAINNET_URL
+            }
+        }.await()
+
+suspend fun getPeraWalletBaseUrl(): String =
+    CoroutineScope(Dispatchers.IO)
+        .async {
+            val networkType = provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
+            when (networkType) {
+                AlgorandNetwork.MAINNET -> PERA_WALLET_MAINNET_URL
+                AlgorandNetwork.TESTNET -> PERA_WALLET_TESTNET_URL
             }
         }.await()

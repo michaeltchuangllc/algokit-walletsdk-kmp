@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.core.network.service
 
 import com.michaeltchuang.walletsdk.core.network.model.ApiResult
 import com.michaeltchuang.walletsdk.core.network.model.AssetDetailResponse
-import com.michaeltchuang.walletsdk.core.network.utils.getIndexerBaseUrl
+import com.michaeltchuang.walletsdk.core.network.utils.getPeraWalletBaseUrl
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -18,7 +18,7 @@ class AssetDetailApiServiceImpl(
     ): ApiResult<AssetDetailResponse> =
         try {
             val response: HttpResponse =
-                httpClient.get("https://testnet.api.perawallet.app/v1/assets/$assetId/")
+                httpClient.get("${getPeraWalletBaseUrl()}/v1/assets/$assetId/")
 
             when {
                 response.status.isSuccess() -> {

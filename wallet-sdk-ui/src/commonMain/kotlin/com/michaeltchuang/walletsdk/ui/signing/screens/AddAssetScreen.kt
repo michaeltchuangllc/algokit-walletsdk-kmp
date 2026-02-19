@@ -8,8 +8,11 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.before_interactin
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.close
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.copy_id
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.fee
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_round
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_asa_trusted
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.loading
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,8 +30,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -46,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil3.compose.AsyncImage
 import com.michaeltchuang.walletsdk.core.foundation.utils.toAlgoCurrency
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -139,12 +143,23 @@ internal fun ScreenContent(
                             .background(color = AlgoKitTheme.colors.background),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Loading...", color = AlgoKitTheme.colors.textMain)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            color = AlgoKitTheme.colors.buttonPrimaryBg,
+                        )
+                        Text(
+                            text = localizedStringResource(Res.string.loading),
+                            style = typography.body.regular.sansMedium,
+                            color = AlgoKitTheme.colors.textGray,
+                        )
+                    }
                 }
             }
 
             is AddAssetViewModel.ViewState.Confirming -> {
-                // Show pending transaction loader if needed
                 Box(
                     modifier =
                         Modifier
@@ -152,7 +167,19 @@ internal fun ScreenContent(
                             .background(color = AlgoKitTheme.colors.background),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("Confirming...", color = AlgoKitTheme.colors.textMain)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        CircularProgressIndicator(
+                            color = AlgoKitTheme.colors.buttonPrimaryBg,
+                        )
+                        Text(
+                            text = localizedStringResource(Res.string.approve),
+                            style = typography.body.regular.sansMedium,
+                            color = AlgoKitTheme.colors.textGray,
+                        )
+                    }
                 }
             }
 
@@ -217,10 +244,10 @@ fun AddAssetContent(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            // Asset Name with verified badge
             AssetNameHeader(
                 assetName = state.assetName,
                 isVerified = state.isVerified,
+                logoUri = state.logoUri,
             )
 
             AddAssetDivider()
@@ -285,24 +312,41 @@ fun AddAssetContent(
 fun AssetNameHeader(
     assetName: String,
     isVerified: Boolean,
+    logoUri: String? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(horizontal = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-        Text(
-            text = assetName,
-            fontSize = 32.sp,
-            fontWeight = FontWeight.Bold,
-            color = AlgoKitTheme.colors.textMain,
-        )
-        if (isVerified) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Icon(
-                painter = painterResource(Res.drawable.ic_asa_trusted),
-                contentDescription = "Verified",
-                tint = AlgoKitTheme.colors.verifiedIconInline,
-                modifier = Modifier.size(24.dp),
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = assetName,
+                fontSize = 32.sp,
+                fontWeight = FontWeight.Bold,
+                color = AlgoKitTheme.colors.textMain,
+            )
+            if (isVerified) {
+                Spacer(modifier = Modifier.width(8.dp))
+                Image(
+                    painter = painterResource(Res.drawable.ic_asa_trusted),
+                    contentDescription = "Verified",
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        }
+
+        if (!logoUri.isNullOrEmpty()) {
+            AsyncImage(
+                model = logoUri,
+                contentDescription = "Asset Logo",
+                placeholder = painterResource(Res.drawable.ic_algo_round),
+                error = painterResource(Res.drawable.ic_algo_round),
+                modifier = Modifier.size(48.dp),
             )
         }
     }
@@ -420,6 +464,7 @@ fun AddAssetScreenPreview() {
             AddAssetViewModel.ViewState.Content(
                 assetId = "10458941",
                 assetName = "USDC",
+                logoUri = "https://algorand-wallet-mainnet.b-cdn.net/media/usd-coin-usdc-logo.png",
                 accountAddress = "N44MXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX7CWM",
                 fee = "0.001",
                 isVerified = true,

@@ -32,11 +32,8 @@ class AddAssetViewModel(
 ) : ViewModel(),
     StateViewModel<AddAssetViewModel.ViewState> by stateDelegate,
     EventViewModel<AddAssetViewModel.ViewEvent> by eventDelegate {
-    private var assetId: String = ""
-    private var assetName: String = ""
-    private var accountAddress: String = ""
-    private var currentFee: String = "0.001"
-    private var isVerified: Boolean = true
+
+    private var assetData = AssetData()
 
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
@@ -93,16 +90,18 @@ class AddAssetViewModel(
             else -> "unknown"
         }
 
-    // Setter methods
     fun fetchAssetDetail(id: String) {
-        assetId = id
         viewModelScope.launch {
             stateDelegate.updateState { ViewState.Loading }
-            when (val result = getAssetDetailApiService.getAssetDetail(assetId.toLong())) {
+            when (val result = getAssetDetailApiService.getAssetDetail(id.toLong())) {
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.Success -> {
                     val assetDetail = result.data
-                    assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset"
-                    isVerified = assetDetail.verificationTier == "trusted"
+                    assetData = assetData.copy(
+                        assetId = id,
+                        assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset",
+                        logoUri = assetDetail.logoUri,
+                        isVerified = assetDetail.verificationTier == "verified",
+                    )
                     updateContentState()
                 }
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.Error -> {
@@ -120,46 +119,35 @@ class AddAssetViewModel(
     }
 
     fun setAccountAddress(address: String) {
-        accountAddress = address
-        updateContentState()
+        assetData = assetData.copy(accountAddress = address)
+        stateDelegate.onState<ViewState.Content> { updateContentState() }
         calculateMinimumFee(address)
     }
 
     private fun updateContentState() {
         stateDelegate.updateState {
             ViewState.Content(
-                assetId = assetId,
-                assetName = assetName,
-                accountAddress = accountAddress,
-                fee = currentFee,
-                isVerified = isVerified,
+                assetId = assetData.assetId,
+                assetName = assetData.assetName,
+                logoUri = assetData.logoUri,
+                accountAddress = assetData.accountAddress,
+                fee = assetData.fee,
+                isVerified = assetData.isVerified,
             )
         }
     }
 
     private fun restoreContentState() {
-        stateDelegate.updateState {
-            ViewState.Content(
-                assetId = assetId,
-                assetName = assetName,
-                accountAddress = accountAddress,
-                fee = currentFee,
-                isVerified = isVerified,
-            )
-        }
+        updateContentState()
     }
 
     fun reset() {
-        assetId = ""
-        assetName = ""
-        accountAddress = ""
-        currentFee = "0.001"
-        isVerified = true
+        assetData = AssetData()
         stateDelegate.updateState { ViewState.Loading }
     }
 
     fun copyAssetId() {
-        println("Copying asset ID: $assetId")
+        println("Copying asset ID: ${assetData.assetId}")
     }
 
     fun approveAssetOptIn() {
@@ -167,14 +155,14 @@ class AddAssetViewModel(
             stateDelegate.updateState { ViewState.Confirming }
 
             // Get the transaction signer for the account
-            val signer = getTransactionSigner(accountAddress)
+            val signer = getTransactionSigner(assetData.accountAddress)
 
             // Create asset opt-in transaction data
             val addAssetTransactionData =
                 TransactionSignData.AddAsset(
-                    senderAccountAddress = accountAddress,
+                    senderAccountAddress = assetData.accountAddress,
                     senderAuthAddress = null,
-                    assetId = assetId.toLongOrNull() ?: 0L,
+                    assetId = assetData.assetId.toLongOrNull() ?: 0L,
                     signer = signer,
                 )
 
@@ -189,8 +177,8 @@ class AddAssetViewModel(
     fun calculateMinimumFee(address: String) {
         viewModelScope.launch(Dispatchers.IO) {
             val transactionFee = getTransactionFeeForAccount(address)
-            currentFee = transactionFee.feeInAlgos
-            updateContentState()
+            assetData = assetData.copy(fee = transactionFee.feeInAlgos)
+            stateDelegate.onState<ViewState.Content> { updateContentState() }
         }
     }
 
@@ -207,6 +195,7 @@ class AddAssetViewModel(
         data class Content(
             val assetId: String,
             val assetName: String,
+            val logoUri: String? = null,
             val accountAddress: String,
             val fee: String,
             val isVerified: Boolean = true,
@@ -230,4 +219,13 @@ class AddAssetViewModel(
             val transactionId: String,
         ) : ViewEvent
     }
+
+    private data class AssetData(
+        val assetId: String = "",
+        val assetName: String = "",
+        val logoUri: String? = null,
+        val accountAddress: String = "",
+        val fee: String = "0.001",
+        val isVerified: Boolean = true,
+    )
 }
