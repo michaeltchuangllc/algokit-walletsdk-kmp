@@ -32,7 +32,6 @@ class AddAssetViewModel(
 ) : ViewModel(),
     StateViewModel<AddAssetViewModel.ViewState> by stateDelegate,
     EventViewModel<AddAssetViewModel.ViewEvent> by eventDelegate {
-
     private var assetData = AssetData()
 
     init {
@@ -86,7 +85,9 @@ class AddAssetViewModel(
 
     private fun extractTransactionId(signedTransactionDetail: SignedTransactionDetail): String =
         when (signedTransactionDetail) {
-            is SignedTransactionDetail.AssetOperation.AssetAddition -> "${signedTransactionDetail.senderAccountAddress}_${signedTransactionDetail.assetId}"
+            is SignedTransactionDetail.AssetOperation.AssetAddition -> {
+                "${signedTransactionDetail.senderAccountAddress}_${signedTransactionDetail.assetId}"
+            }
             else -> "unknown"
         }
 
@@ -96,12 +97,13 @@ class AddAssetViewModel(
             when (val result = getAssetDetailApiService.getAssetDetail(id.toLong())) {
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.Success -> {
                     val assetDetail = result.data
-                    assetData = assetData.copy(
-                        assetId = id,
-                        assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset",
-                        logoUri = assetDetail.logoUri,
-                        isVerified = assetDetail.verificationTier == "verified",
-                    )
+                    assetData =
+                        assetData.copy(
+                            assetId = id,
+                            assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset",
+                            logoUri = assetDetail.logoUri,
+                            isVerified = assetDetail.verificationTier == "verified",
+                        )
                     updateContentState()
                 }
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.Error -> {
@@ -144,6 +146,7 @@ class AddAssetViewModel(
     fun reset() {
         assetData = AssetData()
         stateDelegate.updateState { ViewState.Loading }
+        transactionSignManager.stopAllResources()
     }
 
     fun copyAssetId() {

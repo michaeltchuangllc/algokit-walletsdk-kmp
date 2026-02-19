@@ -436,7 +436,9 @@ fun NavigationBottomSheetNavHost(
                     }
                 }
                 composable(
-                    route = AlgoKitScreens.ASSET_TRANSFER_SCREEN.name + "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                    route =
+                        AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {

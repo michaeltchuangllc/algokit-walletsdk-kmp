@@ -52,10 +52,10 @@ fun QRCodeScannerScreen(
                     // Navigate to SelectAccountScreen with receiver address, amount, and note
                     navController.navigate(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                                "?receiver=${it.assetTransfer.receiverAccountAddress}" +
-                                "&amount=${it.assetTransfer.amount}" +
-                                "&assetId=${it.assetTransfer.assetId}" +
-                                "&note=${it.assetTransfer.note ?: ""}",
+                            "?receiver=${it.assetTransfer.receiverAccountAddress}" +
+                            "&amount=${it.assetTransfer.amount}" +
+                            "&assetId=${it.assetTransfer.assetId}" +
+                            "&note=${it.assetTransfer.note ?: ""}",
                     )
                 }
 

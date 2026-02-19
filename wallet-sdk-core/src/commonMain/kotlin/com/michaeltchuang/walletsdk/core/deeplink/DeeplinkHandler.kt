@@ -57,9 +57,11 @@ class DeeplinkHandler(
 
     private fun handleAssetOptIn(deepLink: DeepLink.AssetOptIn) {
         CoroutineScope(Dispatchers.Main).launch {
-            _deepLinkState.emit(DeepLinkState.AssetOptIn(
-               deepLink
-            ))
+            _deepLinkState.emit(
+                DeepLinkState.AssetOptIn(
+                    deepLink,
+                ),
+            )
         }
     }
 
@@ -101,7 +103,7 @@ class DeeplinkHandler(
         ) : DeepLinkState()
 
         data class AssetOptIn(
-            var assetTransfer: DeepLink.AssetOptIn
+            var assetTransfer: DeepLink.AssetOptIn,
         ) : DeepLinkState()
 
         data class AccountAddress(

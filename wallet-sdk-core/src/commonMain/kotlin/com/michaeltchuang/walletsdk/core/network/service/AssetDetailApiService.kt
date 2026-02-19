@@ -13,7 +13,5 @@ interface AssetDetailApiService {
      * @param assetId The asset ID to fetch details for
      * @return ApiResult containing AssetDetailResponse or error information
      */
-    suspend fun getAssetDetail(
-        assetId: Long,
-    ): ApiResult<AssetDetailResponse>
+    suspend fun getAssetDetail(assetId: Long): ApiResult<AssetDetailResponse>
 }

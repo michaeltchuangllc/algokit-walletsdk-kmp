@@ -316,9 +316,10 @@ fun AssetNameHeader(
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Row(

@@ -36,7 +36,7 @@ internal class AssetOptInDeepLinkBuilder : DeepLinkBuilder {
         payload.assetId?.let { safeAssetId ->
             DeepLink.AssetOptIn(
                 assetId = safeAssetId,
-                amount = payload.amount ?: "0"
+                amount = payload.amount ?: "0",
             )
         } ?: DeepLink.Undefined(payload.rawDeepLinkUri)
 }

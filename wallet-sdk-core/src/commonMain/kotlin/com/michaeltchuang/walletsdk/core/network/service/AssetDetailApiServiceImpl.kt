@@ -13,9 +13,7 @@ import io.ktor.http.isSuccess
 class AssetDetailApiServiceImpl(
     private val httpClient: HttpClient,
 ) : AssetDetailApiService {
-    override suspend fun getAssetDetail(
-        assetId: Long,
-    ): ApiResult<AssetDetailResponse> =
+    override suspend fun getAssetDetail(assetId: Long): ApiResult<AssetDetailResponse> =
         try {
             val response: HttpResponse =
                 httpClient.get("${getPeraWalletBaseUrl()}/v1/assets/$assetId/")

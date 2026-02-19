@@ -51,7 +51,7 @@ suspend fun getPeraWalletBaseUrl(): String =
         .async {
             val networkType = provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
             when (networkType) {
-                AlgorandNetwork.MAINNET -> PERA_WALLET_MAINNET_URL
                 AlgorandNetwork.TESTNET -> PERA_WALLET_TESTNET_URL
+                AlgorandNetwork.MAINNET -> PERA_WALLET_MAINNET_URL
             }
         }.await()

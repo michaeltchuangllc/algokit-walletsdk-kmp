@@ -330,6 +330,7 @@ class AssetTransferConfirmViewModel(
         transferNote = ""
         currentFee = "0.001"
         stateDelegate.updateState { ViewState.Loading }
+        transactionSignManager.stopAllResources()
     }
 
     fun sendTransaction() {
