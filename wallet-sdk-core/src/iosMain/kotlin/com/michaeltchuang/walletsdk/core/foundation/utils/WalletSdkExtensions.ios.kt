@@ -137,11 +137,12 @@ actual fun TransactionParams.makeTx(
 actual fun TransactionParams.makeAddAssetTx(
     publicKey: String,
     assetId: Long,
-): ByteArray = makeAssetAcceptanceTxn(
-    publicKey = publicKey,
-    assetId = assetId,
-    suggestedParams = toSuggestedParams(),
-)
+): ByteArray =
+    makeAssetAcceptanceTxn(
+        publicKey = publicKey,
+        assetId = assetId,
+        suggestedParams = toSuggestedParams(),
+    )
 
 actual fun TransactionParams.makeRemoveAssetTx(
     senderAddress: String,

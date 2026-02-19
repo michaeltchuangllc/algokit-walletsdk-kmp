@@ -286,9 +286,19 @@ For QR code importing, you can use a tool like [Cyber Chef](https://gchq.github.
 algorand://ANUR5SYMURBFD3ELITINYNTHVAKKBCWJ7LGHJRPMQM3KQG25ENMIHYEBNY?type=keyreg
 ```
 
-### Asset Transfer (receiver address & amount in microAlgos)
+### Asset Opt-In (select account screen will pop up after scanning) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://?amount=0&asset=10458941
+```
+
+### Algo Transfer (receiver address & amount in microAlgos)
 ```
 algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer
+```
+
+### ASA Transfer (receiver address & amount in microAlgos) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&asset=10458941&note=1_ALGO_Transfer
 ```
 
 ### Liquid Auth (sample uri)
