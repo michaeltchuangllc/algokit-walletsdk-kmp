@@ -484,7 +484,9 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
+                    route =
+                        AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
+                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("assetId") {
