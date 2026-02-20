@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 class AssetTransferConfirmViewModel(
     private val transactionSignManager: TransactionSignManager,
@@ -47,6 +48,7 @@ class AssetTransferConfirmViewModel(
     private var transferAmount: String = ""
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
+    private var isAssetValid: Boolean = true
 
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
@@ -123,18 +125,26 @@ class AssetTransferConfirmViewModel(
 
     private fun fetchAssetDetail(id: Long) {
         viewModelScope.launch {
+            isAssetValid = true
             when (val result = getAssetDetailApiService.getAssetDetail(id)) {
                 is ApiResult.Success -> {
                     val assetDetail = result.data
                     assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset"
+                    isAssetValid = true
                     updateContentState()
                 }
                 is ApiResult.Error -> {
                     assetName = "Asset $id"
+                    isAssetValid = false
+                    transactionSignManager.stopAllResources()
+                    eventDelegate.sendEvent(ViewEvent.UnrecognizedAsset("Asset $id not found"))
                     updateContentState()
                 }
                 is ApiResult.NetworkError -> {
                     assetName = "Asset $id"
+                    isAssetValid = false
+                    transactionSignManager.stopAllResources()
+                    eventDelegate.sendEvent(ViewEvent.UnrecognizedAsset("Unable to verify asset. Please check your connection."))
                     updateContentState()
                 }
             }
@@ -170,6 +180,7 @@ class AssetTransferConfirmViewModel(
                 fee = currentFee,
                 assetId = assetId,
                 assetName = assetName,
+                isAssetValid = isAssetValid,
             )
         }
     }
@@ -207,6 +218,7 @@ class AssetTransferConfirmViewModel(
                 fee = currentFee,
                 assetId = assetId,
                 assetName = assetName,
+                isAssetValid = isAssetValid,
             )
         }
     }
@@ -329,6 +341,7 @@ class AssetTransferConfirmViewModel(
         transferAmount = ""
         transferNote = ""
         currentFee = "0.001"
+        isAssetValid = true
         stateDelegate.updateState { ViewState.Loading }
         transactionSignManager.stopAllResources()
     }
@@ -358,13 +371,22 @@ class AssetTransferConfirmViewModel(
                             println("SendSignedTransaction onSuccess: $transactionId")
                         },
                         onFailed = { error ->
-                            println("sendSignedTransaction Failed: ${error.exception?.message}")
-                            eventDelegate.sendEvent(
-                                ViewEvent.ShowError(
-                                    error.exception?.message ?: "Transaction failed",
-                                ),
-                            )
-                            restoreContentState()
+                            val errorMsg = error.exception?.message ?: "Transaction failed"
+                            println("sendSignedTransaction Failed: $errorMsg")
+                            // Check for duplicate transaction in ledger
+                            if (errorMsg.contains("ledger", ignoreCase = true) ||
+                                errorMsg.contains("duplicate", ignoreCase = true)
+                            ) {
+                                transactionSignManager.stopAllResources()
+                                eventDelegate.sendEvent(
+                                    ViewEvent.TransactionAlreadyInLedger(
+                                        "Transaction error. Please try again.",
+                                    ),
+                                )
+                            } else {
+                                eventDelegate.sendEvent(ViewEvent.ShowError(errorMsg))
+                                restoreContentState()
+                            }
                         },
                     )
                 }
@@ -398,6 +420,7 @@ class AssetTransferConfirmViewModel(
             val fee: String = "",
             val assetId: Long = -7L,
             val assetName: String = "",
+            val isAssetValid: Boolean = true,
         ) : ViewState
 
         data class Error(
@@ -409,9 +432,17 @@ class AssetTransferConfirmViewModel(
         data class ShowError(
             val message: String,
             val id: String =
-                kotlin.random.Random
+                Random
                     .nextLong()
                     .toString(),
+        ) : ViewEvent
+
+        data class UnrecognizedAsset(
+            val message: String,
+        ) : ViewEvent
+
+        data class TransactionAlreadyInLedger(
+            val message: String,
         ) : ViewEvent
 
         data class TransactionSuccess(

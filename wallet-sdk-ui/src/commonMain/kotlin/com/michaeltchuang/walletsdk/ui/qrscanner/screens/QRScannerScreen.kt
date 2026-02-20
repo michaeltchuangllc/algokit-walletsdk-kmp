@@ -50,12 +50,22 @@ fun QRCodeScannerScreen(
 
                 is QRScannerViewModel.ViewEvent.NavigateToSelectAccountScreen -> {
                     // Navigate to SelectAccountScreen with receiver address, amount, and note
+                    // URL encode to handle special characters that might break navigation parsing
+                    val note = it.assetTransfer.note ?: ""
+                    val encodedNote =
+                        note
+                            .replace("%", "%25")
+                            .replace("?", "%3F")
+                            .replace("&", "%26")
+                            .replace("=", "%3D")
+                            .replace("#", "%23")
+                            .replace(" ", "%20")
                     navController.navigate(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
                             "?receiver=${it.assetTransfer.receiverAccountAddress}" +
                             "&amount=${it.assetTransfer.amount}" +
                             "&assetId=${it.assetTransfer.assetId}" +
-                            "&note=${it.assetTransfer.note ?: ""}",
+                            "&note=$encodedNote",
                     )
                 }
 

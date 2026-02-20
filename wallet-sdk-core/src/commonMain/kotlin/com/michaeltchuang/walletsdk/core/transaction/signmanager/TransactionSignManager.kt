@@ -35,6 +35,7 @@ import com.michaeltchuang.walletsdk.core.utils.isLesserThan
 import com.michaeltchuang.walletsdk.core.utils.mapToNotNullableListOrNull
 import com.michaeltchuang.walletsdk.core.utils.minBalancePerAssetAsBigInteger
 import com.michaeltchuang.walletsdk.utils.LifecycleScopedCoroutineOwner
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
@@ -529,6 +530,11 @@ open class TransactionSignManager(
         //  ledgerBleSearchManager.stop()
         transactionManagerResultStateFlow.value = null
         transactionDataList = null
+        signHelper.clearCachedData()
+        if (isCurrentScopeInitialized()) {
+            currentScope.coroutineContext.cancelChildren()
+        }
+        clearLifecycle()
     }
 
     private suspend fun processTransactionDataList(
