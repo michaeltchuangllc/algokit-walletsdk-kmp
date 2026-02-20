@@ -21,6 +21,12 @@ abstract class LifecycleScopedCoroutineOwner {
 
     abstract fun stopAllResources()
 
+    protected fun clearLifecycle() {
+        lifecycle = null
+    }
+
+    protected fun isCurrentScopeInitialized(): Boolean = ::currentScope.isInitialized
+
     private fun addDestroyObserver() {
         lifecycle?.addObserver(
             object : LifecycleEventObserver {

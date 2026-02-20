@@ -371,13 +371,22 @@ class AssetTransferConfirmViewModel(
                             println("SendSignedTransaction onSuccess: $transactionId")
                         },
                         onFailed = { error ->
-                            println("sendSignedTransaction Failed: ${error.exception?.message}")
-                            eventDelegate.sendEvent(
-                                ViewEvent.ShowError(
-                                    error.exception?.message ?: "Transaction failed",
-                                ),
-                            )
-                            restoreContentState()
+                            val errorMsg = error.exception?.message ?: "Transaction failed"
+                            println("sendSignedTransaction Failed: $errorMsg")
+                            // Check for duplicate transaction in ledger
+                            if (errorMsg.contains("ledger", ignoreCase = true) ||
+                                errorMsg.contains("duplicate", ignoreCase = true)
+                            ) {
+                                transactionSignManager.stopAllResources()
+                                eventDelegate.sendEvent(
+                                    ViewEvent.TransactionAlreadyInLedger(
+                                        "Transaction error. Please try again.",
+                                    ),
+                                )
+                            } else {
+                                eventDelegate.sendEvent(ViewEvent.ShowError(errorMsg))
+                                restoreContentState()
+                            }
                         },
                     )
                 }
@@ -429,6 +438,10 @@ class AssetTransferConfirmViewModel(
         ) : ViewEvent
 
         data class UnrecognizedAsset(
+            val message: String,
+        ) : ViewEvent
+
+        data class TransactionAlreadyInLedger(
             val message: String,
         ) : ViewEvent
 

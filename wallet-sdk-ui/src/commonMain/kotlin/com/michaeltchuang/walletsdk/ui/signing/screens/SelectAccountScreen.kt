@@ -71,13 +71,14 @@ fun SelectAccountScreen(
                             event.amount != "0.00"
 
                     // URL encode note to handle special characters
-                    val encodedNote = event.note
-                        .replace("%", "%25")
-                        .replace("?", "%3F")
-                        .replace("&", "%26")
-                        .replace("=", "%3D")
-                        .replace("#", "%23")
-                        .replace(" ", "%20")
+                    val encodedNote =
+                        event.note
+                            .replace("%", "%25")
+                            .replace("?", "%3F")
+                            .replace("&", "%26")
+                            .replace("=", "%3D")
+                            .replace("#", "%23")
+                            .replace(" ", "%20")
 
                     if (shouldSkipToConfirm) {
                         // Skip to confirm screen when receiver and amount are provided via deeplink

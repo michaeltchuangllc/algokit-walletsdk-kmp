@@ -89,13 +89,15 @@ fun AssetTransferConfirmScreen(
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
-    var showUnrecognizedAssetDialog by remember { mutableStateOf(false) }
-    var unrecognizedAssetMessage by remember { mutableStateOf("") }
+    var isButtonEnabled by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
+    var dialogMessage by remember { mutableStateOf("") }
 
     // Reset ViewModel state when entering the screen
     LaunchedEffect(Unit) {
         viewModel.reset()
         viewModel.setup(lifecycle = lifecycleOwner.lifecycle)
+        isButtonEnabled = true
     }
 
     LaunchedEffect(events.value) {
@@ -114,10 +116,18 @@ fun AssetTransferConfirmScreen(
                             inclusive = true
                         }
                     }
+                    // Clear resources after successful navigation
+                    viewModel.reset()
                 }
                 is AssetTransferConfirmViewModel.ViewEvent.UnrecognizedAsset -> {
-                    unrecognizedAssetMessage = event.message
-                    showUnrecognizedAssetDialog = true
+                    viewModel.reset()
+                    dialogMessage = event.message
+                    showDialog = true
+                }
+                is AssetTransferConfirmViewModel.ViewEvent.TransactionAlreadyInLedger -> {
+                    viewModel.reset()
+                    dialogMessage = event.message
+                    showDialog = true
                 }
             }
         }
@@ -143,11 +153,12 @@ fun AssetTransferConfirmScreen(
         navController = navController,
         viewState = viewState,
         snackbarHostState = snackbarHostState,
-        showUnrecognizedAssetDialog = showUnrecognizedAssetDialog,
-        unrecognizedAssetMessage = unrecognizedAssetMessage,
-        onDismissDialog = { showUnrecognizedAssetDialog = false },
-        onNavigateHome = {
-            showUnrecognizedAssetDialog = false
+        isButtonEnabled = isButtonEnabled,
+        showDialog = showDialog,
+        dialogMessage = dialogMessage,
+        onDismissDialog = { showDialog = false },
+        onDialogOk = {
+            showDialog = false
             closeSheet()
         },
         onSendTransaction = { viewModel.sendTransaction() },
@@ -160,10 +171,11 @@ internal fun ScreenContent(
     navController: NavController,
     viewState: AssetTransferConfirmViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
-    showUnrecognizedAssetDialog: Boolean = false,
-    unrecognizedAssetMessage: String = "",
+    isButtonEnabled: Boolean = true,
+    showDialog: Boolean = false,
+    dialogMessage: String = "",
     onDismissDialog: () -> Unit = {},
-    onNavigateHome: () -> Unit = {},
+    onDialogOk: () -> Unit = {},
     onSendTransaction: () -> Unit = {},
     onSetNote: (String) -> Unit = {},
 ) {
@@ -192,6 +204,7 @@ internal fun ScreenContent(
                     navController = navController,
                     onTransactionClick = onSendTransaction,
                     onSetNote = onSetNote,
+                    isButtonEnabled = isButtonEnabled,
                 )
             }
 
@@ -217,15 +230,15 @@ internal fun ScreenContent(
                     .padding(16.dp),
         )
 
-        // Unrecognized Asset Dialog
-        if (showUnrecognizedAssetDialog) {
+        // Error Dialog (for both unrecognized asset and duplicate transaction)
+        if (showDialog) {
             AlertDialog(
                 onDismissRequest = onDismissDialog,
                 containerColor = AlgoKitTheme.colors.background,
-                title = { Text("Unrecognized Asset", color = AlgoKitTheme.colors.textMain) },
-                text = { Text(unrecognizedAssetMessage, color = AlgoKitTheme.colors.textMain) },
+                title = { Text("Transaction Error", color = AlgoKitTheme.colors.textMain) },
+                text = { Text(dialogMessage, color = AlgoKitTheme.colors.textMain) },
                 confirmButton = {
-                    Button(onClick = onNavigateHome) {
+                    Button(onClick = onDialogOk) {
                         Text("OK", color = AlgoKitTheme.colors.textMain)
                     }
                 },
@@ -240,6 +253,7 @@ fun AssetTransferContent(
     navController: NavController,
     onTransactionClick: () -> Unit,
     onSetNote: (String) -> Unit,
+    isButtonEnabled: Boolean = true,
 ) {
     Box(
         modifier =
@@ -273,7 +287,7 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-            state = if (state.isAssetValid) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
+            state = if (state.isAssetValid && isButtonEnabled) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
         )
     }
 }
