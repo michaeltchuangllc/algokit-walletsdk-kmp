@@ -30,7 +30,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +61,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -79,6 +81,7 @@ fun AssetTransferConfirmScreen(
     assetId: Long = -7L,
     note: String = "",
     amount: String = "0",
+    closeSheet: () -> Unit = {},
 ) {
     val viewModel: AssetTransferConfirmViewModel = koinViewModel()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -86,6 +89,8 @@ fun AssetTransferConfirmScreen(
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var showUnrecognizedAssetDialog by remember { mutableStateOf(false) }
+    var unrecognizedAssetMessage by remember { mutableStateOf("") }
 
     // Reset ViewModel state when entering the screen
     LaunchedEffect(Unit) {
@@ -109,6 +114,10 @@ fun AssetTransferConfirmScreen(
                             inclusive = true
                         }
                     }
+                }
+                is AssetTransferConfirmViewModel.ViewEvent.UnrecognizedAsset -> {
+                    unrecognizedAssetMessage = event.message
+                    showUnrecognizedAssetDialog = true
                 }
             }
         }
@@ -134,6 +143,13 @@ fun AssetTransferConfirmScreen(
         navController = navController,
         viewState = viewState,
         snackbarHostState = snackbarHostState,
+        showUnrecognizedAssetDialog = showUnrecognizedAssetDialog,
+        unrecognizedAssetMessage = unrecognizedAssetMessage,
+        onDismissDialog = { showUnrecognizedAssetDialog = false },
+        onNavigateHome = {
+            showUnrecognizedAssetDialog = false
+            closeSheet()
+        },
         onSendTransaction = { viewModel.sendTransaction() },
         onSetNote = { viewModel.setNote(it) },
     )
@@ -144,6 +160,10 @@ internal fun ScreenContent(
     navController: NavController,
     viewState: AssetTransferConfirmViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    showUnrecognizedAssetDialog: Boolean = false,
+    unrecognizedAssetMessage: String = "",
+    onDismissDialog: () -> Unit = {},
+    onNavigateHome: () -> Unit = {},
     onSendTransaction: () -> Unit = {},
     onSetNote: (String) -> Unit = {},
 ) {
@@ -196,6 +216,21 @@ internal fun ScreenContent(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp),
         )
+
+        // Unrecognized Asset Dialog
+        if (showUnrecognizedAssetDialog) {
+            AlertDialog(
+                onDismissRequest = onDismissDialog,
+                containerColor = AlgoKitTheme.colors.background,
+                title = { Text("Unrecognized Asset", color = AlgoKitTheme.colors.textMain) },
+                text = { Text(unrecognizedAssetMessage, color = AlgoKitTheme.colors.textMain) },
+                confirmButton = {
+                    Button(onClick = onNavigateHome) {
+                        Text("OK", color = AlgoKitTheme.colors.textMain)
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -238,6 +273,7 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
+            state = if (state.isAssetValid) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
         )
     }
 }
@@ -311,7 +347,7 @@ fun AssetTransferContentItems(
 fun AssetTransferDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 16.dp),
-        thickness = DividerDefaults.Thickness,
+        thickness = 1.dp,
         color = AlgoKitTheme.colors.layerGray,
     )
 }
