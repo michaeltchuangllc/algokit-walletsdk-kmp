@@ -297,9 +297,19 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-            state = if (state.isAssetValid && isButtonEnabled) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
+            state = if (state.isAssetValid && isButtonEnabled && assetBalanceStatus(state.assetId, state.assetBalance)) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
         )
     }
+}
+
+private fun assetBalanceStatus(assetId: Long, assetBalance: String?): Boolean {
+    if (assetId == -7L) return true // ALGO is always valid
+
+    // For ASA, check if balance is valid
+    if (assetId > 0 && assetBalance.isNullOrEmpty().not()) {
+        return true
+    }
+    return false
 }
 
 @Composable
@@ -417,7 +427,7 @@ fun AssetTransferASABalanceRow(
                 Spacer(modifier = Modifier.width(8.dp))
             }
             Text(
-                text = assetBalance?.let { "${it.formatAmount()} $assetName" } ?: "Loading...",
+                text = assetBalance?.let { "${it.formatAmount()} $assetName" } ?: "Not Opted In",
                 fontSize = 16.sp,
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.body.regular.sansMedium,
