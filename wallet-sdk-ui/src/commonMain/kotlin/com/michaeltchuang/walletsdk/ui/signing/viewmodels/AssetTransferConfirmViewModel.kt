@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.toBigInteger
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
@@ -33,6 +34,7 @@ class AssetTransferConfirmViewModel(
     private val sendSignedTransactionUseCase: SendSignedTransactionUseCase,
     private val getTransactionSigner: GetTransactionSigner,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
+    private val getAccountASABalance: GetAccountASABalance,
     private val getAccountMinimumBalance: GetAccountMinimumBalance,
     private val getTransactionFeeForAccount: GetTransactionFeeForAccount,
     private val getAssetDetailApiService: AssetDetailApiService,
@@ -45,6 +47,8 @@ class AssetTransferConfirmViewModel(
     private var receiverAddress: String = ""
     private var assetId: Long = -7L
     private var assetName: String = ""
+    private var assetLogoUrl: String = ""
+    private var assetBalance: String? = null
     private var transferAmount: String = ""
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
@@ -115,8 +119,9 @@ class AssetTransferConfirmViewModel(
 
     fun setAssetId(asset: Long) {
         assetId = asset
-        if (assetId != -7L) {
+        if (assetId > 0) {
             fetchAssetDetail(assetId)
+            fetchAccountASABalance(assetId)
         } else {
             assetName = ""
             updateContentState()
@@ -130,23 +135,43 @@ class AssetTransferConfirmViewModel(
                 is ApiResult.Success -> {
                     val assetDetail = result.data
                     assetName = assetDetail.fullName ?: assetDetail.shortName ?: "Unknown Asset"
+                    assetLogoUrl = assetDetail.logoUri ?: ""
                     isAssetValid = true
                     updateContentState()
                 }
+
                 is ApiResult.Error -> {
                     assetName = "Asset $id"
+                    assetLogoUrl = ""
                     isAssetValid = false
                     transactionSignManager.stopAllResources()
                     eventDelegate.sendEvent(ViewEvent.UnrecognizedAsset("Asset $id not found"))
                     updateContentState()
                 }
+
                 is ApiResult.NetworkError -> {
                     assetName = "Asset $id"
+                    assetLogoUrl = ""
                     isAssetValid = false
                     transactionSignManager.stopAllResources()
                     eventDelegate.sendEvent(ViewEvent.UnrecognizedAsset("Unable to verify asset. Please check your connection."))
                     updateContentState()
                 }
+            }
+        }
+    }
+
+    private fun fetchAccountASABalance(assetId: Long) {
+        viewModelScope.launch {
+            try {
+                val balance = getAccountASABalance(senderAddress, assetId)
+                assetBalance = balance?.toString()
+                updateContentState()
+                println("Fetched ASA balance: ${balance?.toString() ?: "null"}")
+            } catch (e: Exception) {
+                println("Exception fetching ASA balance: ${e.message}")
+                assetBalance = null
+                updateContentState()
             }
         }
     }
@@ -180,6 +205,8 @@ class AssetTransferConfirmViewModel(
                 fee = currentFee,
                 assetId = assetId,
                 assetName = assetName,
+                assetLogoUrl = assetLogoUrl,
+                assetBalance = assetBalance,
                 isAssetValid = isAssetValid,
             )
         }
@@ -218,6 +245,8 @@ class AssetTransferConfirmViewModel(
                 fee = currentFee,
                 assetId = assetId,
                 assetName = assetName,
+                assetLogoUrl = assetLogoUrl,
+                assetBalance = assetBalance,
                 isAssetValid = isAssetValid,
             )
         }
@@ -338,6 +367,8 @@ class AssetTransferConfirmViewModel(
         receiverAddress = ""
         assetId = -7L
         assetName = ""
+        assetLogoUrl = ""
+        assetBalance = null
         transferAmount = ""
         transferNote = ""
         currentFee = "0.001"
@@ -420,6 +451,8 @@ class AssetTransferConfirmViewModel(
             val fee: String = "",
             val assetId: Long = -7L,
             val assetName: String = "",
+            val assetLogoUrl: String = "",
+            val assetBalance: String? = null,
             val isAssetValid: Boolean = true,
         ) : ViewState
 

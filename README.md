@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.7")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.7")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.8")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.8")
 }
 ```
 
@@ -103,10 +103,11 @@ timeline
             : ✅ Android - Wallet SDK as a background service integration
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
-            : 🔄 Transaction - Send USDC using QR code flow (between accounts)
+            : ✅ Transaction - Send USDC using QR code flow (between accounts)
             : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
+            : 🔄 Onboarding - Add Use Wallet Liquid Auth Integration for Lora
+            : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : Onboarding - Add Liquid Auth Integration for xGov Website
-            : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
@@ -115,7 +116,6 @@ timeline
             : Seed Vault - Sign Liquid Auth using Algorand seeds
             : Seed Vault - Sign Liquid Auth using cross-chain seeds
             : Seed Vault - Integrate Use Wallet with cross-chain seeds
-            : Onboarding - Add Use Wallet Liquid Auth Integration for Lora
             : Design - Create Landscape (Tablet/Desktop) UI
             : TBD
     Backlog

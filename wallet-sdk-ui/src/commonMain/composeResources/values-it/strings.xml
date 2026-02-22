@@ -1497,4 +1497,5 @@
     <string name="account_info">Informazioni Account</string>
     <string name="provider">Fornitore</string>
     <string name="close_popup">Chiudi popup</string>
+    <string name="asa_balance">Saldo ASA</string>
 </resources>
