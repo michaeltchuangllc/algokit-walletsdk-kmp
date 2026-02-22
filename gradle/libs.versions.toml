@@ -17,7 +17,7 @@ bip39 = "1.0.9"
 bitcoin-kmp = "0.28.1"
 ble = "2.8.0"
 buildConfig = "5.6.5"
-coil = "3.3.0"
+coil = "3.0.4"
 compose = "1.7.3"
 compose-ui = "1.8.2"
 composeBom = "2026.01.01"
@@ -148,7 +148,9 @@ room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
 room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
 
 # Image Loading / Animations / Video Player
+# Coil for image loading with Ktor network loaded
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
 compottie = { module = "io.github.alexzhirkevich:compottie", version.ref = "compottie" }
 
 # Sensors - Bluetooth / Camera
