@@ -297,7 +297,11 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-            state = if (state.isAssetValid && isButtonEnabled && assetBalanceStatus(state.assetId, state.assetBalance)) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
+            state = if (state.isAssetValid && isButtonEnabled && assetBalanceStatus(
+                    state.assetId,
+                    state.assetBalance
+                )
+            ) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
         )
     }
 }
@@ -340,6 +344,7 @@ fun AssetTransferContentItems(
             value = amount.formatAmount(),
             assetId = assetId,
             assetName = assetName,
+            assetLogoUrl = assetLogoUrl,
         )
 
         AssetTransferDivider()
@@ -359,9 +364,9 @@ fun AssetTransferContentItems(
             value = fee.toAlgoCurrency()
         )
         Spacer(modifier = Modifier.height(8.dp))
+
         AssetTransferDivider()
 
-//        AssetTransferLabeledText(label = "Current", value = "10.00".toAlgoCurrency())
         AssetTransferLabeledText(
             label = localizedStringResource(Res.string.balance),
             value =
@@ -384,9 +389,9 @@ fun AssetTransferContentItems(
                 assetBalance = assetBalance,
                 assetName = assetName,
             )
-            AssetTransferDivider()
         }
-
+        AssetTransferDivider()
+        Spacer(modifier = Modifier.height(16.dp))
         AssetTransferAddNote(note, onSetNote)
     }
 }
@@ -417,7 +422,7 @@ fun AssetTransferASABalanceRow(
             style = typography.body.regular.sansMedium,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (!assetLogoUrl.isNullOrEmpty()) {
+            if (assetLogoUrl.isNotEmpty()) {
                 AsyncImage(
                     model = assetLogoUrl,
                     contentDescription = "Asset Logo",
@@ -442,8 +447,10 @@ fun AssetTransferAmountLabeledText(
     value: String,
     assetId: Long = -7L,
     assetName: String = "",
+    assetLogoUrl: String = ""
 ) {
     val displayAssetName = if (assetId != -7L && assetName.isNotEmpty()) assetName else "ALGO"
+    val amountValue = if (assetId != -7L) value else value.toAlgoCurrency()
 
     Row(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
@@ -452,20 +459,21 @@ fun AssetTransferAmountLabeledText(
             color = AlgoKitTheme.colors.textGray,
             style = typography.body.regular.sansMedium,
         )
-        Column {
-            Text(
-                text = "$value $displayAssetName",
-                fontSize = 18.sp,
-                color = AlgoKitTheme.colors.textMain,
-                style = typography.body.regular.sansMedium,
+        if (assetId != -7L && assetLogoUrl.isNotEmpty()) {
+            AsyncImage(
+                model = assetLogoUrl,
+                contentDescription = "Asset Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(24.dp),
             )
-
-//            Text(
-//                text = "\u00A6 $value",
-//                color = AlgoKitTheme.colors.textGray,
-//                style = typography.body.regular.sansMedium,
-//            )
         }
+        Text(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            text = "$amountValue $displayAssetName",
+            fontSize = 18.sp,
+            color = AlgoKitTheme.colors.textMain,
+            style = typography.body.regular.sansMedium,
+        )
     }
 }
 
@@ -661,7 +669,7 @@ fun PreviewAssetTransferScreen() {
                 fee = "0.001",
                 assetId = 10458941L,
                 assetName = "USDC",
-                assetLogoUrl = "https://www.kasandbox.org/programming-images/avatars/leaf-blue.png",
+                assetLogoUrl = "https://algorand-wallet-mainnet.b-cdn.net/media/usd-coin-usdc-logo.png",
                 assetBalance = "0",
                 isAssetValid = true,
             ),
