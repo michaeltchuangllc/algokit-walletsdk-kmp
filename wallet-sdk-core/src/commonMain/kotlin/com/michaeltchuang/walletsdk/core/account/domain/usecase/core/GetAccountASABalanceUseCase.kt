@@ -7,13 +7,19 @@ import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiSe
 import com.michaeltchuang.walletsdk.core.network.service.getAccountBalance
 
 fun interface GetAccountASABalance {
-    suspend operator fun invoke(address: String, assetId: Long): BigInteger?
+    suspend operator fun invoke(
+        address: String,
+        assetId: Long,
+    ): BigInteger?
 }
 
 internal class GetAccountASABalanceUseCase(
     private val accountInformationApiService: AccountInformationApiService,
 ) : GetAccountASABalance {
-    override suspend fun invoke(address: String, assetId: Long): BigInteger? =
+    override suspend fun invoke(
+        address: String,
+        assetId: Long,
+    ): BigInteger? =
         when (
             val result =
                 accountInformationApiService.getAccountBalance(address)

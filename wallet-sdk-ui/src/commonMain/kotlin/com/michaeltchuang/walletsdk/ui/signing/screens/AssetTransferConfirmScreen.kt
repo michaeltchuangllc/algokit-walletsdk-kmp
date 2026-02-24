@@ -297,12 +297,26 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
-            state = if (state.isAssetValid && isButtonEnabled && assetBalanceStatus(state.assetId, state.assetBalance)) AlgoKitButtonState.ENABLED else AlgoKitButtonState.DISABLED,
+            state =
+                if (state.isAssetValid &&
+                    isButtonEnabled &&
+                    assetBalanceStatus(
+                        state.assetId,
+                        state.assetBalance,
+                    )
+                ) {
+                    AlgoKitButtonState.ENABLED
+                } else {
+                    AlgoKitButtonState.DISABLED
+                },
         )
     }
 }
 
-private fun assetBalanceStatus(assetId: Long, assetBalance: String?): Boolean {
+private fun assetBalanceStatus(
+    assetId: Long,
+    assetBalance: String?,
+): Boolean {
     if (assetId == -7L) return true // ALGO is always valid
 
     // For ASA, check if balance is valid
@@ -340,6 +354,7 @@ fun AssetTransferContentItems(
             value = amount.formatAmount(),
             assetId = assetId,
             assetName = assetName,
+            assetLogoUrl = assetLogoUrl,
         )
 
         AssetTransferDivider()
@@ -356,12 +371,12 @@ fun AssetTransferContentItems(
 
         AssetTransferLabeledText(
             label = localizedStringResource(Res.string.fee),
-            value = fee.toAlgoCurrency()
+            value = fee.toAlgoCurrency(),
         )
         Spacer(modifier = Modifier.height(8.dp))
+
         AssetTransferDivider()
 
-//        AssetTransferLabeledText(label = "Current", value = "10.00".toAlgoCurrency())
         AssetTransferLabeledText(
             label = localizedStringResource(Res.string.balance),
             value =
@@ -384,9 +399,9 @@ fun AssetTransferContentItems(
                 assetBalance = assetBalance,
                 assetName = assetName,
             )
-            AssetTransferDivider()
         }
-
+        AssetTransferDivider()
+        Spacer(modifier = Modifier.height(16.dp))
         AssetTransferAddNote(note, onSetNote)
     }
 }
@@ -417,7 +432,7 @@ fun AssetTransferASABalanceRow(
             style = typography.body.regular.sansMedium,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (!assetLogoUrl.isNullOrEmpty()) {
+            if (assetLogoUrl.isNotEmpty()) {
                 AsyncImage(
                     model = assetLogoUrl,
                     contentDescription = "Asset Logo",
@@ -442,8 +457,10 @@ fun AssetTransferAmountLabeledText(
     value: String,
     assetId: Long = -7L,
     assetName: String = "",
+    assetLogoUrl: String = "",
 ) {
     val displayAssetName = if (assetId != -7L && assetName.isNotEmpty()) assetName else "ALGO"
+    val amountValue = if (assetId != -7L) value else value.toAlgoCurrency()
 
     Row(modifier = Modifier.padding(vertical = 16.dp)) {
         Text(
@@ -452,20 +469,21 @@ fun AssetTransferAmountLabeledText(
             color = AlgoKitTheme.colors.textGray,
             style = typography.body.regular.sansMedium,
         )
-        Column {
-            Text(
-                text = "$value $displayAssetName",
-                fontSize = 18.sp,
-                color = AlgoKitTheme.colors.textMain,
-                style = typography.body.regular.sansMedium,
+        if (assetId != -7L && assetLogoUrl.isNotEmpty()) {
+            AsyncImage(
+                model = assetLogoUrl,
+                contentDescription = "Asset Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(24.dp),
             )
-
-//            Text(
-//                text = "\u00A6 $value",
-//                color = AlgoKitTheme.colors.textGray,
-//                style = typography.body.regular.sansMedium,
-//            )
         }
+        Text(
+            modifier = Modifier.padding(horizontal = 8.dp),
+            text = "$amountValue $displayAssetName",
+            fontSize = 18.sp,
+            color = AlgoKitTheme.colors.textMain,
+            style = typography.body.regular.sansMedium,
+        )
     }
 }
 
@@ -652,19 +670,20 @@ fun PreviewAssetTransferScreen() {
     AlgoKitTheme {
         ScreenContent(
             navController = androidx.navigation.compose.rememberNavController(),
-            viewState = AssetTransferConfirmViewModel.ViewState.Content(
-                senderAddress = "L4HCUPPXMVJMHZPJSCC7FJV3BP66OKKKNQ5FH4U7RZMZZGOV3R2QM3YSSM",
-                receiverAddress = "X3B5KQQGQ5XJFGWDKLJ4J7Q2Z4H3YKJ5L6Q2X4D7F8G9H0J1K2L3M4N5O",
-                amount = "100",
-                accountBalance = "599000",
-                note = "Test note",
-                fee = "0.001",
-                assetId = 10458941L,
-                assetName = "USDC",
-                assetLogoUrl = "https://www.kasandbox.org/programming-images/avatars/leaf-blue.png",
-                assetBalance = "0",
-                isAssetValid = true,
-            ),
+            viewState =
+                AssetTransferConfirmViewModel.ViewState.Content(
+                    senderAddress = "L4HCUPPXMVJMHZPJSCC7FJV3BP66OKKKNQ5FH4U7RZMZZGOV3R2QM3YSSM",
+                    receiverAddress = "X3B5KQQGQ5XJFGWDKLJ4J7Q2Z4H3YKJ5L6Q2X4D7F8G9H0J1K2L3M4N5O",
+                    amount = "100",
+                    accountBalance = "599000",
+                    note = "Test note",
+                    fee = "0.001",
+                    assetId = 10458941L,
+                    assetName = "USDC",
+                    assetLogoUrl = "https://algorand-wallet-mainnet.b-cdn.net/media/usd-coin-usdc-logo.png",
+                    assetBalance = "0",
+                    isAssetValid = true,
+                ),
         )
     }
 }
