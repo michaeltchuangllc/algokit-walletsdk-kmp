@@ -120,7 +120,10 @@ fun interface GetAccountAlgoBalance {
 }
 
 fun interface GetAccountASABalance {
-    suspend operator fun invoke(address: String, assetId: Long): BigInteger?
+    suspend operator fun invoke(
+        address: String,
+        assetId: Long,
+    ): BigInteger?
 }
 
 fun interface GetAccountMinimumBalance {
