@@ -104,8 +104,8 @@ timeline
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
             : ✅ Transaction - Send USDC using QR code flow (between accounts)
-            : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
-            : 🔄 Onboarding - Add Use Wallet Liquid Auth Integration for Lora
+            : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
+            : ✅ Onboarding - Add Use Wallet Liquid Auth Integration for Lora
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : Onboarding - Add Liquid Auth Integration for xGov Website
 
@@ -115,7 +115,7 @@ timeline
             : Seed Vault - Modify Seed Vault emulator to allow Algorand seeds
             : Seed Vault - Sign Liquid Auth using Algorand seeds
             : Seed Vault - Sign Liquid Auth using cross-chain seeds
-            : Seed Vault - Integrate Use Wallet with cross-chain seeds
+            : Seed Vault - Integrate Use-Wallet with cross-chain seeds
             : Design - Create Landscape (Tablet/Desktop) UI
             : TBD
     Backlog
