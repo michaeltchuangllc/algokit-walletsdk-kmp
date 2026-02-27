@@ -16,7 +16,6 @@ import kotlinx.coroutines.launch
 
 class QRScannerViewModel(
     private val deeplinkHandler: DeeplinkHandler,
-    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     EventViewModel<QRScannerViewModel.ViewEvent> by eventDelegate {
@@ -51,12 +50,7 @@ class QRScannerViewModel(
 
                     is DeeplinkHandler.DeepLinkState.LiquAuthDeepLink -> {
                         viewModelScope.launch {
-                            val currentNetwork = getCurrentNetworkUseCase().first()
-                            if (currentNetwork == AlgorandNetwork.MAINNET) {
-                                eventDelegate.sendEvent(ViewEvent.ShowLiquidAuthMainnetNotSupported)
-                            } else {
-                                eventDelegate.sendEvent(ViewEvent.NavigateToLiquidAuthScreen(it.uri))
-                            }
+                            eventDelegate.sendEvent(ViewEvent.NavigateToLiquidAuthScreen(it.uri))
                         }
                     }
 
@@ -189,8 +183,6 @@ class QRScannerViewModel(
         data class NavigateToLiquidAuthScreen(
             val uri: String,
         ) : ViewEvent
-
-        object ShowLiquidAuthMainnetNotSupported : ViewEvent
 
         object ShowUnrecognizedDeeplink : ViewEvent
     }

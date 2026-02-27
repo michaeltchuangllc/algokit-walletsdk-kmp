@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.8")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.8")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.9")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.9")
 }
 ```
 
@@ -106,8 +106,8 @@ timeline
             : ✅ Transaction - Send USDC using QR code flow (between accounts)
             : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : ✅ Onboarding - Add Use Wallet Liquid Auth Integration for Lora
+            : 🔄 Onboarding - Add Liquid Auth Integration for xGov Website
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
-            : Onboarding - Add Liquid Auth Integration for xGov Website
 
     section Future
     2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
@@ -120,7 +120,7 @@ timeline
             : TBD
     Backlog
             : Onboarding - Rekey flow
-            : Onboarding - Mainnet Liquid Auth (Rekey Accounts)
+            : Onboarding - Liquid Auth (Rekeyed Accounts)
             : Research - React Native sample app talking to service
             : Onboarding - PQ Passkeys
             : Onboarding - Ledger flow

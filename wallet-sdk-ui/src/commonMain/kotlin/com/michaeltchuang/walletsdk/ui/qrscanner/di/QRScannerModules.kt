@@ -12,7 +12,6 @@ internal val qrScannerModules =
                 QRScannerViewModel(
                     get(),
                     get(),
-                    get(),
                 )
             }
 
