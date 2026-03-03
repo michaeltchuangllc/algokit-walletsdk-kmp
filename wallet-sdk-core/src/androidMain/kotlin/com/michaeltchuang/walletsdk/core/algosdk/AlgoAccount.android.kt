@@ -18,6 +18,8 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toSuggestedParams
 import com.michaeltchuang.walletsdk.core.foundation.utils.urlSafeBase64ToStandard
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
+import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.security.Security
 
@@ -128,15 +130,43 @@ actual fun signAlgo25ArbitraryData(
     data: ByteArray,
     secretKey: ByteArray,
 ): ByteArray? {
-    Security.removeProvider("BC")
-    Security.insertProviderAt(BouncyCastleProvider(), 0)
+    println("DEBUG: signAlgo25ArbitraryData called with secretKey size: ${secretKey.size}")
+
+    // Extract private key (first 32 bytes) from expanded secret key
+    // For 64-byte expanded key: [32-byte seed/private key][32-byte public key]
+    val privateKey =
+        when (secretKey.size) {
+            64 -> secretKey.copyOfRange(0, 32)
+            32 -> secretKey.copyOf()
+            else -> {
+                println("DEBUG: Unexpected key size: ${secretKey.size}")
+                return null
+            }
+        }
+
     return try {
-        val account = Account(secretKey)
-        val signature = account.signBytes(data)
-        signature?.bytes
+        // Use BouncyCastle Ed25519 directly to avoid Android Conscrypt bug
+        val privateKeyParams = Ed25519PrivateKeyParameters(privateKey, 0)
+        val signer = Ed25519Signer()
+        signer.init(true, privateKeyParams)
+        signer.update(data, 0, data.size)
+        val signature = signer.generateSignature()
+        println("DEBUG: Signature generated successfully, size: ${signature.size}")
+        signature
     } catch (e: Exception) {
-        println("Algo25 arbitrary data signing failed: ${e.message}")
-        null
+        println("DEBUG: BouncyCastle Ed25519 signing failed: ${e.message}")
+        e.printStackTrace()
+
+        // Fallback to Account class if BouncyCastle fails
+        try {
+            println("DEBUG: Trying Account class fallback")
+            val account = Account(secretKey)
+            val signature = account.signBytes(data)
+            signature?.bytes
+        } catch (e2: Exception) {
+            println("DEBUG: Account fallback also failed: ${e2.message}")
+            null
+        }
     }
 }
 

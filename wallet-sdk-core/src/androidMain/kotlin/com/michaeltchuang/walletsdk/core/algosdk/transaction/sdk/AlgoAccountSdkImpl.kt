@@ -41,6 +41,23 @@ internal class AlgoAccountSdkImpl : AlgoAccountSdk {
             Account(secretKey).toMnemonic()
         } catch (e: NoSuchAlgorithmException) {
             null
+        } catch (e: IllegalArgumentException) {
+            // Work around Android EdDSA key size bug by using BouncyCastle
+            // The secret key from Sdk.generateSK() is 64 bytes (32-byte seed + 32-byte public key)
+            // Extract the 32-byte seed and create the account from that
+            try {
+                val seed =
+                    when (secretKey.size) {
+                        64 -> secretKey.copyOfRange(0, 32) // Extract seed from expanded key
+                        32 -> secretKey.copyOf() // Already a seed
+                        else -> null
+                    }
+                seed?.let { Account(it).toMnemonic() }
+            } catch (_: Exception) {
+                null
+            }
+        } catch (e: Exception) {
+            null
         }
 
     override fun recoverAlgo25Account(mnemonic: String): Algo25Account? =

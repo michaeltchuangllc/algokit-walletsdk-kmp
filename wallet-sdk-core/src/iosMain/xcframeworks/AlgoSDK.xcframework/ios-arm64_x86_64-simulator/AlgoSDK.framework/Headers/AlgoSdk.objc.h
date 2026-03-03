@@ -902,7 +902,15 @@ FOUNDATION_EXPORT NSData* _Nullable AlgoSdkSignBid(NSData* _Nullable sk, NSData*
  */
 FOUNDATION_EXPORT NSData* _Nullable AlgoSdkSignBytes(NSData* _Nullable sk, NSData* _Nullable bytesToSign, NSError* _Nullable* _Nullable error);
 
-FOUNDATION_EXPORT NSData* _Nullable AlgoSdkSignFalconTransaction(NSData* _Nullable unsignedTxBytes, NSData* _Nullable publicKeyBytes, NSData* _Nullable privateKeyBytes, NSError* _Nullable* _Nullable error);
+/**
+ * SignFalconBundle handles multiple transactions (raw bytes).
+Returns a comma-separated string of signed Base64 transactions.
+
+TWO MODES:
+1. No group ID (single txn): Add dummies, create group, sign
+2. Has group ID (from dApp): Just sign as-is, don't modify!
+ */
+FOUNDATION_EXPORT NSString* _Nonnull AlgoSdkSignFalconBundle(AlgoSdkBytesArray* _Nullable unsignedTxns, NSData* _Nullable pubKeyBytes, NSData* _Nullable privKeyBytes, NSError* _Nullable* _Nullable error);
 
 /**
  * SignLogicSigTransaction signs a transaction with a LogicSigAccount.
