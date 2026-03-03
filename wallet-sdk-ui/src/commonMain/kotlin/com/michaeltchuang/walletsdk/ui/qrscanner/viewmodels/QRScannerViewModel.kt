@@ -7,11 +7,8 @@ import com.michaeltchuang.walletsdk.core.deeplink.model.DeepLink
 import com.michaeltchuang.walletsdk.core.deeplink.model.KeyRegTransactionDetail
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
-import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
-import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 class QRScannerViewModel(

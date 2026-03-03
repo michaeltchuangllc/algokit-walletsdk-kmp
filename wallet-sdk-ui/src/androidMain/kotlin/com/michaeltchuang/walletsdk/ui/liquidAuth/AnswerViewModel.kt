@@ -12,7 +12,6 @@ import androidx.core.app.NotificationCompat.Builder
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.algorand.algosdk.account.Account
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.fasterxml.uuid.Generators
@@ -20,9 +19,11 @@ import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
@@ -46,7 +47,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import foundation.algorand.crypto.EncoderType
-import foundation.algorand.crypto.avm.KeyPairs
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
@@ -66,6 +66,7 @@ class AnswerViewModel(
     private val passkeyRepository: PasskeyRepository,
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     private val getAccountMnemonic: GetAccountMnemonic,
+    private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val timeProvider: TimeProvider,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getLocalAccount: GetLocalAccount,
@@ -239,12 +240,25 @@ class AnswerViewModel(
         challenge: ByteArray,
         address: String,
     ): ByteArray? {
-        val localAccount = getLocalAccount(address) ?: return null
+        println("DEBUG: signFido2Challenge called for address: $address")
+        val localAccount =
+            getLocalAccount(address) ?: run {
+                println("DEBUG: getLocalAccount returned null for $address")
+                return null
+            }
+        println("DEBUG: localAccount type: ${localAccount::class.simpleName}")
         return when (localAccount) {
             is LocalAccount.Algo25 -> {
-                val mnemonic = getMnemonic(address) ?: return null
-                val keyPair = KeyPairs.getKeyPair(mnemonic)
-                KeyPairs.rawSignBytes(challenge, keyPair.private)
+                println("DEBUG: Algo25 account, calling getAlgo25SecretKey")
+                val secretKey =
+                    getAlgo25SecretKey(address) ?: run {
+                        println("DEBUG: getAlgo25SecretKey returned null")
+                        return null
+                    }
+                println("DEBUG: Got secretKey with size: ${secretKey.size}")
+                val result = signAlgo25ArbitraryData(challenge, secretKey)
+                println("DEBUG: signAlgo25ArbitraryData returned: ${result != null}")
+                result
             }
 
             is LocalAccount.HdKey -> {
@@ -288,7 +302,15 @@ class AnswerViewModel(
         return when (localAccount) {
             is LocalAccount.Falcon24 -> localAccount.publicKey
             is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Algo25 -> Account(getMnemonic(localAccount.algoAddress)).ed25519PublicKey.bytes
+            is LocalAccount.Algo25 -> {
+                // Get secret key and extract public key (last 32 bytes of 64-byte expanded key)
+                val secretKey = getAlgo25SecretKey(address)
+                if (secretKey != null && secretKey.size == 64) {
+                    secretKey.copyOfRange(32, 64) // Last 32 bytes are the public key
+                } else {
+                    ByteArray(0)
+                }
+            }
             else -> ByteArray(0)
         }
     }
@@ -308,7 +330,7 @@ class AnswerViewModel(
             Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
             Log.d(TAG, "Message length: ${msgStr.length}")
             Log.d(TAG, "========================================")
-            val cborBytes = Base64.UrlSafe.decode(msgStr)
+            val cborBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
 
             // Log first bytes to verify incoming CBOR encoding type
             if (cborBytes.isNotEmpty()) {
