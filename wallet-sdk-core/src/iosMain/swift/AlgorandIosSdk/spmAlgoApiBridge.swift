@@ -398,20 +398,38 @@ import AlgoKitTransact
             return nil
         }
 
+        // Create BytesArray and add the transaction
+        let txnsArray = AlgoSDK.AlgoSdkBytesArray()
+        txnsArray.append(transactionBytes)
+
         var error: NSError?
-        guard let signedBytes = AlgoSDK.AlgoSdkSignFalconTransaction(
-            transactionBytes,
+        // AlgoSdkSignFalconBundle returns a CSV of base64 signed transactions (non-optional)
+        let csv = AlgoSDK.AlgoSdkSignFalconBundle(
+            txnsArray,
             publicKeyData,
             privateKeyData,
             &error
-        ) else {
-            if let error = error {
-                print("Error signing Falcon transaction: \(error)")
-            }
+        )
+
+        if let error = error {
+            print("Error signing Falcon bundle: \(error)")
             return nil
         }
 
-        return signedBytes
+        // Parse CSV and decode all base64 transactions, then concatenate
+        let signedTxns = csv.components(separatedBy: ",")
+        var outputData = Data()
+        for encodedTxn in signedTxns {
+            guard !encodedTxn.isEmpty,
+                  let decodedData = Data(base64Encoded: encodedTxn)
+            else {
+                print("Failed to decode transaction from CSV: \(encodedTxn.prefix(20))...")
+                continue
+            }
+            outputData.append(decodedData)
+        }
+
+        return outputData.isEmpty ? nil : outputData
     }
     
     public func signFalconArbitraryDataWithBase64(
