@@ -1,8 +1,8 @@
 [versions]
 agp = "8.10.0"
-algoGoMobilesdk = "2026.2.1"
+algoGoMobilesdk = "2026.2.2"
 algoSdk = "2.10.1"
-algokit-walletSdk = "3.202601.10"
+algokit-walletSdk = "3.202601.11"
 algorand-foundation = "0.1.0"
 android-compileSdk = "36"
 android-minSdk = "34"
