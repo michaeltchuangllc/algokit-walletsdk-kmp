@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -47,6 +48,19 @@ android {
 }
 
 dependencies {
+    // Solana Mobile Seed Vault SDK
+    implementation(libs.seedvault.wallet.sdk)
+    
+    // Solana Kotlin SDK for network calls
+    implementation(libs.sol4k)
+
+    // Ktor for HTTP client
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.kotlinx.serialization)
+    implementation(libs.ktor.client.logging)
+    
     // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -54,6 +68,8 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.activityCompose)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     debugImplementation(libs.compose.ui.tooling)
     
     // Android - needed for Material theme in AndroidManifest
