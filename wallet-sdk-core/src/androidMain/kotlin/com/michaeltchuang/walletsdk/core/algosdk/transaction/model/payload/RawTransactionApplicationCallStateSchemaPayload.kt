@@ -1,9 +1,12 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.model.payload
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.Contextual
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import java.math.BigInteger
 
+@Serializable
 internal data class RawTransactionApplicationCallStateSchemaPayload(
-    @SerializedName("nui") val numberOfInts: BigInteger? = null,
-    @SerializedName("nbs") val numberOfBytes: BigInteger? = null,
+    @Contextual @SerialName("nui") val numberOfInts: BigInteger? = null,
+    @Contextual @SerialName("nbs") val numberOfBytes: BigInteger? = null,
 )

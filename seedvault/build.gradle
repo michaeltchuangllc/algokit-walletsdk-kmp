@@ -1,0 +1,117 @@
+/*
+ * Copyright (c) 2022 Solana Mobile Inc.
+ */
+
+plugins {
+    alias(libs.plugins.android.library)
+    id 'maven-publish'
+    id 'signing'
+}
+
+android {
+    namespace = 'com.solanamobile.seedvault'
+    compileSdk 36
+
+    defaultConfig {
+        // Note: 'minSdk 17' ensures that the library can be used with apps targeting much older
+        // Android versions. It's only useful on devices which expose the Seed Vault API.
+        minSdk 17
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+
+    publishing {
+        singleVariant('release') {
+            withSourcesJar()
+            withJavadocJar()
+        }
+    }
+}
+
+publishing {
+    publications {
+        release(MavenPublication) {
+            groupId = group
+            artifactId = 'seedvault-wallet-sdk'
+            pom {
+                name = 'Seed Vault - Wallet SDK'
+                description = 'Android programming interfaces for the Solana Mobile Stack Seed Vault'
+                url = 'https://github.com/solana-mobile/seed-vault-sdk'
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        name = 'Solana Mobile Engineering'
+                        email = 'eng@solanamobile.com'
+                        organization = 'Solana Mobile Inc.'
+                        organizationUrl = 'https://solanamobile.com'
+                    }
+                }
+                organization {
+                    name = 'Solana Mobile Inc.'
+                    url = 'https://solanamobile.com'
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/solana-mobile/seed-vault-sdk.git'
+                    developerConnection = 'scm:git:ssh://github.com/solana-mobile/seed-vault-sdk.git'
+                    url = 'https://github.com/solana-mobile/seed-vault-sdk/tree/main'
+                }
+            }
+
+            afterEvaluate {
+                from components.release
+            }
+        }
+    }
+}
+
+signing {
+    // Signing private key and password provided by ORG_GRADLE_PROJECT_signingKey and
+    // ORG_GRADLE_PROJECT_signingPassword, respectively
+    def signingKey = findProperty('signingKey')
+    def signingPassword = findProperty('signingPassword')
+    useInMemoryPgpKeys(signingKey, signingPassword)
+    sign publishing.publications.release
+}
+
+// Define JavaDoc build task for all variants
+android.libraryVariants.configureEach { variant ->
+    tasks.register("generate${variant.name.capitalize()}Javadoc", Javadoc) {
+        description "Generates Javadoc for $variant.name."
+        source = variant.javaCompileProvider.get().source
+        classpath = project.files(android.getBootClasspath().join(File.pathSeparator))
+        classpath += files(variant.javaCompileProvider.get().classpath)
+        options.links("https://docs.oracle.com/en/java/javase/11/docs/api/")
+        options.links("https://d.android.com/reference/")
+        exclude '**/BuildConfig.java'
+        exclude '**/R.java'
+    }
+}
+
+// Build JavaDoc when making a release build
+tasks.configureEach { task ->
+    if (task.name == 'assembleRelease') {
+        task.dependsOn("generateReleaseJavadoc")
+    }
+}
+
+dependencies {
+    compileOnly libs.androidx.annotation
+}

@@ -104,10 +104,6 @@ fun QRCodeScannerScreen(
                     navController.navigate(AlgoKitScreens.LIQUID_AUTH_SCREEN.name + "?uri=$encodedUri")
                 }
 
-                is QRScannerViewModel.ViewEvent.ShowLiquidAuthMainnetNotSupported -> {
-                    onQrScanned("Liquid Auth on Mainnet is not supported yet")
-                }
-
                 is QRScannerViewModel.ViewEvent.ShowUnrecognizedDeeplink -> {
                     onQrScanned("Unrecognized QR Code")
                 }

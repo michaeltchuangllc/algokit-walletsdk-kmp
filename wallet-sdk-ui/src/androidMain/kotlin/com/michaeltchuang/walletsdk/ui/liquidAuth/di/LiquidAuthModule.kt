@@ -71,6 +71,7 @@ val liquidAuthUIModule =
                 passkeyRepository = get(),
                 setPasskeyLastUsedTime = get(),
                 getAccountMnemonic = get(),
+                getAlgo25SecretKey = get(),
                 timeProvider = get(),
                 getFalcon24SecretKey = get(),
                 getLocalAccount = get(),

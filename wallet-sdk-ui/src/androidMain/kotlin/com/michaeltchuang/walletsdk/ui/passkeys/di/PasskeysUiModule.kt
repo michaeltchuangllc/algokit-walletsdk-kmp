@@ -5,12 +5,12 @@ package com.michaeltchuang.walletsdk.ui.passkeys.di
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePasskeyParamsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePublicKeyCredentialResponseArgsMapper
+import com.michaeltchuang.walletsdk.core.passkeys.mapper.DefaultCreatePasskeyParamsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.DefaultCreatePublicKeyCredentialResponseArgsMapper
 import com.michaeltchuang.walletsdk.core.passkeys.validator.CreatePasskeyIntentValidator
 import com.michaeltchuang.walletsdk.core.passkeys.validator.GetPasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.DefaultCreatePasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.DefaultGetPasskeyIntentValidator
-import com.michaeltchuang.walletsdk.ui.passkeys.mapper.DefaultCreatePasskeyParamsMapper
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.CreatePasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
