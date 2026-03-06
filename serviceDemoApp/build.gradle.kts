@@ -48,17 +48,18 @@ android {
 }
 
 dependencies {
-    //module
-    implementation (project(":seedvault"))
+    // Solana Mobile Seed Vault SDK
+    implementation(libs.seedvault.wallet.sdk)
     
     // Solana Kotlin SDK for network calls
-    implementation("org.sol4k:sol4k:0.7.0")
+    implementation(libs.sol4k)
 
-    // OkHttp for reliable HTTP
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-
-    // Ktor (keep for potential future use)
+    // Ktor for HTTP client
     implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.android)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.kotlinx.serialization)
+    implementation(libs.ktor.client.logging)
     
     // Compose
     implementation(platform(libs.androidx.compose.bom))

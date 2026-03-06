@@ -78,8 +78,10 @@ review = "2.0.2"
 room = "2.7.0"
 rules = "1.7.0"
 runner = "1.6.2"
+seedvaultWalletSdk = "0.4.0"
 shot = "6.1.0"
 socketio = "2.1.0"
+sol4k = "0.7.0"
 spmForKmp = "1.2.0"
 sqlite = "2.5.0"
 stream-webrtc = "1.3.10"
@@ -141,6 +143,8 @@ ktor-utils = { module = "io.ktor:ktor-utils", version.ref = "ktor" }
 datastore = { module = "androidx.datastore:datastore", version.ref = "datastore" }
 datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
 paging-runtime-ktx = { module = "androidx.paging:paging-runtime-ktx", version.ref = "paging" }
+seedvault-wallet-sdk = { module = "com.solanamobile:seedvault-wallet-sdk", version.ref = "seedvaultWalletSdk" }
+sol4k = { module = "org.sol4k:sol4k", version.ref = "sol4k" }
 sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "sqlite" }
 room-gradle-plugin = { module = "androidx.room:room-gradle-plugin", version.ref = "room" }
 room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }

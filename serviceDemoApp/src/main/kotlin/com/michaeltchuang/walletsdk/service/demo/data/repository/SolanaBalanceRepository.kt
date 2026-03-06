@@ -1,27 +1,34 @@
 package com.michaeltchuang.walletsdk.service.demo.data.repository
 
 import android.util.Log
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.logging.LogLevel
+import io.ktor.client.plugins.logging.Logger
+import io.ktor.client.plugins.logging.Logging
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.request.url
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 
 /**
  * Repository for fetching Solana account balances from the network.
- * Uses OkHttp for reliable HTTP communication with Solana RPC endpoints.
+ * Uses Ktor for HTTP communication with Solana RPC endpoints.
  */
 class SolanaBalanceRepository {
 
     companion object {
         private const val TAG = "SolanaBalanceRepository"
         private const val LAMPORTS_PER_SOL = 1_000_000_000.0
-        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         // RPC endpoints - using devnet for testing
         const val MAINNET_RPC = "https://api.mainnet-beta.solana.com"
@@ -35,7 +42,7 @@ class SolanaBalanceRepository {
         }
     }
 
-    private var httpClient: OkHttpClient? = null
+    private var httpClient: HttpClient? = null
     private var rpcEndpoint: String = DEVNET_RPC
 
     /**
@@ -58,14 +65,23 @@ class SolanaBalanceRepository {
             Cluster.TESTNET -> TESTNET_RPC
         }
 
-        httpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .retryOnConnectionFailure(true)
-            .build()
+        httpClient = HttpClient(Android) {
+            install(ContentNegotiation) {
+                json(json)
+            }
+            install(Logging) {
+                logger = object : Logger {
+                    override fun log(message: String) {
+                        Log.d(TAG, message)
+                    }
+                }
+                level = LogLevel.INFO
+            }
+            engine {
+                connectTimeout = 30_000
+                socketTimeout = 30_000
+            }
+        }
 
         Log.d(TAG, "Initialized connection to ${cluster.name} at $rpcEndpoint")
     }
@@ -82,54 +98,30 @@ class SolanaBalanceRepository {
                 return@withContext null
             }
 
-            // Create JSON request manually using raw string
+            // Create JSON request
             val requestJson = """{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["$publicKeyBase58"]}"""
 
             Log.d(TAG, "Sending request to: $rpcEndpoint")
             Log.d(TAG, "Request body: $requestJson")
             Log.d(TAG, "Public key: $publicKeyBase58")
 
-            // Build OkHttp request
-            val httpRequest = Request.Builder()
-                .url(rpcEndpoint)
-                .post(requestJson.toRequestBody(JSON_MEDIA_TYPE))
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .build()
+            // Execute Ktor request
+            val response: String = client.post {
+                url(rpcEndpoint)
+                contentType(ContentType.Application.Json)
+                setBody(requestJson)
+            }.body()
 
-            // Execute request
-            val response = client.newCall(httpRequest).execute()
+            Log.d(TAG, "Response received - length: ${response.length}")
 
-            Log.d(TAG, "Response received - Code: ${response.code}, Success: ${response.isSuccessful}")
-
-            if (!response.isSuccessful) {
-                Log.e(TAG, "HTTP Error: ${response.code} - ${response.message}")
-                response.body?.string()?.let { errorBody ->
-                    Log.e(TAG, "Error body: $errorBody")
-                }
-                response.close()
-                return@withContext null
-            }
-
-            // Read response body
-            val responseString = response.body?.string()
-            response.close()
-
-            Log.d(TAG, "Response body length: ${responseString?.length ?: 0}")
-
-            if (responseString.isNullOrEmpty()) {
-                Log.e(TAG, "Empty response body - server returned no content")
-                return@withContext null
-            }
-
-            if (responseString.length > 500) {
-                Log.d(TAG, "Raw response (truncated): ${responseString.take(500)}...")
+            if (response.length > 500) {
+                Log.d(TAG, "Raw response (truncated): ${response.take(500)}...")
             } else {
-                Log.d(TAG, "Raw response: $responseString")
+                Log.d(TAG, "Raw response: $response")
             }
 
             // Parse JSON response
-            parseBalanceResponse(responseString, publicKeyBase58)
+            parseBalanceResponse(response, publicKeyBase58)
 
         } catch (e: Exception) {
             Log.e(TAG, "Error fetching balance for $publicKeyBase58", e)
@@ -200,7 +192,7 @@ class SolanaBalanceRepository {
      * Close the HTTP client and cleanup resources.
      */
     fun close() {
-        httpClient?.dispatcher?.executorService?.shutdown()
+        httpClient?.close()
         httpClient = null
     }
 }

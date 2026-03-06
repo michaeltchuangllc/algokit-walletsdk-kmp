@@ -6,27 +6,21 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.sol4k.Connection
 import org.sol4k.Keypair
 import org.sol4k.PublicKey
 import org.sol4k.Transaction
 import org.sol4k.instruction.TransferInstruction
-import java.util.concurrent.TimeUnit
 
 /**
  * Repository for creating and sending Solana transfer transactions.
- * Uses sol4k for transaction building and OkHttp for RPC communication.
+ * Uses sol4k for transaction building and RPC communication.
  */
 class SolanaTransferRepository {
 
     companion object {
         private const val TAG = "SolanaTransferRepository"
         private const val LAMPORTS_PER_SOL = 1_000_000_000L
-        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
         // RPC endpoints - using devnet for testing
         const val MAINNET_RPC = "https://api.mainnet-beta.solana.com"
@@ -40,7 +34,6 @@ class SolanaTransferRepository {
         }
     }
 
-    private var httpClient: OkHttpClient? = null
     private var rpcEndpoint: String = DEVNET_RPC
     private var connection: Connection? = null
 
@@ -72,15 +65,6 @@ class SolanaTransferRepository {
             Cluster.DEVNET -> DEVNET_RPC
             Cluster.TESTNET -> TESTNET_RPC
         }
-
-        httpClient = OkHttpClient.Builder()
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            .writeTimeout(30, TimeUnit.SECONDS)
-            .followRedirects(true)
-            .followSslRedirects(true)
-            .retryOnConnectionFailure(true)
-            .build()
 
         // Initialize sol4k connection
         connection = Connection(rpcEndpoint)
@@ -155,7 +139,7 @@ class SolanaTransferRepository {
                 serializedWithEmptySig
             }
             Log.d(TAG, "Transaction message serialized: ${serializedMessage.size} bytes (raw: ${serializedWithEmptySig.size} bytes)")
-            Log.d(TAG, "Message first 10 bytes hex: ${serializedMessage.take(10).joinToString(" ") { "%02x".format(it) }}")
+            Log.d(TAG, "Message first 10 bytes hex: ${serializedMessage.take(10).joinToString(" ") { "%02x".format(it) }})")
 
             Pair(transaction, serializedMessage)
         } catch (e: Exception) {
@@ -202,7 +186,7 @@ class SolanaTransferRepository {
         Log.d(TAG, "  - Signature count: $signatureCount (1 byte)")
         Log.d(TAG, "  - Signature: ${signatureLength} bytes")
         Log.d(TAG, "  - Message: ${message.size} bytes")
-        Log.d(TAG, "  - First 10 bytes hex: ${result.take(10).joinToString(" ") { "%02x".format(it) }}")
+        Log.d(TAG, "  - First 10 bytes hex: ${result.take(10).joinToString(" ") { "%02x".format(it) }})")
 
         return result
     }
@@ -305,7 +289,7 @@ class SolanaTransferRepository {
     /**
      * Check if repository is initialized.
      */
-    fun isInitialized(): Boolean = connection != null && httpClient != null
+    fun isInitialized(): Boolean = connection != null
 
     /**
      * Get the current RPC endpoint URL.
@@ -313,11 +297,9 @@ class SolanaTransferRepository {
     fun getRpcEndpoint(): String = rpcEndpoint
 
     /**
-     * Close the HTTP client and cleanup resources.
+     * Close the connection and cleanup resources.
      */
     fun close() {
-        httpClient?.dispatcher?.executorService?.shutdown()
-        httpClient = null
         connection = null
     }
 
