@@ -1,7 +1,12 @@
 package com.michaeltchuang.walletsdk.service.demo.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -40,7 +45,6 @@ import com.michaeltchuang.walletsdk.service.demo.WalletScreens
 import com.michaeltchuang.walletsdk.service.demo.WalletServiceConstants
 import com.michaeltchuang.walletsdk.service.demo.data.model.AccountLite
 import com.michaeltchuang.walletsdk.service.demo.data.model.SolanaAccount
-import com.michaeltchuang.walletsdk.service.demo.data.model.SolanaSeed
 import com.michaeltchuang.walletsdk.service.demo.ui.viewmodel.WalletServiceDemoViewModel
 
 @Composable
@@ -340,7 +344,7 @@ fun WalletServiceDemoScreen(
 /**
  * Launch the wallet overlay activity with the specified initial screen.
  */
-private fun launchWalletActivity(context: android.content.Context, initialScreen: String) {
+private fun launchWalletActivity(context: Context, initialScreen: String) {
     val intent = Intent(WalletServiceConstants.ACTIVITY_ACTION).apply {
         putExtra(WalletServiceConstants.EXTRA_INITIAL_SCREEN, initialScreen)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -350,6 +354,8 @@ private fun launchWalletActivity(context: android.content.Context, initialScreen
 
 @Composable
 fun AccountCard(account: AccountLite) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -366,6 +372,42 @@ fun AccountCard(account: AccountLite) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            
+            // Full address with copy button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = account.address,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Copy button
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Algorand Address", account.address)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Address copied!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .height(28.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Copy",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = "Balance: ${account.balance ?: "0"} microAlgos",
@@ -389,6 +431,8 @@ fun FlatAccountCard(
     account: SolanaAccount,
     seedName: String
 ) {
+    val context = LocalContext.current
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -425,13 +469,40 @@ fun FlatAccountCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // Full public key (smaller, for reference)
-            Text(
-                text = account.publicKeyEncoded,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
+            // Full public key with copy button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = account.publicKeyEncoded,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Copy button
+                Button(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        val clip = ClipData.newPlainText("Solana Address", account.publicKeyEncoded)
+                        clipboard.setPrimaryClip(clip)
+                        Toast.makeText(context, "Address copied!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .height(28.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                ) {
+                    Text(
+                        text = "Copy",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -454,6 +525,7 @@ fun FlatAccountCard(
                     }
                 }
                 account.balance != null -> {
+                    Log.d("WalletServiceDemo", "Displaying balance for ${account.name}: ${account.balance} SOL")
                     Text(
                         text = "%.4f SOL".format(account.balance),
                         style = MaterialTheme.typography.titleSmall,
@@ -462,11 +534,22 @@ fun FlatAccountCard(
                     )
                 }
                 else -> {
-                    Text(
-                        text = "Balance: --",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    // Balance fetch failed (null but not loading)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = "⚠",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            text = "Balance: Error (tap Refresh)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
                 }
             }
         }

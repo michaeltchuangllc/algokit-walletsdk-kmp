@@ -19,7 +19,6 @@ import com.michaeltchuang.walletsdk.service.demo.data.repository.SolanaTransferR
 import com.solanamobile.seedvault.Bip32DerivationPath
 import com.solanamobile.seedvault.Bip44DerivationPath
 import com.solanamobile.seedvault.BipLevel
-import com.solanamobile.seedvault.SeedVault
 import com.solanamobile.seedvault.Wallet
 import com.solanamobile.seedvault.WalletContractV1
 import kotlinx.coroutines.Dispatchers
@@ -52,7 +51,9 @@ data class WalletServiceDemoUiState(
     val transferLoading: Boolean = false,
     val transferError: String? = null,
     val lastTransferSignature: String? = null,
-    val pendingTransferTransaction: String? = null  // Base64-encoded unsigned transaction
+    val pendingTransferTransaction: String? = null,  // Base64-encoded unsigned transaction
+    // Network info
+    val currentNetwork: String = "DEVNET"  // Always defaults to DEVNET
 )
 
 /**
@@ -166,7 +167,39 @@ class WalletServiceDemoViewModel(
      */
     fun initializeBalanceRepository(cluster: Cluster = Cluster.DEVNET) {
         balanceRepository.initialize(cluster)
-        Log.d("WalletServiceDemo", "Balance repository initialized for ${cluster.name}")
+        _uiState.update { it.copy(currentNetwork = cluster.name) }
+        Log.d("WalletServiceDemo", "Balance repository initialized for ${cluster.name} at ${balanceRepository.getRpcEndpoint()}")
+    }
+
+    /**
+     * Switch to a different Solana network cluster.
+     * This reinitializes both balance and transfer repositories.
+     * @param cluster The network cluster to switch to
+     */
+    fun switchNetwork(cluster: Cluster) {
+        // Close existing connections
+        balanceRepository.close()
+        transferRepository.close()
+
+        // Reinitialize with new cluster
+        balanceRepository.initialize(cluster)
+        transferRepository.initialize(
+            when (cluster) {
+                Cluster.MAINNET_BETA -> SolanaTransferRepository.Cluster.MAINNET_BETA
+                Cluster.DEVNET -> SolanaTransferRepository.Cluster.DEVNET
+                Cluster.TESTNET -> SolanaTransferRepository.Cluster.TESTNET
+            }
+        )
+
+        _uiState.update { it.copy(currentNetwork = cluster.name) }
+        Log.d("WalletServiceDemo", "Switched to ${cluster.name} - Balance: ${balanceRepository.getRpcEndpoint()}, Transfer: ${transferRepository.getRpcEndpoint()}")
+
+        // Refresh balances if seeds are available
+        if (_uiState.value.seeds.isNotEmpty()) {
+            viewModelScope.launch {
+                fetchBalancesForSeeds()
+            }
+        }
     }
 
     /**
@@ -283,7 +316,8 @@ class WalletServiceDemoViewModel(
                 // Auto-initialize balance repository if not already initialized
                 if (!balanceRepository.isInitialized()) {
                     balanceRepository.initialize(Cluster.DEVNET)
-                    Log.d("WalletServiceDemo", "Auto-initialized balance repository for DEVNET")
+                    _uiState.update { it.copy(currentNetwork = Cluster.DEVNET.name) }
+                    Log.d("WalletServiceDemo", "Auto-initialized balance repository for DEVNET at ${balanceRepository.getRpcEndpoint()}")
                 }
 
                 // First fetch seeds from Seed Vault
@@ -373,11 +407,22 @@ class WalletServiceDemoViewModel(
                 }
 
                 accountsCursor?.use { acCursor ->
+                    Log.d("WalletServiceDemo", "Processing ${acCursor.count} accounts for seed: $seedName")
                     while (acCursor.moveToNext()) {
                         val accountId = acCursor.getLong(0)
                         val derivationPath = Uri.parse(acCursor.getString(1))
                         val publicKeyEncoded = acCursor.getString(3)
                         val accountName = acCursor.getString(4)
+                        
+                        Log.d("WalletServiceDemo", "========================================")
+                        Log.d("WalletServiceDemo", "ACCOUNT FOUND - Full Details:")
+                        Log.d("WalletServiceDemo", "  Account ID: $accountId")
+                        Log.d("WalletServiceDemo", "  Derivation Path: $derivationPath")
+                        Log.d("WalletServiceDemo", "  Account Name: $accountName")
+                        Log.d("WalletServiceDemo", "  Public Key (FULL): $publicKeyEncoded")
+                        Log.d("WalletServiceDemo", "  Public Key Length: ${publicKeyEncoded.length} chars")
+                        Log.d("WalletServiceDemo", "========================================")
+                        
                         accounts.add(
                             SolanaAccount(
                                 accountId = accountId,
@@ -499,7 +544,14 @@ class WalletServiceDemoViewModel(
         val allAccounts = currentSeeds.flatMap { it.accounts }
         val publicKeys = allAccounts.map { it.publicKeyEncoded }
 
-        Log.d("WalletServiceDemo", "Fetching balances for ${publicKeys.size} accounts from ${balanceRepository.getRpcEndpoint()}")
+        Log.d("WalletServiceDemo", "========================================")
+        Log.d("WalletServiceDemo", "FETCHING BALANCES FOR ${publicKeys.size} ACCOUNTS:")
+        Log.d("WalletServiceDemo", "Network: ${balanceRepository.getRpcEndpoint()}")
+        Log.d("WalletServiceDemo", "Addresses:")
+        publicKeys.forEachIndexed { index, address ->
+            Log.d("WalletServiceDemo", "  [$index] $address")
+        }
+        Log.d("WalletServiceDemo", "========================================")
 
         // Fetch all balances
         val balances = balanceRepository.fetchBalances(publicKeys)
@@ -508,23 +560,39 @@ class WalletServiceDemoViewModel(
         val totalBalance = balances.values.filterNotNull().sum()
         val successCount = balances.values.count { it != null }
         val failCount = balances.size - successCount
+        
+        // Log which accounts failed
+        if (failCount > 0) {
+            Log.w("WalletServiceDemo", "Failed to fetch balances for:")
+            balances.filter { it.value == null }.forEach { (address, _) ->
+                Log.w("WalletServiceDemo", "  - $address")
+            }
+        }
 
         Log.d("WalletServiceDemo", "Balance fetch complete: $successCount success, $failCount failed, Total: $totalBalance SOL")
 
         // Update seeds with balance data
         _uiState.update { state ->
+            val updatedSeeds = state.seeds.map { seed ->
+                seed.copy(
+                    accounts = seed.accounts.map { account ->
+                        val balance = balances[account.publicKeyEncoded]
+                        Log.d("WalletServiceDemo", "Assigning balance to ${account.name}: ${balance ?: "NULL (failed)"} SOL for ${account.publicKeyEncoded}")
+                        account.copy(
+                            balance = balance,
+                            isBalanceLoading = false
+                        )
+                    }
+                )
+            }
+            
+            // Log summary
+            val allUpdatedAccounts = updatedSeeds.flatMap { it.accounts }
+            val totalUpdatedBalance = allUpdatedAccounts.mapNotNull { it.balance }.sum()
+            Log.d("WalletServiceDemo", "UI updated with ${allUpdatedAccounts.size} accounts, total balance: $totalUpdatedBalance SOL")
+            
             state.copy(
-                seeds = state.seeds.map { seed ->
-                    seed.copy(
-                        accounts = seed.accounts.map { account ->
-                            val balance = balances[account.publicKeyEncoded]
-                            account.copy(
-                                balance = balance,
-                                isBalanceLoading = false
-                            )
-                        }
-                    )
-                },
+                seeds = updatedSeeds,
                 totalBalance = totalBalance,
                 balanceLoading = false,
                 balanceError = if (failCount > 0) "Failed to fetch $failCount balance(s)" else null
@@ -639,7 +707,8 @@ class WalletServiceDemoViewModel(
     ) {
         if (!transferRepository.isInitialized()) {
             transferRepository.initialize(SolanaTransferRepository.Cluster.DEVNET)
-            Log.d("WalletServiceDemo", "Auto-initialized transfer repository for DEVNET")
+            _uiState.update { it.copy(currentNetwork = SolanaTransferRepository.Cluster.DEVNET.name) }
+            Log.d("WalletServiceDemo", "Auto-initialized transfer repository for DEVNET at ${transferRepository.getRpcEndpoint()}")
         }
 
         // Validate inputs
