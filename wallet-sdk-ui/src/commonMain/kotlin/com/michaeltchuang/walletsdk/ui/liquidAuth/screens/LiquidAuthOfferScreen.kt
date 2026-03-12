@@ -21,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -30,14 +31,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.qualityRating
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -69,37 +78,109 @@ fun LiquidAuthOfferScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
+    creatorAddress: String? = null,  // For X402 paid streaming
+    enablePaidStreaming: Boolean = false,  // Toggle X402 payments
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
+    val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
+    
+    // Convert microAlgos to AlgOS for display
+    val balanceAlgos = remainingBalanceMicroAlgos?.let { it / 1_000_000.0 }
 
     // Auto-generate offer on first composition
     LaunchedEffect(origin) {
         viewModel.generateOffer(origin)
     }
 
-    // Wire up connection manager to ViewModel
-    LaunchedEffect(Unit) {
-        connectionManager?.initialize(viewModel)
+    // Wire up connection manager to ViewModel - CRITICAL: must happen before listening
+    LaunchedEffect(connectionManager, viewModel) {
+        if (connectionManager != null) {
+            println("🔗 Initializing connection manager with viewModel")
+            connectionManager.initialize(viewModel)
+            println("🔗 Connection manager initialized")
+        }
     }
     
-    // Start/stop listening based on state
-    LaunchedEffect(state) {
+    // Start listening after initialization
+    LaunchedEffect(state, connectionManager) {
+        // Ensure connectionManager is initialized before starting
+        if (connectionManager == null) {
+            println("⚠️ Cannot start listening - connectionManager is null")
+            return@LaunchedEffect
+        }
+        
         val currentState = state
+        println("🔗 State changed to: ${currentState::class.simpleName}")
+        
         when (currentState) {
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
-                connectionManager?.startListening(
+                println("🔗 Starting listening for requestId: ${currentState.requestId}")
+                connectionManager.startListening(
                     origin = currentState.origin,
                     requestId = currentState.requestId
                 )
             }
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming -> {
-                // Connection established - service is handling it
+                println("🔗 Connection established - service handling")
+            }
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
+                println("🔗 Waiting for payment - keeping connection open")
             }
             else -> {
-                // Idle, Loading, or Error - stop listening
-                connectionManager?.stopListening()
+                println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
+                connectionManager.stopListening()
+            }
+        }
+    }
+
+    // Handle X402 PaymentRequested event - only depend on viewModel to avoid restarts
+    // Use rememberUpdatedState to always get latest parameter values
+    val currentEnablePaidStreaming by rememberUpdatedState(enablePaidStreaming)
+    val currentCreatorAddress by rememberUpdatedState(creatorAddress)
+    val currentConnectionManager by rememberUpdatedState(connectionManager)
+    
+    LaunchedEffect(viewModel) {
+        viewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidAuthOfferViewModel.OfferEvent.ClientConnected -> {
+                    // Capture values in local variables for smart cast
+                    val canRequestPayment = currentEnablePaidStreaming
+                    val address = currentCreatorAddress
+                    println("💰 ClientConnected event received! enablePaidStreaming=$canRequestPayment, creatorAddress=$address")
+                    // Auto-request payment when paid streaming is enabled
+                    if (canRequestPayment && address != null) {
+                        println("💰 Requesting payment from client...")
+                        viewModel.requestPaymentFromClient(address)
+                    } else {
+                        println("💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)")
+                    }
+                }
+                is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
+                    // Send payment request to client via data channel
+                    println("💰 PaymentRequested event received, sending via connectionManager...")
+                    currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
+                    println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
+                }
+                is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
+                    // Start block consumption when payment received
+                    println("💰 PaymentReceived event received!")
+                    val sessionId = viewModel.getCurrentSessionId()
+                    if (sessionId != null) {
+                        currentConnectionManager?.startBlockConsumption(sessionId)
+                        println("💰 Payment received! Starting block consumption")
+                    }
+                }
+                is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
+                    // Stop everything when funds depleted
+                    currentConnectionManager?.stopBlockConsumption()
+                    viewModel.stopVideoStreaming()  // Stop the video feed
+                    println("💰 Funds depleted! Stopping stream and block consumption")
+                    println("💰 Viewer must pay again to resume streaming")
+                }
+                else -> { /* other events */ }
             }
         }
     }
@@ -108,6 +189,7 @@ fun LiquidAuthOfferScreen(
     DisposableEffect(Unit) {
         onDispose {
             connectionManager?.stopListening()
+            connectionManager?.stopBlockConsumption()
         }
     }
 
@@ -157,7 +239,27 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferState.Connected -> {
                     ConnectedSection(
                         sessionId = currentState.sessionId,
+                        connectionType = connectionType,
+                        balanceAlgos = balanceAlgos,
                         onStartCamera = { viewModel.startVideoStreaming() },
+                        onDisconnect = { connectionManager?.stopListening() },
+                        onRequestPayment = { 
+                            // Request another payment when funds depleted
+                            currentCreatorAddress?.let { address ->
+                                println("💰 Requesting additional payment from viewer...")
+                                viewModel.requestPaymentFromClient(address)
+                            }
+                        },
+                        showStartButton = true,
+                    )
+                }
+
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
+                    WaitingForPaymentSection(
+                        sessionId = currentState.sessionId,
+                        connectionType = connectionType,
+                        balanceAlgos = balanceAlgos,
+                        paymentRequest = currentState.paymentRequest,
                         onDisconnect = { connectionManager?.stopListening() },
                     )
                 }
@@ -165,10 +267,20 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferState.Streaming -> {
                     StreamingSection(
                         sessionId = currentState.sessionId,
+                        connectionType = connectionType,
                         onStopStreaming = { viewModel.stopVideoStreaming() },
                         onDisconnect = { connectionManager?.stopListening() },
                         cameraPreview = cameraPreview,
                     )
+
+                    // Connected Viewers List (shows current viewer and their balance)
+                    if (balanceAlgos != null) {
+                        ConnectedViewersCard(
+                            sessionId = currentState.sessionId,
+                            balanceAlgos = balanceAlgos,
+                            connectionType = connectionType,
+                        )
+                    }
                 }
 
                 is LiquidAuthOfferViewModel.OfferState.Error -> {
@@ -203,6 +315,9 @@ private fun ConnectionStatusCard(
 
         is LiquidAuthOfferViewModel.OfferState.Connected ->
             "Client connected! Ready to stream" to SuccessGreen
+
+        is LiquidAuthOfferViewModel.OfferState.WaitingForPayment ->
+            "Waiting for 1 ALGO deposit..." to PendingYellow
 
         is LiquidAuthOfferViewModel.OfferState.Streaming ->
             "Streaming video to client" to SuccessGreen
@@ -313,8 +428,12 @@ private fun QRCodeSection(
 @Composable
 private fun ConnectedSection(
     sessionId: String,
+    connectionType: IceConnectionType,
+    balanceAlgos: Double?,
     onStartCamera: () -> Unit,
     onDisconnect: () -> Unit,
+    onRequestPayment: () -> Unit = {},
+    showStartButton: Boolean = true,
 ) {
     Card(
         modifier = Modifier
@@ -361,26 +480,83 @@ private fun ConnectedSection(
                 color = AlgoKitTheme.colors.textGray,
             )
 
+            // Connection Type Indicator (for quality/billing visibility)
+            ConnectionTypeIndicator(
+                connectionType = connectionType,
+                balanceAlgos = balanceAlgos,
+            )
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Start camera button
-            Button(
-                onClick = onStartCamera,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PrimaryPurple,
-                ),
-            ) {
-                Text("Open Camera & Start Streaming")
-            }
+            // Start camera button (only shown when showStartButton is true)
+            if (showStartButton) {
+                // Check if balance is depleted (0 or null means needs payment)
+                val isDepleted = balanceAlgos == null || balanceAlgos <= 0.0
 
-            Text(
-                text = "Stream live video back to the connected device",
-                style = MaterialTheme.typography.bodySmall,
-                color = AlgoKitTheme.colors.textGray,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 16.dp),
-            )
+                if (isDepleted) {
+                    // Show pay to resume button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF44336).copy(alpha = 0.1f),
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            Color(0xFFF44336)
+                        ),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = "⛽ Funds Depleted",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color(0xFFF44336),
+                                fontWeight = FontWeight.Bold,
+                            )
+
+                            Text(
+                                text = "The viewer has used all their deposit. They need to pay 1 ALGO again to resume streaming.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AlgoKitTheme.colors.textGray,
+                                textAlign = TextAlign.Center,
+                            )
+
+                            Button(
+                                onClick = onRequestPayment,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFF44336),
+                                ),
+                            ) {
+                                Text("Request 1 ALGO Payment")
+                            }
+                        }
+                    }
+                } else {
+                    // Normal start streaming button
+                    Button(
+                        onClick = onStartCamera,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = PrimaryPurple,
+                        ),
+                    ) {
+                        Text("Open Camera & Start Streaming")
+                    }
+
+                    Text(
+                        text = "Stream live video back to the connected device",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -406,8 +582,136 @@ private fun ConnectedSection(
 }
 
 @Composable
+private fun WaitingForPaymentSection(
+    sessionId: String,
+    connectionType: IceConnectionType,
+    balanceAlgos: Double?,
+    paymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest,
+    onDisconnect: () -> Unit,
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AlgoKitTheme.colors.layerGray,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Payment indicator
+            Box(
+                modifier = Modifier
+                    .size(80.dp)
+                    .clip(RoundedCornerShape(40.dp))
+                    .background(PendingYellow.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "💰",
+                    style = MaterialTheme.typography.headlineLarge,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Session info
+            Text(
+                text = "Client Connected!",
+                style = MaterialTheme.typography.headlineSmall,
+                color = AlgoKitTheme.colors.textMain,
+            )
+
+            Text(
+                text = "Session: ${sessionId.take(8)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+
+            // Connection Type Indicator
+            ConnectionTypeIndicator(connectionType = connectionType)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Payment request card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = AlgoKitTheme.colors.background,
+                ),
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Waiting for Payment",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                        fontWeight = FontWeight.Bold,
+                    )
+
+                    Text(
+                        text = "1 ALGO deposit required",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AlgoKitTheme.colors.textGray,
+                    )
+
+                    Text(
+                        text = "To: ${paymentRequest.creatorAddress.take(8)}...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                    )
+
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = PendingYellow,
+                    )
+
+                    Text(
+                        text = "Waiting for client to sign transaction...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Disconnect button
+            Button(
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                ),
+            ) {
+                Text("Disconnect")
+            }
+
+            Text(
+                text = "Cancel and force client to reconnect",
+                style = MaterialTheme.typography.bodySmall,
+                color = AlgoKitTheme.colors.textGray,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
 private fun StreamingSection(
     sessionId: String,
+    connectionType: IceConnectionType,
     onStopStreaming: () -> Unit,
     onDisconnect: () -> Unit,
     cameraPreview: @Composable (() -> Unit)?,
@@ -444,6 +748,9 @@ private fun StreamingSection(
                     color = Color.Red,
                 )
             }
+
+            // Connection Type Indicator (shows cost tier for x402 billing)
+            ConnectionTypeIndicator(connectionType = connectionType)
 
             // Camera preview slot
             Box(
@@ -565,8 +872,134 @@ private fun LoadingSection() {
     }
 }
 
+@Composable
+private fun ConnectionTypeIndicator(
+    connectionType: IceConnectionType,
+    balanceAlgos: Double? = null,
+) {
+    val isDetecting = connectionType == IceConnectionType.UNKNOWN
+
+    val backgroundColor = if (isDetecting) {
+        Color.Gray
+    } else {
+        hexToColor(connectionType.colorHex()) ?: AlgoKitTheme.colors.textGray
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = AlgoKitTheme.colors.layerGray.copy(alpha = 0.7f),
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            // Left: Connection type badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Color indicator dot (animated pulse when detecting)
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(backgroundColor),
+                )
+
+                Text(
+                    text = if (isDetecting) "Detecting..." else connectionType.displayName(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AlgoKitTheme.colors.textMain,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            // Right: Balance or Cost tier
+            Column(
+                horizontalAlignment = Alignment.End,
+            ) {
+                // Show balance if available, otherwise show cost tier
+                val displayText = balanceAlgos?.let { 
+                    // Format to 1 decimal place KMP-compatible
+                    val rounded = (kotlin.math.round(it * 10) / 10)
+                    val text = if (rounded == rounded.toInt().toDouble()) {
+                        "${rounded.toInt()}A"
+                    } else {
+                        rounded.toString().take(3) + "A"
+                    }
+                    text
+                } ?: connectionType.costTier()
+                
+                Text(
+                    text = displayText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = when {
+                        balanceAlgos != null -> SuccessGreen
+                        isDetecting -> AlgoKitTheme.colors.textGray
+                        connectionType == IceConnectionType.RELAY -> Color(0xFFFF9800)
+                        else -> Color(0xFF4CAF50)
+                    },
+                    fontWeight = FontWeight.Bold,
+                )
+
+                // Latency info
+                Text(
+                    text = if (isDetecting) "..." else "~${connectionType.typicalLatency()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AlgoKitTheme.colors.textGray,
+                )
+            }
+        }
+    }
+
+    // Help text explaining the cost (only when relay is detected and no balance shown)
+    if (connectionType == IceConnectionType.RELAY && balanceAlgos == null) {
+        Text(
+            text = "⚠️ TURN relay active - higher bandwidth cost",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFFF9800),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+        )
+    }
+}
+
 // Helper colors
 private val SuccessGreen = Color(0xFF4CAF50)
 private val PendingYellow = Color(0xFFFFC107)
 private val PrimaryPurple = Color(0xFF9966FF)
 private val TextGray = Color(0xFF888888)
+
+/**
+ * Convert hex color string (e.g., "#4CAF50") to Compose Color
+ */
+private fun hexToColor(hex: String): Color? {
+    return try {
+        val cleanHex = hex.removePrefix("#")
+        val colorInt = cleanHex.toLong(16)
+        when (cleanHex.length) {
+            6 -> Color(
+                red = ((colorInt shr 16) and 0xFF) / 255f,
+                green = ((colorInt shr 8) and 0xFF) / 255f,
+                blue = (colorInt and 0xFF) / 255f,
+                alpha = 1f
+            )
+            8 -> Color(
+                red = ((colorInt shr 16) and 0xFF) / 255f,
+                green = ((colorInt shr 8) and 0xFF) / 255f,
+                blue = (colorInt and 0xFF) / 255f,
+                alpha = ((colorInt shr 24) and 0xFF) / 255f
+            )
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }
+}

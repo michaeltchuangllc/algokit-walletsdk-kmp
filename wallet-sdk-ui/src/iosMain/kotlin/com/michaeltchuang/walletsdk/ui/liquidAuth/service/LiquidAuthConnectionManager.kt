@@ -1,6 +1,10 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * iOS stub implementation of LiquidAuthConnectionManager.
@@ -9,6 +13,9 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
  * This is a placeholder to satisfy the interface contract.
  */
 class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
+
+    private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
+    override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
         // iOS uses a different architecture - see iosDemoApp
@@ -44,6 +51,20 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     override fun isConnected(): Boolean {
         return false
+    }
+
+    // ================= X402 Payment Stubs =================
+
+    override fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest) {
+        println("IOSLiquidAuthConnectionManager.sendPaymentRequest: iOS stub")
+    }
+
+    override fun startBlockConsumption(sessionId: String) {
+        println("IOSLiquidAuthConnectionManager.startBlockConsumption: iOS stub")
+    }
+
+    override fun stopBlockConsumption() {
+        println("IOSLiquidAuthConnectionManager.stopBlockConsumption: iOS stub")
     }
 }
 

@@ -107,9 +107,11 @@ timeline
             : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : ✅ Onboarding - Add Use Wallet Liquid Auth Integration for Lora
             : ✅ Onboarding - Add Liquid Auth Integration for xGov Website
+            : ✅ Onboarding - Add Liquid Auth Integration for Server Mobile App (Android)
 
     section Future
-    2026Q2  : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+    2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
+            : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
             : 🔄 Seed Vault - Sign test transactions using Seed Vault in emulator app
             : Seed Vault - Modify Seed Vault emulator to allow Algorand seeds

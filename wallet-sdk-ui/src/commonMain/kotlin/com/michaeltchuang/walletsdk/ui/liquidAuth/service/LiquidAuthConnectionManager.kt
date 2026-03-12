@@ -1,6 +1,9 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import kotlinx.coroutines.flow.StateFlow
 
 /**
  * Interface for platform-specific Liquid Auth connection manager.
@@ -9,8 +12,16 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
  * - Starting/binding to the SignalService (Android)
  * - Detecting when a peer connects via WebRTC
  * - Notifying the ViewModel of connection state changes
+ * - Tracking ICE connection type for quality/billing
+ * - X402 payment messaging (payment requests, balance updates)
  */
 interface LiquidAuthConnectionManager {
+
+    /**
+     * Flow of current ICE connection type.
+     * Used for UI quality indicators and x402-style billing.
+     */
+    val connectionType: StateFlow<IceConnectionType>
 
     /**
      * Initialize the connection manager with the ViewModel.
@@ -60,6 +71,25 @@ interface LiquidAuthConnectionManager {
         height: Int,
         format: String = "jpeg",
     )
+
+    // ================= X402 Payment Methods =================
+
+    /**
+     * Send X402 payment request to client.
+     * Requests 1 ALGO deposit to start paid streaming.
+     */
+    fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest)
+
+    /**
+     * Start X402 block consumption timer.
+     * Deducts 0.1 ALGO every 3 seconds (Algorand block time).
+     */
+    fun startBlockConsumption(sessionId: String)
+
+    /**
+     * Stop block consumption timer.
+     */
+    fun stopBlockConsumption()
 }
 
 /**

@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.koin.core.module.dsl.viewModel
@@ -22,6 +23,7 @@ internal val liquidAuthModules =
                     generateOfferUseCase = get<GenerateLiquidAuthOfferUseCase>(),
                     stateDelegate = get(),
                     eventDelegate = get(),
+                    sendSignedTransactionUseCase = get(),
                 )
             }
         },
