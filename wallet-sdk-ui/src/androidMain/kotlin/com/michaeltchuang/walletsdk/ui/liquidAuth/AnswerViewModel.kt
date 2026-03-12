@@ -124,6 +124,31 @@ class AnswerViewModel(
     val signalService = _signalService
     private var attestationApiResponse: String? = null
 
+    // Video streaming state
+    private val _videoFrame = MutableStateFlow<VideoFrameData?>(null)
+    val videoFrame: StateFlow<VideoFrameData?> = _videoFrame
+    private val _lastFrameTimestamp = MutableStateFlow<Long>(0)
+    val lastFrameTimestamp: StateFlow<Long> = _lastFrameTimestamp
+    private val _isStreamActive = MutableStateFlow(false)
+    val isStreamActive: StateFlow<Boolean> = _isStreamActive
+    private val STREAM_TIMEOUT_MS = 3000L // 3 seconds without frames = stream ended
+    
+    init {
+        // Monitor stream activity
+        viewModelScope.launch {
+            while (true) {
+                val lastFrame = _lastFrameTimestamp.value
+                val currentlyActive = if (lastFrame == 0L) {
+                    false
+                } else {
+                    (System.currentTimeMillis() - lastFrame) < STREAM_TIMEOUT_MS
+                }
+                _isStreamActive.value = currentlyActive
+                kotlinx.coroutines.delay(500) // Check every 500ms
+            }
+        }
+    }
+
     // --- Public Setters and Helpers ---
     fun setSession(cookie: String?) {
         if (cookie !== null) _session.value = cookie
@@ -147,6 +172,30 @@ class AnswerViewModel(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun setVideoFrame(frame: VideoFrameData?) {
+        _videoFrame.value = frame
+        if (frame != null) {
+            _lastFrameTimestamp.value = System.currentTimeMillis()
+        }
+    }
+
+    /**
+     * Check if video stream is still active (received frame within timeout)
+     */
+    fun isStreamActive(): Boolean {
+        val lastFrame = _lastFrameTimestamp.value
+        if (lastFrame == 0L) return false
+        return (System.currentTimeMillis() - lastFrame) < STREAM_TIMEOUT_MS
+    }
+
+    /**
+     * Clear video frame when stream ends or client disconnects
+     */
+    fun clearVideoFrame() {
+        _videoFrame.value = null
+        _lastFrameTimestamp.value = 0
     }
 
     fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
@@ -324,12 +373,21 @@ class AnswerViewModel(
     fun handleMessages(
         msgStr: String,
         onSignTransaction: (SignTransactionsParams, Message) -> Unit,
+        onVideoFrame: ((VideoFrameData) -> Unit)? = null,
     ) {
         try {
             Log.d(TAG, "========================================")
             Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
             Log.d(TAG, "Message length: ${msgStr.length}")
             Log.d(TAG, "========================================")
+
+            // Check if it's a video frame message (not Base64/CBOR encoded)
+            if (msgStr.startsWith("{\"reference\":\"liquid:video:frame\"")) {
+                Log.d(TAG, "🎥 Video frame message detected")
+                handleVideoFrameMessage(msgStr, onVideoFrame)
+                return
+            }
+
             val cborBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
 
             // Log first bytes to verify incoming CBOR encoding type
@@ -346,27 +404,63 @@ class AnswerViewModel(
             val request = encoder.decode<RequestMessage>(message.data, message.encoding)
             Log.d(TAG, "Message decoded - Reference: ${request.reference}")
             Log.d(TAG, "Request ID: ${request.id}")
-            if (request.reference == "arc0027:sign_transactions:request") {
-                Log.d(TAG, "✅ Transaction signing request detected")
-                viewModelScope.launch {
-                    val params =
-                        encoder.decode<SignTransactionsParams>(
-                            encoder.encode(
-                                request.params,
+
+            when (request.reference) {
+                "arc0027:sign_transactions:request" -> {
+                    Log.d(TAG, "✅ Transaction signing request detected")
+                    viewModelScope.launch {
+                        val params =
+                            encoder.decode<SignTransactionsParams>(
+                                encoder.encode(
+                                    request.params,
+                                    EncoderType.NONE,
+                                ),
                                 EncoderType.NONE,
-                            ),
-                            EncoderType.NONE,
-                        )
-                    Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
-                    Log.d(TAG, "Provider ID: ${params.providerId}")
-                    onSignTransaction(params, message)
+                            )
+                        Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
+                        Log.d(TAG, "Provider ID: ${params.providerId}")
+                        onSignTransaction(params, message)
+                    }
                 }
-            } else {
-                Log.w(TAG, "⚠️ Unknown request reference: ${request.reference}")
+                "liquid:video:frame" -> {
+                    Log.d(TAG, "🎥 Video frame message detected (CBOR encoded)")
+                    // Handle CBOR-encoded video frame if needed
+                }
+                else -> {
+                    Log.w(TAG, "⚠️ Unknown request reference: ${request.reference}")
+                }
             }
         } catch (e: Throwable) {
             Log.e(TAG, "❌ Error handling message: $e")
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * Handle video frame messages from broadcaster
+     */
+    private fun handleVideoFrameMessage(
+        msgStr: String,
+        onVideoFrame: ((VideoFrameData) -> Unit)?,
+    ) {
+        try {
+            val json = org.json.JSONObject(msgStr)
+            val dataBase64 = json.getString("data")
+            val frameData = java.util.Base64.getDecoder().decode(dataBase64)
+
+            val videoFrame = VideoFrameData(
+                id = json.getString("id"),
+                timestamp = json.getLong("timestamp"),
+                data = frameData,
+                width = json.getInt("width"),
+                height = json.getInt("height"),
+                format = json.optString("format", "jpeg"),
+            )
+
+            Log.d(TAG, "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
+            onVideoFrame?.invoke(videoFrame)
+        } catch (e: Exception) {
+            Log.e(TAG, "❌ Failed to decode video frame: $e")
         }
     }
 
@@ -697,5 +791,47 @@ class AnswerViewModel(
             val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
             val algoAddress: String,
         ) : ViewEvent
+
+        data class VideoFrameReceived(
+            val frame: VideoFrameData,
+        ) : ViewEvent
+    }
+
+    /**
+     * Video frame data class for streaming camera feed
+     */
+    data class VideoFrameData(
+        val id: String,
+        val timestamp: Long,
+        val data: ByteArray,
+        val width: Int,
+        val height: Int,
+        val format: String = "jpeg",
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (javaClass != other?.javaClass) return false
+
+            other as VideoFrameData
+
+            if (id != other.id) return false
+            if (timestamp != other.timestamp) return false
+            if (!data.contentEquals(other.data)) return false
+            if (width != other.width) return false
+            if (height != other.height) return false
+            if (format != other.format) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = id.hashCode()
+            result = 31 * result + timestamp.hashCode()
+            result = 31 * result + data.contentHashCode()
+            result = 31 * result + width
+            result = 31 * result + height
+            result = 31 * result + format.hashCode()
+            return result
+        }
     }
 }

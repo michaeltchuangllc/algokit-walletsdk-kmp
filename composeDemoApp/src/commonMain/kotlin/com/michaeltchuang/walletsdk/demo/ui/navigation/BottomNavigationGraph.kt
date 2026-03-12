@@ -7,6 +7,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.michaeltchuang.walletsdk.demo.ui.screens.AccountListScreen
+import com.michaeltchuang.walletsdk.demo.ui.screens.BroadcastScreen
 import com.michaeltchuang.walletsdk.demo.ui.screens.DiscoverScreen
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackBarLayout
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
@@ -23,6 +24,16 @@ fun NavGraphBuilder.getBottomNavigationGraph(
         val sharedViewModel: SnackbarViewModel = koinViewModel(viewModelStoreOwner = backStackEntry)
         AccountListScreen(
             tag = backStackEntry.toRoute<Accounts>().details.name,
+            navController = navController,
+            snackbarViewModel = sharedViewModel,
+        )
+        SnackBarLayout(sharedViewModel, snackbarHostState)
+    }
+    composable<Broadcast> {
+        val backStackEntry = remember(it) { navController.getBackStackEntry<Broadcast>() }
+        val sharedViewModel: SnackbarViewModel = koinViewModel(viewModelStoreOwner = backStackEntry)
+        BroadcastScreen(
+            tag = backStackEntry.toRoute<Broadcast>().details.name,
             navController = navController,
             snackbarViewModel = sharedViewModel,
         )

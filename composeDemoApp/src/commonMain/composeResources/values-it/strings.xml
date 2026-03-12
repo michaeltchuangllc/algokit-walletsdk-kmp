@@ -5,6 +5,7 @@
     <!-- Bottom Navigation Screen -->
     <string name="nav_discover">Repository Github</string>
     <string name="nav_home">Casa</string>
+    <string name="nav_broadcast">Trasmetti</string>
     <string name="no_account_list">Nessun account trovato. \nClicca su + e aggiungi un nuovo account!</string>
 
     <!-- Account Types -->
