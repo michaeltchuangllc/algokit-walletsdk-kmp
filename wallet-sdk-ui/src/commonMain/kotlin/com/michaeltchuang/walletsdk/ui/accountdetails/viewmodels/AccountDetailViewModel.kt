@@ -39,7 +39,8 @@ class AccountDetailViewModel(
             try {
                 // Get account information
                 val localAccount = getLocalAccount(address)
-                val isNoAuthAccount = localAccount is LocalAccount.NoAuth
+                val isNoAuthAccount =
+                    localAccount is LocalAccount.NoAuth || localAccount is LocalAccount.SeedVault
 
                 getCurrentNetworkUseCase().collect { network ->
                     val explorerBaseUrl = getExplorerBaseUrl()

@@ -75,7 +75,7 @@ fun AccountRecoveryTypeSelectionScreen(
         RecoverAnAccountWidget(navController = navController)
         RecoverAnAccountWithQRWidget(navController)
         RecoverLegacyAccountWidget(navController = navController)
-        // PairLedgerDeviceWidget(onClick)
+        SelectSeed(navController)
         // ImportPeraWebWidget(onClick)
         // AlgorandSecureBackupWidget(onClick)
     }
@@ -144,13 +144,13 @@ private fun RecoverAnAccountWithQRWidget(navController: NavController) {
 }
 
 @Composable
-private fun PairLedgerDeviceWidget(onClick: (message: String) -> Unit) {
+private fun SelectSeed(navController: NavController) {
     GroupChoiceWidget(
-        title = localizedStringResource(Res.string.pair_ledger_device),
-        description = localizedStringResource(Res.string.i_want_to_recover_an),
-        iconContentDescription = localizedStringResource(Res.string.ledger),
+        title = "Select Seed",
+        description = "Import Solana accounts from Seed Vault",
+        iconContentDescription = "Seed Vault",
         icon = vectorResource(Res.drawable.ic_ledger),
-        onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
+        onClick = { navController.navigate(AlgoKitScreens.SELECT_SEED_SCREEN.name) },
     )
 }
 

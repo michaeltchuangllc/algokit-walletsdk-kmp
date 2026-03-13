@@ -1,0 +1,474 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 4,
+    "identityHash": "7e2c1b95f06744da032bf6ff3bace69b",
+    "entities": [
+      {
+        "tableName": "ledger_ble",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, `device_mac_address` TEXT NOT NULL, `account_index_in_ledger` INTEGER NOT NULL, `bluetooth_name` TEXT, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deviceMacAddress",
+            "columnName": "device_mac_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountIndexInLedger",
+            "columnName": "account_index_in_ledger",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bluetoothName",
+            "columnName": "bluetooth_name",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        }
+      },
+      {
+        "tableName": "no_auth",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        }
+      },
+      {
+        "tableName": "hd_keys",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, `public_key` BLOB NOT NULL, `encrypted_private_key` BLOB NOT NULL, `seed_id` INTEGER NOT NULL, `account` INTEGER NOT NULL, `change` INTEGER NOT NULL, `key_index` INTEGER NOT NULL, `derivation_type` INTEGER NOT NULL, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicKey",
+            "columnName": "public_key",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedPrivateKey",
+            "columnName": "encrypted_private_key",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seedId",
+            "columnName": "seed_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "account",
+            "columnName": "account",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "change",
+            "columnName": "change",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "keyIndex",
+            "columnName": "key_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "derivationType",
+            "columnName": "derivation_type",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_hd_keys_public_key",
+            "unique": true,
+            "columnNames": [
+              "public_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_hd_keys_public_key` ON `${TABLE_NAME}` (`public_key`)"
+          }
+        ]
+      },
+      {
+        "tableName": "hd_seeds",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`seed_id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `encrypted_entropy` BLOB NOT NULL, `encrypted_seed` BLOB NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "seedId",
+            "columnName": "seed_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedEntropy",
+            "columnName": "encrypted_entropy",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedSeed",
+            "columnName": "encrypted_seed",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "seed_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_hd_seeds_encrypted_entropy",
+            "unique": true,
+            "columnNames": [
+              "encrypted_entropy"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_hd_seeds_encrypted_entropy` ON `${TABLE_NAME}` (`encrypted_entropy`)"
+          },
+          {
+            "name": "index_hd_seeds_encrypted_seed",
+            "unique": true,
+            "columnNames": [
+              "encrypted_seed"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_hd_seeds_encrypted_seed` ON `${TABLE_NAME}` (`encrypted_seed`)"
+          }
+        ]
+      },
+      {
+        "tableName": "algo_25",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, `encrypted_secret_key` BLOB NOT NULL, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedSecretKey",
+            "columnName": "encrypted_secret_key",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        }
+      },
+      {
+        "tableName": "falcon_24",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, `seed_id` INTEGER NOT NULL, `public_key` BLOB NOT NULL, `encrypted_secret_key` BLOB NOT NULL, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "seedId",
+            "columnName": "seed_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "publicKey",
+            "columnName": "public_key",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "encryptedSecretKey",
+            "columnName": "encrypted_secret_key",
+            "affinity": "BLOB",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        }
+      },
+      {
+        "tableName": "custom_account_info",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`algo_address` TEXT NOT NULL, `custom_name` TEXT, `order_index` INTEGER NOT NULL, `is_backed_up` INTEGER NOT NULL, PRIMARY KEY(`algo_address`))",
+        "fields": [
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customName",
+            "columnName": "custom_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "order_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "is_backed_up",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "algo_address"
+          ]
+        }
+      },
+      {
+        "tableName": "custom_hd_seed_info",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`seed_id` INTEGER NOT NULL, `entropy_custom_name` TEXT NOT NULL, `order_index` INTEGER NOT NULL, `is_backed_up` INTEGER NOT NULL, PRIMARY KEY(`seed_id`))",
+        "fields": [
+          {
+            "fieldPath": "seedId",
+            "columnName": "seed_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "entropyCustomName",
+            "columnName": "entropy_custom_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "orderIndex",
+            "columnName": "order_index",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isBackedUp",
+            "columnName": "is_backed_up",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "seed_id"
+          ]
+        }
+      },
+      {
+        "tableName": "passkey_table",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`credential_id` TEXT NOT NULL, `site_id` INTEGER NOT NULL, `algo_address` TEXT NOT NULL, `user_id` TEXT NOT NULL, `user_name` TEXT NOT NULL, `user_display_name` TEXT, `last_used_time_ms` INTEGER, PRIMARY KEY(`credential_id`), FOREIGN KEY(`site_id`) REFERENCES `sites`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "credentialId",
+            "columnName": "credential_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "siteId",
+            "columnName": "site_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "algoAddress",
+            "columnName": "algo_address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userId",
+            "columnName": "user_id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userName",
+            "columnName": "user_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userDisplayName",
+            "columnName": "user_display_name",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "lastUsedTimeMs",
+            "columnName": "last_used_time_ms",
+            "affinity": "INTEGER"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "credential_id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_passkey_table_site_id",
+            "unique": false,
+            "columnNames": [
+              "site_id"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_passkey_table_site_id` ON `${TABLE_NAME}` (`site_id`)"
+          },
+          {
+            "name": "index_passkey_table_algo_address",
+            "unique": false,
+            "columnNames": [
+              "algo_address"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_passkey_table_algo_address` ON `${TABLE_NAME}` (`algo_address`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "sites",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "site_id"
+            ],
+            "referencedColumns": [
+              "id"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "sites",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL, `name` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sites_url",
+            "unique": true,
+            "columnNames": [
+              "url"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sites_url` ON `${TABLE_NAME}` (`url`)"
+          }
+        ]
+      },
+      {
+        "tableName": "seed_vault",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_key` TEXT NOT NULL, `address` TEXT NOT NULL, `chainId` TEXT NOT NULL, PRIMARY KEY(`public_key`))",
+        "fields": [
+          {
+            "fieldPath": "publicKey",
+            "columnName": "public_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "address",
+            "columnName": "address",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chainId",
+            "columnName": "chainId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "public_key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7e2c1b95f06744da032bf6ff3bace69b')"
+    ]
+  }
+}

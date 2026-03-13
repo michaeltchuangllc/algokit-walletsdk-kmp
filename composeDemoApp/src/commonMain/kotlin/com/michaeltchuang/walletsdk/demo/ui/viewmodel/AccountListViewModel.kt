@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.demo.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -27,6 +28,7 @@ class AccountListViewModel(
         // Listen for network changes and refetch accounts when network changes
         viewModelScope.launch {
             networkNodeSettings.collect { network ->
+                currentNetwork = network
                 fetchAccounts()
             }
         }
@@ -37,7 +39,8 @@ class AccountListViewModel(
         viewModelScope.launch {
             try {
                 // Fetch all accounts with their current balances
-                accountLite = WalletSDK.getAccountsWithBalances()
+                val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
+                accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
 
                 stateDelegate.updateState {
                     AccountsState.Content(accountLite)
@@ -93,5 +96,31 @@ class AccountListViewModel(
         data class ShowMessage(
             val message: String,
         ) : AccountsEvent
+    }
+    
+    private suspend fun fetchAndMergeSolanaBalances(accounts: List<AccountLite>): List<AccountLite> {
+        val solanaAccounts =
+            accounts.filter {
+                it.registrationType is AccountRegistrationType.SeedVault
+            }
+        if (solanaAccounts.isEmpty()) return accounts
+        val solanaAddresses = solanaAccounts.map { it.address }
+        val balancesByAddress =
+            WalletSDK.getSolanaBalances(solanaAddresses)
+        val failedCount = balancesByAddress.count { it.value == null }
+        if (failedCount > 0 && failedCount == solanaAccounts.size) {
+            eventDelegate.sendEvent(
+                AccountsEvent.ShowError(
+                    "Failed to fetch Solana balances on DEVNET.",
+                ),
+            )
+        }
+        return accounts.map { account ->
+            if (account.registrationType is AccountRegistrationType.SeedVault) {
+                account.copy(balance = balancesByAddress[account.address] ?: account.balance)
+            } else {
+                account
+            }
+        }
     }
 }

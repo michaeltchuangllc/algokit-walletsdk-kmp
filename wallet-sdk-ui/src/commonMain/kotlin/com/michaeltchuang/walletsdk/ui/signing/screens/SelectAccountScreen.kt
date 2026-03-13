@@ -290,7 +290,7 @@ private fun AccountItem(
                 horizontalAlignment = Alignment.End,
             ) {
                 Text(
-                    text = "\u00A6${account.balance?.formatAmount() ?: "0.00"}",
+                    text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
                     fontSize = 16.sp,
                     style = typography.footnote.sansMedium,
                     color = AlgoKitTheme.colors.textMain,
@@ -313,4 +313,11 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.Falcon24 -> "Falcon24"
         is AccountRegistrationType.NoAuth -> "Watch"
         is AccountRegistrationType.LedgerBle -> "Ledger"
+        is AccountRegistrationType.SeedVault -> "SeedVault"
+    }
+    
+private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.SeedVault -> "SOL "
+        else -> "\u00A6"
     }

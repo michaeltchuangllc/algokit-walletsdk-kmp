@@ -15,6 +15,7 @@ internal class GetTransactionSignerUseCase(
             is LocalAccount.HdKey -> getHdKeySigner(address)
             is LocalAccount.Falcon24 -> getFalcon24Signer(address)
             is LocalAccount.NoAuth -> TransactionSigner.SignerNotFound.NoAuth(address)
+            is LocalAccount.SeedVault -> TransactionSigner.SignerNotFound.NoAuth(address)
             else -> {
                 TransactionSigner.SignerNotFound.AccountNotFound(address)
             }

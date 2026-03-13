@@ -5,6 +5,7 @@ import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_alg
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_falcon24
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_hd
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_ledger
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_seedvault
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_wallet
@@ -83,7 +84,7 @@ fun AccountItem(
                 modifier = Modifier.padding(end = 8.dp),
             ) {
                 Text(
-                    text = (("\u00A6") + account.balance?.formatAmount()),
+                    text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
                     fontSize = 16.sp,
                     style = typography.footnote.sansMedium,
                 )
@@ -114,6 +115,13 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
         is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
+        is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
+    }
+    
+private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.SeedVault -> "SOL "
+        else -> "\u00A6"
     }
 
 @Preview()

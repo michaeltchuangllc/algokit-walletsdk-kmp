@@ -40,3 +40,22 @@ val MIGRATION_1_2 =
             connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sites_url ON sites(url)")
         }
     }
+
+val MIGRATION_3_4 =
+    object : Migration(3, 4) {
+        override fun migrate(connection: SQLiteConnection) {
+            // Drop old solana_account table if it exists
+            connection.execSQL("DROP TABLE IF EXISTS solana_account")
+
+            // Create new seed_vault table
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS seed_vault (
+                    public_key TEXT PRIMARY KEY NOT NULL,
+                    address TEXT NOT NULL,
+                    chainId TEXT NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }

@@ -15,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.LedgerBleDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.NoAuthDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.SeedVaultDao
 import com.michaeltchuang.walletsdk.core.account.data.database.model.Algo25Entity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomAccountInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomHdSeedInfoEntity
@@ -25,6 +26,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEn
 import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.SeedVaultEntity
 
 @Database(
     entities = [
@@ -38,6 +40,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
         CustomHdSeedInfoEntity::class,
         PasskeyEntity::class,
         SiteEntity::class,
+        SeedVaultEntity::class,
     ],
     version = AlgoKitDatabase.DATABASE_VERSION,
 )
@@ -65,8 +68,10 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun passkeySiteDao(): PasskeySiteDao
 
+    abstract fun solanaAccountDao(): SeedVaultDao
+
     companion object Companion {
-        const val DATABASE_VERSION = 2 // Bumped for passkey tables
+        const val DATABASE_VERSION = 4 // Bumped for seed_vault table schema change
         const val DATABASE_NAME = "algokit_database"
     }
 }

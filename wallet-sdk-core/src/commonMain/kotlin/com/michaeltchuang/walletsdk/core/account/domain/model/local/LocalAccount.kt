@@ -66,4 +66,9 @@ sealed interface LocalAccount {
     data class NoAuth(
         override val algoAddress: String,
     ) : LocalAccount
+    
+    data class SeedVault(
+        override val algoAddress: String,
+        val chainId: String,
+    ) : LocalAccount
 }

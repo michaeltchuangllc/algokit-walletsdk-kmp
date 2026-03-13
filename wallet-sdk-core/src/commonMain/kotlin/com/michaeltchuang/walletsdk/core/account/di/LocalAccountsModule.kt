@@ -31,22 +31,29 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdWalletSumma
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.HdWalletSummaryMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.NoAuthMapper
 import com.michaeltchuang.walletsdk.core.account.data.mapper.model.NoAuthMapperImpl
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.SolanaAccountEntityMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.SolanaAccountEntityMapperImpl
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.SolanaAccountMapper
+import com.michaeltchuang.walletsdk.core.account.data.mapper.model.SolanaAccountMapperImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.Algo25AccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.Falcon24AccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.HdKeyAccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.HdSeedRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.data.repository.NoAuthAccountRepositoryImpl
+import com.michaeltchuang.walletsdk.core.account.data.repository.SolanaAccountRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthAccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdKeyAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdKeyAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.AddHdSeedUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.CreateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteSolanaAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddressesUseCase
@@ -56,8 +63,11 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdEntro
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdKeyPrivateKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdWalletSummaries
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetImportedSolanaAddressesUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetMaxHdSeedId
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSeedIdIfExistingEntropy
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaAccountsFromSeedVaultUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ImportSolanaAccountsUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveAlgo25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon24Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveHdKeyAccount
@@ -163,4 +173,24 @@ val localAccountsModule =
         single { DeleteNoAuthAccountUseCase(get()) }
         single { ValidateWatchAccountUseCase(get()) }
         single<GetAllHdSeedFirstAddresses> { GetAllHdSeedFirstAddressesUseCase(get(), get(), get()) }
+
+        // Solana Account dependencies
+        single { get<AlgoKitDatabase>().solanaAccountDao() }
+        single<SolanaAccountEntityMapper> { SolanaAccountEntityMapperImpl() }
+        single<SolanaAccountMapper> { SolanaAccountMapperImpl() }
+
+        single<SolanaAccountRepository> {
+            SolanaAccountRepositoryImpl(
+                solanaAccountDao = get(),
+                solanaAccountEntityMapper = get(),
+                solanaAccountMapper = get(),
+                // coroutineDispatcher uses default Dispatchers.IO
+            )
+        }
+
+        // SeedVaultRepository is provided in platform-specific solanaAccountModule
+        single { GetSolanaAccountsFromSeedVaultUseCase(get()) }
+        single { GetImportedSolanaAddressesUseCase(get()) }
+        single { ImportSolanaAccountsUseCase(get()) }
+        single { DeleteSolanaAccountUseCase(get()) }
     }
