@@ -467,7 +467,7 @@ class AnswerActivity : AppCompatActivity() {
             onVideoFrame = { frameData ->
                 // Update video frame directly in ViewModel
                 viewModel.setVideoFrame(frameData)
-            }
+            },
         )
     }
 

@@ -11,7 +11,7 @@ data class VideoFrameMessage(
     val reference: String = "liquid:video:frame",
     val id: String,
     val timestamp: Long,
-    val format: String = "jpeg",  // jpeg, png, h264
+    val format: String = "jpeg", // jpeg, png, h264
     val data: ByteArray,
     val width: Int,
     val height: Int,

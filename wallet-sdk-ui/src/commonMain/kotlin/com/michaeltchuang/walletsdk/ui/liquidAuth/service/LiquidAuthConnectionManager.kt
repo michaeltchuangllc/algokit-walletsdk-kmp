@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.StateFlow
  * - X402 payment messaging (payment requests, balance updates)
  */
 interface LiquidAuthConnectionManager {
-
     /**
      * Flow of current ICE connection type.
      * Used for UI quality indicators and x402-style billing.
@@ -35,7 +34,10 @@ interface LiquidAuthConnectionManager {
      * @param origin The liquid auth service origin URL
      * @param requestId The request ID for this offer session
      */
-    fun startListening(origin: String, requestId: String)
+    fun startListening(
+        origin: String,
+        requestId: String,
+    )
 
     /**
      * Stop listening and cleanup resources.

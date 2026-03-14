@@ -17,10 +17,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
  * 2. Convert CMSampleBuffer to JPEG
  * 3. Send via connectionManager.sendVideoFrame()
  */
-actual fun createCameraStreamingPreview(
-    connectionManager: LiquidAuthConnectionManager?,
-): @Composable () -> Unit {
-    return {
+actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit =
+    {
         Text("Camera streaming not yet implemented on iOS")
     }
-}

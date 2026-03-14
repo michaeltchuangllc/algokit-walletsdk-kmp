@@ -28,20 +28,22 @@ actual fun VideoFrameDisplay(
     frameData: ByteArray,
     aspectRatio: Float,
 ) {
-    val bitmap = remember(frameData) {
-        try {
-            BitmapFactory.decodeByteArray(frameData, 0, frameData.size)
-        } catch (e: Exception) {
-            null
+    val bitmap =
+        remember(frameData) {
+            try {
+                BitmapFactory.decodeByteArray(frameData, 0, frameData.size)
+            } catch (e: Exception) {
+                null
+            }
         }
-    }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .aspectRatio(aspectRatio)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .aspectRatio(aspectRatio)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         if (bitmap != null) {

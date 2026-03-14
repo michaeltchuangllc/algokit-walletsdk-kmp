@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import android.Manifest
-import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.Rect
@@ -41,7 +40,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import java.io.ByteArrayOutputStream
@@ -53,69 +51,67 @@ import java.util.concurrent.Executors
  *
  * Uses CameraX to capture frames and stream via WebRTC.
  */
-actual fun createCameraStreamingPreview(
-    connectionManager: LiquidAuthConnectionManager?,
-): @Composable () -> Unit {
-    return {
+actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit =
+    {
         val context = LocalContext.current
-        
+
         // Check camera permission
-        val hasCameraPermission = remember {
-            ContextCompat.checkSelfPermission(
-                context, 
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
-        }
-        
+        val hasCameraPermission =
+            remember {
+                ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.CAMERA,
+                ) == PackageManager.PERMISSION_GRANTED
+            }
+
         if (!hasCameraPermission) {
             // Show permission required UI
             Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black)
-                    .padding(16.dp),
-                contentAlignment = Alignment.Center
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color.Black)
+                        .padding(16.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
                         text = "Camera Permission Required",
                         color = Color.White,
                         style = MaterialTheme.typography.titleLarge,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Please grant camera permission in:\nSettings → Apps → WalletSDK Demo → Permissions → Camera",
                         color = Color.White,
                         style = MaterialTheme.typography.bodyMedium,
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
                     )
                 }
             }
         } else {
             CameraPreviewContent(
-                connectionManager = connectionManager
+                connectionManager = connectionManager,
             )
         }
     }
-}
 
 @Composable
-private fun CameraPreviewContent(
-    connectionManager: LiquidAuthConnectionManager?,
-) {
+private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    
-    val previewView = remember {
-        PreviewView(context).apply {
-            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-            scaleType = PreviewView.ScaleType.FILL_CENTER
+
+    val previewView =
+        remember {
+            PreviewView(context).apply {
+                implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+                scaleType = PreviewView.ScaleType.FILL_CENTER
+            }
         }
-    }
-    
+
     var isStreaming by remember { mutableStateOf(false) }
     var lastFrameTime by remember { mutableLongStateOf(0L) }
     val frameIntervalMs = 100L
@@ -134,21 +130,25 @@ private fun CameraPreviewContent(
                 val cameraProvider = cameraProviderFuture.get()
                 Log.d("CameraStreaming", "CameraProvider obtained")
 
-                val preview = Preview.Builder()
-                    .setTargetResolution(android.util.Size(640, 480))
-                    .build()
-                    .also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
-                        Log.d("CameraStreaming", "Surface provider set")
-                    }
+                val preview =
+                    Preview
+                        .Builder()
+                        .setTargetResolution(android.util.Size(640, 480))
+                        .build()
+                        .also {
+                            it.setSurfaceProvider(previewView.surfaceProvider)
+                            Log.d("CameraStreaming", "Surface provider set")
+                        }
 
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
-                    .build()
+                val imageAnalysis =
+                    ImageAnalysis
+                        .Builder()
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
+                        .build()
 
                 imageAnalysis.setAnalyzer(
-                    Executors.newSingleThreadExecutor()
+                    Executors.newSingleThreadExecutor(),
                 ) { imageProxy ->
                     if (isStreaming && connectionManager?.isConnected() == true) {
                         val currentTime = System.currentTimeMillis()
@@ -166,12 +166,13 @@ private fun CameraPreviewContent(
                 cameraProvider.unbindAll()
                 Log.d("CameraStreaming", "Unbound previous use cases")
 
-                val camera = cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageAnalysis
-                )
+                val camera =
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        cameraSelector,
+                        preview,
+                        imageAnalysis,
+                    )
                 Log.d("CameraStreaming", "Camera bound successfully: ${camera.cameraInfo}")
             } catch (e: Exception) {
                 Log.e("CameraStreaming", "Failed to start camera: $e", e)
@@ -193,7 +194,7 @@ private fun CameraPreviewContent(
 
     AndroidView(
         factory = { previewView },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
     )
 }
 
@@ -213,7 +214,7 @@ private fun processAndSendFrame(
                 frameData = jpegBytes,
                 width = imageProxy.width,
                 height = imageProxy.height,
-                format = "jpeg"
+                format = "jpeg",
             )
         }
     } catch (e: Exception) {
@@ -221,8 +222,11 @@ private fun processAndSendFrame(
     }
 }
 
-private fun yuvToJpeg(image: Image, quality: Int): ByteArray? {
-    return try {
+private fun yuvToJpeg(
+    image: Image,
+    quality: Int,
+): ByteArray? =
+    try {
         val yBuffer = image.planes[0].buffer
         val uBuffer = image.planes[1].buffer
         val vBuffer = image.planes[2].buffer
@@ -237,19 +241,20 @@ private fun yuvToJpeg(image: Image, quality: Int): ByteArray? {
         vBuffer.get(nv21, ySize, vSize)
         uBuffer.get(nv21, ySize + vSize, uSize)
 
-        val yuvImage = YuvImage(
-            nv21,
-            ImageFormat.NV21,
-            image.width,
-            image.height,
-            null
-        )
+        val yuvImage =
+            YuvImage(
+                nv21,
+                ImageFormat.NV21,
+                image.width,
+                image.height,
+                null,
+            )
 
         val outputStream = ByteArrayOutputStream()
         yuvImage.compressToJpeg(
             Rect(0, 0, image.width, image.height),
             quality,
-            outputStream
+            outputStream,
         )
 
         outputStream.toByteArray()
@@ -257,4 +262,3 @@ private fun yuvToJpeg(image: Image, quality: Int): ByteArray? {
         Log.e("CameraStreaming", "Error converting YUV to JPEG: $e")
         null
     }
-}

@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,12 +16,9 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -52,36 +48,41 @@ fun VideoFrameViewer(
     val aspectRatio = width.toFloat() / height.toFloat()
 
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
         shape = RoundedCornerShape(12.dp),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // Live indicator
             if (isLive) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 8.dp),
                 ) {
                     androidx.compose.foundation.layout.Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.align(Alignment.TopStart),
                     ) {
                         Box(
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .background(Color.Red, RoundedCornerShape(50))
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                            modifier =
+                                Modifier
+                                    .padding(end = 8.dp)
+                                    .background(Color.Red, RoundedCornerShape(50))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
                         ) {
                             Text(
                                 text = "LIVE",
@@ -108,7 +109,7 @@ fun VideoFrameViewer(
 
             // Frame info
             Text(
-                text = "${width}x${height} • ${frameData.size / 1024}KB",
+                text = "${width}x$height • ${frameData.size / 1024}KB",
                 style = MaterialTheme.typography.labelSmall,
                 color = AlgoKitTheme.colors.textGray,
                 textAlign = TextAlign.Center,
@@ -136,13 +137,15 @@ fun VideoStreamPlaceholder(
     modifier: Modifier = Modifier,
 ) {
     Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .aspectRatio(4f / 3f),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .aspectRatio(4f / 3f),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),

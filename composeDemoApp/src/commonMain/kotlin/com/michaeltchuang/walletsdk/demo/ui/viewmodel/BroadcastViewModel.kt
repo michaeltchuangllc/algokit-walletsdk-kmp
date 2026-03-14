@@ -14,7 +14,6 @@ class BroadcastViewModel(
 ) : ViewModel(),
     StateViewModel<BroadcastViewModel.BroadcastState> by stateDelegate,
     EventViewModel<BroadcastViewModel.BroadcastEvent> by eventDelegate {
-
     init {
         stateDelegate.setDefaultState(BroadcastState.Idle)
     }

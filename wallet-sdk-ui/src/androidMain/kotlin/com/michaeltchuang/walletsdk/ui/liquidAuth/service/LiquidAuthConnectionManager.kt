@@ -27,7 +27,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import java.util.Timer
-import java.util.TimerTask
 
 /**
  * Android implementation of LiquidAuthConnectionManager.
@@ -36,14 +35,13 @@ import java.util.TimerTask
  * Tracks ICE connection type for quality indicators and billing.
  */
 class AndroidLiquidAuthConnectionManager(
-    private val context: Context
+    private val context: Context,
 ) : LiquidAuthConnectionManager {
-
     companion object {
         private const val TAG = "AndroidLiquidAuthCM"
         private const val NOTIFICATION_ID = 1338
         private const val CHANNEL_ID = "liquid_auth_broadcast"
-        private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 2000L // Check every 2 seconds
+        private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L // Check every 1 second
     }
 
     private var viewModel: LiquidAuthOfferViewModel? = null
@@ -68,32 +66,28 @@ class AndroidLiquidAuthConnectionManager(
     }
 
     /**
-     * Start X402 block consumption timer
-     * Calls consumeBlock() every 3 seconds (Algorand block time)
+     * Start X402 block consumption
+     * Now uses real Algorand blockchain blocks via monitorBlockchainBlocks()
      */
     override fun startBlockConsumption(sessionId: String) {
         Log.d(TAG, "💰 Starting X402 block consumption for session: $sessionId")
-        stopBlockConsumption() // Stop any existing timer
-        
+        stopBlockConsumption() // Stop any existing monitoring
+
         currentSessionId = sessionId
         blocksConsumed = 0
-        
-        blockConsumptionTimer = Timer("X402BlockTimer").apply {
-            scheduleAtFixedRate(object : TimerTask() {
-                override fun run() {
-                    consumeBlock()
-                }
-            }, 0, 3000) // Every 3 seconds
-        }
+
+        // Use ViewModel to monitor real blockchain blocks
+        viewModel?.monitorBlockchainBlocks()
+        Log.d(TAG, "💰 Started monitoring Algorand blockchain blocks")
     }
 
     /**
-     * Stop block consumption timer
+     * Stop block consumption
      */
     override fun stopBlockConsumption() {
         Log.d(TAG, "💰 Stopping X402 block consumption")
-        blockConsumptionTimer?.cancel()
-        blockConsumptionTimer = null
+        // The monitoring coroutine in ViewModel will stop automatically when
+        // payment state is no longer StreamingWithBalance
         currentSessionId = null
         blocksConsumed = 0
     }
@@ -114,21 +108,22 @@ class AndroidLiquidAuthConnectionManager(
         if (AlgorandX402Payments.isFundsDepleted(blocksConsumed)) {
             Log.d(TAG, "💰 Funds depleted after $blocksConsumed blocks")
             stopBlockConsumption()
-            
+
             // Send depleted message to client
-            val depletedMsg = X402PaymentMessages.FundsDepleted(
-                id = sessionId,
-                totalBlocksWatched = blocksConsumed,
-                totalConsumedMicroAlgos = blocksConsumed * 100_000L,
-            )
+            val depletedMsg =
+                X402PaymentMessages.FundsDepleted(
+                    id = sessionId,
+                    totalBlocksWatched = blocksConsumed,
+                    totalConsumedMicroAlgos = blocksConsumed * 100_000L,
+                )
             sendMessage(depletedMsg.toJson())
             return
         }
 
-                    // Send balance update every block (3 seconds for maximum wow factor)
-            val balanceMsg = AlgorandX402Payments.createBalanceUpdate(sessionId, blocksConsumed)
-            sendMessage(balanceMsg.toJson())
-            Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingAlgos()} ALGO remaining")
+        // Send balance update every block (3 seconds for maximum wow factor)
+        val balanceMsg = AlgorandX402Payments.createBalanceUpdate(sessionId, blocksConsumed)
+        sendMessage(balanceMsg.toJson())
+        Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingAlgos()} ALGO remaining")
     }
 
     /**
@@ -146,20 +141,21 @@ class AndroidLiquidAuthConnectionManager(
     private fun startConnectionTypePolling() {
         Log.d(TAG, "🔄 Starting connection type polling")
         connectionTypePollingJob?.cancel()
-        connectionTypePollingJob = CoroutineScope(Dispatchers.Default).launch {
-            // Immediate first detection
-            detectAndUpdateConnectionType()
-            
-            var pollCount = 0
-            while (isActive) {
-                pollCount++
-                if (pollCount % 5 == 0) { // Log every 5th poll (10 seconds)
-                    Log.d(TAG, "🔄 Connection type poll #$pollCount, service=$signalService")
-                }
+        connectionTypePollingJob =
+            CoroutineScope(Dispatchers.Default).launch {
+                // Immediate first detection
                 detectAndUpdateConnectionType()
-                delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
+
+                var pollCount = 0
+                while (isActive) {
+                    pollCount++
+                    if (pollCount % 5 == 0) { // Log every 5th poll (10 seconds)
+                        Log.d(TAG, "🔄 Connection type poll #$pollCount, service=$signalService")
+                    }
+                    detectAndUpdateConnectionType()
+                    delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
+                }
             }
-        }
     }
 
     /**
@@ -181,13 +177,14 @@ class AndroidLiquidAuthConnectionManager(
             // Map SignalService.IceConnectionType to our UI model
             service.detectConnectionType { type ->
                 Log.d(TAG, "🔍 Raw connection type from service: $type")
-                val mappedType = when (type) {
-                    SignalService.IceConnectionType.LOCAL -> IceConnectionType.LOCAL
-                    SignalService.IceConnectionType.STUN -> IceConnectionType.STUN
-                    SignalService.IceConnectionType.RELAY -> IceConnectionType.RELAY
-                    SignalService.IceConnectionType.FAILED -> IceConnectionType.FAILED
-                    SignalService.IceConnectionType.UNKNOWN -> IceConnectionType.UNKNOWN
-                }
+                val mappedType =
+                    when (type) {
+                        SignalService.IceConnectionType.LOCAL -> IceConnectionType.LOCAL
+                        SignalService.IceConnectionType.STUN -> IceConnectionType.STUN
+                        SignalService.IceConnectionType.RELAY -> IceConnectionType.RELAY
+                        SignalService.IceConnectionType.FAILED -> IceConnectionType.FAILED
+                        SignalService.IceConnectionType.UNKNOWN -> IceConnectionType.UNKNOWN
+                    }
 
                 if (_connectionType.value != mappedType) {
                     _connectionType.value = mappedType
@@ -200,7 +197,10 @@ class AndroidLiquidAuthConnectionManager(
         } ?: Log.w(TAG, "⚠️ Cannot detect - signalService is null")
     }
 
-    override fun startListening(origin: String, requestId: String) {
+    override fun startListening(
+        origin: String,
+        requestId: String,
+    ) {
         Log.d(TAG, "🔌 startListening() called - isBound=$isBound, viewModel=$viewModel")
         if (isBound) {
             Log.d(TAG, "Already bound to service, skipping")
@@ -214,26 +214,30 @@ class AndroidLiquidAuthConnectionManager(
 
         Log.d(TAG, "Starting SignalService for requestId: $requestId")
 
-        serviceConnection = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
-                Log.d(TAG, "🔌 onServiceConnected called")
-                val localBinder = binder as? SignalService.LocalBinder
-                signalService = localBinder?.getServerInstance()
-                Log.d(TAG, "SignalService connected, service=$signalService")
+        serviceConnection =
+            object : ServiceConnection {
+                override fun onServiceConnected(
+                    name: ComponentName?,
+                    binder: IBinder?,
+                ) {
+                    Log.d(TAG, "🔌 onServiceConnected called")
+                    val localBinder = binder as? SignalService.LocalBinder
+                    signalService = localBinder?.getServerInstance()
+                    Log.d(TAG, "SignalService connected, service=$signalService")
 
-                signalService?.let { service ->
-                    Log.d(TAG, "🔌 Calling setupSignalService...")
-                    setupSignalService(service, origin, requestId)
-                } ?: Log.e(TAG, "❌ SignalService is null after connection!")
-            }
+                    signalService?.let { service ->
+                        Log.d(TAG, "🔌 Calling setupSignalService...")
+                        setupSignalService(service, origin, requestId)
+                    } ?: Log.e(TAG, "❌ SignalService is null after connection!")
+                }
 
-            override fun onServiceDisconnected(name: ComponentName?) {
-                Log.d(TAG, "SignalService disconnected")
-                signalService = null
-                isBound = false
-                viewModel?.onClientDisconnected()
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    Log.d(TAG, "SignalService disconnected")
+                    signalService = null
+                    isBound = false
+                    viewModel?.onClientDisconnected()
+                }
             }
-        }
 
         // Start and bind to service
         val intent = Intent(context, SignalService::class.java)
@@ -245,10 +249,10 @@ class AndroidLiquidAuthConnectionManager(
     private fun setupSignalService(
         service: SignalService,
         origin: String,
-        requestId: String
+        requestId: String,
     ) {
         Log.d(TAG, "🔌 setupSignalService() called, requestId=$requestId, viewModel=$viewModel")
-        
+
         val notificationBuilder = createNotificationBuilder()
         val activity = context as? Activity
         val activityClass = activity?.javaClass
@@ -265,7 +269,7 @@ class AndroidLiquidAuthConnectionManager(
             httpClient = OkHttpClient.Builder().build(),
             notificationBuilder = notificationBuilder,
             notificationId = NOTIFICATION_ID,
-            activityClass = activityClass
+            activityClass = activityClass,
         )
 
         // Connect as "offer" type (waiting for peer to answer)
@@ -276,7 +280,7 @@ class AndroidLiquidAuthConnectionManager(
                 service.peer(
                     requestId = requestId,
                     type = "offer",
-                    iceServers = IceServerConfig.iceServers
+                    iceServers = IceServerConfig.iceServers,
                 )
                 Log.d(TAG, "🔌 service.peer() returned - peer connection established")
 
@@ -291,13 +295,13 @@ class AndroidLiquidAuthConnectionManager(
                         Log.d(TAG, "🔌 Starting connection type polling...")
                         startConnectionTypePolling()
                     }
-                    
+
                     Log.d(TAG, "🔌 Setting up handleMessages...")
                     service.handleMessages(
                         activity = act,
                         onMessage = { msg ->
                             Log.d(TAG, "📨 Received message: ${msg.take(150)}...")
-                            
+
                             // Check if it's a payment response
                             if (msg.contains("\"status\"") && msg.contains("\"signedTransactionB64\"")) {
                                 Log.d(TAG, "💰 Payment response detected!")
@@ -311,13 +315,13 @@ class AndroidLiquidAuthConnectionManager(
                                 }
                                 return@handleMessages
                             }
-                            
+
                             // Check if it's a balance update request from client (not used yet)
                             if (msg.contains("\"reference\":\"liquid:payment:balance\"")) {
                                 Log.d(TAG, "💰 Balance update request from client - ignoring")
                                 return@handleMessages
                             }
-                            
+
                             // If we receive any other message, connection is open
                             if (service.dataChannel?.state()?.toString() == "OPEN") {
                                 viewModel?.onClientConnected(requestId)
@@ -343,7 +347,7 @@ class AndroidLiquidAuthConnectionManager(
                         },
                         notificationBuilder = notificationBuilder,
                         notificationId = NOTIFICATION_ID,
-                        activityClass = activityClass
+                        activityClass = activityClass,
                     )
                 }
             } catch (e: Exception) {
@@ -355,14 +359,16 @@ class AndroidLiquidAuthConnectionManager(
     private fun createNotificationBuilder(): NotificationCompat.Builder {
         // Create notification channel for Android O+
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channel = NotificationChannel(
-            CHANNEL_ID,
-            "Liquid Auth Broadcast",
-            NotificationManager.IMPORTANCE_LOW,
-        )
+        val channel =
+            NotificationChannel(
+                CHANNEL_ID,
+                "Liquid Auth Broadcast",
+                NotificationManager.IMPORTANCE_LOW,
+            )
         notificationManager.createNotificationChannel(channel)
 
-        return NotificationCompat.Builder(context, CHANNEL_ID)
+        return NotificationCompat
+            .Builder(context, CHANNEL_ID)
             .setContentTitle("Liquid Auth Broadcast")
             .setContentText("Waiting for peer to connect...")
             .setSmallIcon(android.R.drawable.ic_menu_info_details)
@@ -399,16 +405,25 @@ class AndroidLiquidAuthConnectionManager(
         format: String,
     ) {
         if (!isConnected()) {
-            Log.w(TAG, "Cannot send video frame - not connected")
+            Log.w(
+                TAG,
+                "Cannot send video frame - not connected",
+            )
             return
         }
 
         try {
             // Create JSON video frame message
-            val base64Data = java.util.Base64.getEncoder().encodeToString(frameData)
-            val jsonMessage = """{"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height}"""
+            val base64Data =
+                java.util.Base64
+                    .getEncoder()
+                    .encodeToString(frameData)
+            val jsonMessage =
+                """
+                {"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height}
+                """.trimIndent()
 
-            Log.d(TAG, "🎥 Sending video frame: ${width}x${height}, ${frameData.size} bytes")
+            Log.d(TAG, "🎥 Sending video frame: ${width}x$height, ${frameData.size} bytes")
             signalService?.send(jsonMessage)
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to send video frame: $e")
@@ -424,6 +439,5 @@ class AndroidLiquidAuthConnectionManager(
 /**
  * Android actual implementation of factory function.
  */
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager {
-    return AndroidLiquidAuthConnectionManager(platformContext as Context)
-}
+actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager =
+    AndroidLiquidAuthConnectionManager(platformContext as Context)

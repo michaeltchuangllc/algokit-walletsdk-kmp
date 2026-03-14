@@ -39,19 +39,21 @@ actual fun BroadcastScreen(
         topBar = {
             TopAppBar(
                 title = {},
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = AlgoKitTheme.colors.background,
-                    titleContentColor = AlgoKitTheme.colors.textMain,
-                ),
+                colors =
+                    TopAppBarDefaults.topAppBarColors(
+                        containerColor = AlgoKitTheme.colors.background,
+                        titleContentColor = AlgoKitTheme.colors.textMain,
+                    ),
             )
         },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AlgoKitTheme.colors.background)
-                .padding(padding)
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(padding)
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {

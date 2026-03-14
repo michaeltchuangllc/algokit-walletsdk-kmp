@@ -21,7 +21,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -45,7 +44,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.qualityRating
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -78,14 +76,15 @@ fun LiquidAuthOfferScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
-    creatorAddress: String? = null,  // For X402 paid streaming
-    enablePaidStreaming: Boolean = false,  // Toggle X402 payments
+    creatorAddress: String? = null, // For X402 paid streaming
+    enablePaidStreaming: Boolean = false, // Toggle X402 payments
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
-    
+    val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
+
     // Convert microAlgos to AlgOS for display
     val balanceAlgos = remainingBalanceMicroAlgos?.let { it / 1_000_000.0 }
 
@@ -102,7 +101,7 @@ fun LiquidAuthOfferScreen(
             println("🔗 Connection manager initialized")
         }
     }
-    
+
     // Start listening after initialization
     LaunchedEffect(state, connectionManager) {
         // Ensure connectionManager is initialized before starting
@@ -110,20 +109,21 @@ fun LiquidAuthOfferScreen(
             println("⚠️ Cannot start listening - connectionManager is null")
             return@LaunchedEffect
         }
-        
+
         val currentState = state
         println("🔗 State changed to: ${currentState::class.simpleName}")
-        
+
         when (currentState) {
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
                 println("🔗 Starting listening for requestId: ${currentState.requestId}")
                 connectionManager.startListening(
                     origin = currentState.origin,
-                    requestId = currentState.requestId
+                    requestId = currentState.requestId,
                 )
             }
             is LiquidAuthOfferViewModel.OfferState.Connected,
-            is LiquidAuthOfferViewModel.OfferState.Streaming -> {
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            -> {
                 println("🔗 Connection established - service handling")
             }
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
@@ -141,7 +141,7 @@ fun LiquidAuthOfferScreen(
     val currentEnablePaidStreaming by rememberUpdatedState(enablePaidStreaming)
     val currentCreatorAddress by rememberUpdatedState(creatorAddress)
     val currentConnectionManager by rememberUpdatedState(connectionManager)
-    
+
     LaunchedEffect(viewModel) {
         viewModel.viewEvent.collect { event ->
             when (event) {
@@ -155,7 +155,9 @@ fun LiquidAuthOfferScreen(
                         println("💰 Requesting payment from client...")
                         viewModel.requestPaymentFromClient(address)
                     } else {
-                        println("💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)")
+                        println(
+                            "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
+                        )
                     }
                 }
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
@@ -176,7 +178,7 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
                     // Stop everything when funds depleted
                     currentConnectionManager?.stopBlockConsumption()
-                    viewModel.stopVideoStreaming()  // Stop the video feed
+                    viewModel.stopVideoStreaming() // Stop the video feed
                     println("💰 Funds depleted! Stopping stream and block consumption")
                     println("💰 Viewer must pay again to resume streaming")
                 }
@@ -184,7 +186,7 @@ fun LiquidAuthOfferScreen(
             }
         }
     }
-    
+
     // Cleanup
     DisposableEffect(Unit) {
         onDispose {
@@ -198,10 +200,11 @@ fun LiquidAuthOfferScreen(
             if (showTopBar) {
                 TopAppBar(
                     title = title,
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = AlgoKitTheme.colors.background,
-                        titleContentColor = AlgoKitTheme.colors.textMain,
-                    ),
+                    colors =
+                        TopAppBarDefaults.topAppBarColors(
+                            containerColor = AlgoKitTheme.colors.background,
+                            titleContentColor = AlgoKitTheme.colors.textMain,
+                        ),
                     navigationIcon = {
                         onBackPressed?.let {
                             // Could add back button here
@@ -212,11 +215,12 @@ fun LiquidAuthOfferScreen(
         },
     ) { padding ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(AlgoKitTheme.colors.background)
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
         ) {
@@ -243,7 +247,7 @@ fun LiquidAuthOfferScreen(
                         balanceAlgos = balanceAlgos,
                         onStartCamera = { viewModel.startVideoStreaming() },
                         onDisconnect = { connectionManager?.stopListening() },
-                        onRequestPayment = { 
+                        onRequestPayment = {
                             // Request another payment when funds depleted
                             currentCreatorAddress?.let { address ->
                                 println("💰 Requesting additional payment from viewer...")
@@ -279,6 +283,7 @@ fun LiquidAuthOfferScreen(
                             sessionId = currentState.sessionId,
                             balanceAlgos = balanceAlgos,
                             connectionType = connectionType,
+                            currentBlockNumber = currentBlockNumber,
                         )
                     }
                 }
@@ -302,42 +307,44 @@ fun LiquidAuthOfferScreen(
 }
 
 @Composable
-private fun ConnectionStatusCard(
-    state: LiquidAuthOfferViewModel.OfferState,
-) {
-    val (statusText, statusColor) = when (state) {
-        is LiquidAuthOfferViewModel.OfferState.Idle,
-        is LiquidAuthOfferViewModel.OfferState.Loading,
-        -> "Initializing..." to TextGray
+private fun ConnectionStatusCard(state: LiquidAuthOfferViewModel.OfferState) {
+    val (statusText, statusColor) =
+        when (state) {
+            is LiquidAuthOfferViewModel.OfferState.Idle,
+            is LiquidAuthOfferViewModel.OfferState.Loading,
+            -> "Initializing..." to TextGray
 
-        is LiquidAuthOfferViewModel.OfferState.WaitingForConnection ->
-            "Waiting for client to scan QR code..." to PendingYellow
+            is LiquidAuthOfferViewModel.OfferState.WaitingForConnection ->
+                "Waiting for client to scan QR code..." to PendingYellow
 
-        is LiquidAuthOfferViewModel.OfferState.Connected ->
-            "Client connected! Ready to stream" to SuccessGreen
+            is LiquidAuthOfferViewModel.OfferState.Connected ->
+                "Client connected! Ready to stream" to SuccessGreen
 
-        is LiquidAuthOfferViewModel.OfferState.WaitingForPayment ->
-            "Waiting for 1 ALGO deposit..." to PendingYellow
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment ->
+                "Waiting for 1 ALGO deposit..." to PendingYellow
 
-        is LiquidAuthOfferViewModel.OfferState.Streaming ->
-            "Streaming video to client" to SuccessGreen
+            is LiquidAuthOfferViewModel.OfferState.Streaming ->
+                "Streaming video to client" to SuccessGreen
 
-        is LiquidAuthOfferViewModel.OfferState.Error ->
-            "Error occurred" to MaterialTheme.colorScheme.error
-    }
+            is LiquidAuthOfferViewModel.OfferState.Error ->
+                "Error occurred" to MaterialTheme.colorScheme.error
+        }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
@@ -364,26 +371,30 @@ private fun QRCodeSection(
     val qrPainter = rememberQrKitPainter(data = liquidAuthUrl)
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // QR Code
             Box(
-                modifier = Modifier
-                    .size(250.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White),
+                modifier =
+                    Modifier
+                        .size(250.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White),
                 contentAlignment = Alignment.Center,
             ) {
                 Image(
@@ -436,26 +447,30 @@ private fun ConnectedSection(
     showStartButton: Boolean = true,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Success indicator
             Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(40.dp))
-                    .background(SuccessGreen.copy(alpha = 0.2f)),
+                modifier =
+                    Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(40.dp))
+                        .background(SuccessGreen.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -497,18 +512,21 @@ private fun ConnectedSection(
                     // Show pay to resume button
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFF44336).copy(alpha = 0.1f),
-                        ),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            Color(0xFFF44336)
-                        ),
+                        colors =
+                            CardDefaults.cardColors(
+                                containerColor = Color(0xFFF44336).copy(alpha = 0.1f),
+                            ),
+                        border =
+                            androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFFF44336),
+                            ),
                     ) {
                         Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp),
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                         ) {
@@ -529,9 +547,10 @@ private fun ConnectedSection(
                             Button(
                                 onClick = onRequestPayment,
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Color(0xFFF44336),
-                                ),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFF44336),
+                                    ),
                             ) {
                                 Text("Request 1 ALGO Payment")
                             }
@@ -542,9 +561,10 @@ private fun ConnectedSection(
                     Button(
                         onClick = onStartCamera,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = PrimaryPurple,
-                        ),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = PrimaryPurple,
+                            ),
                     ) {
                         Text("Open Camera & Start Streaming")
                     }
@@ -564,9 +584,10 @@ private fun ConnectedSection(
             Button(
                 onClick = onDisconnect,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
             ) {
                 Text("Disconnect")
             }
@@ -590,26 +611,30 @@ private fun WaitingForPaymentSection(
     onDisconnect: () -> Unit,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Payment indicator
             Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(40.dp))
-                    .background(PendingYellow.copy(alpha = 0.2f)),
+                modifier =
+                    Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(40.dp))
+                        .background(PendingYellow.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -641,14 +666,16 @@ private fun WaitingForPaymentSection(
             // Payment request card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = AlgoKitTheme.colors.background,
-                ),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = AlgoKitTheme.colors.background,
+                    ),
             ) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -691,9 +718,10 @@ private fun WaitingForPaymentSection(
             Button(
                 onClick = onDisconnect,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
             ) {
                 Text("Disconnect")
             }
@@ -717,17 +745,20 @@ private fun StreamingSection(
     cameraPreview: @Composable (() -> Unit)?,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -737,10 +768,11 @@ private fun StreamingSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Red),
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Red),
                 )
                 Text(
                     text = "LIVE",
@@ -754,11 +786,12 @@ private fun StreamingSection(
 
             // Camera preview slot
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
                 if (cameraPreview != null) {
@@ -783,9 +816,10 @@ private fun StreamingSection(
             Button(
                 onClick = onStopStreaming,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
             ) {
                 Text("Stop Streaming")
             }
@@ -794,9 +828,10 @@ private fun StreamingSection(
             Button(
                 onClick = onDisconnect,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AlgoKitTheme.colors.textGray,
-                ),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = AlgoKitTheme.colors.textGray,
+                    ),
             ) {
                 Text("Disconnect Client")
             }
@@ -817,17 +852,20 @@ private fun ErrorSection(
     onRetry: () -> Unit,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -857,9 +895,10 @@ private fun ErrorSection(
 @Composable
 private fun LoadingSection() {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
@@ -879,24 +918,28 @@ private fun ConnectionTypeIndicator(
 ) {
     val isDetecting = connectionType == IceConnectionType.UNKNOWN
 
-    val backgroundColor = if (isDetecting) {
-        Color.Gray
-    } else {
-        hexToColor(connectionType.colorHex()) ?: AlgoKitTheme.colors.textGray
-    }
+    val backgroundColor =
+        if (isDetecting) {
+            Color.Gray
+        } else {
+            hexToColor(connectionType.colorHex()) ?: AlgoKitTheme.colors.textGray
+        }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray.copy(alpha = 0.7f),
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray.copy(alpha = 0.7f),
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -907,10 +950,11 @@ private fun ConnectionTypeIndicator(
             ) {
                 // Color indicator dot (animated pulse when detecting)
                 Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(backgroundColor),
+                    modifier =
+                        Modifier
+                            .size(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(backgroundColor),
                 )
 
                 Text(
@@ -926,26 +970,29 @@ private fun ConnectionTypeIndicator(
                 horizontalAlignment = Alignment.End,
             ) {
                 // Show balance if available, otherwise show cost tier
-                val displayText = balanceAlgos?.let { 
-                    // Format to 1 decimal place KMP-compatible
-                    val rounded = (kotlin.math.round(it * 10) / 10)
-                    val text = if (rounded == rounded.toInt().toDouble()) {
-                        "${rounded.toInt()}A"
-                    } else {
-                        rounded.toString().take(3) + "A"
-                    }
-                    text
-                } ?: connectionType.costTier()
-                
+                val displayText =
+                    balanceAlgos?.let {
+                        // Format to 1 decimal place KMP-compatible
+                        val rounded = (kotlin.math.round(it * 10) / 10)
+                        val text =
+                            if (rounded == rounded.toInt().toDouble()) {
+                                "${rounded.toInt()}A"
+                            } else {
+                                rounded.toString().take(3) + "A"
+                            }
+                        text
+                    } ?: connectionType.costTier()
+
                 Text(
                     text = displayText,
                     style = MaterialTheme.typography.titleMedium,
-                    color = when {
-                        balanceAlgos != null -> SuccessGreen
-                        isDetecting -> AlgoKitTheme.colors.textGray
-                        connectionType == IceConnectionType.RELAY -> Color(0xFFFF9800)
-                        else -> Color(0xFF4CAF50)
-                    },
+                    color =
+                        when {
+                            balanceAlgos != null -> SuccessGreen
+                            isDetecting -> AlgoKitTheme.colors.textGray
+                            connectionType == IceConnectionType.RELAY -> Color(0xFFFF9800)
+                            else -> Color(0xFF4CAF50)
+                        },
                     fontWeight = FontWeight.Bold,
                 )
 
@@ -980,26 +1027,27 @@ private val TextGray = Color(0xFF888888)
 /**
  * Convert hex color string (e.g., "#4CAF50") to Compose Color
  */
-private fun hexToColor(hex: String): Color? {
-    return try {
+private fun hexToColor(hex: String): Color? =
+    try {
         val cleanHex = hex.removePrefix("#")
         val colorInt = cleanHex.toLong(16)
         when (cleanHex.length) {
-            6 -> Color(
-                red = ((colorInt shr 16) and 0xFF) / 255f,
-                green = ((colorInt shr 8) and 0xFF) / 255f,
-                blue = (colorInt and 0xFF) / 255f,
-                alpha = 1f
-            )
-            8 -> Color(
-                red = ((colorInt shr 16) and 0xFF) / 255f,
-                green = ((colorInt shr 8) and 0xFF) / 255f,
-                blue = (colorInt and 0xFF) / 255f,
-                alpha = ((colorInt shr 24) and 0xFF) / 255f
-            )
+            6 ->
+                Color(
+                    red = ((colorInt shr 16) and 0xFF) / 255f,
+                    green = ((colorInt shr 8) and 0xFF) / 255f,
+                    blue = (colorInt and 0xFF) / 255f,
+                    alpha = 1f,
+                )
+            8 ->
+                Color(
+                    red = ((colorInt shr 16) and 0xFF) / 255f,
+                    green = ((colorInt shr 8) and 0xFF) / 255f,
+                    blue = (colorInt and 0xFF) / 255f,
+                    alpha = ((colorInt shr 24) and 0xFF) / 255f,
+                )
             else -> null
         }
     } catch (_: Exception) {
         null
     }
-}

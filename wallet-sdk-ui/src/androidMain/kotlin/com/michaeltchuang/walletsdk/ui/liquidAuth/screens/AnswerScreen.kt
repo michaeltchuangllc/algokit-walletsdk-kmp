@@ -136,7 +136,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                     viewModel.sendPaymentResponse(
                         pendingPaymentRequest!!,
                         X402PaymentMessages.PaymentResponse.Status.REJECTED,
-                        null
+                        null,
                     )
                     showPaymentDialog = false
                 },
@@ -179,17 +179,19 @@ fun ScreenContentAnswer(
     }
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .padding(16.dp),
     ) {
         // Main content - Transaction signing is the primary focus
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState()),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
         ) {
             // Header
             Text(
@@ -266,17 +268,20 @@ private fun PaymentStatusCard(
     fundsDepleted: Boolean,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (fundsDepleted) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = if (fundsDepleted) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -295,10 +300,11 @@ private fun PaymentStatusCard(
             }
             if (!fundsDepleted) {
                 Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color(0xFF4CAF50)),
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color(0xFF4CAF50)),
                 )
             }
         }
@@ -320,26 +326,30 @@ private fun ConnectionStatusCard(
     requestId: String?,
     accountAddress: String,
 ) {
-    val (statusText, statusColor) = when {
-        hasError -> "Error: $errorMessage" to MaterialTheme.colorScheme.error
-        isConnected -> "Connected to $session" to Color(0xFF4CAF50)
-        isConnecting -> "Connecting..." to Color(0xFFFFA000)
-        isWaiting -> "Waiting for connection" to AlgoKitTheme.colors.textGray
-        else -> "Unknown state" to AlgoKitTheme.colors.textGray
-    }
+    val (statusText, statusColor) =
+        when {
+            hasError -> "Error: $errorMessage" to MaterialTheme.colorScheme.error
+            isConnected -> "Connected to $session" to Color(0xFF4CAF50)
+            isConnecting -> "Connecting..." to Color(0xFFFFA000)
+            isWaiting -> "Waiting for connection" to AlgoKitTheme.colors.textGray
+            else -> "Unknown state" to AlgoKitTheme.colors.textGray
+        }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
@@ -371,17 +381,20 @@ private fun TransactionSigningArea(
     isReady: Boolean,
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -403,12 +416,13 @@ private fun TransactionSigningArea(
 
             // Placeholder for transaction details
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(100.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(AlgoKitTheme.colors.background)
-                    .padding(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(100.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AlgoKitTheme.colors.background)
+                        .padding(16.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -431,22 +445,25 @@ private fun CompactVideoPreview(
     onClose: () -> Unit,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize(),
+        modifier =
+            Modifier
+                .fillMaxSize(),
         contentAlignment = Alignment.BottomEnd,
     ) {
         Card(
-            modifier = Modifier
-                .padding(16.dp)
-                .size(160.dp, 120.dp),
+            modifier =
+                Modifier
+                    .padding(16.dp)
+                    .size(160.dp, 120.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = Color.Black,
-            ),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = Color.Black,
+                ),
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Video frame display
-                val aspectRatio = if (videoFrame.height > 0) videoFrame.width.toFloat() / videoFrame.height else 4f/3f
+                val aspectRatio = if (videoFrame.height > 0) videoFrame.width.toFloat() / videoFrame.height else 4f / 3f
                 VideoFrameDisplay(
                     frameData = videoFrame.data,
                     aspectRatio = aspectRatio,
@@ -466,19 +483,21 @@ private fun CompactVideoPreview(
 
                 // Live/Ended indicator
                 Row(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isLive) Color.Red else Color.Gray)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(8.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(if (isLive) Color.Red else Color.Gray)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(if (isLive) Color.White else Color.Transparent),
+                        modifier =
+                            Modifier
+                                .size(6.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(if (isLive) Color.White else Color.Transparent),
                     )
                     Spacer(modifier = Modifier.size(4.dp))
                     Text(
@@ -497,22 +516,23 @@ private fun CompactVideoPreview(
  * Indicator shown when video is available but hidden
  */
 @Composable
-private fun VideoAvailableIndicator(
-    onShowVideo: () -> Unit,
-) {
+private fun VideoAvailableIndicator(onShowVideo: () -> Unit) {
     Card(
         onClick = onShowVideo,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
@@ -520,10 +540,11 @@ private fun VideoAvailableIndicator(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Red),
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Red),
                 )
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
@@ -548,25 +569,29 @@ private fun VideoAvailableIndicator(
 @Composable
 private fun StreamEndedIndicator() {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFFFF3E0),
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = Color(0xFFFFF3E0),
+            ),
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Gray),
+                modifier =
+                    Modifier
+                        .size(12.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Gray),
             )
             Text(
                 text = "Stream ended - broadcaster stopped",
@@ -590,23 +615,27 @@ private fun X402PaymentDialog(
     val amountAlgos = paymentRequest.amountMicroAlgos / 1_000_000.0
 
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f)),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.6f)),
         contentAlignment = Alignment.Center,
     ) {
         Card(
-            modifier = Modifier
-                .padding(32.dp)
-                .fillMaxWidth(),
+            modifier =
+                Modifier
+                    .padding(32.dp)
+                    .fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.background,
-            ),
+            colors =
+                CardDefaults.cardColors(
+                    containerColor = AlgoKitTheme.colors.background,
+                ),
         ) {
             Column(
-                modifier = Modifier
-                    .padding(24.dp),
+                modifier =
+                    Modifier
+                        .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
@@ -637,9 +666,10 @@ private fun X402PaymentDialog(
                 // Cost breakdown
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = AlgoKitTheme.colors.layerGray,
-                    ),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = AlgoKitTheme.colors.layerGray,
+                        ),
                 ) {
                     Column(
                         modifier = Modifier.padding(16.dp),
@@ -662,9 +692,10 @@ private fun X402PaymentDialog(
                     Button(
                         onClick = onReject,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.Gray,
-                        ),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = Color.Gray,
+                            ),
                         enabled = !isProcessing,
                     ) {
                         Text("Reject")

@@ -1,9 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.payments
 
 import android.util.Log
-import com.algorand.algosdk.account.Account
 import com.algorand.algosdk.transaction.SignedTransaction
-import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
@@ -64,21 +62,18 @@ object AlgorandX402Payments {
     fun signTransaction(
         transactionBytes: ByteArray,
         secretKey: ByteArray,
-    ): ByteArray {
-        return signAlgo25Transaction(secretKey, transactionBytes)
-    }
+    ): ByteArray = signAlgo25Transaction(secretKey, transactionBytes)
 
     /**
      * Decode signed transaction bytes for verification
      */
-    fun decodeSignedTransaction(bytes: ByteArray): SignedTransaction? {
-        return try {
+    fun decodeSignedTransaction(bytes: ByteArray): SignedTransaction? =
+        try {
             Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode signed transaction", e)
             null
         }
-    }
 
     /**
      * Verify payment proof from client
@@ -93,22 +88,23 @@ object AlgorandX402Payments {
         expectedCreator: String,
         expectedSessionId: String,
     ): PaymentVerificationResult {
-        val signedTxn = decodeSignedTransaction(signedTxnBytes)
-            ?: return PaymentVerificationResult.Invalid("Failed to decode transaction")
+        val signedTxn =
+            decodeSignedTransaction(signedTxnBytes)
+                ?: return PaymentVerificationResult.Invalid("Failed to decode transaction")
 
         val txn = signedTxn.tx
 
         // Verify amount is 1 ALGO
         if (txn.amount.toString() != DEPOSIT_MICRO_ALGOS) {
             return PaymentVerificationResult.Invalid(
-                "Incorrect amount: expected 1 ALGO, got ${txn.amount.toDouble() / 1_000_000.0} ALGO"
+                "Incorrect amount: expected 1 ALGO, got ${txn.amount.toDouble() / 1_000_000.0} ALGO",
             )
         }
 
         // Verify receiver
         if (txn.receiver.toString() != expectedCreator) {
             return PaymentVerificationResult.Invalid(
-                "Incorrect receiver: expected $expectedCreator, got ${txn.receiver}"
+                "Incorrect receiver: expected $expectedCreator, got ${txn.receiver}",
             )
         }
 

@@ -13,7 +13,6 @@ import kotlinx.coroutines.flow.StateFlow
  * This is a placeholder to satisfy the interface contract.
  */
 class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
-
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
@@ -22,7 +21,10 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("IOSLiquidAuthConnectionManager: iOS uses different architecture")
     }
 
-    override fun startListening(origin: String, requestId: String) {
+    override fun startListening(
+        origin: String,
+        requestId: String,
+    ) {
         // Stub - iOS implementation is in iosDemoApp
         println("IOSLiquidAuthConnectionManager.startListening: iOS stub")
     }
@@ -49,9 +51,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("IOSLiquidAuthConnectionManager.sendVideoFrame: iOS stub")
     }
 
-    override fun isConnected(): Boolean {
-        return false
-    }
+    override fun isConnected(): Boolean = false
 
     // ================= X402 Payment Stubs =================
 
@@ -71,6 +71,4 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 /**
  * iOS actual implementation of factory function.
  */
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager {
-    return IOSLiquidAuthConnectionManager()
-}
+actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager = IOSLiquidAuthConnectionManager()

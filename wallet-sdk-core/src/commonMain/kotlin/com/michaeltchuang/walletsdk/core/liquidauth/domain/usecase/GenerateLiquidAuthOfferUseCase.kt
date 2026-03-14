@@ -10,15 +10,12 @@ import kotlin.uuid.Uuid
  * generates a QR code for dApps to scan and connect.
  */
 class GenerateLiquidAuthOfferUseCase {
-
     /**
      * Generate a request ID using UUID7 (time-based, sortable)
      * Similar to SignalInterface.generateRequestId() in Android
      */
     @OptIn(ExperimentalUuidApi::class)
-    fun generateRequestId(): String {
-        return Uuid.random().toString()
-    }
+    fun generateRequestId(): String = Uuid.random().toString()
 
     /**
      * Generate the liquid auth URL for QR code display
@@ -32,10 +29,12 @@ class GenerateLiquidAuthOfferUseCase {
         origin: String,
         requestId: String,
     ): String {
-        val host = origin.replace("https://", "")
-            .replace("http://", "")
-            .removePrefix("/")
-            .removeSuffix("/")
+        val host =
+            origin
+                .replace("https://", "")
+                .replace("http://", "")
+                .removePrefix("/")
+                .removeSuffix("/")
         return "liquid://$host/?requestId=$requestId"
     }
 
@@ -45,9 +44,7 @@ class GenerateLiquidAuthOfferUseCase {
      * @param origin The origin URL of the liquid auth service
      * @return Pair of (requestId, liquidAuthUrl)
      */
-    fun generateOffer(
-        origin: String,
-    ): LiquidAuthOffer {
+    fun generateOffer(origin: String): LiquidAuthOffer {
         val requestId = generateRequestId()
         val url = generateLiquidAuthUrl(origin, requestId)
         return LiquidAuthOffer(

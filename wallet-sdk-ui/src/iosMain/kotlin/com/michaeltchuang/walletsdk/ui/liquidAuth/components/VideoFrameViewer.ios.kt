@@ -25,11 +25,12 @@ actual fun VideoFrameDisplay(
     aspectRatio: Float,
 ) {
     Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .aspectRatio(aspectRatio)
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .aspectRatio(aspectRatio)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black),
         contentAlignment = Alignment.Center,
     ) {
         Text(

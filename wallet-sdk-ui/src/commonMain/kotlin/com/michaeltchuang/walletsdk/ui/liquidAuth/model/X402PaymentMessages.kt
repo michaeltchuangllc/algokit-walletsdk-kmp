@@ -30,17 +30,16 @@ object X402PaymentMessages {
     @Serializable
     data class PaymentRequest(
         val reference: String = PAYMENT_REQUEST,
-        val id: String,                    // Unique payment session ID
-        val amountMicroAlgos: Long,        // 1 ALGO = 1_000_000 microAlgos
-        val creatorAddress: String,        // Where funds will be held
-        val network: String = "testnet",   // mainnet/testnet
+        val id: String, // Unique payment session ID
+        val amountMicroAlgos: Long, // 1 ALGO = 1_000_000 microAlgos
+        val creatorAddress: String, // Where funds will be held
+        val network: String = "testnet", // mainnet/testnet
         val note: String = "X402 Streaming Deposit",
     ) {
         fun toJson(): String = json.encodeToString(serializer(), this)
 
         companion object {
-            fun fromJson(jsonStr: String): PaymentRequest =
-                json.decodeFromString(serializer(), jsonStr)
+            fun fromJson(jsonStr: String): PaymentRequest = json.decodeFromString(serializer(), jsonStr)
         }
     }
 
@@ -51,23 +50,22 @@ object X402PaymentMessages {
     @Serializable
     data class PaymentResponse(
         val reference: String = PAYMENT_RESPONSE,
-        val id: String,                    // Same ID as request
-        val signedTransactionB64: String,  // Base64 signed txn
-        val clientAddress: String,         // Sender address
+        val id: String, // Same ID as request
+        val signedTransactionB64: String, // Base64 signed txn
+        val clientAddress: String, // Sender address
         val status: Status,
         val errorMessage: String? = null,
     ) {
         enum class Status {
-            SIGNED,     // Successfully signed
-            REJECTED,   // User rejected
-            ERROR,      // Error during signing
+            SIGNED, // Successfully signed
+            REJECTED, // User rejected
+            ERROR, // Error during signing
         }
 
         fun toJson(): String = json.encodeToString(serializer(), this)
 
         companion object {
-            fun fromJson(jsonStr: String): PaymentResponse =
-                json.decodeFromString(serializer(), jsonStr)
+            fun fromJson(jsonStr: String): PaymentResponse = json.decodeFromString(serializer(), jsonStr)
         }
     }
 
@@ -78,12 +76,12 @@ object X402PaymentMessages {
     @Serializable
     data class BalanceUpdate(
         val reference: String = BALANCE_UPDATE,
-        val id: String,                    // Payment session ID
-        val initialDepositMicroAlgos: Long,  // Original 1 ALGO
-        val consumedMicroAlgos: Long,      // Amount used so far
-        val remainingMicroAlgos: Long,     // Current balance
-        val blocksWatched: Int,            // Number of blocks consumed
-        val costPerBlockMicroAlgos: Long = 100_000,  // 0.1 ALGO per block
+        val id: String, // Payment session ID
+        val initialDepositMicroAlgos: Long, // Original 1 ALGO
+        val consumedMicroAlgos: Long, // Amount used so far
+        val remainingMicroAlgos: Long, // Current balance
+        val blocksWatched: Int, // Number of blocks consumed
+        val costPerBlockMicroAlgos: Long = 100_000, // 0.1 ALGO per block
     ) {
         fun toJson(): String = json.encodeToString(serializer(), this)
 
@@ -92,8 +90,7 @@ object X402PaymentMessages {
         fun consumedAlgos(): Double = consumedMicroAlgos / 1_000_000.0
 
         companion object {
-            fun fromJson(jsonStr: String): BalanceUpdate =
-                json.decodeFromString(serializer(), jsonStr)
+            fun fromJson(jsonStr: String): BalanceUpdate = json.decodeFromString(serializer(), jsonStr)
         }
     }
 
@@ -110,8 +107,7 @@ object X402PaymentMessages {
         fun toJson(): String = json.encodeToString(serializer(), this)
 
         companion object {
-            fun fromJson(jsonStr: String): FundsDepleted =
-                json.decodeFromString(serializer(), jsonStr)
+            fun fromJson(jsonStr: String): FundsDepleted = json.decodeFromString(serializer(), jsonStr)
         }
     }
 }

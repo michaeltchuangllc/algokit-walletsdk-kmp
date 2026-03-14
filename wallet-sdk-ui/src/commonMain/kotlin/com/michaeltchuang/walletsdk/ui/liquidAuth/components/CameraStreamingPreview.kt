@@ -27,6 +27,4 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
  * @param connectionManager The connection manager to send video frames through
  * @return A composable that displays camera preview and streams frames
  */
-expect fun createCameraStreamingPreview(
-    connectionManager: LiquidAuthConnectionManager?,
-): @Composable () -> Unit
+expect fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit

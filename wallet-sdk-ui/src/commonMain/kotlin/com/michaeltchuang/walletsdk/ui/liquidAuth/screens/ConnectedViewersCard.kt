@@ -35,6 +35,7 @@ internal fun ConnectedViewersCard(
     sessionId: String,
     balanceAlgos: Double,
     connectionType: IceConnectionType,
+    currentBlockNumber: Long? = null,
 ) {
     val balancePercentage = (balanceAlgos / 1.0).coerceIn(0.0, 1.0)
     val percentageInt = kotlin.math.round(balancePercentage * 100).toInt()
@@ -43,24 +44,28 @@ internal fun ConnectedViewersCard(
     val balanceText = (kotlin.math.round(balanceAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: balanceAlgos.toString().take(4)
 
     // Color based on remaining balance
-    val balanceColor = when {
-        balanceAlgos > 0.5 -> Color(0xFF4CAF50)  // Green - plenty
-        balanceAlgos > 0.2 -> Color(0xFFFFC107)  // Yellow - getting low
-        else -> Color(0xFFF44336)  // Red - almost empty
-    }
+    val balanceColor =
+        when {
+            balanceAlgos > 0.5 -> Color(0xFF4CAF50) // Green - plenty
+            balanceAlgos > 0.2 -> Color(0xFFFFC107) // Yellow - getting low
+            else -> Color(0xFFF44336) // Red - almost empty
+        }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = AlgoKitTheme.colors.layerGray,
-        ),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             // Header row with viewer info and live indicator
@@ -76,10 +81,11 @@ internal fun ConnectedViewersCard(
                 ) {
                     // Connection indicator
                     Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(Color(0xFF4CAF50)),
+                        modifier =
+                            Modifier
+                                .size(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(Color(0xFF4CAF50)),
                     )
 
                     Column {
@@ -98,9 +104,10 @@ internal fun ConnectedViewersCard(
 
                 // Right: Live badge
                 Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = Color(0xFFF44336).copy(alpha = 0.2f),
-                    ),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = Color(0xFFF44336).copy(alpha = 0.2f),
+                        ),
                     shape = RoundedCornerShape(12.dp),
                 ) {
                     Row(
@@ -109,10 +116,11 @@ internal fun ConnectedViewersCard(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(Color(0xFFF44336)),
+                            modifier =
+                                Modifier
+                                    .size(6.dp)
+                                    .clip(RoundedCornerShape(3.dp))
+                                    .background(Color(0xFFF44336)),
                         )
                         Text(
                             text = "LIVE",
@@ -136,7 +144,7 @@ internal fun ConnectedViewersCard(
                     verticalAlignment = Alignment.Bottom,
                 ) {
                     Text(
-                        text = "${percentageInt}%",
+                        text = "$percentageInt%",
                         style = MaterialTheme.typography.headlineLarge,
                         color = balanceColor,
                         fontWeight = FontWeight.Bold,
@@ -151,23 +159,25 @@ internal fun ConnectedViewersCard(
 
                 // Thick progress bar
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(AlgoKitTheme.colors.background),
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .height(24.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(AlgoKitTheme.colors.background),
                 ) {
                     // Filled portion
                     Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(balancePercentage.toFloat())
-                            .background(balanceColor),
+                        modifier =
+                            Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(balancePercentage.toFloat())
+                                .background(balanceColor),
                     )
 
                     // Percentage text centered in bar
                     Text(
-                        text = "${percentageInt}%",
+                        text = "$percentageInt%",
                         modifier = Modifier.align(Alignment.Center),
                         style = MaterialTheme.typography.labelMedium,
                         color = Color.White,
@@ -221,6 +231,49 @@ internal fun ConnectedViewersCard(
                     value = "1A",
                     color = AlgoKitTheme.colors.textMain,
                 )
+            }
+            // Blockchain info - Algorand block number
+            if (currentBlockNumber != null) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        CardDefaults.cardColors(
+                            containerColor = Color(0xFF6200EE).copy(alpha = 0.1f), // Purple tint
+                        ),
+                    shape = RoundedCornerShape(8.dp),
+                ) {
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        ) {
+                            // Chain link icon
+                            Text(
+                                text = "⛓️",
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            Text(
+                                text = "Algorand Block",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = AlgoKitTheme.colors.textMain,
+                            )
+                        }
+
+                        Text(
+                            text = "#$currentBlockNumber",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF6200EE), // Purple
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
             }
         }
     }
