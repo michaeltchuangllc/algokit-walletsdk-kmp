@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
  * Connected Viewers Card - Shows connected viewers with visual balance progress bar
@@ -269,7 +270,7 @@ internal fun ConnectedViewersCard(
                         Text(
                             text = "#$currentBlockNumber",
                             style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF6200EE), // Purple
+                            color = AlgoKitTheme.colors.linkPrimary,
                             fontWeight = FontWeight.Bold,
                         )
                     }
@@ -302,5 +303,47 @@ internal fun StatItem(
             style = MaterialTheme.typography.labelSmall,
             color = AlgoKitTheme.colors.textGray,
         )
+    }
+}
+ 
+@Preview
+@Composable
+private fun ConnectedViewersCardWithBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                sessionId = "session-1234567890",
+                balanceAlgos = 0.6,
+                connectionType = IceConnectionType.STUN,
+                currentBlockNumber = 45123459L,
+            )
+        }
+    }
+}
+ 
+@Preview
+@Composable
+private fun ConnectedViewersCardWithoutBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                sessionId = "session-1234567890",
+                balanceAlgos = 0.2,
+                connectionType = IceConnectionType.RELAY,
+                currentBlockNumber = null,
+            )
+        }
     }
 }

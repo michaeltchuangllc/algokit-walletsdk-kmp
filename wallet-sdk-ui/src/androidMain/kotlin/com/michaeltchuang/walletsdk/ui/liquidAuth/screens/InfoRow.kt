@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.R
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 
 /**
  * Info Row
@@ -22,26 +23,27 @@ fun InfoRow(
     label: String,
     value: String,
 ) {
+    val normalizedLabel = label.removeSuffix(":")
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         Text(
             text =
-                when (label) {
+                when (normalizedLabel) {
                     "Session" -> stringResource(R.string.account_details)
                     "Origin" -> stringResource(R.string.origin)
                     "Request ID" -> stringResource(R.string.request_id)
-                    else -> label
+                    else -> normalizedLabel
                 },
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            color = AlgoKitTheme.colors.textGray,
             fontWeight = FontWeight.Medium,
         )
         Text(
             text = value,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            color = AlgoKitTheme.colors.textMain,
             fontWeight = FontWeight.Normal,
         )
     }

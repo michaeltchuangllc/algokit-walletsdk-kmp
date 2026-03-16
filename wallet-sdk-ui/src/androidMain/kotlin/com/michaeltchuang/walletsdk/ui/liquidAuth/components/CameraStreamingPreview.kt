@@ -1,8 +1,11 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import android.Manifest
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.content.pm.PackageManager
 import android.graphics.ImageFormat
+import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
@@ -15,6 +18,8 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,13 +40,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import java.io.ByteArrayOutputStream
 import java.util.UUID
@@ -54,15 +60,36 @@ import java.util.concurrent.Executors
 actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit =
     {
         val context = LocalContext.current
-
-        // Check camera permission
-        val hasCameraPermission =
+        var hasCameraPermission by
             remember {
+                mutableStateOf(
+                    ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.CAMERA,
+                    ) == PackageManager.PERMISSION_GRANTED,
+                )
+            }
+        val cameraPermissionLauncher =
+            rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+            ) { isGranted ->
+                hasCameraPermission = isGranted
+            }
+        LaunchedEffect(hasCameraPermission) {
+            if (!hasCameraPermission) {
+                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+        LaunchedEffect(context) {
+            hasCameraPermission =
                 ContextCompat.checkSelfPermission(
                     context,
                     Manifest.permission.CAMERA,
                 ) == PackageManager.PERMISSION_GRANTED
-            }
+        }
+
+        // Check camera permission
+        // Request camera permission at runtime when needed
 
         if (!hasCameraPermission) {
             // Show permission required UI
@@ -70,7 +97,7 @@ actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionM
                 modifier =
                     Modifier
                         .fillMaxSize()
-                        .background(Color.Black)
+                        .background(AlgoKitTheme.colors.background)
                         .padding(16.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -79,17 +106,23 @@ actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionM
                 ) {
                     Text(
                         text = "Camera Permission Required",
-                        color = Color.White,
-                        style = MaterialTheme.typography.titleLarge,
+                        color = AlgoKitTheme.colors.textMain,
+                        style = AlgoKitTheme.typography.title.regular.sansMedium,
                         textAlign = TextAlign.Center,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Please grant camera permission in:\nSettings → Apps → WalletSDK Demo → Permissions → Camera",
-                        color = Color.White,
+                        color = AlgoKitTheme.colors.textGray,
                         style = MaterialTheme.typography.bodyMedium,
                         textAlign = TextAlign.Center,
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
+                    ) {
+                        Text(text = "Grant Camera Permission")
+                    }
                 }
             }
         } else {
@@ -205,18 +238,24 @@ private fun processAndSendFrame(
 ) {
     try {
         val image = imageProxy.image ?: return
-        val jpegBytes = yuvToJpeg(image, 70)
-
-        if (jpegBytes != null) {
-            connectionManager.sendVideoFrame(
-                frameId = UUID.randomUUID().toString(),
-                timestamp = System.currentTimeMillis(),
-                frameData = jpegBytes,
-                width = imageProxy.width,
-                height = imageProxy.height,
-                format = "jpeg",
+        val encodedFrame =
+            yuvToJpeg(
+                image = image,
+                quality = 70,
+                rotationDegrees = imageProxy.imageInfo.rotationDegrees,
             )
-        }
+        val jpegBytes = encodedFrame?.bytes ?: return
+        val frameWidth = encodedFrame.width
+        val frameHeight = encodedFrame.height
+
+        connectionManager.sendVideoFrame(
+            frameId = UUID.randomUUID().toString(),
+            timestamp = System.currentTimeMillis(),
+            frameData = jpegBytes,
+            width = frameWidth,
+            height = frameHeight,
+            format = "jpeg",
+        )
     } catch (e: Exception) {
         Log.e("CameraStreaming", "Error processing frame: $e")
     }
@@ -225,7 +264,8 @@ private fun processAndSendFrame(
 private fun yuvToJpeg(
     image: Image,
     quality: Int,
-): ByteArray? =
+    rotationDegrees: Int = 0,
+): EncodedFrame? =
     try {
         val yBuffer = image.planes[0].buffer
         val uBuffer = image.planes[1].buffer
@@ -256,9 +296,62 @@ private fun yuvToJpeg(
             quality,
             outputStream,
         )
-
-        outputStream.toByteArray()
+        val jpegBytes = outputStream.toByteArray()
+        if (rotationDegrees == 0) {
+            EncodedFrame(
+                bytes = jpegBytes,
+                width = image.width,
+                height = image.height,
+            )
+        } else {
+            rotateJpegFrame(
+                jpegBytes = jpegBytes,
+                quality = quality,
+                rotationDegrees = rotationDegrees,
+            )
+        }
     } catch (e: Exception) {
         Log.e("CameraStreaming", "Error converting YUV to JPEG: $e")
         null
+    }
+    
+private data class EncodedFrame(
+    val bytes: ByteArray,
+    val width: Int,
+    val height: Int,
+)
+    
+private fun rotateJpegFrame(
+    jpegBytes: ByteArray,
+    quality: Int,
+    rotationDegrees: Int,
+): EncodedFrame? =
+    try {
+        val sourceBitmap = BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size) ?: return null
+        val rotationMatrix =
+            Matrix().apply {
+                postRotate(rotationDegrees.toFloat())
+            }
+        val rotatedBitmap =
+            Bitmap.createBitmap(
+                sourceBitmap,
+                0,
+                0,
+                sourceBitmap.width,
+                sourceBitmap.height,
+                rotationMatrix,
+                true,
+            )
+        val outputStream = ByteArrayOutputStream()
+        rotatedBitmap.compress(Bitmap.CompressFormat.JPEG, quality, outputStream)
+        EncodedFrame(
+            bytes = outputStream.toByteArray(),
+            width = rotatedBitmap.width,
+            height = rotatedBitmap.height,
+        )
+    } catch (e: Exception) {
+        Log.e("CameraStreaming", "Error rotating JPEG frame: $e")
+        null
+    } finally {
+        // no-op
     }

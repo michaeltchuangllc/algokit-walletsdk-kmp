@@ -1,6 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
+import android.graphics.BitmapFactory
 import android.util.Log
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -17,6 +20,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -37,9 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -164,6 +172,7 @@ fun ScreenContentAnswer(
 ) {
     // User can toggle video visibility
     var showVideo by remember { mutableStateOf(true) }
+    var isVideoFullScreen by remember { mutableStateOf(false) }
     // Has a frame to display (even if stream ended, show last frame)
     val hasVideoFrame = videoFrame != null
     // Stream is actively receiving new frames
@@ -177,83 +186,105 @@ fun ScreenContentAnswer(
             showVideo = false
         }
     }
+    LaunchedEffect(showVideo) {
+        if (!showVideo) {
+            isVideoFullScreen = false
+        }
+    }
 
     Box(
         modifier =
             Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+                .fillMaxSize(),
     ) {
-        // Main content - Transaction signing is the primary focus
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
             modifier =
                 Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
+                    .fillMaxSize()
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Header
             Text(
+                modifier = Modifier.fillMaxWidth(),
                 text = stringResource(R.string.liquid_auth_header),
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
+                color = AlgoKitTheme.colors.linkPrimary,
+                textAlign = TextAlign.Center
             )
 
-            // Connection Status Card - Primary UI
-            ConnectionStatusCard(
-                isConnected = isConnected,
-                isWaiting = isWaiting,
-                isConnecting = isConnecting,
-                hasError = hasError,
-                errorMessage = errorMessage,
-                session = session,
-                origin = origin,
-                requestId = requestId,
-                accountAddress = accountAddress,
-            )
-
-            // X402 Payment Status (when paid streaming)
-            if (paymentBalance != null) {
-                PaymentStatusCard(
-                    balance = paymentBalance,
-                    fundsDepleted = fundsDepleted,
+            // Compact video preview first
+            if (hasVideoFrame && showVideo) {
+                CompactVideoPreview(
+                    videoFrame = videoFrame,
+                    isLive = isStreamActive,
+                    onExpand = { isVideoFullScreen = true },
+                    onClose = { showVideo = false },
                 )
             }
 
-            // Transaction Signing Area (when connected)
-            if (isConnected) {
-                TransactionSigningArea(
-                    onSignClick = { /* Launch signing flow */ },
-                    isReady = true,
+            // All other views below compact preview
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+            ) {
+
+                // Connection Status Card - Primary UI
+                ConnectionStatusCard(
+                    isConnected = isConnected,
+                    isWaiting = isWaiting,
+                    isConnecting = isConnecting,
+                    hasError = hasError,
+                    errorMessage = errorMessage,
+                    session = session,
+                    origin = origin,
+                    requestId = requestId,
+                    accountAddress = accountAddress,
                 )
-            }
 
-            // Account Info Card
-            if (accountAddress.isNotEmpty()) {
-                AccountInfoCard(accountAddress = accountAddress)
-            }
+                // X402 Payment Status (when paid streaming)
+                if (paymentBalance != null) {
+                    PaymentStatusCard(
+                        balance = paymentBalance,
+                        fundsDepleted = fundsDepleted,
+                    )
+                }
 
-            // Video stream indicator (when video is hidden but available)
-            if (isStreamActive && !showVideo) {
-                VideoAvailableIndicator(
-                    onShowVideo = { showVideo = true },
-                )
-            }
+                // Transaction Signing Area (when connected)
+                if (isConnected) {
+                    TransactionSigningArea(
+                        onSignClick = { /* Launch signing flow */ },
+                        isReady = true,
+                    )
+                }
 
-            // Stream ended indicator (when video was showing but stream stopped)
-            if (!isStreamActive && videoFrame != null) {
-                StreamEndedIndicator()
+                // Account Info Card
+                if (accountAddress.isNotEmpty()) {
+                    AccountInfoCard(accountAddress = accountAddress)
+                }
+
+                // Video stream indicator (when video is hidden but available)
+                if (isStreamActive && !showVideo) {
+                    VideoAvailableIndicator(
+                        onShowVideo = { showVideo = true },
+                    )
+                }
+
+                // Stream ended indicator (when video was showing but stream stopped)
+                if (!isStreamActive && videoFrame != null) {
+                    StreamEndedIndicator()
+                }
             }
         }
-
-        // Floating video preview (compact overlay in corner)
-        if (hasVideoFrame && showVideo) {
-            CompactVideoPreview(
-                videoFrame = videoFrame!!,
+        if (hasVideoFrame && showVideo && isVideoFullScreen) {
+            FullScreenVideoPreview(
+                videoFrame = videoFrame,
                 isLive = isStreamActive,
-                onClose = { showVideo = false },
+                onClose = { isVideoFullScreen = false },
             )
         }
     }
@@ -274,7 +305,7 @@ private fun PaymentStatusCard(
                 .padding(horizontal = 8.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = if (fundsDepleted) Color(0xFFFFEBEE) else Color(0xFFE8F5E9),
+                containerColor = if (fundsDepleted) AlgoKitTheme.colors.negativeLighter else AlgoKitTheme.colors.positiveLighter,
             ),
     ) {
         Row(
@@ -290,7 +321,7 @@ private fun PaymentStatusCard(
                     text = if (fundsDepleted) "⛽ Funds Depleted" else "💰 Streaming Balance",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
-                    color = if (fundsDepleted) Color(0xFFC62828) else Color(0xFF2E7D32),
+                    color = if (fundsDepleted) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.positive,
                 )
                 Text(
                     text = if (fundsDepleted) "Stream stopped" else "$balance ALGO remaining",
@@ -304,7 +335,7 @@ private fun PaymentStatusCard(
                         Modifier
                             .size(12.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF4CAF50)),
+                            .background(AlgoKitTheme.colors.positive),
                 )
             }
         }
@@ -328,9 +359,9 @@ private fun ConnectionStatusCard(
 ) {
     val (statusText, statusColor) =
         when {
-            hasError -> "Error: $errorMessage" to MaterialTheme.colorScheme.error
-            isConnected -> "Connected to $session" to Color(0xFF4CAF50)
-            isConnecting -> "Connecting..." to Color(0xFFFFA000)
+            hasError -> "Error: $errorMessage" to AlgoKitTheme.colors.negative
+            isConnected -> "Connected to $session" to AlgoKitTheme.colors.positive
+            isConnecting -> "Connecting..." to AlgoKitTheme.colors.success
             isWaiting -> "Waiting for connection" to AlgoKitTheme.colors.textGray
             else -> "Unknown state" to AlgoKitTheme.colors.textGray
         }
@@ -442,72 +473,170 @@ private fun TransactionSigningArea(
 private fun CompactVideoPreview(
     videoFrame: AnswerViewModel.VideoFrameData,
     isLive: Boolean,
+    onExpand: () -> Unit,
     onClose: () -> Unit,
 ) {
-    Box(
+    Card(
         modifier =
             Modifier
-                .fillMaxSize(),
-        contentAlignment = Alignment.BottomEnd,
+                .fillMaxWidth()
+                .height(220.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = Color.Black,
+            ),
     ) {
-        Card(
-            modifier =
-                Modifier
-                    .padding(16.dp)
-                    .size(160.dp, 120.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = Color.Black,
-                ),
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                // Video frame display
-                val aspectRatio = if (videoFrame.height > 0) videoFrame.width.toFloat() / videoFrame.height else 4f / 3f
-                VideoFrameDisplay(
-                    frameData = videoFrame.data,
-                    aspectRatio = aspectRatio,
-                )
+        Box(modifier = Modifier.fillMaxSize()) {
+            // Video frame display
+            val aspectRatio = if (videoFrame.height > 0) videoFrame.width.toFloat() / videoFrame.height else 4f / 3f
+            VideoFrameDisplay(
+                frameData = videoFrame.data,
+                aspectRatio = aspectRatio,
+            )
 
-                // Close button
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.align(Alignment.TopEnd),
-                ) {
+            Row(
+                modifier =
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp),
+            ) {
+                IconButton(onClick = onExpand) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Open video full screen",
+                        tint = Color.White,
+                    )
+                }
+                IconButton(onClick = onClose) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Close video",
                         tint = Color.White,
                     )
                 }
+            }
 
-                // Live/Ended indicator
-                Row(
+            // Live/Ended indicator
+            Row(
+                modifier =
+                    Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
                     modifier =
                         Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(if (isLive) Color.Red else Color.Gray)
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(6.dp)
-                                .clip(RoundedCornerShape(3.dp))
-                                .background(if (isLive) Color.White else Color.Transparent),
-                    )
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text(
-                        text = if (isLive) "LIVE" else "ENDED",
-                        color = Color.White,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                            .size(6.dp)
+                            .clip(RoundedCornerShape(3.dp))
+                            .background(if (isLive) Color.White else Color.Transparent),
+                )
+                Spacer(modifier = Modifier.size(4.dp))
+                Text(
+                    text = if (isLive) "LIVE" else "ENDED",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                )
             }
+        }
+    }
+}
+@Composable
+fun FullScreenVideoPreview(
+    videoFrame: AnswerViewModel.VideoFrameData,
+    isLive: Boolean,
+    onClose: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+    ) {
+        FullScreenFrameDisplay(frameData = videoFrame.data)
+        Row(
+            modifier =
+                Modifier
+                    .align(Alignment.TopEnd),
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.FullscreenExit,
+                    contentDescription = "Exit full screen",
+                    tint = Color.White,
+                )
+            }
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Close video",
+                    tint = Color.White,
+                )
+            }
+        }
+        Row(
+            modifier =
+                Modifier
+                    .align(Alignment.BottomStart)
+                    .navigationBarsPadding()
+                    .padding(start = 12.dp, bottom = 12.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                        .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .size(8.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(if (isLive) Color.White else Color.Transparent),
+            )
+            Spacer(modifier = Modifier.size(6.dp))
+            Text(
+                text = if (isLive) "LIVE" else "ENDED",
+                color = Color.White,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+    }
+}
+@Composable
+private fun FullScreenFrameDisplay(frameData: ByteArray) {
+    val bitmap =
+        remember(frameData) {
+            try {
+                BitmapFactory.decodeByteArray(frameData, 0, frameData.size)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    Box(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "Full screen video frame",
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text(
+                text = "Failed to decode frame",
+                color = Color.White,
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -544,7 +673,7 @@ private fun VideoAvailableIndicator(onShowVideo: () -> Unit) {
                         Modifier
                             .size(12.dp)
                             .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Red),
+                            .background(AlgoKitTheme.colors.negative),
                 )
                 Spacer(modifier = Modifier.size(8.dp))
                 Text(
@@ -556,7 +685,7 @@ private fun VideoAvailableIndicator(onShowVideo: () -> Unit) {
             Text(
                 text = "Show ",
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.primary,
+                color = AlgoKitTheme.colors.linkPrimary,
                 fontWeight = FontWeight.Bold,
             )
         }
@@ -575,7 +704,7 @@ private fun StreamEndedIndicator() {
                 .padding(horizontal = 8.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = Color(0xFFFFF3E0),
+                containerColor = AlgoKitTheme.colors.layerGrayLighter,
             ),
     ) {
         Row(
@@ -591,7 +720,7 @@ private fun StreamEndedIndicator() {
                     Modifier
                         .size(12.dp)
                         .clip(RoundedCornerShape(6.dp))
-                        .background(Color.Gray),
+                        .background(AlgoKitTheme.colors.textGray),
             )
             Text(
                 text = "Stream ended - broadcaster stopped",
@@ -652,7 +781,7 @@ private fun X402PaymentDialog(
                     text = "$amountAlgos ALGO",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = AlgoKitTheme.colors.linkPrimary,
                 )
 
                 // Description
@@ -694,7 +823,8 @@ private fun X402PaymentDialog(
                         modifier = Modifier.weight(1f),
                         colors =
                             ButtonDefaults.buttonColors(
-                                containerColor = Color.Gray,
+                                containerColor = AlgoKitTheme.colors.buttonSecondaryBg,
+                                contentColor = AlgoKitTheme.colors.buttonSecondaryText,
                             ),
                         enabled = !isProcessing,
                     ) {
@@ -718,5 +848,74 @@ private fun X402PaymentDialog(
                 }
             }
         }
+    }
+}
+@PreviewLightDark()
+@Composable
+private fun ScreenContentAnswerPreviewWaiting() {
+    AlgoKitTheme {
+        ScreenContentAnswer(
+            isConnected = false,
+            isWaiting = true,
+            isConnecting = false,
+            hasError = false,
+            errorMessage = null,
+            session = "Logged Out",
+            origin = null,
+            requestId = null,
+            accountAddress = "A1B2C3D4E5F6G7H8I9J0",
+            videoFrame = null,
+            isStreamActive = false,
+        )
+    }
+}
+@PreviewLightDark()
+@Composable
+private fun ScreenContentAnswerPreviewConnectedWithVideo() {
+    val sampleFrame =
+        AnswerViewModel.VideoFrameData(
+            id = "preview-frame",
+            timestamp = 0L,
+            data = byteArrayOf(),
+            width = 640,
+            height = 480,
+            format = "jpeg",
+        )
+    AlgoKitTheme {
+        ScreenContentAnswer(
+            isConnected = true,
+            isWaiting = false,
+            isConnecting = false,
+            hasError = false,
+            errorMessage = null,
+            session = "Connected Session",
+            origin = "https://demo.algokit.io",
+            requestId = "preview-req-123",
+            accountAddress = "A1B2C3D4E5F6G7H8I9J0",
+            videoFrame = sampleFrame,
+            isStreamActive = true,
+            paymentBalance = "0.8",
+            fundsDepleted = false,
+        )
+    }
+}
+@PreviewLightDark()
+@Composable
+private fun FullScreenVideoPreviewExpandedPreview() {
+    val sampleFrame =
+        AnswerViewModel.VideoFrameData(
+            id = "expanded-preview-frame",
+            timestamp = 0L,
+            data = byteArrayOf(),
+            width = 640,
+            height = 480,
+            format = "jpeg",
+        )
+    AlgoKitTheme {
+        FullScreenVideoPreview(
+            videoFrame = sampleFrame,
+            isLive = true,
+            onClose = {},
+        )
     }
 }

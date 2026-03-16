@@ -41,11 +41,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
 
@@ -195,6 +197,47 @@ fun LiquidAuthOfferScreen(
         }
     }
 
+    LiquidAuthOfferScreenContent(
+        showTopBar = showTopBar,
+        title = title,
+        onBackPressed = onBackPressed,
+        state = state,
+        connectionType = connectionType,
+        balanceAlgos = balanceAlgos,
+        currentBlockNumber = currentBlockNumber,
+        cameraPreview = cameraPreview,
+        onRegenerate = { viewModel.regenerateOffer(origin) },
+        onStartCamera = { viewModel.startVideoStreaming() },
+        onDisconnect = { connectionManager?.stopListening() },
+        onRequestPayment = {
+            currentCreatorAddress?.let { address ->
+                println("💰 Requesting additional payment from viewer...")
+                viewModel.requestPaymentFromClient(address)
+            }
+        },
+        onStopStreaming = { viewModel.stopVideoStreaming() },
+        onRetry = { viewModel.regenerateOffer(origin) },
+    )
+}
+ 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun LiquidAuthOfferScreenContent(
+    showTopBar: Boolean,
+    title: @Composable () -> Unit,
+    onBackPressed: (() -> Unit)?,
+    state: LiquidAuthOfferViewModel.OfferState,
+    connectionType: IceConnectionType,
+    balanceAlgos: Double?,
+    currentBlockNumber: Long?,
+    cameraPreview: @Composable (() -> Unit)?,
+    onRegenerate: () -> Unit,
+    onStartCamera: () -> Unit,
+    onDisconnect: () -> Unit,
+    onRequestPayment: () -> Unit,
+    onStopStreaming: () -> Unit,
+    onRetry: () -> Unit,
+) {
     Scaffold(
         topBar = {
             if (showTopBar) {
@@ -236,7 +279,7 @@ fun LiquidAuthOfferScreen(
                     QRCodeSection(
                         liquidAuthUrl = currentState.liquidAuthUrl,
                         requestId = currentState.requestId,
-                        onRegenerate = { viewModel.regenerateOffer(origin) },
+                        onRegenerate = onRegenerate,
                     )
                 }
 
@@ -245,15 +288,9 @@ fun LiquidAuthOfferScreen(
                         sessionId = currentState.sessionId,
                         connectionType = connectionType,
                         balanceAlgos = balanceAlgos,
-                        onStartCamera = { viewModel.startVideoStreaming() },
-                        onDisconnect = { connectionManager?.stopListening() },
-                        onRequestPayment = {
-                            // Request another payment when funds depleted
-                            currentCreatorAddress?.let { address ->
-                                println("💰 Requesting additional payment from viewer...")
-                                viewModel.requestPaymentFromClient(address)
-                            }
-                        },
+                        onStartCamera = onStartCamera,
+                        onDisconnect = onDisconnect,
+                        onRequestPayment = onRequestPayment,
                         showStartButton = true,
                     )
                 }
@@ -264,7 +301,7 @@ fun LiquidAuthOfferScreen(
                         connectionType = connectionType,
                         balanceAlgos = balanceAlgos,
                         paymentRequest = currentState.paymentRequest,
-                        onDisconnect = { connectionManager?.stopListening() },
+                        onDisconnect = onDisconnect,
                     )
                 }
 
@@ -272,8 +309,8 @@ fun LiquidAuthOfferScreen(
                     StreamingSection(
                         sessionId = currentState.sessionId,
                         connectionType = connectionType,
-                        onStopStreaming = { viewModel.stopVideoStreaming() },
-                        onDisconnect = { connectionManager?.stopListening() },
+                        onStopStreaming = onStopStreaming,
+                        onDisconnect = onDisconnect,
                         cameraPreview = cameraPreview,
                     )
 
@@ -291,7 +328,7 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferState.Error -> {
                     ErrorSection(
                         message = currentState.message,
-                        onRetry = { viewModel.regenerateOffer(origin) },
+                        onRetry = onRetry,
                     )
                 }
 
@@ -607,7 +644,7 @@ private fun WaitingForPaymentSection(
     sessionId: String,
     connectionType: IceConnectionType,
     balanceAlgos: Double?,
-    paymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest,
+    paymentRequest: X402PaymentMessages.PaymentRequest,
     onDisconnect: () -> Unit,
 ) {
     Card(
@@ -1015,6 +1052,271 @@ private fun ConnectionTypeIndicator(
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
         )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferWaitingForConnectionPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.WaitingForConnection(
+                    requestId = "abc123-request-id",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=abc123",
+                    origin = "https://auth.example.com",
+                ),
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferStreamingDirectPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(AlgoKitTheme.colors.background)
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            StreamingSection(
+                sessionId = "session-direct-12345678",
+                connectionType = IceConnectionType.LOCAL,
+                onStopStreaming = {},
+                onDisconnect = {},
+                cameraPreview = {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1E1E1E)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Direct camera stream",
+                            color = Color.White,
+                        )
+                    }
+                },
+            )
+            ConnectedViewersCard(
+                sessionId = "session-direct-12345678",
+                balanceAlgos = 0.8,
+                connectionType = IceConnectionType.LOCAL,
+                currentBlockNumber = 45123456L,
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferStreamingRelayPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.Streaming(
+                    requestId = "stream-relay-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=stream-relay-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-relay-87654321",
+                    isPaid = true,
+                ),
+            connectionType = IceConnectionType.RELAY,
+            balanceAlgos = 0.2,
+            currentBlockNumber = 45123459L,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedFundedPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.Connected(
+                    requestId = "connected-funded-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=connected-funded-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-funded-44556677",
+                ),
+            connectionType = IceConnectionType.STUN,
+            balanceAlgos = 1.0,
+            currentBlockNumber = null,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedDepletedPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.Connected(
+                    requestId = "connected-depleted-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=connected-depleted-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-depleted-88990011",
+                ),
+            connectionType = IceConnectionType.RELAY,
+            balanceAlgos = 0.0,
+            currentBlockNumber = null,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferWaitingForPaymentPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.WaitingForPayment(
+                    requestId = "payment-wait-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=payment-wait-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-payment-33221100",
+                    paymentRequest =
+                        X402PaymentMessages.PaymentRequest(
+                            id = "payment-session-123",
+                            amountMicroAlgos = 1_000_000L,
+                            creatorAddress = "CREATORADDR1234567890ABCDEFGH",
+                            network = "testnet",
+                        ),
+                ),
+            connectionType = IceConnectionType.STUN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferErrorPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            showTopBar = true,
+            title = { Text("Liquid Auth") },
+            onBackPressed = {},
+            state =
+                LiquidAuthOfferViewModel.OfferState.Error(
+                    message = "Failed to generate offer. Please check your network and try again.",
+                ),
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
+            cameraPreview = null,
+            onRegenerate = {},
+            onStartCamera = {},
+            onDisconnect = {},
+            onRequestPayment = {},
+            onStopStreaming = {},
+            onRetry = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                sessionId = "session-preview-12345678",
+                balanceAlgos = 0.7,
+                connectionType = IceConnectionType.STUN,
+                currentBlockNumber = 45123501L,
+            )
+        }
+    }
+}
+ 
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                sessionId = "session-preview-87654321",
+                balanceAlgos = 0.2,
+                connectionType = IceConnectionType.RELAY,
+                currentBlockNumber = null,
+            )
+        }
     }
 }
 
