@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.9")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.9")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.11")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.11")
 }
 ```
 
@@ -97,7 +97,6 @@ timeline
             : ✅ Testing - Setup unit test coverage and screenshot testing foundation infrastructure
             : ✅ Onboarding - ECC Passkeys & Testnet Liquid Auth (Android)
 
-    section In Progress 🔄
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
             : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
             : ✅ Android - Wallet SDK as a background service integration
@@ -107,17 +106,22 @@ timeline
             : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
             : ✅ Onboarding - Add Use Wallet Liquid Auth Integration for Lora
             : ✅ Onboarding - Add Liquid Auth Integration for xGov Website
+            : ✅ Onboarding - Add Liquid Auth Integration for Server Mobile App (Android)
 
-    section Future
-    2026Q2  : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+    section In Progress 🔄
+    2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
+            : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
+            : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
+            : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
             : 🔄 Seed Vault - Sign test transactions using Seed Vault in emulator app
             : Seed Vault - Modify Seed Vault emulator to allow Algorand seeds
             : Seed Vault - Sign Liquid Auth using Algorand seeds
             : Seed Vault - Sign Liquid Auth using cross-chain seeds
             : Seed Vault - Integrate Use-Wallet with cross-chain seeds
             : Design - Create Landscape (Tablet/Desktop) UI
-            : TBD
+            
+    section Future 🔮
     Backlog
             : Onboarding - Rekey flow
             : Onboarding - Liquid Auth (Rekeyed Accounts)
@@ -129,6 +133,7 @@ timeline
             : Onboarding - Multi-sig flow
             : Account Details - Send USDC in account detail (between accounts)
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+            : TBD
 ```
 
 ## Project structure

@@ -24,9 +24,23 @@ class SignalService : Service() {
         const val LIQUID_NOTIFICATION_ID = 1337
     }
 
+    // Connection type tracking for UI/quality indicators
+    enum class IceConnectionType {
+        UNKNOWN, // Not yet determined
+        LOCAL, // host - direct local network
+        STUN, // srflx - NAT traversal via STUN
+        RELAY, // relay - TURN relay server
+        FAILED, // Connection failed
+    }
+
     // Last known deep-link referrer
     var lastKnownReferer: String? = null
     var isDeepLink: Boolean = true
+
+    // Connection type state
+    var connectionType: IceConnectionType = IceConnectionType.UNKNOWN
+        private set
+    var onConnectionTypeChange: ((IceConnectionType) -> Unit)? = null
 
     // Liquid Signal Components
     var signalClient: SignalClient? = null
@@ -219,6 +233,91 @@ class SignalService : Service() {
         Log.d(TAG, "Sending: $msg from $lastKnownReferer")
         if (dataChannel != null) {
             peerClient?.send(msg)
+        }
+    }
+
+    /**
+     * Detect the ICE connection type (host/srflx/relay)
+     *
+     * This uses WebRTC stats to determine how peers are connected:
+     * - LOCAL (host): Direct connection on local network
+     * - STUN (srflx): Connection through NAT via STUN server
+     * - RELAY (relay): Connection through TURN relay server
+     * - UNKNOWN: Connection type not yet determined
+     */
+    fun detectConnectionType(onResult: ((IceConnectionType) -> Unit)? = null) {
+        peerConnection?.let { pc ->
+            Log.d(TAG, "🔍 Detecting connection type... pc state: ${pc.connectionState()}, ice state: ${pc.iceConnectionState()}")
+
+            pc.getStats { statsReport ->
+                var connectionType = IceConnectionType.UNKNOWN
+                var foundCandidatePair = false
+
+                // Log all stats types for debugging
+                val statsTypes =
+                    statsReport.statsMap.values
+                        .map { it.type }
+                        .distinct()
+                Log.d(TAG, "📊 Available stats types: $statsTypes")
+
+                // Look for candidate-pair stats which show the selected connection
+                statsReport.statsMap.values.forEach { stats ->
+                    if (stats.type == "candidate-pair") {
+                        val state = stats.members["state"]?.toString()
+                        Log.d(TAG, "🔗 Candidate pair: state=$state, id=${stats.id}")
+
+                        if (state == "succeeded") {
+                            foundCandidatePair = true
+                            val localCandidateId = stats.members["localCandidateId"]?.toString()
+                            val remoteCandidateId = stats.members["remoteCandidateId"]?.toString()
+                            Log.d(TAG, "✅ Found succeeded pair: local=$localCandidateId, remote=$remoteCandidateId")
+
+                            // Find the local candidate type
+                            if (localCandidateId != null) {
+                                statsReport.statsMap.values.forEach { candidateStats ->
+                                    if (candidateStats.id == localCandidateId) {
+                                        val candidateType = candidateStats.members["candidateType"]?.toString()
+                                        val ip = candidateStats.members["ip"]?.toString()
+                                        val port = candidateStats.members["port"]?.toString()
+                                        Log.d(TAG, "📍 Local candidate: type=$candidateType, ip=$ip, port=$port")
+
+                                        connectionType =
+                                            when (candidateType) {
+                                                "host" -> IceConnectionType.LOCAL
+                                                "srflx" -> IceConnectionType.STUN
+                                                "relay" -> IceConnectionType.RELAY
+                                                else -> IceConnectionType.UNKNOWN
+                                            }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (!foundCandidatePair) {
+                    Log.d(TAG, "⚠️ No succeeded candidate pair found yet")
+                }
+
+                // Also check connection state
+                if (pc.connectionState() == PeerConnection.PeerConnectionState.FAILED ||
+                    pc.iceConnectionState() == PeerConnection.IceConnectionState.FAILED
+                ) {
+                    connectionType = IceConnectionType.FAILED
+                }
+
+                // Update state and notify
+                if (this.connectionType != connectionType) {
+                    this.connectionType = connectionType
+                    onConnectionTypeChange?.invoke(connectionType)
+                    Log.d(TAG, "🌐 Connection type changed to: $connectionType")
+                }
+
+                onResult?.invoke(connectionType)
+            }
+        } ?: run {
+            Log.d(TAG, "⚠️ Cannot detect connection type - peerConnection is null")
+            onResult?.invoke(IceConnectionType.UNKNOWN)
         }
     }
 }

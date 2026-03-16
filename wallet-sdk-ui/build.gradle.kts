@@ -139,6 +139,12 @@ kotlin {
                 implementation(libs.socketio.client)
                 implementation(libs.stream.webrtc.android)
                 implementation(libs.uuid.generator)
+
+                // CameraX for video streaming (Android actual implementation)
+                implementation(libs.camerax.core)
+                implementation(libs.camerax.camera2)
+                implementation(libs.camerax.lifecycle)
+                implementation(libs.camerax.view)
             }
         }
 

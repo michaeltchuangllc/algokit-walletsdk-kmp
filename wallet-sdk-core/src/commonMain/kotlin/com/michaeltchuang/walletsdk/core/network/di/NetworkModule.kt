@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiSe
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiServiceImpl
 import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiService
 import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
@@ -61,6 +62,7 @@ val networkModule =
 
         factoryOf(::GetCurrentNetworkUseCase)
         factoryOf(::SaveNetworkPreferenceUseCase)
+        factoryOf(::GetCurrentBlockUseCase)
 
         single<AccountFastLookupMapper> {
             AccountFastLookupMapperImpl()

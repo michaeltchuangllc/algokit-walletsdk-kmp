@@ -195,6 +195,10 @@ class AnswerActivity : AppCompatActivity() {
                             )
                         }
                     }
+
+                    else -> {
+                        // Handle other events (VideoFrameReceived is handled via direct callback)
+                    }
                 }
             }
         }
@@ -452,12 +456,19 @@ class AnswerActivity : AppCompatActivity() {
     @OptIn(ExperimentalEncodingApi::class)
     private fun handleMessages(msgStr: String) {
         // Use ViewModel's handleMessages method
-        viewModel.handleMessages(msgStr) { params, message ->
-            this.params = params
-            this.message = message
-            // Show confirmation dialog - the signing logic is inside the OK button handler
-            viewModel.showConfirmationDialog.value = true
-        }
+        viewModel.handleMessages(
+            msgStr = msgStr,
+            onSignTransaction = { params, message ->
+                this.params = params
+                this.message = message
+                // Show confirmation dialog - the signing logic is inside the OK button handler
+                viewModel.showConfirmationDialog.value = true
+            },
+            onVideoFrame = { frameData ->
+                // Update video frame directly in ViewModel
+                viewModel.setVideoFrame(frameData)
+            },
+        )
     }
 
     /**
@@ -664,6 +675,7 @@ class AnswerActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        viewModel.clearVideoFrame() // Clear video when activity destroyed
         viewModel.unbindSignalService(this)
     }
 }
