@@ -26,6 +26,7 @@ class AnswerScreenshotTest(
         }
         takeScreenshot("testContentConnected")
     }
+
     @Test
     fun testContentWaiting() {
         setTestContent {
@@ -45,6 +46,7 @@ class AnswerScreenshotTest(
         }
         takeScreenshot("testContentWaiting")
     }
+
     @Test
     fun testContentConnectedWithVideo() {
         val sampleFrame = getSampleFrame()
@@ -67,6 +69,7 @@ class AnswerScreenshotTest(
         }
         takeScreenshot("testContentConnectedWithVideo")
     }
+
     @Test
     fun testFullScreenVideoPreviewExpanded() {
         val sampleFrame = getSampleFrame()
@@ -79,6 +82,7 @@ class AnswerScreenshotTest(
         }
         takeScreenshot("testFullScreenVideoPreviewExpanded")
     }
+
     private fun getSampleFrame() =
         AnswerViewModel.VideoFrameData(
             id = "preview-frame",

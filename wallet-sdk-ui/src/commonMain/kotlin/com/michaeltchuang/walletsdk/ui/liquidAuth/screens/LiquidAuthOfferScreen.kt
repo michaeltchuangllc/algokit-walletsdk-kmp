@@ -219,7 +219,7 @@ fun LiquidAuthOfferScreen(
         onRetry = { viewModel.regenerateOffer(origin) },
     )
 }
- 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun LiquidAuthOfferScreenContent(
@@ -1054,7 +1054,7 @@ private fun ConnectionTypeIndicator(
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferWaitingForConnectionPreview() {
@@ -1082,7 +1082,7 @@ private fun LiquidAuthOfferWaitingForConnectionPreview() {
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferStreamingDirectPreview() {
@@ -1127,7 +1127,7 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
         }
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferStreamingRelayPreview() {
@@ -1157,7 +1157,7 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferConnectedFundedPreview() {
@@ -1186,7 +1186,7 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferConnectedDepletedPreview() {
@@ -1215,7 +1215,7 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferWaitingForPaymentPreview() {
@@ -1251,7 +1251,7 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferErrorPreview() {
@@ -1298,7 +1298,7 @@ private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
         }
     }
 }
- 
+
 @Preview
 @Composable
 private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {

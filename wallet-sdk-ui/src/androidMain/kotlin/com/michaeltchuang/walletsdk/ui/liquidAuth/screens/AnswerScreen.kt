@@ -210,7 +210,7 @@ fun ScreenContentAnswer(
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
                 color = AlgoKitTheme.colors.linkPrimary,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
             )
 
             // Compact video preview first
@@ -232,7 +232,6 @@ fun ScreenContentAnswer(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState()),
             ) {
-
                 // Connection Status Card - Primary UI
                 ConnectionStatusCard(
                     isConnected = isConnected,
@@ -546,6 +545,7 @@ private fun CompactVideoPreview(
         }
     }
 }
+
 @Composable
 fun FullScreenVideoPreview(
     videoFrame: AnswerViewModel.VideoFrameData,
@@ -586,7 +586,7 @@ fun FullScreenVideoPreview(
                     .navigationBarsPadding()
                     .padding(start = 12.dp, bottom = 12.dp)
                     .clip(RoundedCornerShape(6.dp))
-                        .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
+                    .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -607,6 +607,7 @@ fun FullScreenVideoPreview(
         }
     }
 }
+
 @Composable
 private fun FullScreenFrameDisplay(frameData: ByteArray) {
     val bitmap =
@@ -850,6 +851,7 @@ private fun X402PaymentDialog(
         }
     }
 }
+
 @PreviewLightDark()
 @Composable
 private fun ScreenContentAnswerPreviewWaiting() {
@@ -869,6 +871,7 @@ private fun ScreenContentAnswerPreviewWaiting() {
         )
     }
 }
+
 @PreviewLightDark()
 @Composable
 private fun ScreenContentAnswerPreviewConnectedWithVideo() {
@@ -899,6 +902,7 @@ private fun ScreenContentAnswerPreviewConnectedWithVideo() {
         )
     }
 }
+
 @PreviewLightDark()
 @Composable
 private fun FullScreenVideoPreviewExpandedPreview() {

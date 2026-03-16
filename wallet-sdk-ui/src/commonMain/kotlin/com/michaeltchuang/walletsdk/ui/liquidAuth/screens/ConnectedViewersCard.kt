@@ -305,7 +305,7 @@ internal fun StatItem(
         )
     }
 }
- 
+
 @Preview
 @Composable
 private fun ConnectedViewersCardWithBlockPreview() {
@@ -326,7 +326,7 @@ private fun ConnectedViewersCardWithBlockPreview() {
         }
     }
 }
- 
+
 @Preview
 @Composable
 private fun ConnectedViewersCardWithoutBlockPreview() {

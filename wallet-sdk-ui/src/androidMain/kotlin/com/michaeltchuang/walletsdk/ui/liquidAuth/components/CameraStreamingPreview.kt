@@ -1,15 +1,17 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.Matrix
 import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ExperimentalGetImage
@@ -18,8 +20,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -314,13 +314,13 @@ private fun yuvToJpeg(
         Log.e("CameraStreaming", "Error converting YUV to JPEG: $e")
         null
     }
-    
+
 private data class EncodedFrame(
     val bytes: ByteArray,
     val width: Int,
     val height: Int,
 )
-    
+
 private fun rotateJpegFrame(
     jpegBytes: ByteArray,
     quality: Int,
