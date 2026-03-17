@@ -104,9 +104,9 @@ timeline
             : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
             : ✅ Transaction - Send USDC using QR code flow (between accounts)
             : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
-            : ✅ Onboarding - Add Use Wallet Liquid Auth Integration for Lora
-            : ✅ Onboarding - Add Liquid Auth Integration for xGov Website
-            : ✅ Onboarding - Add Liquid Auth Integration for Server Mobile App (Android)
+            : ✅ Onboarding - Add Liquid Auth PQ Account Integration for Lora (Txn Wizard)
+            : ✅ Onboarding - Add Liquid Auth PQ Account Integration for xGov Website (Subscribe to xGov)
+            : ✅ Onboarding - Add Liquid Auth Integration for Android<>Android Connections
 
     section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
@@ -115,9 +115,9 @@ timeline
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
             : Seed Vault - Sign Liquid Auth using Solana seed vault seeds
-            : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
-            : Seed Vault - Integrate Use-Wallet with cross-chain seeds
-            : Design - Create Liquid Stream screens in Figma
+            : Seed Vault - Integrate Use-Wallet with cross-chain accounts
+            : Onboarding - Add Liquid Auth Integration for iOS<>iOS Connections
+            : Design - Create Liquid Stream app screens in Figma
             : Design - Create Landscape (Tablet/Desktop) UI
             
     section Future 🔮
@@ -132,6 +132,7 @@ timeline
             : Onboarding - Multi-sig flow
             : Account Details - Send USDC in account detail (between accounts)
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+            : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
             : TBD
 ```
 
