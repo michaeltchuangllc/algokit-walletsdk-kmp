@@ -111,14 +111,13 @@ timeline
     section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
+            : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
-            : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
-            : 🔄 Seed Vault - Sign test transactions using Seed Vault in emulator app
-            : Seed Vault - Modify Seed Vault emulator to allow Algorand seeds
-            : Seed Vault - Sign Liquid Auth using Algorand seeds
-            : Seed Vault - Sign Liquid Auth using cross-chain seeds
+            : Seed Vault - Sign Liquid Auth using Solana seed vault seeds
+            : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
             : Seed Vault - Integrate Use-Wallet with cross-chain seeds
+            : Design - Create Liquid Stream screens in Figma
             : Design - Create Landscape (Tablet/Desktop) UI
             
     section Future 🔮
