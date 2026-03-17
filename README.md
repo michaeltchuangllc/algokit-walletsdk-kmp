@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.11")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.11")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.0")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.0")
 }
 ```
 
