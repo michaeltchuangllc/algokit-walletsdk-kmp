@@ -5,6 +5,7 @@
     <!-- Bottom Navigation Screen -->
     <string name="nav_discover">गिटहब रिपोजिटरी</string>
     <string name="nav_home">मुखपृष्ठ</string>
+    <string name="nav_broadcast">प्रसारण</string>
     <string name="no_account_list">कोई खाता नहीं मिला। \nनया जोड़ने के लिए + टैप करें!</string>
 
     <!-- Account Types -->

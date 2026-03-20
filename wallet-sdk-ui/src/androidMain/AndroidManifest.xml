@@ -65,7 +65,7 @@
             android:foregroundServiceType="dataSync" />
 
         <activity android:name=".liquidAuth.AnswerActivity"
-            android:theme="@style/Theme.AppCompat"
+            android:theme="@style/Theme.AppCompat.NoActionBar"
             />
 
     </application>

@@ -3,6 +3,8 @@ package com.michaeltchuang.walletsdk.demo.ui.navigation
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.Res
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_home
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_settings
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_tv
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.nav_broadcast
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.nav_discover
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.nav_home
 import androidx.compose.material3.Icon
@@ -57,6 +59,7 @@ fun AppNavigationBar(
                                 restoreState = true
                             }
                         }
+                        else -> { /* no-op */ }
                     }
                 },
                 colors =
@@ -78,7 +81,7 @@ data class TopLevelRouteDetails<T : Any>(
     val icon: DrawableResource,
 )
 
-private val topLevelRoutes: List<TopLevelRoute> = listOf(Accounts, Discover)
+private val topLevelRoutes: List<TopLevelRoute> = listOf(Accounts, Broadcast, Discover)
 
 sealed interface TopLevelRoute {
     val type: Type
@@ -101,6 +104,17 @@ data object Accounts : TopLevelRoute {
             name = "Accounts",
             route = this,
             icon = Res.drawable.ic_home,
+        )
+}
+
+@Serializable
+data object Broadcast : TopLevelRoute {
+    override val type: TopLevelRoute.Type = TopLevelRoute.Type.NavButton(Res.string.nav_broadcast)
+    override val details =
+        TopLevelRouteDetails(
+            name = "Broadcast",
+            route = this,
+            icon = Res.drawable.ic_tv,
         )
 }
 
