@@ -44,6 +44,9 @@ internal interface SeedVaultDao {
 
     @Query("SELECT EXISTS(SELECT * FROM seed_vault WHERE :address = address)")
     suspend fun isAddressExists(address: String): Boolean
+    
+    @Query("UPDATE seed_vault SET account_name = :accountName WHERE :address = address")
+    suspend fun updateAccountNameByAddress(address: String, accountName: String?)
 
     @Query("SELECT * FROM seed_vault WHERE :chainId = chainId")
     suspend fun getByChainId(chainId: String): List<SeedVaultEntity>

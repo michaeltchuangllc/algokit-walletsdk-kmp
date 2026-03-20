@@ -33,6 +33,7 @@ class GetLocalAccountsUseCase(
                         LocalAccount.SeedVault(
                             algoAddress = account.address,
                             chainId = account.chainId,
+                            accountName = account.accountName,
                         )
                     }
             }

@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaBalancesUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.base.di.walletSdkUiModules
@@ -104,6 +105,9 @@ object WalletSDK {
     
     private val getSolanaBalancesUseCase: GetSolanaBalancesUseCase
         get() = getKoin().get()
+    
+    private val syncSolanaAccountsFromSeedVaultUseCase: SyncSolanaAccountsFromSeedVaultUseCase
+        get() = getKoin().get()
 
     /**
      * Note: WalletSDK.initialize() must be called BEFORE this composable is rendered:
@@ -156,6 +160,10 @@ object WalletSDK {
     
     suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> {
         return getSolanaBalancesUseCase(addresses)
+    }
+    
+    suspend fun syncSolanaAccountsFromSeedVault() {
+        syncSolanaAccountsFromSeedVaultUseCase()
     }
 
     fun getCurrentNetwork(): Flow<AlgorandNetwork> = getCurrentNetworkUseCase()

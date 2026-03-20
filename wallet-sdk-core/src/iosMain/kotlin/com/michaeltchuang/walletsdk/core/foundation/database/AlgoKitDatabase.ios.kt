@@ -38,7 +38,7 @@ internal fun createAlgoKitDatabase(customDirectory: String? = null): RoomDatabas
         .databaseBuilder<AlgoKitDatabase>(
             name = dbFilePath,
         ).setDriver(BundledSQLiteDriver())
-        .addMigrations(MIGRATION_1_2, MIGRATION_3_4)
+        .addMigrations(MIGRATION_1_2, MIGRATION_3_4, MIGRATION_4_5)
 }
 
 /**

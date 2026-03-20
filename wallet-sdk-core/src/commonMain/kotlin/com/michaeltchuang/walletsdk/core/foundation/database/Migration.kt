@@ -59,3 +59,14 @@ val MIGRATION_3_4 =
             )
         }
     }
+    
+val MIGRATION_4_5 =
+    object : Migration(4, 5) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                ALTER TABLE seed_vault ADD COLUMN account_name TEXT
+                """.trimIndent(),
+            )
+        }
+    }

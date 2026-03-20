@@ -184,6 +184,7 @@ class SolanaAccountsViewModel(
                                 publicKey = item.address,
                                 address = item.address,
                                 chainId = chainId,
+                                accountName = item.accountName,
                             )
                         }
 

@@ -29,6 +29,8 @@ interface SolanaAccountRepository {
     suspend fun deleteAccountByAddress(address: String)
 
     suspend fun isAddressExists(address: String): Boolean
+    
+    suspend fun updateAccountNameByAddress(address: String, accountName: String?)
 
     suspend fun deleteAllAccounts()
 }

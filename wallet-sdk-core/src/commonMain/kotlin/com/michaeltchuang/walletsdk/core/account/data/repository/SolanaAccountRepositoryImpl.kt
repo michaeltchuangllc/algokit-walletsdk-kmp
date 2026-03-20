@@ -74,6 +74,12 @@ internal class SolanaAccountRepositoryImpl(
         withContext(coroutineDispatcher) {
             solanaAccountDao.isAddressExists(address)
         }
+    
+    override suspend fun updateAccountNameByAddress(address: String, accountName: String?) {
+        withContext(coroutineDispatcher) {
+            solanaAccountDao.updateAccountNameByAddress(address, accountName)
+        }
+    }
 
     override suspend fun deleteAllAccounts() {
         withContext(coroutineDispatcher) {

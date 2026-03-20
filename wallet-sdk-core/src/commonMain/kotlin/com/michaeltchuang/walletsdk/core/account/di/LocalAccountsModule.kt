@@ -71,6 +71,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ImportSola
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveAlgo25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon24Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveHdKeyAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ValidateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase
 import org.koin.dsl.module
@@ -192,5 +193,6 @@ val localAccountsModule =
         single { GetSolanaAccountsFromSeedVaultUseCase(get()) }
         single { GetImportedSolanaAddressesUseCase(get()) }
         single { ImportSolanaAccountsUseCase(get()) }
+        single { SyncSolanaAccountsFromSeedVaultUseCase(get(), get()) }
         single { DeleteSolanaAccountUseCase(get()) }
     }

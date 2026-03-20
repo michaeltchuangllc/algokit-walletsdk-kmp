@@ -38,6 +38,7 @@ class AccountListViewModel(
         stateDelegate.updateState { AccountsState.Loading }
         viewModelScope.launch {
             try {
+                WalletSDK.syncSolanaAccountsFromSeedVault()
                 // Fetch all accounts with their current balances
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)

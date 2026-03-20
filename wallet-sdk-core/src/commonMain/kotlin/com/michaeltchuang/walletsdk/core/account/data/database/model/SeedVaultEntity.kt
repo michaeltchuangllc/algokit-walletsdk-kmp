@@ -6,7 +6,7 @@ import androidx.room.PrimaryKey
 
 /**
  * Entity for storing Seed Vault accounts in the local database.
- * Contains public_key as primary key (address), address string, and chainId.
+ * Contains public_key as primary key (address), address string, chainId, and optional accountName.
  */
 @Entity(tableName = "seed_vault")
 internal data class SeedVaultEntity(
@@ -17,4 +17,6 @@ internal data class SeedVaultEntity(
     val address: String,
     @ColumnInfo("chainId")
     val chainId: String,
+    @ColumnInfo("account_name")
+    val accountName: String?,
 )

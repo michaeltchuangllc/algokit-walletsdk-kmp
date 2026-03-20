@@ -31,9 +31,14 @@ class NameRegistrationUseCase(
         val localAccounts = getLocalAccountsUseCase()
         val customInfoMap = getAccountsCustomInfo(localAccounts.map { it.algoAddress })
         return localAccounts.map { account ->
+            val fallbackName =
+                when (account) {
+                    is LocalAccount.SeedVault -> account.accountName ?: ""
+                    else -> ""
+                }
             AccountLite(
                 account.algoAddress,
-                customInfoMap[account.algoAddress]?.customName ?: "",
+                customInfoMap[account.algoAddress]?.customName ?: fallbackName,
                 getAccountRegistrationTypeUseCase(account),
             )
         }

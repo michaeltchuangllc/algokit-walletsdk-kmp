@@ -70,5 +70,6 @@ sealed interface LocalAccount {
     data class SeedVault(
         override val algoAddress: String,
         val chainId: String,
+        val accountName: String? = null,
     ) : LocalAccount
 }

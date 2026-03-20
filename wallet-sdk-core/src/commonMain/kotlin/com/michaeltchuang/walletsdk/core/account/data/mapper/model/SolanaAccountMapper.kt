@@ -11,5 +11,6 @@ internal class SolanaAccountMapperImpl : SolanaAccountMapper {
             publicKey = entity.publicKey,
             address = entity.address,
             chainId = entity.chainId,
+            accountName = entity.accountName,
         )
 }
