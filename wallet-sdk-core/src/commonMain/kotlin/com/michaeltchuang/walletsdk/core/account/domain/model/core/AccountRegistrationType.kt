@@ -24,7 +24,7 @@ sealed interface AccountRegistrationType {
     @Serializable
     @SerialName("Falcon24")
     data object Falcon24 : AccountRegistrationType
-    
+
     @Serializable
     @SerialName("SeedVault")
     data object SeedVault : AccountRegistrationType

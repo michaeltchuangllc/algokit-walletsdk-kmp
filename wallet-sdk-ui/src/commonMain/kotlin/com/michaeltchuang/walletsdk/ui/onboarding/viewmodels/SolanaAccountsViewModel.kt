@@ -205,9 +205,9 @@ class SolanaAccountsViewModel(
         // Split by '/' and find the coin type segment (index 2 in BIP44 format)
         return derivationPath
             .split("/")
-            .getOrNull(2)  // Index 2 should be coin type (e.g., "501'" or "501")
-            ?.replace("'", "")  // Remove the hardened derivation marker if present
-            ?: "501"  // Default to Solana if not found
+            .getOrNull(2) // Index 2 should be coin type (e.g., "501'" or "501")
+            ?.replace("'", "") // Remove the hardened derivation marker if present
+            ?: "501" // Default to Solana if not found
     }
 
     /**

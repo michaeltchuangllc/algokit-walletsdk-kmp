@@ -63,7 +63,7 @@ internal class SolanaAccountRepositoryImpl(
             solanaAccountDao.delete(publicKey)
         }
     }
-    
+
     override suspend fun deleteAccountByAddress(address: String) {
         withContext(coroutineDispatcher) {
             solanaAccountDao.deleteByAddress(address)
@@ -74,8 +74,11 @@ internal class SolanaAccountRepositoryImpl(
         withContext(coroutineDispatcher) {
             solanaAccountDao.isAddressExists(address)
         }
-    
-    override suspend fun updateAccountNameByAddress(address: String, accountName: String?) {
+
+    override suspend fun updateAccountNameByAddress(
+        address: String,
+        accountName: String?,
+    ) {
         withContext(coroutineDispatcher) {
             solanaAccountDao.updateAccountNameByAddress(address, accountName)
         }

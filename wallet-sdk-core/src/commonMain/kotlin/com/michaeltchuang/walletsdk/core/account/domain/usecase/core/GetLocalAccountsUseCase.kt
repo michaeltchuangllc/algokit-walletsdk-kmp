@@ -26,17 +26,19 @@ class GetLocalAccountsUseCase(
             val deferredHdKeyAccounts = async { hdKeyAccountRepository.getAll() }
             val deferredAlgo25Accounts = async { algo25AccountRepository.getAll() }
             val deferredNoAuthAccounts = async { noAuthAccountRepository.getAll() }
-            val deferredSeedVaultAccounts = async {
-                solanaAccountRepository
-                    .getAll()
-                    .map { account ->
-                        LocalAccount.SeedVault(
-                            algoAddress = account.address,
-                            chainId = account.chainId,
-                            accountName = account.accountName,
-                        )
-                    }
-            }
+            val deferredSeedVaultAccounts =
+                async {
+                    solanaAccountRepository
+                        .getAll()
+                        .map { account ->
+                            LocalAccount.SeedVault(
+                                address = account.address,
+                                publicKey = account.publicKey,
+                                chainId = account.chainId,
+                                accountName = account.accountName,
+                            )
+                        }
+                }
             awaitAll(
                 deferredFalcon24Accounts,
                 deferredHdKeyAccounts,

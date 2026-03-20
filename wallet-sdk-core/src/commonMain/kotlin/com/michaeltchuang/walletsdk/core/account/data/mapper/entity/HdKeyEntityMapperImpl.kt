@@ -10,7 +10,7 @@ internal class HdKeyEntityMapperImpl : HdKeyEntityMapper {
         privateKey: ByteArray,
     ): HdKeyEntity =
         HdKeyEntity(
-            algoAddress = localAccount.algoAddress,
+            algoAddress = localAccount.address,
             publicKey = localAccount.publicKey,
             encryptedPrivateKey = encryptByteArray(privateKey),
             seedId = localAccount.seedId,

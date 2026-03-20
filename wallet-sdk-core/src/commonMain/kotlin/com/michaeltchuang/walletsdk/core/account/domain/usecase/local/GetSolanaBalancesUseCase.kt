@@ -15,25 +15,28 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+
 class GetSolanaBalancesUseCase(
     private val httpClient: HttpClient,
 ) {
     suspend operator fun invoke(
         addresses: List<String>,
         rpcEndpoint: String = SOLANA_DEVNET_RPC,
-    ): Map<String, String?> {
-        return coroutineScope {
-            addresses.map { address ->
-                async {
-                    address to
-                        fetchSolanaBalanceAsDisplayAmount(
-                            address = address,
-                            rpcEndpoint = rpcEndpoint,
-                        )
-                }
-            }.awaitAll().toMap()
+    ): Map<String, String?> =
+        coroutineScope {
+            addresses
+                .map { address ->
+                    async {
+                        address to
+                            fetchSolanaBalanceAsDisplayAmount(
+                                address = address,
+                                rpcEndpoint = rpcEndpoint,
+                            )
+                    }
+                }.awaitAll()
+                .toMap()
         }
-    }
+
     private suspend fun fetchSolanaBalanceAsDisplayAmount(
         address: String,
         rpcEndpoint: String,
@@ -41,10 +44,11 @@ class GetSolanaBalancesUseCase(
         return try {
             val requestJson = buildGetBalanceRequestJson(address)
             val response =
-                httpClient.post(rpcEndpoint) {
-                    contentType(ContentType.Application.Json)
-                    setBody(requestJson)
-                }.bodyAsText()
+                httpClient
+                    .post(rpcEndpoint) {
+                        contentType(ContentType.Application.Json)
+                        setBody(requestJson)
+                    }.bodyAsText()
             val lamports = parseLamports(response) ?: return null
             // Convert lamports to "micro-style" amount so existing formatAmount() UI path shows SOL.
             (lamports / LAMPORTS_TO_MICRO_DIVISOR).toString()
@@ -52,6 +56,7 @@ class GetSolanaBalancesUseCase(
             null
         }
     }
+
     private fun buildGetBalanceRequestJson(address: String): String {
         val payload =
             buildJsonObject {
@@ -64,6 +69,7 @@ class GetSolanaBalancesUseCase(
             }
         return json.encodeToString(JsonObject.serializer(), payload)
     }
+
     private fun parseLamports(response: String): Long? {
         return try {
             val jsonElement = json.parseToJsonElement(response) as? JsonObject ?: return null
@@ -78,6 +84,7 @@ class GetSolanaBalancesUseCase(
             null
         }
     }
+
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
         private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"

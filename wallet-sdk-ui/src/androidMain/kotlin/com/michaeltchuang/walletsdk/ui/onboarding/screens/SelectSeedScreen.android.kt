@@ -44,44 +44,47 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
     val viewModel: SelectSeedViewModel = koinViewModel()
 
     // Find the Activity from context
-    val activity = remember(context) {
-        context.findActivity()
-    }
+    val activity =
+        remember(context) {
+            context.findActivity()
+        }
 
     var permissionGranted by remember {
         mutableStateOf(
             context.checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) ==
-                PackageManager.PERMISSION_GRANTED
+                PackageManager.PERMISSION_GRANTED,
         )
     }
 
     // Permission launcher for runtime permission
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        permissionGranted = isGranted
-        if (isGranted) {
-            viewModel.loadSeeds()
+    val permissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission(),
+        ) { isGranted ->
+            permissionGranted = isGranted
+            if (isGranted) {
+                viewModel.loadSeeds()
+            }
         }
-    }
 
     // Activity result launcher for seed authorization
-    val authorizeSeedLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val resultCode = result.resultCode
-        val data = result.data
+    val authorizeSeedLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult(),
+        ) { result ->
+            val resultCode = result.resultCode
+            val data = result.data
 
-        try {
-            val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
-            Log.d("SelectSeedScreen", "Seed authorized successfully, authToken=$authToken")
-            // Reload seeds to show the newly authorized seed
-            viewModel.loadSeeds()
-        } catch (e: Wallet.ActionFailedException) {
-            Log.e("SelectSeedScreen", "Seed authorization failed: ${e.message}")
-            // Don't reload - user might want to try again
+            try {
+                val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
+                Log.d("SelectSeedScreen", "Seed authorized successfully, authToken=$authToken")
+                // Reload seeds to show the newly authorized seed
+                viewModel.loadSeeds()
+            } catch (e: Wallet.ActionFailedException) {
+                Log.e("SelectSeedScreen", "Seed authorization failed: ${e.message}")
+                // Don't reload - user might want to try again
+            }
         }
-    }
 
     // Check permission on first launch and request if needed
     LaunchedEffect(Unit) {
@@ -114,10 +117,11 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
                     // Launch the seed authorization intent
                     val currentActivity = activity
                     if (currentActivity != null) {
-                        val intent = Wallet.authorizeSeed(
-                            currentActivity,
-                            WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION
-                        )
+                        val intent =
+                            Wallet.authorizeSeed(
+                                currentActivity,
+                                WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION,
+                            )
                         authorizeSeedLauncher.launch(intent)
                     } else {
                         Log.e("SelectSeedScreen", "Cannot authorize seed - no Activity found")

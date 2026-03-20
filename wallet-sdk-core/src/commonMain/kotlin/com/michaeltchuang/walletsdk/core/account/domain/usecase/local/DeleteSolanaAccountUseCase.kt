@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
- 
+
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
- 
+
 class DeleteSolanaAccountUseCase(
     private val solanaAccountRepository: SolanaAccountRepository,
 ) {

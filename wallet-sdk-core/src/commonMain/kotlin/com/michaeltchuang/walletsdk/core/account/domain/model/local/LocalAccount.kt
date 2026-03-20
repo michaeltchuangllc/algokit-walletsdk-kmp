@@ -1,10 +1,10 @@
 package com.michaeltchuang.walletsdk.core.account.domain.model.local
 
 sealed interface LocalAccount {
-    val algoAddress: String
+    val address: String
 
     data class HdKey(
-        override val algoAddress: String,
+        override val address: String,
         val publicKey: ByteArray,
         val seedId: Int,
         val account: Int,
@@ -14,7 +14,7 @@ sealed interface LocalAccount {
     ) : LocalAccount {
         override fun equals(other: Any?): Boolean =
             other is HdKey &&
-                algoAddress == other.algoAddress &&
+                address == other.address &&
                 publicKey.contentEquals(other.publicKey) &&
                 seedId == other.seedId &&
                 account == other.account &&
@@ -23,15 +23,15 @@ sealed interface LocalAccount {
                 derivationType == other.derivationType
 
         override fun hashCode(): Int =
-            algoAddress.hashCode() + publicKey.contentHashCode() + seedId + account + change + keyIndex + derivationType
+            address.hashCode() + publicKey.contentHashCode() + seedId + account + change + keyIndex + derivationType
     }
 
     data class Algo25(
-        override val algoAddress: String,
+        override val address: String,
     ) : LocalAccount
 
     data class Falcon24(
-        override val algoAddress: String,
+        override val address: String,
         val seedId: Int,
         val publicKey: ByteArray,
     ) : LocalAccount {
@@ -42,7 +42,7 @@ sealed interface LocalAccount {
             other as Falcon24
 
             if (seedId != other.seedId) return false
-            if (algoAddress != other.algoAddress) return false
+            if (address != other.address) return false
             if (!publicKey.contentEquals(other.publicKey)) return false
 
             return true
@@ -50,25 +50,26 @@ sealed interface LocalAccount {
 
         override fun hashCode(): Int {
             var result = seedId
-            result = 31 * result + algoAddress.hashCode()
+            result = 31 * result + address.hashCode()
             result = 31 * result + publicKey.contentHashCode()
             return result
         }
     }
 
     data class LedgerBle(
-        override val algoAddress: String,
+        override val address: String,
         val deviceMacAddress: String,
         val bluetoothName: String?,
         val indexInLedger: Int,
     ) : LocalAccount
 
     data class NoAuth(
-        override val algoAddress: String,
+        override val address: String,
     ) : LocalAccount
-    
+
     data class SeedVault(
-        override val algoAddress: String,
+        override val address: String,
+        val publicKey: String,
         val chainId: String,
         val accountName: String? = null,
     ) : LocalAccount

@@ -13,7 +13,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 actual fun SelectSeedScreenPlatform(navController: NavController) {
     val viewModel: SelectSeedViewModel = koinViewModel()
-    
+
     // Seed Vault is not available on iOS, so we always show permission denied state
     SelectSeedScreen(
         navController = navController,

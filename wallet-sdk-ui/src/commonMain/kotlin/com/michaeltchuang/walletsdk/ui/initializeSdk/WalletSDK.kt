@@ -102,10 +102,10 @@ object WalletSDK {
 
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase
         get() = getKoin().get()
-    
+
     private val getSolanaBalancesUseCase: GetSolanaBalancesUseCase
         get() = getKoin().get()
-    
+
     private val syncSolanaAccountsFromSeedVaultUseCase: SyncSolanaAccountsFromSeedVaultUseCase
         get() = getKoin().get()
 
@@ -143,25 +143,22 @@ object WalletSDK {
     suspend fun getAccountsWithBalances(): List<AccountLite> {
         val accounts = nameRegistrationUseCase.getAccountLite()
         return coroutineScope {
-            accounts.map { account ->
-                async {
-                    val accountInfo = getBasicAccountInformationUseCase(account.address)
-                    account.copy(balance = accountInfo?.amount ?: "0")
-                }
-            }.awaitAll()
+            accounts
+                .map { account ->
+                    async {
+                        val accountInfo = getBasicAccountInformationUseCase(account.address)
+                        account.copy(balance = accountInfo?.amount ?: "0")
+                    }
+                }.awaitAll()
         }
     }
-
-    
 
     suspend fun deleteAccount(address: String) {
         nameRegistrationUseCase.deleteAccount(address)
     }
-    
-    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> {
-        return getSolanaBalancesUseCase(addresses)
-    }
-    
+
+    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
+
     suspend fun syncSolanaAccountsFromSeedVault() {
         syncSolanaAccountsFromSeedVaultUseCase()
     }

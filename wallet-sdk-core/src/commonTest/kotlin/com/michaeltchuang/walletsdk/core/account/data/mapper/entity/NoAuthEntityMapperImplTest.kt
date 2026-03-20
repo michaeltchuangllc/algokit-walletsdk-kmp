@@ -11,7 +11,7 @@ class NoAuthEntityMapperImplTest {
     fun `EXPECT NoAuthEntity to be created from LocalAccount NoAuth`() {
         val localAccount =
             LocalAccount.NoAuth(
-                algoAddress = ADDRESS,
+                address = ADDRESS,
             )
 
         val result = sut(localAccount)

@@ -117,7 +117,7 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
         is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
     }
-    
+
 private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
     when (registrationType) {
         is AccountRegistrationType.SeedVault -> "SOL "

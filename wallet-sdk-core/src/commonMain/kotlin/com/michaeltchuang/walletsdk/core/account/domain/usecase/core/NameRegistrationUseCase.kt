@@ -29,7 +29,7 @@ class NameRegistrationUseCase(
 
     suspend fun getAccountLite(): List<AccountLite> {
         val localAccounts = getLocalAccountsUseCase()
-        val customInfoMap = getAccountsCustomInfo(localAccounts.map { it.algoAddress })
+        val customInfoMap = getAccountsCustomInfo(localAccounts.map { it.address })
         return localAccounts.map { account ->
             val fallbackName =
                 when (account) {
@@ -37,8 +37,8 @@ class NameRegistrationUseCase(
                     else -> ""
                 }
             AccountLite(
-                account.algoAddress,
-                customInfoMap[account.algoAddress]?.customName ?: fallbackName,
+                account.address,
+                customInfoMap[account.address]?.customName ?: fallbackName,
                 getAccountRegistrationTypeUseCase(account),
             )
         }

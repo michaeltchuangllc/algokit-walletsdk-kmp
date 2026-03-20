@@ -38,14 +38,14 @@ class SelectSeedViewModel(
                         stateDelegate.updateState {
                             ViewState.NoAuthorizedSeeds(
                                 message = "No authorized seeds found. Please authorize a seed from the Seed Vault.",
-                                canAuthorize = true
+                                canAuthorize = true,
                             )
                         }
                     } else {
                         stateDelegate.updateState {
                             ViewState.NoAuthorizedSeeds(
                                 message = "No seeds found. Please create a seed in the Seed Vault app first.",
-                                canAuthorize = false
+                                canAuthorize = false,
                             )
                         }
                     }
@@ -66,7 +66,7 @@ class SelectSeedViewModel(
                 stateDelegate.updateState {
                     ViewState.Content(
                         seeds = seedItems,
-                        hasMoreSeedsAvailable = hasUnauthorizedSeeds
+                        hasMoreSeedsAvailable = hasUnauthorizedSeeds,
                     )
                 }
             } catch (e: Exception) {

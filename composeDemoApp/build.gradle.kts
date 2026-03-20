@@ -100,7 +100,7 @@ kotlin {
             implementation(libs.ktor.client.okhttp)
             implementation(libs.datastore.preferences)
             implementation(libs.lifecycle.common.java8)
-            
+
             // Solana Mobile Seed Vault for runtime permission handling
             implementation(libs.seedvault.wallet.sdk)
         }

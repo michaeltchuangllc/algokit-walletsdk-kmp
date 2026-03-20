@@ -14,12 +14,17 @@ class NoOpSeedVaultRepository : SeedVaultRepository {
     override suspend fun getSolanaSeeds(): List<SolanaSeedInfo> = emptyList()
 
     override suspend fun getImportedAddresses(addresses: List<String>): Set<String> = emptySet()
+
+    override fun hasUnauthorizedSeeds(): Boolean {
+        TODO("Not yet implemented")
+    }
 }
 
 /**
  * iOS-specific module for Solana/SeedVault dependencies.
  * Since Seed Vault is Android-specific, this provides a no-op implementation.
  */
-val solanaAccountModule = module {
-    singleOf(::NoOpSeedVaultRepository) { bind<SeedVaultRepository>() }
-}
+val solanaAccountModule =
+    module {
+        singleOf(::NoOpSeedVaultRepository) { bind<SeedVaultRepository>() }
+    }

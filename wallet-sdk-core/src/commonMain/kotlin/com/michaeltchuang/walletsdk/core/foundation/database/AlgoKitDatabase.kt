@@ -25,8 +25,8 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntit
 import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
-import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SeedVaultEntity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 
 @Database(
     entities = [
@@ -71,7 +71,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun solanaAccountDao(): SeedVaultDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 5 // Bumped for seed_vault account_name field
+        const val DATABASE_VERSION = 3 // Bumped for seed_vault table + account_name field
         const val DATABASE_NAME = "algokit_database"
     }
 }

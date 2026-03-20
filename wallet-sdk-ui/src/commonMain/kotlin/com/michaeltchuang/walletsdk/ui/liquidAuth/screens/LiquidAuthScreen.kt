@@ -362,7 +362,7 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.LedgerBle -> "Ledger"
         is AccountRegistrationType.SeedVault -> "SeedVault"
     }
-    
+
 private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
     when (registrationType) {
         is AccountRegistrationType.SeedVault -> "SOL "

@@ -19,7 +19,7 @@ class LedgerBleMapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
         assertEquals(MAC_ADDRESS, result.deviceMacAddress)
         assertEquals(BLUETOOTH_NAME, result.bluetoothName)
         assertEquals(INDEX_IN_LEDGER, result.indexInLedger)
@@ -37,7 +37,7 @@ class LedgerBleMapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
         assertEquals(MAC_ADDRESS, result.deviceMacAddress)
         assertEquals(null, result.bluetoothName)
         assertEquals(INDEX_IN_LEDGER, result.indexInLedger)

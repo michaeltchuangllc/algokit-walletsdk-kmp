@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -54,9 +53,12 @@ fun SelectSeedScreen(
     val viewState by viewModel.state.collectAsStateWithLifecycle()
 
     // Show permission UI if permission not granted and we're in Idle/Error state
-    val showPermissionUI = !permissionGranted && 
-        (viewState is SelectSeedViewModel.ViewState.Idle || 
-         viewState is SelectSeedViewModel.ViewState.Error)
+    val showPermissionUI =
+        !permissionGranted &&
+            (
+                viewState is SelectSeedViewModel.ViewState.Idle ||
+                    viewState is SelectSeedViewModel.ViewState.Error
+            )
 
     // Auto-load seeds when permission is granted and we're in Idle state
     LaunchedEffect(permissionGranted, viewState) {
@@ -548,6 +550,4 @@ fun NoAuthorizedSeedsScreenPreview() {
  * On iOS, this just shows the regular SelectSeedScreen (Seed Vault is Android-only).
  */
 @Composable
-expect fun SelectSeedScreenPlatform(
-    navController: NavController,
-)
+expect fun SelectSeedScreenPlatform(navController: NavController)

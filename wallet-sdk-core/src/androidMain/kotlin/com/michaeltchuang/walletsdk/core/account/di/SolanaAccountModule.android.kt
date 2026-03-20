@@ -9,6 +9,7 @@ import org.koin.dsl.module
 /**
  * Android-specific module for Solana/SeedVault dependencies.
  */
-val solanaAccountModule = module {
-    singleOf(::SeedVaultRepositoryImpl) { bind<SeedVaultRepository>() }
-}
+val solanaAccountModule =
+    module {
+        singleOf(::SeedVaultRepositoryImpl) { bind<SeedVaultRepository>() }
+    }

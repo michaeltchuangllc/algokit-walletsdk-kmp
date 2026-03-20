@@ -197,11 +197,12 @@ internal fun ScreenContent(
                         AccountDetailWebviewItem(
                             icon = Res.drawable.ic_algo_sign,
                             title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
-                            url = if (state.isSolanaAccount) {
-                                "https://faucet.solana.com/"
-                            } else {
-                                "https://lora.algokit.io/testnet/fund?address=$address"
-                            },
+                            url =
+                                if (state.isSolanaAccount) {
+                                    "https://faucet.solana.com/"
+                                } else {
+                                    "https://lora.algokit.io/testnet/fund?address=$address"
+                                },
                         )
                     }
 
@@ -296,14 +297,13 @@ fun CopyAddress(
 private fun getTransactionHistoryUrl(
     state: AccountDetailViewModel.ViewState.Content,
     address: String,
-): String {
-    return if (state.isSolanaAccount) {
+): String =
+    if (state.isSolanaAccount) {
         val clusterQuery = if (state.isTestNet) "?cluster=devnet" else ""
         "https://explorer.solana.com/address/$address$clusterQuery"
     } else {
         "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address"
     }
-}
 
 @Preview
 @Composable

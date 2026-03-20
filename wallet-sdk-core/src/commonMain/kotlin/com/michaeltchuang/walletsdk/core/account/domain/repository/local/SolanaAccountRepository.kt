@@ -25,12 +25,15 @@ interface SolanaAccountRepository {
     suspend fun addAccounts(accounts: List<SolanaAccount>)
 
     suspend fun deleteAccount(publicKey: String)
-    
+
     suspend fun deleteAccountByAddress(address: String)
 
     suspend fun isAddressExists(address: String): Boolean
-    
-    suspend fun updateAccountNameByAddress(address: String, accountName: String?)
+
+    suspend fun updateAccountNameByAddress(
+        address: String,
+        accountName: String?,
+    )
 
     suspend fun deleteAllAccounts()
 }

@@ -11,7 +11,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVa
 class SeedVaultRepositoryImpl(
     private val solanaAccountRepository: SolanaAccountRepository,
 ) : SeedVaultRepository {
-
     override suspend fun getSolanaSeeds(): List<SolanaSeedInfo> {
         // Seed Vault is Android-specific, return empty list on iOS
         return emptyList()

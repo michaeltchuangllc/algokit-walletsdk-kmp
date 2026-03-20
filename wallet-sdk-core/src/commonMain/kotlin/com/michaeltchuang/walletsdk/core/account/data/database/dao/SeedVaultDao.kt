@@ -35,7 +35,7 @@ internal interface SeedVaultDao {
 
     @Query("DELETE FROM seed_vault WHERE :publicKey = public_key")
     suspend fun delete(publicKey: String)
-    
+
     @Query("DELETE FROM seed_vault WHERE :address = address")
     suspend fun deleteByAddress(address: String)
 
@@ -44,9 +44,12 @@ internal interface SeedVaultDao {
 
     @Query("SELECT EXISTS(SELECT * FROM seed_vault WHERE :address = address)")
     suspend fun isAddressExists(address: String): Boolean
-    
+
     @Query("UPDATE seed_vault SET account_name = :accountName WHERE :address = address")
-    suspend fun updateAccountNameByAddress(address: String, accountName: String?)
+    suspend fun updateAccountNameByAddress(
+        address: String,
+        accountName: String?,
+    )
 
     @Query("SELECT * FROM seed_vault WHERE :chainId = chainId")
     suspend fun getByChainId(chainId: String): List<SeedVaultEntity>

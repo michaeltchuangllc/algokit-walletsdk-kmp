@@ -1,9 +1,9 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
 
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.SolanaAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
-import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
 
 /**
  * Use case for fetching Solana accounts from Seed Vault.
@@ -15,9 +15,7 @@ class GetSolanaAccountsFromSeedVaultUseCase(
      * Fetches all Solana accounts from Seed Vault.
      * @return List of SolanaSeedInfo containing seeds and their accounts
      */
-    suspend operator fun invoke(): List<SolanaSeedInfo> {
-        return seedVaultRepository.getSolanaSeeds()
-    }
+    suspend operator fun invoke(): List<SolanaSeedInfo> = seedVaultRepository.getSolanaSeeds()
 }
 
 /**
@@ -31,9 +29,7 @@ class GetImportedSolanaAddressesUseCase(
      * @param addresses List of addresses to check
      * @return Set of addresses that are already imported
      */
-    suspend operator fun invoke(addresses: List<String>): Set<String> {
-        return seedVaultRepository.getImportedAddresses(addresses)
-    }
+    suspend operator fun invoke(addresses: List<String>): Set<String> = seedVaultRepository.getImportedAddresses(addresses)
 }
 
 /**
@@ -48,12 +44,14 @@ class ImportSolanaAccountsUseCase(
      */
     suspend operator fun invoke(accounts: List<SolanaAccount>) {
         // Filter out already imported accounts
-        val newAccounts = accounts.filter { account ->
-            !solanaAccountRepository.isAddressExists(account.address)
-        }
+        val newAccounts =
+            accounts.filter { account ->
+                !solanaAccountRepository.isAddressExists(account.address)
+            }
         solanaAccountRepository.addAccounts(newAccounts)
     }
 }
+
 /**
  * Use case for fully syncing Solana accounts from Seed Vault into local database.
  * Local Solana accounts are selectively updated to match the latest Seed Vault content.
@@ -78,11 +76,11 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
         val latestAddresses = latestSolanaAccounts.map { it.address }.toSet()
         val localAccounts = solanaAccountRepository.getAll()
         val localAccountsByAddress = localAccounts.associateBy { it.address }
-        
+
         localAccounts
             .filter { it.address !in latestAddresses }
             .forEach { solanaAccountRepository.deleteAccountByAddress(it.address) }
-        
+
         val accountsToRename =
             latestSolanaAccounts.filter { latestAccount ->
                 val localAccount = localAccountsByAddress[latestAccount.address]
@@ -92,7 +90,7 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
             solanaAccountRepository.updateAccountNameByAddress(account.address, account.accountName)
         }
     }
-    
+
     private fun extractChainIdFromDerivationPath(derivationPath: String): String =
         derivationPath
             .split("/")

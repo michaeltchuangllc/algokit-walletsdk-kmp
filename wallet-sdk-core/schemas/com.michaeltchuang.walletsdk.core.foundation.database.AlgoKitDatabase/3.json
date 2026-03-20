@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "59037bae354a2f126ecf879aa8e19cdb",
+    "identityHash": "a1fb67ed6eaa02dbaae88aadb694c70d",
     "entities": [
       {
         "tableName": "ledger_ble",
@@ -437,7 +437,7 @@
       },
       {
         "tableName": "seed_vault",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_key` TEXT NOT NULL, `address` TEXT NOT NULL, `chainId` TEXT NOT NULL, PRIMARY KEY(`public_key`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`public_key` TEXT NOT NULL, `address` TEXT NOT NULL, `chainId` TEXT NOT NULL, `account_name` TEXT, PRIMARY KEY(`public_key`))",
         "fields": [
           {
             "fieldPath": "publicKey",
@@ -456,6 +456,11 @@
             "columnName": "chainId",
             "affinity": "TEXT",
             "notNull": true
+          },
+          {
+            "fieldPath": "accountName",
+            "columnName": "account_name",
+            "affinity": "TEXT"
           }
         ],
         "primaryKey": {
@@ -468,7 +473,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '59037bae354a2f126ecf879aa8e19cdb')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'a1fb67ed6eaa02dbaae88aadb694c70d')"
     ]
   }
 }

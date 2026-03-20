@@ -6,6 +6,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 internal class Algo25MapperImpl : Algo25Mapper {
     override fun invoke(entity: Algo25Entity): LocalAccount.Algo25 =
         LocalAccount.Algo25(
-            algoAddress = entity.algoAddress,
+            address = entity.algoAddress,
         )
 }

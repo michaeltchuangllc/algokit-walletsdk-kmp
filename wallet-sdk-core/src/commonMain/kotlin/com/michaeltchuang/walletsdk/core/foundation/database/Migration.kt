@@ -41,31 +41,21 @@ val MIGRATION_1_2 =
         }
     }
 
-val MIGRATION_3_4 =
-    object : Migration(3, 4) {
+val MIGRATION_2_3 =
+    object : Migration(2, 3) {
         override fun migrate(connection: SQLiteConnection) {
             // Drop old solana_account table if it exists
             connection.execSQL("DROP TABLE IF EXISTS solana_account")
 
-            // Create new seed_vault table
+            // Create new seed_vault table with account_name column
             connection.execSQL(
                 """
                 CREATE TABLE IF NOT EXISTS seed_vault (
                     public_key TEXT PRIMARY KEY NOT NULL,
                     address TEXT NOT NULL,
-                    chainId TEXT NOT NULL
+                    chainId TEXT NOT NULL,
+                    account_name TEXT
                 )
-                """.trimIndent(),
-            )
-        }
-    }
-    
-val MIGRATION_4_5 =
-    object : Migration(4, 5) {
-        override fun migrate(connection: SQLiteConnection) {
-            connection.execSQL(
-                """
-                ALTER TABLE seed_vault ADD COLUMN account_name TEXT
                 """.trimIndent(),
             )
         }

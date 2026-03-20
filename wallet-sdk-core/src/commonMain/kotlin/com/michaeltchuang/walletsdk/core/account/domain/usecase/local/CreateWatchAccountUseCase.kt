@@ -15,13 +15,13 @@ class CreateWatchAccountUseCase(
         try {
             // Check if address already exists in ANY account type
             val existingAccounts = getLocalAccounts()
-            val addressExists = existingAccounts.any { it.algoAddress == createAccount.address }
+            val addressExists = existingAccounts.any { it.address == createAccount.address }
 
             if (addressExists) {
                 Result.failure(Exception("An account with this address already exists"))
             } else {
                 // Create and add the watch account
-                val watchAccount = LocalAccount.NoAuth(algoAddress = createAccount.address)
+                val watchAccount = LocalAccount.NoAuth(address = createAccount.address)
                 setCustomInfo(
                     CustomAccountInfo(
                         createAccount.address,

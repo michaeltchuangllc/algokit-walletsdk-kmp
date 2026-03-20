@@ -98,7 +98,7 @@ class AccountListViewModel(
             val message: String,
         ) : AccountsEvent
     }
-    
+
     private suspend fun fetchAndMergeSolanaBalances(accounts: List<AccountLite>): List<AccountLite> {
         val solanaAccounts =
             accounts.filter {
