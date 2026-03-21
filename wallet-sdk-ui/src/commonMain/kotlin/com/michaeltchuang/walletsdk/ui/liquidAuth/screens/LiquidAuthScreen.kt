@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_account
 import androidx.compose.foundation.background
@@ -15,9 +16,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -336,12 +340,22 @@ private fun AccountItem(
             Column(
                 horizontalAlignment = Alignment.End,
             ) {
-                Text(
-                    text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
-                    fontSize = 16.sp,
-                    style = typography.footnote.sansMedium,
-                    color = AlgoKitTheme.colors.textMain,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                            contentDescription = "Solana",
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.Unspecified,
+                        )
+                    }
+                    Text(
+                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                    )
+                }
             }
         }
     }
@@ -365,7 +379,7 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
 
 private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
     when (registrationType) {
-        is AccountRegistrationType.SeedVault -> "SOL "
+        is AccountRegistrationType.SeedVault -> ""
         else -> "\u00A6"
     }
 

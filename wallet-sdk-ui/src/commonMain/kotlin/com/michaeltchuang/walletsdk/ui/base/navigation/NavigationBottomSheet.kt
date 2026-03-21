@@ -48,7 +48,7 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
-import com.michaeltchuang.walletsdk.ui.onboarding.screens.SolanaAccountsScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
@@ -108,7 +108,7 @@ enum class AlgoKitScreens {
     LIQUID_AUTH_SCREEN,
     ADD_ASSET_SCREEN,
     SELECT_SEED_SCREEN,
-    SOLANA_ACCOUNTS_SCREEN,
+    IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -681,7 +681,7 @@ fun NavigationBottomSheetNavHost(
                     SelectSeedScreenPlatform(navController = navController)
                 }
                 composable(
-                    route = AlgoKitScreens.SOLANA_ACCOUNTS_SCREEN.name + "?selectedSeedIds={selectedSeedIds}",
+                    route = AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name + "?selectedSeedIds={selectedSeedIds}",
                     arguments =
                         listOf(
                             navArgument("selectedSeedIds") {
@@ -699,7 +699,7 @@ fun NavigationBottomSheetNavHost(
                             ?.filter { it.isNotEmpty() }
                             ?.toSet()
                             .orEmpty()
-                    SolanaAccountsScreen(
+                    ImportSeedVaultAccountsScreen(
                         navController = navController,
                         selectedSeedIds = selectedSeedIds,
                         showSnackBar = {

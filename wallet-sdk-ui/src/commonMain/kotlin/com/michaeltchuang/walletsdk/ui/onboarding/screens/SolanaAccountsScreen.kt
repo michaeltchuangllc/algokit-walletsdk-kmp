@@ -4,7 +4,6 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.already_imported
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.continue_text
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_all
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +50,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SolanaAccountsScreen(
+fun ImportSeedVaultAccountsScreen(
     viewModel: SolanaAccountsViewModel = koinViewModel(),
     navController: NavController = rememberNavController(),
     selectedSeedIds: Set<String> = emptySet(),
@@ -408,17 +407,22 @@ private fun formatShortAddress(address: String): String =
  * Example: m/44/501/0/0 -> 0, m/44/501/1/0 -> 1
  */
 private fun formatDerivationPath(derivationPath: String): String {
-    val parts = derivationPath.split("/")
-    return if (parts.size >= 4) {
-        parts[3] // Return the account index (4th element, 0-indexed)
-    } else {
+    val chainId =
         derivationPath
+            .split("/")
+            .map { it.removeSuffix("'") }
+            .firstOrNull { it == "501" || it == "283" }
+
+    return when (chainId) {
+        "501" -> "SOL"
+        "283" -> "ALGO"
+        else -> derivationPath
     }
 }
 
 @Preview
 @Composable
-private fun SolanaAccountsScreenPreview() {
+private fun ImportSeedVaultAccountsScreenPreview() {
     val fakeViewState =
         SolanaAccountsViewModel.ViewState.Content(
             solanaAccounts =

@@ -136,7 +136,7 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
             when (event) {
                 is SelectSeedViewModel.ViewEvent.SeedSelected -> {
                     navController.navigate(
-                        "${AlgoKitScreens.SOLANA_ACCOUNTS_SCREEN.name}?selectedSeedIds=${event.seed.id}",
+                        "${AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name}?selectedSeedIds=${event.seed.id}",
                     )
                 }
                 is SelectSeedViewModel.ViewEvent.AllSeedsConnected -> {
