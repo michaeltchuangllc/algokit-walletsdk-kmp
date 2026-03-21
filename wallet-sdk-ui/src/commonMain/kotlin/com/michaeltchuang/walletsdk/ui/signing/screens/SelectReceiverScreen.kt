@@ -5,6 +5,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_algo
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_falcon24
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_hd
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_ledger
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_seedvault
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
@@ -457,6 +458,7 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
         is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
+        is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
     }
 
 @Preview

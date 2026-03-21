@@ -5,8 +5,10 @@ import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_alg
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_falcon24
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_hd
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_ledger
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_seedvault
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_hd_wallet
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.wallet_icon
 import androidx.compose.foundation.clickable
@@ -14,12 +16,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
@@ -82,11 +87,21 @@ fun AccountItem(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier.padding(end = 8.dp),
             ) {
-                Text(
-                    text = (("\u00A6") + account.balance?.formatAmount()),
-                    fontSize = 16.sp,
-                    style = typography.footnote.sansMedium,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                            contentDescription = "Solana",
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.Unspecified,
+                        )
+                    }
+                    Text(
+                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                    )
+                }
             }
         }
     }
@@ -114,6 +129,13 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
         is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
+        is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
+    }
+
+private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.SeedVault -> ""
+        else -> "\u00A6"
     }
 
 @Preview()

@@ -47,7 +47,7 @@ actual fun BroadcastScreen(
     }
 
     // Use first account address for X402 payments (or null if no accounts)
-    val creatorAddress = accounts.firstOrNull()?.algoAddress
+    val creatorAddress = accounts.firstOrNull()?.address
 
     // Log for debugging
     android.util.Log.d("BroadcastScreen", "Accounts loaded: ${accounts.size}, creatorAddress=$creatorAddress")

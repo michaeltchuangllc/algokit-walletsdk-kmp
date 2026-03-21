@@ -12,12 +12,17 @@ import androidx.compose.runtime.setValue
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaBalancesUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.base.di.walletSdkUiModules
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import org.koin.core.context.loadKoinModules
 import org.koin.core.context.startKoin
@@ -98,6 +103,12 @@ object WalletSDK {
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase
         get() = getKoin().get()
 
+    private val getSolanaBalancesUseCase: GetSolanaBalancesUseCase
+        get() = getKoin().get()
+
+    private val syncSolanaAccountsFromSeedVaultUseCase: SyncSolanaAccountsFromSeedVaultUseCase
+        get() = getKoin().get()
+
     /**
      * Note: WalletSDK.initialize() must be called BEFORE this composable is rendered:
      * - Android: In AndroidApp.onCreate()
@@ -131,15 +142,25 @@ object WalletSDK {
 
     suspend fun getAccountsWithBalances(): List<AccountLite> {
         val accounts = nameRegistrationUseCase.getAccountLite()
-
-        return accounts.map { account ->
-            val accountInfo = getBasicAccountInformationUseCase(account.address)
-            account.copy(balance = accountInfo?.amount ?: "0")
+        return coroutineScope {
+            accounts
+                .map { account ->
+                    async {
+                        val accountInfo = getBasicAccountInformationUseCase(account.address)
+                        account.copy(balance = accountInfo?.amount ?: "0")
+                    }
+                }.awaitAll()
         }
     }
 
     suspend fun deleteAccount(address: String) {
         nameRegistrationUseCase.deleteAccount(address)
+    }
+
+    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
+
+    suspend fun syncSolanaAccountsFromSeedVault() {
+        syncSolanaAccountsFromSeedVaultUseCase()
     }
 
     fun getCurrentNetwork(): Flow<AlgorandNetwork> = getCurrentNetworkUseCase()

@@ -140,6 +140,9 @@ kotlin {
                 implementation(libs.stream.webrtc.android)
                 implementation(libs.uuid.generator)
 
+                // Solana Mobile Seed Vault
+                implementation(libs.seedvault.wallet.sdk)
+
                 // CameraX for video streaming (Android actual implementation)
                 implementation(libs.camerax.core)
                 implementation(libs.camerax.camera2)

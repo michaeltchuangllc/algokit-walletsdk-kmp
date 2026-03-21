@@ -4,7 +4,6 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.algorand_secure_backup
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_import_algorand
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_an
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_legacy_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_recover_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.i_want_to_restore_my
@@ -18,8 +17,6 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_a_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_an_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.import_from_pera_web
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.key
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ledger
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.pair_ledger_device
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.qr_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_a_legacy_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.recover_an_account
@@ -75,7 +72,7 @@ fun AccountRecoveryTypeSelectionScreen(
         RecoverAnAccountWidget(navController = navController)
         RecoverAnAccountWithQRWidget(navController)
         RecoverLegacyAccountWidget(navController = navController)
-        // PairLedgerDeviceWidget(onClick)
+        SelectSeed(navController)
         // ImportPeraWebWidget(onClick)
         // AlgorandSecureBackupWidget(onClick)
     }
@@ -144,13 +141,13 @@ private fun RecoverAnAccountWithQRWidget(navController: NavController) {
 }
 
 @Composable
-private fun PairLedgerDeviceWidget(onClick: (message: String) -> Unit) {
+private fun SelectSeed(navController: NavController) {
     GroupChoiceWidget(
-        title = localizedStringResource(Res.string.pair_ledger_device),
-        description = localizedStringResource(Res.string.i_want_to_recover_an),
-        iconContentDescription = localizedStringResource(Res.string.ledger),
+        title = "Select Seed",
+        description = "Import Solana accounts from Seed Vault",
+        iconContentDescription = "Seed Vault",
         icon = vectorResource(Res.drawable.ic_ledger),
-        onClick = { onClick(WalletSdkConstants.FEATURE_NOT_SUPPORTED_YET) },
+        onClick = { navController.navigate(AlgoKitScreens.SELECT_SEED_SCREEN.name) },
     )
 }
 

@@ -14,6 +14,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.rename_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
@@ -172,7 +173,7 @@ internal fun ScreenContent(
                     AccountDetailWebviewItem(
                         icon = Res.drawable.ic_receipt,
                         title = localizedStringResource(Res.string.transaction_history),
-                        url = "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address",
+                        url = getTransactionHistoryUrl(state = state, address = address),
                     )
 
                     // Only show "View passphrase" for non-NoAuth accounts
@@ -196,7 +197,12 @@ internal fun ScreenContent(
                         AccountDetailWebviewItem(
                             icon = Res.drawable.ic_algo_sign,
                             title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
-                            url = "https://lora.algokit.io/testnet/fund?address=$address",
+                            url =
+                                if (state.isSolanaAccount) {
+                                    "https://faucet.solana.com/"
+                                } else {
+                                    "https://lora.algokit.io/testnet/fund?address=$address"
+                                },
                         )
                     }
 
@@ -217,12 +223,14 @@ internal fun ScreenContent(
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_edit,
-                        isRemoveAccount = false,
-                        title = "Rename Account",
-                    ) {
-                        onRenameAccount()
+                    if (!state.isSolanaAccount) {
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_edit,
+                            isRemoveAccount = false,
+                            title = localizedStringResource(Res.string.rename_account),
+                        ) {
+                            onRenameAccount()
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -286,6 +294,17 @@ fun CopyAddress(
     }
 }
 
+private fun getTransactionHistoryUrl(
+    state: AccountDetailViewModel.ViewState.Content,
+    address: String,
+): String =
+    if (state.isSolanaAccount) {
+        val clusterQuery = if (state.isTestNet) "?cluster=devnet" else ""
+        "https://explorer.solana.com/address/$address$clusterQuery"
+    } else {
+        "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address"
+    }
+
 @Preview
 @Composable
 fun SettingsScreenPreview() {
@@ -299,6 +318,7 @@ fun SettingsScreenPreview() {
                     isTestNet = true,
                     explorerBaseUrl = "https://testnet.algoexplorer.io",
                     isNoAuthAccount = false,
+                    isSolanaAccount = false,
                 ),
             onDeleteAccount = {},
             showSnackBar = {},

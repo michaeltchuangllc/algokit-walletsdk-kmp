@@ -672,7 +672,7 @@ class AnswerViewModel(
                     }
                 }
                 is LocalAccount.Falcon24 -> {
-                    val secretKey = getFalcon24SecretKey(localAccount.algoAddress)
+                    val secretKey = getFalcon24SecretKey(localAccount.address)
                     if (secretKey == null) {
                         Log.e(TAG, "💰 Failed to get Falcon24 secret key")
                         sendPaymentResponse(

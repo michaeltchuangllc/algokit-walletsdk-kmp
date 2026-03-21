@@ -14,6 +14,7 @@
     <string name="account_type_falcon24">Falcon24 Account</string>
     <string name="account_type_watch">Watch Account</string>
     <string name="account_type_ledger">Ledger Account</string>
+    <string name="account_type_seedvault">SeedVault Account</string>
 
     <!-- Content Descriptions -->
     <string name="wallet_icon">Wallet Icon</string>

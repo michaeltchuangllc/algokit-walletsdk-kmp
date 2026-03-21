@@ -47,6 +47,8 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
@@ -105,6 +107,8 @@ enum class AlgoKitScreens {
     PASSKEYS_SCREEN,
     LIQUID_AUTH_SCREEN,
     ADD_ASSET_SCREEN,
+    SELECT_SEED_SCREEN,
+    IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -671,6 +675,39 @@ fun NavigationBottomSheetNavHost(
                         navController = navController,
                         assetId = assetId,
                         accountAddress = accountAddress,
+                    )
+                }
+                composable(route = AlgoKitScreens.SELECT_SEED_SCREEN.name) {
+                    SelectSeedScreenPlatform(navController = navController)
+                }
+                composable(
+                    route = AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name + "?selectedSeedIds={selectedSeedIds}",
+                    arguments =
+                        listOf(
+                            navArgument("selectedSeedIds") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val selectedSeedIdsRaw = backStackEntry.arguments?.getString("selectedSeedIds")
+                    val selectedSeedIds =
+                        selectedSeedIdsRaw
+                            ?.split(",")
+                            ?.map { it.trim() }
+                            ?.filter { it.isNotEmpty() }
+                            ?.toSet()
+                            .orEmpty()
+                    ImportSeedVaultAccountsScreen(
+                        navController = navController,
+                        selectedSeedIds = selectedSeedIds,
+                        showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        },
+                        onAccountsImported = onFinish,
                     )
                 }
             }

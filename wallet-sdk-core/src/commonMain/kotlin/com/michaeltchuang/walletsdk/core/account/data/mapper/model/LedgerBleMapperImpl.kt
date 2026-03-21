@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 internal class LedgerBleMapperImpl : LedgerBleMapper {
     override fun invoke(entity: LedgerBleEntity): LocalAccount.LedgerBle =
         LocalAccount.LedgerBle(
-            algoAddress = entity.algoAddress,
+            address = entity.algoAddress,
             deviceMacAddress = entity.deviceMacAddress,
             indexInLedger = entity.accountIndexInLedger,
             bluetoothName = entity.bluetoothName,

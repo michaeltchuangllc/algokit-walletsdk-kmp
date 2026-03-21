@@ -16,7 +16,7 @@ class NoAuthMapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
     }
 
     private companion object {

@@ -11,7 +11,7 @@ internal class Falcon24EntityMapperImpl : Falcon24EntityMapper {
         privateKey: ByteArray,
     ): Falcon24Entity =
         Falcon24Entity(
-            algoAddress = localAccount.algoAddress,
+            algoAddress = localAccount.address,
             seedId = seedId,
             publicKey = localAccount.publicKey,
             encryptedSecretKey = encryptByteArray(privateKey),

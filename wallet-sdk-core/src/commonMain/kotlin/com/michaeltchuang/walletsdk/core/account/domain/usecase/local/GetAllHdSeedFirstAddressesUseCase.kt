@@ -29,7 +29,7 @@ class GetAllHdSeedFirstAddressesUseCase(
             firstAccount?.let {
                 HdSeedFirstAddress(
                     seedId = seed.seedId,
-                    firstAddress = it.algoAddress,
+                    firstAddress = it.address,
                 )
             }
         }

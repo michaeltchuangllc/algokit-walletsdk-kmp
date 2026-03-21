@@ -116,6 +116,9 @@ kotlin {
             implementation(libs.algorand.foundation.provider)
             implementation(libs.p256)
 
+            // Solana Mobile Seed Vault
+            implementation(libs.seedvault.wallet.sdk)
+
             implementation(libs.socketio.client)
             implementation(libs.stream.webrtc.android)
             implementation(libs.qrcode.kotlin)

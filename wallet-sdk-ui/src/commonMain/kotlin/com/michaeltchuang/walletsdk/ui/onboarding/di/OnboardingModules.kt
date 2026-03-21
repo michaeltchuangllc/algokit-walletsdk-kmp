@@ -8,6 +8,8 @@ import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingAccountTy
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.OnboardingIntroViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverRegisteredAccountsViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SelectSeedViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SolanaAccountsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -73,6 +75,23 @@ internal val onboardingModules =
             }
             viewModel {
                 AddressNamingViewModel(get(), get(), get(), get())
+            }
+            viewModel {
+                SelectSeedViewModel(
+                    stateDelegate = get(),
+                    eventDelegate = get(),
+                    getSolanaAccountsFromSeedVaultUseCase = get(),
+                    seedVaultRepository = get(),
+                )
+            }
+            viewModel {
+                SolanaAccountsViewModel(
+                    stateDelegate = get(),
+                    eventDelegate = get(),
+                    getSolanaAccountsFromSeedVaultUseCase = get(),
+                    getImportedSolanaAddressesUseCase = get(),
+                    importSolanaAccountsUseCase = get(),
+                )
             }
         },
     )

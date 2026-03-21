@@ -6,6 +6,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 internal class NoAuthMapperImpl : NoAuthMapper {
     override fun invoke(entity: NoAuthEntity): LocalAccount.NoAuth =
         LocalAccount.NoAuth(
-            algoAddress = entity.algoAddress,
+            address = entity.algoAddress,
         )
 }

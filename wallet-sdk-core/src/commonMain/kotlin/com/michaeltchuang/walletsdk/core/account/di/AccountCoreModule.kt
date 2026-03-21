@@ -33,6 +33,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaBalancesUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.recoverypassphrase.RecoverPassphraseUseCase
 import org.koin.dsl.module
@@ -71,7 +72,7 @@ val accountCoreModule =
             )
         }
 
-        single { GetLocalAccountsUseCase(get(), get(), get(), get(), get()) }
+        single { GetLocalAccountsUseCase(get(), get(), get(), get(), get(), get()) }
         single<GetLocalAccounts> { get<GetLocalAccountsUseCase>() }
         single { GetLocalAccountUseCase(get()) }
         single<GetLocalAccount> { get<GetLocalAccountUseCase>() }
@@ -86,10 +87,12 @@ val accountCoreModule =
         single { GetTransactionFeeForAccountUseCase(get()) }
         single<GetTransactionFeeForAccount> { get<GetTransactionFeeForAccountUseCase>() }
         single<GetBasicAccountInformationUseCase> { GetBasicAccountInformationUseCaseImpl(get()) }
+        single { GetSolanaBalancesUseCase(get()) }
         single { GetAccountRegistrationTypeUseCase(get()) }
 
         single {
             NameRegistrationUseCase(
+                get(),
                 get(),
                 get(),
                 get(),

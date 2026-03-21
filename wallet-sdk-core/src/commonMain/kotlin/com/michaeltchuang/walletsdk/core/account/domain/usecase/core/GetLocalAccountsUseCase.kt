@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25A
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthAccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
@@ -16,6 +17,7 @@ class GetLocalAccountsUseCase(
     private val hdKeyAccountRepository: HdKeyAccountRepository,
     private val algo25AccountRepository: Algo25AccountRepository,
     private val noAuthAccountRepository: NoAuthAccountRepository,
+    private val solanaAccountRepository: SolanaAccountRepository,
     private val dispatcher: CoroutineDispatcher,
 ) : GetLocalAccounts {
     override suspend fun invoke(): List<LocalAccount> =
@@ -24,11 +26,25 @@ class GetLocalAccountsUseCase(
             val deferredHdKeyAccounts = async { hdKeyAccountRepository.getAll() }
             val deferredAlgo25Accounts = async { algo25AccountRepository.getAll() }
             val deferredNoAuthAccounts = async { noAuthAccountRepository.getAll() }
+            val deferredSeedVaultAccounts =
+                async {
+                    solanaAccountRepository
+                        .getAll()
+                        .map { account ->
+                            LocalAccount.SeedVault(
+                                address = account.address,
+                                publicKey = account.publicKey,
+                                chainId = account.chainId,
+                                accountName = account.accountName,
+                            )
+                        }
+                }
             awaitAll(
                 deferredFalcon24Accounts,
                 deferredHdKeyAccounts,
                 deferredAlgo25Accounts,
                 deferredNoAuthAccounts,
+                deferredSeedVaultAccounts,
             ).flatten()
         }
 }

@@ -39,7 +39,9 @@ class AccountDetailViewModel(
             try {
                 // Get account information
                 val localAccount = getLocalAccount(address)
-                val isNoAuthAccount = localAccount is LocalAccount.NoAuth
+                val isNoAuthAccount =
+                    localAccount is LocalAccount.NoAuth || localAccount is LocalAccount.SeedVault
+                val isSolanaAccount = localAccount is LocalAccount.SeedVault
 
                 getCurrentNetworkUseCase().collect { network ->
                     val explorerBaseUrl = getExplorerBaseUrl()
@@ -49,6 +51,7 @@ class AccountDetailViewModel(
                             isTestNet = network == AlgorandNetwork.TESTNET,
                             explorerBaseUrl = explorerBaseUrl,
                             isNoAuthAccount = isNoAuthAccount,
+                            isSolanaAccount = isSolanaAccount,
                         )
                     }
                 }
@@ -85,6 +88,7 @@ class AccountDetailViewModel(
             val isTestNet: Boolean,
             val explorerBaseUrl: String,
             val isNoAuthAccount: Boolean = false,
+            val isSolanaAccount: Boolean = false,
         ) : ViewState
     }
 

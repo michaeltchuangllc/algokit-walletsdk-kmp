@@ -1477,6 +1477,7 @@
     <string name="account_type_falcon24">Account Falcon24</string>
     <string name="account_type_watch">Account Osservato</string>
     <string name="account_type_ledger">Account Ledger</string>
+    <string name="account_type_seedvault">Account SeedVault</string>
 
     <string name="error_account_already_exists">Un account con questo indirizzo esiste già</string>
     <string name="error_invalid_algorand_address">Indirizzo Algorand non valido</string>
