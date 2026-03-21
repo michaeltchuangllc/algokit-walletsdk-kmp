@@ -43,20 +43,17 @@ class SeedVaultRepositoryImpl(
                         WalletContractV1.AUTHORIZED_SEEDS_ALL_COLUMNS,
                     )
                 } catch (e: SecurityException) {
-                    // Permission denied - throw with clear message
-                    throw SecurityException("Seed Vault permission denied. Please ensure the app has been granted access to Seed Vault.", e)
+                    Log.w(TAG, "Seed Vault permission not granted - skipping Solana seed fetch", e)
+                    return@withContext emptyList()
                 } catch (e: IllegalStateException) {
-                    // Seed Vault not available
-                    throw IllegalStateException("Seed Vault is not available on this device. Please install Seed Vault app.", e)
+                    Log.w(TAG, "Seed Vault not available on this device - skipping Solana seed fetch", e)
+                    return@withContext emptyList()
                 }
 
             authorizedSeedsCursor?.use { cursor ->
                 while (cursor.moveToNext()) {
                     val authToken = cursor.getLong(0)
                     val seedName = cursor.getString(2)
-                    val isBackedUp =
-                        if (cursor.columnCount == 4) cursor.getShort(3) == 1.toShort() else false
-
                     Log.d(TAG, "Processing seed: authToken=$authToken, name=$seedName")
 
                     // Mark accounts as user wallets before querying

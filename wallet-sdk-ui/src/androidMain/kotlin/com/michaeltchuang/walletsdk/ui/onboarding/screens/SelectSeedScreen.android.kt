@@ -4,7 +4,9 @@ import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -34,6 +36,37 @@ private fun Context.findActivity(): Activity? {
     return null
 }
 
+private val seedVaultTestPackages =
+    setOf(
+        "com.solanamobile.seedvaultimpl",
+    )
+
+private fun isSeedVaultTestPackageInstalled(context: Context): Boolean =
+    seedVaultTestPackages.any { packageName ->
+        runCatching {
+            context.packageManager.getPackageInfo(packageName, 0)
+        }.isSuccess
+    }
+
+private fun isSupportedSeedVaultDevice(context: Context): Boolean {
+    val manufacturer = Build.MANUFACTURER.orEmpty().lowercase()
+    val brand = Build.BRAND.orEmpty().lowercase()
+    val model = Build.MODEL.orEmpty().lowercase()
+
+    val isSolanaManufacturer = manufacturer.contains("solana") || brand.contains("solana")
+    val isSagaOrSeekerModel = model.contains("saga") || model.contains("seeker")
+
+    return isSolanaManufacturer || isSagaOrSeekerModel || isSeedVaultTestPackageInstalled(context)
+}
+
+private fun showSeedVaultUnsupportedAlert(context: Context) {
+    Toast.makeText(
+        context,
+        "Seed Vault is only available on Solana Saga/Seeker devices or test builds.",
+        Toast.LENGTH_LONG,
+    ).show()
+}
+
 /**
  * Android actual implementation of SelectSeedScreenPlatform.
  * Automatically requests Seed Vault permission when the screen is shown.
@@ -49,9 +82,12 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
             context.findActivity()
         }
 
-    var permissionGranted by remember {
+    val isSeedVaultSupportedDevice = remember(context) { isSupportedSeedVaultDevice(context) }
+
+    var permissionGranted by remember(isSeedVaultSupportedDevice) {
         mutableStateOf(
-            context.checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) ==
+            isSeedVaultSupportedDevice &&
+                context.checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) ==
                 PackageManager.PERMISSION_GRANTED,
         )
     }
@@ -61,8 +97,8 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
         ) { isGranted ->
-            permissionGranted = isGranted
-            if (isGranted) {
+            permissionGranted = isSeedVaultSupportedDevice && isGranted
+            if (permissionGranted) {
                 viewModel.loadSeeds()
             }
         }
@@ -88,7 +124,7 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
 
     // Check permission on first launch and request if needed
     LaunchedEffect(Unit) {
-        if (!permissionGranted) {
+        if (isSeedVaultSupportedDevice && !permissionGranted) {
             permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
         }
     }
@@ -115,6 +151,11 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
                 }
                 is SelectSeedViewModel.ViewEvent.RequestAuthorizeSeed -> {
                     // Launch the seed authorization intent
+                    if (!isSeedVaultSupportedDevice) {
+                        Log.w("SelectSeedScreen", "Seed authorization requested on unsupported device")
+                        return@collect
+                    }
+
                     val currentActivity = activity
                     if (currentActivity != null) {
                         val intent =
@@ -139,6 +180,11 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
         onSeedSelected = { viewModel.onSeedSelected(it) },
         onAllSeedsConnected = { viewModel.onAllSeedsConnected() },
         onRetry = {
+            if (!isSeedVaultSupportedDevice) {
+                showSeedVaultUnsupportedAlert(context)
+                return@SelectSeedScreenContent
+            }
+
             if (!permissionGranted) {
                 permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
             } else {
@@ -146,7 +192,11 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
             }
         },
         onRequestPermission = {
-            permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+            if (isSeedVaultSupportedDevice) {
+                permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+            } else {
+                showSeedVaultUnsupportedAlert(context)
+            }
         },
         onAuthorizeSeed = {
             // This triggers the event that launches the authorization intent
