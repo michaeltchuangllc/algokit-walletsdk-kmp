@@ -51,7 +51,7 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
         val seedVaultEntries =
             seedVaultAccounts.map { seedVault ->
                 CreatePasskeyCredentialCreateEntry(
-                    accountName = seedVault.accountName.orEmpty(),
+                    accountName = seedVault.accountName?.takeIf { it.isNotBlank() } ?: seedVault.address,
                     passkeyCount = registeredRelyingPartyPasskeyCount,
                     address = seedVault.address,
                     signingProvider = PasskeySigningProvider.SOLANA_SEED_VAULT,
