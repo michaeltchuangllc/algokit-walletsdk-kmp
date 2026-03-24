@@ -68,7 +68,7 @@ actual fun BroadcastScreen(
     // The LiquidAuthOfferScreen now receives the connection manager
     // which handles SignalService binding and peer detection
     LiquidAuthOfferScreen(
-        origin = "https://liquid-auth-api.pg.nodely.dev/",
+        origin = "https://michaeltchuang.ngrok.dev/", // "https://liquid-auth-api.pg.nodely.dev/",
         onBackPressed = { navController.popBackStack() },
         cameraPreview = createCameraStreamingPreview(connectionManager),
         connectionManager = connectionManager, // Enables WebRTC connection!

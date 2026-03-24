@@ -9,20 +9,20 @@ import platform.Foundation.NSLog
  * Global handler for iOS Liquid Auth.
  * This should be set by the iOS app during initialization.
  */
-var iosLiquidAuthHandler: ((origin: String, requestId: String, algoAddress: String) -> Unit)? = null
+var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? = null
 
 @Composable
 actual fun connect(
     authMessage: AuthMessage,
-    algoAddress: String,
+    accountAddress: String,
 ) {
-    LaunchedEffect(authMessage, algoAddress) {
+    LaunchedEffect(authMessage, accountAddress) {
         NSLog("🔗 iOS Liquid Auth connect() called")
         NSLog("   Origin: '${authMessage.origin}'")
         NSLog("   RequestID: '${authMessage.requestId}'")
         NSLog("   RequestID length: ${authMessage.requestId.length}")
         NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
-        NSLog("   AlgoAddress: '$algoAddress'")
+        NSLog("   AlgoAddress: '$accountAddress'")
 
         // Verify requestId is not empty
         if (authMessage.requestId.isEmpty()) {
@@ -38,8 +38,8 @@ actual fun connect(
             NSLog("✅ Calling iOS handler with:")
             NSLog("   - origin: '${authMessage.origin}'")
             NSLog("   - requestId: '${authMessage.requestId}'")
-            NSLog("   - address: '$algoAddress'")
-            handler(authMessage.origin, authMessage.requestId, algoAddress)
+            NSLog("   - address: '$accountAddress'")
+            handler(authMessage.origin, authMessage.requestId, accountAddress)
         } else {
             NSLog("⚠️ No iOS Liquid Auth handler registered!")
             NSLog("📝 Call setIosLiquidAuthHandler() from Swift app initialization")

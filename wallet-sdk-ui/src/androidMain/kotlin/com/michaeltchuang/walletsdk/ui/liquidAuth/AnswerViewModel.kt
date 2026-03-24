@@ -66,6 +66,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -99,6 +100,27 @@ class AnswerViewModel(
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
         private const val STREAM_TIMEOUT_MS = 2000L // 2 seconds without frames = stream ended
+        private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+
+        private fun decodeBase58(input: String): ByteArray? {
+            if (input.isEmpty()) return ByteArray(0)
+
+            var value = BigInteger.ZERO
+            val radix = BigInteger.valueOf(58L)
+
+            for (char in input) {
+                val index = BASE58_ALPHABET.indexOf(char)
+                if (index < 0) return null
+                value = value.multiply(radix).add(BigInteger.valueOf(index.toLong()))
+            }
+
+            val raw = value.toByteArray().let { bytes ->
+                if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
+            }
+
+            val leadingZeroCount = input.takeWhile { it == '1' }.length
+            return ByteArray(leadingZeroCount) + raw
+        }
     }
 
     // State
@@ -260,15 +282,15 @@ class AnswerViewModel(
         eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Credential saved to local storage"))
     }
 
-    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyRepository.getCredentialIdByAddress(algoAddress)
+    suspend fun getCredentialIdByAccountAddress(accountAddress: String): String? = passkeyRepository.getCredentialIdByAddress(accountAddress)
 
-    suspend fun deleteCredentialByAlgoAddress(algoAddress: String) {
-        val credentialId = passkeyRepository.getCredentialIdByAddress(algoAddress)
+    suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
+        val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
         if (credentialId != null) {
-            Log.d(TAG, "Deleting credential: $credentialId for address: $algoAddress")
+            Log.d(TAG, "Deleting credential: $credentialId for address: $accountAddress")
             passkeyRepository.removePasskeyByCredentialId(credentialId)
         } else {
-            Log.w(TAG, "No credential found to delete for address: $algoAddress")
+            Log.w(TAG, "No credential found to delete for address: $accountAddress")
         }
     }
 
@@ -340,22 +362,31 @@ class AnswerViewModel(
                 signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
             }
 
+            is LocalAccount.SeedVault -> {
+                // Seed Vault keys are non-exportable; signing requires Seed Vault signing API flow.
+                println("DEBUG: SeedVault account detected; FIDO2 challenge signing not yet implemented for SeedVault")
+                null
+            }
+
             else -> null
         }
     }
 
     suspend fun getFee(): String {
-        val localAccount = getLocalAccount(accountAddress.value)
+        val localAccount = getLocalAccount(this@AnswerViewModel.accountAddress.value)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> "0.004"
             else -> "0.001"
         }
     }
 
+    suspend fun isSeedVaultAccount(address: String): Boolean = getLocalAccount(address) is LocalAccount.SeedVault
+
     suspend fun getAccountTypeForFido2(address: String): String {
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> "falcon-1024"
+            is LocalAccount.SeedVault -> "solana"
             else -> "algorand"
         }
     }
@@ -372,6 +403,18 @@ class AnswerViewModel(
                     secretKey.copyOfRange(32, 64) // Last 32 bytes are the public key
                 } else {
                     ByteArray(0)
+                }
+            }
+            is LocalAccount.SeedVault -> {
+                val decoded = decodeBase58(localAccount.publicKey)
+                if (decoded == null || decoded.size != 32) {
+                    Log.e(
+                        TAG,
+                        "Invalid SeedVault public key format for address=${localAccount.address}, decodedLength=${decoded?.size}",
+                    )
+                    ByteArray(0)
+                } else {
+                    decoded
                 }
             }
             else -> ByteArray(0)
@@ -811,14 +854,14 @@ class AnswerViewModel(
 
     suspend fun preparePasskeyRegistration(
         authMessage: AuthMessage,
-        algoAddress: String,
+        accountAddress: String,
         options: JSONObject = JSONObject(),
         onSessionUpdate: (String?) -> Unit = {},
     ): RegisterPasskeyUseCase.Result {
         val result =
             registerPasskeyUseCase(
                 authMessage = authMessage,
-                algoAddress = algoAddress,
+                algoAddress = accountAddress,
                 viewModel = this,
                 options = options,
                 onSessionUpdate = onSessionUpdate,
@@ -839,14 +882,14 @@ class AnswerViewModel(
 
     fun registerPasskey(
         authMessage: AuthMessage,
-        algoAddress: String,
+        accountAddress: String,
         options: JSONObject = JSONObject(),
     ) {
         viewModelScope.launch {
             val result =
                 preparePasskeyRegistration(
                     authMessage,
-                    algoAddress,
+                    accountAddress,
                     options,
                     onSessionUpdate = { sessionId -> sessionId?.let { setSession(it) } },
                 )
@@ -856,7 +899,7 @@ class AnswerViewModel(
                     eventDelegate.sendEvent(
                         ViewEvent.RegistrationSuccess(
                             result.pubKeyCredentialCreationOptions,
-                            algoAddress,
+                            accountAddress,
                         ),
                     )
                 }
@@ -963,14 +1006,14 @@ class AnswerViewModel(
 
     fun handleAttestationResultFromLauncher(
         result: HandleAttestationResultUseCase.Result,
-        algoAddress: String?,
+        accountAddress: String?,
     ) {
         when (result) {
             is HandleAttestationResultUseCase.Result.Success -> {
-                if (algoAddress != null && getAttestationApiResponse() != null) {
+                if (accountAddress != null && getAttestationApiResponse() != null) {
                     viewModelScope.launch {
                         saveCredential(
-                            account = algoAddress,
+                            account = accountAddress,
                             credential = result.credential,
                             response = getAttestationApiResponse()!!,
                         )
@@ -1061,7 +1104,7 @@ class AnswerViewModel(
 
         data class RegistrationSuccess(
             val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
-            val algoAddress: String,
+            val accountAddress: String,
         ) : ViewEvent
 
         data class VideoFrameReceived(
