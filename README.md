@@ -111,6 +111,7 @@ timeline
     section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
+            : ✅ Seed Vault - Integrate cross-chain account support for passkeys
             : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement

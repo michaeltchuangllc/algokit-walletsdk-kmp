@@ -23,6 +23,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25S
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
@@ -77,6 +78,7 @@ class AnswerViewModel(
     private val timeProvider: TimeProvider,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getLocalAccount: GetLocalAccount,
+    private val getLocalAccounts: GetLocalAccounts,
     private val getSeed: GetHdSeed,
     private val processBiometricTransactionSigningUseCase: ProcessBiometricTransactionSigningUseCase,
     private val registerPasskeyUseCase: RegisterPasskeyUseCase,
@@ -250,7 +252,7 @@ class AnswerViewModel(
     ) {
         val requestOption = PublicKeyCredentialCreationOptions(response)
         addNewPasskey(
-            algoAddress = account,
+            address = account,
             requestOptions = requestOption,
             credId = credential.rawId,
         )
@@ -258,10 +260,10 @@ class AnswerViewModel(
         eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Credential saved to local storage"))
     }
 
-    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
+    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyRepository.getCredentialIdByAddress(algoAddress)
 
     suspend fun deleteCredentialByAlgoAddress(algoAddress: String) {
-        val credentialId = passkeyRepository.getCredentialIdByAlgoAddress(algoAddress)
+        val credentialId = passkeyRepository.getCredentialIdByAddress(algoAddress)
         if (credentialId != null) {
             Log.d(TAG, "Deleting credential: $credentialId for address: $algoAddress")
             passkeyRepository.removePasskeyByCredentialId(credentialId)
@@ -269,6 +271,9 @@ class AnswerViewModel(
             Log.w(TAG, "No credential found to delete for address: $algoAddress")
         }
     }
+
+    suspend fun getAvailableAccountAddresses(): List<String> =
+        getLocalAccounts().map { it.address }.distinct()
 
     fun getCredentialMessage(
         account: String,

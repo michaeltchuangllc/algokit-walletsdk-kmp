@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
+import android.app.AlertDialog
 import android.app.NotificationManager
 import android.net.Uri
 import android.os.Bundle
@@ -34,12 +35,14 @@ import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
+import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -219,6 +222,39 @@ class AnswerActivity : AppCompatActivity() {
         }
     }
 
+    private suspend fun ensureAccountSelected(): String? {
+        algoAddress?.let { return it }
+
+        val addresses = viewModel.getAvailableAccountAddresses()
+        if (addresses.isEmpty()) {
+            showToast("No local accounts found. Please create or import an account first.", Toast.LENGTH_LONG)
+            return null
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            runOnUiThread {
+                AlertDialog
+                    .Builder(this)
+                    .setTitle("Select account")
+                    .setItems(addresses.toTypedArray()) { _, which ->
+                        val selectedAddress = addresses[which]
+                        algoAddress = selectedAddress
+                        viewModel.setAccountAddress(selectedAddress)
+                        lifecycleScope.launch {
+                            mnemonic = viewModel.getMnemonic(selectedAddress)
+                        }
+                        if (continuation.isActive) {
+                            continuation.resume(selectedAddress)
+                        }
+                    }.setOnCancelListener {
+                        if (continuation.isActive) {
+                            continuation.resume(null)
+                        }
+                    }.show()
+            }
+        }
+    }
+
     private fun setupSecurityProviders() {
         val policy =
             StrictMode.ThreadPolicy
@@ -330,7 +366,8 @@ class AnswerActivity : AppCompatActivity() {
 
             // Launch the authentication process
             lifecycleScope.launch {
-                val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
+                val selectedAddress = ensureAccountSelected() ?: return@launch
+                val savedCredential = viewModel.getCredentialIdByAlgoAddress(selectedAddress)
                 if (savedCredential === null) {
                     register(msg)
                 } else {
@@ -508,7 +545,8 @@ class AnswerActivity : AppCompatActivity() {
         )
         // Connect to Service
         lifecycleScope.launch {
-            val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
+            val selectedAddress = ensureAccountSelected() ?: return@launch
+            val savedCredential = viewModel.getCredentialIdByAlgoAddress(selectedAddress)
             signalClient =
                 SignalClient(msg.origin, this@AnswerActivity, viewModel.getProvideHttpClient())
             if (savedCredential === null) {

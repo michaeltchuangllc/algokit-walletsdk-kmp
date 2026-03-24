@@ -1,11 +1,15 @@
 package com.michaeltchuang.walletsdk.core.passkeys.mapper
 
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
+import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.CreatePublicKeyCredentialResponseArgs
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
+import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 
 class DefaultCreatePublicKeyCredentialResponseArgsMapper(
     private val bip39SignManager: Bip39SignManager,
+    private val androidKeyStorePasskeyManager: AndroidKeyStorePasskeyManager,
 ) : CreatePublicKeyCredentialResponseArgsMapper {
     override suspend fun invoke(
         params: CreatePasskeyParams,
@@ -14,14 +18,23 @@ class DefaultCreatePublicKeyCredentialResponseArgsMapper(
         with(params) {
             val userHandle = requestOptions.user.name
 
-            // Derive deterministic keypair from HD seed
-            // This ensures the same keypair is always generated for the same (address, origin, userHandle)
-            val keyPair =
-                bip39SignManager.deriveKeyPair(algoAddress, appInfoOrigin, userHandle)
-                    ?: throw IllegalStateException("Failed to derive keypair for address: $algoAddress")
-
-            // Derive deterministic credential ID from the public key
-            val credentialId = bip39SignManager.deriveCredentialId(keyPair)
+            val (keyPair, credentialId) =
+                when (signingProvider) {
+                    PasskeySigningProvider.BIP39_DETERMINISTIC -> {
+                        val keyPair =
+                            bip39SignManager.deriveKeyPair(address, appInfoOrigin, userHandle)
+                                ?: throw IllegalStateException("Failed to derive keypair for address: $address")
+                        keyPair to bip39SignManager.deriveCredentialId(keyPair)
+                    }
+                    PasskeySigningProvider.SOLANA_SEED_VAULT -> {
+                        val credentialId = androidKeyStorePasskeyManager.generateRandomCredentialId()
+                        val credentialIdBase64 = WebAuthnUtils.b64Encode(credentialId)
+                        val keyPair =
+                            androidKeyStorePasskeyManager.createOrGetKeyPair(credentialIdBase64)
+                                ?: throw IllegalStateException("Failed to create Android Keystore keypair for credential: $credentialIdBase64")
+                        keyPair to credentialId
+                    }
+                }
 
             return CreatePublicKeyCredentialResponseArgs(
                 keyPair = keyPair,

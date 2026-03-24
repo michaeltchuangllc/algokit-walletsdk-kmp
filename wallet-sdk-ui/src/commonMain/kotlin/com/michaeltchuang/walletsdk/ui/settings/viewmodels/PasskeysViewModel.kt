@@ -7,6 +7,8 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountRegistrationTypeUseCase
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,7 @@ class PasskeysViewModel(
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val passkeyRepository: PasskeyRepository,
+    private val getAccountRegistrationType: GetAccountRegistrationTypeUseCase,
 ) : ViewModel(),
     StateViewModel<PasskeysViewModel.ViewState> by stateDelegate,
     EventViewModel<PasskeysViewModel.ViewEvent> by eventDelegate {
@@ -47,6 +50,7 @@ class PasskeysViewModel(
                             domain = domainPasskey.site.url,
                             lastUsed = formatLastUsedLabel(domainPasskey.lastUsed, now),
                             username = domainPasskey.username.toShortenedAddress(),
+                            accountType = getAccountTypeLabel(getAccountRegistrationType(domainPasskey.address)),
                         )
                     }
                 stateDelegate.updateState {
@@ -71,6 +75,7 @@ class PasskeysViewModel(
         val domain: String,
         val lastUsed: String,
         val username: String,
+        val accountType: String,
     )
 
     sealed interface ViewState {
@@ -88,6 +93,17 @@ class PasskeysViewModel(
     }
 
     companion object {
+        private fun getAccountTypeLabel(accountType: AccountRegistrationType?): String =
+            when (accountType) {
+                AccountRegistrationType.Algo25 -> "Algo25 Account"
+                AccountRegistrationType.HdKey -> "HD Account"
+                AccountRegistrationType.Falcon24 -> "Falcon24 Account"
+                AccountRegistrationType.SeedVault -> "SeedVault Account"
+                AccountRegistrationType.NoAuth -> "Watch Account"
+                AccountRegistrationType.LedgerBle -> "Ledger Account"
+                null -> "Unknown Account"
+            }
+
         @OptIn(kotlin.time.ExperimentalTime::class)
         private fun formatLastUsedLabel(
             lastUsedEpochMillis: Long?,

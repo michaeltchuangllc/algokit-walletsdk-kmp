@@ -9,23 +9,23 @@ internal class AddNewPasskeyUseCase(
     private val passkeyRepository: PasskeyRepository,
 ) : AddNewPasskey {
     override suspend fun invoke(
-        algoAddress: String,
+        address: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray,
     ) {
-        val args = getAddPasskeyArgs(algoAddress, requestOptions, credId)
+        val args = getAddPasskeyArgs(address, requestOptions, credId)
         passkeyRepository.addNewPasskey(args)
     }
 
     private fun getAddPasskeyArgs(
-        algoAddress: String,
+        address: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray,
     ): AddPasskeyArgs =
         AddPasskeyArgs(
             siteUrl = requestOptions.rp.id,
             siteName = requestOptions.rp.name,
-            algoAddress = algoAddress,
+            address = address,
             uid = WebAuthnUtils.b64Encode(requestOptions.user.id),
             username = requestOptions.user.name,
             displayName = requestOptions.user.displayName,

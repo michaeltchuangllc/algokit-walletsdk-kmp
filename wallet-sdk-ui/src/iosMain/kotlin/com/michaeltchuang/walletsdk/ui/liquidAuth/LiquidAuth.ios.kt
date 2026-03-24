@@ -38,7 +38,7 @@ actual fun connect(
             NSLog("✅ Calling iOS handler with:")
             NSLog("   - origin: '${authMessage.origin}'")
             NSLog("   - requestId: '${authMessage.requestId}'")
-            NSLog("   - algoAddress: '$algoAddress'")
+            NSLog("   - address: '$algoAddress'")
             handler(authMessage.origin, authMessage.requestId, algoAddress)
         } else {
             NSLog("⚠️ No iOS Liquid Auth handler registered!")

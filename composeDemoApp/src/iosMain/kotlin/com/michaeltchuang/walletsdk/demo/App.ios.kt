@@ -510,7 +510,7 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
  * This bridges the wallet-sdk-ui module to Swift.
  * Call this from Swift during app initialization.
  *
- * @param handler Callback that receives (origin, requestId, algoAddress)
+ * @param handler Callback that receives (origin, requestId, address)
  */
 fun setIosLiquidAuthHandler(handler: (String, String, String) -> Unit) {
     com.michaeltchuang.walletsdk.ui.liquidAuth.iosLiquidAuthHandler = handler

@@ -75,6 +75,7 @@ val liquidAuthUIModule =
                 timeProvider = get(),
                 getFalcon24SecretKey = get(),
                 getLocalAccount = get(),
+                getLocalAccounts = get(),
                 getSeed = get(),
                 processBiometricTransactionSigningUseCase = get(),
                 registerPasskeyUseCase = get(),

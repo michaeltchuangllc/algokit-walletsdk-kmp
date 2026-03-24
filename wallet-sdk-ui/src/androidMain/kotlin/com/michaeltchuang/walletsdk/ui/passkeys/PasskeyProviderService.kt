@@ -121,7 +121,11 @@ class PasskeyProviderService : CredentialProviderService() {
     private fun buildCreateCredentialResponse(entries: List<CreatePasskeyCredentialCreateEntry>): BeginCreateCredentialResponse {
         val builder = BeginCreateCredentialResponse.Builder()
         entries.forEach { entry ->
-            val extras = Bundle().apply { putString(ALGOADDRESS, entry.algoAddress) }
+            val extras =
+                Bundle().apply {
+                    putString(ADDRESS_KEY, entry.address)
+                    putString(SIGNING_PROVIDER_KEY, entry.signingProvider.name)
+                }
             val intent = createNewPendingIntent(CREATE_PASSKEY_INTENT, extras)
             val createEntry = getCreateEntry(entry.accountName, entry.passkeyCount, intent)
             builder.addCreateEntry(createEntry)
@@ -235,8 +239,9 @@ class PasskeyProviderService : CredentialProviderService() {
     internal companion object {
         const val CREATE_PASSKEY_INTENT = "com.algorand.android.credentials.CREATE_PASSKEY"
         const val GET_PASSKEY_INTENT = "com.algorand.android.credentials.GET_PASSKEY"
-        const val ALGOADDRESS = "algoAddress"
+        const val ADDRESS_KEY = "address"
         const val EXTRA_INTENT_DATA_KEY = "extraIntentData"
         const val CRED_ID_KEY = "credId"
+        const val SIGNING_PROVIDER_KEY = "signingProvider"
     }
 }

@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetSitePasskeyCount
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyCredentialCreateEntry
+import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 
 class DefaultPasskeyCreateCredentialEntryBuilder(
     private val getAllHdSeedFirstAddresses: GetAllHdSeedFirstAddresses,
@@ -33,7 +34,8 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
             CreatePasskeyCredentialCreateEntry(
                 accountName = getHdSeedCustomName(hdSeed.seedId).orEmpty(),
                 passkeyCount = registeredRelyingPartyPasskeyCount,
-                algoAddress = hdSeed.firstAddress,
+                address = hdSeed.firstAddress,
+                signingProvider = PasskeySigningProvider.BIP39_DETERMINISTIC,
             )
         }
     }

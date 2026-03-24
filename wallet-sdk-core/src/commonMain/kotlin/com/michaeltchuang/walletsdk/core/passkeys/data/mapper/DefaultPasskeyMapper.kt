@@ -11,7 +11,7 @@ internal class DefaultPasskeyMapper : PasskeyMapper {
         siteEntity: SiteEntity,
     ): Passkey =
         Passkey(
-            algoAddress = entity.algoAddress,
+            address = entity.address,
             userId = entity.userId,
             username = entity.userName,
             displayName = entity.userDisplayName ?: entity.userName,
