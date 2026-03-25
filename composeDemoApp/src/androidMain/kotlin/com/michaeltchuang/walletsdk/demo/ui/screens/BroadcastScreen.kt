@@ -1,15 +1,32 @@
 package com.michaeltchuang.walletsdk.demo.ui.screens
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.createCameraStreamingPreview
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
@@ -42,27 +59,43 @@ actual fun BroadcastScreen(
 
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
-    val accounts by produceState<List<LocalAccount>>(initialValue = emptyList()) {
-        value = getLocalAccountsUseCase()
+    val accountResult by produceState<Pair<Boolean, List<LocalAccount>>>(initialValue = false to emptyList()) {
+        value = true to getLocalAccountsUseCase()
+    }
+    val accountsLoaded = accountResult.first
+    val accounts = accountResult.second
+
+    // Keep user-selected creator address, defaulting to first available account.
+    var selectedCreatorAddress by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(accounts) {
+        if (selectedCreatorAddress == null || accounts.none { it.address == selectedCreatorAddress }) {
+            selectedCreatorAddress = accounts.firstOrNull()?.address
+        }
     }
 
-    // Use first account address for X402 payments (or null if no accounts)
-    val creatorAddress = accounts.firstOrNull()?.address
-
     // Log for debugging
-    android.util.Log.d("BroadcastScreen", "Accounts loaded: ${accounts.size}, creatorAddress=$creatorAddress")
+    android.util.Log.d(
+        "BroadcastScreen",
+        "Accounts loaded: ${accounts.size}, creatorAddress=$selectedCreatorAddress",
+    )
 
     // Only enable paid streaming when we have a valid creator address
-    val enablePaidStreaming = creatorAddress != null
+    val enablePaidStreaming = selectedCreatorAddress != null
 
     // Don't show the screen until we know if there are accounts or not
     // This ensures enablePaidStreaming is stable on first composition
     if (accounts.isEmpty()) {
         // Still loading accounts - show loading or proceed with null address
         // For now, proceed but paid streaming will be disabled
-        android.util.Log.d("BroadcastScreen", "No accounts yet, proceeding with enablePaidStreaming=false")
+        android.util.Log.d(
+            "BroadcastScreen",
+            "No accounts yet, proceeding with enablePaidStreaming=false"
+        )
     } else {
-        android.util.Log.d("BroadcastScreen", "Accounts loaded, enablePaidStreaming=$enablePaidStreaming")
+        android.util.Log.d(
+            "BroadcastScreen",
+            "Accounts loaded, enablePaidStreaming=$enablePaidStreaming"
+        )
     }
 
     // The LiquidAuthOfferScreen now receives the connection manager
@@ -72,7 +105,91 @@ actual fun BroadcastScreen(
         onBackPressed = { navController.popBackStack() },
         cameraPreview = createCameraStreamingPreview(connectionManager),
         connectionManager = connectionManager, // Enables WebRTC connection!
-        creatorAddress = creatorAddress, // For X402 paid streaming
-        enablePaidStreaming = creatorAddress != null, // Enable if we have an account
+        headerContent = {
+            if (accountsLoaded && accounts.isEmpty()) {
+                Text(
+                    text = "No account exist, Please create account",
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = AlgoKitTheme.colors.snackbarError,
+                    style = AlgoKitTheme.typography.body.regular.sansMedium,
+                )
+            } else {
+                AccountSelector(
+                    accounts = accounts,
+                    selectedAddress = selectedCreatorAddress,
+                    onAddressSelected = { selectedCreatorAddress = it },
+                )
+            }
+        },
+        creatorAddress = selectedCreatorAddress, // For X402 paid streaming
+        enablePaidStreaming = enablePaidStreaming, // Enable if we have an account
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountSelector(
+    accounts: List<LocalAccount>,
+    selectedAddress: String?,
+    onAddressSelected: (String) -> Unit,
+) {
+    if (accounts.isEmpty()) return
+
+    var expanded by remember { mutableStateOf(false) }
+    val selectedDisplay = selectedAddress ?: accounts.first().address
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded },
+    ) {
+        OutlinedTextField(
+            value = selectedDisplay,
+            onValueChange = {},
+            modifier =
+                Modifier
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    .padding(horizontal = 16.dp),
+            readOnly = true,
+            singleLine = true,
+            label = { Text("Select Creator Address") },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            textStyle = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+            colors =
+                OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = AlgoKitTheme.colors.textMain,
+                    unfocusedTextColor = AlgoKitTheme.colors.textMain,
+                    focusedLabelColor = AlgoKitTheme.colors.textMain,
+                    unfocusedLabelColor = AlgoKitTheme.colors.textGray,
+                    focusedTrailingIconColor = AlgoKitTheme.colors.textMain,
+                    unfocusedTrailingIconColor = AlgoKitTheme.colors.textGray,
+                ),
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = AlgoKitTheme.colors.layerGray,
+        ) {
+            accounts.forEach { account ->
+                DropdownMenuItem(
+                    colors =
+                        MenuDefaults.itemColors(
+                            textColor = AlgoKitTheme.colors.textMain,
+                        ),
+                    text = {
+                        Text(
+                            text = account.address,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            style = AlgoKitTheme.typography.body.regular.sansMedium,
+                        )
+                    },
+                    onClick = {
+                        onAddressSelected(account.address)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
 }

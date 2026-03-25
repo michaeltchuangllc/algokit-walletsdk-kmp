@@ -78,6 +78,7 @@ fun LiquidAuthOfferScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
+    headerContent: @Composable (() -> Unit)? = null,
     creatorAddress: String? = null, // For X402 paid streaming
     enablePaidStreaming: Boolean = false, // Toggle X402 payments
 ) {
@@ -201,6 +202,7 @@ fun LiquidAuthOfferScreen(
         showTopBar = showTopBar,
         title = title,
         onBackPressed = onBackPressed,
+        headerContent = headerContent,
         state = state,
         connectionType = connectionType,
         balanceAlgos = balanceAlgos,
@@ -226,6 +228,7 @@ internal fun LiquidAuthOfferScreenContent(
     showTopBar: Boolean,
     title: @Composable () -> Unit,
     onBackPressed: (() -> Unit)?,
+    headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
     connectionType: IceConnectionType,
     balanceAlgos: Double?,
@@ -267,7 +270,7 @@ internal fun LiquidAuthOfferScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            headerContent?.invoke()
 
             // Connection Status Card
             ConnectionStatusCard(state = state)

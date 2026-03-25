@@ -69,6 +69,10 @@ import org.json.JSONObject
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import org.sol4k.Connection
+import org.sol4k.PublicKey
+import org.sol4k.Transaction as SolanaTransaction
+import org.sol4k.instruction.TransferInstruction
 
 class AnswerViewModel(
     private val addNewPasskey: AddNewPasskey,
@@ -101,6 +105,10 @@ class AnswerViewModel(
         const val SERVICE_NOTIFICATION_ID = 1000
         private const val STREAM_TIMEOUT_MS = 2000L // 2 seconds without frames = stream ended
         private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        private const val LAMPORTS_PER_SOL = 1_000_000_000L
+        private const val SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
+        private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"
+        private const val SOLANA_TESTNET_RPC = "https://api.testnet.solana.com"
 
         private fun decodeBase58(input: String): ByteArray? {
             if (input.isEmpty()) return ByteArray(0)
@@ -624,8 +632,7 @@ class AnswerViewModel(
 
     /**
      * Create and send X402 payment transaction for a payment request.
-     * Creates an unsigned transaction, signs it with the appropriate account type,
-     * and sends the signed transaction via sendPaymentResponse.
+     * Uses Solana transfer flow for Solana/SeedVault accounts and existing Algorand flow otherwise.
      */
     suspend fun createAndSendPayment(request: X402PaymentMessages.PaymentRequest) {
         val accountAddress = _accountAddress.value
@@ -639,7 +646,27 @@ class AnswerViewModel(
             return
         }
 
-        // Get transaction params
+        val localAccount = getLocalAccount(accountAddress)
+        if (localAccount == null) {
+            Log.e(TAG, "💰 No local account found for address: $accountAddress")
+            sendPaymentResponse(
+                request = request,
+                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                errorMessage = "Account not found in wallet",
+            )
+            return
+        }
+
+        val shouldUseSolanaFlow =
+            localAccount is LocalAccount.SeedVault ||
+                (decodeBase58(accountAddress)?.size == 32 && decodeBase58(request.creatorAddress)?.size == 32)
+
+        if (shouldUseSolanaFlow) {
+            createAndSendSolanaPayment(request, accountAddress)
+            return
+        }
+
+        // Existing Algorand flow
         val txnParams = getTransactionParams()
         val transactionParams =
             when (txnParams) {
@@ -655,19 +682,6 @@ class AnswerViewModel(
                 }
             }
 
-        // Get the local account for this address
-        val localAccount = getLocalAccount(accountAddress)
-        if (localAccount == null) {
-            Log.e(TAG, "💰 No local account found for address: $accountAddress")
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Account not found in wallet",
-            )
-            return
-        }
-
-        // Create unsigned deposit transaction
         val unsignedTxn =
             AlgorandX402Payments.createDepositTransaction(
                 senderAddress = accountAddress,
@@ -676,7 +690,6 @@ class AnswerViewModel(
                 suggestedParams = transactionParams.toSuggestedParams(),
             )
 
-        // Sign transaction based on account type
         val signedTxnBytes =
             when (localAccount) {
                 is LocalAccount.Algo25 -> {
@@ -765,7 +778,6 @@ class AnswerViewModel(
             return
         }
 
-        // Encode and send
         val signedB64 = Encoder.encodeToBase64(signedTxnBytes)
         sendPaymentResponse(
             request = request,
@@ -773,6 +785,88 @@ class AnswerViewModel(
             signedTransactionB64 = signedB64,
         )
         Log.d(TAG, "💰 Payment sent successfully for session ${request.id}")
+    }
+
+    private suspend fun createAndSendSolanaPayment(
+        request: X402PaymentMessages.PaymentRequest,
+        accountAddress: String,
+    ) {
+        val localAccount = getLocalAccount(accountAddress)
+        if (localAccount !is LocalAccount.SeedVault) {
+            sendPaymentResponse(
+                request = request,
+                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                errorMessage = "Solana payments require a Seed Vault account",
+            )
+            return
+        }
+
+        val amountSol = request.amountMicroAlgos / 1_000_000.0
+        val txData =
+            createSolanaTransferTransactionData(
+                fromPublicKey = localAccount.publicKey,
+                toPublicKey = request.creatorAddress,
+                amountSol = amountSol,
+                network = request.network,
+            )
+
+        if (txData == null) {
+            sendPaymentResponse(
+                request = request,
+                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                errorMessage = "Failed to create Solana transfer transaction",
+            )
+            return
+        }
+
+        val signerDerivationPath = "m/44'/${localAccount.chainId}'/0'"
+
+        viewModelScope.launch {
+            eventDelegate.sendEvent(
+                ViewEvent.SignSolanaX402Payment(
+                    paymentRequest = request,
+                    serializedMessage = txData.serializedMessage,
+                    signerAddress = accountAddress,
+                    signerPublicKey = localAccount.publicKey,
+                    signerDerivationPath = signerDerivationPath,
+                ),
+            )
+        }
+    }
+
+    private data class SolanaTransferTxData(
+        val serializedMessage: ByteArray,
+    )
+
+    private suspend fun createSolanaTransferTransactionData(
+        fromPublicKey: String,
+        toPublicKey: String,
+        amountSol: Double,
+        network: String,
+    ): SolanaTransferTxData? {
+        return try {
+            val rpcEndpoint = SOLANA_DEVNET_RPC
+
+            val connection = Connection(rpcEndpoint)
+            val lamports = (amountSol * LAMPORTS_PER_SOL).toLong()
+            val fromPubKey = PublicKey(fromPublicKey)
+            val toPubKey = PublicKey(toPublicKey)
+            val recentBlockhash = connection.getLatestBlockhash()
+            val transferInstruction = TransferInstruction(fromPubKey, toPubKey, lamports)
+            val transaction = SolanaTransaction(recentBlockhash, transferInstruction, fromPubKey)
+            val serializedWithEmptySig = transaction.serialize()
+            val serializedMessage =
+                if (serializedWithEmptySig.isNotEmpty() && serializedWithEmptySig[0] == 0.toByte()) {
+                    serializedWithEmptySig.copyOfRange(1, serializedWithEmptySig.size)
+                } else {
+                    serializedWithEmptySig
+                }
+
+            SolanaTransferTxData(serializedMessage = serializedMessage)
+        } catch (e: Exception) {
+            Log.e(TAG, "💰 Failed to create Solana transfer transaction", e)
+            null
+        }
     }
 
     // Pending payment request for UI
@@ -1123,6 +1217,14 @@ class AnswerViewModel(
 
         data class FundsDepleted(
             val depleted: X402PaymentMessages.FundsDepleted,
+        ) : ViewEvent
+
+        data class SignSolanaX402Payment(
+            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val serializedMessage: ByteArray,
+            val signerAddress: String,
+            val signerPublicKey: String,
+            val signerDerivationPath: String,
         ) : ViewEvent
     }
 
