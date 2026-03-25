@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * X402 Streaming Payment Messages
+ * MPP Streaming Payment Messages
  *
  * Payment flow:
  * 1. Creator sends [PaymentRequest] - requests 1 ALGO deposit
@@ -15,7 +15,7 @@ import kotlinx.serialization.json.Json
  * 6. When depleted: stop stream or request more
  * 7. Creator claims with single transaction
  */
-object X402PaymentMessages {
+object MppPaymentMessages {
     const val PAYMENT_REQUEST = "liquid:payment:request"
     const val PAYMENT_RESPONSE = "liquid:payment:response"
     const val BALANCE_UPDATE = "liquid:payment:balance"
@@ -34,7 +34,7 @@ object X402PaymentMessages {
         val amountMicroAlgos: Long, // 1 ALGO = 1_000_000 microAlgos
         val creatorAddress: String, // Where funds will be held
         val network: String = "testnet", // mainnet/testnet
-        val note: String = "X402 Streaming Deposit",
+        val note: String = "MPP Streaming Deposit",
     ) {
         fun toJson(): String = json.encodeToString(serializer(), this)
 

@@ -53,6 +53,50 @@ graph TD
     SDK3 <--> GoSDK
 ```
 
+```mermaid
+---
+title: MPP Liquid Stream High Level Overview
+---
+sequenceDiagram
+autonumber
+participant Creator as Broadcaster (Creator)
+participant Viewer as Viewer (Client)
+participant DC as WebRTC DataChannel
+participant Wallet as Viewer Wallet
+participant Algo as Algorand Network
+participant Vault as SessionVault (core)
+
+    Creator->>Viewer: Share LiquidAuth offer / connect
+    Viewer->>Creator: WebRTC connected
+
+    Creator->>DC: Send MPP PaymentRequest (deposit, creatorAddress, sessionId)
+    DC->>Viewer: PaymentRequest
+    Viewer->>Wallet: Create + sign deposit txn
+    Wallet-->>Viewer: signedTransactionB64
+    Viewer->>DC: Send MPP PaymentResponse(SIGNED)
+    DC->>Creator: PaymentResponse
+
+    Creator->>Algo: Submit signed deposit txn
+    Algo-->>Creator: Tx confirmed
+    Creator->>Vault: SessionVault.create(sessionId, deposit, costPerBlock)
+
+    loop Each new block
+        Creator->>Vault: consumeBlocks(1)
+        alt Balance remains
+            Vault-->>Creator: updated remaining + blocksConsumed
+            Creator->>DC: Send BalanceUpdate
+            DC->>Viewer: BalanceUpdate
+        else Depleted
+            Vault-->>Creator: isDepleted = true
+            Creator->>DC: Send FundsDepleted
+            DC->>Viewer: FundsDepleted
+            Creator->>Creator: Stop streaming
+        end
+    end
+```
+
+
+
 The demo apps (Android & iOS) in this repo demonstrate `wallet-sdk` library usage through a simplified "Pera-lite" sample wallet application. Current and planned features include:
 
 - Create and recover accounts (Algo25, Universal HD, Falcon24)
@@ -112,13 +156,13 @@ timeline
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
             : ✅ Seed Vault - Integrate cross-chain account support for passkeys
-            : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
+            : 🔄 Seed Vault - Sign Liquid Auth using Solana seed vault seeds
+            : 🔄 Transaction - Upgrade to MPP WebRTC standard for micro-billing (Android)
+            : 🔄 Design - Create Liquid Stream app screens in Figma
             : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
-            : Seed Vault - Sign Liquid Auth using Solana seed vault seeds
             : Seed Vault - Integrate Use-Wallet with cross-chain accounts
             : Onboarding - Add Liquid Auth Integration for iOS<>iOS Connections
-            : Design - Create Liquid Stream app screens in Figma
             : Design - Create Landscape (Tablet/Desktop) UI
             
     section Future 🔮

@@ -40,13 +40,13 @@ actual fun BroadcastScreen(
             createLiquidAuthConnectionManager(context)
         }
 
-    // Get accounts for X402 creator address (using produceState for suspend function)
+    // Get accounts for MPP creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
     val accounts by produceState<List<LocalAccount>>(initialValue = emptyList()) {
         value = getLocalAccountsUseCase()
     }
 
-    // Use first account address for X402 payments (or null if no accounts)
+    // Use first account address for MPP payments (or null if no accounts)
     val creatorAddress = accounts.firstOrNull()?.address
 
     // Log for debugging
@@ -72,7 +72,7 @@ actual fun BroadcastScreen(
         onBackPressed = { navController.popBackStack() },
         cameraPreview = createCameraStreamingPreview(connectionManager),
         connectionManager = connectionManager, // Enables WebRTC connection!
-        creatorAddress = creatorAddress, // For X402 paid streaming
+        creatorAddress = creatorAddress, // For MPP paid streaming
         enablePaidStreaming = creatorAddress != null, // Enable if we have an account
     )
 }

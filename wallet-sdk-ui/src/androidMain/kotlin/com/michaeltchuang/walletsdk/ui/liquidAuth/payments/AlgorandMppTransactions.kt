@@ -6,10 +6,11 @@ import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.foundation.utils.SuggestedParams
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.SessionVault
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 
 /**
- * X402 Payment Helper for Liquid Auth
+ * MPP Payment Helper for Liquid Auth
  *
  * Uses existing AlgoAccount SDK functions for transaction creation/signing.
  *
@@ -21,13 +22,12 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
  * 5. Every 3 seconds: deduct 0.1 ALGO from balance
  * 6. When depleted: creator claims remaining funds
  */
-object AlgorandX402Payments {
-    private const val TAG = "X402Payments"
+object AlgorandMppPayments {
+    private const val TAG = "MPPPayments"
     private const val DEPOSIT_MICRO_ALGOS = "1000000" // 1 ALGO
-    private const val COST_PER_BLOCK_MICRO_ALGOS = 100_000L // 0.1 ALGO
 
     /**
-     * Create X402 deposit payment transaction (unsigned)
+     * Create MPP deposit payment transaction (unsigned)
      *
      * @param senderAddress Client address
      * @param creatorAddress Creator/receiver address
@@ -41,7 +41,7 @@ object AlgorandX402Payments {
         sessionId: String,
         suggestedParams: SuggestedParams,
     ): ByteArray {
-        val note = "X402:$sessionId".toByteArray()
+        val note = "MPP:$sessionId".toByteArray()
         return makePaymentTxn(
             senderAddress = senderAddress,
             receiverAddress = creatorAddress,
@@ -125,31 +125,17 @@ object AlgorandX402Payments {
     }
 
     /**
-     * Create balance update message for client
+     * Create balance update message for client from current vault state.
      */
-    fun createBalanceUpdate(
-        sessionId: String,
-        blocksConsumed: Int,
-    ): X402PaymentMessages.BalanceUpdate {
-        val consumed = blocksConsumed * COST_PER_BLOCK_MICRO_ALGOS
-        val remaining = 1_000_000L - consumed
-
-        return X402PaymentMessages.BalanceUpdate(
-            id = sessionId,
-            initialDepositMicroAlgos = 1_000_000L,
-            consumedMicroAlgos = consumed,
-            remainingMicroAlgos = maxOf(0, remaining),
-            blocksWatched = blocksConsumed,
+    fun createBalanceUpdate(vault: SessionVault): MppPaymentMessages.BalanceUpdate =
+        MppPaymentMessages.BalanceUpdate(
+            id = vault.sessionId,
+            initialDepositMicroAlgos = vault.initialDepositMicroUnits,
+            consumedMicroAlgos = vault.consumedMicroUnits,
+            remainingMicroAlgos = vault.remainingMicroUnits,
+            blocksWatched = vault.blocksConsumed,
+            costPerBlockMicroAlgos = vault.costPerBlockMicroUnits,
         )
-    }
-
-    /**
-     * Check if funds are depleted
-     */
-    fun isFundsDepleted(blocksConsumed: Int): Boolean {
-        val consumed = blocksConsumed * COST_PER_BLOCK_MICRO_ALGOS
-        return consumed >= 1_000_000L
-    }
 }
 
 sealed class PaymentVerificationResult {

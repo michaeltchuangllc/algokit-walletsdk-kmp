@@ -25,6 +25,9 @@ internal val liquidAuthModules =
                     eventDelegate = get(),
                     sendSignedTransactionUseCase = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),
+                    createMppEscrowSessionUseCase = get(),
+                    consumeMppEscrowBlocksUseCase = get(),
+                    settleMppEscrowSessionUseCase = get(),
                 )
             }
         },

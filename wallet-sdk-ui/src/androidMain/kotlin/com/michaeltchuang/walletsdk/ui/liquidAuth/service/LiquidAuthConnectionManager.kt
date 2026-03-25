@@ -13,9 +13,9 @@ import androidx.core.app.NotificationCompat
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.ui.liquidAuth.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandMppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +54,7 @@ class AndroidLiquidAuthConnectionManager(
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
-    // X402 Block consumption timer
+    // MPP Block consumption timer
     private var blockConsumptionTimer: Timer? = null
     private var blocksConsumed: Int = 0
     private var currentSessionId: String? = null
@@ -66,11 +66,11 @@ class AndroidLiquidAuthConnectionManager(
     }
 
     /**
-     * Start X402 block consumption
+     * Start MPP block consumption
      * Now uses real Algorand blockchain blocks via monitorBlockchainBlocks()
      */
     override fun startBlockConsumption(sessionId: String) {
-        Log.d(TAG, "💰 Starting X402 block consumption for session: $sessionId")
+        Log.d(TAG, "💰 Starting MPP block consumption for session: $sessionId")
         stopBlockConsumption() // Stop any existing monitoring
 
         currentSessionId = sessionId
@@ -85,7 +85,7 @@ class AndroidLiquidAuthConnectionManager(
      * Stop block consumption
      */
     override fun stopBlockConsumption() {
-        Log.d(TAG, "💰 Stopping X402 block consumption")
+        Log.d(TAG, "💰 Stopping MPP block consumption")
         // The monitoring coroutine in ViewModel will stop automatically when
         // payment state is no longer StreamingWithBalance
         currentSessionId = null
@@ -100,28 +100,24 @@ class AndroidLiquidAuthConnectionManager(
         val viewModel = this.viewModel ?: return
         val sessionId = this.currentSessionId ?: return
 
-        // Consume block in ViewModel
-        viewModel.consumeBlock()
-        blocksConsumed++
+        val result = viewModel.consumeBlock() ?: return
+        blocksConsumed = result.totalBlocksWatched
 
-        // Check if depleted
-        if (AlgorandX402Payments.isFundsDepleted(blocksConsumed)) {
-            Log.d(TAG, "💰 Funds depleted after $blocksConsumed blocks")
+        if (result.isDepleted) {
+            Log.d(TAG, "💰 Funds depleted after ${result.totalBlocksWatched} blocks")
             stopBlockConsumption()
 
-            // Send depleted message to client
             val depletedMsg =
-                X402PaymentMessages.FundsDepleted(
+                MppPaymentMessages.FundsDepleted(
                     id = sessionId,
-                    totalBlocksWatched = blocksConsumed,
-                    totalConsumedMicroAlgos = blocksConsumed * 100_000L,
+                    totalBlocksWatched = result.totalBlocksWatched,
+                    totalConsumedMicroAlgos = result.totalConsumedMicroAlgos,
                 )
             sendMessage(depletedMsg.toJson())
             return
         }
 
-        // Send balance update every block (3 seconds for maximum wow factor)
-        val balanceMsg = AlgorandX402Payments.createBalanceUpdate(sessionId, blocksConsumed)
+        val balanceMsg = AlgorandMppPayments.createBalanceUpdate(result.vault)
         sendMessage(balanceMsg.toJson())
         Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingAlgos()} ALGO remaining")
     }
@@ -129,7 +125,7 @@ class AndroidLiquidAuthConnectionManager(
     /**
      * Send payment request to client
      */
-    override fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest) {
+    override fun sendPaymentRequest(paymentRequest: MppPaymentMessages.PaymentRequest) {
         Log.d(TAG, "💰 Sending payment request: ${paymentRequest.amountMicroAlgos} microAlgos")
         sendMessage(paymentRequest.toJson())
     }
@@ -306,7 +302,7 @@ class AndroidLiquidAuthConnectionManager(
                             if (msg.contains("\"status\"") && msg.contains("\"signedTransactionB64\"")) {
                                 Log.d(TAG, "💰 Payment response detected!")
                                 try {
-                                    val response = X402PaymentMessages.PaymentResponse.fromJson(msg)
+                                    val response = MppPaymentMessages.PaymentResponse.fromJson(msg)
                                     Log.d(TAG, "💰 Payment response parsed: ${response.status}, client=${response.clientAddress}")
                                     viewModel?.onPaymentResponse(response)
                                     Log.d(TAG, "💰 onPaymentResponse called successfully")

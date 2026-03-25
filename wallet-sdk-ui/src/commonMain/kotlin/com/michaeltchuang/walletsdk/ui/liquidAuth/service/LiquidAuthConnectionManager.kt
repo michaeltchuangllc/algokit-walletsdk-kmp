@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.flow.StateFlow
 
@@ -13,12 +13,12 @@ import kotlinx.coroutines.flow.StateFlow
  * - Detecting when a peer connects via WebRTC
  * - Notifying the ViewModel of connection state changes
  * - Tracking ICE connection type for quality/billing
- * - X402 payment messaging (payment requests, balance updates)
+ * - MPP payment messaging (payment requests, balance updates)
  */
 interface LiquidAuthConnectionManager {
     /**
      * Flow of current ICE connection type.
-     * Used for UI quality indicators and x402-style billing.
+     * Used for UI quality indicators and MPP-style billing.
      */
     val connectionType: StateFlow<IceConnectionType>
 
@@ -74,16 +74,16 @@ interface LiquidAuthConnectionManager {
         format: String = "jpeg",
     )
 
-    // ================= X402 Payment Methods =================
+    // ================= MPP Payment Methods =================
 
     /**
-     * Send X402 payment request to client.
+     * Send MPP payment request to client.
      * Requests 1 ALGO deposit to start paid streaming.
      */
-    fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest)
+    fun sendPaymentRequest(paymentRequest: MppPaymentMessages.PaymentRequest)
 
     /**
-     * Start X402 block consumption timer.
+     * Start MPP block consumption timer.
      * Deducts 0.1 ALGO every 3 seconds (Algorand block time).
      */
     fun startBlockConsumption(sessionId: String)

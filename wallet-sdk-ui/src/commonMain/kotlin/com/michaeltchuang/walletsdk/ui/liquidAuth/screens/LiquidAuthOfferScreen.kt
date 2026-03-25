@@ -41,7 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -78,8 +78,8 @@ fun LiquidAuthOfferScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
-    creatorAddress: String? = null, // For X402 paid streaming
-    enablePaidStreaming: Boolean = false, // Toggle X402 payments
+    creatorAddress: String? = null, // For MPP paid streaming
+    enablePaidStreaming: Boolean = false, // Toggle MPP payments
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -138,7 +138,7 @@ fun LiquidAuthOfferScreen(
         }
     }
 
-    // Handle X402 PaymentRequested event - only depend on viewModel to avoid restarts
+    // Handle MPP PaymentRequested event - only depend on viewModel to avoid restarts
     // Use rememberUpdatedState to always get latest parameter values
     val currentEnablePaidStreaming by rememberUpdatedState(enablePaidStreaming)
     val currentCreatorAddress by rememberUpdatedState(creatorAddress)
@@ -644,7 +644,7 @@ private fun WaitingForPaymentSection(
     sessionId: String,
     connectionType: IceConnectionType,
     balanceAlgos: Double?,
-    paymentRequest: X402PaymentMessages.PaymentRequest,
+    paymentRequest: MppPaymentMessages.PaymentRequest,
     onDisconnect: () -> Unit,
 ) {
     Card(
@@ -818,7 +818,7 @@ private fun StreamingSection(
                 )
             }
 
-            // Connection Type Indicator (shows cost tier for x402 billing)
+            // Connection Type Indicator (shows cost tier for MPP billing)
             ConnectionTypeIndicator(connectionType = connectionType)
 
             // Camera preview slot
@@ -1231,7 +1231,7 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-payment-33221100",
                     paymentRequest =
-                        X402PaymentMessages.PaymentRequest(
+                        MppPaymentMessages.PaymentRequest(
                             id = "payment-session-123",
                             amountMicroAlgos = 1_000_000L,
                             creatorAddress = "CREATORADDR1234567890ABCDEFGH",

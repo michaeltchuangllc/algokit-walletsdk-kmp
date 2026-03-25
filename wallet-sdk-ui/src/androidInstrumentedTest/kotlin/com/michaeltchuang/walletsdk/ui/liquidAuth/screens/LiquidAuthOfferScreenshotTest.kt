@@ -9,7 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import org.junit.Test
 import java.util.Locale
@@ -86,7 +86,7 @@ class LiquidAuthOfferScreenshotTest(
                     origin = "https://auth.example.com",
                     sessionId = "session-payment-33221100",
                     paymentRequest =
-                        X402PaymentMessages.PaymentRequest(
+                        MppPaymentMessages.PaymentRequest(
                             id = "payment-session-123",
                             amountMicroAlgos = 1_000_000L,
                             creatorAddress = "CREATORADDR1234567890ABCDEFGH",

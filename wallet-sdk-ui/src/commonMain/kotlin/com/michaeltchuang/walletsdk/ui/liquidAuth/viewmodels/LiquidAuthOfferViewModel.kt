@@ -7,12 +7,18 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.MppEscrowSession
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.MppEscrowSettlement
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.SessionVault
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.ConsumeMppEscrowBlocksUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.CreateMppEscrowSessionUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.SettleMppEscrowSessionUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
 import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +34,7 @@ import kotlin.uuid.Uuid
  * This generates QR codes for dApps to scan, detects when they connect via WebRTC,
  * and supports streaming video back to the connected client.
  *
- * X402 Payment Model:
+ * MPP Payment Model:
  * - Free streaming: No payment required
  * - Paid streaming: 1 ALGO deposit, 0.1 ALGO per block watched
  */
@@ -38,6 +44,9 @@ class LiquidAuthOfferViewModel(
     private val eventDelegate: EventDelegate<OfferEvent>,
     private val sendSignedTransactionUseCase: SendSignedTransactionUseCase,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
+    private val createMppEscrowSessionUseCase: CreateMppEscrowSessionUseCase,
+    private val consumeMppEscrowBlocksUseCase: ConsumeMppEscrowBlocksUseCase,
+    private val settleMppEscrowSessionUseCase: SettleMppEscrowSessionUseCase,
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
@@ -45,11 +54,11 @@ class LiquidAuthOfferViewModel(
         stateDelegate.setDefaultState(OfferState.Idle)
     }
 
-    // ICE Connection type for UI quality indicators and billing (x402)
+    // ICE Connection type for UI quality indicators and billing (mpp)
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     val connectionType: StateFlow<IceConnectionType> = _connectionType
 
-    // X402 Payment state
+    // MPP Payment state
     private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.NoPayment)
     val paymentState: StateFlow<PaymentState> = _paymentState
 
@@ -63,6 +72,9 @@ class LiquidAuthOfferViewModel(
 
     // Payment session ID
     private var paymentSessionId: String? = null
+
+    // Escrow MPP session (creator-side orchestration stub)
+    private var mppEscrowSession: MppEscrowSession? = null
 
     // Cost per block (0.1 ALGO = 100,000 microAlgos)
     companion object {
@@ -121,13 +133,14 @@ class LiquidAuthOfferViewModel(
     }
 
     /**
-     * Request X402 payment from client before starting paid streaming.
+     * Request MPP payment from client before starting paid streaming.
      * Call this when enablePaidStreaming is true and client connects.
      */
     @OptIn(ExperimentalUuidApi::class)
     fun requestPaymentFromClient(
         creatorAddress: String,
         network: String = "testnet",
+        escrowAddress: String = creatorAddress,
     ) {
         val currentState = state.value
         println("💰 requestPaymentFromClient called, currentState=${currentState::class.simpleName}")
@@ -145,12 +158,31 @@ class LiquidAuthOfferViewModel(
         // Generate payment session ID
         paymentSessionId = Uuid.random().toString()
 
+        // Create escrow session in core (stub repository by default)
+        viewModelScope.launch {
+            runCatching {
+                createMppEscrowSessionUseCase(
+                    MppEscrowSession(
+                        sessionId = paymentSessionId!!,
+                        viewerAddress = "pending-viewer",
+                        creatorAddress = creatorAddress,
+                        escrowAddress = escrowAddress,
+                        network = network,
+                        initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                        costPerBlockMicroAlgos = COST_PER_BLOCK_MICRO_ALGOS,
+                    ),
+                )
+            }.onSuccess { session ->
+                mppEscrowSession = session
+            }
+        }
+
         // Create payment request
         val paymentRequest =
-            X402PaymentMessages.PaymentRequest(
+            MppPaymentMessages.PaymentRequest(
                 id = paymentSessionId!!,
                 amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                creatorAddress = creatorAddress,
+                creatorAddress = escrowAddress,
                 network = network,
             )
         println("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amountMicroAlgos}")
@@ -340,10 +372,10 @@ class LiquidAuthOfferViewModel(
             else -> null
         }
 
-    // ================= X402 Payment Methods =================
+    // ================= MPP Payment Methods =================
 
     /**
-     * Start paid streaming with X402 payment model
+     * Start paid streaming with MPP payment model
      * 1. Request 1 ALGO deposit from client
      * 2. Wait for signed transaction
      * 3. Start streaming with balance tracking
@@ -368,7 +400,7 @@ class LiquidAuthOfferViewModel(
 
         // Create payment request
         val paymentRequest =
-            X402PaymentMessages.PaymentRequest(
+            MppPaymentMessages.PaymentRequest(
                 id = paymentSessionId!!,
                 amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
                 creatorAddress = creatorAddress,
@@ -402,10 +434,10 @@ class LiquidAuthOfferViewModel(
      * Called when client sends back signed transaction
      */
     @OptIn(ExperimentalEncodingApi::class)
-    fun onPaymentResponse(response: X402PaymentMessages.PaymentResponse) {
+    fun onPaymentResponse(response: MppPaymentMessages.PaymentResponse) {
         println("💰 onPaymentResponse called with status=${response.status}, client=${response.clientAddress}")
         when (response.status) {
-            X402PaymentMessages.PaymentResponse.Status.SIGNED -> {
+            MppPaymentMessages.PaymentResponse.Status.SIGNED -> {
                 println("💰 Payment SIGNED - submitting to blockchain...")
 
                 // Submit the signed transaction to the Algorand network (wow factor!)
@@ -440,13 +472,15 @@ class LiquidAuthOfferViewModel(
                                         }
 
                                         // Payment confirmed - start tracking balance
-                                        _paymentState.value =
-                                            PaymentState.StreamingWithBalance(
-                                                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                                                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                                                blocksWatched = 0,
+                                        val sessionVault =
+                                            SessionVault.create(
+                                                sessionId = response.id,
+                                                initialDepositMicroUnits = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                                                costPerBlockMicroUnits = COST_PER_BLOCK_MICRO_ALGOS,
                                             )
-                                        _remainingBalanceMicroAlgos.value = DEPOSIT_AMOUNT_MICRO_ALGOS
+
+                                        _paymentState.value = PaymentState.StreamingWithBalance(sessionVault)
+                                        _remainingBalanceMicroAlgos.value = sessionVault.remainingMicroUnits
 
                                         eventDelegate.sendEvent(
                                             OfferEvent.PaymentReceived(
@@ -474,7 +508,7 @@ class LiquidAuthOfferViewModel(
                     }
                 }
             }
-            X402PaymentMessages.PaymentResponse.Status.REJECTED -> {
+            MppPaymentMessages.PaymentResponse.Status.REJECTED -> {
                 println("💰 Payment REJECTED by client")
                 _paymentState.value = PaymentState.Rejected()
                 updateStreamingPaymentStatus(StreamingPaymentStatus.Rejected)
@@ -485,7 +519,7 @@ class LiquidAuthOfferViewModel(
                     println("💰 PaymentRejected event sent")
                 }
             }
-            X402PaymentMessages.PaymentResponse.Status.ERROR -> {
+            MppPaymentMessages.PaymentResponse.Status.ERROR -> {
                 println("💰 Payment ERROR: ${response.errorMessage}")
                 _paymentState.value = PaymentState.Error(response.errorMessage ?: "Unknown error")
                 updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
@@ -504,23 +538,31 @@ class LiquidAuthOfferViewModel(
     }
 
     /**
-     * Consume one block of streaming (deduct 0.1 ALGO)
-     * Called every block or periodically while streaming
+     * Consume one block of streaming through the reusable session vault.
      */
-    fun consumeBlock() {
+    fun consumeBlock(): BlockConsumptionResult? {
         val currentPaymentState = _paymentState.value
         if (currentPaymentState !is PaymentState.StreamingWithBalance) {
-            return // Not in paid streaming mode
+            return null
         }
 
-        val newBalance = currentPaymentState.remainingMicroAlgos - COST_PER_BLOCK_MICRO_ALGOS
-        val newBlocksWatched = currentPaymentState.blocksWatched + 1
+        val deduction = currentPaymentState.vault.consumeBlocks()
+        val updatedVault = deduction.updatedVault
 
-        if (newBalance <= 0) {
+        mppEscrowSession?.let { session ->
+            viewModelScope.launch {
+                runCatching {
+                    consumeMppEscrowBlocksUseCase(session.sessionId, 1)
+                }.onSuccess { updatedSession ->
+                    mppEscrowSession = updatedSession
+                }
+            }
+        }
+
+        if (deduction.isDepleted) {
             // Funds depleted - stop streaming immediately
             println("💰⛽ BALANCE DEPLETED! Stopping video stream...")
 
-            // Stop the video streaming
             val currentState = state.value
             if (currentState is OfferState.Streaming) {
                 stateDelegate.updateState {
@@ -536,42 +578,43 @@ class LiquidAuthOfferViewModel(
 
             _paymentState.value =
                 PaymentState.Depleted(
-                    totalBlocksWatched = newBlocksWatched,
-                    totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroAlgos,
+                    totalBlocksWatched = deduction.totalBlocksConsumed,
+                    totalConsumedMicroAlgos = deduction.totalConsumedMicroUnits,
                 )
-            _remainingBalanceMicroAlgos.value = 0
+            _remainingBalanceMicroAlgos.value = updatedVault.remainingMicroUnits
 
             updateStreamingPaymentStatus(StreamingPaymentStatus.Depleted)
 
             viewModelScope.launch {
                 eventDelegate.sendEvent(
                     OfferEvent.FundsDepleted(
-                        totalBlocksWatched = newBlocksWatched,
-                        totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroAlgos,
+                        totalBlocksWatched = deduction.totalBlocksConsumed,
+                        totalConsumedMicroAlgos = deduction.totalConsumedMicroUnits,
                     ),
                 )
             }
         } else {
-            // Deduct from balance
-            _paymentState.value =
-                currentPaymentState.copy(
-                    remainingMicroAlgos = newBalance,
-                    blocksWatched = newBlocksWatched,
-                )
-            _remainingBalanceMicroAlgos.value = newBalance
+            _paymentState.value = PaymentState.StreamingWithBalance(updatedVault)
+            _remainingBalanceMicroAlgos.value = updatedVault.remainingMicroUnits
 
-            // Send balance update event periodically (every 5 blocks)
-            if (newBlocksWatched % 5 == 0) {
+            if (updatedVault.blocksConsumed % 5 == 0) {
                 viewModelScope.launch {
                     eventDelegate.sendEvent(
                         OfferEvent.BalanceUpdated(
-                            remainingMicroAlgos = newBalance,
-                            blocksWatched = newBlocksWatched,
+                            remainingMicroAlgos = updatedVault.remainingMicroUnits,
+                            blocksWatched = updatedVault.blocksConsumed,
                         ),
                     )
                 }
             }
         }
+
+        return BlockConsumptionResult(
+            vault = updatedVault,
+            isDepleted = deduction.isDepleted,
+            totalBlocksWatched = deduction.totalBlocksConsumed,
+            totalConsumedMicroAlgos = deduction.totalConsumedMicroUnits,
+        )
     }
 
     /**
@@ -586,6 +629,27 @@ class LiquidAuthOfferViewModel(
         _paymentState.value = PaymentState.NoPayment
         _remainingBalanceMicroAlgos.value = null
         paymentSessionId = null
+        mppEscrowSession = null
+    }
+
+    fun settleMppEscrowSession(
+        onResult: (Result<MppEscrowSettlement>) -> Unit,
+    ) {
+        val sessionId = mppEscrowSession?.sessionId
+        if (sessionId == null) {
+            onResult(Result.failure(IllegalStateException("No MPP escrow session to settle")))
+            return
+        }
+
+        viewModelScope.launch {
+            val result =
+                runCatching {
+                    settleMppEscrowSessionUseCase(sessionId)
+                }.onSuccess {
+                    mppEscrowSession = mppEscrowSession?.markSettled()
+                }
+            onResult(result)
+        }
     }
 
     /**
@@ -598,7 +662,6 @@ class LiquidAuthOfferViewModel(
         viewModelScope.launch {
             println("🔗 Starting blockchain block monitoring...")
             var lastBlockNumber: Long? = null
-            var isFirstBlock = true
 
             while (_paymentState.value is PaymentState.StreamingWithBalance) {
                 getCurrentBlockUseCase().collect { result ->
@@ -661,19 +724,24 @@ class LiquidAuthOfferViewModel(
         }
     }
 
+    data class BlockConsumptionResult(
+        val vault: SessionVault,
+        val isDepleted: Boolean,
+        val totalBlocksWatched: Int,
+        val totalConsumedMicroAlgos: Long,
+    )
+
     // ================= Payment State Sealed Classes =================
 
     sealed interface PaymentState {
         data object NoPayment : PaymentState
 
         data class WaitingForDeposit(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: MppPaymentMessages.PaymentRequest,
         ) : PaymentState
 
         data class StreamingWithBalance(
-            val initialDepositMicroAlgos: Long,
-            val remainingMicroAlgos: Long,
-            val blocksWatched: Int,
+            val vault: SessionVault,
         ) : PaymentState
 
         data class Rejected(
@@ -724,14 +792,14 @@ class LiquidAuthOfferViewModel(
         ) : OfferState
 
         /**
-         * Waiting for X402 payment before streaming can begin
+         * Waiting for MPP payment before streaming can begin
          */
         data class WaitingForPayment(
             val requestId: String,
             val liquidAuthUrl: String,
             val origin: String,
             val sessionId: String,
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: MppPaymentMessages.PaymentRequest,
         ) : OfferState
 
         /**
@@ -778,13 +846,13 @@ class LiquidAuthOfferViewModel(
          */
         data object VideoStreamingStopped : OfferEvent
 
-        // ================= X402 Payment Events =================
+        // ================= MPP Payment Events =================
 
         /**
          * Payment requested - 1 ALGO deposit requested from client
          */
         data class PaymentRequested(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: MppPaymentMessages.PaymentRequest,
         ) : OfferEvent
 
         /**

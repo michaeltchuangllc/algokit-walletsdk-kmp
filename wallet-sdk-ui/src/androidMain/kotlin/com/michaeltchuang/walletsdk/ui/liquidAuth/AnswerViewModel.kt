@@ -52,8 +52,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
-import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandMppPayments
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
@@ -445,10 +445,10 @@ class AnswerViewModel(
                 return
             }
 
-            // Check for X402 payment messages (look for unique fields: amountMicroAlgos + creatorAddress)
+            // Check for MPP payment messages (look for unique fields: amountMicroAlgos + creatorAddress)
             if (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) {
-                Log.d(TAG, "💰 X402 payment message detected: ${msgStr.take(100)}...")
-                handleX402PaymentMessage(msgStr)
+                Log.d(TAG, "💰 MPP payment message detected: ${msgStr.take(100)}...")
+                handleMPPPaymentMessage(msgStr)
                 return
             }
 
@@ -533,16 +533,16 @@ class AnswerViewModel(
     }
 
     /**
-     * Handle X402 payment messages from broadcaster
+     * Handle MPP payment messages from broadcaster
      */
-    private fun handleX402PaymentMessage(msgStr: String) {
-        Log.d(TAG, "💰 handleX402PaymentMessage called with: ${msgStr.take(200)}...")
+    private fun handleMPPPaymentMessage(msgStr: String) {
+        Log.d(TAG, "💰 handleMPPPaymentMessage called with: ${msgStr.take(200)}...")
         try {
             when {
                 // Payment request: has amountMicroAlgos and creatorAddress
                 msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"") && !msgStr.contains("\"status\"") -> {
                     Log.d(TAG, "💰 Parsing PaymentRequest...")
-                    val request = X402PaymentMessages.PaymentRequest.fromJson(msgStr)
+                    val request = MppPaymentMessages.PaymentRequest.fromJson(msgStr)
                     Log.d(
                         TAG,
                         "💰 Payment request parsed: id=${request.id}, amount=${request.amountMicroAlgos}, creator=${request.creatorAddress}",
@@ -562,14 +562,14 @@ class AnswerViewModel(
                 // Payment response: has status field
                 msgStr.contains("\"status\"") -> {
                     Log.d(TAG, "💰 Parsing PaymentResponse...")
-                    val response = X402PaymentMessages.PaymentResponse.fromJson(msgStr)
+                    val response = MppPaymentMessages.PaymentResponse.fromJson(msgStr)
                     Log.d(TAG, "💰 Payment response: ${response.status}")
                     // Handle payment response...
                 }
                 // Balance update: has remainingBlocks
                 msgStr.contains("\"remainingBlocks\"") || msgStr.contains("\"remainingMicroAlgos\"") -> {
                     Log.d(TAG, "💰 Parsing BalanceUpdate...")
-                    val update = X402PaymentMessages.BalanceUpdate.fromJson(msgStr)
+                    val update = MppPaymentMessages.BalanceUpdate.fromJson(msgStr)
                     Log.d(TAG, "💰 Balance update: ${update.remainingAlgos()} ALGO remaining")
                     viewModelScope.launch {
                         eventDelegate.sendEvent(ViewEvent.BalanceUpdated(update))
@@ -578,32 +578,32 @@ class AnswerViewModel(
                 // Funds depleted: has totalBlocksWatched
                 msgStr.contains("\"totalBlocksWatched\"") -> {
                     Log.d(TAG, "💰 Parsing FundsDepleted...")
-                    val depleted = X402PaymentMessages.FundsDepleted.fromJson(msgStr)
+                    val depleted = MppPaymentMessages.FundsDepleted.fromJson(msgStr)
                     Log.d(TAG, "💰 Funds depleted after ${depleted.totalBlocksWatched} blocks")
                     viewModelScope.launch {
                         eventDelegate.sendEvent(ViewEvent.FundsDepleted(depleted))
                     }
                 }
                 else -> {
-                    Log.w(TAG, "💰 Unknown X402 message type: ${msgStr.take(100)}")
+                    Log.w(TAG, "💰 Unknown MPP message type: ${msgStr.take(100)}")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to handle X402 payment message: $e")
+            Log.e(TAG, "❌ Failed to handle MPP payment message: $e")
         }
     }
 
     /**
-     * Create and send X402 payment response with pre-signed transaction
+     * Create and send MPP payment response with pre-signed transaction
      */
     fun sendPaymentResponse(
-        request: X402PaymentMessages.PaymentRequest,
-        status: X402PaymentMessages.PaymentResponse.Status,
+        request: MppPaymentMessages.PaymentRequest,
+        status: MppPaymentMessages.PaymentResponse.Status,
         signedTransactionB64: String? = null,
         errorMessage: String? = null,
     ) {
         val response =
-            X402PaymentMessages.PaymentResponse(
+            MppPaymentMessages.PaymentResponse(
                 id = request.id,
                 signedTransactionB64 = signedTransactionB64 ?: "",
                 clientAddress = _accountAddress.value,
@@ -623,17 +623,17 @@ class AnswerViewModel(
     }
 
     /**
-     * Create and send X402 payment transaction for a payment request.
+     * Create and send MPP payment transaction for a payment request.
      * Creates an unsigned transaction, signs it with the appropriate account type,
      * and sends the signed transaction via sendPaymentResponse.
      */
-    suspend fun createAndSendPayment(request: X402PaymentMessages.PaymentRequest) {
+    suspend fun createAndSendPayment(request: MppPaymentMessages.PaymentRequest) {
         val accountAddress = _accountAddress.value
         if (accountAddress.isEmpty()) {
             Log.e(TAG, "💰 Cannot create payment - no account address")
             sendPaymentResponse(
                 request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                 errorMessage = "No account connected",
             )
             return
@@ -648,7 +648,7 @@ class AnswerViewModel(
                     Log.e(TAG, "💰 Failed to get transaction params")
                     sendPaymentResponse(
                         request = request,
-                        status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                        status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                         errorMessage = "Failed to get network params",
                     )
                     return
@@ -661,7 +661,7 @@ class AnswerViewModel(
             Log.e(TAG, "💰 No local account found for address: $accountAddress")
             sendPaymentResponse(
                 request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                 errorMessage = "Account not found in wallet",
             )
             return
@@ -669,7 +669,7 @@ class AnswerViewModel(
 
         // Create unsigned deposit transaction
         val unsignedTxn =
-            AlgorandX402Payments.createDepositTransaction(
+            AlgorandMppPayments.createDepositTransaction(
                 senderAddress = accountAddress,
                 creatorAddress = request.creatorAddress,
                 sessionId = request.id,
@@ -685,12 +685,12 @@ class AnswerViewModel(
                         Log.e(TAG, "💰 Failed to get Algo25 secret key")
                         sendPaymentResponse(
                             request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                             errorMessage = "Failed to access account key",
                         )
                         return
                     }
-                    AlgorandX402Payments.signTransaction(unsignedTxn, secretKey)
+                    AlgorandMppPayments.signTransaction(unsignedTxn, secretKey)
                 }
                 is LocalAccount.HdKey -> {
                     val seed = getSeed(localAccount.seedId)
@@ -698,7 +698,7 @@ class AnswerViewModel(
                         Log.e(TAG, "💰 Failed to get HD seed")
                         sendPaymentResponse(
                             request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                             errorMessage = "Failed to access HD seed",
                         )
                         return
@@ -713,7 +713,7 @@ class AnswerViewModel(
                         Log.e(TAG, "💰 HD Key transaction signing returned null")
                         sendPaymentResponse(
                             request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                             errorMessage = "HD transaction signing failed",
                         )
                         return
@@ -725,7 +725,7 @@ class AnswerViewModel(
                         Log.e(TAG, "💰 Failed to get Falcon24 secret key")
                         sendPaymentResponse(
                             request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                             errorMessage = "Failed to access Falcon24 key",
                         )
                         return
@@ -738,7 +738,7 @@ class AnswerViewModel(
                         Log.e(TAG, "💰 Falcon24 transaction signing returned null")
                         sendPaymentResponse(
                             request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                             errorMessage = "Falcon24 transaction signing failed",
                         )
                         return
@@ -748,7 +748,7 @@ class AnswerViewModel(
                     Log.e(TAG, "💰 Unsupported account type: ${localAccount::class.simpleName}")
                     sendPaymentResponse(
                         request = request,
-                        status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                        status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                         errorMessage = "Unsupported account type",
                     )
                     return
@@ -759,7 +759,7 @@ class AnswerViewModel(
             Log.e(TAG, "💰 Transaction signing failed")
             sendPaymentResponse(
                 request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
+                status = MppPaymentMessages.PaymentResponse.Status.ERROR,
                 errorMessage = "Transaction signing failed",
             )
             return
@@ -769,15 +769,15 @@ class AnswerViewModel(
         val signedB64 = Encoder.encodeToBase64(signedTxnBytes)
         sendPaymentResponse(
             request = request,
-            status = X402PaymentMessages.PaymentResponse.Status.SIGNED,
+            status = MppPaymentMessages.PaymentResponse.Status.SIGNED,
             signedTransactionB64 = signedB64,
         )
         Log.d(TAG, "💰 Payment sent successfully for session ${request.id}")
     }
 
     // Pending payment request for UI
-    private val _pendingPaymentRequest = MutableStateFlow<X402PaymentMessages.PaymentRequest?>(null)
-    val pendingPaymentRequest: StateFlow<X402PaymentMessages.PaymentRequest?> = _pendingPaymentRequest
+    private val _pendingPaymentRequest = MutableStateFlow<MppPaymentMessages.PaymentRequest?>(null)
+    val pendingPaymentRequest: StateFlow<MppPaymentMessages.PaymentRequest?> = _pendingPaymentRequest
 
     /**
      * Encode ResponseMessage to CBOR bytes
@@ -1111,18 +1111,18 @@ class AnswerViewModel(
             val frame: VideoFrameData,
         ) : ViewEvent
 
-        // ================= X402 Payment Events =================
+        // ================= MPP Payment Events =================
 
         data class PaymentRequested(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: MppPaymentMessages.PaymentRequest,
         ) : ViewEvent
 
         data class BalanceUpdated(
-            val balanceUpdate: X402PaymentMessages.BalanceUpdate,
+            val balanceUpdate: MppPaymentMessages.BalanceUpdate,
         ) : ViewEvent
 
         data class FundsDepleted(
-            val depleted: X402PaymentMessages.FundsDepleted,
+            val depleted: MppPaymentMessages.FundsDepleted,
         ) : ViewEvent
     }
 

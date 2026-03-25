@@ -12,7 +12,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.model
  *
  * This is useful for:
  * 1. Quality indicators in UI (local = best, relay = worst)
- * 2. Billing/rate limiting (x402-style different pricing per connection type)
+ * 2. Billing/rate limiting (MPP-style different pricing per connection type)
  * 3. Debugging connection issues
  */
 enum class IceConnectionType {
@@ -74,7 +74,7 @@ fun IceConnectionType.colorHex(): String =
     }
 
 /**
- * Check if this is a premium connection type (for x402 billing)
+ * Check if this is a premium connection type (for MPP billing)
  * Local connections are "free" or cheaper, relay costs more infrastructure
  */
 fun IceConnectionType.isPremium(): Boolean =
@@ -87,7 +87,7 @@ fun IceConnectionType.isPremium(): Boolean =
     }
 
 /**
- * Suggested pricing tier for x402-style billing
+ * Suggested pricing tier for MPP-style billing
  * Returns relative cost multiplier
  */
 fun IceConnectionType.suggestedPricingTier(): Float =

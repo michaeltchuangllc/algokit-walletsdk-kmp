@@ -53,7 +53,7 @@ import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.MppPaymentMessages
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
@@ -62,7 +62,7 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  *
  * Main purpose: Sign transactions from connected dApp.
  * Optional feature: View broadcaster's camera feed in a compact overlay.
- * X402 Payment: Pay to watch streaming content.
+ * MPP Payment: Pay to watch streaming content.
  */
 @Composable
 fun AnswerScreen(viewModel: AnswerViewModel) {
@@ -73,13 +73,13 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     val videoFrame by viewModel.videoFrame.collectAsState()
     val isStreamActive by viewModel.isStreamActive.collectAsState()
 
-    // X402 Payment dialog state
+    // MPP Payment dialog state
     var showPaymentDialog by remember { mutableStateOf(false) }
-    var pendingPaymentRequest by remember { mutableStateOf<X402PaymentMessages.PaymentRequest?>(null) }
+    var pendingPaymentRequest by remember { mutableStateOf<MppPaymentMessages.PaymentRequest?>(null) }
     var paymentBalance by remember { mutableStateOf<String?>(null) }
     var fundsDepleted by remember { mutableStateOf(false) }
 
-    // Listen for X402 payment events
+    // Listen for MPP payment events
     val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         Log.d("AnswerScreen", "🎭 Starting to collect view events...")
@@ -128,10 +128,10 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
             fundsDepleted = fundsDepleted,
         )
 
-        // X402 Payment Dialog Overlay
+        // MPP Payment Dialog Overlay
         if (showPaymentDialog && pendingPaymentRequest != null) {
-            Log.d("AnswerScreen", "🎭 Showing X402PaymentDialog")
-            X402PaymentDialog(
+            Log.d("AnswerScreen", "🎭 Showing MPPPaymentDialog")
+            MPPPaymentDialog(
                 paymentRequest = pendingPaymentRequest!!,
                 onApprove = {
                     // Create and sign real transaction
@@ -143,7 +143,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                 onReject = {
                     viewModel.sendPaymentResponse(
                         pendingPaymentRequest!!,
-                        X402PaymentMessages.PaymentResponse.Status.REJECTED,
+                        MppPaymentMessages.PaymentResponse.Status.REJECTED,
                         null,
                     )
                     showPaymentDialog = false
@@ -245,7 +245,7 @@ fun ScreenContentAnswer(
                     accountAddress = accountAddress,
                 )
 
-                // X402 Payment Status (when paid streaming)
+                // MPP Payment Status (when paid streaming)
                 if (paymentBalance != null) {
                     PaymentStatusCard(
                         balance = paymentBalance,
@@ -290,7 +290,7 @@ fun ScreenContentAnswer(
 }
 
 /**
- * X402 Payment Status Card - Shows streaming balance
+ * MPP Payment Status Card - Shows streaming balance
  */
 @Composable
 private fun PaymentStatusCard(
@@ -733,11 +733,11 @@ private fun StreamEndedIndicator() {
 }
 
 /**
- * X402 Payment Dialog - Pay to watch streaming content
+ * MPP Payment Dialog - Pay to watch streaming content
  */
 @Composable
-private fun X402PaymentDialog(
-    paymentRequest: X402PaymentMessages.PaymentRequest,
+private fun MPPPaymentDialog(
+    paymentRequest: MppPaymentMessages.PaymentRequest,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
