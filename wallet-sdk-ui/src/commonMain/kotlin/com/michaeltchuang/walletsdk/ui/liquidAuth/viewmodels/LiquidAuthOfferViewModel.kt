@@ -410,25 +410,16 @@ class LiquidAuthOfferViewModel(
             X402PaymentMessages.PaymentResponse.Status.SIGNED -> {
                 println("💰 Payment SIGNED - submitting to blockchain...")
 
-                // Submit the signed transaction to the Algorand network (wow factor!)
                 viewModelScope.launch {
                     try {
                         val signedBytes = Base64.decode(response.signedTransactionB64)
 
-                        val waitingPayment = state.value as? OfferState.WaitingForPayment
-                        val isSolanaPayment =
-                            waitingPayment?.paymentRequest?.creatorAddress?.length in 32..44 ||
-                                response.clientAddress.length in 32..44
-
-                        if (isSolanaPayment) {
-                            val txId = submitSolanaSignedTransactionUseCase(
-                                signedTransaction = signedBytes
-                            )
+                        if (response.clientAddress.length in 32..44) {
+                            val txId = submitSolanaSignedTransactionUseCase(signedBytes)
                             println("💰🎉 SOLANA TRANSACTION SUBMITTED! Signature: $txId")
                             handlePaymentConfirmed(txId)
                         } else {
                             val signedTxn = SignedTransactionDetail.ExternalTransaction(signedBytes)
-
                             println("💰 Submitting transaction to Algorand network...")
                             sendSignedTransactionUseCase
                                 .sendSignedTransaction(signedTxn)
@@ -436,7 +427,6 @@ class LiquidAuthOfferViewModel(
                                     when (result) {
                                         is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
                                             println("💰🎉 TRANSACTION CONFIRMED! TxID: ${result.data}")
-                                            println("💰🎉 Payment received on-chain!")
                                             handlePaymentConfirmed(result.data)
                                         }
                                         is com.michaeltchuang.walletsdk.utils.DataResource.Error -> {
@@ -456,6 +446,7 @@ class LiquidAuthOfferViewModel(
                     } catch (e: Exception) {
                         println("💰❌ Failed to submit transaction: $e")
                         _paymentState.value = PaymentState.Error("Failed to submit: ${e.message}")
+                        updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
                     }
                 }
             }
@@ -486,38 +477,6 @@ class LiquidAuthOfferViewModel(
                 }
             }
         }
-    }
-
-    private suspend fun handlePaymentConfirmed(txId: String) {
-        val currentState = state.value
-        if (currentState is OfferState.WaitingForPayment) {
-            println("💰 Transitioning from WaitingForPayment to Streaming state")
-            stateDelegate.updateState {
-                OfferState.Streaming(
-                    requestId = currentState.requestId,
-                    liquidAuthUrl = currentState.liquidAuthUrl,
-                    origin = currentState.origin,
-                    sessionId = currentState.sessionId,
-                    isPaid = true,
-                    paymentStatus = StreamingPaymentStatus.Active,
-                )
-            }
-        }
-
-        _paymentState.value =
-            PaymentState.StreamingWithBalance(
-                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                blocksWatched = 0,
-            )
-        _remainingBalanceMicroAlgos.value = DEPOSIT_AMOUNT_MICRO_ALGOS
-
-        eventDelegate.sendEvent(
-            OfferEvent.PaymentReceived(
-                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                txId = txId,
-            ),
-        )
     }
 
     /**
@@ -615,7 +574,6 @@ class LiquidAuthOfferViewModel(
         viewModelScope.launch {
             println("🔗 Starting blockchain block monitoring...")
             var lastBlockNumber: Long? = null
-            var isFirstBlock = true
 
             while (_paymentState.value is PaymentState.StreamingWithBalance) {
                 getCurrentBlockUseCase().collect { result ->
@@ -667,6 +625,40 @@ class LiquidAuthOfferViewModel(
 
             println("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
         }
+    }
+
+    private suspend fun handlePaymentConfirmed(txId: String) {
+        println("💰🎉 Payment received on-chain!")
+
+        val currentState = state.value
+        if (currentState is OfferState.WaitingForPayment) {
+            println("💰 Transitioning from WaitingForPayment to Streaming state")
+            stateDelegate.updateState {
+                OfferState.Streaming(
+                    requestId = currentState.requestId,
+                    liquidAuthUrl = currentState.liquidAuthUrl,
+                    origin = currentState.origin,
+                    sessionId = currentState.sessionId,
+                    isPaid = true,
+                    paymentStatus = StreamingPaymentStatus.Active,
+                )
+            }
+        }
+
+        _paymentState.value =
+            PaymentState.StreamingWithBalance(
+                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                blocksWatched = 0,
+            )
+        _remainingBalanceMicroAlgos.value = DEPOSIT_AMOUNT_MICRO_ALGOS
+
+        eventDelegate.sendEvent(
+            OfferEvent.PaymentReceived(
+                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                txId = txId,
+            ),
+        )
     }
 
     private fun updateStreamingPaymentStatus(status: StreamingPaymentStatus) {

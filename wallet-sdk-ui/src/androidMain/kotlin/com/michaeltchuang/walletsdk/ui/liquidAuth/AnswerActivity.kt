@@ -43,6 +43,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
+import com.solanamobile.seedvault.SigningRequest
 import com.solanamobile.seedvault.Wallet
 import com.solanamobile.seedvault.WalletContractV1
 import java.security.Security
@@ -77,6 +78,9 @@ class AnswerActivity : AppCompatActivity() {
     private lateinit var attestationIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var seedVaultSignMessageLauncher: ActivityResultLauncher<Intent>
     private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
+    private lateinit var seedVaultSignTransactionLauncher: ActivityResultLauncher<Intent>
+    private var pendingSolanaPaymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest? = null
+    private var pendingSolanaSerializedMessage: ByteArray? = null
 
     private data class SeedVaultSigner(
         val authToken: Long,
@@ -115,6 +119,47 @@ class AnswerActivity : AppCompatActivity() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Seed Vault message signing failed", e)
                     continuation.resume(null)
+                }
+            }
+
+        seedVaultSignTransactionLauncher =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val request = pendingSolanaPaymentRequest
+                val serializedMessage = pendingSolanaSerializedMessage
+                pendingSolanaPaymentRequest = null
+                pendingSolanaSerializedMessage = null
+
+                if (request == null || serializedMessage == null) return@registerForActivityResult
+
+                try {
+                    val signingResponses = Wallet.onSignTransactionsResult(result.resultCode, result.data)
+                    Log.d(TAG, "🟣 Solana signTransactions success: responses=${signingResponses.size}")
+                    val signature = signingResponses.firstOrNull()?.signatures?.firstOrNull()
+                    if (signature != null) {
+                        Log.d(TAG, "🟣 Solana signature received: ${signature.size} bytes")
+                        val signedTxn = serializeSignedSolanaTransaction(serializedMessage, signature)
+                        val signedB64 = Base64.Default.encode(signedTxn)
+                        Log.d(TAG, "🟣 Solana signed transaction serialized: ${signedTxn.size} bytes, base64=${signedB64.length} chars")
+                        viewModel.sendPaymentResponse(
+                            request = request,
+                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.SIGNED,
+                            signedTransactionB64 = signedB64,
+                        )
+                        Log.d(TAG, "🟣 Solana payment response sent with SIGNED status for session=${request.id}")
+                    } else {
+                        viewModel.sendPaymentResponse(
+                            request = request,
+                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            errorMessage = "No signature returned from Seed Vault",
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Seed Vault transaction signing failed", e)
+                    viewModel.sendPaymentResponse(
+                        request = request,
+                        status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                        errorMessage = "Seed Vault signing failed: ${e.message}",
+                    )
                 }
             }
     }
@@ -245,6 +290,40 @@ class AnswerActivity : AppCompatActivity() {
                             assertionIntentLauncher.launch(
                                 IntentSenderRequest.Builder(pendingIntent).build(),
                             )
+                        }
+                    }
+
+                    is AnswerViewModel.ViewEvent.SignSolanaX402Payment -> {
+                        Log.d(TAG, "🟣 Solana payment signing requested: session=${event.paymentRequest.id}, signerPublicKey=${event.signerPublicKey}, messageBytes=${event.serializedMessage.size}")
+                        val signer = resolveSeedVaultSigner(event.signerPublicKey)
+                        if (signer == null) {
+                            viewModel.sendPaymentResponse(
+                                request = event.paymentRequest,
+                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                                errorMessage = "No Seed Vault signer found for public key",
+                            )
+                            return@collect
+                        }
+
+                        pendingSolanaPaymentRequest = event.paymentRequest
+                        pendingSolanaSerializedMessage = event.serializedMessage
+                        try {
+                            // Use the exact Seed Vault derivation path discovered for this signer.
+                            // Reconstructing path strings can cause signTransactions result=1007.
+                            Log.d(TAG, "🟣 SeedVault signer resolved: authToken=${signer.authToken}, derivationPath=${signer.derivationPath}")
+                            val signingRequest = SigningRequest(event.serializedMessage, arrayListOf(signer.derivationPath))
+                            val intent = Wallet.signTransactions(this@AnswerActivity, signer.authToken, arrayListOf(signingRequest))
+                            seedVaultSignTransactionLauncher.launch(intent)
+                            Log.d(TAG, "🟣 Launched SeedVault signTransactions intent for session=${event.paymentRequest.id}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed launching Seed Vault signTransactions intent", e)
+                            viewModel.sendPaymentResponse(
+                                request = event.paymentRequest,
+                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                                errorMessage = "Failed to start Seed Vault signing",
+                            )
+                            pendingSolanaPaymentRequest = null
+                            pendingSolanaSerializedMessage = null
                         }
                     }
 
@@ -746,6 +825,19 @@ class AnswerActivity : AppCompatActivity() {
         }
 
         return null
+    }
+
+    private fun serializeSignedSolanaTransaction(
+        message: ByteArray,
+        signature: ByteArray,
+    ): ByteArray {
+        val signatureLength = 64
+        val totalSize = 1 + signatureLength + message.size
+        val result = ByteArray(totalSize)
+        result[0] = 1
+        System.arraycopy(signature, 0, result, 1, minOf(signature.size, signatureLength))
+        System.arraycopy(message, 0, result, 1 + signatureLength, message.size)
+        return result
     }
 
     private suspend fun signChallengeWithSeedVault(

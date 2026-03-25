@@ -152,6 +152,7 @@ class AnswerViewModel(
     private val providerId = uuidGenerator.generate().toString()
     private val _accountAddress = MutableStateFlow("")
     val accountAddress: StateFlow<String> = _accountAddress
+    private var currentAccountType: String = "algorand"
     private val encoder =
         foundation.algorand.crypto.avm
             .Encoder()
@@ -201,6 +202,13 @@ class AnswerViewModel(
 
     fun setAccountAddress(address: String) {
         _accountAddress.value = address
+        viewModelScope.launch {
+            currentAccountType =
+                when (getLocalAccount(address)) {
+                    is LocalAccount.SeedVault -> "solana"
+                    else -> "algorand"
+                }
+        }
     }
 
     fun setCount(i: Int) {
