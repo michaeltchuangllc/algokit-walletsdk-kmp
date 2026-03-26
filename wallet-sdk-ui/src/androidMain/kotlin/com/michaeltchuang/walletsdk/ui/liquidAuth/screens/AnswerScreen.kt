@@ -73,6 +73,11 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     val videoFrame by viewModel.videoFrame.collectAsState()
     val isStreamActive by viewModel.isStreamActive.collectAsState()
 
+    var isSolanaAccount by remember { mutableStateOf(false) }
+    LaunchedEffect(accountAddress) {
+        isSolanaAccount = accountAddress.isNotBlank() && viewModel.isSeedVaultAccount(accountAddress)
+    }
+
     // X402 Payment dialog state
     var showPaymentDialog by remember { mutableStateOf(false) }
     var pendingPaymentRequest by remember { mutableStateOf<X402PaymentMessages.PaymentRequest?>(null) }
@@ -126,6 +131,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
             isStreamActive = isStreamActive,
             paymentBalance = paymentBalance,
             fundsDepleted = fundsDepleted,
+            isSolanaAccount = isSolanaAccount,
         )
 
         // X402 Payment Dialog Overlay
@@ -133,6 +139,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
             Log.d("AnswerScreen", "🎭 Showing X402PaymentDialog")
             X402PaymentDialog(
                 paymentRequest = pendingPaymentRequest!!,
+                isSolanaAccount = isSolanaAccount,
                 onApprove = {
                     // Create and sign real transaction
                     scope.launch {
@@ -169,6 +176,7 @@ fun ScreenContentAnswer(
     isStreamActive: Boolean = false,
     paymentBalance: String? = null,
     fundsDepleted: Boolean = false,
+    isSolanaAccount: Boolean = false,
 ) {
     // User can toggle video visibility
     var showVideo by remember { mutableStateOf(true) }
@@ -250,6 +258,7 @@ fun ScreenContentAnswer(
                     PaymentStatusCard(
                         balance = paymentBalance,
                         fundsDepleted = fundsDepleted,
+                        isSolanaAccount = isSolanaAccount,
                     )
                 }
 
@@ -296,6 +305,7 @@ fun ScreenContentAnswer(
 private fun PaymentStatusCard(
     balance: String,
     fundsDepleted: Boolean,
+    isSolanaAccount: Boolean = false,
 ) {
     Card(
         modifier =
@@ -323,7 +333,7 @@ private fun PaymentStatusCard(
                     color = if (fundsDepleted) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.positive,
                 )
                 Text(
-                    text = if (fundsDepleted) "Stream stopped" else "$balance ALGO remaining",
+                    text = if (fundsDepleted) "Stream stopped" else "$balance ${if (isSolanaAccount) "SOL" else "ALGO"} remaining",
                     style = MaterialTheme.typography.bodyMedium,
                     color = AlgoKitTheme.colors.textGray,
                 )
@@ -738,6 +748,7 @@ private fun StreamEndedIndicator() {
 @Composable
 private fun X402PaymentDialog(
     paymentRequest: X402PaymentMessages.PaymentRequest,
+    isSolanaAccount: Boolean = false,
     onApprove: () -> Unit,
     onReject: () -> Unit,
 ) {
@@ -779,7 +790,7 @@ private fun X402PaymentDialog(
 
                 // Amount
                 Text(
-                    text = "$amountAlgos ALGO",
+                    text = "$amountAlgos ${if (isSolanaAccount) "SOL" else "ALGO"}",
                     style = MaterialTheme.typography.displaySmall,
                     fontWeight = FontWeight.Bold,
                     color = AlgoKitTheme.colors.linkPrimary,
@@ -805,8 +816,8 @@ private fun X402PaymentDialog(
                         modifier = Modifier.padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        InfoRow(label = "Deposit:", value = "1.0 ALGO")
-                        InfoRow(label = "Cost per block:", value = "0.1 ALGO")
+                        InfoRow(label = "Deposit:", value = "1.0 ${if (isSolanaAccount) "SOL" else "ALGO"}")
+                        InfoRow(label = "Cost per block:", value = "0.1 ${if (isSolanaAccount) "SOL" else "ALGO"}")
                         InfoRow(label = "Network:", value = paymentRequest.network)
                         InfoRow(label = "Creator:", value = paymentRequest.creatorAddress.take(8) + "...")
                     }

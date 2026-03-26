@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.SeedVault
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -82,6 +83,11 @@ actual fun BroadcastScreen(
     // Only enable paid streaming when we have a valid creator address
     val enablePaidStreaming = selectedCreatorAddress != null
 
+    val selectedCreatorAccount = accounts.firstOrNull { it.address == selectedCreatorAddress }
+    val paymentCurrencyLabel = if (selectedCreatorAccount is SeedVault) "SOLANA" else "ALGO"
+    val blockChainLabel = if (selectedCreatorAccount is SeedVault) "Solana" else "Algorand"
+    val balanceCurrencySymbol = if (selectedCreatorAccount is SeedVault) "S" else "A"
+
     // Don't show the screen until we know if there are accounts or not
     // This ensures enablePaidStreaming is stable on first composition
     if (accounts.isEmpty()) {
@@ -123,6 +129,9 @@ actual fun BroadcastScreen(
         },
         creatorAddress = selectedCreatorAddress, // For X402 paid streaming
         enablePaidStreaming = enablePaidStreaming, // Enable if we have an account
+        paymentCurrencyLabel = paymentCurrencyLabel,
+        blockChainLabel = blockChainLabel,
+        balanceCurrencySymbol = balanceCurrencySymbol,
     )
 }
 

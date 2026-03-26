@@ -37,6 +37,8 @@ internal fun ConnectedViewersCard(
     balanceAlgos: Double,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "A",
 ) {
     val balancePercentage = (balanceAlgos / 1.0).coerceIn(0.0, 1.0)
     val percentageInt = kotlin.math.round(balancePercentage * 100).toInt()
@@ -152,7 +154,7 @@ internal fun ConnectedViewersCard(
                     )
 
                     Text(
-                        text = "${balanceText}A / 1A",
+                        text = "${balanceText}$balanceCurrencySymbol / 1$balanceCurrencySymbol",
                         style = MaterialTheme.typography.titleMedium,
                         color = AlgoKitTheme.colors.textMain,
                     )
@@ -219,17 +221,17 @@ internal fun ConnectedViewersCard(
             ) {
                 StatItem(
                     label = "Used",
-                    value = "${usedText}A",
+                    value = "${usedText}$balanceCurrencySymbol",
                     color = AlgoKitTheme.colors.textGray,
                 )
                 StatItem(
                     label = "Remaining",
-                    value = "${balanceText}A",
+                    value = "${balanceText}$balanceCurrencySymbol",
                     color = balanceColor,
                 )
                 StatItem(
                     label = "Total Deposit",
-                    value = "1A",
+                    value = "1$balanceCurrencySymbol",
                     color = AlgoKitTheme.colors.textMain,
                 )
             }
@@ -261,7 +263,7 @@ internal fun ConnectedViewersCard(
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Text(
-                                text = "Algorand Block",
+                                text = "$blockChainLabel Block",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = AlgoKitTheme.colors.textMain,
                             )
