@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.0")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.0")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.1")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.1")
 }
 ```
 
@@ -111,17 +111,18 @@ timeline
     section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
-            : ✅ Seed Vault - Integrate cross-chain account support for passkeys
-            : 🔄 Transaction - Upgrade to x402 WebRTC standard for micro-billing (Android)
-            : 🔄 Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+            : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
+            : 🔄 Liquid Stream - Implement new Figma app screens
+            : 🔄 Design - Create app design system in Figma project
+            : 🔄 Transaction - Upgrade to escrow MPP WebRTC standard for micro-billing (Android)
             : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
-            : Seed Vault - Sign Liquid Auth using Solana seed vault seeds
-            : Seed Vault - Integrate Use-Wallet with cross-chain accounts
-            : Onboarding - Add Liquid Auth Integration for iOS<>iOS Connections
-            : Design - Create Liquid Stream app screens in Figma
-            : Design - Create Landscape (Tablet/Desktop) UI
+            : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
             
     section Future 🔮
+     2026Q3  : Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
+             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
+             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+             : TBD
     Backlog
             : Onboarding - Rekey flow
             : Onboarding - Liquid Auth (Rekeyed Accounts)
@@ -134,7 +135,6 @@ timeline
             : Account Details - Send USDC in account detail (between accounts)
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
-            : TBD
 ```
 
 ## Project structure
