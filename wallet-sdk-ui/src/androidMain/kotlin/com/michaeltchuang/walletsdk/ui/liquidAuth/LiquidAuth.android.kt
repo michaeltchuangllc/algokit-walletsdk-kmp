@@ -13,7 +13,7 @@ object AuthMessageStorage {
 @Composable
 actual fun connect(
     authMessage: AuthMessage,
-    algoAddress: String,
+    accountAddress: String,
 ) {
     AuthMessageStorage.authMessage =
         com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage(
@@ -22,6 +22,6 @@ actual fun connect(
         )
     val context = androidx.compose.ui.platform.LocalContext.current
     val intent = Intent(context, AnswerActivity::class.java)
-    intent.putExtra(AnswerActivity.EXTRA_ALGO_ADDRESS, algoAddress)
+    intent.putExtra(AnswerActivity.EXTRA_ACCOUNT_ADDRESS, accountAddress)
     context.startActivity(intent)
 }

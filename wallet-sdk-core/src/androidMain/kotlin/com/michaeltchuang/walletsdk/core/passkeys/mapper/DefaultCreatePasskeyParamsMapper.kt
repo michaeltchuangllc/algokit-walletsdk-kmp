@@ -6,6 +6,7 @@ import androidx.credentials.CreatePublicKeyCredentialRequest
 import androidx.credentials.provider.ProviderCreateCredentialRequest
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
+import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class DefaultCreatePasskeyParamsMapper : CreatePasskeyParamsMapper {
@@ -13,6 +14,7 @@ class DefaultCreatePasskeyParamsMapper : CreatePasskeyParamsMapper {
         request: ProviderCreateCredentialRequest,
         algoAddress: String,
         appInfoOrigin: String,
+        signingProvider: PasskeySigningProvider,
     ): CreatePasskeyParams {
         val publicKeyRequest = request.callingRequest as CreatePublicKeyCredentialRequest
         return with(publicKeyRequest) {
@@ -20,8 +22,9 @@ class DefaultCreatePasskeyParamsMapper : CreatePasskeyParamsMapper {
                 requestOptions = PublicKeyCredentialCreationOptions(requestJson),
                 callingAppInfo = request.callingAppInfo,
                 clientDataHash = clientDataHash,
-                algoAddress = algoAddress,
+                address = algoAddress,
                 appInfoOrigin = appInfoOrigin,
+                signingProvider = signingProvider,
             )
         }
     }

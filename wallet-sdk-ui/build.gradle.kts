@@ -139,6 +139,7 @@ kotlin {
                 implementation(libs.socketio.client)
                 implementation(libs.stream.webrtc.android)
                 implementation(libs.uuid.generator)
+                implementation(libs.sol4k)
 
                 // Solana Mobile Seed Vault
                 implementation(libs.seedvault.wallet.sdk)

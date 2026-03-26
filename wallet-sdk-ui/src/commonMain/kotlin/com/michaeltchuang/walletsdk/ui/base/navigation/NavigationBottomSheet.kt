@@ -42,13 +42,13 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.AddressNamingScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
-import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen

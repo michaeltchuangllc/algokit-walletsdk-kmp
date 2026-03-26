@@ -3,15 +3,18 @@ package com.michaeltchuang.walletsdk.core.passkeys
 import androidx.credentials.GetCredentialResponse
 import androidx.credentials.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AuthenticatorAssertionResponse
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AuthenticatorFlags
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.FidoPublicKeyCredential
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
+import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 
 internal class DefaultGetCredentialResponseProcessor(
     private val bip39SignManager: Bip39SignManager,
+    private val androidKeyStorePasskeyManager: AndroidKeyStorePasskeyManager,
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     private val timeProvider: TimeProvider,
 ) : GetCredentialResponseProcessor {
@@ -23,9 +26,15 @@ internal class DefaultGetCredentialResponseProcessor(
 
         val authAssertionResponse =
             getAuthAssertionResponse(params, callingOrigin).apply {
-                signature = bip39SignManager
-                    .sign(params.algoAddress, params.origin, params.username, dataToSign())
-                    ?: byteArrayOf()
+                signature =
+                    when (params.signingProvider) {
+                        PasskeySigningProvider.BIP39_DETERMINISTIC -> {
+                            bip39SignManager.sign(params.address, params.origin, params.username, dataToSign())
+                        }
+                        PasskeySigningProvider.SOLANA_SEED_VAULT -> {
+                            androidKeyStorePasskeyManager.sign(params.credId, dataToSign())
+                        }
+                    } ?: byteArrayOf()
             }
         setPasskeyLastUsedTime(params.credId, timeProvider.getCurrentTimeMillis())
         val fidoResponse = FidoPublicKeyCredential(params.credId, authAssertionResponse)

@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,6 +28,7 @@ import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /**
@@ -37,9 +41,12 @@ internal fun ConnectedViewersCard(
     balanceAlgos: Double,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "\u00A6",
 ) {
     val balancePercentage = (balanceAlgos / 1.0).coerceIn(0.0, 1.0)
     val percentageInt = kotlin.math.round(balancePercentage * 100).toInt()
+    val isSolana = balanceCurrencySymbol == "S"
 
     // Format balance text
     val balanceText = (kotlin.math.round(balanceAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: balanceAlgos.toString().take(4)
@@ -151,11 +158,24 @@ internal fun ConnectedViewersCard(
                         fontWeight = FontWeight.Bold,
                     )
 
-                    Text(
-                        text = "${balanceText}A / 1A",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = AlgoKitTheme.colors.textMain,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        if (isSolana) {
+                            Icon(
+                                imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                                contentDescription = "Solana",
+                                modifier = Modifier.size(14.dp),
+                                tint = Color.Unspecified,
+                            )
+                        }
+                        Text(
+                            text = if (isSolana) "$balanceText / 1" else "$balanceCurrencySymbol $balanceText / $balanceCurrencySymbol 1",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = AlgoKitTheme.colors.textMain,
+                        )
+                    }
                 }
 
                 // Thick progress bar
@@ -219,18 +239,21 @@ internal fun ConnectedViewersCard(
             ) {
                 StatItem(
                     label = "Used",
-                    value = "${usedText}A",
+                    value = if (isSolana) usedText else "$balanceCurrencySymbol $usedText",
                     color = AlgoKitTheme.colors.textGray,
+                    showSolanaIcon = isSolana,
                 )
                 StatItem(
                     label = "Remaining",
-                    value = "${balanceText}A",
+                    value = if (isSolana) balanceText else "$balanceCurrencySymbol $balanceText",
                     color = balanceColor,
+                    showSolanaIcon = isSolana,
                 )
                 StatItem(
                     label = "Total Deposit",
-                    value = "1A",
+                    value = if (isSolana) "1" else "$balanceCurrencySymbol 1",
                     color = AlgoKitTheme.colors.textMain,
+                    showSolanaIcon = isSolana,
                 )
             }
             // Blockchain info - Algorand block number
@@ -288,16 +311,30 @@ internal fun StatItem(
     label: String,
     value: String,
     color: Color,
+    showSolanaIcon: Boolean = false,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium,
-            color = color,
-            fontWeight = FontWeight.Bold,
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (showSolanaIcon) {
+                Icon(
+                    imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                    contentDescription = "Solana",
+                    modifier = Modifier.size(14.dp),
+                    tint = Color.Unspecified,
+                )
+            }
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                color = color,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,

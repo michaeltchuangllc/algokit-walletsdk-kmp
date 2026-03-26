@@ -10,7 +10,7 @@ internal class DefaultPasskeyEntityMapper : PasskeyEntityMapper {
     ): PasskeyEntity =
         PasskeyEntity(
             siteId = siteId,
-            algoAddress = passkey.algoAddress,
+            address = passkey.address,
             userId = passkey.uid,
             userName = passkey.username,
             userDisplayName = passkey.displayName,

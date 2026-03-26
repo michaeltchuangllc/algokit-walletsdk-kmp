@@ -48,6 +48,7 @@ class AndroidLiquidAuthConnectionManager(
     private var signalService: SignalService? = null
     private var serviceConnection: ServiceConnection? = null
     private var isBound = false
+    private var activeRequestId: String? = null
     private var connectionTypePollingJob: Job? = null
 
     // Connection type state flow - exposed for UI and billing
@@ -201,10 +202,17 @@ class AndroidLiquidAuthConnectionManager(
         origin: String,
         requestId: String,
     ) {
-        Log.d(TAG, "🔌 startListening() called - isBound=$isBound, viewModel=$viewModel")
+        Log.d(
+            TAG,
+            "🔌 startListening() called - isBound=$isBound, activeRequestId=$activeRequestId, newRequestId=$requestId, viewModel=$viewModel",
+        )
         if (isBound) {
-            Log.d(TAG, "Already bound to service, skipping")
-            return
+            if (activeRequestId == requestId) {
+                Log.d(TAG, "Already bound to service for same requestId, skipping")
+                return
+            }
+            Log.d(TAG, "🔁 RequestId changed while bound ($activeRequestId -> $requestId), restarting service binding")
+            stopListening()
         }
 
         if (viewModel == null) {
@@ -244,6 +252,8 @@ class AndroidLiquidAuthConnectionManager(
         context.startForegroundService(intent)
         context.bindService(intent, serviceConnection!!, Context.BIND_AUTO_CREATE)
         isBound = true
+        activeRequestId = requestId
+        Log.d(TAG, "🔌 Service bind initiated for requestId=$activeRequestId")
     }
 
     private fun setupSignalService(
@@ -323,7 +333,10 @@ class AndroidLiquidAuthConnectionManager(
                             }
 
                             // If we receive any other message, connection is open
-                            if (service.dataChannel?.state()?.toString() == "OPEN") {
+                            val currentDcState = service.dataChannel?.state()?.toString()
+                            Log.d(TAG, "📨 Non-payment message received; dcState=$currentDcState, requestId=$requestId")
+                            if (currentDcState == "OPEN") {
+                                Log.d(TAG, "📨 Triggering onClientConnected from onMessage fallback")
                                 viewModel?.onClientConnected(requestId)
                             }
                         },
@@ -376,7 +389,7 @@ class AndroidLiquidAuthConnectionManager(
     }
 
     override fun stopListening() {
-        Log.d(TAG, "Stopping SignalService")
+        Log.d(TAG, "Stopping SignalService (activeRequestId=$activeRequestId)")
         stopConnectionTypePolling()
         stopBlockConsumption()
         serviceConnection?.let {
@@ -390,9 +403,16 @@ class AndroidLiquidAuthConnectionManager(
         signalService = null
         serviceConnection = null
         isBound = false
+        activeRequestId = null
     }
 
     override fun sendMessage(message: String) {
+        val dataChannelState = signalService?.dataChannel?.state()?.toString()
+        val isOpen = dataChannelState == "OPEN"
+        Log.d(
+            TAG,
+            "📤 sendMessage called: dcState=$dataChannelState, isOpen=$isOpen, bytes=${message.length}, preview=${message.take(120)}",
+        )
         signalService?.send(message)
     }
 

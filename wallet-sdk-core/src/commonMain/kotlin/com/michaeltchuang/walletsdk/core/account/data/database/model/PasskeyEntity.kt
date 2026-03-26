@@ -18,7 +18,7 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["site_id"]),
-        Index(value = ["algo_address"]),
+        Index(value = ["address"]),
     ],
 )
 internal data class PasskeyEntity(
@@ -27,8 +27,8 @@ internal data class PasskeyEntity(
     val credentialId: String,
     @ColumnInfo(name = "site_id")
     val siteId: Long,
-    @ColumnInfo(name = "algo_address")
-    val algoAddress: String,
+    @ColumnInfo(name = "address")
+    val address: String,
     @ColumnInfo(name = "user_id")
     val userId: String,
     @ColumnInfo(name = "user_name")

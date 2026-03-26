@@ -78,8 +78,12 @@ fun LiquidAuthOfferScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
+    headerContent: @Composable (() -> Unit)? = null,
     creatorAddress: String? = null, // For X402 paid streaming
     enablePaidStreaming: Boolean = false, // Toggle X402 payments
+    paymentCurrencyLabel: String = "ALGO",
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "S",
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -113,7 +117,10 @@ fun LiquidAuthOfferScreen(
         }
 
         val currentState = state
-        println("🔗 State changed to: ${currentState::class.simpleName}")
+        println(
+            "🔗 State changed to: ${currentState::class.simpleName}, " +
+                "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
+        )
 
         when (currentState) {
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
@@ -164,7 +171,8 @@ fun LiquidAuthOfferScreen(
                 }
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
                     // Send payment request to client via data channel
-                    println("💰 PaymentRequested event received, sending via connectionManager...")
+                    val connected = currentConnectionManager?.isConnected()
+                    println("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
                     println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
                 }
@@ -201,6 +209,7 @@ fun LiquidAuthOfferScreen(
         showTopBar = showTopBar,
         title = title,
         onBackPressed = onBackPressed,
+        headerContent = headerContent,
         state = state,
         connectionType = connectionType,
         balanceAlgos = balanceAlgos,
@@ -217,6 +226,9 @@ fun LiquidAuthOfferScreen(
         },
         onStopStreaming = { viewModel.stopVideoStreaming() },
         onRetry = { viewModel.regenerateOffer(origin) },
+        paymentCurrencyLabel = paymentCurrencyLabel,
+        blockChainLabel = blockChainLabel,
+        balanceCurrencySymbol = balanceCurrencySymbol,
     )
 }
 
@@ -226,6 +238,7 @@ internal fun LiquidAuthOfferScreenContent(
     showTopBar: Boolean,
     title: @Composable () -> Unit,
     onBackPressed: (() -> Unit)?,
+    headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
     connectionType: IceConnectionType,
     balanceAlgos: Double?,
@@ -237,6 +250,9 @@ internal fun LiquidAuthOfferScreenContent(
     onRequestPayment: () -> Unit,
     onStopStreaming: () -> Unit,
     onRetry: () -> Unit,
+    paymentCurrencyLabel: String = "ALGO",
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "A",
 ) {
     Scaffold(
         topBar = {
@@ -267,10 +283,13 @@ internal fun LiquidAuthOfferScreenContent(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            headerContent?.invoke()
 
             // Connection Status Card
-            ConnectionStatusCard(state = state)
+            ConnectionStatusCard(
+                state = state,
+                paymentCurrencyLabel = paymentCurrencyLabel,
+            )
 
             // Main Content Area - changes based on state
             val currentState = state
@@ -292,6 +311,7 @@ internal fun LiquidAuthOfferScreenContent(
                         onDisconnect = onDisconnect,
                         onRequestPayment = onRequestPayment,
                         showStartButton = true,
+                        paymentCurrencyLabel = paymentCurrencyLabel,
                     )
                 }
 
@@ -302,6 +322,7 @@ internal fun LiquidAuthOfferScreenContent(
                         balanceAlgos = balanceAlgos,
                         paymentRequest = currentState.paymentRequest,
                         onDisconnect = onDisconnect,
+                        paymentCurrencyLabel = paymentCurrencyLabel,
                     )
                 }
 
@@ -321,6 +342,8 @@ internal fun LiquidAuthOfferScreenContent(
                             balanceAlgos = balanceAlgos,
                             connectionType = connectionType,
                             currentBlockNumber = currentBlockNumber,
+                            blockChainLabel = blockChainLabel,
+                            balanceCurrencySymbol = balanceCurrencySymbol,
                         )
                     }
                 }
@@ -344,7 +367,10 @@ internal fun LiquidAuthOfferScreenContent(
 }
 
 @Composable
-private fun ConnectionStatusCard(state: LiquidAuthOfferViewModel.OfferState) {
+private fun ConnectionStatusCard(
+    state: LiquidAuthOfferViewModel.OfferState,
+    paymentCurrencyLabel: String = "ALGO",
+) {
     val (statusText, statusColor) =
         when (state) {
             is LiquidAuthOfferViewModel.OfferState.Idle,
@@ -358,7 +384,7 @@ private fun ConnectionStatusCard(state: LiquidAuthOfferViewModel.OfferState) {
                 "Client connected! Ready to stream" to SuccessGreen
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment ->
-                "Waiting for 1 ALGO deposit..." to PendingYellow
+                "Waiting for 1 $paymentCurrencyLabel deposit..." to PendingYellow
 
             is LiquidAuthOfferViewModel.OfferState.Streaming ->
                 "Streaming video to client" to SuccessGreen
@@ -482,6 +508,7 @@ private fun ConnectedSection(
     onDisconnect: () -> Unit,
     onRequestPayment: () -> Unit = {},
     showStartButton: Boolean = true,
+    paymentCurrencyLabel: String = "ALGO",
 ) {
     Card(
         modifier =
@@ -575,7 +602,9 @@ private fun ConnectedSection(
                             )
 
                             Text(
-                                text = "The viewer has used all their deposit. They need to pay 1 ALGO again to resume streaming.",
+                                text =
+                                    "The viewer has used all their deposit. " +
+                                        "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AlgoKitTheme.colors.textGray,
                                 textAlign = TextAlign.Center,
@@ -589,7 +618,7 @@ private fun ConnectedSection(
                                         containerColor = Color(0xFFF44336),
                                     ),
                             ) {
-                                Text("Request 1 ALGO Payment")
+                                Text("Request 1 $paymentCurrencyLabel Payment")
                             }
                         }
                     }
@@ -646,6 +675,7 @@ private fun WaitingForPaymentSection(
     balanceAlgos: Double?,
     paymentRequest: X402PaymentMessages.PaymentRequest,
     onDisconnect: () -> Unit,
+    paymentCurrencyLabel: String = "ALGO",
 ) {
     Card(
         modifier =
@@ -724,7 +754,7 @@ private fun WaitingForPaymentSection(
                     )
 
                     Text(
-                        text = "1 ALGO deposit required",
+                        text = "1 $paymentCurrencyLabel deposit required",
                         style = MaterialTheme.typography.bodyMedium,
                         color = AlgoKitTheme.colors.textGray,
                     )

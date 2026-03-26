@@ -24,6 +24,7 @@ internal val liquidAuthModules =
                     stateDelegate = get(),
                     eventDelegate = get(),
                     sendSignedTransactionUseCase = get(),
+                    submitSolanaSignedTransactionUseCase = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),
                 )
             }

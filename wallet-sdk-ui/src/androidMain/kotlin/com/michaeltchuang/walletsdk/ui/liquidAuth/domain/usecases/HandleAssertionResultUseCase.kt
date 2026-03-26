@@ -8,9 +8,10 @@ import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
-import io.ktor.http.origin
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Use case for handling FIDO2 assertion (authentication) result
@@ -55,9 +56,6 @@ class HandleAssertionResultUseCase(
      * Handle the assertion activity result
      *
      * @param activityResult The result from the FIDO2 authentication intent
-     * @param requestId The authentication request ID
-     * @param origin The origin URL
-     * @param algoAddress The Algorand address
      * @param viewModel The ViewModel for API calls
      * @return Result indicating success, cancellation, or error
      */
@@ -101,6 +99,9 @@ class HandleAssertionResultUseCase(
                 buildLiquidExtensionJson(
                     accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
                     requestId = viewModel.authMessage.value!!.requestId,
+                    accountAddress = viewModel.accountAddress.value,
+                    publicKey = viewModel.getAccountPublicKey(viewModel.accountAddress.value),
+                    challengeSignature = viewModel.currentChallenge,
                 )
 
             Log.d(TAG, "Posting authentication assertion to server...")
@@ -141,13 +142,22 @@ class HandleAssertionResultUseCase(
     /**
      * Build the liquid extension JSON for FIDO2 request
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun buildLiquidExtensionJson(
         accountType: String,
         requestId: String,
+        accountAddress: String,
+        publicKey: ByteArray,
+        challengeSignature: ByteArray?,
     ): JSONObject =
         JSONObject().apply {
             put("type", accountType)
             put("requestId", requestId)
+            put("address", accountAddress)
+            put("publicKey", Base64.encode(publicKey))
+            if (challengeSignature != null) {
+                put("signature", Base64.encode(challengeSignature))
+            }
         }
 
     /**

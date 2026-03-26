@@ -1,6 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
+import android.app.AlertDialog
 import android.app.NotificationManager
+import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -10,6 +12,7 @@ import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
@@ -29,24 +32,31 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERV
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
+import com.solanamobile.seedvault.SigningRequest
+import com.solanamobile.seedvault.Wallet
+import com.solanamobile.seedvault.WalletContractV1
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
+import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "AnswerActivity"
-        const val EXTRA_ALGO_ADDRESS = "EXTRA_ALGO_ADDRESS"
+        const val EXTRA_ACCOUNT_ADDRESS = "EXTRA_ACCOUNT_ADDRESS"
+        const val EXTRA_ALGO_ADDRESS = EXTRA_ACCOUNT_ADDRESS // backward-compatible alias
     }
 
     private val viewModel: AnswerViewModel by viewModel()
@@ -66,6 +76,16 @@ class AnswerActivity : AppCompatActivity() {
     private lateinit var assertionIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
 
     private lateinit var attestationIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
+    private lateinit var seedVaultSignMessageLauncher: ActivityResultLauncher<Intent>
+    private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
+    private lateinit var seedVaultSignTransactionLauncher: ActivityResultLauncher<Intent>
+    private var pendingSolanaPaymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest? = null
+    private var pendingSolanaSerializedMessage: ByteArray? = null
+
+    private data class SeedVaultSigner(
+        val authToken: Long,
+        val derivationPath: Uri,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,6 +103,64 @@ class AnswerActivity : AppCompatActivity() {
         assertionIntentLauncher =
             viewModel.getAssertionIntentLauncher(this) { result ->
                 handleAuthenticatorAssertionResultCallback(result)
+            }
+
+        seedVaultSignMessageLauncher =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val continuation = pendingSeedVaultSignContinuation
+                pendingSeedVaultSignContinuation = null
+
+                if (continuation == null || !continuation.isActive) return@registerForActivityResult
+
+                try {
+                    val signingResponses = Wallet.onSignMessagesResult(result.resultCode, result.data)
+                    val signature = signingResponses.firstOrNull()?.signatures?.firstOrNull()
+                    continuation.resume(signature)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Seed Vault message signing failed", e)
+                    continuation.resume(null)
+                }
+            }
+
+        seedVaultSignTransactionLauncher =
+            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                val request = pendingSolanaPaymentRequest
+                val serializedMessage = pendingSolanaSerializedMessage
+                pendingSolanaPaymentRequest = null
+                pendingSolanaSerializedMessage = null
+
+                if (request == null || serializedMessage == null) return@registerForActivityResult
+
+                try {
+                    val signingResponses = Wallet.onSignTransactionsResult(result.resultCode, result.data)
+                    Log.d(TAG, "🟣 Solana signTransactions success: responses=${signingResponses.size}")
+                    val signature = signingResponses.firstOrNull()?.signatures?.firstOrNull()
+                    if (signature != null) {
+                        Log.d(TAG, "🟣 Solana signature received: ${signature.size} bytes")
+                        val signedTxn = serializeSignedSolanaTransaction(serializedMessage, signature)
+                        val signedB64 = Base64.Default.encode(signedTxn)
+                        Log.d(TAG, "🟣 Solana signed transaction serialized: ${signedTxn.size} bytes, base64=${signedB64.length} chars")
+                        viewModel.sendPaymentResponse(
+                            request = request,
+                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.SIGNED,
+                            signedTransactionB64 = signedB64,
+                        )
+                        Log.d(TAG, "🟣 Solana payment response sent with SIGNED status for session=${request.id}")
+                    } else {
+                        viewModel.sendPaymentResponse(
+                            request = request,
+                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                            errorMessage = "No signature returned from Seed Vault",
+                        )
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Seed Vault transaction signing failed", e)
+                    viewModel.sendPaymentResponse(
+                        request = request,
+                        status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                        errorMessage = "Seed Vault signing failed: ${e.message}",
+                    )
+                }
             }
     }
 
@@ -178,13 +256,32 @@ class AnswerActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             signChallengeAndLaunchRegistration(
                                 event.pubKeyCredentialCreationOptions,
-                                event.algoAddress,
+                                event.accountAddress,
                             )
                         }
                     }
 
                     is AnswerViewModel.ViewEvent.AuthenticationSuccess -> {
                         lifecycleScope.launch {
+                            val accountAddress = algoAddress
+                            if (accountAddress == null) {
+                                showToast("Missing account address for authentication", Toast.LENGTH_LONG)
+                                return@launch
+                            }
+
+                            val assertionChallengeSignature =
+                                signChallengeForAccount(
+                                    challenge = event.publicKeyCredentialRequestOptions.challenge,
+                                    accountAddress = accountAddress,
+                                )
+
+                            if (assertionChallengeSignature == null) {
+                                showToast("Failed to sign assertion challenge", Toast.LENGTH_LONG)
+                                return@launch
+                            }
+
+                            viewModel.currentChallenge = assertionChallengeSignature
+
                             val pendingIntent =
                                 fido2Client!!
                                     .getSignPendingIntent(
@@ -193,6 +290,46 @@ class AnswerActivity : AppCompatActivity() {
                             assertionIntentLauncher.launch(
                                 IntentSenderRequest.Builder(pendingIntent).build(),
                             )
+                        }
+                    }
+
+                    is AnswerViewModel.ViewEvent.SignSolanaX402Payment -> {
+                        Log.d(
+                            TAG,
+                            "🟣 Solana payment signing requested: session=${event.paymentRequest.id}, signerPublicKey=${event.signerPublicKey}, messageBytes=${event.serializedMessage.size}",
+                        )
+                        val signer = resolveSeedVaultSigner(event.signerPublicKey)
+                        if (signer == null) {
+                            viewModel.sendPaymentResponse(
+                                request = event.paymentRequest,
+                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                                errorMessage = "No Seed Vault signer found for public key",
+                            )
+                            return@collect
+                        }
+
+                        pendingSolanaPaymentRequest = event.paymentRequest
+                        pendingSolanaSerializedMessage = event.serializedMessage
+                        try {
+                            // Use the exact Seed Vault derivation path discovered for this signer.
+                            // Reconstructing path strings can cause signTransactions result=1007.
+                            Log.d(
+                                TAG,
+                                "🟣 SeedVault signer resolved: authToken=${signer.authToken}, derivationPath=${signer.derivationPath}",
+                            )
+                            val signingRequest = SigningRequest(event.serializedMessage, arrayListOf(signer.derivationPath))
+                            val intent = Wallet.signTransactions(this@AnswerActivity, signer.authToken, arrayListOf(signingRequest))
+                            seedVaultSignTransactionLauncher.launch(intent)
+                            Log.d(TAG, "🟣 Launched SeedVault signTransactions intent for session=${event.paymentRequest.id}")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed launching Seed Vault signTransactions intent", e)
+                            viewModel.sendPaymentResponse(
+                                request = event.paymentRequest,
+                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
+                                errorMessage = "Failed to start Seed Vault signing",
+                            )
+                            pendingSolanaPaymentRequest = null
+                            pendingSolanaSerializedMessage = null
                         }
                     }
 
@@ -205,7 +342,9 @@ class AnswerActivity : AppCompatActivity() {
     }
 
     private fun setupAccountAndCredentials() {
-        algoAddress = intent.getStringExtra(EXTRA_ALGO_ADDRESS)
+        algoAddress =
+            intent.getStringExtra(EXTRA_ACCOUNT_ADDRESS)
+                ?: intent.getStringExtra(EXTRA_ALGO_ADDRESS)
         lifecycleScope.launch {
             algoAddress?.let {
                 mnemonic = viewModel.getMnemonic(it)
@@ -213,8 +352,41 @@ class AnswerActivity : AppCompatActivity() {
                 val clearCredentialsOnStart = false
                 if (clearCredentialsOnStart) {
                     Log.w(TAG, "🧪 TEST MODE: Clearing all stored credentials for $it")
-                    viewModel.deleteCredentialByAlgoAddress(it)
+                    viewModel.deleteCredentialByAccountAddress(it)
                 }
+            }
+        }
+    }
+
+    private suspend fun ensureAccountSelected(): String? {
+        algoAddress?.let { return it }
+
+        val addresses = viewModel.getAvailableAccountAddresses()
+        if (addresses.isEmpty()) {
+            showToast("No local accounts found. Please create or import an account first.", Toast.LENGTH_LONG)
+            return null
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            runOnUiThread {
+                AlertDialog
+                    .Builder(this)
+                    .setTitle("Select account")
+                    .setItems(addresses.toTypedArray()) { _, which ->
+                        val selectedAddress = addresses[which]
+                        algoAddress = selectedAddress
+                        viewModel.setAccountAddress(selectedAddress)
+                        lifecycleScope.launch {
+                            mnemonic = viewModel.getMnemonic(selectedAddress)
+                        }
+                        if (continuation.isActive) {
+                            continuation.resume(selectedAddress)
+                        }
+                    }.setOnCancelListener {
+                        if (continuation.isActive) {
+                            continuation.resume(null)
+                        }
+                    }.show()
             }
         }
     }
@@ -330,7 +502,8 @@ class AnswerActivity : AppCompatActivity() {
 
             // Launch the authentication process
             lifecycleScope.launch {
-                val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
+                val selectedAddress = ensureAccountSelected() ?: return@launch
+                val savedCredential = viewModel.getCredentialIdByAccountAddress(selectedAddress)
                 if (savedCredential === null) {
                     register(msg)
                 } else {
@@ -508,7 +681,8 @@ class AnswerActivity : AppCompatActivity() {
         )
         // Connect to Service
         lifecycleScope.launch {
-            val savedCredential = viewModel.getCredentialIdByAlgoAddress(algoAddress!!)
+            val selectedAddress = ensureAccountSelected() ?: return@launch
+            val savedCredential = viewModel.getCredentialIdByAccountAddress(selectedAddress)
             signalClient =
                 SignalClient(msg.origin, this@AnswerActivity, viewModel.getProvideHttpClient())
             if (savedCredential === null) {
@@ -529,7 +703,7 @@ class AnswerActivity : AppCompatActivity() {
     ) {
         viewModel.registerPasskey(
             authMessage = msg,
-            algoAddress = algoAddress!!,
+            accountAddress = algoAddress!!,
             options = options,
         )
     }
@@ -590,7 +764,7 @@ class AnswerActivity : AppCompatActivity() {
             setSession = { sessionId -> sessionId?.let { setSession(it) } },
             onCredentialNotFound = {
                 lifecycleScope.launch {
-                    viewModel.deleteCredentialByAlgoAddress(algoAddress!!)
+                    viewModel.deleteCredentialByAccountAddress(algoAddress!!)
                     showToast(
                         "Credential not found on server. Re-registering...",
                         Toast.LENGTH_LONG,
@@ -621,6 +795,111 @@ class AnswerActivity : AppCompatActivity() {
         }
     }
 
+    private fun resolveSeedVaultSigner(address: String): SeedVaultSigner? {
+        val seedsCursor =
+            try {
+                Wallet.getAuthorizedSeeds(this, WalletContractV1.AUTHORIZED_SEEDS_ALL_COLUMNS)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to query Seed Vault authorized seeds", e)
+                return null
+            }
+
+        seedsCursor?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val authToken = cursor.getLong(0)
+                val accountsCursor =
+                    try {
+                        Wallet.getAccounts(
+                            this,
+                            authToken,
+                            WalletContractV1.ACCOUNTS_ALL_COLUMNS,
+                            WalletContractV1.ACCOUNTS_PUBLIC_KEY_ENCODED,
+                            address,
+                        )
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to query Seed Vault accounts for authToken=$authToken", e)
+                        continue
+                    }
+
+                accountsCursor?.use { accountCursor ->
+                    if (accountCursor.moveToFirst()) {
+                        val derivationPath = Uri.parse(accountCursor.getString(1))
+                        return SeedVaultSigner(authToken = authToken, derivationPath = derivationPath)
+                    }
+                }
+            }
+        }
+
+        return null
+    }
+
+    private fun serializeSignedSolanaTransaction(
+        message: ByteArray,
+        signature: ByteArray,
+    ): ByteArray {
+        val signatureLength = 64
+        val totalSize = 1 + signatureLength + message.size
+        val result = ByteArray(totalSize)
+        result[0] = 1
+        System.arraycopy(signature, 0, result, 1, minOf(signature.size, signatureLength))
+        System.arraycopy(message, 0, result, 1 + signatureLength, message.size)
+        return result
+    }
+
+    private suspend fun signChallengeWithSeedVault(
+        challenge: ByteArray,
+        address: String,
+    ): ByteArray? =
+        suspendCancellableCoroutine<ByteArray?> { continuation ->
+            if (pendingSeedVaultSignContinuation != null) {
+                continuation.resume(null)
+                return@suspendCancellableCoroutine
+            }
+
+            val signer = resolveSeedVaultSigner(address)
+            if (signer == null) {
+                Log.e(TAG, "No Seed Vault signer metadata found for address=$address")
+                continuation.resume(null)
+                return@suspendCancellableCoroutine
+            }
+
+            pendingSeedVaultSignContinuation = continuation
+            continuation.invokeOnCancellation {
+                if (pendingSeedVaultSignContinuation === continuation) {
+                    pendingSeedVaultSignContinuation = null
+                }
+            }
+
+            try {
+                val intent =
+                    Wallet.signMessage(
+                        this,
+                        signer.authToken,
+                        signer.derivationPath,
+                        challenge,
+                    )
+                seedVaultSignMessageLauncher.launch(intent)
+            } catch (e: Exception) {
+                if (pendingSeedVaultSignContinuation === continuation) {
+                    pendingSeedVaultSignContinuation = null
+                }
+                Log.e(TAG, "Failed launching Seed Vault signMessage intent", e)
+                continuation.resume(null)
+            }
+        }
+
+    private suspend fun signChallengeForAccount(
+        challenge: ByteArray,
+        accountAddress: String,
+    ): ByteArray? {
+        val isSeedVaultAccount = viewModel.isSeedVaultAccount(accountAddress)
+        return if (isSeedVaultAccount) {
+            signChallengeWithSeedVault(challenge, accountAddress)
+        } else {
+            viewModel.signFido2Challenge(challenge, accountAddress)
+        }
+    }
+
     /**
      * Sign challenge and launch registration intent
      */
@@ -628,11 +907,11 @@ class AnswerActivity : AppCompatActivity() {
         pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
         algoAddress: String,
     ) {
-        // Sign the challenge with the Algorand account
+        // Sign the challenge with the selected account
         val signature =
-            viewModel.signFido2Challenge(
-                pubKeyCredentialCreationOptions.challenge,
-                algoAddress,
+            signChallengeForAccount(
+                challenge = pubKeyCredentialCreationOptions.challenge,
+                accountAddress = algoAddress,
             )
 
         if (signature == null) {
