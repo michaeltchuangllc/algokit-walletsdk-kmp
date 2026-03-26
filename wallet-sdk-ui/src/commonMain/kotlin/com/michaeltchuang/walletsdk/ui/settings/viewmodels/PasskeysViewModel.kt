@@ -2,13 +2,13 @@ package com.michaeltchuang.walletsdk.ui.settings.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountRegistrationTypeUseCase
 import com.michaeltchuang.walletsdk.core.algosdk.createAlgo25Account
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
-import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountRegistrationTypeUseCase
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import kotlinx.coroutines.Dispatchers

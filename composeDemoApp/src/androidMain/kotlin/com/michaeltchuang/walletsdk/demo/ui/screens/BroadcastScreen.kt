@@ -95,12 +95,12 @@ actual fun BroadcastScreen(
         // For now, proceed but paid streaming will be disabled
         android.util.Log.d(
             "BroadcastScreen",
-            "No accounts yet, proceeding with enablePaidStreaming=false"
+            "No accounts yet, proceeding with enablePaidStreaming=false",
         )
     } else {
         android.util.Log.d(
             "BroadcastScreen",
-            "Accounts loaded, enablePaidStreaming=$enablePaidStreaming"
+            "Accounts loaded, enablePaidStreaming=$enablePaidStreaming",
         )
     }
 

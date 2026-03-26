@@ -18,10 +18,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService.Companion.CREATE_PASSKEY_INTENT
 import com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService.Companion.GET_PASSKEY_INTENT
 import com.michaeltchuang.walletsdk.ui.passkeys.biometric.PasskeyBiometricAuthenticator
-import com.michaeltchuang.walletsdk.ui.signing.screens.ScreenContent
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.CreatePasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel
+import com.michaeltchuang.walletsdk.ui.signing.screens.ScreenContent
+import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -30,8 +30,8 @@ import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.context.startKoin
-import kotlin.coroutines.resume
 import java.security.Security
+import kotlin.coroutines.resume
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class PasskeyActivity :
@@ -107,10 +107,11 @@ class PasskeyActivity :
     private fun processCreatePasskeyRequest() {
         observeCreatePasskeyViewEvents()
         lifecycleScope.launch {
-            val selectedAddress = ensureCreatePasskeyAccountSelected() ?: run {
-                finishWithCreateCredentialError("Account selection cancelled")
-                return@launch
-            }
+            val selectedAddress =
+                ensureCreatePasskeyAccountSelected() ?: run {
+                    finishWithCreateCredentialError("Account selection cancelled")
+                    return@launch
+                }
             val extras =
                 intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY) ?: Bundle()
             extras.putString(PasskeyProviderService.ADDRESS_KEY, selectedAddress)
@@ -142,7 +143,8 @@ class PasskeyActivity :
 
         val hdFirstAddresses = getKoin().get<GetAllHdSeedFirstAddresses>()().map { it.firstAddress }
         val seedVaultAddresses =
-            getKoin().get<GetLocalAccounts>()()
+            getKoin()
+                .get<GetLocalAccounts>()()
                 .filterIsInstance<LocalAccount.SeedVault>()
                 .map { it.address }
 

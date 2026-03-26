@@ -10,8 +10,7 @@ import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 
 class AndroidKeyStorePasskeyManager {
-    fun generateRandomCredentialId(byteLength: Int = 32): ByteArray =
-        ByteArray(byteLength).also { SecureRandom().nextBytes(it) }
+    fun generateRandomCredentialId(byteLength: Int = 32): ByteArray = ByteArray(byteLength).also { SecureRandom().nextBytes(it) }
 
     fun createOrGetKeyPair(alias: String): KeyPair? {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
@@ -36,7 +35,10 @@ class AndroidKeyStorePasskeyManager {
         return keyPairGenerator.generateKeyPair()
     }
 
-    fun sign(credentialId: String, payload: ByteArray): ByteArray? {
+    fun sign(
+        credentialId: String,
+        payload: ByteArray,
+    ): ByteArray? {
         val keyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
         val privateKey = keyStore.getKey(credentialId, null) ?: return null
         val signature = Signature.getInstance(SHA256_WITH_ECDSA)

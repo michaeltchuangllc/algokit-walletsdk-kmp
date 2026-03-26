@@ -58,7 +58,10 @@ class SubmitSolanaSignedTransactionUseCase(
                     setBody(rpcPayload.toString())
                 }.body<String>()
 
-        val json = kotlinx.serialization.json.Json.parseToJsonElement(responseText).jsonObject
+        val json =
+            kotlinx.serialization.json.Json
+                .parseToJsonElement(responseText)
+                .jsonObject
         val rpcError = json["error"]?.toString()
         if (rpcError != null) {
             throw IllegalStateException("Solana RPC error: $rpcError")

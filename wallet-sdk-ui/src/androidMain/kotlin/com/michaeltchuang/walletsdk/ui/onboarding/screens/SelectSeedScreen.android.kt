@@ -60,11 +60,12 @@ private fun isSupportedSeedVaultDevice(context: Context): Boolean {
 }
 
 private fun showSeedVaultUnsupportedAlert(context: Context) {
-    Toast.makeText(
-        context,
-        "Seed Vault is only available on Solana Saga/Seeker devices or test builds.",
-        Toast.LENGTH_LONG,
-    ).show()
+    Toast
+        .makeText(
+            context,
+            "Seed Vault is only available on Solana Saga/Seeker devices or test builds.",
+            Toast.LENGTH_LONG,
+        ).show()
 }
 
 /**

@@ -31,7 +31,9 @@ class DefaultCreatePublicKeyCredentialResponseArgsMapper(
                         val credentialIdBase64 = WebAuthnUtils.b64Encode(credentialId)
                         val keyPair =
                             androidKeyStorePasskeyManager.createOrGetKeyPair(credentialIdBase64)
-                                ?: throw IllegalStateException("Failed to create Android Keystore keypair for credential: $credentialIdBase64")
+                                ?: throw IllegalStateException(
+                                    "Failed to create Android Keystore keypair for credential: $credentialIdBase64",
+                                )
                         keyPair to credentialId
                     }
                 }

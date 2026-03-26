@@ -32,10 +32,14 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERV
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
+import com.solanamobile.seedvault.SigningRequest
+import com.solanamobile.seedvault.Wallet
+import com.solanamobile.seedvault.WalletContractV1
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
@@ -43,11 +47,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
-import com.solanamobile.seedvault.SigningRequest
-import com.solanamobile.seedvault.Wallet
-import com.solanamobile.seedvault.WalletContractV1
 import java.security.Security
-import kotlinx.coroutines.CancellableContinuation
 import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -294,7 +294,10 @@ class AnswerActivity : AppCompatActivity() {
                     }
 
                     is AnswerViewModel.ViewEvent.SignSolanaX402Payment -> {
-                        Log.d(TAG, "🟣 Solana payment signing requested: session=${event.paymentRequest.id}, signerPublicKey=${event.signerPublicKey}, messageBytes=${event.serializedMessage.size}")
+                        Log.d(
+                            TAG,
+                            "🟣 Solana payment signing requested: session=${event.paymentRequest.id}, signerPublicKey=${event.signerPublicKey}, messageBytes=${event.serializedMessage.size}",
+                        )
                         val signer = resolveSeedVaultSigner(event.signerPublicKey)
                         if (signer == null) {
                             viewModel.sendPaymentResponse(
@@ -310,7 +313,10 @@ class AnswerActivity : AppCompatActivity() {
                         try {
                             // Use the exact Seed Vault derivation path discovered for this signer.
                             // Reconstructing path strings can cause signTransactions result=1007.
-                            Log.d(TAG, "🟣 SeedVault signer resolved: authToken=${signer.authToken}, derivationPath=${signer.derivationPath}")
+                            Log.d(
+                                TAG,
+                                "🟣 SeedVault signer resolved: authToken=${signer.authToken}, derivationPath=${signer.derivationPath}",
+                            )
                             val signingRequest = SigningRequest(event.serializedMessage, arrayListOf(signer.derivationPath))
                             val intent = Wallet.signTransactions(this@AnswerActivity, signer.authToken, arrayListOf(signingRequest))
                             seedVaultSignTransactionLauncher.launch(intent)

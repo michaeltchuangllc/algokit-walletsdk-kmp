@@ -117,7 +117,10 @@ fun LiquidAuthOfferScreen(
         }
 
         val currentState = state
-        println("🔗 State changed to: ${currentState::class.simpleName}")
+        println(
+            "🔗 State changed to: ${currentState::class.simpleName}, " +
+                "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
+        )
 
         when (currentState) {
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
@@ -168,7 +171,8 @@ fun LiquidAuthOfferScreen(
                 }
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
                     // Send payment request to client via data channel
-                    println("💰 PaymentRequested event received, sending via connectionManager...")
+                    val connected = currentConnectionManager?.isConnected()
+                    println("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
                     println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
                 }
@@ -598,7 +602,9 @@ private fun ConnectedSection(
                             )
 
                             Text(
-                                text = "The viewer has used all their deposit. They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
+                                text =
+                                    "The viewer has used all their deposit. " +
+                                        "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AlgoKitTheme.colors.textGray,
                                 textAlign = TextAlign.Center,

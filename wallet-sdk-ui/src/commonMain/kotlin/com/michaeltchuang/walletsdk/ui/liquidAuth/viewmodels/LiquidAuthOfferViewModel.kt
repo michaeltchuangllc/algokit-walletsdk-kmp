@@ -132,7 +132,10 @@ class LiquidAuthOfferViewModel(
         network: String = "testnet",
     ) {
         val currentState = state.value
-        println("💰 requestPaymentFromClient called, currentState=${currentState::class.simpleName}")
+        println(
+            "💰 requestPaymentFromClient called, currentState=${currentState::class.simpleName}, " +
+                "creatorAddress=$creatorAddress, network=$network, sessionId=${getCurrentSessionId()}",
+        )
         if (currentState !is OfferState.Connected) {
             viewModelScope.launch {
                 eventDelegate.sendEvent(
@@ -175,7 +178,9 @@ class LiquidAuthOfferViewModel(
         println("💰 Transitioned to WaitingForPayment state")
 
         viewModelScope.launch {
+            println("💰 Emitting OfferEvent.PaymentRequested for session=${paymentRequest.id}")
             eventDelegate.sendEvent(OfferEvent.PaymentRequested(paymentRequest))
+            println("💰 OfferEvent.PaymentRequested emitted")
         }
         println("💰 Payment request ready to be sent")
     }

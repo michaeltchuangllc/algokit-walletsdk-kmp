@@ -66,13 +66,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import org.sol4k.Connection
+import org.sol4k.PublicKey
+import org.sol4k.instruction.TransferInstruction
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import org.sol4k.Connection
-import org.sol4k.PublicKey
 import org.sol4k.Transaction as SolanaTransaction
-import org.sol4k.instruction.TransferInstruction
 
 class AnswerViewModel(
     private val addNewPasskey: AddNewPasskey,
@@ -122,9 +122,10 @@ class AnswerViewModel(
                 value = value.multiply(radix).add(BigInteger.valueOf(index.toLong()))
             }
 
-            val raw = value.toByteArray().let { bytes ->
-                if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
-            }
+            val raw =
+                value.toByteArray().let { bytes ->
+                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
+                }
 
             val leadingZeroCount = input.takeWhile { it == '1' }.length
             return ByteArray(leadingZeroCount) + raw
@@ -298,7 +299,8 @@ class AnswerViewModel(
         eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Credential saved to local storage"))
     }
 
-    suspend fun getCredentialIdByAccountAddress(accountAddress: String): String? = passkeyRepository.getCredentialIdByAddress(accountAddress)
+    suspend fun getCredentialIdByAccountAddress(accountAddress: String): String? =
+        passkeyRepository.getCredentialIdByAddress(accountAddress)
 
     suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
         val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
@@ -310,8 +312,7 @@ class AnswerViewModel(
         }
     }
 
-    suspend fun getAvailableAccountAddresses(): List<String> =
-        getLocalAccounts().map { it.address }.distinct()
+    suspend fun getAvailableAccountAddresses(): List<String> = getLocalAccounts().map { it.address }.distinct()
 
     fun getCredentialMessage(
         account: String,
@@ -851,8 +852,8 @@ class AnswerViewModel(
         toPublicKey: String,
         amountSol: Double,
         network: String,
-    ): SolanaTransferTxData? {
-        return try {
+    ): SolanaTransferTxData? =
+        try {
             val rpcEndpoint = SOLANA_DEVNET_RPC
 
             val connection = Connection(rpcEndpoint)
@@ -875,7 +876,6 @@ class AnswerViewModel(
             Log.e(TAG, "💰 Failed to create Solana transfer transaction", e)
             null
         }
-    }
 
     // Pending payment request for UI
     private val _pendingPaymentRequest = MutableStateFlow<X402PaymentMessages.PaymentRequest?>(null)

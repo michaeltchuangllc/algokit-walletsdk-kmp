@@ -47,7 +47,6 @@ class SelectAccountViewModel(
         stateDelegate.updateState { AccountsState.Loading }
         viewModelScope.launch {
             try {
-
                 // Fetch account details for all accounts to get their amounts
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)

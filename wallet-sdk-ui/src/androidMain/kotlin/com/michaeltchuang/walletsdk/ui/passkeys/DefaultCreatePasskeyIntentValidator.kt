@@ -32,8 +32,9 @@ internal class DefaultCreatePasskeyIntentValidator(
         val requestExtras = intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY)
         val accountAddress = requestExtras?.getString(PasskeyProviderService.ADDRESS_KEY)
         val signingProviderName = requestExtras?.getString(PasskeyProviderService.SIGNING_PROVIDER_KEY)
-        var signingProvider = signingProviderName?.let { runCatching { PasskeySigningProvider.valueOf(it) }.getOrNull() }
-            ?: PasskeySigningProvider.BIP39_DETERMINISTIC
+        var signingProvider =
+            signingProviderName?.let { runCatching { PasskeySigningProvider.valueOf(it) }.getOrNull() }
+                ?: PasskeySigningProvider.BIP39_DETERMINISTIC
         if (createPasskeyRequest == null || accountAddress == null) {
             return CreatePasskeyIntentValidationResult.UnableToExtractData
         }
