@@ -40,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -148,13 +149,11 @@ private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    val previewView =
-        remember {
-            PreviewView(context).apply {
-                implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-                scaleType = PreviewView.ScaleType.FILL_CENTER
-            }
-        }
+    val previewView = remember { PreviewView(context) }
+    SideEffect {
+        previewView.implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+        previewView.scaleType = PreviewView.ScaleType.FILL_CENTER
+    }
 
     var isStreaming by remember { mutableStateOf(false) }
     var lastFrameTime by remember { mutableLongStateOf(0L) }
