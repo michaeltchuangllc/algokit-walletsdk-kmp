@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.1")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.1")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.2")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.2")
 }
 ```
 
@@ -258,11 +258,17 @@ erDiagram
     passkey_table {
         String credential_id PK
         Long site_id FK
-        String algo_address
+        String address
         String user_id
         String user_name
         String user_display_name
         Long last_used_time_ms
+    }
+    seed_vault {
+        String public_key PK
+        String address
+        String chainId
+        String account_name
     }
     custom_hd_seed_info }|--|| hd_seeds : link
     hd_keys }|--|| hd_seeds : link
