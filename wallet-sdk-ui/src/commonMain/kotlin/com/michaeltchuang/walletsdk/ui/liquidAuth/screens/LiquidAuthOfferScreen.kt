@@ -7,12 +7,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,8 +24,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -38,7 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -57,7 +56,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -131,7 +129,7 @@ fun LiquidAuthOfferScreen(
         val currentState = state
         println(
             "🔗 State changed to: ${currentState::class.simpleName}, " +
-                "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
+                    "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
         )
 
         when (currentState) {
@@ -142,14 +140,17 @@ fun LiquidAuthOfferScreen(
                     requestId = currentState.requestId,
                 )
             }
+
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
-            -> {
+                -> {
                 println("🔗 Connection established - service handling")
             }
+
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
                 println("🔗 Waiting for payment - keeping connection open")
             }
+
             else -> {
                 println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
                 connectionManager.stopListening()
@@ -181,6 +182,7 @@ fun LiquidAuthOfferScreen(
                         )
                     }
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
                     // Send payment request to client via data channel
                     val connected = currentConnectionManager?.isConnected()
@@ -188,6 +190,7 @@ fun LiquidAuthOfferScreen(
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
                     println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
                     // Start block consumption when payment received
                     println("💰 PaymentReceived event received!")
@@ -197,15 +200,22 @@ fun LiquidAuthOfferScreen(
                         println("💰 Payment received! Starting block consumption")
                     }
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
                     // Stop everything when funds depleted
                     currentConnectionManager?.stopBlockConsumption()
                     viewModel.stopVideoStreaming() // Stop the video feed
                     println("💰 Funds depleted! Stopping stream and block consumption")
                     println("💰 Viewer must pay again to resume streaming")
-                    showStreamHostSheet.value =false
+                    showStreamHostSheet.value = false
+                    currentCreatorAddress?.let { address ->
+                        println("💰 Requesting additional payment from viewer...")
+                        viewModel.requestPaymentFromClient(address)
+                    }
                 }
-                else -> { /* other events */ }
+
+                else -> { /* other events */
+                }
             }
         }
     }
@@ -319,33 +329,35 @@ internal fun LiquidAuthOfferScreenContent(
                     )
                 }
 
+                /*   is LiquidAuthOfferViewModel.OfferState.Connected -> {
+                       ConnectedSection(
+                           sessionId = currentState.sessionId,
+                           connectionType = connectionType,
+                           balanceAlgos = balanceAlgos,
+                           onStartCamera = onStartCamera,
+                           onDisconnect = onDisconnect,
+                           onRequestPayment = onRequestPayment,
+                           showStartButton = true,
+                           paymentCurrencyLabel = paymentCurrencyLabel,
+                           showStreamHostSheet =showStreamHostSheet
+
+                       )
+                   }*/
+
+                /*    is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
+                        WaitingForPaymentSection(
+                            sessionId = currentState.sessionId,
+                            connectionType = connectionType,
+                            balanceAlgos = balanceAlgos,
+                            paymentRequest = currentState.paymentRequest,
+                            onDisconnect = onDisconnect,
+                            paymentCurrencyLabel = paymentCurrencyLabel,
+                        )
+                    }*/
+
+                is LiquidAuthOfferViewModel.OfferState.Streaming,
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
                 is LiquidAuthOfferViewModel.OfferState.Connected -> {
-                    ConnectedSection(
-                        sessionId = currentState.sessionId,
-                        connectionType = connectionType,
-                        balanceAlgos = balanceAlgos,
-                        onStartCamera = onStartCamera,
-                        onDisconnect = onDisconnect,
-                        onRequestPayment = onRequestPayment,
-                        showStartButton = true,
-                        paymentCurrencyLabel = paymentCurrencyLabel,
-                        showStreamHostSheet =showStreamHostSheet
-
-                    )
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
-                    WaitingForPaymentSection(
-                        sessionId = currentState.sessionId,
-                        connectionType = connectionType,
-                        balanceAlgos = balanceAlgos,
-                        paymentRequest = currentState.paymentRequest,
-                        onDisconnect = onDisconnect,
-                        paymentCurrencyLabel = paymentCurrencyLabel,
-                    )
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.Streaming -> {
                     // Stream host UI is controlled below so it dismisses only on stop.
                     showStreamHostSheet.value = true
                 }
@@ -371,13 +383,14 @@ internal fun LiquidAuthOfferScreenContent(
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
             onStopStreaming = {
-                showStreamHostSheet.value = false
                 onStopStreaming()
-            },
-            onDisconnect ={
                 showStreamHostSheet.value = false
-                onDisconnect
-            } ,
+
+            },
+            onDisconnect = {
+                onDisconnect()
+                showStreamHostSheet.value = false
+            },
         )
     }
 }
@@ -411,11 +424,10 @@ private fun StreamHostBottomSheet(
     val streamHostBottomSheetState =
         rememberModalBottomSheetState(
             skipPartiallyExpanded = true,
-            confirmValueChange = { newValue -> newValue != SheetValue.Hidden },
         )
 
     ModalBottomSheet(
-        onDismissRequest = {},
+        onDismissRequest = onDisconnect,
         sheetState = streamHostBottomSheetState,
         dragHandle = null,
         shape = RectangleShape,
@@ -453,7 +465,7 @@ private fun ConnectionStatusCard(
         when (state) {
             is LiquidAuthOfferViewModel.OfferState.Idle,
             is LiquidAuthOfferViewModel.OfferState.Loading,
-            -> "Initializing..." to TextGray
+                -> "Initializing..." to TextGray
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection ->
                 "Waiting for client to scan QR code..." to PendingYellow
@@ -652,7 +664,7 @@ private fun ConnectedSection(
                 val isDepleted = balanceAlgos == null || balanceAlgos <= 0.0
 
                 if (isDepleted) {
-                    showStreamHostSheet.value =false
+                    showStreamHostSheet.value = false
                     // Show pay to resume button
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -684,7 +696,7 @@ private fun ConnectedSection(
                             Text(
                                 text =
                                     "The viewer has used all their deposit. " +
-                                        "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
+                                            "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AlgoKitTheme.colors.textGray,
                                 textAlign = TextAlign.Center,
@@ -1046,7 +1058,7 @@ private fun LoadingSection() {
     ) {
         CircularProgressIndicator()
         Text(
-            text = "Initializing...",
+            text = "Waiting...",
             style = MaterialTheme.typography.bodyMedium,
             color = AlgoKitTheme.colors.textGray,
         )
@@ -1448,6 +1460,7 @@ private fun hexToColor(hex: String): Color? =
                     blue = (colorInt and 0xFF) / 255f,
                     alpha = 1f,
                 )
+
             8 ->
                 Color(
                     red = ((colorInt shr 16) and 0xFF) / 255f,
@@ -1455,6 +1468,7 @@ private fun hexToColor(hex: String): Color? =
                     blue = (colorInt and 0xFF) / 255f,
                     alpha = ((colorInt shr 24) and 0xFF) / 255f,
                 )
+
             else -> null
         }
     } catch (_: Exception) {

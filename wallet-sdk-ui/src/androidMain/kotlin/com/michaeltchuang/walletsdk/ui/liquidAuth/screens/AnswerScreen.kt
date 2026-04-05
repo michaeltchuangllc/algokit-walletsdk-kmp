@@ -22,8 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material.icons.filled.FullscreenExit
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -83,6 +81,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     var pendingPaymentRequest by remember { mutableStateOf<X402PaymentMessages.PaymentRequest?>(null) }
     var paymentBalance by remember { mutableStateOf<String?>(null) }
     var fundsDepleted by remember { mutableStateOf(false) }
+    var isPaymentProcessing by remember { mutableStateOf(false) }
 
     // Listen for X402 payment events
     val scope = rememberCoroutineScope()
@@ -96,6 +95,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                     pendingPaymentRequest = event.paymentRequest
                     showPaymentDialog = true
                     fundsDepleted = false
+                    isPaymentProcessing = false
                 }
                 is AnswerViewModel.ViewEvent.BalanceUpdated -> {
                     Log.d("AnswerScreen", "🎭 BalanceUpdated: ${event.balanceUpdate.remainingAlgos()} ALGO")
@@ -105,6 +105,7 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                     Log.d("AnswerScreen", "🎭 FundsDepleted")
                     fundsDepleted = true
                     showPaymentDialog = false
+                    isPaymentProcessing = false
                 }
                 else -> { /* other events */ }
             }
@@ -136,24 +137,36 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
 
         // X402 Payment Dialog Overlay
         if (showPaymentDialog && pendingPaymentRequest != null) {
-            Log.d("AnswerScreen", "🎭 Showing X402PaymentDialog")
-            X402PaymentDialog(
-                paymentRequest = pendingPaymentRequest!!,
-                isSolanaAccount = isSolanaAccount,
-                onApprove = {
-                    // Create and sign real transaction
-                    scope.launch {
-                        viewModel.createAndSendPayment(pendingPaymentRequest!!)
+            val paymentRequest = pendingPaymentRequest!!
+            val amount = paymentRequest.amountMicroAlgos / 1_000_000.0
+            val amountText = amount.toString()
+            Log.d("AnswerScreen", "🎭 Showing SessionVault payment dialog")
+            LiquidAuthSessionVaultModal(
+                initialAmount = amountText,
+                quickAmounts = listOf(amountText, (amount * 4.0).toString()),
+                currencyLabel = if (isSolanaAccount) "SOL" else "ALGO",
+                isProcessing = isPaymentProcessing,
+                onDismiss = {
+                    if (!isPaymentProcessing) {
+                        viewModel.sendPaymentResponse(
+                            paymentRequest,
+                            X402PaymentMessages.PaymentResponse.Status.REJECTED,
+                            null,
+                        )
                         showPaymentDialog = false
                     }
                 },
-                onReject = {
-                    viewModel.sendPaymentResponse(
-                        pendingPaymentRequest!!,
-                        X402PaymentMessages.PaymentResponse.Status.REJECTED,
-                        null,
-                    )
-                    showPaymentDialog = false
+                onTopUpAndStream = { _ ->
+                    if (isPaymentProcessing) return@LiquidAuthSessionVaultModal
+                    isPaymentProcessing = true
+                    scope.launch {
+                        try {
+                            viewModel.createAndSendPayment(paymentRequest)
+                            showPaymentDialog = false
+                        } finally {
+                            isPaymentProcessing = false
+                        }
+                    }
                 },
             )
         }
@@ -738,127 +751,6 @@ private fun StreamEndedIndicator() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = AlgoKitTheme.colors.textMain,
             )
-        }
-    }
-}
-
-/**
- * X402 Payment Dialog - Pay to watch streaming content
- */
-@Composable
-private fun X402PaymentDialog(
-    paymentRequest: X402PaymentMessages.PaymentRequest,
-    isSolanaAccount: Boolean = false,
-    onApprove: () -> Unit,
-    onReject: () -> Unit,
-) {
-    var isProcessing by remember { mutableStateOf(false) }
-    val amountAlgos = paymentRequest.amountMicroAlgos / 1_000_000.0
-
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.6f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Card(
-            modifier =
-                Modifier
-                    .padding(32.dp)
-                    .fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors =
-                CardDefaults.cardColors(
-                    containerColor = AlgoKitTheme.colors.background,
-                ),
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                // Header
-                Text(
-                    text = "",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = AlgoKitTheme.colors.textMain,
-                )
-
-                // Amount
-                Text(
-                    text = "$amountAlgos ${if (isSolanaAccount) "SOL" else "ALGO"}",
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    color = AlgoKitTheme.colors.linkPrimary,
-                )
-
-                // Description
-                Text(
-                    text = "Pay to watch live stream",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = AlgoKitTheme.colors.textMain,
-                    textAlign = TextAlign.Center,
-                )
-
-                // Cost breakdown
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor = AlgoKitTheme.colors.layerGray,
-                        ),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        InfoRow(label = "Deposit:", value = "1.0 ${if (isSolanaAccount) "SOL" else "ALGO"}")
-                        InfoRow(label = "Cost per block:", value = "0.1 ${if (isSolanaAccount) "SOL" else "ALGO"}")
-                        InfoRow(label = "Network:", value = paymentRequest.network)
-                        InfoRow(label = "Creator:", value = paymentRequest.creatorAddress.take(8) + "...")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Button(
-                        onClick = onReject,
-                        modifier = Modifier.weight(1f),
-                        colors =
-                            ButtonDefaults.buttonColors(
-                                containerColor = AlgoKitTheme.colors.buttonSecondaryBg,
-                                contentColor = AlgoKitTheme.colors.buttonSecondaryText,
-                            ),
-                        enabled = !isProcessing,
-                    ) {
-                        Text("Reject")
-                    }
-
-                    Button(
-                        onClick = {
-                            isProcessing = true
-                            onApprove()
-                        },
-                        modifier = Modifier.weight(1f),
-                        enabled = !isProcessing,
-                    ) {
-                        if (isProcessing) {
-                            Text("Signing...")
-                        } else {
-                            Text("Pay & Watch")
-                        }
-                    }
-                }
-            }
         }
     }
 }

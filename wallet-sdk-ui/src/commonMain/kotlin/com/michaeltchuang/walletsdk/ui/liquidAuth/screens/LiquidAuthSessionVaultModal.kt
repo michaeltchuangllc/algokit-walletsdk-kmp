@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_lock
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_lock
 import androidx.compose.foundation.background
@@ -23,6 +22,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,9 +46,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun LiquidAuthSessionVaultModal(
     onDismiss: () -> Unit,
-    onTopUpAndStream: () -> Unit = {},
+    onTopUpAndStream: (String) -> Unit = { _ -> },
+    initialAmount: String = "2.22",
+    quickAmounts: List<String> = listOf("0.888", "8.88"),
+    currencyLabel: String = "USDC",
+    isProcessing: Boolean = false,
 ) {
-    var topUpAmount by remember { mutableStateOf("2.22") }
+    var topUpAmount by remember(initialAmount) { mutableStateOf(initialAmount) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Box(
@@ -56,7 +60,7 @@ fun LiquidAuthSessionVaultModal(
                 Modifier
                     .fillMaxSize()
                     .background(Color(0x66001423))
-                    .clickable(onClick = onDismiss),
+                    .clickable(enabled = !isProcessing, onClick = {}),
         )
         Box(
             modifier =
@@ -140,11 +144,17 @@ fun LiquidAuthSessionVaultModal(
                 ) {
                     QuickAmountButton(
                         modifier = Modifier.weight(1f),
-                        value = "0.888",
+                        value = quickAmounts.getOrElse(0) { "0.888" },
+                        selected = topUpAmount == quickAmounts.getOrElse(0) { "0.888" },
+                        onClick = { topUpAmount = quickAmounts.getOrElse(0) { "0.888" } },
+                        enabled = !isProcessing,
                     )
                     QuickAmountButton(
                         modifier = Modifier.weight(1f),
-                        value = "8.88",
+                        value = quickAmounts.getOrElse(1) { "8.88" },
+                        selected = topUpAmount == quickAmounts.getOrElse(1) { "8.88" },
+                        onClick = { topUpAmount = quickAmounts.getOrElse(1) { "8.88" } },
+                        enabled = !isProcessing,
                     )
                 }
 
@@ -170,6 +180,7 @@ fun LiquidAuthSessionVaultModal(
                     BasicTextField(
                         value = topUpAmount,
                         onValueChange = { topUpAmount = it },
+                        enabled = !isProcessing,
                         singleLine = true,
                         textStyle =
                             TextStyle(
@@ -181,7 +192,7 @@ fun LiquidAuthSessionVaultModal(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = "USDC",
+                        text = currencyLabel,
                         color = Color(0xFFB9EFEF),
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
@@ -201,7 +212,7 @@ fun LiquidAuthSessionVaultModal(
                                 .clip(RoundedCornerShape(12.dp))
                                 .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
                                 .background(Color(0x1AFFFFFF))
-                                .clickable(onClick = onDismiss),
+                                .clickable(enabled = !isProcessing, onClick = {}),
                         contentAlignment = Alignment.Center,
                     ) {
                         Icon(
@@ -219,28 +230,44 @@ fun LiquidAuthSessionVaultModal(
                                 .height(55.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(Color(0xFF2D2DF1))
-                                .clickable(onClick = onTopUpAndStream),
+                                .clickable(enabled = !isProcessing, onClick = { onTopUpAndStream(topUpAmount) }),
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(19.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, Color(0xFFB9EFEF), CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text("v", color = Color(0xFFB9EFEF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        if (isProcessing) {
+                            CircularProgressIndicator(
+                                color = Color.White,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Signing...",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                letterSpacing = (-0.2).sp,
+                            )
+                        } else {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(19.dp)
+                                        .clip(CircleShape)
+                                        .border(2.dp, Color(0xFFB9EFEF), CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("v", color = Color(0xFFB9EFEF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = "Top-Up & Stream",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                letterSpacing = (-0.2).sp,
+                            )
                         }
-                        Spacer(Modifier.width(10.dp))
-                        Text(
-                            text = "Top-Up & Stream",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 18.sp,
-                            letterSpacing = (-0.2).sp,
-                        )
                     }
                 }
                 Spacer(Modifier.height(22.dp))
@@ -284,14 +311,18 @@ fun LiquidAuthSessionVaultModal(
 private fun QuickAmountButton(
     modifier: Modifier = Modifier,
     value: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    enabled: Boolean,
 ) {
     Column(
         modifier =
             modifier
                 .height(72.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
-                .background(Color(0x1AFFFFFF)),
+                .border(1.dp, if (selected) Color(0xFF3FD2EF) else Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                .background(if (selected) Color(0x2A3FD2EF) else Color(0x1AFFFFFF))
+                .clickable(enabled = enabled, onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
