@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
@@ -30,6 +30,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import kotlin.math.round
 
 /**
  * Connected Viewers Card - Shows connected viewers with visual balance progress bar
@@ -45,11 +46,11 @@ internal fun ConnectedViewersCard(
     balanceCurrencySymbol: String = "\u00A6",
 ) {
     val balancePercentage = (balanceAlgos / 1.0).coerceIn(0.0, 1.0)
-    val percentageInt = kotlin.math.round(balancePercentage * 100).toInt()
+    val percentageInt = round(balancePercentage * 100).toInt()
     val isSolana = balanceCurrencySymbol == "S"
 
     // Format balance text
-    val balanceText = (kotlin.math.round(balanceAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: balanceAlgos.toString().take(4)
+    val balanceText = (round(balanceAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: balanceAlgos.toString().take(4)
 
     // Color based on remaining balance
     val balanceColor =
@@ -231,7 +232,7 @@ internal fun ConnectedViewersCard(
 
             // Stats row
             val usedAlgos = 1.0 - balanceAlgos
-            val usedText = (kotlin.math.round(usedAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: usedAlgos.toString().take(4)
+            val usedText = (round(usedAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: usedAlgos.toString().take(4)
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

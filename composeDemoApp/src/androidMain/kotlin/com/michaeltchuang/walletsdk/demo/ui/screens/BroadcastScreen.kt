@@ -57,6 +57,7 @@ actual fun BroadcastScreen(
         remember(context) {
             createLiquidAuthConnectionManager(context)
         }
+    val cameraPreview = remember(connectionManager) { createCameraStreamingPreview(connectionManager) }
 
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
@@ -109,7 +110,7 @@ actual fun BroadcastScreen(
     LiquidAuthOfferScreen(
         origin = "https://michaeltchuang.ngrok.dev/", // "https://liquid-auth-api.pg.nodely.dev/",
         onBackPressed = { navController.popBackStack() },
-        cameraPreview = createCameraStreamingPreview(connectionManager),
+        cameraPreview = cameraPreview,
         connectionManager = connectionManager, // Enables WebRTC connection!
         headerContent = {
             if (accountsLoaded && accounts.isEmpty()) {
@@ -132,6 +133,7 @@ actual fun BroadcastScreen(
         paymentCurrencyLabel = paymentCurrencyLabel,
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
+        onMinimise = {},
     )
 }
 

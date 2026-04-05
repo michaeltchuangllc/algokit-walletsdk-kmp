@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -108,16 +109,16 @@ fun LiquidAuthCreatorLiveScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp, vertical = 12.dp)
-                    .navigationBarsPadding()
-                    .imePadding(),
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 0.dp)
+                .imePadding(),
         ) {
             CreatorTopBar(
                 onSettingsClick = onSettingsClick,
                 onMinimise = onMinimise,
             )
             Spacer(Modifier.weight(1f))
-            CreatorChatStack()
+            // CreatorChatStack()
             Spacer(Modifier.height(18.dp))
             CreatorActionRow(
                 onWalletClick = onWalletClick,
@@ -145,8 +146,6 @@ private fun CreatorTopBar(
     onMinimise: () -> Unit,
 ) {
     Column {
-
-        Spacer(Modifier.height(18.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -176,7 +175,7 @@ private fun CreatorTopBar(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
-                        text = "algo_rhytem",
+                        text = "michaeltchuang.algo",
                         style =
                             TextStyle(
                                 fontSize = 24.sp,
@@ -197,7 +196,7 @@ private fun CreatorTopBar(
                             modifier = Modifier.size(16.dp),
                         )
                         Text(
-                            text = "1,284 VIEWERS",
+                            text = "# of VIEWERS",
                             color = Color(0xFFBFD4DD),
                             fontSize = 14.sp / 1.2f,
                             fontWeight = FontWeight.Medium,
@@ -247,7 +246,7 @@ private fun CreatorChatStack() {
             fontSize = 12.sp,
             letterSpacing = 1.2.sp,
         )
-        CreatorMessageBubble(text = "The micro-billing is so smooth here.")
+        // CreatorMessageBubble(text = "The micro-billing is so smooth here.")
         Spacer(Modifier.height(2.dp))
         Text(
             text = "@STREAM_HOPPER",
