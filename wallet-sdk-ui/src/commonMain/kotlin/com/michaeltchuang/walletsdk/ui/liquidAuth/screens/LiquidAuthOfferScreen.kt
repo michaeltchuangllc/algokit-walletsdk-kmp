@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -43,16 +45,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -68,10 +77,107 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
 
-private enum class StreamHostUiMode {
+enum class StreamHostUiMode {
     Hidden,
     Expanded,
     Minimized,
+}
+
+@Composable
+fun LiquidAuthMiniPlayerOverlay(
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    miniPlayerSize: DpSize = DpSize(width = 180.dp, height = 320.dp),
+    defaultMargin: Float? = null,
+    defaultBottomPadding: Float? = null,
+) {
+    val density = LocalDensity.current
+    var containerSizePx by remember { mutableStateOf(IntSize.Zero) }
+    var miniPlayerOffsetPx by remember { mutableStateOf<Offset?>(null) }
+    val defaultMarginPx = defaultMargin ?: with(density) { 16.dp.toPx() }
+    val defaultBottomPaddingPx = defaultBottomPadding ?: with(density) { 132.dp.toPx() }
+    val miniPlayerWidthPx = with(density) { miniPlayerSize.width.toPx() }
+    val miniPlayerHeightPx = with(density) { miniPlayerSize.height.toPx() }
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .onSizeChanged { containerSizePx = it },
+    ) {
+        if (streamHostUiModeState.value == StreamHostUiMode.Minimized) {
+            val maxX = (containerSizePx.width - miniPlayerWidthPx).coerceAtLeast(0f)
+            val maxY = (containerSizePx.height - miniPlayerHeightPx).coerceAtLeast(0f)
+            val anchoredOffset =
+                miniPlayerOffsetPx
+                    ?: Offset(
+                        x = (containerSizePx.width - miniPlayerWidthPx - defaultMarginPx).coerceAtLeast(0f),
+                        y = (containerSizePx.height - miniPlayerHeightPx - defaultBottomPaddingPx).coerceAtLeast(0f),
+                    )
+            val clampedOffset =
+                Offset(
+                    x = anchoredOffset.x.coerceIn(0f, maxX),
+                    y = anchoredOffset.y.coerceIn(0f, maxY),
+                )
+            if (miniPlayerOffsetPx != clampedOffset) {
+                miniPlayerOffsetPx = clampedOffset
+            }
+
+            Box(
+                modifier =
+                    Modifier
+                        .offset {
+                            IntOffset(
+                                x = clampedOffset.x.toInt(),
+                                y = clampedOffset.y.toInt(),
+                            )
+                        }
+                        .size(miniPlayerSize)
+                        .shadow(8.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(16.dp))
+                        .pointerInput(containerSizePx, miniPlayerSize) {
+                            detectDragGestures(
+                                onDragStart = {},
+                                onDragEnd = {},
+                                onDragCancel = {},
+                            ) { _, dragAmount ->
+                                val current = miniPlayerOffsetPx ?: clampedOffset
+                                miniPlayerOffsetPx =
+                                    Offset(
+                                        x = (current.x + dragAmount.x).coerceIn(0f, maxX),
+                                        y = (current.y + dragAmount.y).coerceIn(0f, maxY),
+                                    )
+                            }
+                        }
+                        .clickable {
+                            streamHostUiModeState.value = StreamHostUiMode.Expanded
+                        },
+            ) {
+                miniPlayerCameraPreviewState.value?.invoke()
+                IconButton(
+                    onClick = {
+                        streamHostUiModeState.value = StreamHostUiMode.Hidden
+                        onClose()
+                    },
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close mini player",
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -108,13 +214,24 @@ fun LiquidAuthOfferScreen(
     blockChainLabel: String = "Algorand",
     balanceCurrencySymbol: String = "S",
     onMinimise: () -> Unit = {},
+    streamHostUiModeState: MutableState<StreamHostUiMode>? = null,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>? = null,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>? = null,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
-    val streamHostUiMode = remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    miniPlayerCameraPreviewState?.value = cameraPreview
+    miniPlayerOnCloseActionState?.value = {
+        viewModel.stopVideoStreaming()
+        connectionManager?.stopBlockConsumption()
+        connectionManager?.stopListening()
+        streamHostUiMode.value = StreamHostUiMode.Hidden
+        viewModel.regenerateOffer(origin)
+    }
 
     // Convert microAlgos to AlgOS for display
     val balanceAlgos = remainingBalanceMicroAlgos?.let { it / 1_000_000.0 }
@@ -417,18 +534,6 @@ private fun LiquidAuthOfferScreenContent(
         )
     }
 
-    if (streamHostUiMode.value == StreamHostUiMode.Minimized) {
-        FloatingMiniStreamHost(
-            cameraPreview = cameraPreview,
-            onExpand = { streamHostUiMode.value = StreamHostUiMode.Expanded },
-            onClose = {
-                onStopStreaming()
-                onDisconnect()
-                onRegenerate()
-                streamHostUiMode.value = StreamHostUiMode.Hidden
-            },
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -489,50 +594,6 @@ private fun StreamHostBottomSheet(
                     onMinimise = onMinimise,
                     onStatsClick = {},
                 )
-            }
-        }
-    }
-}
-
-@Composable
-private fun FloatingMiniStreamHost(
-    cameraPreview: @Composable (() -> Unit)?,
-    onExpand: () -> Unit,
-    onClose: () -> Unit,
-) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-                    .size(DpSize(width = 180.dp, height = 320.dp))
-                    .shadow(8.dp, RoundedCornerShape(16.dp))
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.Black)
-                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(16.dp))
-                    .clickable(onClick = onExpand),
-        ) {
-            cameraPreview?.invoke()
-            Row(
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(6.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.size(28.dp),
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close mini player",
-                        tint = Color.White,
-                    )
-                }
             }
         }
     }

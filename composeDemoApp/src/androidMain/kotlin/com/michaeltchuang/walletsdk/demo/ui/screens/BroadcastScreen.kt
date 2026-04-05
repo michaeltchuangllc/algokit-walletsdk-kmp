@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -30,6 +31,7 @@ import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.createCameraStreamingPreview
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
 import org.koin.compose.koinInject
 
@@ -48,6 +50,9 @@ actual fun BroadcastScreen(
     navController: NavController,
     snackbarViewModel: SnackbarViewModel,
     tag: String,
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>,
 ) {
     // Get Android Context for creating the connection manager
     val context = LocalContext.current
@@ -134,6 +139,9 @@ actual fun BroadcastScreen(
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
         onMinimise = {},
+        streamHostUiModeState = streamHostUiModeState,
+        miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+        miniPlayerOnCloseActionState = miniPlayerOnCloseActionState,
     )
 }
 
