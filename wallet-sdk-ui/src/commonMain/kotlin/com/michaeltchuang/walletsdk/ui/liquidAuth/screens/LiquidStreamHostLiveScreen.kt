@@ -2,13 +2,10 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_camera_flip
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_creator_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_liquid_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_signal
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dmsans_bold
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_menu
@@ -27,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
@@ -59,14 +55,14 @@ import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun LiquidAuthCreatorLiveScreen(
+fun LiquidStreamHostLiveScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
     onWalletClick: () -> Unit = {},
     onCameraClick: () -> Unit = {},
     onMicClick: () -> Unit = {},
-    onSnapshotClick: () -> Unit = {},
+    onRotateCamera: () -> Unit = {},
     onStatsClick: () -> Unit = {},
     onSendClick: () -> Unit = {},
 ) {
@@ -124,7 +120,7 @@ fun LiquidAuthCreatorLiveScreen(
                 onWalletClick = onWalletClick,
                 onCameraClick = onCameraClick,
                 onMicClick = onMicClick,
-                onSnapshotClick = onSnapshotClick,
+                onRotateCamera = onRotateCamera,
                 onStatsClick = onStatsClick,
             )
             Spacer(Modifier.height(18.dp))
@@ -178,7 +174,7 @@ private fun CreatorTopBar(
                         text = "michaeltchuang.algo",
                         style =
                             TextStyle(
-                                fontSize = 24.sp,
+                                fontSize = 18.sp,
                                 lineHeight = 28.8.sp,
                                 fontFamily = FontFamily(Font(Res.font.dmsans_bold, FontWeight.Bold)),
                                 fontWeight = FontWeight.W700,
@@ -294,7 +290,7 @@ private fun CreatorActionRow(
     onWalletClick: () -> Unit,
     onCameraClick: () -> Unit,
     onMicClick: () -> Unit,
-    onSnapshotClick: () -> Unit,
+    onRotateCamera: () -> Unit,
     onStatsClick: () -> Unit,
 ) {
     Row(
@@ -323,7 +319,7 @@ private fun CreatorActionRow(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 InnerActionButton(icon = Res.drawable.ic_video_camera, onClick = onCameraClick, backgroundColor = Color(0xFFE6E8FF))
                 InnerActionButton(icon = Res.drawable.ic_mic, onClick = onMicClick, backgroundColor = Color(0xFFE6E8FF))
-                InnerActionButton(icon = Res.drawable.ic_camera_flip, onClick = onSnapshotClick, backgroundColor = Color(0xFFE6E8FF))
+                InnerActionButton(icon = Res.drawable.ic_camera_flip, onClick = onRotateCamera, backgroundColor = Color(0xFFE6E8FF))
             }
         }
 
@@ -497,8 +493,8 @@ private fun HomeIndicator() {
 
 @Preview
 @Composable
-private fun LiquidAuthCreatorLiveScreenPreview() {
+private fun LiquidStreamHostLiveScreenPreview() {
     AlgoKitTheme {
-        LiquidAuthCreatorLiveScreen()
+        LiquidStreamHostLiveScreen()
     }
 }

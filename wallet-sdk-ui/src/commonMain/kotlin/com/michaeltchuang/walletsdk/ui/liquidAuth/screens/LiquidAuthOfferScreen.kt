@@ -46,6 +46,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -217,6 +218,7 @@ fun LiquidAuthOfferScreen(
     streamHostUiModeState: MutableState<StreamHostUiMode>? = null,
     miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>? = null,
     miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>? = null,
+    cameraPreviewController: CameraStreamingPreviewController? = null,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -224,6 +226,7 @@ fun LiquidAuthOfferScreen(
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
     val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
     miniPlayerCameraPreviewState?.value = cameraPreview
     miniPlayerOnCloseActionState?.value = {
         viewModel.stopVideoStreaming()
@@ -366,26 +369,14 @@ fun LiquidAuthOfferScreen(
         onBackPressed = onBackPressed,
         headerContent = headerContent,
         state = state,
-        connectionType = connectionType,
-        balanceAlgos = balanceAlgos,
-        currentBlockNumber = currentBlockNumber,
         cameraPreview = cameraPreview,
         onRegenerate = { viewModel.regenerateOffer(origin) },
-        onStartCamera = { viewModel.startVideoStreaming() },
-        onDisconnect = { connectionManager?.stopListening() },
-        onRequestPayment = {
-            currentCreatorAddress?.let { address ->
-                println("💰 Requesting additional payment from viewer...")
-                viewModel.requestPaymentFromClient(address)
-            }
-        },
         onStopStreaming = { viewModel.stopVideoStreaming() },
         onRetry = { viewModel.regenerateOffer(origin) },
-        paymentCurrencyLabel = paymentCurrencyLabel,
-        blockChainLabel = blockChainLabel,
-        balanceCurrencySymbol = balanceCurrencySymbol,
         onMinimise = onMinimise,
         streamHostUiMode = streamHostUiMode,
+        cameraPreviewController = resolvedCameraPreviewController,
+        paymentCurrencyLabel = paymentCurrencyLabel,
     )
 
 }
@@ -398,21 +389,14 @@ private fun LiquidAuthOfferScreenContent(
     onBackPressed: (() -> Unit)?,
     headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
-    connectionType: IceConnectionType,
-    balanceAlgos: Double?,
-    currentBlockNumber: Long?,
     cameraPreview: @Composable (() -> Unit)?,
     onRegenerate: () -> Unit,
-    onStartCamera: () -> Unit,
-    onDisconnect: () -> Unit,
-    onRequestPayment: () -> Unit,
     onStopStreaming: () -> Unit,
     onRetry: () -> Unit,
     onMinimise: () -> Unit,
-    paymentCurrencyLabel: String = "ALGO",
-    blockChainLabel: String = "Algorand",
-    balanceCurrencySymbol: String = "A",
     streamHostUiMode: MutableState<StreamHostUiMode>,
+    cameraPreviewController: CameraStreamingPreviewController,
+    paymentCurrencyLabel: String = "ALGO",
 ) {
 
     Scaffold(
@@ -518,10 +502,7 @@ private fun LiquidAuthOfferScreenContent(
     if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
-            onStopStreaming = {
-                onStopStreaming()
-                streamHostUiMode.value = StreamHostUiMode.Hidden
-            },
+            cameraPreviewController = cameraPreviewController,
             onStatsClick = {},
             onMinimise = {
                 streamHostUiMode.value = StreamHostUiMode.Minimized
@@ -540,7 +521,7 @@ private fun LiquidAuthOfferScreenContent(
 @Composable
 private fun StreamHostBottomSheet(
     cameraPreview: @Composable (() -> Unit)?,
-    onStopStreaming: () -> Unit,
+    cameraPreviewController: CameraStreamingPreviewController,
     onStatsClick: () -> Unit,
     onMinimise: () -> Unit,
     onDismiss: () -> Unit,
@@ -554,10 +535,11 @@ private fun StreamHostBottomSheet(
                     .fillMaxWidth()
                     .height(700.dp),
         ) {
-            LiquidAuthCreatorLiveScreen(
+            LiquidStreamHostLiveScreen(
                 cameraPreview = cameraPreview,
                 onSettingsClick = {},
                 onMinimise = onMinimise,
+                onRotateCamera = { cameraPreviewController.rotateCamera() },
                 onStatsClick = onStatsClick,
             )
         }
@@ -588,10 +570,11 @@ private fun StreamHostBottomSheet(
                         .fillMaxSize()
                         .padding(innerPadding),
             ) {
-                LiquidAuthCreatorLiveScreen(
+                LiquidStreamHostLiveScreen(
                     cameraPreview = cameraPreview,
                     onSettingsClick = {},
                     onMinimise = onMinimise,
+                    onRotateCamera = { cameraPreviewController.rotateCamera() },
                     onStatsClick = {},
                 )
             }
@@ -1329,18 +1312,13 @@ private fun LiquidAuthOfferWaitingForConnectionPreview() {
                     liquidAuthUrl = "https://auth.example.com/connect?requestId=abc123",
                     origin = "https://auth.example.com",
                 ),
-            connectionType = IceConnectionType.UNKNOWN,
-            balanceAlgos = null,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1359,7 +1337,7 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            LiquidAuthCreatorLiveScreen(
+            LiquidStreamHostLiveScreen(
                 cameraPreview = {
                     Box(
                         modifier =
@@ -1402,18 +1380,13 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
                     sessionId = "session-relay-87654321",
                     isPaid = true,
                 ),
-            connectionType = IceConnectionType.RELAY,
-            balanceAlgos = 0.2,
-            currentBlockNumber = 45123459L,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1433,18 +1406,13 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-funded-44556677",
                 ),
-            connectionType = IceConnectionType.STUN,
-            balanceAlgos = 1.0,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1464,18 +1432,13 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-depleted-88990011",
                 ),
-            connectionType = IceConnectionType.RELAY,
-            balanceAlgos = 0.0,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1502,18 +1465,13 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
                             network = "testnet",
                         ),
                 ),
-            connectionType = IceConnectionType.STUN,
-            balanceAlgos = null,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1530,18 +1488,13 @@ private fun LiquidAuthOfferErrorPreview() {
                 LiquidAuthOfferViewModel.OfferState.Error(
                     message = "Failed to generate offer. Please check your network and try again.",
                 ),
-            connectionType = IceConnectionType.UNKNOWN,
-            balanceAlgos = null,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
             onMinimise = {},
-            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden)
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
         )
     }
 }
@@ -1580,9 +1533,8 @@ private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
         ) {
             ConnectedViewersCard(
                 sessionId = "session-preview-87654321",
-                balanceAlgos = 0.2,
-                connectionType = IceConnectionType.RELAY,
-                currentBlockNumber = null,
+                balanceAlgos = 0.7,
+                connectionType = IceConnectionType.STUN,
             )
         }
     }

@@ -55,7 +55,7 @@ import qrgenerator.qrkitpainter.rememberQrKitPainter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun LiquidAuthCreatorScreen(
+fun LiquidStreamCreatorQrScreen(
     cameraPreview: @Composable (() -> Unit)?,
     onEndStream: () -> Unit,
 ) {
@@ -365,9 +365,9 @@ private fun CreatorQrCard(
 
 @Preview
 @Composable
-private fun LiquidAuthCreatorScreenPreview() {
+private fun LiquidStreamCreatorQrScreenPreview() {
     AlgoKitTheme {
-        LiquidAuthCreatorScreen(
+        LiquidStreamCreatorQrScreen(
             cameraPreview = null,
             onEndStream = {},
         )

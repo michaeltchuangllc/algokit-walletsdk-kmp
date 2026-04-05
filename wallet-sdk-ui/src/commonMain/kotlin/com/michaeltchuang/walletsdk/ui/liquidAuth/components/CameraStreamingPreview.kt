@@ -1,6 +1,9 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 
 /**
@@ -24,7 +27,17 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
  * }
  * ```
  *
- * @param connectionManager The connection manager to send video frames through
  * @return A composable that displays camera preview and streams frames
  */
-expect fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit
+class CameraStreamingPreviewController {
+    var onRotateCamera: (() -> Unit)? by mutableStateOf(null)
+
+    fun rotateCamera() {
+        onRotateCamera?.invoke()
+    }
+}
+
+expect fun createCameraStreamingPreview(
+    connectionManager: LiquidAuthConnectionManager?,
+    controller: CameraStreamingPreviewController? = null,
+): @Composable () -> Unit
