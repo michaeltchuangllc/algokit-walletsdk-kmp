@@ -288,7 +288,7 @@ private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?
             factory = { previewView },
             modifier = Modifier.fillMaxSize(),
         )
-        if (canSwitchCamera) {
+      /*  if (canSwitchCamera) {
             IconButton(
                 onClick = {
                     lensFacing =
@@ -313,7 +313,7 @@ private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?
                     contentDescription = "Switch camera",
                 )
             }
-        }
+        }*/
     }
 }
 
