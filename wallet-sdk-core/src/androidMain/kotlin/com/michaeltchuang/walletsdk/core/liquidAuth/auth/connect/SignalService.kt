@@ -191,18 +191,20 @@ class SignalService : Service() {
         dataChannel?.let {
             // Handle Data Channel Messages
             signalClient?.handleDataChannel(it, { msg ->
-                if (activity.hasWindowFocus()) {
-                    onMessage(msg)
-                    return@handleDataChannel
+                // Always forward message to active callback so in-app viewer can render frames
+                // even when window focus is transiently lost (e.g., sheets/overlays/PiP transitions).
+                onMessage(msg)
+
+                if (!activity.hasWindowFocus()) {
+                    Log.d(TAG, "DataChannel Message: $msg")
+                    notify(
+                        notificationBuilder
+                            .setContentText(msg)
+                            .setContentIntent(createPendingIntent(activityClass, requestCode, msg)),
+                        notificationId,
+                    )
+                    requestCode += 1
                 }
-                Log.d(TAG, "DataChannel Message: $msg")
-                notify(
-                    notificationBuilder
-                        .setContentText(msg)
-                        .setContentIntent(createPendingIntent(activityClass, requestCode, msg)),
-                    notificationId,
-                )
-                requestCode += 1
             }, { state ->
                 if (state == "CLOSED" || state == "CLOSING") {
                     notify(

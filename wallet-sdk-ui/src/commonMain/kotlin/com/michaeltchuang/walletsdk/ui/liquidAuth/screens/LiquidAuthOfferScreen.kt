@@ -222,6 +222,7 @@ fun LiquidAuthOfferScreen(
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
@@ -255,7 +256,7 @@ fun LiquidAuthOfferScreen(
         }
     }
 
-    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value) {
+    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value, paymentState) {
         when (state) {
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
@@ -266,8 +267,18 @@ fun LiquidAuthOfferScreen(
                 } else {
                     viewModel.stopRealtimeBlockNumberUpdates()
                 }
+
+                // Ensure billing/deduction loop is running whenever paid streaming is active.
+                if (paymentState is LiquidAuthOfferViewModel.PaymentState.StreamingWithBalance) {
+                    viewModel.getCurrentSessionId()?.let { sessionId ->
+                        connectionManager?.startBlockConsumption(sessionId)
+                    }
+                }
             }
-            else -> viewModel.stopRealtimeBlockNumberUpdates()
+            else -> {
+                viewModel.stopRealtimeBlockNumberUpdates()
+                connectionManager?.stopBlockConsumption()
+            }
         }
     }
 

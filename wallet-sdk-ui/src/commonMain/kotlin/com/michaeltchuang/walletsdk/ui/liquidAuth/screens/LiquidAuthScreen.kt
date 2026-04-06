@@ -58,11 +58,10 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LiquidAuthScreen(
     navController: NavController,
     uri: String?,
+    closeSheet: () -> Unit = {},
 ) {
     val viewModel: LiquidAuthViewModel = koinViewModel()
     val viewState = viewModel.state.collectAsStateWithLifecycle().value
-    val onConnect = remember { mutableStateOf(false) }
-    var selectedAccount by remember { mutableStateOf("") }
 
     LaunchedEffect(uri) {
         // Decode the URI if it was encoded during navigation
@@ -95,6 +94,9 @@ fun LiquidAuthScreen(
             }
         }
     }
+    val onConnect = remember { mutableStateOf(false) }
+    var selectedAccount by remember { mutableStateOf("") }
+
     ScreenContentLiquidAuth(
         viewState,
         onAccountSelected = {
@@ -107,8 +109,10 @@ fun LiquidAuthScreen(
     )
 
     if (onConnect.value) {
-        connect(viewModel.authMessage, selectedAccount)
         onConnect.value = false
+        closeSheet()
+        navController.popBackStack()
+        connect(viewModel.authMessage, selectedAccount)
     }
 }
 

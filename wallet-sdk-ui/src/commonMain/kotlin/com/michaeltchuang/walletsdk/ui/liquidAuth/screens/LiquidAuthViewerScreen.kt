@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import org.jetbrains.compose.resources.vectorResource
@@ -57,8 +59,12 @@ fun LiquidAuthViewerScreen(
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
     onClose: () -> Unit = {},
+    viewerAddress: String = "-",
+    originUrl: String = "-",
+    networkLabel: String = "TESTNET",
+    currentBlockNumber: Long? = null,
 ) {
-    var showSessionVaultModal by remember { mutableStateOf(false) }
+    var showAnalyticsModal by remember { mutableStateOf(false) }
 
     Box(
         modifier =
@@ -100,7 +106,8 @@ fun LiquidAuthViewerScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                    .padding(start = 20.dp, end = 20.dp, top = 20.dp)
+                    .statusBarsPadding()
+                    .padding(start = 20.dp, end = 20.dp, top = 12.dp)
                     .navigationBarsPadding()
                     .imePadding(),
         ) {
@@ -112,22 +119,47 @@ fun LiquidAuthViewerScreen(
             Spacer(Modifier.weight(1f))
             ChatStack()
             Spacer(Modifier.height(16.dp))
-            FloatingButtons()
+            FloatingButtons(onAnalyticsClick = { showAnalyticsModal = !showAnalyticsModal })
             Spacer(Modifier.height(20.dp))
             StreamStatusRow(
                 sessionId = sessionId,
                 connectionType = connectionType,
             )
             Spacer(Modifier.height(12.dp))
-            ChatComposer(onSendClick = { showSessionVaultModal = true })
+            ChatComposer(onSendClick = {})
             Spacer(Modifier.height(12.dp))
         }
 
-        if (showSessionVaultModal) {
-            LiquidAuthSessionVaultModal(
-                onDismiss = { showSessionVaultModal = false },
+        if (showAnalyticsModal) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color(0x4D001423))
+                        .clickable { showAnalyticsModal = false },
             )
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                Box(
+                    modifier = Modifier.padding(bottom = 250.dp),
+                ) {
+                    ConnectedViewersCard(
+                        sessionId = sessionId.ifBlank { "session-pending" },
+                        balanceAlgos = 0.0,
+                        connectionType = connectionType,
+                        currentBlockNumber = currentBlockNumber,
+                        networkLabel = networkLabel,
+                        originUrl = originUrl,
+                        viewerAddress = viewerAddress,
+                    )
+                }
+            }
         }
+
+
     }
 }
 
@@ -187,9 +219,9 @@ private fun Header(onClose: () -> Unit) {
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "algo_rhytem",
+                    text = "michaeltchuang.algo",
                     color = Color.White,
-                    fontSize = 36.sp / 1.5f,
+                    fontSize = 20.sp / 1.5f,
                     fontWeight = FontWeight.Bold,
                 )
                 Row(
@@ -365,7 +397,7 @@ private fun ChatStack() {
 }
 
 @Composable
-private fun FloatingButtons() {
+private fun FloatingButtons(onAnalyticsClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -415,7 +447,8 @@ private fun FloatingButtons() {
                     .size(66.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xCC052440))
-                    .border(1.dp, Color(0x403EE6EA), RoundedCornerShape(20.dp)),
+                    .border(1.dp, Color(0x403EE6EA), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onAnalyticsClick),
             contentAlignment = Alignment.Center,
         ) {
             Box(

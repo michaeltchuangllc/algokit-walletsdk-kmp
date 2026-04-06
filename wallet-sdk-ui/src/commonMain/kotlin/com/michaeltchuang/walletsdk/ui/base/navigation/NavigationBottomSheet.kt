@@ -651,7 +651,11 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val uri = backStackEntry.arguments?.getString("uri")
-                    LiquidAuthScreen(navController = navController, uri = uri)
+                    LiquidAuthScreen(
+                        navController = navController,
+                        uri = uri,
+                        closeSheet = { closeSheet() },
+                    )
                 }
                 composable(
                     route = AlgoKitScreens.ADD_ASSET_SCREEN.name + "?assetId={assetId}&accountAddress={accountAddress}",

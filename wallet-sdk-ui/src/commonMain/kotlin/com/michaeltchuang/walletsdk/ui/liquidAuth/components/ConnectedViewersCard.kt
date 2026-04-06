@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -41,6 +42,7 @@ internal fun ConnectedViewersCard(
     networkLabel: String = "TESTNET",
     balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
+    viewerAddress: String? = null,
 ) {
     val balanceText = (round(balanceAlgos * 100) / 100).toString()
     val streamCost = if (connectionType == IceConnectionType.RELAY) "0.005" else "0.001"
@@ -144,6 +146,9 @@ internal fun ConnectedViewersCard(
             MetaRow(label = "ORIGIN:", value = originDisplay)
             MetaRow(label = "TYPE:", value = connectionType.displayName().uppercase())
             MetaRow(label = "REQUEST ID:", value = shortSessionId)
+            viewerAddress?.takeIf { it.isNotBlank() }?.let {
+                MetaRow(label = "ACCOUNT:", value = it.toShortenedAddress())
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),

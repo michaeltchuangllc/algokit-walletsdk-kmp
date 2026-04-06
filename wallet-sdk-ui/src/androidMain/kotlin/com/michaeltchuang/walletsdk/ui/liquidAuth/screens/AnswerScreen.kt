@@ -1,33 +1,25 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
-import android.graphics.BitmapFactory
 import android.util.Log
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.FullscreenExit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -35,13 +27,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -50,10 +41,10 @@ import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
  * Answer Screen for Liquid Auth Client
@@ -62,14 +53,20 @@ import org.jetbrains.compose.resources.ExperimentalResourceApi
  * Optional feature: View broadcaster's camera feed in a compact overlay.
  * X402 Payment: Pay to watch streaming content.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AnswerScreen(viewModel: AnswerViewModel) {
+fun AnswerScreen(
+    viewModel: AnswerViewModel,
+    onMinimizeToPip: () -> Unit = {},
+) {
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
     val videoFrame by viewModel.videoFrame.collectAsState()
-    val isStreamActive by viewModel.isStreamActive.collectAsState()
+    val pendingPaymentRequestFromState by viewModel.pendingPaymentRequest.collectAsState()
+    val paymentBalanceFromState by viewModel.paymentBalance.collectAsState()
+    val fundsDepletedFromState by viewModel.fundsDepleted.collectAsState()
 
     var isSolanaAccount by remember { mutableStateOf(false) }
     LaunchedEffect(accountAddress) {
@@ -79,9 +76,8 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     // X402 Payment dialog state
     var showPaymentDialog by remember { mutableStateOf(false) }
     var pendingPaymentRequest by remember { mutableStateOf<X402PaymentMessages.PaymentRequest?>(null) }
-    var paymentBalance by remember { mutableStateOf<String?>(null) }
-    var fundsDepleted by remember { mutableStateOf(false) }
     var isPaymentProcessing by remember { mutableStateOf(false) }
+    var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
 
     // Listen for X402 payment events
     val scope = rememberCoroutineScope()
@@ -94,18 +90,26 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                     Log.d("AnswerScreen", "🎭 PaymentRequested - showing dialog for ${event.paymentRequest.amountMicroAlgos} microAlgos")
                     pendingPaymentRequest = event.paymentRequest
                     showPaymentDialog = true
-                    fundsDepleted = false
+                    isViewerSheetVisible = true
                     isPaymentProcessing = false
                 }
                 is AnswerViewModel.ViewEvent.BalanceUpdated -> {
                     Log.d("AnswerScreen", "🎭 BalanceUpdated: ${event.balanceUpdate.remainingAlgos()} ALGO")
-                    paymentBalance = event.balanceUpdate.remainingAlgos().toString()
                 }
                 is AnswerViewModel.ViewEvent.FundsDepleted -> {
                     Log.d("AnswerScreen", "🎭 FundsDepleted")
-                    fundsDepleted = true
-                    showPaymentDialog = false
+                    viewModel.clearVideoFrame()
+                    isViewerSheetVisible = true
+                    // Re-open top-up modal with last known payment request so viewer can immediately add funds.
+                    if (pendingPaymentRequest != null) {
+                        showPaymentDialog = true
+                    }
                     isPaymentProcessing = false
+                }
+                is AnswerViewModel.ViewEvent.StreamDisconnected -> {
+                    Log.w("AnswerScreen", "Viewer stream disconnected: ${event.reason}")
+                    isViewerSheetVisible = false
+                    showPaymentDialog = false
                 }
                 else -> { /* other events */ }
             }
@@ -115,9 +119,63 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
     val isWaiting = message == null && errorMessage == null
     val hasError = errorMessage != null
     val isConnected = message != null && session != "Logged Out" && !hasError
+    val isPasskeyAuthenticated = session == "Connected"
+    val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
     val isConnecting = message != null && session == "Logged Out" && !hasError
 
+    LaunchedEffect(pendingPaymentRequestFromState) {
+        if (pendingPaymentRequest == null && pendingPaymentRequestFromState != null) {
+            pendingPaymentRequest = pendingPaymentRequestFromState
+        }
+    }
+
+    LaunchedEffect(shouldShowViewerSheet, fundsDepletedFromState, paymentBalanceFromState, pendingPaymentRequest, isPaymentProcessing) {
+        val parsedBalance = paymentBalanceFromState?.toDoubleOrNull()
+        val hasZeroOrLessBalance = fundsDepletedFromState || (parsedBalance != null && parsedBalance <= 0.0)
+        if (shouldShowViewerSheet && hasZeroOrLessBalance && pendingPaymentRequest != null && !isPaymentProcessing) {
+            showPaymentDialog = true
+        }
+    }
+
+    val viewerBottomSheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+        )
+
+    val viewerCameraPreview: (@Composable () -> Unit)? =
+        videoFrame?.let { frame ->
+            {
+                val aspectRatio = if (frame.height > 0) frame.width.toFloat() / frame.height else 4f / 3f
+                Log.d("AnswerScreen", "Rendering viewer frame ${frame.width}x${frame.height}, bytes=${frame.data.size}")
+                VideoFrameDisplay(
+                    frameData = frame.data,
+                    aspectRatio = aspectRatio,
+                )
+            }
+        }
+
     Box(modifier = Modifier.fillMaxSize()) {
+        if (shouldShowViewerSheet) {
+            ModalBottomSheet(
+                onDismissRequest = {},
+                sheetState = viewerBottomSheetState,
+                dragHandle = null,
+                containerColor = Color.Transparent,
+                contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
+            ) {
+                LiquidAuthViewerScreen(
+                    sessionId = session,
+                    cameraPreview = viewerCameraPreview,
+                    viewerAddress = accountAddress,
+                    originUrl = message?.origin.orEmpty().ifBlank { "-" },
+                    onClose = {
+                        Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
+                        onMinimizeToPip()
+                    },
+                )
+            }
+        }
+
         ScreenContentAnswer(
             isConnected = isConnected,
             isWaiting = isWaiting,
@@ -128,10 +186,8 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
             origin = message?.origin,
             requestId = message?.requestId,
             accountAddress = accountAddress,
-            videoFrame = videoFrame,
-            isStreamActive = isStreamActive,
-            paymentBalance = paymentBalance,
-            fundsDepleted = fundsDepleted,
+            paymentBalance = paymentBalanceFromState,
+            fundsDepleted = fundsDepletedFromState,
             isSolanaAccount = isSolanaAccount,
         )
 
@@ -148,6 +204,13 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                 isProcessing = isPaymentProcessing,
                 onDismiss = {
                     if (!isPaymentProcessing) {
+                        // When funds are depleted, keep prompt sticky until payment succeeds.
+                        if (fundsDepletedFromState) {
+                            showPaymentDialog = true
+                            return@LiquidAuthSessionVaultModal
+                        }
+
+                        // Initial payment request can still be rejected/closed by viewer.
                         viewModel.sendPaymentResponse(
                             paymentRequest,
                             X402PaymentMessages.PaymentResponse.Status.REJECTED,
@@ -170,10 +233,10 @@ fun AnswerScreen(viewModel: AnswerViewModel) {
                 },
             )
         }
+
     }
 }
 
-@OptIn(ExperimentalResourceApi::class)
 @Composable
 fun ScreenContentAnswer(
     isConnected: Boolean,
@@ -185,34 +248,10 @@ fun ScreenContentAnswer(
     origin: String?,
     requestId: String?,
     accountAddress: String,
-    videoFrame: AnswerViewModel.VideoFrameData? = null,
-    isStreamActive: Boolean = false,
     paymentBalance: String? = null,
     fundsDepleted: Boolean = false,
     isSolanaAccount: Boolean = false,
 ) {
-    // User can toggle video visibility
-    var showVideo by remember { mutableStateOf(true) }
-    var isVideoFullScreen by remember { mutableStateOf(false) }
-    // Has a frame to display (even if stream ended, show last frame)
-    val hasVideoFrame = videoFrame != null
-    // Stream is actively receiving new frames
-    val isStreamActive = isStreamActive
-
-    // Auto-close video when stream ends (like pressing X button)
-    LaunchedEffect(isStreamActive) {
-        if (!isStreamActive && hasVideoFrame) {
-            // Give user 1 second to see "ENDED" badge, then close
-            kotlinx.coroutines.delay(1000)
-            showVideo = false
-        }
-    }
-    LaunchedEffect(showVideo) {
-        if (!showVideo) {
-            isVideoFullScreen = false
-        }
-    }
-
     Box(
         modifier =
             Modifier
@@ -234,17 +273,7 @@ fun ScreenContentAnswer(
                 textAlign = TextAlign.Center,
             )
 
-            // Compact video preview first
-            if (hasVideoFrame && showVideo) {
-                CompactVideoPreview(
-                    videoFrame = videoFrame,
-                    isLive = isStreamActive,
-                    onExpand = { isVideoFullScreen = true },
-                    onClose = { showVideo = false },
-                )
-            }
-
-            // All other views below compact preview
+            // Main content
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -275,38 +304,13 @@ fun ScreenContentAnswer(
                     )
                 }
 
-                // Transaction Signing Area (when connected)
-                if (isConnected) {
-                    TransactionSigningArea(
-                        onSignClick = { /* Launch signing flow */ },
-                        isReady = true,
-                    )
-                }
 
                 // Account Info Card
                 if (accountAddress.isNotEmpty()) {
                     AccountInfoCard(accountAddress = accountAddress)
                 }
 
-                // Video stream indicator (when video is hidden but available)
-                if (isStreamActive && !showVideo) {
-                    VideoAvailableIndicator(
-                        onShowVideo = { showVideo = true },
-                    )
-                }
-
-                // Stream ended indicator (when video was showing but stream stopped)
-                if (!isStreamActive && videoFrame != null) {
-                    StreamEndedIndicator()
-                }
             }
-        }
-        if (hasVideoFrame && showVideo && isVideoFullScreen) {
-            FullScreenVideoPreview(
-                videoFrame = videoFrame,
-                isLive = isStreamActive,
-                onClose = { isVideoFullScreen = false },
-            )
         }
     }
 }
@@ -425,336 +429,6 @@ private fun ConnectionStatusCard(
     }
 }
 
-/**
- * Transaction Signing Area
- */
-@Composable
-private fun TransactionSigningArea(
-    onSignClick: () -> Unit,
-    isReady: Boolean,
-) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.layerGray,
-            ),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = "Ready to Sign",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = AlgoKitTheme.colors.textMain,
-            )
-
-            Text(
-                text = "Transactions from connected dApp will appear here for your approval.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = AlgoKitTheme.colors.textGray,
-                textAlign = TextAlign.Center,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Placeholder for transaction details
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(100.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(AlgoKitTheme.colors.background)
-                        .padding(16.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "Waiting for transaction request...",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AlgoKitTheme.colors.textGray,
-                )
-            }
-        }
-    }
-}
-
-/**
- * Compact Video Preview - Floating overlay in corner
- */
-@Composable
-private fun CompactVideoPreview(
-    videoFrame: AnswerViewModel.VideoFrameData,
-    isLive: Boolean,
-    onExpand: () -> Unit,
-    onClose: () -> Unit,
-) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(220.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = Color.Black,
-            ),
-    ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Video frame display
-            val aspectRatio = if (videoFrame.height > 0) videoFrame.width.toFloat() / videoFrame.height else 4f / 3f
-            VideoFrameDisplay(
-                frameData = videoFrame.data,
-                aspectRatio = aspectRatio,
-            )
-
-            Row(
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp),
-            ) {
-                IconButton(onClick = onExpand) {
-                    Icon(
-                        imageVector = Icons.Default.Fullscreen,
-                        contentDescription = "Open video full screen",
-                        tint = Color.White,
-                    )
-                }
-                IconButton(onClick = onClose) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Close video",
-                        tint = Color.White,
-                    )
-                }
-            }
-
-            // Live/Ended indicator
-            Row(
-                modifier =
-                    Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(6.dp)
-                            .clip(RoundedCornerShape(3.dp))
-                            .background(if (isLive) Color.White else Color.Transparent),
-                )
-                Spacer(modifier = Modifier.size(4.dp))
-                Text(
-                    text = if (isLive) "LIVE" else "ENDED",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun FullScreenVideoPreview(
-    videoFrame: AnswerViewModel.VideoFrameData,
-    isLive: Boolean,
-    onClose: () -> Unit,
-) {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black),
-    ) {
-        FullScreenFrameDisplay(frameData = videoFrame.data)
-        Row(
-            modifier =
-                Modifier
-                    .align(Alignment.TopEnd),
-        ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Default.FullscreenExit,
-                    contentDescription = "Exit full screen",
-                    tint = Color.White,
-                )
-            }
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Close video",
-                    tint = Color.White,
-                )
-            }
-        }
-        Row(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomStart)
-                    .navigationBarsPadding()
-                    .padding(start = 12.dp, bottom = 12.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isLive) AlgoKitTheme.colors.negative else AlgoKitTheme.colors.layerGray)
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(8.dp)
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isLive) Color.White else Color.Transparent),
-            )
-            Spacer(modifier = Modifier.size(6.dp))
-            Text(
-                text = if (isLive) "LIVE" else "ENDED",
-                color = Color.White,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-@Composable
-private fun FullScreenFrameDisplay(frameData: ByteArray) {
-    val bitmap =
-        remember(frameData) {
-            try {
-                BitmapFactory.decodeByteArray(frameData, 0, frameData.size)
-            } catch (e: Exception) {
-                null
-            }
-        }
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(Color.Black),
-        contentAlignment = Alignment.Center,
-    ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "Full screen video frame",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-            )
-        } else {
-            Text(
-                text = "Failed to decode frame",
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-        }
-    }
-}
-
-/**
- * Indicator shown when video is available but hidden
- */
-@Composable
-private fun VideoAvailableIndicator(onShowVideo: () -> Unit) {
-    Card(
-        onClick = onShowVideo,
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.layerGray,
-            ),
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .size(12.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(AlgoKitTheme.colors.negative),
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                Text(
-                    text = "Camera feed available",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = AlgoKitTheme.colors.textMain,
-                )
-            }
-            Text(
-                text = "Show ",
-                style = MaterialTheme.typography.bodyMedium,
-                color = AlgoKitTheme.colors.linkPrimary,
-                fontWeight = FontWeight.Bold,
-            )
-        }
-    }
-}
-
-/**
- * Stream ended indicator
- */
-@Composable
-private fun StreamEndedIndicator() {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.layerGrayLighter,
-            ),
-    ) {
-        Row(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(12.dp)
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(AlgoKitTheme.colors.textGray),
-            )
-            Text(
-                text = "Stream ended - broadcaster stopped",
-                style = MaterialTheme.typography.bodyMedium,
-                color = AlgoKitTheme.colors.textMain,
-            )
-        }
-    }
-}
-
 @PreviewLightDark()
 @Composable
 private fun ScreenContentAnswerPreviewWaiting() {
@@ -769,24 +443,13 @@ private fun ScreenContentAnswerPreviewWaiting() {
             origin = null,
             requestId = null,
             accountAddress = "A1B2C3D4E5F6G7H8I9J0",
-            videoFrame = null,
-            isStreamActive = false,
         )
     }
 }
 
 @PreviewLightDark()
 @Composable
-private fun ScreenContentAnswerPreviewConnectedWithVideo() {
-    val sampleFrame =
-        AnswerViewModel.VideoFrameData(
-            id = "preview-frame",
-            timestamp = 0L,
-            data = byteArrayOf(),
-            width = 640,
-            height = 480,
-            format = "jpeg",
-        )
+private fun ScreenContentAnswerPreviewConnected() {
     AlgoKitTheme {
         ScreenContentAnswer(
             isConnected = true,
@@ -798,31 +461,8 @@ private fun ScreenContentAnswerPreviewConnectedWithVideo() {
             origin = "https://demo.algokit.io",
             requestId = "preview-req-123",
             accountAddress = "A1B2C3D4E5F6G7H8I9J0",
-            videoFrame = sampleFrame,
-            isStreamActive = true,
             paymentBalance = "0.8",
             fundsDepleted = false,
-        )
-    }
-}
-
-@PreviewLightDark()
-@Composable
-private fun FullScreenVideoPreviewExpandedPreview() {
-    val sampleFrame =
-        AnswerViewModel.VideoFrameData(
-            id = "expanded-preview-frame",
-            timestamp = 0L,
-            data = byteArrayOf(),
-            width = 640,
-            height = 480,
-            format = "jpeg",
-        )
-    AlgoKitTheme {
-        FullScreenVideoPreview(
-            videoFrame = sampleFrame,
-            isLive = true,
-            onClose = {},
         )
     }
 }
