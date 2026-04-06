@@ -436,7 +436,7 @@ fun LiquidAuthOfferScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun LiquidAuthOfferScreenContent(
+ fun LiquidAuthOfferScreenContent(
     showTopBar: Boolean,
     title: @Composable () -> Unit,
     onBackPressed: (() -> Unit)?,

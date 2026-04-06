@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_lock
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -87,21 +89,26 @@ fun LiquidAuthSessionVaultModal(
                         .align(Alignment.Center)
                         .padding(horizontal = 11.dp)
                         .fillMaxWidth()
-                        .widthIn(max = 356.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .border(1.dp, Color(0x4DB5E6E8), RoundedCornerShape(20.dp))
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(Color(0xFF2A3B4E), Color(0xFF0D2A46), Color(0xFF001423)),
-                            ),
-                        ),
+                        .widthIn(max = 356.dp),
             ) {
-                Column(
+                Box(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .padding(start = 24.dp, end = 24.dp, top = 52.dp, bottom = 0.dp),
+                            .clip(RoundedCornerShape(20.dp))
+                            .border(1.dp, Color(0x4DB5E6E8), RoundedCornerShape(20.dp))
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(Color(0xFF2A3B4E), Color(0xFF0D2A46), Color(0xFF001423)),
+                                ),
+                            ),
                 ) {
+                    Column(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 24.dp, end = 24.dp, top = 52.dp, bottom = 0.dp),
+                    ) {
                     Text(
                         text = "Session Vault Locked",
                         color = Color.White,
@@ -309,19 +316,20 @@ fun LiquidAuthSessionVaultModal(
                     }
                 }
 
+                }
+
                 Box(
                     modifier =
                         Modifier
                             .align(Alignment.TopCenter)
-                            .offset(y = (-18).dp)
-                            .size(58.dp),
+                            .offset(y = (-24).dp)
+                            .size(52.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        vectorResource(Res.drawable.ic_lock),
+                    Image(
+                        painter = painterResource(Res.drawable.ic_lock),
                         contentDescription = null,
-                        tint = Color(0xFF001423),
-                        modifier = Modifier.size(24.dp),
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
             }

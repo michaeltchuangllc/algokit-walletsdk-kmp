@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_lock
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_minimise
@@ -50,6 +51,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -93,14 +95,6 @@ fun LiquidAuthViewerScreen(
                                 ),
                         ),
                     ),
-        )
-        Box(
-            modifier =
-                Modifier
-                    .size(126.dp)
-                    .align(Alignment.Center)
-                    .clip(CircleShape)
-                    .background(Color(0x1FFFFFFF)),
         )
 
         Column(
@@ -245,23 +239,34 @@ private fun Header(onMinimize: () -> Unit) {
             }
         }
 
-        Box(
-            modifier =
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0x32FFFFFF))
-                    .border(1.dp, Color(0x40FFFFFF), RoundedCornerShape(14.dp))
-                    .clickable(onClick = onMinimize),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                vectorResource(Res.drawable.ic_minimise),
-                contentDescription = null,
-                tint = Color(0xFFB9EFEF),
-                modifier = Modifier.size(18.dp),
-            )
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            TopSquareIconButton(icon = Res.drawable.ic_dark_setting, onClick = {})
+            TopSquareIconButton(icon = Res.drawable.ic_minimise, onClick = onMinimize)
         }
+    }
+}
+
+@Composable
+private fun TopSquareIconButton(
+    icon: DrawableResource,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier =
+            Modifier
+                .size(45.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0x2EFFFFFF))
+                .border(1.dp, Color(0x35FFFFFF), RoundedCornerShape(16.dp))
+                .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            vectorResource(icon),
+            contentDescription = null,
+            tint = Color(0xFFB9EFEF),
+            modifier = Modifier.size(24.dp),
+        )
     }
 }
 

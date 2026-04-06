@@ -276,7 +276,7 @@ private fun TopSquareIconButton(
         Icon(
             vectorResource(icon),
             contentDescription = null,
-            tint = Color(0xFFE8EEF2),
+            tint = Color(0xFFB9EFEF),
             modifier = Modifier.size(24.dp),
         )
     }
