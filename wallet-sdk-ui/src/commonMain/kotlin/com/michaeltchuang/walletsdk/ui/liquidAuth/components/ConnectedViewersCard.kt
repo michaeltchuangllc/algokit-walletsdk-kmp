@@ -57,7 +57,7 @@ internal fun ConnectedViewersCard(
     val badgeText =
         buildString {
             append("WEBRTC")
-            currentBlockNumber?.let { append(" • ${blockChainLabel.uppercase()} $networkLabel #$it") }
+            currentBlockNumber?.let { append(" • ALGORAND $networkLabel #$it") }
         }
 
     Card(
