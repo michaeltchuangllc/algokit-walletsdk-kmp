@@ -78,6 +78,9 @@ class LiquidAuthOfferViewModel(
     // Real-time block polling job (for UI block number updates)
     private var blockNumberPollingJob: Job? = null
 
+    // Payment consumption monitor job (must be singleton to avoid double-deduction)
+    private var blockchainMonitorJob: Job? = null
+
     // Cost per block (0.1 ALGO = 100,000 microAlgos)
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_ALGOS = 1_000_000L // 1 ALGO
@@ -257,6 +260,8 @@ class LiquidAuthOfferViewModel(
      * Called when client disconnects
      */
     fun onClientDisconnected() {
+        blockchainMonitorJob?.cancel()
+        blockchainMonitorJob = null
         val currentState = state.value
         when (currentState) {
             is OfferState.Connected -> {
@@ -576,6 +581,8 @@ class LiquidAuthOfferViewModel(
      * Reset payment state (when stream ends)
      */
     fun resetPaymentState() {
+        blockchainMonitorJob?.cancel()
+        blockchainMonitorJob = null
         _paymentState.value = PaymentState.NoPayment
         _remainingBalanceMicroAlgos.value = null
         paymentSessionId = null
@@ -588,60 +595,70 @@ class LiquidAuthOfferViewModel(
      * Polls every 1 second and only calls consumeBlock() when block number changes.
      */
     fun monitorBlockchainBlocks() {
-        viewModelScope.launch {
-            println("🔗 Starting blockchain block monitoring...")
-            var lastBlockNumber: Long? = null
+        if (blockchainMonitorJob?.isActive == true) {
+            println("🔗 Blockchain block monitoring already active - skipping duplicate start")
+            return
+        }
 
-            while (_paymentState.value is PaymentState.StreamingWithBalance) {
-                getCurrentBlockUseCase().collect { result ->
-                    when (result) {
-                        is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
-                            val currentBlock = result.data
+        blockchainMonitorJob =
+            viewModelScope.launch {
+                println("🔗 Starting blockchain block monitoring...")
+                var lastBlockNumber: Long? = null
 
-                            // Update current block number for UI
-                            _currentBlockNumber.value = currentBlock
+                try {
+                    while (_paymentState.value is PaymentState.StreamingWithBalance) {
+                        getCurrentBlockUseCase().collect { result ->
+                            when (result) {
+                                is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
+                                    val currentBlock = result.data
 
-                            println("🔗 Current block: $currentBlock (last: $lastBlockNumber)")
+                                    // Update current block number for UI
+                                    _currentBlockNumber.value = currentBlock
 
-                            when {
-                                lastBlockNumber == null -> {
-                                    // First poll - just store the block number
-                                    lastBlockNumber = currentBlock
-                                    println("🔗 Initial block stored: $currentBlock")
-                                }
-                                currentBlock > lastBlockNumber!! -> {
-                                    // New block detected - consume it
-                                    val blocksAdvanced = (currentBlock - lastBlockNumber!!).toInt()
-                                    println("🔗 New block(s) detected! Advanced by $blocksAdvanced blocks")
+                                    println("🔗 Current block: $currentBlock (last: $lastBlockNumber)")
 
-                                    // Consume block for each new block (usually 1, but could be more if we missed some)
-                                    repeat(blocksAdvanced) {
-                                        consumeBlock()
+                                    when {
+                                        lastBlockNumber == null -> {
+                                            // First poll - just store the block number
+                                            lastBlockNumber = currentBlock
+                                            println("🔗 Initial block stored: $currentBlock")
+                                        }
+                                        currentBlock > lastBlockNumber!! -> {
+                                            // New block detected - consume it
+                                            val blocksAdvanced = (currentBlock - lastBlockNumber!!).toInt()
+                                            println("🔗 New block(s) detected! Advanced by $blocksAdvanced blocks")
+
+                                            // Consume block for each new block (usually 1, but could be more if we missed some)
+                                            repeat(blocksAdvanced) {
+                                                consumeBlock()
+                                            }
+
+                                            lastBlockNumber = currentBlock
+                                        }
+                                        else -> {
+                                            // Same block, no action needed
+                                            println("🔗 Same block $currentBlock, no consumption")
+                                        }
                                     }
-
-                                    lastBlockNumber = currentBlock
                                 }
-                                else -> {
-                                    // Same block, no action needed
-                                    println("🔗 Same block $currentBlock, no consumption")
+                                is com.michaeltchuang.walletsdk.utils.DataResource.Error -> {
+                                    println("🔗❌ Failed to get current block: ${result.exception}")
+                                }
+                                is com.michaeltchuang.walletsdk.utils.DataResource.Loading -> {
+                                    // Loading state, ignore
                                 }
                             }
                         }
-                        is com.michaeltchuang.walletsdk.utils.DataResource.Error -> {
-                            println("🔗❌ Failed to get current block: ${result.exception}")
-                        }
-                        is com.michaeltchuang.walletsdk.utils.DataResource.Loading -> {
-                            // Loading state, ignore
-                        }
+
+                        // Wait 1 second before next poll (faster updates, ~60 req/min to Algonode)
+                        delay(1000)
                     }
+
+                    println("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
+                } finally {
+                    blockchainMonitorJob = null
                 }
-
-                // Wait 1 second before next poll (faster updates, ~60 req/min to Algonode)
-                delay(1000)
             }
-
-            println("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
-        }
     }
 
     private suspend fun handlePaymentConfirmed(txId: String) {

@@ -45,7 +45,7 @@ internal fun ConnectedViewersCard(
     viewerAddress: String? = null,
 ) {
     val balanceText = (round(balanceAlgos * 100) / 100).toString()
-    val streamCost = if (connectionType == IceConnectionType.RELAY) "0.005" else "0.001"
+    val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
     val progress = (balanceAlgos / 1.0).coerceIn(0.0, 1.0).toFloat()
     val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
     val originDisplay =
@@ -85,13 +85,13 @@ internal fun ConnectedViewersCard(
                 MetricBlock(
                     label = "SESSION VAULT",
                     value = balanceText,
-                    unit = if (balanceCurrencySymbol == "S") "SOL" else "USDC",
+                    unit = if (balanceCurrencySymbol == "S") "SOL" else "ALGO",
                     alignEnd = false,
                 )
                 MetricBlock(
                     label = "STREAM COST",
                     value = streamCost,
-                    unit = "USDC/BLOCK+GAS",
+                    unit = if (balanceCurrencySymbol == "S") "SOL/BLOCK+GAS" else "ALGO/BLOCK+GAS",
                     alignEnd = true,
                 )
             }

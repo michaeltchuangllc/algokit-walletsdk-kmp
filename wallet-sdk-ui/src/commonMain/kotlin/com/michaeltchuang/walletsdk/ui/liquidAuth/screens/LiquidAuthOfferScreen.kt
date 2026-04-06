@@ -379,12 +379,14 @@ fun LiquidAuthOfferScreen(
                 }
 
                 is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
-                    // Stop everything when funds depleted
+                    // Stop billing loop, but keep host UI mounted so stream screen doesn't close/reopen.
                     currentConnectionManager?.stopBlockConsumption()
-                    viewModel.stopVideoStreaming() // Stop the video feed
+                    viewModel.stopVideoStreaming() // Transition to Connected while keeping live host UI visible
                     println("💰 Funds depleted! Stopping stream and block consumption")
                     println("💰 Viewer must pay again to resume streaming")
-                    streamHostUiMode.value = StreamHostUiMode.Hidden
+                    if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                        streamHostUiMode.value = StreamHostUiMode.Expanded
+                    }
                     currentCreatorAddress?.let { address ->
                         println("💰 Requesting additional payment from viewer...")
                         viewModel.requestPaymentFromClient(address)

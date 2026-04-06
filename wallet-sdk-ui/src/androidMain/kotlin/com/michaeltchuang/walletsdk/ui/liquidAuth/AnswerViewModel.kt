@@ -489,8 +489,14 @@ class AnswerViewModel(
                 return
             }
 
-            // Check for X402 payment messages (look for unique fields: amountMicroAlgos + creatorAddress)
-            if (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) {
+            // Check for X402 payment messages (request/response/balance/depleted)
+            val isX402PaymentMessage =
+                msgStr.contains("\"reference\":\"liquid:payment:") ||
+                    (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) ||
+                    msgStr.contains("\"remainingMicroAlgos\"") ||
+                    msgStr.contains("\"remainingBlocks\"") ||
+                    msgStr.contains("\"totalBlocksWatched\"")
+            if (isX402PaymentMessage) {
                 Napier.d(tag = TAG, message = "💰 X402 payment message detected: ${msgStr.take(100)}...")
                 handleX402PaymentMessage(msgStr)
                 return

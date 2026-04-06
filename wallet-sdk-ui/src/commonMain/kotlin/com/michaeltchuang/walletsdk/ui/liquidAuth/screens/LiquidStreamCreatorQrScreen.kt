@@ -101,7 +101,7 @@ fun LiquidStreamCreatorQrScreen(
             ) { innerPadding ->
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                     LiquidAuthViewerScreen(
-                        onClose = { showViewerBottomSheet = false },
+                        onMinimize = { showViewerBottomSheet = false },
                     )
                 }
             }

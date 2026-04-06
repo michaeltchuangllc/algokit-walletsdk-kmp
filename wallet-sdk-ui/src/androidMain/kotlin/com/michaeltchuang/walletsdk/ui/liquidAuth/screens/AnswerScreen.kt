@@ -168,7 +168,8 @@ fun AnswerScreen(
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
                     originUrl = message?.origin.orEmpty().ifBlank { "-" },
-                    onClose = {
+                    balanceAlgos = paymentBalanceFromState?.toDoubleOrNull() ?: 0.0,
+                    onMinimize = {
                         Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
                         onMinimizeToPip()
                     },
@@ -199,9 +200,10 @@ fun AnswerScreen(
             Log.d("AnswerScreen", "🎭 Showing SessionVault payment dialog")
             LiquidAuthSessionVaultModal(
                 initialAmount = amountText,
-                quickAmounts = listOf(amountText, (amount * 4.0).toString()),
+                quickAmounts = listOf(amountText, (amount * 8.0).toString()),
                 currencyLabel = if (isSolanaAccount) "SOL" else "ALGO",
                 isProcessing = isPaymentProcessing,
+                isDismissible = false,
                 onDismiss = {
                     if (!isPaymentProcessing) {
                         // When funds are depleted, keep prompt sticky until payment succeeds.

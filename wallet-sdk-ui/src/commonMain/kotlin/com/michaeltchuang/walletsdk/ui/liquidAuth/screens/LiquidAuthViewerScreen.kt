@@ -58,11 +58,12 @@ fun LiquidAuthViewerScreen(
     sessionId: String = "",
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
-    onClose: () -> Unit = {},
+    onMinimize: () -> Unit = {},
     viewerAddress: String = "-",
     originUrl: String = "-",
     networkLabel: String = "TESTNET",
     currentBlockNumber: Long? = null,
+    balanceAlgos: Double = 0.0,
 ) {
     var showAnalyticsModal by remember { mutableStateOf(false) }
 
@@ -113,11 +114,11 @@ fun LiquidAuthViewerScreen(
         ) {
 
             Spacer(Modifier.height(14.dp))
-            Header(onClose = onClose)
+            Header(onMinimize = onMinimize)
             Spacer(Modifier.height(20.dp))
-            GiftTickerCard()
+            // GiftTickerCard()
             Spacer(Modifier.weight(1f))
-            ChatStack()
+            // ChatStack()
             Spacer(Modifier.height(16.dp))
             FloatingButtons(onAnalyticsClick = { showAnalyticsModal = !showAnalyticsModal })
             Spacer(Modifier.height(20.dp))
@@ -148,7 +149,7 @@ fun LiquidAuthViewerScreen(
                 ) {
                     ConnectedViewersCard(
                         sessionId = sessionId.ifBlank { "session-pending" },
-                        balanceAlgos = 0.0,
+                        balanceAlgos = balanceAlgos,
                         connectionType = connectionType,
                         currentBlockNumber = currentBlockNumber,
                         networkLabel = networkLabel,
@@ -189,7 +190,7 @@ private fun StreamStatusRow(
 }
 
 @Composable
-private fun Header(onClose: () -> Unit) {
+private fun Header(onMinimize: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -251,7 +252,7 @@ private fun Header(onClose: () -> Unit) {
                     .clip(RoundedCornerShape(14.dp))
                     .background(Color(0x32FFFFFF))
                     .border(1.dp, Color(0x40FFFFFF), RoundedCornerShape(14.dp))
-                    .clickable(onClick = onClose),
+                    .clickable(onClick = onMinimize),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
