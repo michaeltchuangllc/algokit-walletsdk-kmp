@@ -20,6 +20,7 @@ class PasskeysScreenshotTest(
                         domain = "github.com",
                         lastUsed = "8 days ago",
                         username = "michaeltchuang",
+                        accountType = "",
                     ),
                     PasskeysViewModel.Passkey(
                         credId = "credId124",
@@ -27,6 +28,7 @@ class PasskeysScreenshotTest(
                         domain = "michaeltchuang.ngrok.dev",
                         lastUsed = "5d ago",
                         username = "6ZTU...RCGY",
+                        accountType = "",
                     ),
                 )
             val fakeViewState = PasskeysViewModel.ViewState.Content(passkeys = fakePasskeys)

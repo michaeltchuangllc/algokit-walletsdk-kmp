@@ -2,44 +2,71 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
@@ -50,6 +77,107 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
+
+enum class StreamHostUiMode {
+    Hidden,
+    Expanded,
+    Minimized,
+}
+
+@Composable
+fun LiquidAuthMiniPlayerOverlay(
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    miniPlayerSize: DpSize = DpSize(width = 180.dp, height = 320.dp),
+    defaultMargin: Float? = null,
+    defaultBottomPadding: Float? = null,
+) {
+    val density = LocalDensity.current
+    var containerSizePx by remember { mutableStateOf(IntSize.Zero) }
+    var miniPlayerOffsetPx by remember { mutableStateOf<Offset?>(null) }
+    val defaultMarginPx = defaultMargin ?: with(density) { 16.dp.toPx() }
+    val defaultBottomPaddingPx = defaultBottomPadding ?: with(density) { 132.dp.toPx() }
+    val miniPlayerWidthPx = with(density) { miniPlayerSize.width.toPx() }
+    val miniPlayerHeightPx = with(density) { miniPlayerSize.height.toPx() }
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .onSizeChanged { containerSizePx = it },
+    ) {
+        if (streamHostUiModeState.value == StreamHostUiMode.Minimized) {
+            val maxX = (containerSizePx.width - miniPlayerWidthPx).coerceAtLeast(0f)
+            val maxY = (containerSizePx.height - miniPlayerHeightPx).coerceAtLeast(0f)
+            val anchoredOffset =
+                miniPlayerOffsetPx
+                    ?: Offset(
+                        x = (containerSizePx.width - miniPlayerWidthPx - defaultMarginPx).coerceAtLeast(0f),
+                        y = (containerSizePx.height - miniPlayerHeightPx - defaultBottomPaddingPx).coerceAtLeast(0f),
+                    )
+            val clampedOffset =
+                Offset(
+                    x = anchoredOffset.x.coerceIn(0f, maxX),
+                    y = anchoredOffset.y.coerceIn(0f, maxY),
+                )
+            if (miniPlayerOffsetPx != clampedOffset) {
+                miniPlayerOffsetPx = clampedOffset
+            }
+
+            Box(
+                modifier =
+                    Modifier
+                        .offset {
+                            IntOffset(
+                                x = clampedOffset.x.toInt(),
+                                y = clampedOffset.y.toInt(),
+                            )
+                        }.size(miniPlayerSize)
+                        .shadow(8.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(16.dp))
+                        .pointerInput(containerSizePx, miniPlayerSize) {
+                            detectDragGestures(
+                                onDragStart = {},
+                                onDragEnd = {},
+                                onDragCancel = {},
+                            ) { _, dragAmount ->
+                                val current = miniPlayerOffsetPx ?: clampedOffset
+                                miniPlayerOffsetPx =
+                                    Offset(
+                                        x = (current.x + dragAmount.x).coerceIn(0f, maxX),
+                                        y = (current.y + dragAmount.y).coerceIn(0f, maxY),
+                                    )
+                            }
+                        }.clickable {
+                            streamHostUiModeState.value = StreamHostUiMode.Expanded
+                        },
+            ) {
+                miniPlayerCameraPreviewState.value?.invoke()
+                IconButton(
+                    onClick = {
+                        streamHostUiModeState.value = StreamHostUiMode.Hidden
+                        onClose()
+                    },
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close mini player",
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
 
 /**
  * Liquid Auth Offer Screen with WebRTC video streaming support
@@ -84,12 +212,30 @@ fun LiquidAuthOfferScreen(
     paymentCurrencyLabel: String = "ALGO",
     blockChainLabel: String = "Algorand",
     balanceCurrencySymbol: String = "S",
+    onMinimise: () -> Unit = {},
+    streamHostUiModeState: MutableState<StreamHostUiMode>? = null,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>? = null,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>? = null,
+    cameraPreviewController: CameraStreamingPreviewController? = null,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
+    val currentNetworkLabel by viewModel.currentNetworkLabel.collectAsStateWithLifecycle()
+    val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val isAnalyticsModalVisible = remember { mutableStateOf(false) }
+    val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
+    miniPlayerCameraPreviewState?.value = cameraPreview
+    miniPlayerOnCloseActionState?.value = {
+        viewModel.stopVideoStreaming()
+        connectionManager?.stopBlockConsumption()
+        connectionManager?.stopListening()
+        streamHostUiMode.value = StreamHostUiMode.Hidden
+        viewModel.regenerateOffer(origin)
+    }
 
     // Convert microAlgos to AlgOS for display
     val balanceAlgos = remainingBalanceMicroAlgos?.let { it / 1_000_000.0 }
@@ -105,6 +251,32 @@ fun LiquidAuthOfferScreen(
             println("🔗 Initializing connection manager with viewModel")
             connectionManager.initialize(viewModel)
             println("🔗 Connection manager initialized")
+        }
+    }
+
+    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value, paymentState) {
+        when (state) {
+            is LiquidAuthOfferViewModel.OfferState.Connected,
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+            -> {
+                if (isAnalyticsModalVisible.value && streamHostUiMode.value == StreamHostUiMode.Expanded) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
+
+                // Ensure billing/deduction loop is running whenever paid streaming is active.
+                if (paymentState is LiquidAuthOfferViewModel.PaymentState.StreamingWithBalance) {
+                    viewModel.getCurrentSessionId()?.let { sessionId ->
+                        connectionManager?.startBlockConsumption(sessionId)
+                    }
+                }
+            }
+            else -> {
+                viewModel.stopRealtimeBlockNumberUpdates()
+                connectionManager?.stopBlockConsumption()
+            }
         }
     }
 
@@ -130,16 +302,30 @@ fun LiquidAuthOfferScreen(
                     requestId = currentState.requestId,
                 )
             }
+
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             -> {
                 println("🔗 Connection established - service handling")
+                if (isAnalyticsModalVisible.value) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
             }
+
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
                 println("🔗 Waiting for payment - keeping connection open")
+                if (isAnalyticsModalVisible.value) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
             }
+
             else -> {
                 println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
+                viewModel.stopRealtimeBlockNumberUpdates()
                 connectionManager.stopListening()
             }
         }
@@ -169,6 +355,7 @@ fun LiquidAuthOfferScreen(
                         )
                     }
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
                     // Send payment request to client via data channel
                     val connected = currentConnectionManager?.isConnected()
@@ -176,23 +363,36 @@ fun LiquidAuthOfferScreen(
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
                     println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
                     // Start block consumption when payment received
                     println("💰 PaymentReceived event received!")
+                    // Ensure only one block poller is active (<= 1 network call per second)
+                    viewModel.stopRealtimeBlockNumberUpdates()
                     val sessionId = viewModel.getCurrentSessionId()
                     if (sessionId != null) {
                         currentConnectionManager?.startBlockConsumption(sessionId)
                         println("💰 Payment received! Starting block consumption")
                     }
                 }
+
                 is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
-                    // Stop everything when funds depleted
+                    // Stop billing loop, but keep host UI mounted so stream screen doesn't close/reopen.
                     currentConnectionManager?.stopBlockConsumption()
-                    viewModel.stopVideoStreaming() // Stop the video feed
+                    viewModel.stopVideoStreaming() // Transition to Connected while keeping live host UI visible
                     println("💰 Funds depleted! Stopping stream and block consumption")
                     println("💰 Viewer must pay again to resume streaming")
+                    if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                        streamHostUiMode.value = StreamHostUiMode.Expanded
+                    }
+                    currentCreatorAddress?.let { address ->
+                        println("💰 Requesting additional payment from viewer...")
+                        viewModel.requestPaymentFromClient(address)
+                    }
                 }
-                else -> { /* other events */ }
+
+                else -> { // other events
+                }
             }
         }
     }
@@ -200,6 +400,7 @@ fun LiquidAuthOfferScreen(
     // Cleanup
     DisposableEffect(Unit) {
         onDispose {
+            viewModel.stopRealtimeBlockNumberUpdates()
             connectionManager?.stopListening()
             connectionManager?.stopBlockConsumption()
         }
@@ -211,48 +412,49 @@ fun LiquidAuthOfferScreen(
         onBackPressed = onBackPressed,
         headerContent = headerContent,
         state = state,
+        cameraPreview = cameraPreview,
+        onRegenerate = { viewModel.regenerateOffer(origin) },
+        onStopStreaming = { viewModel.stopVideoStreaming() },
+        onRetry = { viewModel.regenerateOffer(origin) },
+        onMinimise = onMinimise,
+        streamHostUiMode = streamHostUiMode,
+        cameraPreviewController = resolvedCameraPreviewController,
+        paymentCurrencyLabel = paymentCurrencyLabel,
+        networkLabel = currentNetworkLabel,
         connectionType = connectionType,
         balanceAlgos = balanceAlgos,
         currentBlockNumber = currentBlockNumber,
-        cameraPreview = cameraPreview,
-        onRegenerate = { viewModel.regenerateOffer(origin) },
-        onStartCamera = { viewModel.startVideoStreaming() },
-        onDisconnect = { connectionManager?.stopListening() },
-        onRequestPayment = {
-            currentCreatorAddress?.let { address ->
-                println("💰 Requesting additional payment from viewer...")
-                viewModel.requestPaymentFromClient(address)
-            }
-        },
-        onStopStreaming = { viewModel.stopVideoStreaming() },
-        onRetry = { viewModel.regenerateOffer(origin) },
-        paymentCurrencyLabel = paymentCurrencyLabel,
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
+        originUrl = origin,
+        onStatsModalVisibilityChanged = { isAnalyticsModalVisible.value = it },
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun LiquidAuthOfferScreenContent(
+fun LiquidAuthOfferScreenContent(
     showTopBar: Boolean,
     title: @Composable () -> Unit,
     onBackPressed: (() -> Unit)?,
     headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
+    cameraPreview: @Composable (() -> Unit)?,
+    onRegenerate: () -> Unit,
+    onStopStreaming: () -> Unit,
+    onRetry: () -> Unit,
+    onMinimise: () -> Unit,
+    streamHostUiMode: MutableState<StreamHostUiMode>,
+    cameraPreviewController: CameraStreamingPreviewController,
+    paymentCurrencyLabel: String = "ALGO",
+    networkLabel: String = "TESTNET",
     connectionType: IceConnectionType,
     balanceAlgos: Double?,
     currentBlockNumber: Long?,
-    cameraPreview: @Composable (() -> Unit)?,
-    onRegenerate: () -> Unit,
-    onStartCamera: () -> Unit,
-    onDisconnect: () -> Unit,
-    onRequestPayment: () -> Unit,
-    onStopStreaming: () -> Unit,
-    onRetry: () -> Unit,
-    paymentCurrencyLabel: String = "ALGO",
     blockChainLabel: String = "Algorand",
     balanceCurrencySymbol: String = "A",
+    originUrl: String = "-",
+    onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
 ) {
     Scaffold(
         topBar = {
@@ -302,49 +504,13 @@ internal fun LiquidAuthOfferScreenContent(
                     )
                 }
 
-                is LiquidAuthOfferViewModel.OfferState.Connected -> {
-                    ConnectedSection(
-                        sessionId = currentState.sessionId,
-                        connectionType = connectionType,
-                        balanceAlgos = balanceAlgos,
-                        onStartCamera = onStartCamera,
-                        onDisconnect = onDisconnect,
-                        onRequestPayment = onRequestPayment,
-                        showStartButton = true,
-                        paymentCurrencyLabel = paymentCurrencyLabel,
-                    )
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
-                    WaitingForPaymentSection(
-                        sessionId = currentState.sessionId,
-                        connectionType = connectionType,
-                        balanceAlgos = balanceAlgos,
-                        paymentRequest = currentState.paymentRequest,
-                        onDisconnect = onDisconnect,
-                        paymentCurrencyLabel = paymentCurrencyLabel,
-                    )
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.Streaming -> {
-                    StreamingSection(
-                        sessionId = currentState.sessionId,
-                        connectionType = connectionType,
-                        onStopStreaming = onStopStreaming,
-                        onDisconnect = onDisconnect,
-                        cameraPreview = cameraPreview,
-                    )
-
-                    // Connected Viewers List (shows current viewer and their balance)
-                    if (balanceAlgos != null) {
-                        ConnectedViewersCard(
-                            sessionId = currentState.sessionId,
-                            balanceAlgos = balanceAlgos,
-                            connectionType = connectionType,
-                            currentBlockNumber = currentBlockNumber,
-                            blockChainLabel = blockChainLabel,
-                            balanceCurrencySymbol = balanceCurrencySymbol,
-                        )
+                is LiquidAuthOfferViewModel.OfferState.Streaming,
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+                is LiquidAuthOfferViewModel.OfferState.Connected,
+                -> {
+                    // Stream host UI is controlled below so it dismisses only on stop.
+                    if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                        streamHostUiMode.value = StreamHostUiMode.Expanded
                     }
                 }
 
@@ -362,6 +528,131 @@ internal fun LiquidAuthOfferScreenContent(
             }
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
+        val sessionIdForStats =
+            when (state) {
+                is LiquidAuthOfferViewModel.OfferState.Connected -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.Streaming -> state.sessionId
+                else -> null
+            }
+
+        StreamHostBottomSheet(
+            cameraPreview = cameraPreview,
+            cameraPreviewController = cameraPreviewController,
+            onStatsClick = {},
+            onMinimise = {
+                streamHostUiMode.value = StreamHostUiMode.Minimized
+                onMinimise()
+            },
+            onDismiss = {
+                streamHostUiMode.value = StreamHostUiMode.Minimized
+                onMinimise()
+            },
+            sessionId = sessionIdForStats,
+            balanceAlgos = balanceAlgos,
+            connectionType = connectionType,
+            currentBlockNumber = currentBlockNumber,
+            networkLabel = networkLabel,
+            blockChainLabel = blockChainLabel,
+            balanceCurrencySymbol = balanceCurrencySymbol,
+            originUrl = originUrl,
+            onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StreamHostBottomSheet(
+    cameraPreview: @Composable (() -> Unit)?,
+    cameraPreviewController: CameraStreamingPreviewController,
+    onStatsClick: () -> Unit,
+    onMinimise: () -> Unit,
+    onDismiss: () -> Unit,
+    sessionId: String?,
+    balanceAlgos: Double?,
+    connectionType: IceConnectionType,
+    currentBlockNumber: Long?,
+    networkLabel: String,
+    blockChainLabel: String,
+    balanceCurrencySymbol: String,
+    originUrl: String,
+    onStatsModalVisibilityChanged: (Boolean) -> Unit,
+) {
+    val isPreview = LocalInspectionMode.current
+    if (isPreview) {
+        // Avoid modal container in Compose Preview; render content directly for faster preview.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(700.dp),
+        ) {
+            LiquidStreamHostLiveScreen(
+                cameraPreview = cameraPreview,
+                onSettingsClick = {},
+                onMinimise = onMinimise,
+                onRotateCamera = { cameraPreviewController.rotateCamera() },
+                onStatsClick = onStatsClick,
+                onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                sessionId = sessionId,
+                balanceAlgos = balanceAlgos,
+                connectionType = connectionType,
+                currentBlockNumber = currentBlockNumber,
+                blockChainLabel = blockChainLabel,
+                networkLabel = networkLabel,
+                balanceCurrencySymbol = balanceCurrencySymbol,
+                originUrl = originUrl,
+            )
+        }
+        return
+    }
+
+    val streamHostBottomSheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+        )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = streamHostBottomSheetState,
+        dragHandle = null,
+        shape = RectangleShape,
+        containerColor = Color.Transparent,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        ) { innerPadding ->
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+            ) {
+                LiquidStreamHostLiveScreen(
+                    cameraPreview = cameraPreview,
+                    onSettingsClick = {},
+                    onMinimise = onMinimise,
+                    onRotateCamera = { cameraPreviewController.rotateCamera() },
+                    onStatsClick = {},
+                    onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                    sessionId = sessionId,
+                    balanceAlgos = balanceAlgos,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    blockChainLabel = blockChainLabel,
+                    networkLabel = networkLabel,
+                    balanceCurrencySymbol = balanceCurrencySymbol,
+                    originUrl = originUrl,
+                )
+            }
         }
     }
 }
@@ -509,6 +800,7 @@ private fun ConnectedSection(
     onRequestPayment: () -> Unit = {},
     showStartButton: Boolean = true,
     paymentCurrencyLabel: String = "ALGO",
+    streamHostUiMode: MutableState<StreamHostUiMode>,
 ) {
     Card(
         modifier =
@@ -573,6 +865,7 @@ private fun ConnectedSection(
                 val isDepleted = balanceAlgos == null || balanceAlgos <= 0.0
 
                 if (isDepleted) {
+                    streamHostUiMode.value = StreamHostUiMode.Hidden
                     // Show pay to resume button
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -803,6 +1096,7 @@ private fun WaitingForPaymentSection(
     }
 }
 
+@Suppress("unused")
 @Composable
 private fun StreamingSection(
     sessionId: String,
@@ -829,7 +1123,6 @@ private fun StreamingSection(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // Live indicator
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -848,10 +1141,8 @@ private fun StreamingSection(
                 )
             }
 
-            // Connection Type Indicator (shows cost tier for x402 billing)
             ConnectionTypeIndicator(connectionType = connectionType)
 
-            // Camera preview slot
             Box(
                 modifier =
                     Modifier
@@ -872,14 +1163,12 @@ private fun StreamingSection(
                 }
             }
 
-            // Session info
             Text(
                 text = "Streaming to: ${sessionId.take(8)}...",
                 style = MaterialTheme.typography.bodyMedium,
                 color = AlgoKitTheme.colors.textGray,
             )
 
-            // Stop streaming button
             Button(
                 onClick = onStopStreaming,
                 modifier = Modifier.fillMaxWidth(),
@@ -891,7 +1180,6 @@ private fun StreamingSection(
                 Text("Stop Streaming")
             }
 
-            // Disconnect button (secondary action)
             Button(
                 onClick = onDisconnect,
                 modifier = Modifier.fillMaxWidth(),
@@ -971,7 +1259,7 @@ private fun LoadingSection() {
     ) {
         CircularProgressIndicator()
         Text(
-            text = "Initializing...",
+            text = "Waiting...",
             style = MaterialTheme.typography.bodyMedium,
             color = AlgoKitTheme.colors.textGray,
         )
@@ -1099,16 +1387,16 @@ private fun LiquidAuthOfferWaitingForConnectionPreview() {
                     liquidAuthUrl = "https://auth.example.com/connect?requestId=abc123",
                     origin = "https://auth.example.com",
                 ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
             balanceAlgos = null,
             currentBlockNumber = null,
-            cameraPreview = null,
-            onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
-            onStopStreaming = {},
-            onRetry = {},
         )
     }
 }
@@ -1127,11 +1415,7 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            StreamingSection(
-                sessionId = "session-direct-12345678",
-                connectionType = IceConnectionType.LOCAL,
-                onStopStreaming = {},
-                onDisconnect = {},
+            LiquidStreamHostLiveScreen(
                 cameraPreview = {
                     Box(
                         modifier =
@@ -1152,6 +1436,7 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
                 balanceAlgos = 0.8,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = 45123456L,
+                networkLabel = "TESTNET",
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1174,16 +1459,16 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
                     sessionId = "session-relay-87654321",
                     isPaid = true,
                 ),
-            connectionType = IceConnectionType.RELAY,
-            balanceAlgos = 0.2,
-            currentBlockNumber = 45123459L,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1203,16 +1488,16 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-funded-44556677",
                 ),
-            connectionType = IceConnectionType.STUN,
-            balanceAlgos = 1.0,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1232,16 +1517,16 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-depleted-88990011",
                 ),
-            connectionType = IceConnectionType.RELAY,
-            balanceAlgos = 0.0,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1268,16 +1553,16 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
                             network = "testnet",
                         ),
                 ),
-            connectionType = IceConnectionType.STUN,
-            balanceAlgos = null,
-            currentBlockNumber = null,
             cameraPreview = null,
             onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
             onStopStreaming = {},
             onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1294,16 +1579,16 @@ private fun LiquidAuthOfferErrorPreview() {
                 LiquidAuthOfferViewModel.OfferState.Error(
                     message = "Failed to generate offer. Please check your network and try again.",
                 ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
             balanceAlgos = null,
             currentBlockNumber = null,
-            cameraPreview = null,
-            onRegenerate = {},
-            onStartCamera = {},
-            onDisconnect = {},
-            onRequestPayment = {},
-            onStopStreaming = {},
-            onRetry = {},
         )
     }
 }
@@ -1324,6 +1609,7 @@ private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
                 balanceAlgos = 0.7,
                 connectionType = IceConnectionType.STUN,
                 currentBlockNumber = 45123501L,
+                networkLabel = "TESTNET",
             )
         }
     }
@@ -1342,9 +1628,9 @@ private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
         ) {
             ConnectedViewersCard(
                 sessionId = "session-preview-87654321",
-                balanceAlgos = 0.2,
-                connectionType = IceConnectionType.RELAY,
-                currentBlockNumber = null,
+                balanceAlgos = 0.7,
+                connectionType = IceConnectionType.STUN,
+                networkLabel = "TESTNET",
             )
         }
     }
@@ -1371,6 +1657,7 @@ private fun hexToColor(hex: String): Color? =
                     blue = (colorInt and 0xFF) / 255f,
                     alpha = 1f,
                 )
+
             8 ->
                 Color(
                     red = ((colorInt shr 16) and 0xFF) / 255f,
@@ -1378,6 +1665,7 @@ private fun hexToColor(hex: String): Color? =
                     blue = (colorInt and 0xFF) / 255f,
                     alpha = ((colorInt shr 24) and 0xFF) / 255f,
                 )
+
             else -> null
         }
     } catch (_: Exception) {

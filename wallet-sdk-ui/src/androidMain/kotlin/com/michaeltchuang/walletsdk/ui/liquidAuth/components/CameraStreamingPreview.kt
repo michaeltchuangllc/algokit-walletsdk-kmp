@@ -20,8 +20,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,12 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cached
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,7 +35,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,8 +42,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -69,7 +59,10 @@ import java.util.concurrent.Executors
  *
  * Uses CameraX to capture frames and stream via WebRTC.
  */
-actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionManager?): @Composable () -> Unit =
+actual fun createCameraStreamingPreview(
+    connectionManager: LiquidAuthConnectionManager?,
+    controller: CameraStreamingPreviewController?,
+): @Composable () -> Unit =
     {
         val context = LocalContext.current
         var hasCameraPermission by
@@ -140,12 +133,16 @@ actual fun createCameraStreamingPreview(connectionManager: LiquidAuthConnectionM
         } else {
             CameraPreviewContent(
                 connectionManager = connectionManager,
+                controller = controller,
             )
         }
     }
 
 @Composable
-private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?) {
+private fun CameraPreviewContent(
+    connectionManager: LiquidAuthConnectionManager?,
+    controller: CameraStreamingPreviewController?,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
@@ -159,13 +156,6 @@ private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?
     var lastFrameTime by remember { mutableLongStateOf(0L) }
     var lensFacing by remember { mutableIntStateOf(CameraSelector.LENS_FACING_BACK) }
     var canSwitchCamera by remember { mutableStateOf(false) }
-    var iconRotationTarget by remember { mutableFloatStateOf(0f) }
-    val iconRotation by
-        animateFloatAsState(
-            targetValue = iconRotationTarget,
-            animationSpec = tween(durationMillis = 250),
-            label = "cameraSwitchIconRotation",
-        )
     val frameIntervalMs = 100L
     val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
 
@@ -283,37 +273,29 @@ private fun CameraPreviewContent(connectionManager: LiquidAuthConnectionManager?
         }
     }
 
+    controller?.onRotateCamera = {
+        if (canSwitchCamera) {
+            lensFacing =
+                if (lensFacing == CameraSelector.LENS_FACING_BACK) {
+                    CameraSelector.LENS_FACING_FRONT
+                } else {
+                    CameraSelector.LENS_FACING_BACK
+                }
+            // Trigger rebind via lensFacing state change.
+        }
+    }
+
+    DisposableEffect(controller) {
+        onDispose {
+            controller?.onRotateCamera = null
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
             factory = { previewView },
             modifier = Modifier.fillMaxSize(),
         )
-        if (canSwitchCamera) {
-            IconButton(
-                onClick = {
-                    lensFacing =
-                        if (lensFacing == CameraSelector.LENS_FACING_BACK) {
-                            CameraSelector.LENS_FACING_FRONT
-                        } else {
-                            CameraSelector.LENS_FACING_BACK
-                        }
-                    iconRotationTarget += 180f
-                },
-                modifier =
-                    Modifier
-                        .align(Alignment.TopEnd),
-            ) {
-                Icon(
-                    modifier =
-                        Modifier
-                            .size(32.dp)
-                            .graphicsLayer { rotationZ = iconRotation },
-                    imageVector = Icons.Default.Cached,
-                    tint = Color.White,
-                    contentDescription = "Switch camera",
-                )
-            }
-        }
     }
 }
 

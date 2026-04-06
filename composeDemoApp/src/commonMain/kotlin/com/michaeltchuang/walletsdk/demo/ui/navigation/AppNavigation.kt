@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.demo.ui.navigation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -16,42 +17,68 @@ import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.demo.ui.components.NetworkStatusBar
 import com.michaeltchuang.walletsdk.demo.ui.viewmodel.AppViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthMiniPlayerOverlay
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun AppNavigation() {
+    koinViewModel<AppViewModel>()
     val navController = rememberNavController()
     val snackbarHostState = remember { SnackbarHostState() }
     val isBottomSheetVisible = remember { mutableStateOf(false) }
+    val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    val miniPlayerOnCloseActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
 
-    val appViewModel: AppViewModel = koinViewModel()
-
-    Scaffold(
+    Box(
         modifier =
             Modifier
-                .background(color = AlgoKitTheme.colors.background)
                 .fillMaxSize(),
-        topBar = {
-            Column {
-                TopBar()
-                NetworkStatusBar()
+    ) {
+        Scaffold(
+            modifier =
+                Modifier
+                    .background(color = AlgoKitTheme.colors.background)
+                    .fillMaxSize(),
+            topBar = {
+                Column {
+                    TopBar()
+                    NetworkStatusBar()
+                }
+            },
+            snackbarHost = {
+                SnackbarHost(hostState = snackbarHostState, modifier = Modifier)
+            },
+            bottomBar = {
+                AppNavigationBar(navController) {
+                    isBottomSheetVisible.value = true
+                }
+            },
+        ) { paddingValues ->
+            NavHost(
+                navController = navController,
+                startDestination = Accounts,
+                modifier = Modifier.padding(paddingValues = paddingValues),
+            ) {
+                getBottomNavigationGraph(
+                    navController = navController,
+                    snackbarHostState = snackbarHostState,
+                    streamHostUiModeState = streamHostUiModeState,
+                    miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+                    miniPlayerOnCloseActionState = miniPlayerOnCloseActionState,
+                )
             }
-        },
-        snackbarHost = {
-            SnackbarHost(hostState = snackbarHostState, modifier = Modifier)
-        },
-        bottomBar = {
-            AppNavigationBar(navController) {
-                isBottomSheetVisible.value = true
-            }
-        },
-    ) { paddingValues ->
-        NavHost(
-            navController = navController,
-            startDestination = Accounts,
-            modifier = Modifier.padding(paddingValues = paddingValues),
-        ) {
-            getBottomNavigationGraph(navController, snackbarHostState)
         }
+
+        LiquidAuthMiniPlayerOverlay(
+            streamHostUiModeState = streamHostUiModeState,
+            miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+            onClose = {
+                miniPlayerOnCloseActionState.value?.invoke() ?: run {
+                    streamHostUiModeState.value = StreamHostUiMode.Hidden
+                }
+            },
+        )
     }
 }

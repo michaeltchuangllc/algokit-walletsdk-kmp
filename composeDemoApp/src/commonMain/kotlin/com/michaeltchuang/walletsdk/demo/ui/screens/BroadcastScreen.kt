@@ -2,8 +2,10 @@ package com.michaeltchuang.walletsdk.demo.ui.screens
 
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 
 /**
  * Broadcast Screen
@@ -25,4 +27,7 @@ expect fun BroadcastScreen(
     navController: NavController,
     snackbarViewModel: SnackbarViewModel,
     tag: String,
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>,
 )

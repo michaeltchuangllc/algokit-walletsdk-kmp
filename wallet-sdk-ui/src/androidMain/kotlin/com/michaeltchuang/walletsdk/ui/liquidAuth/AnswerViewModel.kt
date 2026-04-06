@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
@@ -60,6 +59,7 @@ import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -159,6 +159,10 @@ class AnswerViewModel(
             .Encoder()
     var currentChallenge: ByteArray? = null
     var showConfirmationDialog = MutableStateFlow(false)
+    private val _pendingSignTransactionsParams = MutableStateFlow<SignTransactionsParams?>(null)
+    val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> = _pendingSignTransactionsParams
+    private val _pendingSignMessage = MutableStateFlow<Message?>(null)
+    val pendingSignMessage: StateFlow<Message?> = _pendingSignMessage
     private var signalServiceConnection: android.content.ServiceConnection? = null
     private val _signalService =
         MutableStateFlow<com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService?>(
@@ -174,6 +178,8 @@ class AnswerViewModel(
     val lastFrameTimestamp: StateFlow<Long> = _lastFrameTimestamp
     private val _isStreamActive = MutableStateFlow(false)
     val isStreamActive: StateFlow<Boolean> = _isStreamActive
+    private var hasReceivedAtLeastOneFrame = false
+    private var hasTimedOutCurrentStream = false
 
     init {
         // Monitor stream activity
@@ -187,6 +193,26 @@ class AnswerViewModel(
                         (System.currentTimeMillis() - lastFrame) < STREAM_TIMEOUT_MS
                     }
                 _isStreamActive.value = currentlyActive
+
+                val shouldTimeoutDisconnect =
+                    hasReceivedAtLeastOneFrame &&
+                        !currentlyActive &&
+                        !hasTimedOutCurrentStream
+
+                if (shouldTimeoutDisconnect) {
+                    hasTimedOutCurrentStream = true
+                    clearVideoFrame()
+                    _session.value = "Logged Out"
+                    _authMessage.value = null
+                    _signalService.value?.stop()
+                    val reason =
+                        "Stream disconnected because no video frames were received for a few seconds. " +
+                            "Please reconnect to continue watching."
+                    _error.value = reason
+                    eventDelegate.sendEvent(ViewEvent.ShowToast(reason))
+                    eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
+                }
+
                 kotlinx.coroutines.delay(500) // Check every 500ms
             }
         }
@@ -228,6 +254,8 @@ class AnswerViewModel(
         _videoFrame.value = frame
         if (frame != null) {
             _lastFrameTimestamp.value = System.currentTimeMillis()
+            hasReceivedAtLeastOneFrame = true
+            hasTimedOutCurrentStream = false
         }
     }
 
@@ -246,6 +274,7 @@ class AnswerViewModel(
     fun clearVideoFrame() {
         _videoFrame.value = null
         _lastFrameTimestamp.value = 0
+        hasReceivedAtLeastOneFrame = false
     }
 
     fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
@@ -295,7 +324,7 @@ class AnswerViewModel(
             requestOptions = requestOption,
             credId = credential.rawId,
         )
-        Log.d(TAG, "✅ Credential saved to local storage")
+        Napier.d(tag = TAG, message = "✅ Credential saved to local storage")
         eventDelegate.sendEvent(ViewEvent.ShowToast("✅ Credential saved to local storage"))
     }
 
@@ -305,10 +334,10 @@ class AnswerViewModel(
     suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
         val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
         if (credentialId != null) {
-            Log.d(TAG, "Deleting credential: $credentialId for address: $accountAddress")
+            Napier.d(tag = TAG, message = "Deleting credential: $credentialId for address: $accountAddress")
             passkeyRepository.removePasskeyByCredentialId(credentialId)
         } else {
-            Log.w(TAG, "No credential found to delete for address: $accountAddress")
+            Napier.w(tag = TAG, message = "No credential found to delete for address: $accountAddress")
         }
     }
 
@@ -425,9 +454,9 @@ class AnswerViewModel(
             is LocalAccount.SeedVault -> {
                 val decoded = decodeBase58(localAccount.publicKey)
                 if (decoded == null || decoded.size != 32) {
-                    Log.e(
-                        TAG,
-                        "Invalid SeedVault public key format for address=${localAccount.address}, decodedLength=${decoded?.size}",
+                    Napier.e(
+                        tag = TAG,
+                        message = "Invalid SeedVault public key format for address=${localAccount.address}, decodedLength=${decoded?.size}",
                     )
                     ByteArray(0)
                 } else {
@@ -446,25 +475,31 @@ class AnswerViewModel(
     @OptIn(ExperimentalEncodingApi::class)
     fun handleMessages(
         msgStr: String,
-        onSignTransaction: (SignTransactionsParams, Message) -> Unit,
+        onSignTransaction: ((SignTransactionsParams, Message) -> Unit)? = null,
         onVideoFrame: ((VideoFrameData) -> Unit)? = null,
     ) {
         try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📨 RECEIVED MESSAGE FROM DATACHANNEL")
-            Log.d(TAG, "Message length: ${msgStr.length}")
-            Log.d(TAG, "========================================")
+            Napier.d(tag = TAG, message = "========================================")
+            Napier.d(tag = TAG, message = "📨 RECEIVED MESSAGE FROM DATACHANNEL")
+            Napier.d(tag = TAG, message = "Message length: ${msgStr.length}")
+            Napier.d(tag = TAG, message = "========================================")
 
-            // Check if it's a video frame message (not Base64/CBOR encoded)
-            if (msgStr.startsWith("{\"reference\":\"liquid:video:frame\"")) {
-                Log.d(TAG, "🎥 Video frame message detected")
+            // Check if it's a JSON video frame message (not Base64/CBOR encoded)
+            if (msgStr.contains("\"reference\":\"liquid:video:frame\"") && msgStr.contains("\"data\"")) {
+                Napier.d(tag = TAG, message = "🎥 Video frame JSON message detected")
                 handleVideoFrameMessage(msgStr, onVideoFrame)
                 return
             }
 
-            // Check for X402 payment messages (look for unique fields: amountMicroAlgos + creatorAddress)
-            if (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) {
-                Log.d(TAG, "💰 X402 payment message detected: ${msgStr.take(100)}...")
+            // Check for X402 payment messages (request/response/balance/depleted)
+            val isX402PaymentMessage =
+                msgStr.contains("\"reference\":\"liquid:payment:") ||
+                    (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) ||
+                    msgStr.contains("\"remainingMicroAlgos\"") ||
+                    msgStr.contains("\"remainingBlocks\"") ||
+                    msgStr.contains("\"totalBlocksWatched\"")
+            if (isX402PaymentMessage) {
+                Napier.d(tag = TAG, message = "💰 X402 payment message detected: ${msgStr.take(100)}...")
                 handleX402PaymentMessage(msgStr)
                 return
             }
@@ -474,21 +509,27 @@ class AnswerViewModel(
             // Log first bytes to verify incoming CBOR encoding type
             if (cborBytes.isNotEmpty()) {
                 val firstBytes = cborBytes.take(10).joinToString(" ") { "0x%02X".format(it) }
-                Log.d(TAG, "Incoming CBOR first bytes: $firstBytes")
-                Log.d(
-                    TAG,
-                    "Incoming CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH" else "DEFINITE-LENGTH"}",
+                Napier.d(tag = TAG, message = "Incoming CBOR first bytes: $firstBytes")
+                Napier.d(
+                    tag = TAG,
+                    message =
+                        "Incoming CBOR encoding: " +
+                            if (cborBytes[0].toInt() and 0x1F == 0x1F) {
+                                "INDEFINITE-LENGTH"
+                            } else {
+                                "DEFINITE-LENGTH"
+                            },
                 )
             }
 
             val message = Message(cborBytes, EncoderType.CBOR)
             val request = encoder.decode<RequestMessage>(message.data, message.encoding)
-            Log.d(TAG, "Message decoded - Reference: ${request.reference}")
-            Log.d(TAG, "Request ID: ${request.id}")
+            Napier.d(tag = TAG, message = "Message decoded - Reference: ${request.reference}")
+            Napier.d(tag = TAG, message = "Request ID: ${request.id}")
 
             when (request.reference) {
                 "arc0027:sign_transactions:request" -> {
-                    Log.d(TAG, "✅ Transaction signing request detected")
+                    Napier.d(tag = TAG, message = "✅ Transaction signing request detected")
                     viewModelScope.launch {
                         val params =
                             encoder.decode<SignTransactionsParams>(
@@ -498,21 +539,26 @@ class AnswerViewModel(
                                 ),
                                 EncoderType.NONE,
                             )
-                        Log.d(TAG, "Decoded ${params.txns.size} transaction(s) from request")
-                        Log.d(TAG, "Provider ID: ${params.providerId}")
-                        onSignTransaction(params, message)
+                        Napier.d(tag = TAG, message = "Decoded ${params.txns.size} transaction(s) from request")
+                        Napier.d(tag = TAG, message = "Provider ID: ${params.providerId}")
+                        _pendingSignTransactionsParams.value = params
+                        _pendingSignMessage.value = message
+                        showConfirmationDialog.value = true
+                        onSignTransaction?.invoke(params, message)
                     }
                 }
                 "liquid:video:frame" -> {
-                    Log.d(TAG, "🎥 Video frame message detected (CBOR encoded)")
-                    // Handle CBOR-encoded video frame if needed
+                    Napier.d(tag = TAG, message = "🎥 Video frame message detected (CBOR encoded)")
+                    // Some peers may send ARC-style video-frame references via CBOR envelope.
+                    // Fall back to JSON parser using original payload so viewer still renders frames.
+                    handleVideoFrameMessage(msgStr, onVideoFrame)
                 }
                 else -> {
-                    Log.w(TAG, "⚠️ Unknown request reference: ${request.reference}")
+                    Napier.w(tag = TAG, message = "⚠️ Unknown request reference: ${request.reference}")
                 }
             }
         } catch (e: Throwable) {
-            Log.e(TAG, "❌ Error handling message: $e")
+            Napier.e(tag = TAG, message = "❌ Error handling message: $e")
             e.printStackTrace()
         }
     }
@@ -542,10 +588,10 @@ class AnswerViewModel(
                     format = json.optString("format", "jpeg"),
                 )
 
-            Log.d(TAG, "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
+            Napier.d(tag = TAG, message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
             onVideoFrame?.invoke(videoFrame)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to decode video frame: $e")
+            Napier.e(tag = TAG, message = "❌ Failed to decode video frame: $e")
         }
     }
 
@@ -553,60 +599,69 @@ class AnswerViewModel(
      * Handle X402 payment messages from broadcaster
      */
     private fun handleX402PaymentMessage(msgStr: String) {
-        Log.d(TAG, "💰 handleX402PaymentMessage called with: ${msgStr.take(200)}...")
+        Napier.d(tag = TAG, message = "💰 handleX402PaymentMessage called with: ${msgStr.take(200)}...")
         try {
             when {
                 // Payment request: has amountMicroAlgos and creatorAddress
                 msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"") && !msgStr.contains("\"status\"") -> {
-                    Log.d(TAG, "💰 Parsing PaymentRequest...")
+                    Napier.d(tag = TAG, message = "💰 Parsing PaymentRequest...")
                     val request = X402PaymentMessages.PaymentRequest.fromJson(msgStr)
-                    Log.d(
-                        TAG,
-                        "💰 Payment request parsed: id=${request.id}, amount=${request.amountMicroAlgos}, creator=${request.creatorAddress}",
+                    Napier.d(
+                        tag = TAG,
+                        message =
+                            "💰 Payment request parsed: " +
+                                "id=${request.id}, amount=${request.amountMicroAlgos}, " +
+                                "creator=${request.creatorAddress}",
                     )
 
                     // Store payment request for UI handling
                     _pendingPaymentRequest.value = request
-                    Log.d(TAG, "💰 Stored in _pendingPaymentRequest")
+                    _fundsDepleted.value = false
+                    Napier.d(tag = TAG, message = "💰 Stored in _pendingPaymentRequest")
 
                     // Emit event to show payment dialog
                     viewModelScope.launch {
-                        Log.d(TAG, "💰 Sending PaymentRequested event to UI...")
+                        Napier.d(tag = TAG, message = "💰 Sending PaymentRequested event to UI...")
                         eventDelegate.sendEvent(ViewEvent.PaymentRequested(request))
-                        Log.d(TAG, "💰 PaymentRequested event sent!")
+                        Napier.d(tag = TAG, message = "💰 PaymentRequested event sent!")
                     }
                 }
                 // Payment response: has status field
                 msgStr.contains("\"status\"") -> {
-                    Log.d(TAG, "💰 Parsing PaymentResponse...")
+                    Napier.d(tag = TAG, message = "💰 Parsing PaymentResponse...")
                     val response = X402PaymentMessages.PaymentResponse.fromJson(msgStr)
-                    Log.d(TAG, "💰 Payment response: ${response.status}")
+                    Napier.d(tag = TAG, message = "💰 Payment response: ${response.status}")
                     // Handle payment response...
                 }
                 // Balance update: has remainingBlocks
                 msgStr.contains("\"remainingBlocks\"") || msgStr.contains("\"remainingMicroAlgos\"") -> {
-                    Log.d(TAG, "💰 Parsing BalanceUpdate...")
+                    Napier.d(tag = TAG, message = "💰 Parsing BalanceUpdate...")
                     val update = X402PaymentMessages.BalanceUpdate.fromJson(msgStr)
-                    Log.d(TAG, "💰 Balance update: ${update.remainingAlgos()} ALGO remaining")
+                    val remainingAlgos = update.remainingAlgos()
+                    _paymentBalance.value = remainingAlgos.toString()
+                    _fundsDepleted.value = remainingAlgos <= 0.0
+                    Napier.d(tag = TAG, message = "💰 Balance update: $remainingAlgos ALGO remaining")
                     viewModelScope.launch {
                         eventDelegate.sendEvent(ViewEvent.BalanceUpdated(update))
                     }
                 }
                 // Funds depleted: has totalBlocksWatched
                 msgStr.contains("\"totalBlocksWatched\"") -> {
-                    Log.d(TAG, "💰 Parsing FundsDepleted...")
+                    Napier.d(tag = TAG, message = "💰 Parsing FundsDepleted...")
                     val depleted = X402PaymentMessages.FundsDepleted.fromJson(msgStr)
-                    Log.d(TAG, "💰 Funds depleted after ${depleted.totalBlocksWatched} blocks")
+                    _fundsDepleted.value = true
+                    _paymentBalance.value = "0.0"
+                    Napier.d(tag = TAG, message = "💰 Funds depleted after ${depleted.totalBlocksWatched} blocks")
                     viewModelScope.launch {
                         eventDelegate.sendEvent(ViewEvent.FundsDepleted(depleted))
                     }
                 }
                 else -> {
-                    Log.w(TAG, "💰 Unknown X402 message type: ${msgStr.take(100)}")
+                    Napier.w(tag = TAG, message = "💰 Unknown X402 message type: ${msgStr.take(100)}")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to handle X402 payment message: $e")
+            Napier.e(tag = TAG, message = "❌ Failed to handle X402 payment message: $e")
         }
     }
 
@@ -633,9 +688,9 @@ class AnswerViewModel(
         if (signalService != null) {
             val msgJson = response.toJson()
             signalService.send(msgJson)
-            Log.d(TAG, "💰 Payment response sent: ${status.name}")
+            Napier.d(tag = TAG, message = "💰 Payment response sent: ${status.name}")
         } else {
-            Log.e(TAG, "💰 Cannot send payment response - SignalService not available")
+            Napier.e(tag = TAG, message = "💰 Cannot send payment response - SignalService not available")
         }
     }
 
@@ -646,7 +701,7 @@ class AnswerViewModel(
     suspend fun createAndSendPayment(request: X402PaymentMessages.PaymentRequest) {
         val accountAddress = _accountAddress.value
         if (accountAddress.isEmpty()) {
-            Log.e(TAG, "💰 Cannot create payment - no account address")
+            Napier.e(tag = TAG, message = "💰 Cannot create payment - no account address")
             sendPaymentResponse(
                 request = request,
                 status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -657,7 +712,7 @@ class AnswerViewModel(
 
         val localAccount = getLocalAccount(accountAddress)
         if (localAccount == null) {
-            Log.e(TAG, "💰 No local account found for address: $accountAddress")
+            Napier.e(tag = TAG, message = "💰 No local account found for address: $accountAddress")
             sendPaymentResponse(
                 request = request,
                 status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -681,7 +736,7 @@ class AnswerViewModel(
             when (txnParams) {
                 is Result.Success -> txnParams.data
                 is Result.Error -> {
-                    Log.e(TAG, "💰 Failed to get transaction params")
+                    Napier.e(tag = TAG, message = "💰 Failed to get transaction params")
                     sendPaymentResponse(
                         request = request,
                         status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -704,7 +759,7 @@ class AnswerViewModel(
                 is LocalAccount.Algo25 -> {
                     val secretKey = getAlgo25SecretKey(accountAddress)
                     if (secretKey == null) {
-                        Log.e(TAG, "💰 Failed to get Algo25 secret key")
+                        Napier.e(tag = TAG, message = "💰 Failed to get Algo25 secret key")
                         sendPaymentResponse(
                             request = request,
                             status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -717,7 +772,7 @@ class AnswerViewModel(
                 is LocalAccount.HdKey -> {
                     val seed = getSeed(localAccount.seedId)
                     if (seed == null) {
-                        Log.e(TAG, "💰 Failed to get HD seed")
+                        Napier.e(tag = TAG, message = "💰 Failed to get HD seed")
                         sendPaymentResponse(
                             request = request,
                             status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -732,7 +787,7 @@ class AnswerViewModel(
                         localAccount.change,
                         localAccount.keyIndex,
                     ) ?: run {
-                        Log.e(TAG, "💰 HD Key transaction signing returned null")
+                        Napier.e(tag = TAG, message = "💰 HD Key transaction signing returned null")
                         sendPaymentResponse(
                             request = request,
                             status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -744,7 +799,7 @@ class AnswerViewModel(
                 is LocalAccount.Falcon24 -> {
                     val secretKey = getFalcon24SecretKey(localAccount.address)
                     if (secretKey == null) {
-                        Log.e(TAG, "💰 Failed to get Falcon24 secret key")
+                        Napier.e(tag = TAG, message = "💰 Failed to get Falcon24 secret key")
                         sendPaymentResponse(
                             request = request,
                             status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -757,7 +812,7 @@ class AnswerViewModel(
                         localAccount.publicKey,
                         secretKey,
                     ) ?: run {
-                        Log.e(TAG, "💰 Falcon24 transaction signing returned null")
+                        Napier.e(tag = TAG, message = "💰 Falcon24 transaction signing returned null")
                         sendPaymentResponse(
                             request = request,
                             status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -767,7 +822,7 @@ class AnswerViewModel(
                     }
                 }
                 else -> {
-                    Log.e(TAG, "💰 Unsupported account type: ${localAccount::class.simpleName}")
+                    Napier.e(tag = TAG, message = "💰 Unsupported account type: ${localAccount::class.simpleName}")
                     sendPaymentResponse(
                         request = request,
                         status = X402PaymentMessages.PaymentResponse.Status.ERROR,
@@ -777,23 +832,13 @@ class AnswerViewModel(
                 }
             }
 
-        if (signedTxnBytes == null) {
-            Log.e(TAG, "💰 Transaction signing failed")
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Transaction signing failed",
-            )
-            return
-        }
-
         val signedB64 = Encoder.encodeToBase64(signedTxnBytes)
         sendPaymentResponse(
             request = request,
             status = X402PaymentMessages.PaymentResponse.Status.SIGNED,
             signedTransactionB64 = signedB64,
         )
-        Log.d(TAG, "💰 Payment sent successfully for session ${request.id}")
+        Napier.d(tag = TAG, message = "💰 Payment sent successfully for session ${request.id}")
     }
 
     private suspend fun createAndSendSolanaPayment(
@@ -873,13 +918,17 @@ class AnswerViewModel(
 
             SolanaTransferTxData(serializedMessage = serializedMessage)
         } catch (e: Exception) {
-            Log.e(TAG, "💰 Failed to create Solana transfer transaction", e)
+            Napier.e(message = "💰 Failed to create Solana transfer transaction", throwable = e, tag = TAG)
             null
         }
 
-    // Pending payment request for UI
+    // Pending payment request + payment runtime state for UI
     private val _pendingPaymentRequest = MutableStateFlow<X402PaymentMessages.PaymentRequest?>(null)
     val pendingPaymentRequest: StateFlow<X402PaymentMessages.PaymentRequest?> = _pendingPaymentRequest
+    private val _paymentBalance = MutableStateFlow<String?>(null)
+    val paymentBalance: StateFlow<String?> = _paymentBalance
+    private val _fundsDepleted = MutableStateFlow(false)
+    val fundsDepleted: StateFlow<Boolean> = _fundsDepleted
 
     /**
      * Encode ResponseMessage to CBOR bytes
@@ -918,6 +967,17 @@ class AnswerViewModel(
             providerId = providerId,
             accountAddress = _accountAddress.value,
         )
+
+    fun clearPendingSignRequest() {
+        _pendingSignTransactionsParams.value = null
+        _pendingSignMessage.value = null
+        showConfirmationDialog.value = false
+    }
+
+    fun consumeViewerRuntimeStateForUi() {
+        // Keep runtime state in ViewModel so UI can be detached from activity recreation.
+        // This method exists as an explicit phase-2 handoff marker for callers.
+    }
 
     suspend fun processBiometricTransactionSigning(
         activity: androidx.fragment.app.FragmentActivity,
@@ -1233,6 +1293,10 @@ class AnswerViewModel(
             val signerAddress: String,
             val signerPublicKey: String,
             val signerDerivationPath: String,
+        ) : ViewEvent
+
+        data class StreamDisconnected(
+            val reason: String,
         ) : ViewEvent
     }
 

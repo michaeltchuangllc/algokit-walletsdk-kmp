@@ -27,62 +27,6 @@ class AnswerScreenshotTest(
         takeScreenshot("testContentConnected")
     }
 
-    @Test
-    fun testContentWaiting() {
-        setTestContent {
-            ScreenContentAnswer(
-                isConnected = false,
-                isWaiting = true,
-                isConnecting = false,
-                hasError = false,
-                errorMessage = null,
-                session = "Logged Out",
-                origin = null,
-                requestId = null,
-                accountAddress = "A1B2C3D4E5F6G7H8I9J0",
-                videoFrame = null,
-                isStreamActive = false,
-            )
-        }
-        takeScreenshot("testContentWaiting")
-    }
-
-    @Test
-    fun testContentConnectedWithVideo() {
-        val sampleFrame = getSampleFrame()
-        setTestContent {
-            ScreenContentAnswer(
-                isConnected = true,
-                isWaiting = false,
-                isConnecting = false,
-                hasError = false,
-                errorMessage = null,
-                session = "Connected Session",
-                origin = "https://demo.algokit.io",
-                requestId = "preview-req-123",
-                accountAddress = "A1B2C3D4E5F6G7H8I9J0",
-                videoFrame = sampleFrame,
-                isStreamActive = true,
-                paymentBalance = "0.8",
-                fundsDepleted = false,
-            )
-        }
-        takeScreenshot("testContentConnectedWithVideo")
-    }
-
-    @Test
-    fun testFullScreenVideoPreviewExpanded() {
-        val sampleFrame = getSampleFrame()
-        setTestContent {
-            FullScreenVideoPreview(
-                videoFrame = sampleFrame,
-                isLive = true,
-                onClose = {},
-            )
-        }
-        takeScreenshot("testFullScreenVideoPreviewExpanded")
-    }
-
     private fun getSampleFrame() =
         AnswerViewModel.VideoFrameData(
             id = "preview-frame",

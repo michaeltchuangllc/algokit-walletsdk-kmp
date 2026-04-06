@@ -2,12 +2,16 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth
 
 import android.app.AlertDialog
 import android.app.NotificationManager
+import android.app.PictureInPictureParams
 import android.content.Intent
+import android.graphics.Rect
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.StrictMode
 import android.util.Log
+import android.util.Rational
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.ActivityResultLauncher
@@ -53,6 +57,8 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
+    private var shouldEnterPipMode = false
+
     companion object {
         private const val TAG = "AnswerActivity"
         const val EXTRA_ACCOUNT_ADDRESS = "EXTRA_ACCOUNT_ADDRESS"
@@ -68,9 +74,6 @@ class AnswerActivity : AppCompatActivity() {
     // State variables - cleaned up and consolidated
     private var algoAddress: String? = null
     private var mnemonic: String? = null
-
-    private lateinit var params: SignTransactionsParams
-    private lateinit var message: Message
 
     // Authenticate/Assertion Intent Channel
     private lateinit var assertionIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
@@ -176,8 +179,13 @@ class AnswerActivity : AppCompatActivity() {
                     val authMessage = viewModel.authMessage.collectAsState().value
                     val session = viewModel.session.collectAsState().value
                     val accountBalance = viewModel.accountBalance.collectAsState().value
-                    AnswerScreen(viewModel = viewModel)
-                    if (showDialogState.value) {
+                    val pendingParams = viewModel.pendingSignTransactionsParams.collectAsState().value
+                    val pendingMessage = viewModel.pendingSignMessage.collectAsState().value
+                    AnswerScreen(
+                        viewModel = viewModel,
+                        onMinimizeToPip = { enterPipMode() },
+                    )
+                    if (showDialogState.value && pendingParams != null && pendingMessage != null) {
                         LaunchedEffect(Unit) {
                             viewModel.fetchAccountBalance()
                         }
@@ -194,12 +202,12 @@ class AnswerActivity : AppCompatActivity() {
                             address = algoAddress!!,
                             onTransactionClick = {
                                 scope.launch {
-                                    processTransactionSigning(params, message)
-                                    viewModel.showConfirmationDialog.value = false
+                                    processTransactionSigning(pendingParams, pendingMessage)
+                                    viewModel.clearPendingSignRequest()
                                 }
                             },
                             onClose = {
-                                viewModel.showConfirmationDialog.value = false
+                                viewModel.clearPendingSignRequest()
                                 showToast("Transaction signing cancelled")
                             },
                         )
@@ -234,6 +242,11 @@ class AnswerActivity : AppCompatActivity() {
 
                     is AnswerViewModel.ViewEvent.ShowError -> {
                         showToast(event.message, Toast.LENGTH_LONG)
+                    }
+
+                    is AnswerViewModel.ViewEvent.StreamDisconnected -> {
+                        showToast(event.reason, Toast.LENGTH_LONG)
+                        finish()
                     }
 
                     is AnswerViewModel.ViewEvent.TransactionSigned -> {
@@ -410,6 +423,12 @@ class AnswerActivity : AppCompatActivity() {
         super.onPostCreate(savedInstanceState)
         initWebRTCService { hydrateIntents() }
 
+        // Avoid re-auth loops when returning from PiP/background with active session.
+        if (isViewerSessionActive()) {
+            Log.d(TAG, "Session already active, skipping auto-connect/auth flow")
+            return
+        }
+
         // Only auto-connect if we don't have an intent (deep link or QR scan)
         val hasIntent = intent?.data != null
         val hasValidAuthMessage =
@@ -419,7 +438,11 @@ class AnswerActivity : AppCompatActivity() {
         if (!hasIntent && hasValidAuthMessage) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
             Handler().postDelayed({
-                connect(AuthMessageStorage.authMessage)
+                if (!isViewerSessionActive()) {
+                    connect(AuthMessageStorage.authMessage)
+                } else {
+                    Log.d(TAG, "Skipping delayed auto-connect; session became active")
+                }
             }, 2000)
         } else {
             if (!hasValidAuthMessage) {
@@ -428,6 +451,16 @@ class AnswerActivity : AppCompatActivity() {
                 Log.d(TAG, "Intent detected, skipping auto-connect (will use scanned QR data)")
             }
         }
+    }
+
+    private fun isViewerSessionActive(): Boolean {
+        val dataChannelState =
+            viewModel.signalService.value
+                ?.dataChannel
+                ?.state()
+        val hasOpenDataChannel = dataChannelState == DataChannel.State.OPEN
+        val hasConnectedSession = viewModel.session.value == "Connected"
+        return hasOpenDataChannel || hasConnectedSession
     }
 
     /** Reload the application state from an Intent */
@@ -441,6 +474,10 @@ class AnswerActivity : AppCompatActivity() {
         val isDeepLink = intent?.data != null && intent.data is Uri
         val isDataChannelMessage = intent?.getStringExtra("msg") != null
         if (isDeepLink) {
+            if (isViewerSessionActive()) {
+                Log.d(TAG, "Ignoring deep-link auth bootstrap because viewer session is already active")
+                return
+            }
             viewModel.signalService.value?.updateDeepLinkFlag(true)
             val intentUri = intent.data as Uri
             Log.d(TAG, "========================================")
@@ -631,12 +668,6 @@ class AnswerActivity : AppCompatActivity() {
         // Use ViewModel's handleMessages method
         viewModel.handleMessages(
             msgStr = msgStr,
-            onSignTransaction = { params, message ->
-                this.params = params
-                this.message = message
-                // Show confirmation dialog - the signing logic is inside the OK button handler
-                viewModel.showConfirmationDialog.value = true
-            },
             onVideoFrame = { frameData ->
                 // Update video frame directly in ViewModel
                 viewModel.setVideoFrame(frameData)
@@ -661,6 +692,11 @@ class AnswerActivity : AppCompatActivity() {
         Log.d(TAG, "Origin: ${msg.origin}")
         Log.d(TAG, "RequestID: ${msg.requestId}")
         Log.d(TAG, "========================================")
+
+        if (isViewerSessionActive()) {
+            Log.d(TAG, "Skipping connect(); viewer session already active")
+            return
+        }
 
         // Check if message is empty/invalid
         if (msg.origin.isEmpty() || msg.requestId.isEmpty()) {
@@ -793,6 +829,40 @@ class AnswerActivity : AppCompatActivity() {
         } else {
             viewModel.setSession(s)
         }
+    }
+
+    private fun enterPipMode() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+
+        try {
+            val params =
+                PictureInPictureParams
+                    .Builder()
+                    .setAspectRatio(Rational(9, 16))
+                    .setSourceRectHint(createPipSourceRectHint())
+                    .build()
+            shouldEnterPipMode = true
+            enterPictureInPictureMode(params)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enter PiP mode", e)
+            shouldEnterPipMode = false
+        }
+    }
+
+    private fun createPipSourceRectHint(): Rect {
+        val root = window?.decorView
+        val width = root?.width?.takeIf { it > 0 } ?: 1080
+        val height = root?.height?.takeIf { it > 0 } ?: 1920
+
+        // Keep PiP anchor much higher from bottom so it clears bottom-nav actions.
+        val bottomPaddingPx = (220 * resources.displayMetrics.density).toInt()
+        val pipWidth = (width * 0.33f).toInt().coerceAtLeast(320)
+        val pipHeight = (pipWidth * 16f / 9f).toInt()
+
+        val left = (width - pipWidth - (16 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
+        val top = (height - pipHeight - bottomPaddingPx).coerceAtLeast(0)
+
+        return Rect(left, top, left + pipWidth, top + pipHeight)
     }
 
     private fun resolveSeedVaultSigner(address: String): SeedVaultSigner? {
@@ -952,8 +1022,32 @@ class AnswerActivity : AppCompatActivity() {
         }
     }
 
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (shouldEnterPipMode) {
+            enterPipMode()
+        }
+    }
+
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: android.content.res.Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        if (!isInPictureInPictureMode) {
+            shouldEnterPipMode = false
+        }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onBackPressed() {
+        super.onBackPressed()
+        finish()
+    }
+
     override fun onDestroy() {
         super.onDestroy()
+        shouldEnterPipMode = false
         viewModel.clearVideoFrame() // Clear video when activity destroyed
         viewModel.unbindSignalService(this)
     }

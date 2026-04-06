@@ -112,10 +112,11 @@ timeline
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
             : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
-            : 🔄 Liquid Stream - Implement new Figma app screens
-            : 🔄 Design - Create app design system in Figma project
+            : ✅ Design - Create app design system in Figma project
+            : ✅ Liquid Stream - Implement new Figma viewer/host screens
+            : 🔄 Liquid Stream - Implement new Figma app modals
             : 🔄 Transaction - Upgrade to escrow MPP WebRTC standard for micro-billing (Android)
-            : 🔄 GitOps - Fix dependencies for new 16KB Android requirement
+            : 🔄 GitOps - Fix crypto dependencies for new 16KB Android requirement
             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
             
     section Future 🔮

@@ -102,6 +102,16 @@ object ColorPalette {
     val Yellow300 = Color(0xFFFFF387)
     val Yellow200 = Color(0xFFFFF8BA)
     val Yellow100 = Color(0xFFFFFBD4)
+
+    val RichNavy900 = Color(0xFF001423)
+    val RichNavy900Alpha10 = Color(0x1A001423)
+    val ElectricBlue600 = Color(0xFF2D2DF1)
+    val ElectricBlue600Alpha10 = Color(0x1A2D2DF1)
+    val SlateBlue400 = Color(0xFF8792A0)
+    val Aqua200 = Color(0xFFB9EFEF)
+    val SignalRed500 = Color(0xFFF12D2D)
+    val SignalRed500Alpha10 = Color(0x1AF12D2D)
+    val CoolGray150 = Color(0xFFE8EBEF)
 }
 
 interface AlgoKitColor {

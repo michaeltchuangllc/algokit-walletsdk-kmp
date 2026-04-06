@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 
 /**
  * iOS-specific Broadcast Screen
@@ -34,6 +36,9 @@ actual fun BroadcastScreen(
     navController: NavController,
     snackbarViewModel: SnackbarViewModel,
     tag: String,
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>,
 ) {
     Scaffold(
         topBar = {

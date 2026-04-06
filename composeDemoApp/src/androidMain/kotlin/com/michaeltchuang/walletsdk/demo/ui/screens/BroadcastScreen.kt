@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -28,8 +29,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.createCameraStreamingPreview
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
 import org.koin.compose.koinInject
 
@@ -48,6 +51,9 @@ actual fun BroadcastScreen(
     navController: NavController,
     snackbarViewModel: SnackbarViewModel,
     tag: String,
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>,
 ) {
     // Get Android Context for creating the connection manager
     val context = LocalContext.current
@@ -57,6 +63,9 @@ actual fun BroadcastScreen(
         remember(context) {
             createLiquidAuthConnectionManager(context)
         }
+    val cameraPreviewController = remember { CameraStreamingPreviewController() }
+    val cameraPreview =
+        remember(connectionManager, cameraPreviewController) { createCameraStreamingPreview(connectionManager, cameraPreviewController) }
 
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
@@ -84,7 +93,7 @@ actual fun BroadcastScreen(
     val enablePaidStreaming = selectedCreatorAddress != null
 
     val selectedCreatorAccount = accounts.firstOrNull { it.address == selectedCreatorAddress }
-    val paymentCurrencyLabel = if (selectedCreatorAccount is SeedVault) "SOLANA" else "ALGO"
+    val paymentCurrencyLabel = if (selectedCreatorAccount is SeedVault) "SOL" else "ALGO"
     val blockChainLabel = if (selectedCreatorAccount is SeedVault) "Solana" else "Algorand"
     val balanceCurrencySymbol = if (selectedCreatorAccount is SeedVault) "S" else "A"
 
@@ -107,9 +116,9 @@ actual fun BroadcastScreen(
     // The LiquidAuthOfferScreen now receives the connection manager
     // which handles SignalService binding and peer detection
     LiquidAuthOfferScreen(
-        origin = "https://michaeltchuang.ngrok.dev/", // "https://liquid-auth-api.pg.nodely.dev/",
+        origin = "https://liquid-auth-api.pg.nodely.dev/",
         onBackPressed = { navController.popBackStack() },
-        cameraPreview = createCameraStreamingPreview(connectionManager),
+        cameraPreview = cameraPreview,
         connectionManager = connectionManager, // Enables WebRTC connection!
         headerContent = {
             if (accountsLoaded && accounts.isEmpty()) {
@@ -132,6 +141,11 @@ actual fun BroadcastScreen(
         paymentCurrencyLabel = paymentCurrencyLabel,
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
+        onMinimise = {},
+        streamHostUiModeState = streamHostUiModeState,
+        miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+        miniPlayerOnCloseActionState = miniPlayerOnCloseActionState,
+        cameraPreviewController = cameraPreviewController,
     )
 }
 
