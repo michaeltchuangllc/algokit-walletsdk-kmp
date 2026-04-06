@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
@@ -28,6 +29,7 @@ internal val liquidAuthModules =
                     sendSignedTransactionUseCase = get(),
                     submitSolanaSignedTransactionUseCase = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),
+                    getCurrentNetworkUseCase = get<GetCurrentNetworkUseCase>(),
                 )
             }
             viewModel {

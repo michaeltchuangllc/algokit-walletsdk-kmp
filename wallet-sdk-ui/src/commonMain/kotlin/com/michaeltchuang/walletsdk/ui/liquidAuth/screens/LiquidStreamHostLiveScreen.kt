@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.vectorResource
@@ -64,9 +66,19 @@ fun LiquidStreamHostLiveScreen(
     onMicClick: () -> Unit = {},
     onRotateCamera: () -> Unit = {},
     onStatsClick: () -> Unit = {},
+    onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
     onSendClick: () -> Unit = {},
+    sessionId: String? = null,
+    balanceAlgos: Double? = null,
+    connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
+    currentBlockNumber: Long? = null,
+    blockChainLabel: String = "ALGORAND",
+    networkLabel: String = "TESTNET",
+    balanceCurrencySymbol: String = "¦",
+    originUrl: String = "-",
 ) {
     val message = remember { mutableStateOf("") }
+    val isStatsModalVisible = remember { mutableStateOf(false) }
 
     Box(
         modifier =
@@ -121,7 +133,11 @@ fun LiquidStreamHostLiveScreen(
                 onCameraClick = onCameraClick,
                 onMicClick = onMicClick,
                 onRotateCamera = onRotateCamera,
-                onStatsClick = onStatsClick,
+                onStatsClick = {
+                    isStatsModalVisible.value = !isStatsModalVisible.value
+                    onStatsModalVisibilityChanged(isStatsModalVisible.value)
+                    onStatsClick()
+                },
             )
             Spacer(Modifier.height(18.dp))
             CreatorComposer(
@@ -132,6 +148,39 @@ fun LiquidStreamHostLiveScreen(
             Spacer(Modifier.height(20.dp))
             HomeIndicator()
             Spacer(Modifier.height(4.dp))
+        }
+
+        if (isStatsModalVisible.value) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .background(Color(0x4D001423))
+                        .clickable {
+                            isStatsModalVisible.value = false
+                            onStatsModalVisibilityChanged(false)
+                        },
+            )
+
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                Box(
+                    modifier = Modifier.padding(bottom = 250.dp),
+                ) {
+                    ConnectedViewersCard(
+                        sessionId = sessionId ?: "session-pending",
+                        balanceAlgos = balanceAlgos ?: 0.0,
+                        connectionType = connectionType,
+                        currentBlockNumber = currentBlockNumber,
+                        blockChainLabel = blockChainLabel,
+                        networkLabel = networkLabel,
+                        balanceCurrencySymbol = balanceCurrencySymbol,
+                        originUrl = originUrl,
+                    )
+                }
+            }
         }
     }
 }

@@ -92,7 +92,7 @@ actual fun BroadcastScreen(
     val enablePaidStreaming = selectedCreatorAddress != null
 
     val selectedCreatorAccount = accounts.firstOrNull { it.address == selectedCreatorAddress }
-    val paymentCurrencyLabel = if (selectedCreatorAccount is SeedVault) "SOLANA" else "ALGO"
+    val paymentCurrencyLabel = if (selectedCreatorAccount is SeedVault) "SOL" else "ALGO"
     val blockChainLabel = if (selectedCreatorAccount is SeedVault) "Solana" else "Algorand"
     val balanceCurrencySymbol = if (selectedCreatorAccount is SeedVault) "S" else "A"
 
@@ -115,7 +115,7 @@ actual fun BroadcastScreen(
     // The LiquidAuthOfferScreen now receives the connection manager
     // which handles SignalService binding and peer detection
     LiquidAuthOfferScreen(
-        origin = "https://michaeltchuang.ngrok.dev/", // "https://liquid-auth-api.pg.nodely.dev/",
+        origin = "https://liquid-auth-api.pg.nodely.dev/",
         onBackPressed = { navController.popBackStack() },
         cameraPreview = cameraPreview,
         connectionManager = connectionManager, // Enables WebRTC connection!

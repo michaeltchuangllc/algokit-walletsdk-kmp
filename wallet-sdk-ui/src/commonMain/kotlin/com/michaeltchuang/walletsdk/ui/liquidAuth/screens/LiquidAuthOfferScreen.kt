@@ -225,7 +225,9 @@ fun LiquidAuthOfferScreen(
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceMicroAlgos by viewModel.remainingBalanceMicroAlgos.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
+    val currentNetworkLabel by viewModel.currentNetworkLabel.collectAsStateWithLifecycle()
     val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val isAnalyticsModalVisible = remember { mutableStateOf(false) }
     val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
     miniPlayerCameraPreviewState?.value = cameraPreview
     miniPlayerOnCloseActionState?.value = {
@@ -250,6 +252,22 @@ fun LiquidAuthOfferScreen(
             println("🔗 Initializing connection manager with viewModel")
             connectionManager.initialize(viewModel)
             println("🔗 Connection manager initialized")
+        }
+    }
+
+    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value) {
+        when (state) {
+            is LiquidAuthOfferViewModel.OfferState.Connected,
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+                -> {
+                if (isAnalyticsModalVisible.value && streamHostUiMode.value == StreamHostUiMode.Expanded) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
+            }
+            else -> viewModel.stopRealtimeBlockNumberUpdates()
         }
     }
 
@@ -280,14 +298,25 @@ fun LiquidAuthOfferScreen(
             is LiquidAuthOfferViewModel.OfferState.Streaming,
                 -> {
                 println("🔗 Connection established - service handling")
+                if (isAnalyticsModalVisible.value) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
             }
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
                 println("🔗 Waiting for payment - keeping connection open")
+                if (isAnalyticsModalVisible.value) {
+                    viewModel.startRealtimeBlockNumberUpdates()
+                } else {
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                }
             }
 
             else -> {
                 println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
+                viewModel.stopRealtimeBlockNumberUpdates()
                 connectionManager.stopListening()
             }
         }
@@ -329,6 +358,8 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
                     // Start block consumption when payment received
                     println("💰 PaymentReceived event received!")
+                    // Ensure only one block poller is active (<= 1 network call per second)
+                    viewModel.stopRealtimeBlockNumberUpdates()
                     val sessionId = viewModel.getCurrentSessionId()
                     if (sessionId != null) {
                         currentConnectionManager?.startBlockConsumption(sessionId)
@@ -358,6 +389,7 @@ fun LiquidAuthOfferScreen(
     // Cleanup
     DisposableEffect(Unit) {
         onDispose {
+            viewModel.stopRealtimeBlockNumberUpdates()
             connectionManager?.stopListening()
             connectionManager?.stopBlockConsumption()
         }
@@ -377,6 +409,14 @@ fun LiquidAuthOfferScreen(
         streamHostUiMode = streamHostUiMode,
         cameraPreviewController = resolvedCameraPreviewController,
         paymentCurrencyLabel = paymentCurrencyLabel,
+        networkLabel = currentNetworkLabel,
+        connectionType = connectionType,
+        balanceAlgos = balanceAlgos,
+        currentBlockNumber = currentBlockNumber,
+        blockChainLabel = blockChainLabel,
+        balanceCurrencySymbol = balanceCurrencySymbol,
+        originUrl = origin,
+        onStatsModalVisibilityChanged = { isAnalyticsModalVisible.value = it },
     )
 
 }
@@ -397,6 +437,14 @@ private fun LiquidAuthOfferScreenContent(
     streamHostUiMode: MutableState<StreamHostUiMode>,
     cameraPreviewController: CameraStreamingPreviewController,
     paymentCurrencyLabel: String = "ALGO",
+    networkLabel: String = "TESTNET",
+    connectionType: IceConnectionType,
+    balanceAlgos: Double?,
+    currentBlockNumber: Long?,
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "A",
+    originUrl: String = "-",
+    onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
 ) {
 
     Scaffold(
@@ -500,6 +548,14 @@ private fun LiquidAuthOfferScreenContent(
     }
 
     if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
+        val sessionIdForStats =
+            when (state) {
+                is LiquidAuthOfferViewModel.OfferState.Connected -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.Streaming -> state.sessionId
+                else -> null
+            }
+
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
             cameraPreviewController = cameraPreviewController,
@@ -512,6 +568,15 @@ private fun LiquidAuthOfferScreenContent(
                 streamHostUiMode.value = StreamHostUiMode.Minimized
                 onMinimise()
             },
+            sessionId = sessionIdForStats,
+            balanceAlgos = balanceAlgos,
+            connectionType = connectionType,
+            currentBlockNumber = currentBlockNumber,
+            networkLabel = networkLabel,
+            blockChainLabel = blockChainLabel,
+            balanceCurrencySymbol = balanceCurrencySymbol,
+            originUrl = originUrl,
+            onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
         )
     }
 
@@ -525,6 +590,15 @@ private fun StreamHostBottomSheet(
     onStatsClick: () -> Unit,
     onMinimise: () -> Unit,
     onDismiss: () -> Unit,
+    sessionId: String?,
+    balanceAlgos: Double?,
+    connectionType: IceConnectionType,
+    currentBlockNumber: Long?,
+    networkLabel: String,
+    blockChainLabel: String,
+    balanceCurrencySymbol: String,
+    originUrl: String,
+    onStatsModalVisibilityChanged: (Boolean) -> Unit,
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -541,6 +615,15 @@ private fun StreamHostBottomSheet(
                 onMinimise = onMinimise,
                 onRotateCamera = { cameraPreviewController.rotateCamera() },
                 onStatsClick = onStatsClick,
+                onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                sessionId = sessionId,
+                balanceAlgos = balanceAlgos,
+                connectionType = connectionType,
+                currentBlockNumber = currentBlockNumber,
+                blockChainLabel = blockChainLabel,
+                networkLabel = networkLabel,
+                balanceCurrencySymbol = balanceCurrencySymbol,
+                originUrl = originUrl,
             )
         }
         return
@@ -576,6 +659,15 @@ private fun StreamHostBottomSheet(
                     onMinimise = onMinimise,
                     onRotateCamera = { cameraPreviewController.rotateCamera() },
                     onStatsClick = {},
+                    onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                    sessionId = sessionId,
+                    balanceAlgos = balanceAlgos,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    blockChainLabel = blockChainLabel,
+                    networkLabel = networkLabel,
+                    balanceCurrencySymbol = balanceCurrencySymbol,
+                    originUrl = originUrl,
                 )
             }
         }
@@ -1319,6 +1411,9 @@ private fun LiquidAuthOfferWaitingForConnectionPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1358,6 +1453,7 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
                 balanceAlgos = 0.8,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = 45123456L,
+                networkLabel = "TESTNET",
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1387,6 +1483,9 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1413,6 +1512,9 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1439,6 +1541,9 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1472,6 +1577,9 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1495,6 +1603,9 @@ private fun LiquidAuthOfferErrorPreview() {
             onMinimise = {},
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            balanceAlgos = null,
+            currentBlockNumber = null,
         )
     }
 }
@@ -1515,6 +1626,7 @@ private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
                 balanceAlgos = 0.7,
                 connectionType = IceConnectionType.STUN,
                 currentBlockNumber = 45123501L,
+                networkLabel = "TESTNET",
             )
         }
     }
@@ -1535,6 +1647,7 @@ private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
                 sessionId = "session-preview-87654321",
                 balanceAlgos = 0.7,
                 connectionType = IceConnectionType.STUN,
+                networkLabel = "TESTNET",
             )
         }
     }

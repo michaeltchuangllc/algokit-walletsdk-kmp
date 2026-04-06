@@ -1,345 +1,237 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.round
 
-/**
- * Connected Viewers Card - Shows connected viewers with visual balance progress bar
- * Displays remaining balance as percentage of 1 ALGO deposit
- */
 @Composable
 internal fun ConnectedViewersCard(
     sessionId: String,
     balanceAlgos: Double,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
-    blockChainLabel: String = "Algorand",
-    balanceCurrencySymbol: String = "\u00A6",
+    blockChainLabel: String = "ALGORAND",
+    networkLabel: String = "TESTNET",
+    balanceCurrencySymbol: String = "¦",
+    originUrl: String = "-",
 ) {
-    val balancePercentage = (balanceAlgos / 1.0).coerceIn(0.0, 1.0)
-    val percentageInt = round(balancePercentage * 100).toInt()
-    val isSolana = balanceCurrencySymbol == "S"
-
-    // Format balance text
-    val balanceText = (round(balanceAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: balanceAlgos.toString().take(4)
-
-    // Color based on remaining balance
-    val balanceColor =
-        when {
-            balanceAlgos > 0.5 -> Color(0xFF4CAF50) // Green - plenty
-            balanceAlgos > 0.2 -> Color(0xFFFFC107) // Yellow - getting low
-            else -> Color(0xFFF44336) // Red - almost empty
+    val balanceText = (round(balanceAlgos * 100) / 100).toString()
+    val streamCost = if (connectionType == IceConnectionType.RELAY) "0.005" else "0.001"
+    val progress = (balanceAlgos / 1.0).coerceIn(0.0, 1.0).toFloat()
+    val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
+    val originDisplay =
+        originUrl
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .trimEnd('/')
+            .ifBlank { "-" }
+    val badgeText =
+        buildString {
+            append("WEBRTC")
+            currentBlockNumber?.let { append(" • ${blockChainLabel.uppercase()} $networkLabel #$it") }
         }
 
     Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = AlgoKitTheme.colors.layerGray,
-            ),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
     ) {
         Column(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                    .background(
+                        Brush.horizontalGradient(
+                            colors = listOf(Color(0xFF0E2B45), Color(0xFF102338), Color(0xFF0A1C2D)),
+                        ),
+                    ).border(1.dp, Color(0xFF2C4E6A), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            // Header row with viewer info and live indicator
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Top,
             ) {
-                // Left: Viewer info
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    // Connection indicator
-                    Box(
-                        modifier =
-                            Modifier
-                                .size(10.dp)
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(Color(0xFF4CAF50)),
-                    )
-
-                    Column {
-                        Text(
-                            text = "Viewer ${sessionId.take(8)}...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = AlgoKitTheme.colors.textMain,
-                        )
-                        Text(
-                            text = "via ${connectionType.displayName()}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AlgoKitTheme.colors.textGray,
-                        )
-                    }
-                }
-
-                // Right: Live badge
-                Card(
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor = Color(0xFFF44336).copy(alpha = 0.2f),
-                        ),
-                    shape = RoundedCornerShape(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Box(
-                            modifier =
-                                Modifier
-                                    .size(6.dp)
-                                    .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFFF44336)),
-                        )
-                        Text(
-                            text = "LIVE",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFF44336),
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
+                MetricBlock(
+                    label = "SESSION VAULT",
+                    value = balanceText,
+                    unit = if (balanceCurrencySymbol == "S") "SOL" else "USDC",
+                    alignEnd = false,
+                )
+                MetricBlock(
+                    label = "STREAM COST",
+                    value = streamCost,
+                    unit = "USDC/BLOCK+GAS",
+                    alignEnd = true,
+                )
             }
 
-            // Big visual progress bar section
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+            Box(
+                modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(100.dp)).background(Color(0xFF5A6E80)),
             ) {
-                // Percentage label row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Bottom,
-                ) {
-                    Text(
-                        text = "$percentageInt%",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = balanceColor,
-                        fontWeight = FontWeight.Bold,
-                    )
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (isSolana) {
-                            Icon(
-                                imageVector = vectorResource(Res.drawable.ic_solana_sign),
-                                contentDescription = "Solana",
-                                modifier = Modifier.size(14.dp),
-                                tint = Color.Unspecified,
-                            )
-                        }
-                        Text(
-                            text = if (isSolana) "$balanceText / 1" else "$balanceCurrencySymbol $balanceText / $balanceCurrencySymbol 1",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = AlgoKitTheme.colors.textMain,
-                        )
-                    }
-                }
-
-                // Thick progress bar
                 Box(
                     modifier =
                         Modifier
-                            .fillMaxWidth()
-                            .height(24.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(AlgoKitTheme.colors.background),
-                ) {
-                    // Filled portion
-                    Box(
-                        modifier =
-                            Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(balancePercentage.toFloat())
-                                .background(balanceColor),
-                    )
-
-                    // Percentage text centered in bar
-                    Text(
-                        text = "$percentageInt%",
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-
-                // Labels
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                ) {
-                    Text(
-                        text = "0%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AlgoKitTheme.colors.textGray,
-                    )
-                    Text(
-                        text = "Remaining Balance",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AlgoKitTheme.colors.textGray,
-                    )
-                    Text(
-                        text = "100%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = AlgoKitTheme.colors.textGray,
-                    )
-                }
+                            .fillMaxWidth(progress)
+                            .height(7.dp)
+                            .clip(RoundedCornerShape(100.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    colors = listOf(Color(0xFF2F46FF), Color(0xFF2CC8CB)),
+                                ),
+                            ),
+                )
             }
 
-            // Stats row
-            val usedAlgos = 1.0 - balanceAlgos
-            val usedText = (round(usedAlgos * 100) / 100).toString().takeIf { it.length <= 4 } ?: usedAlgos.toString().take(4)
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF57D9D5)))
+                Text(
+                    text = "  $badgeText",
+                    color = Color(0xFF99B9CC),
+                    fontSize = 11.sp,
+                    lineHeight = 11.sp,
+                    textAlign = TextAlign.Center,
+                )
+            }
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                StatItem(
-                    label = "Used",
-                    value = if (isSolana) usedText else "$balanceCurrencySymbol $usedText",
-                    color = AlgoKitTheme.colors.textGray,
-                    showSolanaIcon = isSolana,
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF36556F)))
+                Text(
+                    text = "michaeltchuang.algo",
+                    color = Color(0xFFEAF5FC),
+                    fontSize = 25.sp / 2f,
+                    fontWeight = FontWeight.Bold,
                 )
-                StatItem(
-                    label = "Remaining",
-                    value = if (isSolana) balanceText else "$balanceCurrencySymbol $balanceText",
-                    color = balanceColor,
-                    showSolanaIcon = isSolana,
-                )
-                StatItem(
-                    label = "Total Deposit",
-                    value = if (isSolana) "1" else "$balanceCurrencySymbol 1",
-                    color = AlgoKitTheme.colors.textMain,
-                    showSolanaIcon = isSolana,
-                )
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF36556F)))
             }
-            // Blockchain info - Algorand block number
-            if (currentBlockNumber != null) {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors =
-                        CardDefaults.cardColors(
-                            containerColor = Color(0xFF6200EE).copy(alpha = 0.1f), // Purple tint
-                        ),
-                    shape = RoundedCornerShape(8.dp),
-                ) {
-                    Row(
-                        modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        ) {
-                            // Chain link icon
-                            Text(
-                                text = "⛓️",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            Text(
-                                text = "Algorand Block",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = AlgoKitTheme.colors.textMain,
-                            )
-                        }
 
-                        Text(
-                            text = "#$currentBlockNumber",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = AlgoKitTheme.colors.linkPrimary,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
-                }
+            MetaRow(label = "ORIGIN:", value = originDisplay)
+            MetaRow(label = "TYPE:", value = connectionType.displayName().uppercase())
+            MetaRow(label = "REQUEST ID:", value = shortSessionId)
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                NavButton(text = "‹")
+                Text(
+                    text = "1 OF 2 STREAMS",
+                    color = Color(0xFFA9C0D0),
+                    fontSize = 20.sp / 2f,
+                    letterSpacing = 1.sp,
+                )
+                NavButton(text = "›")
             }
         }
     }
 }
 
-/**
- * Simple stat item for the stats row
- */
 @Composable
-internal fun StatItem(
+private fun MetricBlock(
     label: String,
     value: String,
-    color: Color,
-    showSolanaIcon: Boolean = false,
+    unit: String,
+    alignEnd: Boolean,
 ) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            if (showSolanaIcon) {
-                Icon(
-                    imageVector = vectorResource(Res.drawable.ic_solana_sign),
-                    contentDescription = "Solana",
-                    modifier = Modifier.size(14.dp),
-                    tint = Color.Unspecified,
-                )
-            }
-            Text(
-                text = value,
-                style = MaterialTheme.typography.titleMedium,
-                color = color,
-                fontWeight = FontWeight.Bold,
-            )
-        }
+    Column(horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = AlgoKitTheme.colors.textGray,
+            color = Color(0xFFA9C0D0),
+            fontSize = 21.sp / 2f,
+            letterSpacing = 1.sp,
+        )
+        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                text = value,
+                color = Color(0xFFEAF5FC),
+                fontSize = 66.sp / 2f,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 1.sp,
+            )
+            Text(
+                text = unit,
+                color = Color(0xFFBFD2DF),
+                fontSize = 30.sp / 2f,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MetaRow(
+    label: String,
+    value: String,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            color = Color(0xFF8DA8BB),
+            fontSize = 21.sp / 2f,
+            letterSpacing = 0.5.sp,
+        )
+        Text(
+            text = value,
+            color = Color(0xFFE2EEF7),
+            fontSize = 24.sp / 2f,
+            modifier = Modifier.weight(1f),
+            maxLines = 1,
+        )
+    }
+}
+
+@Composable
+private fun NavButton(text: String) {
+    Box(
+        modifier = Modifier.size(width = 42.dp, height = 38.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = Color(0xFFE2EEF7),
+            fontSize = 24.sp / 2f,
+            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -349,17 +241,14 @@ internal fun StatItem(
 private fun ConnectedViewersCardWithBlockPreview() {
     AlgoKitTheme {
         Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(AlgoKitTheme.colors.background)
-                    .padding(vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
         ) {
             ConnectedViewersCard(
-                sessionId = "session-1234567890",
-                balanceAlgos = 0.6,
-                connectionType = IceConnectionType.STUN,
-                currentBlockNumber = 45123459L,
+                sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
+                balanceAlgos = 42.85,
+                connectionType = IceConnectionType.RELAY,
+                currentBlockNumber = 38291041L,
+                networkLabel = "TESTNET",
             )
         }
     }
@@ -370,17 +259,14 @@ private fun ConnectedViewersCardWithBlockPreview() {
 private fun ConnectedViewersCardWithoutBlockPreview() {
     AlgoKitTheme {
         Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .background(AlgoKitTheme.colors.background)
-                    .padding(vertical = 16.dp),
+            modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
         ) {
             ConnectedViewersCard(
                 sessionId = "session-1234567890",
-                balanceAlgos = 0.2,
-                connectionType = IceConnectionType.RELAY,
+                balanceAlgos = round(0.2 * 100) / 100,
+                connectionType = IceConnectionType.STUN,
                 currentBlockNumber = null,
+                networkLabel = "MAINNET",
             )
         }
     }
