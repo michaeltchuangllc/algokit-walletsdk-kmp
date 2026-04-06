@@ -58,6 +58,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 class AnswerActivity : AppCompatActivity() {
     private var shouldEnterPipMode = false
+
     companion object {
         private const val TAG = "AnswerActivity"
         const val EXTRA_ACCOUNT_ADDRESS = "EXTRA_ACCOUNT_ADDRESS"
@@ -73,7 +74,6 @@ class AnswerActivity : AppCompatActivity() {
     // State variables - cleaned up and consolidated
     private var algoAddress: String? = null
     private var mnemonic: String? = null
-
 
     // Authenticate/Assertion Intent Channel
     private lateinit var assertionIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
@@ -454,7 +454,10 @@ class AnswerActivity : AppCompatActivity() {
     }
 
     private fun isViewerSessionActive(): Boolean {
-        val dataChannelState = viewModel.signalService.value?.dataChannel?.state()
+        val dataChannelState =
+            viewModel.signalService.value
+                ?.dataChannel
+                ?.state()
         val hasOpenDataChannel = dataChannelState == DataChannel.State.OPEN
         val hasConnectedSession = viewModel.session.value == "Connected"
         return hasOpenDataChannel || hasConnectedSession

@@ -64,7 +64,8 @@ actual fun BroadcastScreen(
             createLiquidAuthConnectionManager(context)
         }
     val cameraPreviewController = remember { CameraStreamingPreviewController() }
-    val cameraPreview = remember(connectionManager, cameraPreviewController) { createCameraStreamingPreview(connectionManager, cameraPreviewController) }
+    val cameraPreview =
+        remember(connectionManager, cameraPreviewController) { createCameraStreamingPreview(connectionManager, cameraPreviewController) }
 
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()

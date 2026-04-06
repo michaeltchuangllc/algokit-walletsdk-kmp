@@ -161,7 +161,10 @@ fun AnswerScreen(
                 sheetState = viewerBottomSheetState,
                 dragHandle = null,
                 containerColor = Color.Transparent,
-                contentWindowInsets = { androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0) },
+                contentWindowInsets = {
+                    androidx.compose.foundation.layout
+                        .WindowInsets(0, 0, 0, 0)
+                },
             ) {
                 LiquidAuthViewerScreen(
                     sessionId = session,
@@ -235,7 +238,6 @@ fun AnswerScreen(
                 },
             )
         }
-
     }
 }
 
@@ -306,12 +308,10 @@ fun ScreenContentAnswer(
                     )
                 }
 
-
                 // Account Info Card
                 if (accountAddress.isNotEmpty()) {
                     AccountInfoCard(accountAddress = accountAddress)
                 }
-
             }
         }
     }

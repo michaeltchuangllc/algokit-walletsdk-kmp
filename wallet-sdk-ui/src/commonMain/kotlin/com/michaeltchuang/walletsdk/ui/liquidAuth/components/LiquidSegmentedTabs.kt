@@ -37,9 +37,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlin.math.roundToInt
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
+import kotlin.math.roundToInt
 
 data class SegmentedTabItem(
     val id: String,
@@ -100,29 +100,32 @@ fun LiquidSegmentedTabs(
     Surface(
         shape = RoundedCornerShape(containerCornerRadius),
         color = containerColor,
-        modifier = modifier.border(
-            width = 1.dp,
-            color = borderColor,
-            shape = RoundedCornerShape(containerCornerRadius),
-        ),
+        modifier =
+            modifier.border(
+                width = 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(containerCornerRadius),
+            ),
     ) {
         BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp)
-                .onSizeChanged {
-                    tabsRowWidthPx = it.width.toFloat()
-                    tabsRowHeightPx = it.height.toFloat()
-                },
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp)
+                    .onSizeChanged {
+                        tabsRowWidthPx = it.width.toFloat()
+                        tabsRowHeightPx = it.height.toFloat()
+                    },
         ) {
             if (tabsRowHeightPx > 0f && tabWidthPx > 0f) {
                 Box(
-                    modifier = Modifier
-                        .offset { IntOffset(x = indicatorOffsetPx.roundToInt(), y = 0) }
-                        .width(with(density) { tabWidthPx.toDp() })
-                        .height(with(density) { tabsRowHeightPx.toDp() })
-                        .clip(RoundedCornerShape(tabCornerRadius))
-                        .background(selectedTabColor),
+                    modifier =
+                        Modifier
+                            .offset { IntOffset(x = indicatorOffsetPx.roundToInt(), y = 0) }
+                            .width(with(density) { tabWidthPx.toDp() })
+                            .height(with(density) { tabsRowHeightPx.toDp() })
+                            .clip(RoundedCornerShape(tabCornerRadius))
+                            .background(selectedTabColor),
                 )
             }
 
@@ -133,11 +136,12 @@ fun LiquidSegmentedTabs(
                 tabs.forEachIndexed { index, tab ->
                     val selected = index == selectedIndex
                     Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(tabCornerRadius))
-                            .clickable { onTabSelected(tab.id) }
-                            .padding(contentPadding),
+                        modifier =
+                            Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(tabCornerRadius))
+                                .clickable { onTabSelected(tab.id) }
+                                .padding(contentPadding),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Row(

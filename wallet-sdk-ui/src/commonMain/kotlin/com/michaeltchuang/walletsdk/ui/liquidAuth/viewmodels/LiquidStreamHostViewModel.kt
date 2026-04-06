@@ -71,7 +71,9 @@ class LiquidStreamHostViewModel(
                 blockNumberLabel = "Block #38291041",
                 streamCostPaidTitle = "8 micro-USDC",
                 streamCostInfoText = "Est. 1 Million blocks/month. 8 micro-USDC is ~$8 USD monthly.",
-                payoutInfoText = "Batching payouts every 256 blocks saves you ~ $2,000 USD/year in transaction fees compared to every block.",
+                payoutInfoText =
+                    "Batching payouts every 256 blocks saves you ~ $2,000 USD/year " +
+                        "in transaction fees compared to every block.",
                 selectedStreamCostTabId = STREAM_COST_FREE_TAB_ID,
                 subsidizeViewerFeesEnabled = false,
                 selectedPayoutFrequencyTabId = PAYOUT_EVERY_256_BLOCKS_TAB_ID,

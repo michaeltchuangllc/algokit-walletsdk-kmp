@@ -106,7 +106,6 @@ fun LiquidAuthViewerScreen(
                     .navigationBarsPadding()
                     .imePadding(),
         ) {
-
             Spacer(Modifier.height(14.dp))
             Header(onMinimize = onMinimize)
             Spacer(Modifier.height(20.dp))
@@ -153,8 +152,6 @@ fun LiquidAuthViewerScreen(
                 }
             }
         }
-
-
     }
 }
 
@@ -281,8 +278,7 @@ private fun GiftTickerCard() {
                     Brush.horizontalGradient(
                         colors = listOf(Color(0xCC13889A), Color(0xCC2B3CFF)),
                     ),
-                )
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+                ).padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {

@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-import io.github.aakira.napier.Napier
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
@@ -60,6 +59,7 @@ import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -205,7 +205,9 @@ class AnswerViewModel(
                     _session.value = "Logged Out"
                     _authMessage.value = null
                     _signalService.value?.stop()
-                    val reason = "Stream disconnected because no video frames were received for a few seconds. Please reconnect to continue watching."
+                    val reason =
+                        "Stream disconnected because no video frames were received for a few seconds. " +
+                            "Please reconnect to continue watching."
                     _error.value = reason
                     eventDelegate.sendEvent(ViewEvent.ShowToast(reason))
                     eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
@@ -510,7 +512,13 @@ class AnswerViewModel(
                 Napier.d(tag = TAG, message = "Incoming CBOR first bytes: $firstBytes")
                 Napier.d(
                     tag = TAG,
-                    message = "Incoming CBOR encoding: ${if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH" else "DEFINITE-LENGTH"}",
+                    message =
+                        "Incoming CBOR encoding: " +
+                            if (cborBytes[0].toInt() and 0x1F == 0x1F) {
+                                "INDEFINITE-LENGTH"
+                            } else {
+                                "DEFINITE-LENGTH"
+                            },
                 )
             }
 
@@ -600,7 +608,10 @@ class AnswerViewModel(
                     val request = X402PaymentMessages.PaymentRequest.fromJson(msgStr)
                     Napier.d(
                         tag = TAG,
-                        message = "💰 Payment request parsed: id=${request.id}, amount=${request.amountMicroAlgos}, creator=${request.creatorAddress}",
+                        message =
+                            "💰 Payment request parsed: " +
+                                "id=${request.id}, amount=${request.amountMicroAlgos}, " +
+                                "creator=${request.creatorAddress}",
                     )
 
                     // Store payment request for UI handling

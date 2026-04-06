@@ -31,29 +31,32 @@ fun LiquidRingToggle(
     val thumbSize = 18.dp
 
     Box(
-        modifier = modifier
-            .size(width = trackWidth, height = trackHeight)
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFA7C1C7))
-            .clickable { onCheckedChange(!checked) },
+        modifier =
+            modifier
+                .size(width = trackWidth, height = trackHeight)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFA7C1C7))
+                .clickable { onCheckedChange(!checked) },
         contentAlignment = Alignment.Center,
     ) {
         Box(
-            modifier = Modifier
-                .align(if (checked) Alignment.CenterStart else Alignment.CenterEnd)
-                .offset(x = if (checked) 2.dp else (-2).dp)
-                .size(8.dp)
-                .border(1.dp, Color.White, CircleShape)
+            modifier =
+                Modifier
+                    .align(if (checked) Alignment.CenterStart else Alignment.CenterEnd)
+                    .offset(x = if (checked) 2.dp else (-2).dp)
+                    .size(8.dp)
+                    .border(1.dp, Color.White, CircleShape),
         )
 
         Box(
-            modifier = Modifier
-                .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
-                .offset(x = if (checked) (-2).dp else 2.dp)
-                .size(thumbSize)
-                .shadow(elevation = 14.dp, shape = CircleShape)
-                .clip(CircleShape)
-                .background(Color.White)
+            modifier =
+                Modifier
+                    .align(if (checked) Alignment.CenterEnd else Alignment.CenterStart)
+                    .offset(x = if (checked) (-2).dp else 2.dp)
+                    .size(thumbSize)
+                    .shadow(elevation = 14.dp, shape = CircleShape)
+                    .clip(CircleShape)
+                    .background(Color.White),
         )
     }
 }

@@ -1,17 +1,17 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dmsans_bold
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_camera_flip
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dmsans_bold
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_menu
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_minimise
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -25,8 +25,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -117,9 +117,9 @@ fun LiquidStreamHostLiveScreen(
             modifier =
                 Modifier
                     .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 0.dp)
-                .imePadding(),
+                    .statusBarsPadding()
+                    .padding(horizontal = 20.dp, vertical = 0.dp)
+                    .imePadding(),
         ) {
             CreatorTopBar(
                 onSettingsClick = onSettingsClick,
@@ -321,8 +321,7 @@ private fun CreatorMessageBubble(
                     Brush.horizontalGradient(
                         colors = listOf(Color(0xCC123651), Color(0xCC102F49)),
                     ),
-                )
-                .padding(horizontal = 16.dp, vertical = 13.dp),
+                ).padding(horizontal = 16.dp, vertical = 13.dp),
     ) {
         Text(
             text = text,
@@ -459,8 +458,8 @@ private fun CreatorComposer(
         Box(
             modifier =
                 Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(14.dp))
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
@@ -507,8 +506,8 @@ private fun CreatorComposer(
         Box(
             modifier =
                 Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(16.dp))
+                    .size(52.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color(0xFF2D2DF1))
                     .clickable(onClick = onSendClick),
             contentAlignment = Alignment.Center,

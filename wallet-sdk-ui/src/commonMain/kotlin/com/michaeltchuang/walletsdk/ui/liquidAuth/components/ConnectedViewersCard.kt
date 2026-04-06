@@ -97,7 +97,12 @@ internal fun ConnectedViewersCard(
             }
 
             Box(
-                modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(100.dp)).background(Color(0xFF5A6E80)),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(Color(0xFF5A6E80)),
             ) {
                 Box(
                     modifier =
@@ -114,7 +119,13 @@ internal fun ConnectedViewersCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(20.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(
+                            RoundedCornerShape(20.dp),
+                        ).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
@@ -157,7 +168,7 @@ internal fun ConnectedViewersCard(
             ) {
                 NavButton(text = "‹")
                 Text(
-                    text = "1 OF 2 STREAMS",
+                    text = "1 OF 1 STREAMS",
                     color = Color(0xFFA9C0D0),
                     fontSize = 20.sp / 2f,
                     letterSpacing = 1.sp,
@@ -229,7 +240,13 @@ private fun MetaRow(
 @Composable
 private fun NavButton(text: String) {
     Box(
-        modifier = Modifier.size(width = 42.dp, height = 38.dp).clip(RoundedCornerShape(12.dp)).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(12.dp)),
+        modifier =
+            Modifier
+                .size(
+                    width = 42.dp,
+                    height = 38.dp,
+                ).clip(RoundedCornerShape(12.dp))
+                .border(1.dp, Color(0xFF3E607B), RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Text(

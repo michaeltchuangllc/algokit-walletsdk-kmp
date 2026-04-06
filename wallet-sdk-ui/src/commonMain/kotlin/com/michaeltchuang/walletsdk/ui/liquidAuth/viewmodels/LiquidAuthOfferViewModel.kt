@@ -728,7 +728,7 @@ class LiquidAuthOfferViewModel(
                             }
                             is com.michaeltchuang.walletsdk.utils.DataResource.Error,
                             is com.michaeltchuang.walletsdk.utils.DataResource.Loading,
-                                -> Unit
+                            -> Unit
                         }
                     }
                     delay(1000)

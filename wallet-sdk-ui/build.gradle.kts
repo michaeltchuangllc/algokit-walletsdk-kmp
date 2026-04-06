@@ -206,7 +206,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_21
     }
 
-
     sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
     sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
 

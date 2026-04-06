@@ -46,7 +46,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +65,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
@@ -134,8 +134,7 @@ fun LiquidAuthMiniPlayerOverlay(
                                 x = clampedOffset.x.toInt(),
                                 y = clampedOffset.y.toInt(),
                             )
-                        }
-                        .size(miniPlayerSize)
+                        }.size(miniPlayerSize)
                         .shadow(8.dp, RoundedCornerShape(16.dp))
                         .clip(RoundedCornerShape(16.dp))
                         .background(Color.Black)
@@ -153,8 +152,7 @@ fun LiquidAuthMiniPlayerOverlay(
                                         y = (current.y + dragAmount.y).coerceIn(0f, maxY),
                                     )
                             }
-                        }
-                        .clickable {
+                        }.clickable {
                             streamHostUiModeState.value = StreamHostUiMode.Expanded
                         },
             ) {
@@ -261,7 +259,7 @@ fun LiquidAuthOfferScreen(
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
-                -> {
+            -> {
                 if (isAnalyticsModalVisible.value && streamHostUiMode.value == StreamHostUiMode.Expanded) {
                     viewModel.startRealtimeBlockNumberUpdates()
                 } else {
@@ -293,7 +291,7 @@ fun LiquidAuthOfferScreen(
         val currentState = state
         println(
             "🔗 State changed to: ${currentState::class.simpleName}, " +
-                    "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
+                "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
         )
 
         when (currentState) {
@@ -307,7 +305,7 @@ fun LiquidAuthOfferScreen(
 
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
-                -> {
+            -> {
                 println("🔗 Connection established - service handling")
                 if (isAnalyticsModalVisible.value) {
                     viewModel.startRealtimeBlockNumberUpdates()
@@ -393,7 +391,7 @@ fun LiquidAuthOfferScreen(
                     }
                 }
 
-                else -> { /* other events */
+                else -> { // other events
                 }
             }
         }
@@ -431,12 +429,11 @@ fun LiquidAuthOfferScreen(
         originUrl = origin,
         onStatsModalVisibilityChanged = { isAnalyticsModalVisible.value = it },
     )
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
- fun LiquidAuthOfferScreenContent(
+fun LiquidAuthOfferScreenContent(
     showTopBar: Boolean,
     title: @Composable () -> Unit,
     onBackPressed: (() -> Unit)?,
@@ -459,7 +456,6 @@ fun LiquidAuthOfferScreen(
     originUrl: String = "-",
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
 ) {
-
     Scaffold(
         topBar = {
             if (showTopBar) {
@@ -508,35 +504,10 @@ fun LiquidAuthOfferScreen(
                     )
                 }
 
-                /*   is LiquidAuthOfferViewModel.OfferState.Connected -> {
-                       ConnectedSection(
-                           sessionId = currentState.sessionId,
-                           connectionType = connectionType,
-                           balanceAlgos = balanceAlgos,
-                           onStartCamera = onStartCamera,
-                           onDisconnect = onDisconnect,
-                           onRequestPayment = onRequestPayment,
-                           showStartButton = true,
-                           paymentCurrencyLabel = paymentCurrencyLabel,
-                           streamHostUiMode = streamHostUiMode
-
-                       )
-                   }*/
-
-                /*    is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
-                        WaitingForPaymentSection(
-                            sessionId = currentState.sessionId,
-                            connectionType = connectionType,
-                            balanceAlgos = balanceAlgos,
-                            paymentRequest = currentState.paymentRequest,
-                            onDisconnect = onDisconnect,
-                            paymentCurrencyLabel = paymentCurrencyLabel,
-                        )
-                    }*/
-
                 is LiquidAuthOfferViewModel.OfferState.Streaming,
                 is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
-                is LiquidAuthOfferViewModel.OfferState.Connected -> {
+                is LiquidAuthOfferViewModel.OfferState.Connected,
+                -> {
                     // Stream host UI is controlled below so it dismisses only on stop.
                     if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
                         streamHostUiMode.value = StreamHostUiMode.Expanded
@@ -592,7 +563,6 @@ fun LiquidAuthOfferScreen(
             onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
         )
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -696,7 +666,7 @@ private fun ConnectionStatusCard(
         when (state) {
             is LiquidAuthOfferViewModel.OfferState.Idle,
             is LiquidAuthOfferViewModel.OfferState.Loading,
-                -> "Initializing..." to TextGray
+            -> "Initializing..." to TextGray
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection ->
                 "Waiting for client to scan QR code..." to PendingYellow
@@ -830,7 +800,7 @@ private fun ConnectedSection(
     onRequestPayment: () -> Unit = {},
     showStartButton: Boolean = true,
     paymentCurrencyLabel: String = "ALGO",
-    streamHostUiMode: MutableState<StreamHostUiMode>
+    streamHostUiMode: MutableState<StreamHostUiMode>,
 ) {
     Card(
         modifier =
@@ -927,7 +897,7 @@ private fun ConnectedSection(
                             Text(
                                 text =
                                     "The viewer has used all their deposit. " +
-                                            "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
+                                        "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = AlgoKitTheme.colors.textGray,
                                 textAlign = TextAlign.Center,
