@@ -27,7 +27,7 @@ class PasskeyManager {
         let args = composeDemoApp.Wallet_sdk_coreAddPasskeyArgs(
             siteUrl: siteUrl,
             siteName: siteName,
-            algoAddress: algoAddress,
+            address: algoAddress,
             uid: uid,
             username: username,
             displayName: displayName,
@@ -58,9 +58,9 @@ class PasskeyManager {
     }
     
     /// Get passkeys for a specific Algorand address
-    func getPasskeysByAlgoAddress(algoAddress: String) async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
+    func getPasskeysByAlgoAddress(address: String) async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
         // Get credential ID for this address
-        guard let credId = try await passkeyRepository.getCredentialIdByAlgoAddress(algoAddress: algoAddress) else {
+        guard let credId = try await passkeyRepository.getCredentialIdByAddress(address: address) else {
             return []
         }
         

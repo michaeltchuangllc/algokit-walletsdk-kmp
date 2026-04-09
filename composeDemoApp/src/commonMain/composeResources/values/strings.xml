@@ -3,7 +3,7 @@
     <string name="open_github">Open github</string>
 
     <!-- Bottom Navigation Screen -->
-    <string name="nav_discover">GitHub Repository</string>
+    <string name="nav_discover">GitHub Repo</string>
     <string name="nav_home">Home</string>
     <string name="nav_broadcast">Broadcast</string>
     <string name="no_account_list">No accounts found. \nTap + to add one!</string>
