@@ -112,6 +112,32 @@ object ColorPalette {
     val SignalRed500 = Color(0xFFF12D2D)
     val SignalRed500Alpha10 = Color(0x1AF12D2D)
     val CoolGray150 = Color(0xFFE8EBEF)
+
+    // Liquid stream host settings
+    val OverlayShade = Color(0x66001423)
+    val GlowEdge = Color(0x00042A48)
+    val GlowCenter = Color(0x66003F7A)
+    val SheetBackground = Color(0xFF051C34)
+    val SheetBorder = Color(0x3D99EAF5)
+    val SecondaryText = Color(0xC7BFD4DD)
+    val SheetHandle = Color(0x40C6D8E7)
+    val CloseButtonBackground = Color(0xFF536672)
+    val WhiteAlpha33 = Color(0x55FFFFFF)
+    val MetricLabel = Color(0xA9BFD1DF)
+    val AccentMint = Color(0xFF9DE5EE)
+    val SectionDivider = Color(0x36B0D8EA)
+    val BodyText = Color(0xD8E1EEF6)
+    val CaptionText = Color(0xC3BFD4DD)
+    val TabContainer = Color(0x220D2F4A)
+    val TabBorder = Color(0x3AB5D6EA)
+    val TabSelected = Color(0xFF2E34F7)
+    val TabUnselectedIcon = Color(0xFFB6E8EB)
+    val TabSelectedSubtitle = Color(0xFFD6DDFF)
+    val TabUnselectedSubtitle = Color(0xFFC4D7E5)
+    val CardBackground = Color(0xFFA6DBDF)
+    val CardHeading = Color(0xFF0D2C3F)
+    val CardBody = Color(0xFF1F4958)
+    val StarTint = Color(0xFFAEE8E7)
 }
 
 interface AlgoKitColor {
@@ -242,4 +268,34 @@ interface AlgoKitColor {
     val snackbarErrorText: Color
     val snackbarSuccessText: Color
     val snackbarInfoText: Color
+
+    // Liquid stream host settings
+    val streamHostOverlay: Color
+    val streamHostGlowEdge: Color
+    val streamHostGlowCenter: Color
+    val streamHostSheetBackground: Color
+    val streamHostSheetBorder: Color
+    val streamHostSecondaryText: Color
+    val streamHostHandle: Color
+    val streamHostCloseButtonBackground: Color
+    val streamHostCloseButtonBorder: Color
+    val streamHostCloseButtonIcon: Color
+    val streamHostTitle: Color
+    val streamHostMetricLabel: Color
+    val streamHostAccent: Color
+    val streamHostDivider: Color
+    val streamHostBodyText: Color
+    val streamHostStarTint: Color
+    val streamHostCaption: Color
+    val streamHostTabContainer: Color
+    val streamHostTabBorder: Color
+    val streamHostTabSelected: Color
+    val streamHostTabSelectedContent: Color
+    val streamHostTabUnselectedIcon: Color
+    val streamHostTabUnselectedTitle: Color
+    val streamHostTabSelectedSubtitle: Color
+    val streamHostTabUnselectedSubtitle: Color
+    val streamHostCardBackground: Color
+    val streamHostCardHeading: Color
+    val streamHostCardBody: Color
 }

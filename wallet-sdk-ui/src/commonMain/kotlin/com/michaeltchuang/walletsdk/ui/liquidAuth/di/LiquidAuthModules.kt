@@ -5,8 +5,9 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiqui
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -35,6 +36,13 @@ internal val liquidAuthModules =
             viewModel {
                 LiquidStreamHostViewModel(
                     stateDelegate = StateDelegate<LiquidStreamHostViewModel.UiState>(),
+                    eventDelegate = get(),
+                )
+            }
+            viewModel {
+                LiquidAuthViewerViewModel(
+                    stateDelegate = StateDelegate<LiquidAuthViewerViewModel.UiState>(),
+                    eventDelegate = get(),
                 )
             }
         },

@@ -130,4 +130,33 @@ object AlgoKitDarkColor : AlgoKitColor {
     override val snackbarErrorText = ColorPalette.White
     override val snackbarSuccessText = ColorPalette.White
     override val snackbarInfoText = ColorPalette.Gray100
+
+    override val streamHostOverlay = Color(0x66001423)
+    override val streamHostGlowEdge = Color(0x00042A48)
+    override val streamHostGlowCenter = Color(0x66003F7A)
+    override val streamHostSheetBackground = Color(0xFF051C34)
+    override val streamHostSheetBorder = Color(0x3D99EAF5)
+    override val streamHostSecondaryText = Color(0xC7BFD4DD)
+    override val streamHostHandle = Color(0x40C6D8E7)
+    override val streamHostCloseButtonBackground = Color(0xFF536672)
+    override val streamHostCloseButtonBorder = Color(0x55FFFFFF)
+    override val streamHostCloseButtonIcon = ColorPalette.White
+    override val streamHostTitle = ColorPalette.White
+    override val streamHostMetricLabel = Color(0xA9BFD1DF)
+    override val streamHostAccent = Color(0xFF9DE5EE)
+    override val streamHostDivider = Color(0x36B0D8EA)
+    override val streamHostBodyText = Color(0xD8E1EEF6)
+    override val streamHostStarTint = Color(0xFFAEE8E7)
+    override val streamHostCaption = Color(0xC3BFD4DD)
+    override val streamHostTabContainer = Color(0x220D2F4A)
+    override val streamHostTabBorder = Color(0x3AB5D6EA)
+    override val streamHostTabSelected = Color(0xFF2E34F7)
+    override val streamHostTabSelectedContent = ColorPalette.White
+    override val streamHostTabUnselectedIcon = Color(0xFFB6E8EB)
+    override val streamHostTabUnselectedTitle = ColorPalette.White
+    override val streamHostTabSelectedSubtitle = Color(0xFFD6DDFF)
+    override val streamHostTabUnselectedSubtitle = Color(0xFFC4D7E5)
+    override val streamHostCardBackground = Color(0xFFA6DBDF)
+    override val streamHostCardHeading = Color(0xFF0D2C3F)
+    override val streamHostCardBody = Color(0xFF1F4958)
 }

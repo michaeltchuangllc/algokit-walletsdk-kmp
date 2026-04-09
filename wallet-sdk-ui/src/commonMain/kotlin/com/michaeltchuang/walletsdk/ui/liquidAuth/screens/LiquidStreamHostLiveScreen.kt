@@ -34,8 +34,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,10 +54,13 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidStreamHostViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun LiquidStreamHostLiveScreen(
@@ -77,9 +83,85 @@ fun LiquidStreamHostLiveScreen(
     balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
 ) {
-    val message = remember { mutableStateOf("") }
-    val isStatsModalVisible = remember { mutableStateOf(false) }
+    val viewModel: LiquidStreamHostViewModel = koinViewModel()
+    val uiState = viewModel.state.collectAsStateWithLifecycle().value
 
+    LaunchedEffect(Unit) {
+        viewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidStreamHostViewModel.ViewEvent.SendMessage -> onSendClick()
+                is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
+            }
+        }
+    }
+
+    LiquidStreamHostLiveScreenContent(
+        cameraPreview = cameraPreview,
+        onSettingsClick = {
+            viewModel.onSettingsClicked()
+            onStatsModalVisibilityChanged(false)
+            onSettingsClick()
+        },
+        onMinimise = onMinimise,
+        onWalletClick = onWalletClick,
+        onCameraClick = onCameraClick,
+        onMicClick = onMicClick,
+        onRotateCamera = onRotateCamera,
+        onStatsClick = {
+            val isStatsVisible = !uiState.isStatsModalVisible
+            viewModel.onStatsClicked()
+            onStatsModalVisibilityChanged(isStatsVisible)
+            onStatsClick()
+        },
+        onSendClick = viewModel::onSendClicked,
+        sessionId = sessionId,
+        balanceAlgos = balanceAlgos,
+        connectionType = connectionType,
+        currentBlockNumber = currentBlockNumber,
+        blockChainLabel = blockChainLabel,
+        networkLabel = networkLabel,
+        balanceCurrencySymbol = balanceCurrencySymbol,
+        originUrl = originUrl,
+        uiState = uiState,
+        onTextChanged = viewModel::onMessageChanged,
+        onStatsDismissed = {
+            viewModel.onStatsDismissed()
+            onStatsModalVisibilityChanged(false)
+        },
+        onStreamCostTabSelected = viewModel::onStreamCostTabSelected,
+        onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
+        onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
+        onSettingsDismissed = viewModel::onSettingsDismissed,
+    )
+}
+
+@Composable
+private fun LiquidStreamHostLiveScreenContent(
+    cameraPreview: @Composable (() -> Unit)?,
+    onSettingsClick: () -> Unit,
+    onMinimise: () -> Unit,
+    onWalletClick: () -> Unit,
+    onCameraClick: () -> Unit,
+    onMicClick: () -> Unit,
+    onRotateCamera: () -> Unit,
+    onStatsClick: () -> Unit,
+    onSendClick: () -> Unit,
+    sessionId: String?,
+    balanceAlgos: Double?,
+    connectionType: IceConnectionType,
+    currentBlockNumber: Long?,
+    blockChainLabel: String,
+    networkLabel: String,
+    balanceCurrencySymbol: String,
+    originUrl: String,
+    uiState: LiquidStreamHostViewModel.UiState,
+    onTextChanged: (String) -> Unit,
+    onStatsDismissed: () -> Unit,
+    onStreamCostTabSelected: (String) -> Unit,
+    onPayoutFrequencyTabSelected: (String) -> Unit,
+    onSubsidizeViewerFeesChanged: (Boolean) -> Unit,
+    onSettingsDismissed: () -> Unit,
+) {
     Box(
         modifier =
             Modifier
@@ -133,16 +215,12 @@ fun LiquidStreamHostLiveScreen(
                 onCameraClick = onCameraClick,
                 onMicClick = onMicClick,
                 onRotateCamera = onRotateCamera,
-                onStatsClick = {
-                    isStatsModalVisible.value = !isStatsModalVisible.value
-                    onStatsModalVisibilityChanged(isStatsModalVisible.value)
-                    onStatsClick()
-                },
+                onStatsClick = onStatsClick,
             )
             Spacer(Modifier.height(18.dp))
             CreatorComposer(
-                text = message.value,
-                onTextChanged = { message.value = it },
+                text = uiState.message,
+                onTextChanged = onTextChanged,
                 onSendClick = onSendClick,
             )
             Spacer(Modifier.height(20.dp))
@@ -150,16 +228,13 @@ fun LiquidStreamHostLiveScreen(
             Spacer(Modifier.height(4.dp))
         }
 
-        if (isStatsModalVisible.value) {
+        if (uiState.isStatsModalVisible) {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .background(Color(0x4D001423))
-                        .clickable {
-                            isStatsModalVisible.value = false
-                            onStatsModalVisibilityChanged(false)
-                        },
+                        .clickable { onStatsDismissed() },
             )
 
             Column(
@@ -181,6 +256,22 @@ fun LiquidStreamHostLiveScreen(
                     )
                 }
             }
+        }
+
+        if (uiState.isSettingsModalVisible) {
+            StreamHostSettingsSheet(
+                selectedStreamCostTabId = uiState.selectedStreamCostTabId,
+                selectedPayoutFrequencyTabId = uiState.selectedPayoutFrequencyTabId,
+                subsidizeViewerFeesEnabled = uiState.subsidizeViewerFeesEnabled,
+                realTimeRate = uiState.realTimeRate,
+                streamRevenue = uiState.streamRevenue,
+                securedViaLabel = uiState.securedViaLabel,
+                blockNumberLabel = uiState.blockNumberLabel,
+                onStreamCostTabSelected = onStreamCostTabSelected,
+                onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
+                onSubsidizeViewerFeesChanged = onSubsidizeViewerFeesChanged,
+                onDismiss = onSettingsDismissed,
+            )
         }
     }
 }
@@ -543,6 +634,32 @@ private fun HomeIndicator() {
 @Composable
 private fun LiquidStreamHostLiveScreenPreview() {
     AlgoKitTheme {
-        LiquidStreamHostLiveScreen()
+        var uiState by remember { mutableStateOf(LiquidStreamHostViewModel.UiState()) }
+        LiquidStreamHostLiveScreenContent(
+            cameraPreview = null,
+            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false) },
+            onMinimise = {},
+            onWalletClick = {},
+            onCameraClick = {},
+            onMicClick = {},
+            onRotateCamera = {},
+            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
+            onSendClick = { uiState = uiState.copy(message = "") },
+            sessionId = "session-preview-id",
+            balanceAlgos = 12.34,
+            connectionType = IceConnectionType.UNKNOWN,
+            currentBlockNumber = 38291041L,
+            blockChainLabel = "ALGORAND",
+            networkLabel = "TESTNET",
+            balanceCurrencySymbol = "A",
+            originUrl = "https://example.app",
+            uiState = uiState,
+            onTextChanged = { message -> uiState = uiState.copy(message = message) },
+            onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },
+            onStreamCostTabSelected = { tabId -> uiState = uiState.copy(selectedStreamCostTabId = tabId) },
+            onPayoutFrequencyTabSelected = { tabId -> uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId) },
+            onSubsidizeViewerFeesChanged = { enabled -> uiState = uiState.copy(subsidizeViewerFeesEnabled = enabled) },
+            onSettingsDismissed = { uiState = uiState.copy(isSettingsModalVisible = false) },
+        )
     }
 }
