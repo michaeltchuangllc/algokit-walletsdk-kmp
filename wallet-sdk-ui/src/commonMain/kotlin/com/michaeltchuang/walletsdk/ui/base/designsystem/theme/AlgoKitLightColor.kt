@@ -130,4 +130,33 @@ object AlgoKitLightColor : AlgoKitColor {
     override val snackbarErrorText = ColorPalette.White
     override val snackbarSuccessText = ColorPalette.White
     override val snackbarInfoText = ColorPalette.Gray900
+
+    override val streamHostOverlay = Color(0x66001423)
+    override val streamHostGlowEdge = ColorPalette.Transparent
+    override val streamHostGlowCenter = ColorPalette.Transparent
+    override val streamHostSheetBackground = ColorPalette.Gray50
+    override val streamHostSheetBorder = ColorPalette.Gray200
+    override val streamHostSecondaryText = ColorPalette.Gray500
+    override val streamHostHandle = ColorPalette.Gray300
+    override val streamHostCloseButtonBackground = ColorPalette.CoolGray150
+    override val streamHostCloseButtonBorder = ColorPalette.Gray300
+    override val streamHostCloseButtonIcon = ColorPalette.RichNavy900
+    override val streamHostTitle = ColorPalette.RichNavy900
+    override val streamHostMetricLabel = ColorPalette.SlateBlue400
+    override val streamHostAccent = ColorPalette.Turquoise700
+    override val streamHostDivider = ColorPalette.Gray200
+    override val streamHostBodyText = ColorPalette.SlateBlue400
+    override val streamHostStarTint = ColorPalette.Turquoise700
+    override val streamHostCaption = ColorPalette.SlateBlue400
+    override val streamHostTabContainer = ColorPalette.White
+    override val streamHostTabBorder = ColorPalette.Gray300
+    override val streamHostTabSelected = ColorPalette.ElectricBlue600
+    override val streamHostTabSelectedContent = ColorPalette.White
+    override val streamHostTabUnselectedIcon = ColorPalette.Turquoise700
+    override val streamHostTabUnselectedTitle = ColorPalette.RichNavy900
+    override val streamHostTabSelectedSubtitle = ColorPalette.WhiteAlpha84
+    override val streamHostTabUnselectedSubtitle = ColorPalette.SlateBlue400
+    override val streamHostCardBackground = ColorPalette.Aqua200
+    override val streamHostCardHeading = ColorPalette.RichNavy900
+    override val streamHostCardBody = ColorPalette.Turquoise900
 }

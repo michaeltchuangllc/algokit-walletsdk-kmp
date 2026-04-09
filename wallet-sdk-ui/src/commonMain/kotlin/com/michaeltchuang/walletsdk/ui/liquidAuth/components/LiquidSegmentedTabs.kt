@@ -32,9 +32,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import org.jetbrains.compose.resources.DrawableResource
@@ -64,6 +66,11 @@ fun LiquidSegmentedTabs(
     selectedSubtitleColor: Color = Color(0xFFD1D8FF),
     selectedTitleWeight: FontWeight = FontWeight.Bold,
     unselectedTitleWeight: FontWeight = FontWeight.Normal,
+    selectedSubtitleWeight: FontWeight = FontWeight.Normal,
+    unselectedSubtitleWeight: FontWeight = FontWeight.Normal,
+    subtitleFontSize: TextUnit = 12.sp,
+    subtitleLineHeight: TextUnit = TextUnit.Unspecified,
+    usePerTabSelectedBackground: Boolean = false,
     iconSize: Dp = 14.dp,
     tabCornerRadius: Dp = 14.dp,
     containerCornerRadius: Dp = 18.dp,
@@ -117,7 +124,7 @@ fun LiquidSegmentedTabs(
                         tabsRowHeightPx = it.height.toFloat()
                     },
         ) {
-            if (tabsRowHeightPx > 0f && tabWidthPx > 0f) {
+            if (!usePerTabSelectedBackground && tabsRowHeightPx > 0f && tabWidthPx > 0f) {
                 Box(
                     modifier =
                         Modifier
@@ -140,6 +147,9 @@ fun LiquidSegmentedTabs(
                             Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(tabCornerRadius))
+                                .background(
+                                    if (usePerTabSelectedBackground && selected) selectedTabColor else Color.Transparent,
+                                )
                                 .clickable { onTabSelected(tab.id) }
                                 .padding(contentPadding),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -165,8 +175,11 @@ fun LiquidSegmentedTabs(
                         tab.subtitle?.let { subtitle ->
                             Text(
                                 text = subtitle,
-                                fontSize = 12.sp,
+                                fontSize = subtitleFontSize,
+                                lineHeight = subtitleLineHeight,
                                 color = if (selected) selectedSubtitleColor else unselectedSubtitleColor,
+                                fontWeight = if (selected) selectedSubtitleWeight else unselectedSubtitleWeight,
+                                textAlign = TextAlign.Center,
                             )
                         }
                     }

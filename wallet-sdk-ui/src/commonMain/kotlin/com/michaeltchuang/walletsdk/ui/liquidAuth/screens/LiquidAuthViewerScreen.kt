@@ -33,10 +33,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,9 +53,11 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun LiquidAuthViewerScreen(
@@ -61,14 +65,67 @@ fun LiquidAuthViewerScreen(
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
     onMinimize: () -> Unit = {},
+    onSendClick: () -> Unit = {},
     viewerAddress: String = "-",
     originUrl: String = "-",
     networkLabel: String = "TESTNET",
     currentBlockNumber: Long? = null,
     balanceAlgos: Double = 0.0,
 ) {
-    var showAnalyticsModal by remember { mutableStateOf(false) }
+    val viewModel: LiquidAuthViewerViewModel = koinViewModel()
+    val uiState = viewModel.state.collectAsStateWithLifecycle().value
+    LaunchedEffect(Unit) {
+        viewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick()
+                is LiquidAuthViewerViewModel.ViewEvent.ShowError -> Unit
+            }
+        }
+    }
 
+    LiquidAuthViewerScreenContent(
+        sessionId = sessionId,
+        connectionType = connectionType,
+        cameraPreview = cameraPreview,
+        onMinimize = onMinimize,
+        viewerAddress = viewerAddress,
+        originUrl = originUrl,
+        networkLabel = networkLabel,
+        currentBlockNumber = currentBlockNumber,
+        balanceAlgos = balanceAlgos,
+        uiState = uiState,
+        onSettingsClick = viewModel::onSettingsClicked,
+        onAnalyticsClick = viewModel::onAnalyticsClicked,
+        onAnalyticsDismissed = viewModel::onAnalyticsDismissed,
+        onViewerSettingsDismissed = viewModel::onViewerSettingsDismissed,
+        onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
+        onWillingToBeRelayerChanged = viewModel::onWillingToBeRelayerChanged,
+        onMessageChanged = viewModel::onMessageChanged,
+        onSendClick = viewModel::onSendClicked,
+    )
+}
+
+@Composable
+private fun LiquidAuthViewerScreenContent(
+    sessionId: String,
+    connectionType: IceConnectionType,
+    cameraPreview: @Composable (() -> Unit)?,
+    onMinimize: () -> Unit,
+    viewerAddress: String,
+    originUrl: String,
+    networkLabel: String,
+    currentBlockNumber: Long?,
+    balanceAlgos: Double,
+    uiState: LiquidAuthViewerViewModel.UiState,
+    onSettingsClick: () -> Unit,
+    onAnalyticsClick: () -> Unit,
+    onAnalyticsDismissed: () -> Unit,
+    onViewerSettingsDismissed: () -> Unit,
+    onPayoutFrequencyTabSelected: (String) -> Unit,
+    onWillingToBeRelayerChanged: (Boolean) -> Unit,
+    onMessageChanged: (String) -> Unit,
+    onSendClick: () -> Unit,
+) {
     Box(
         modifier =
             Modifier
@@ -107,30 +164,37 @@ fun LiquidAuthViewerScreen(
                     .imePadding(),
         ) {
             Spacer(Modifier.height(14.dp))
-            Header(onMinimize = onMinimize)
+            Header(
+                onSettingsClick = onSettingsClick,
+                onMinimize = onMinimize,
+            )
             Spacer(Modifier.height(20.dp))
             // GiftTickerCard()
             Spacer(Modifier.weight(1f))
             // ChatStack()
             Spacer(Modifier.height(16.dp))
-            FloatingButtons(onAnalyticsClick = { showAnalyticsModal = !showAnalyticsModal })
+            FloatingButtons(onAnalyticsClick = onAnalyticsClick)
             Spacer(Modifier.height(20.dp))
             StreamStatusRow(
                 sessionId = sessionId,
                 connectionType = connectionType,
             )
             Spacer(Modifier.height(12.dp))
-            ChatComposer(onSendClick = {})
+            ChatComposer(
+                message = uiState.message,
+                onMessageChanged = onMessageChanged,
+                onSendClick = onSendClick,
+            )
             Spacer(Modifier.height(12.dp))
         }
 
-        if (showAnalyticsModal) {
+        if (uiState.showAnalyticsModal) {
             Box(
                 modifier =
                     Modifier
                         .fillMaxSize()
                         .background(Color(0x4D001423))
-                        .clickable { showAnalyticsModal = false },
+                        .clickable { onAnalyticsDismissed() },
             )
 
             Column(
@@ -151,6 +215,20 @@ fun LiquidAuthViewerScreen(
                     )
                 }
             }
+        }
+
+        if (uiState.showViewerSettingsSheet) {
+            StreamViewerSettingsSheet(
+                selectedPayoutFrequencyTabId = uiState.selectedPayoutFrequencyTabId,
+                willingToBeRelayerEnabled = uiState.willingToBeRelayerEnabled,
+                realTimeRate = uiState.realTimeRate,
+                streamRevenue = uiState.streamRevenue,
+                securedViaLabel = uiState.securedViaLabel,
+                blockNumberLabel = uiState.blockNumberLabel,
+                onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
+                onWillingToBeRelayerChanged = onWillingToBeRelayerChanged,
+                onDismiss = onViewerSettingsDismissed,
+            )
         }
     }
 }
@@ -181,7 +259,10 @@ private fun StreamStatusRow(
 }
 
 @Composable
-private fun Header(onMinimize: () -> Unit) {
+private fun Header(
+    onSettingsClick: () -> Unit,
+    onMinimize: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -237,7 +318,7 @@ private fun Header(onMinimize: () -> Unit) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            TopSquareIconButton(icon = Res.drawable.ic_dark_setting, onClick = {})
+            TopSquareIconButton(icon = Res.drawable.ic_dark_setting, onClick = onSettingsClick)
             TopSquareIconButton(icon = Res.drawable.ic_minimise, onClick = onMinimize)
         }
     }
@@ -511,9 +592,11 @@ private fun StreamActions(
 }
 
 @Composable
-private fun ChatComposer(onSendClick: () -> Unit) {
-    val message = remember { mutableStateOf("") }
-
+private fun ChatComposer(
+    message: String,
+    onMessageChanged: (String) -> Unit,
+    onSendClick: () -> Unit,
+) {
     Row(
         modifier =
             Modifier
@@ -546,8 +629,8 @@ private fun ChatComposer(onSendClick: () -> Unit) {
             )
         }
         BasicTextField(
-            value = message.value,
-            onValueChange = { message.value = it },
+            value = message,
+            onValueChange = onMessageChanged,
             modifier = Modifier.weight(1f),
             singleLine = true,
             textStyle =
@@ -557,7 +640,7 @@ private fun ChatComposer(onSendClick: () -> Unit) {
                 ),
             decorationBox = { innerTextField ->
                 Box {
-                    if (message.value.isEmpty()) {
+                    if (message.isEmpty()) {
                         Text(
                             text = "Say something...",
                             color = Color(0xCFE4EEF6),
@@ -618,6 +701,26 @@ private fun HomeIndicator() {
 @Composable
 private fun LiquidAuthViewerScreenPreview() {
     AlgoKitTheme {
-        LiquidAuthViewerScreen()
+        var uiState by remember { mutableStateOf(LiquidAuthViewerViewModel.UiState()) }
+        LiquidAuthViewerScreenContent(
+            sessionId = "session-preview-id",
+            connectionType = IceConnectionType.UNKNOWN,
+            cameraPreview = null,
+            onMinimize = {},
+            viewerAddress = "ABCDE...XYZ",
+            originUrl = "https://example.app",
+            networkLabel = "TESTNET",
+            currentBlockNumber = 38291041L,
+            balanceAlgos = 12.34,
+            uiState = uiState,
+            onSettingsClick = { uiState = uiState.copy(showViewerSettingsSheet = true, showAnalyticsModal = false) },
+            onAnalyticsClick = { uiState = uiState.copy(showAnalyticsModal = !uiState.showAnalyticsModal) },
+            onAnalyticsDismissed = { uiState = uiState.copy(showAnalyticsModal = false) },
+            onViewerSettingsDismissed = { uiState = uiState.copy(showViewerSettingsSheet = false) },
+            onPayoutFrequencyTabSelected = { tabId -> uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId) },
+            onWillingToBeRelayerChanged = { enabled -> uiState = uiState.copy(willingToBeRelayerEnabled = enabled) },
+            onMessageChanged = { message -> uiState = uiState.copy(message = message) },
+            onSendClick = { uiState = uiState.copy(message = "") },
+        )
     }
 }

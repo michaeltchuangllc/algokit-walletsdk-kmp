@@ -130,4 +130,33 @@ object AlgoKitDarkColor : AlgoKitColor {
     override val snackbarErrorText = ColorPalette.White
     override val snackbarSuccessText = ColorPalette.White
     override val snackbarInfoText = ColorPalette.Gray100
+
+    override val streamHostOverlay = ColorPalette.OverlayShade
+    override val streamHostGlowEdge = ColorPalette.GlowEdge
+    override val streamHostGlowCenter = ColorPalette.GlowCenter
+    override val streamHostSheetBackground = ColorPalette.SheetBackground
+    override val streamHostSheetBorder = ColorPalette.SheetBorder
+    override val streamHostSecondaryText = ColorPalette.SecondaryText
+    override val streamHostHandle = ColorPalette.SheetHandle
+    override val streamHostCloseButtonBackground = ColorPalette.CloseButtonBackground
+    override val streamHostCloseButtonBorder = ColorPalette.WhiteAlpha33
+    override val streamHostCloseButtonIcon = ColorPalette.White
+    override val streamHostTitle = ColorPalette.White
+    override val streamHostMetricLabel = ColorPalette.MetricLabel
+    override val streamHostAccent = ColorPalette.AccentMint
+    override val streamHostDivider = ColorPalette.SectionDivider
+    override val streamHostBodyText = ColorPalette.BodyText
+    override val streamHostStarTint = ColorPalette.StarTint
+    override val streamHostCaption = ColorPalette.CaptionText
+    override val streamHostTabContainer = ColorPalette.TabContainer
+    override val streamHostTabBorder = ColorPalette.TabBorder
+    override val streamHostTabSelected = ColorPalette.TabSelected
+    override val streamHostTabSelectedContent = ColorPalette.White
+    override val streamHostTabUnselectedIcon = ColorPalette.TabUnselectedIcon
+    override val streamHostTabUnselectedTitle = ColorPalette.White
+    override val streamHostTabSelectedSubtitle = ColorPalette.TabSelectedSubtitle
+    override val streamHostTabUnselectedSubtitle = ColorPalette.TabUnselectedSubtitle
+    override val streamHostCardBackground = ColorPalette.CardBackground
+    override val streamHostCardHeading = ColorPalette.CardHeading
+    override val streamHostCardBody = ColorPalette.CardBody
 }
