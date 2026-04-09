@@ -128,7 +128,7 @@ public class LiquidAuthService {
         do {
             // Check if we have a saved credential for this address
             let passkeyManager = PasskeyManager()
-            let passkeys = try await passkeyManager.getPasskeysByAlgoAddress(algoAddress: algoAddress)
+            let passkeys = try await passkeyManager.getPasskeysByAlgoAddress(address: algoAddress)
             
             if let existingPasskey = passkeys.first {
                 // Use existing credential ID (property is 'credId' not 'credentialId')

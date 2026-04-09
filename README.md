@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.2")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.2")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.3")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.3")
 }
 ```
 
@@ -25,7 +25,7 @@ dependencies {
 title: AlgoKit Wallet SDK High Level Overview
 ---
 graph TD
-    subgraph "Algorand Apps"
+    subgraph "Apps"
         App1["App 1"]
         App2["App 2"]
     end
