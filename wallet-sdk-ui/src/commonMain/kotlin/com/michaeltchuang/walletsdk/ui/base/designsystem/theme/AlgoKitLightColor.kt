@@ -143,7 +143,7 @@ object AlgoKitLightColor : AlgoKitColor {
     override val streamHostCloseButtonIcon = ColorPalette.RichNavy900
     override val streamHostTitle = ColorPalette.RichNavy900
     override val streamHostMetricLabel = ColorPalette.SlateBlue400
-    override val streamHostAccent = ColorPalette.Turquoise700
+    override val streamHostAccent = ColorPalette.ElectricBlue600
     override val streamHostDivider = ColorPalette.Gray200
     override val streamHostBodyText = ColorPalette.SlateBlue400
     override val streamHostStarTint = ColorPalette.Turquoise700

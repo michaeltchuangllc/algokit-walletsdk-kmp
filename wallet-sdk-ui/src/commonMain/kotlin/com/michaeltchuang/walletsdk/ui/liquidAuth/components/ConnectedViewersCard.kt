@@ -16,6 +16,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -26,7 +28,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -44,6 +50,8 @@ internal fun ConnectedViewersCard(
     originUrl: String = "-",
     viewerAddress: String? = null,
 ) {
+    val colors = AlgoKitTheme.colors
+    val isDarkTheme = LocalThemeIsDark.current.value
     val balanceText = (round(balanceAlgos * 100) / 100).toString()
     val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
     val progress = (balanceAlgos / 1.0).coerceIn(0.0, 1.0).toFloat()
@@ -59,6 +67,16 @@ internal fun ConnectedViewersCard(
             append("WEBRTC")
             currentBlockNumber?.let { append(" • ALGORAND $networkLabel #$it") }
         }
+    val backgroundGradient =
+        if (isDarkTheme) {
+            Brush.horizontalGradient(
+                colors = listOf(Color(0xFF0E2B45), Color(0xFF102338), Color(0xFF0A1C2D)),
+            )
+        } else {
+            Brush.horizontalGradient(
+                colors = listOf(Color(0xFFF7FBFF), Color(0xFFF1F7FD), Color(0xFFEAF3FB)),
+            )
+        }
 
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
@@ -69,11 +87,8 @@ internal fun ConnectedViewersCard(
             modifier =
                 Modifier
                     .fillMaxWidth()
-                    .background(
-                        Brush.horizontalGradient(
-                            colors = listOf(Color(0xFF0E2B45), Color(0xFF102338), Color(0xFF0A1C2D)),
-                        ),
-                    ).border(1.dp, Color(0xFF2C4E6A), RoundedCornerShape(20.dp))
+                    .background(backgroundGradient)
+                    .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
@@ -102,7 +117,7 @@ internal fun ConnectedViewersCard(
                         .fillMaxWidth()
                         .height(7.dp)
                         .clip(RoundedCornerShape(100.dp))
-                        .background(Color(0xFF5A6E80)),
+                        .background(colors.streamHostDivider),
             ) {
                 Box(
                     modifier =
@@ -124,15 +139,15 @@ internal fun ConnectedViewersCard(
                         .fillMaxWidth()
                         .clip(
                             RoundedCornerShape(20.dp),
-                        ).border(1.dp, Color(0xFF3E607B), RoundedCornerShape(20.dp))
+                        ).border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
                         .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center,
             ) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF57D9D5)))
+                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(colors.streamHostAccent))
                 Text(
                     text = "  $badgeText",
-                    color = Color(0xFF99B9CC),
+                    color = colors.streamHostCaption,
                     fontSize = 11.sp,
                     lineHeight = 11.sp,
                     textAlign = TextAlign.Center,
@@ -144,14 +159,14 @@ internal fun ConnectedViewersCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF36556F)))
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
                 Text(
                     text = "michaeltchuang.algo",
-                    color = Color(0xFFEAF5FC),
+                    color = colors.streamHostTitle,
                     fontSize = 25.sp / 2f,
                     fontWeight = FontWeight.Bold,
                 )
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(Color(0xFF36556F)))
+                Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
             }
 
             MetaRow(label = "ORIGIN:", value = originDisplay)
@@ -169,7 +184,7 @@ internal fun ConnectedViewersCard(
                 NavButton(text = "‹")
                 Text(
                     text = "1 OF 1 STREAMS",
-                    color = Color(0xFFA9C0D0),
+                    color = colors.streamHostCaption,
                     fontSize = 20.sp / 2f,
                     letterSpacing = 1.sp,
                 )
@@ -186,24 +201,25 @@ private fun MetricBlock(
     unit: String,
     alignEnd: Boolean,
 ) {
+    val colors = AlgoKitTheme.colors
     Column(horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
         Text(
             text = label,
-            color = Color(0xFFA9C0D0),
+            color = colors.streamHostMetricLabel,
             fontSize = 21.sp / 2f,
             letterSpacing = 1.sp,
         )
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = value,
-                color = Color(0xFFEAF5FC),
+                color = colors.streamHostTitle,
                 fontSize = 66.sp / 2f,
                 fontWeight = FontWeight.Bold,
                 lineHeight = 1.sp,
             )
             Text(
                 text = unit,
-                color = Color(0xFFBFD2DF),
+                color = colors.streamHostBodyText,
                 fontSize = 30.sp / 2f,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -216,6 +232,7 @@ private fun MetaRow(
     label: String,
     value: String,
 ) {
+    val colors = AlgoKitTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -223,13 +240,13 @@ private fun MetaRow(
     ) {
         Text(
             text = label,
-            color = Color(0xFF8DA8BB),
+            color = colors.streamHostCaption,
             fontSize = 21.sp / 2f,
             letterSpacing = 0.5.sp,
         )
         Text(
             text = value,
-            color = Color(0xFFE2EEF7),
+            color = colors.streamHostBodyText,
             fontSize = 24.sp / 2f,
             modifier = Modifier.weight(1f),
             maxLines = 1,
@@ -239,6 +256,7 @@ private fun MetaRow(
 
 @Composable
 private fun NavButton(text: String) {
+    val colors = AlgoKitTheme.colors
     Box(
         modifier =
             Modifier
@@ -246,12 +264,12 @@ private fun NavButton(text: String) {
                     width = 42.dp,
                     height = 38.dp,
                 ).clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF3E607B), RoundedCornerShape(12.dp)),
+                .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(12.dp)),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
-            color = Color(0xFFE2EEF7),
+            color = colors.streamHostTitle,
             fontSize = 24.sp / 2f,
             fontWeight = FontWeight.Bold,
         )
@@ -260,36 +278,46 @@ private fun NavButton(text: String) {
 
 @Preview
 @Composable
-private fun ConnectedViewersCardWithBlockPreview() {
+private fun ConnectedViewersCardLightPreview() {
     AlgoKitTheme {
-        Column(
-            modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
+        CompositionLocalProvider(
+            LocalThemeIsDark provides mutableStateOf(false),
+            LocalCustomColors provides AlgoKitLightColor,
         ) {
-            ConnectedViewersCard(
-                sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
-                balanceAlgos = 42.85,
-                connectionType = IceConnectionType.RELAY,
-                currentBlockNumber = 38291041L,
-                networkLabel = "TESTNET",
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
+            ) {
+                ConnectedViewersCard(
+                    sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
+                    balanceAlgos = round(0.2 * 100) / 100,
+                    connectionType = IceConnectionType.RELAY,
+                    currentBlockNumber = null,
+                    networkLabel = "TESTNET",
+                )
+            }
         }
     }
 }
 
 @Preview
 @Composable
-private fun ConnectedViewersCardWithoutBlockPreview() {
+private fun ConnectedViewersCardDarkPreview() {
     AlgoKitTheme {
-        Column(
-            modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
+        CompositionLocalProvider(
+            LocalThemeIsDark provides mutableStateOf(true),
+            LocalCustomColors provides AlgoKitDarkColor,
         ) {
-            ConnectedViewersCard(
-                sessionId = "session-1234567890",
-                balanceAlgos = round(0.2 * 100) / 100,
-                connectionType = IceConnectionType.STUN,
-                currentBlockNumber = null,
-                networkLabel = "MAINNET",
-            )
+            Column(
+                modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
+            ) {
+                ConnectedViewersCard(
+                    sessionId = "session-1234567890",
+                    balanceAlgos = round(0.2 * 100) / 100,
+                    connectionType = IceConnectionType.STUN,
+                    currentBlockNumber = null,
+                    networkLabel = "MAINNET",
+                )
+            }
         }
     }
 }

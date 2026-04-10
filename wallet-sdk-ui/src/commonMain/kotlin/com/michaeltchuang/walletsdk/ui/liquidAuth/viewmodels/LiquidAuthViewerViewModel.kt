@@ -30,6 +30,14 @@ class LiquidAuthViewerViewModel(
         stateDelegate.updateState { it.copy(showViewerSettingsSheet = false) }
     }
 
+    fun onTopUpClicked() {
+        stateDelegate.updateState { it.copy(showTopUpSheet = true) }
+    }
+
+    fun onTopUpDismissed() {
+        stateDelegate.updateState { it.copy(showTopUpSheet = false) }
+    }
+
     fun onAnalyticsClicked() {
         stateDelegate.updateState { it.copy(showAnalyticsModal = !it.showAnalyticsModal) }
     }
@@ -63,6 +71,7 @@ class LiquidAuthViewerViewModel(
     data class UiState(
         val showAnalyticsModal: Boolean = false,
         val showViewerSettingsSheet: Boolean = false,
+        val showTopUpSheet: Boolean = false,
         val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
         val willingToBeRelayerEnabled: Boolean = false,
         val message: String = "",
