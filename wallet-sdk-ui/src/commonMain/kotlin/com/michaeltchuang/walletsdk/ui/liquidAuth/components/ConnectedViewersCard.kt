@@ -127,7 +127,7 @@ internal fun ConnectedViewersCard(
                             .clip(RoundedCornerShape(100.dp))
                             .background(
                                 Brush.horizontalGradient(
-                                    colors = listOf(colors.streamHostTabSelected, colors.streamHostAccent),
+                                    colors = listOf(Color(0xFF2F46FF), Color(0xFF2CC8CB)),
                                 ),
                             ),
                 )
@@ -289,9 +289,9 @@ private fun ConnectedViewersCardLightPreview() {
             ) {
                 ConnectedViewersCard(
                     sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
-                    balanceAlgos = 42.85,
+                    balanceAlgos = round(0.2 * 100) / 100,
                     connectionType = IceConnectionType.RELAY,
-                    currentBlockNumber = 38291041L,
+                    currentBlockNumber = null,
                     networkLabel = "TESTNET",
                 )
             }
