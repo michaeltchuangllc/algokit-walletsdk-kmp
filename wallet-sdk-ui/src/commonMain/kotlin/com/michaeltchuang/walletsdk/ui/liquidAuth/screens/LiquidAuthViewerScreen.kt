@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerTopUpModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerViewModel
@@ -101,6 +102,8 @@ fun LiquidAuthViewerScreen(
         onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
         onWillingToBeRelayerChanged = viewModel::onWillingToBeRelayerChanged,
         onMessageChanged = viewModel::onMessageChanged,
+        onTopUpClick = viewModel::onTopUpClicked,
+        onTopUpDismissed = viewModel::onTopUpDismissed,
         onSendClick = viewModel::onSendClicked,
     )
 }
@@ -124,6 +127,8 @@ private fun LiquidAuthViewerScreenContent(
     onPayoutFrequencyTabSelected: (String) -> Unit,
     onWillingToBeRelayerChanged: (Boolean) -> Unit,
     onMessageChanged: (String) -> Unit,
+    onTopUpClick: () -> Unit,
+    onTopUpDismissed: () -> Unit,
     onSendClick: () -> Unit,
 ) {
     Box(
@@ -173,7 +178,10 @@ private fun LiquidAuthViewerScreenContent(
             Spacer(Modifier.weight(1f))
             // ChatStack()
             Spacer(Modifier.height(16.dp))
-            FloatingButtons(onAnalyticsClick = onAnalyticsClick)
+            FloatingButtons(
+                onTopUpClick = onTopUpClick,
+                onAnalyticsClick = onAnalyticsClick,
+            )
             Spacer(Modifier.height(20.dp))
             StreamStatusRow(
                 sessionId = sessionId,
@@ -228,6 +236,14 @@ private fun LiquidAuthViewerScreenContent(
                 onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
                 onWillingToBeRelayerChanged = onWillingToBeRelayerChanged,
                 onDismiss = onViewerSettingsDismissed,
+            )
+        }
+
+        if (uiState.showTopUpSheet) {
+            StreamViewerTopUpModel(
+                networkLabel = networkLabel,
+                onDismiss = onTopUpDismissed,
+                onConfirm = { onTopUpDismissed() },
             )
         }
     }
@@ -480,7 +496,10 @@ private fun ChatStack() {
 }
 
 @Composable
-private fun FloatingButtons(onAnalyticsClick: () -> Unit) {
+private fun FloatingButtons(
+    onTopUpClick: () -> Unit,
+    onAnalyticsClick: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -492,7 +511,8 @@ private fun FloatingButtons(onAnalyticsClick: () -> Unit) {
                     .size(66.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(Color(0xCC052440))
-                    .border(1.dp, Color(0x403EE6EA), RoundedCornerShape(20.dp)),
+                    .border(1.dp, Color(0x403EE6EA), RoundedCornerShape(20.dp))
+                    .clickable(onClick = onTopUpClick),
             contentAlignment = Alignment.Center,
         ) {
             Box(
@@ -720,6 +740,8 @@ private fun LiquidAuthViewerScreenPreview() {
             onPayoutFrequencyTabSelected = { tabId -> uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId) },
             onWillingToBeRelayerChanged = { enabled -> uiState = uiState.copy(willingToBeRelayerEnabled = enabled) },
             onMessageChanged = { message -> uiState = uiState.copy(message = message) },
+            onTopUpClick = { uiState = uiState.copy(showTopUpSheet = true) },
+            onTopUpDismissed = { uiState = uiState.copy(showTopUpSheet = false) },
             onSendClick = { uiState = uiState.copy(message = "") },
         )
     }
