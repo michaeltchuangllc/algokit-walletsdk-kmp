@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerTopUpModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -104,6 +105,8 @@ fun LiquidAuthViewerScreen(
         onMessageChanged = viewModel::onMessageChanged,
         onTopUpClick = viewModel::onTopUpClicked,
         onTopUpDismissed = viewModel::onTopUpDismissed,
+        onGiftSupportClick = viewModel::onGiftSupportClicked,
+        onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
         onSendClick = viewModel::onSendClicked,
     )
 }
@@ -129,6 +132,8 @@ private fun LiquidAuthViewerScreenContent(
     onMessageChanged: (String) -> Unit,
     onTopUpClick: () -> Unit,
     onTopUpDismissed: () -> Unit,
+    onGiftSupportClick: () -> Unit,
+    onGiftSupportDismissed: () -> Unit,
     onSendClick: () -> Unit,
 ) {
     Box(
@@ -191,6 +196,7 @@ private fun LiquidAuthViewerScreenContent(
             ChatComposer(
                 message = uiState.message,
                 onMessageChanged = onMessageChanged,
+                onGiftClick = onGiftSupportClick,
                 onSendClick = onSendClick,
             )
             Spacer(Modifier.height(12.dp))
@@ -244,6 +250,13 @@ private fun LiquidAuthViewerScreenContent(
                 networkLabel = networkLabel,
                 onDismiss = onTopUpDismissed,
                 onConfirm = { onTopUpDismissed() },
+            )
+        }
+
+        if (uiState.showGiftSupportSheet) {
+            StreamViewerGiftSupportModal(
+                onDismiss = onGiftSupportDismissed,
+                onConfirm = { onGiftSupportDismissed() },
             )
         }
     }
@@ -615,6 +628,7 @@ private fun StreamActions(
 private fun ChatComposer(
     message: String,
     onMessageChanged: (String) -> Unit,
+    onGiftClick: () -> Unit,
     onSendClick: () -> Unit,
 ) {
     Row(
@@ -638,7 +652,7 @@ private fun ChatComposer(
                         Brush.verticalGradient(
                             colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
                         ),
-                    ),
+                    ).clickable(onClick = onGiftClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -742,6 +756,8 @@ private fun LiquidAuthViewerScreenPreview() {
             onMessageChanged = { message -> uiState = uiState.copy(message = message) },
             onTopUpClick = { uiState = uiState.copy(showTopUpSheet = true) },
             onTopUpDismissed = { uiState = uiState.copy(showTopUpSheet = false) },
+            onGiftSupportClick = { uiState = uiState.copy(showGiftSupportSheet = true) },
+            onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
             onSendClick = { uiState = uiState.copy(message = "") },
         )
     }

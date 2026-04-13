@@ -138,6 +138,9 @@ object ColorPalette {
     val CardHeading = Color(0xFF0D2C3F)
     val CardBody = Color(0xFF1F4958)
     val StarTint = Color(0xFFAEE8E7)
+    val GiftQuickAmountSelectedBackground = Color(0xFFA3D5D9)
+    val GiftQuickAmountSelectedText = Color(0xFF001E2F)
+    val GiftQuickAmountSelectedCurrency = Color(0xFF7E8494)
 }
 
 interface AlgoKitColor {
@@ -298,4 +301,7 @@ interface AlgoKitColor {
     val streamHostCardBackground: Color
     val streamHostCardHeading: Color
     val streamHostCardBody: Color
+    val streamHostGiftQuickAmountSelectedBackground: Color
+    val streamHostGiftQuickAmountSelectedText: Color
+    val streamHostGiftQuickAmountSelectedCurrency: Color
 }

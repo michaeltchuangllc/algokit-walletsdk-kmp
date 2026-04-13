@@ -159,4 +159,7 @@ object AlgoKitDarkColor : AlgoKitColor {
     override val streamHostCardBackground = ColorPalette.CardBackground
     override val streamHostCardHeading = ColorPalette.CardHeading
     override val streamHostCardBody = ColorPalette.CardBody
+    override val streamHostGiftQuickAmountSelectedBackground = ColorPalette.GiftQuickAmountSelectedBackground
+    override val streamHostGiftQuickAmountSelectedText = ColorPalette.GiftQuickAmountSelectedText
+    override val streamHostGiftQuickAmountSelectedCurrency = ColorPalette.GiftQuickAmountSelectedCurrency
 }
