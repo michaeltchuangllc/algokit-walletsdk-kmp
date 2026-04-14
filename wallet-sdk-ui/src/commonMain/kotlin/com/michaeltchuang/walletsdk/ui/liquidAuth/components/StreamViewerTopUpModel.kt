@@ -54,7 +54,8 @@ fun StreamViewerTopUpModel(
     onConfirm: (String) -> Unit,
 ) {
     var topUpAmount by remember(initialTopUpAmount) {
-        mutableStateOf(initialTopUpAmount) }
+        mutableStateOf(initialTopUpAmount)
+    }
     val colors = AlgoKitTheme.colors
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -74,13 +75,20 @@ fun StreamViewerTopUpModel(
                     .padding(horizontal = 12.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.streamHostSheetBackground)
-                    .border(1.dp, colors.streamHostSheetBorder,
-                        RoundedCornerShape(20.dp))
-                    .clickable(enabled = false) {},
+                    .border(
+                        1.dp,
+                        colors.streamHostSheetBorder,
+                        RoundedCornerShape(20.dp),
+                    ).clickable(enabled = false) {},
         ) {
             Column(
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp,
-                    bottom = 28.dp),
+                modifier =
+                    Modifier.padding(
+                        start = 24.dp,
+                        end = 24.dp,
+                        top = 20.dp,
+                        bottom = 28.dp,
+                    ),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
                 TopUpHeader(balanceLabel = balanceLabel)
@@ -110,7 +118,9 @@ fun StreamViewerTopUpModel(
             ) {
                 Text(
                     text = "SECURED BY ALGORAND $networkLabel",
-                    style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 10.sp, letterSpacing = 2.sp),
+                    style =
+                        AlgoKitTheme.typography.caption.sansMedium
+                            .copy(fontSize = 10.sp, letterSpacing = 2.sp),
                     color = colors.streamHostAccent,
                     modifier = Modifier.align(Alignment.Center),
                 )
@@ -131,15 +141,21 @@ private fun TopUpHeader(balanceLabel: String) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "LIQUID STREAM",
-                style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp,
-                    letterSpacing = 1.sp),
+                style =
+                    AlgoKitTheme.typography.caption.sansMedium.copy(
+                        fontSize = 12.sp,
+                        letterSpacing = 1.sp,
+                    ),
                 color = colors.streamHostCaption,
             )
             Text(
                 text = "SessionVault",
                 color = colors.streamHostTitle,
-                style = AlgoKitTheme.typography.title.regular.sansBold.copy(fontSize = 28.sp,
-                    lineHeight = 24.sp),
+                style =
+                    AlgoKitTheme.typography.title.regular.sansBold.copy(
+                        fontSize = 28.sp,
+                        lineHeight = 24.sp,
+                    ),
             )
         }
 
@@ -150,8 +166,11 @@ private fun TopUpHeader(balanceLabel: String) {
             Text(
                 text = "BALANCE",
                 color = colors.streamHostCaption,
-                style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp,
-                    letterSpacing = 1.2.sp),
+                style =
+                    AlgoKitTheme.typography.caption.sansMedium.copy(
+                        fontSize = 12.sp,
+                        letterSpacing = 1.2.sp,
+                    ),
             )
             Row(
                 verticalAlignment = Alignment.Bottom,
@@ -160,13 +179,18 @@ private fun TopUpHeader(balanceLabel: String) {
                 Text(
                     text = balanceLabel,
                     color = colors.streamHostTitle,
-                    style = AlgoKitTheme.typography.title.regular.sansBold.copy(fontSize = 28.sp,
-                        lineHeight = 24.sp),
+                    style =
+                        AlgoKitTheme.typography.title.regular.sansBold.copy(
+                            fontSize = 28.sp,
+                            lineHeight = 24.sp,
+                        ),
                 )
                 Text(
                     text = "USDC",
                     color = colors.streamHostAccent,
-                    style = AlgoKitTheme.typography.caption.sansBold.copy(fontSize = 12.sp),
+                    style =
+                        AlgoKitTheme.typography.caption.sansBold
+                            .copy(fontSize = 12.sp),
                     modifier = Modifier.padding(bottom = 3.dp),
                 )
             }
@@ -219,7 +243,9 @@ private fun QuickAmounts(
         Text(
             text = "QUICK AMOUNTS",
             color = colors.streamHostCaption,
-            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 10.sp, letterSpacing = 1.sp),
+            style =
+                AlgoKitTheme.typography.caption.sansMedium
+                    .copy(fontSize = 10.sp, letterSpacing = 1.sp),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -250,7 +276,9 @@ private fun QuickAmounts(
                         Text(
                             text = "USDC",
                             color = colors.streamHostCaption,
-                            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp),
+                            style =
+                                AlgoKitTheme.typography.caption.sansMedium
+                                    .copy(fontSize = 12.sp),
                         )
                     }
                 }
@@ -270,8 +298,11 @@ private fun TopUpInput(
         Text(
             text = "TOP UP AMOUNT",
             color = colors.streamHostCaption,
-            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 10.sp,
-                letterSpacing = 1.sp),
+            style =
+                AlgoKitTheme.typography.caption.sansMedium.copy(
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                ),
         )
         Row(
             modifier =
@@ -280,9 +311,11 @@ private fun TopUpInput(
                     .height(64.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.streamHostTabContainer)
-                    .border(1.dp, colors.streamHostSheetBorder,
-                        RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp),
+                    .border(
+                        1.dp,
+                        colors.streamHostSheetBorder,
+                        RoundedCornerShape(20.dp),
+                    ).padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -303,7 +336,9 @@ private fun TopUpInput(
             Text(
                 text = "USDC",
                 color = colors.streamHostAccent,
-                style = AlgoKitTheme.typography.caption.sansBold.copy(fontSize = 12.sp),
+                style =
+                    AlgoKitTheme.typography.caption.sansBold
+                        .copy(fontSize = 12.sp),
             )
         }
     }
@@ -351,7 +386,8 @@ private fun SignTransactionCard() {
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = "Use Biometrics or Passkey to authorize the\ntransfer from Main Wallet to" +
+                text =
+                    "Use Biometrics or Passkey to authorize the\ntransfer from Main Wallet to" +
                         " Session Vault.",
                 color = colors.streamHostBodyText,
                 fontSize = 12.sp,
@@ -378,9 +414,11 @@ private fun TopUpActions(
                 Modifier
                     .size(55.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, colors.streamHostSheetBorder,
-                        RoundedCornerShape(12.dp))
-                    .clickable(onClick = onDismiss),
+                    .border(
+                        1.dp,
+                        colors.streamHostSheetBorder,
+                        RoundedCornerShape(12.dp),
+                    ).clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -410,8 +448,12 @@ private fun TopUpActions(
                         .border(2.dp, ColorPalette.WhiteAlpha60, CircleShape),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(text = "✓", color = ColorPalette.White, fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold)
+                Text(
+                    text = "✓",
+                    color = ColorPalette.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
             Spacer(Modifier.size(10.dp))
             Text(

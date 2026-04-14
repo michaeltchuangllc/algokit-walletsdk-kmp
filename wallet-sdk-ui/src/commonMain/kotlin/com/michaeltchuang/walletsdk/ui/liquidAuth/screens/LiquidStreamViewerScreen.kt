@@ -39,7 +39,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,9 +50,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerGiftSupportModal
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerTopUpModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -347,7 +348,7 @@ private fun Header(
                         modifier = Modifier.size(14.dp),
                     )
                     Text(
-                        text = "1,284 VIEWERS",
+                        text = "# of VIEWERS",
                         color = Color(0xFFB8CDD7),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,

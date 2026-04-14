@@ -124,13 +124,17 @@ private fun GiftSupportHeader(balanceLabel: String) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
                 text = "GIFT SUPPORTER",
-                style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp, letterSpacing = 1.sp),
+                style =
+                    AlgoKitTheme.typography.caption.sansMedium
+                        .copy(fontSize = 12.sp, letterSpacing = 1.sp),
                 color = colors.streamHostCaption,
             )
             Text(
                 text = "Send Support",
                 color = colors.streamHostTitle,
-                style = AlgoKitTheme.typography.title.regular.sansBold.copy(fontSize = 28.sp, lineHeight = 24.sp),
+                style =
+                    AlgoKitTheme.typography.title.regular.sansBold
+                        .copy(fontSize = 28.sp, lineHeight = 24.sp),
             )
         }
 
@@ -138,18 +142,24 @@ private fun GiftSupportHeader(balanceLabel: String) {
             Text(
                 text = "BALANCE",
                 color = colors.streamHostCaption,
-                style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp, letterSpacing = 1.2.sp),
+                style =
+                    AlgoKitTheme.typography.caption.sansMedium
+                        .copy(fontSize = 12.sp, letterSpacing = 1.2.sp),
             )
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = balanceLabel,
                     color = colors.streamHostTitle,
-                    style = AlgoKitTheme.typography.title.regular.sansBold.copy(fontSize = 28.sp, lineHeight = 24.sp),
+                    style =
+                        AlgoKitTheme.typography.title.regular.sansBold
+                            .copy(fontSize = 28.sp, lineHeight = 24.sp),
                 )
                 Text(
                     text = "USDC",
                     color = colors.streamHostAccent,
-                    style = AlgoKitTheme.typography.caption.sansBold.copy(fontSize = 12.sp),
+                    style =
+                        AlgoKitTheme.typography.caption.sansBold
+                            .copy(fontSize = 12.sp),
                     modifier = Modifier.padding(bottom = 3.dp),
                 )
             }
@@ -169,7 +179,9 @@ private fun GiftQuickAmounts(
         Text(
             text = "QUICK AMOUNTS",
             color = colors.streamHostCaption,
-            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 10.sp, letterSpacing = 1.sp),
+            style =
+                AlgoKitTheme.typography.caption.sansMedium
+                    .copy(fontSize = 10.sp, letterSpacing = 1.sp),
         )
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -199,12 +211,16 @@ private fun GiftQuickAmounts(
                         Text(
                             text = amount,
                             color = if (selected) colors.streamHostGiftQuickAmountSelectedText else colors.streamHostTitle,
-                            style = AlgoKitTheme.typography.title.regular.sansBold.copy(fontSize = 28.sp, lineHeight = 24.sp),
+                            style =
+                                AlgoKitTheme.typography.title.regular.sansBold
+                                    .copy(fontSize = 28.sp, lineHeight = 24.sp),
                         )
                         Text(
                             text = "USDC",
                             color = if (selected) colors.streamHostGiftQuickAmountSelectedCurrency else colors.streamHostCaption,
-                            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 12.sp),
+                            style =
+                                AlgoKitTheme.typography.caption.sansMedium
+                                    .copy(fontSize = 12.sp),
                         )
                     }
                 }
@@ -224,7 +240,9 @@ private fun GiftAmountInput(
         Text(
             text = "OR ENTER A CUSTOM AMOUNT",
             color = colors.streamHostCaption,
-            style = AlgoKitTheme.typography.caption.sansMedium.copy(fontSize = 10.sp, letterSpacing = 1.sp),
+            style =
+                AlgoKitTheme.typography.caption.sansMedium
+                    .copy(fontSize = 10.sp, letterSpacing = 1.sp),
         )
         Row(
             modifier =
@@ -242,14 +260,18 @@ private fun GiftAmountInput(
                 value = amount,
                 onValueChange = { value -> onAmountChange(value.filter { it.isDigit() || it == '.' }.take(7)) },
                 singleLine = true,
-                textStyle = AlgoKitTheme.typography.body.regular.sansMedium.copy(color = colors.streamHostTitle, fontSize = 14.sp),
+                textStyle =
+                    AlgoKitTheme.typography.body.regular.sansMedium
+                        .copy(color = colors.streamHostTitle, fontSize = 14.sp),
                 modifier = Modifier.weight(1f),
                 decorationBox = { innerTextField ->
                     if (amount.isBlank()) {
                         Text(
                             text = "Enter amount",
                             color = colors.streamHostCaption,
-                            style = AlgoKitTheme.typography.body.regular.sansMedium.copy(fontSize = 14.sp),
+                            style =
+                                AlgoKitTheme.typography.body.regular.sansMedium
+                                    .copy(fontSize = 14.sp),
                         )
                     }
                     innerTextField()
@@ -258,7 +280,9 @@ private fun GiftAmountInput(
             Text(
                 text = "USDC",
                 color = colors.streamHostAccent,
-                style = AlgoKitTheme.typography.caption.sansBold.copy(fontSize = 24.sp / 2f),
+                style =
+                    AlgoKitTheme.typography.caption.sansBold
+                        .copy(fontSize = 24.sp / 2f),
             )
         }
     }
