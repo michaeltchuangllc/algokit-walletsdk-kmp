@@ -52,6 +52,7 @@ fun StreamViewerGiftSupportModal(
     quickAmounts: List<String> = listOf("0.888", "8.88"),
     initialSelectedAmount: String = "0.888",
     onDismiss: () -> Unit,
+    onSelectedAmountChanged: (String) -> Unit = {},
     onConfirm: (String) -> Unit,
 ) {
     var selectedAmount by remember(initialSelectedAmount, quickAmounts) {
@@ -92,6 +93,7 @@ fun StreamViewerGiftSupportModal(
                     onAmountSelected = {
                         selectedAmount = it
                         customAmount = ""
+                        onSelectedAmountChanged(it)
                     },
                 )
                 GiftAmountInput(
