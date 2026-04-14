@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_fingerprint
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
@@ -32,7 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
@@ -45,17 +47,19 @@ import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
-fun StreamViewerTopUpModel(
+fun StreamViewerGiftSupportModal(
     balanceLabel: String = "42.85",
     quickAmounts: List<String> = listOf("0.888", "8.88"),
-    initialTopUpAmount: String = "2.22",
-    networkLabel: String = "TESTNET",
+    initialSelectedAmount: String = "0.888",
     onDismiss: () -> Unit,
+    onSelectedAmountChanged: (String) -> Unit = {},
     onConfirm: (String) -> Unit,
 ) {
-    var topUpAmount by remember(initialTopUpAmount) {
-        mutableStateOf(initialTopUpAmount)
+    var selectedAmount by remember(initialSelectedAmount, quickAmounts) {
+        mutableStateOf(quickAmounts.find { it == initialSelectedAmount } ?: quickAmounts.firstOrNull().orEmpty())
     }
+    var customAmount by remember { mutableStateOf("") }
+    val amountToSend = customAmount.ifBlank { selectedAmount }
     val colors = AlgoKitTheme.colors
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -64,7 +68,7 @@ fun StreamViewerTopUpModel(
                 Modifier
                     .fillMaxSize()
                     .background(colors.streamHostOverlay)
-                    .clickable { onDismiss() },
+                    .clickable(onClick = onDismiss),
         )
 
         Column(
@@ -75,54 +79,33 @@ fun StreamViewerTopUpModel(
                     .padding(horizontal = 12.dp, vertical = 4.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(colors.streamHostSheetBackground)
-                    .border(
-                        1.dp,
-                        colors.streamHostSheetBorder,
-                        RoundedCornerShape(20.dp),
-                    ).clickable(enabled = false) {},
+                    .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
+                    .clickable(enabled = false) {},
         ) {
             Column(
-                modifier =
-                    Modifier.padding(
-                        start = 24.dp,
-                        end = 24.dp,
-                        top = 20.dp,
-                        bottom = 28.dp,
-                    ),
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 20.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
             ) {
-                TopUpHeader(balanceLabel = balanceLabel)
-                TopUpWarning()
-                QuickAmounts(
+                GiftSupportHeader(balanceLabel = balanceLabel)
+                GiftQuickAmounts(
                     amounts = quickAmounts,
-                    selectedAmount = topUpAmount,
-                    onAmountSelected = { topUpAmount = it },
+                    selectedAmount = selectedAmount,
+                    onAmountSelected = {
+                        selectedAmount = it
+                        customAmount = ""
+                        onSelectedAmountChanged(it)
+                    },
                 )
-                TopUpInput(
-                    amount = topUpAmount,
-                    onAmountChange = { topUpAmount = it },
+                GiftAmountInput(
+                    amount = customAmount,
+                    onAmountChange = { customAmount = it },
                 )
-                SignTransactionCard()
-                TopUpActions(
+                GiftActions(
+                    amountToSend = amountToSend,
                     onDismiss = onDismiss,
-                    onConfirm = { onConfirm(topUpAmount) },
-                )
-            }
-
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .background(colors.streamHostSheetBackground)
-                        .padding(vertical = 16.dp),
-            ) {
-                Text(
-                    text = "SECURED BY ALGORAND $networkLabel",
-                    style =
-                        AlgoKitTheme.typography.caption.sansMedium
-                            .copy(fontSize = 10.sp, letterSpacing = 2.sp),
-                    color = colors.streamHostAccent,
-                    modifier = Modifier.align(Alignment.Center),
+                    onConfirm = {
+                        if (amountToSend.isNotBlank()) onConfirm(amountToSend)
+                    },
                 )
             }
         }
@@ -130,7 +113,7 @@ fun StreamViewerTopUpModel(
 }
 
 @Composable
-private fun TopUpHeader(balanceLabel: String) {
+private fun GiftSupportHeader(balanceLabel: String) {
     val colors = AlgoKitTheme.colors
 
     Row(
@@ -140,50 +123,36 @@ private fun TopUpHeader(balanceLabel: String) {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                text = "LIQUID STREAM",
+                text = "GIFT SUPPORTER",
                 style =
-                    AlgoKitTheme.typography.caption.sansMedium.copy(
-                        fontSize = 12.sp,
-                        letterSpacing = 1.sp,
-                    ),
+                    AlgoKitTheme.typography.caption.sansMedium
+                        .copy(fontSize = 12.sp, letterSpacing = 1.sp),
                 color = colors.streamHostCaption,
             )
             Text(
-                text = "SessionVault",
+                text = "Send Support",
                 color = colors.streamHostTitle,
                 style =
-                    AlgoKitTheme.typography.title.regular.sansBold.copy(
-                        fontSize = 28.sp,
-                        lineHeight = 24.sp,
-                    ),
+                    AlgoKitTheme.typography.title.regular.sansBold
+                        .copy(fontSize = 28.sp, lineHeight = 24.sp),
             )
         }
 
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 text = "BALANCE",
                 color = colors.streamHostCaption,
                 style =
-                    AlgoKitTheme.typography.caption.sansMedium.copy(
-                        fontSize = 12.sp,
-                        letterSpacing = 1.2.sp,
-                    ),
+                    AlgoKitTheme.typography.caption.sansMedium
+                        .copy(fontSize = 12.sp, letterSpacing = 1.2.sp),
             )
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+            Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = balanceLabel,
                     color = colors.streamHostTitle,
                     style =
-                        AlgoKitTheme.typography.title.regular.sansBold.copy(
-                            fontSize = 28.sp,
-                            lineHeight = 24.sp,
-                        ),
+                        AlgoKitTheme.typography.title.regular.sansBold
+                            .copy(fontSize = 28.sp, lineHeight = 24.sp),
                 )
                 Text(
                     text = "USDC",
@@ -199,40 +168,7 @@ private fun TopUpHeader(balanceLabel: String) {
 }
 
 @Composable
-private fun TopUpWarning() {
-    val colors = AlgoKitTheme.colors
-
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(15.dp))
-                .background(ColorPalette.SignalRed500Alpha10)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(ColorPalette.SignalRed500),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = "!", color = ColorPalette.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-        }
-        Text(
-            text = "Insufficient balance to maintain stream for more than 4 minutes.",
-            color = colors.streamHostTitle,
-            fontSize = 14.sp,
-            lineHeight = 18.sp,
-        )
-    }
-}
-
-@Composable
-private fun QuickAmounts(
+private fun GiftQuickAmounts(
     amounts: List<String>,
     selectedAmount: String,
     onAmountSelected: (String) -> Unit,
@@ -257,14 +193,14 @@ private fun QuickAmounts(
                     modifier =
                         Modifier
                             .weight(1f)
-                            .height(78.dp)
+                            .height(72.dp)
                             .clickable { onAmountSelected(amount) },
                     shape = RoundedCornerShape(20.dp),
-                    color = if (selected) colors.streamHostTabContainer else ColorPalette.Transparent,
+                    color = if (selected) colors.streamHostGiftQuickAmountSelectedBackground else ColorPalette.Transparent,
                     border =
                         BorderStroke(
                             width = 1.dp,
-                            color = if (selected) colors.streamHostTabBorder else colors.streamHostSheetBorder,
+                            color = if (selected) colors.streamHostGiftQuickAmountSelectedBackground else colors.streamHostSheetBorder,
                         ),
                 ) {
                     Column(
@@ -272,10 +208,16 @@ private fun QuickAmounts(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(text = amount, color = colors.streamHostTitle, fontSize = 42.sp / 1.5f, lineHeight = 24.sp)
+                        Text(
+                            text = amount,
+                            color = if (selected) colors.streamHostGiftQuickAmountSelectedText else colors.streamHostTitle,
+                            style =
+                                AlgoKitTheme.typography.title.regular.sansBold
+                                    .copy(fontSize = 28.sp, lineHeight = 24.sp),
+                        )
                         Text(
                             text = "USDC",
-                            color = colors.streamHostCaption,
+                            color = if (selected) colors.streamHostGiftQuickAmountSelectedCurrency else colors.streamHostCaption,
                             style =
                                 AlgoKitTheme.typography.caption.sansMedium
                                     .copy(fontSize = 12.sp),
@@ -288,7 +230,7 @@ private fun QuickAmounts(
 }
 
 @Composable
-private fun TopUpInput(
+private fun GiftAmountInput(
     amount: String,
     onAmountChange: (String) -> Unit,
 ) {
@@ -296,13 +238,11 @@ private fun TopUpInput(
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "TOP UP AMOUNT",
+            text = "OR ENTER A CUSTOM AMOUNT",
             color = colors.streamHostCaption,
             style =
-                AlgoKitTheme.typography.caption.sansMedium.copy(
-                    fontSize = 10.sp,
-                    letterSpacing = 1.sp,
-                ),
+                AlgoKitTheme.typography.caption.sansMedium
+                    .copy(fontSize = 10.sp, letterSpacing = 1.sp),
         )
         Row(
             modifier =
@@ -310,95 +250,47 @@ private fun TopUpInput(
                     .fillMaxWidth()
                     .height(64.dp)
                     .clip(RoundedCornerShape(20.dp))
-                    .background(colors.streamHostTabContainer)
-                    .border(
-                        1.dp,
-                        colors.streamHostSheetBorder,
-                        RoundedCornerShape(20.dp),
-                    ).padding(horizontal = 16.dp),
+                    .background(colors.streamHostSheetBorder)
+                    .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
             BasicTextField(
                 value = amount,
-                onValueChange = { value ->
-                    onAmountChange(value.filter { it.isDigit() || it == '.' }.take(7))
-                },
+                onValueChange = { value -> onAmountChange(value.filter { it.isDigit() || it == '.' }.take(7)) },
                 singleLine = true,
                 textStyle =
-                    AlgoKitTheme.typography.title.regular.sansBold.copy(
-                        color = colors.streamHostTitle,
-                        fontSize = 28.sp,
-                        lineHeight = 24.sp,
-                    ),
+                    AlgoKitTheme.typography.body.regular.sansMedium
+                        .copy(color = colors.streamHostTitle, fontSize = 14.sp),
                 modifier = Modifier.weight(1f),
+                decorationBox = { innerTextField ->
+                    if (amount.isBlank()) {
+                        Text(
+                            text = "Enter amount",
+                            color = colors.streamHostCaption,
+                            style =
+                                AlgoKitTheme.typography.body.regular.sansMedium
+                                    .copy(fontSize = 14.sp),
+                        )
+                    }
+                    innerTextField()
+                },
             )
             Text(
                 text = "USDC",
                 color = colors.streamHostAccent,
                 style =
                     AlgoKitTheme.typography.caption.sansBold
-                        .copy(fontSize = 12.sp),
+                        .copy(fontSize = 24.sp / 2f),
             )
         }
     }
 }
 
 @Composable
-private fun SignTransactionCard() {
-    val colors = AlgoKitTheme.colors
-
-    Column(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .height(163.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(colors.streamHostTabContainer)
-                .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
-                .padding(horizontal = 16.dp, vertical = 13.dp),
-        verticalArrangement = Arrangement.spacedBy(15.dp, Alignment.CenterVertically),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(colors.streamHostSheetBackground),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                vectorResource(Res.drawable.ic_fingerprint),
-                contentDescription = null,
-                tint = colors.streamHostTabSelected,
-                modifier = Modifier.size(24.dp),
-            )
-        }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "Sign Transaction",
-                color = colors.streamHostTitle,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-            )
-            Text(
-                text =
-                    "Use Biometrics or Passkey to authorize the\ntransfer from Main Wallet to" +
-                        " Session Vault.",
-                color = colors.streamHostBodyText,
-                fontSize = 12.sp,
-                lineHeight = 18.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun TopUpActions(
+private fun GiftActions(
+    amountToSend: String,
     onDismiss: () -> Unit,
     onConfirm: () -> Unit,
 ) {
@@ -414,21 +306,17 @@ private fun TopUpActions(
                 Modifier
                     .size(55.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .border(
-                        1.dp,
-                        colors.streamHostSheetBorder,
-                        RoundedCornerShape(12.dp),
-                    ).clickable(onClick = onDismiss),
+                    .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(12.dp))
+                    .clickable(onClick = onDismiss),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 vectorResource(Res.drawable.ic_cross),
                 contentDescription = null,
-                tint = colors.streamHostCloseButtonIcon,
+                tint = colors.streamHostTabSelected,
                 modifier = Modifier.size(24.dp),
             )
         }
-
         Row(
             modifier =
                 Modifier
@@ -440,26 +328,29 @@ private fun TopUpActions(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
         ) {
-            Box(
-                modifier =
-                    Modifier
-                        .size(20.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, ColorPalette.WhiteAlpha60, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "✓",
-                    color = ColorPalette.White,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            Icon(
+                vectorResource(Res.drawable.ic_gift),
+                contentDescription = null,
+                tint = ColorPalette.White,
+                modifier = Modifier.size(24.dp),
+            )
             Spacer(Modifier.size(10.dp))
             Text(
-                text = "Confirm & Stream",
+                text =
+                    buildAnnotatedString {
+                        append("Send ")
+                        pushStyle(
+                            SpanStyle(
+                                color = colors.streamHostCardBackground,
+                                textDecoration = TextDecoration.Underline,
+                            ),
+                        )
+                        append("$amountToSend USDC")
+                        pop()
+                        append(" Gift")
+                    },
                 color = ColorPalette.White,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.5).sp,
             )
@@ -469,32 +360,26 @@ private fun TopUpActions(
 
 @Preview
 @Composable
-private fun StreamViewerTopUpSheetLightPreview() {
+private fun StreamViewerGiftSupportModalLightPreview() {
     AlgoKitTheme {
         CompositionLocalProvider(
             LocalThemeIsDark provides mutableStateOf(false),
             LocalCustomColors provides AlgoKitLightColor,
         ) {
-            StreamViewerTopUpModel(
-                onDismiss = {},
-                onConfirm = {},
-            )
+            StreamViewerGiftSupportModal(onDismiss = {}, onConfirm = {})
         }
     }
 }
 
 @Preview
 @Composable
-private fun StreamViewerTopUpSheetDarkPreview() {
+private fun StreamViewerGiftSupportModalDarkPreview() {
     AlgoKitTheme {
         CompositionLocalProvider(
             LocalThemeIsDark provides mutableStateOf(true),
             LocalCustomColors provides AlgoKitDarkColor,
         ) {
-            StreamViewerTopUpModel(
-                onDismiss = {},
-                onConfirm = {},
-            )
+            StreamViewerGiftSupportModal(onDismiss = {}, onConfirm = {})
         }
     }
 }

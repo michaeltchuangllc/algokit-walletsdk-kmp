@@ -32,8 +32,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
@@ -149,8 +149,7 @@ fun LiquidSegmentedTabs(
                                 .clip(RoundedCornerShape(tabCornerRadius))
                                 .background(
                                     if (usePerTabSelectedBackground && selected) selectedTabColor else Color.Transparent,
-                                )
-                                .clickable { onTabSelected(tab.id) }
+                                ).clickable { onTabSelected(tab.id) }
                                 .padding(contentPadding),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {

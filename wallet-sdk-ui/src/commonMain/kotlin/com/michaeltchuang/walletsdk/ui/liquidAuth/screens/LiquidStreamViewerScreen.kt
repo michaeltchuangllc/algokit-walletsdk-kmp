@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -38,10 +39,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -49,8 +50,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerGiftSupportModal
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerTopUpModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -104,6 +108,9 @@ fun LiquidAuthViewerScreen(
         onMessageChanged = viewModel::onMessageChanged,
         onTopUpClick = viewModel::onTopUpClicked,
         onTopUpDismissed = viewModel::onTopUpDismissed,
+        onGiftSupportClick = viewModel::onGiftSupportClicked,
+        onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
+        onGiftAmountSelected = viewModel::onGiftAmountSelected,
         onSendClick = viewModel::onSendClicked,
     )
 }
@@ -129,6 +136,9 @@ private fun LiquidAuthViewerScreenContent(
     onMessageChanged: (String) -> Unit,
     onTopUpClick: () -> Unit,
     onTopUpDismissed: () -> Unit,
+    onGiftSupportClick: () -> Unit,
+    onGiftSupportDismissed: () -> Unit,
+    onGiftAmountSelected: (String) -> Unit,
     onSendClick: () -> Unit,
 ) {
     Box(
@@ -190,7 +200,9 @@ private fun LiquidAuthViewerScreenContent(
             Spacer(Modifier.height(12.dp))
             ChatComposer(
                 message = uiState.message,
+                giftAmountTag = uiState.giftAmountTag,
                 onMessageChanged = onMessageChanged,
+                onGiftClick = onGiftSupportClick,
                 onSendClick = onSendClick,
             )
             Spacer(Modifier.height(12.dp))
@@ -244,6 +256,18 @@ private fun LiquidAuthViewerScreenContent(
                 networkLabel = networkLabel,
                 onDismiss = onTopUpDismissed,
                 onConfirm = { onTopUpDismissed() },
+            )
+        }
+
+        if (uiState.showGiftSupportSheet) {
+            StreamViewerGiftSupportModal(
+                initialSelectedAmount = uiState.giftAmountTag,
+                onDismiss = onGiftSupportDismissed,
+                onSelectedAmountChanged = onGiftAmountSelected,
+                onConfirm = {
+                    onGiftAmountSelected(it)
+                    onGiftSupportDismissed()
+                },
             )
         }
     }
@@ -324,7 +348,7 @@ private fun Header(
                         modifier = Modifier.size(14.dp),
                     )
                     Text(
-                        text = "1,284 VIEWERS",
+                        text = "# of VIEWERS",
                         color = Color(0xFFB8CDD7),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
@@ -614,9 +638,13 @@ private fun StreamActions(
 @Composable
 private fun ChatComposer(
     message: String,
+    giftAmountTag: String,
     onMessageChanged: (String) -> Unit,
+    onGiftClick: () -> Unit,
     onSendClick: () -> Unit,
 ) {
+    val isGiftAmountTagVisible = giftAmountTag.toDoubleOrNull()?.let { it > 0.0 } == true
+
     Row(
         modifier =
             Modifier
@@ -632,21 +660,44 @@ private fun ChatComposer(
         Box(
             modifier =
                 Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
-                        ),
-                    ),
-            contentAlignment = Alignment.Center,
+                    .size(54.dp)
+                    .clickable(onClick = onGiftClick),
         ) {
-            Icon(
-                vectorResource(Res.drawable.ic_gift),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(18.dp),
-            )
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.Center)
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
+                            ),
+                        ),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    vectorResource(Res.drawable.ic_gift),
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+            if (isGiftAmountTagVisible) {
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .offset(x = (-8).dp, y = 1.dp)
+                            .rotate(-16f)
+                            .clip(RoundedCornerShape(999.dp))
+                            .background(Color(0xFF2D2DF1))
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(text = giftAmountTag, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
         }
         BasicTextField(
             value = message,
@@ -742,6 +793,9 @@ private fun LiquidAuthViewerScreenPreview() {
             onMessageChanged = { message -> uiState = uiState.copy(message = message) },
             onTopUpClick = { uiState = uiState.copy(showTopUpSheet = true) },
             onTopUpDismissed = { uiState = uiState.copy(showTopUpSheet = false) },
+            onGiftSupportClick = { uiState = uiState.copy(showGiftSupportSheet = true) },
+            onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
+            onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },
             onSendClick = { uiState = uiState.copy(message = "") },
         )
     }

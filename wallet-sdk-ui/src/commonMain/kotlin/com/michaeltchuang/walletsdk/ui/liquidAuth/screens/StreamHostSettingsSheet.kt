@@ -1,8 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_free
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_free
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,9 +33,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidRingToggle
@@ -116,8 +116,7 @@ fun StreamHostSettingsSheet(
                         width = 1.dp,
                         color = colors.streamHostSheetBorder,
                         shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp),
-                    )
-                    .verticalScroll(rememberScrollState())
+                    ).verticalScroll(rememberScrollState())
                     .padding(horizontal = 24.dp, vertical = 18.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {

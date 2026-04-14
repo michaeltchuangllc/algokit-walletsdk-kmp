@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidAuth.components
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
@@ -32,10 +32,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidRingToggle
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsMetricsCard
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsPayoutFrequencyBlock
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsTopSquareIconButton
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -73,8 +69,7 @@ fun StreamViewerSettingsSheet(
                         width = 1.dp,
                         color = colors.streamHostSheetBorder,
                         shape = RoundedCornerShape(topStart = 40.dp, topEnd = 40.dp),
-                    )
-                    .padding(top = 24.dp, start = 24.dp, end = 24.dp, bottom = 10.dp),
+                    ).padding(top = 24.dp, start = 24.dp, end = 24.dp, bottom = 10.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             ViewerSettingsHeader(onDismiss = onDismiss)
@@ -164,7 +159,9 @@ private fun RelayerCard(
             }
             Spacer(modifier = Modifier.height(5.dp))
             Text(
-                text = "When you relay the stream, you can earn a percentage of transaction fees to subsidize your viewing costs. Requires stable network & battery.",
+                text =
+                    "When you relay the stream, you can earn a percentage of transaction fees " +
+                        "to subsidize your viewing costs. Requires stable network & battery.",
                 fontSize = 12.sp,
                 color = colors.streamHostCardBody,
                 lineHeight = 18.sp,
