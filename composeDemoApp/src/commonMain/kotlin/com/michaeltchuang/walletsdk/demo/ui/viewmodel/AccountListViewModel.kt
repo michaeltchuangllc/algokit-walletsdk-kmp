@@ -108,6 +108,9 @@ class AccountListViewModel(
         val solanaAddresses = solanaAccounts.map { it.address }
         val balancesByAddress =
             WalletSDK.getSolanaBalances(solanaAddresses)
+        val usdcBalancesByAddress =
+            WalletSDK.getSolanaUsdcBalances(solanaAddresses)
+        println("Solana USDC balances: $usdcBalancesByAddress")
         val failedCount = balancesByAddress.count { it.value == null }
         if (failedCount > 0 && failedCount == solanaAccounts.size) {
             eventDelegate.sendEvent(

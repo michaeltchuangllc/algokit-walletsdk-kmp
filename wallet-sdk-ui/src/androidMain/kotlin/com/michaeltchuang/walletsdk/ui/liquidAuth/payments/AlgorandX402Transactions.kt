@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.payments
 import android.util.Log
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
+import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.foundation.utils.SuggestedParams
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
@@ -42,11 +42,11 @@ object AlgorandX402Payments {
         suggestedParams: SuggestedParams,
     ): ByteArray {
         val note = "X402:$sessionId".toByteArray()
-        return makePaymentTxn(
+        return makeAssetTransferTxn(
             senderAddress = senderAddress,
             receiverAddress = creatorAddress,
             amount = DEPOSIT_MICRO_ALGOS,
-            isMax = false,
+            assetId = 10458941,
             noteInByteArray = note,
             suggestedParams = suggestedParams,
         )

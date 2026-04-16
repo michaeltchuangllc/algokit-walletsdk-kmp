@@ -68,7 +68,8 @@ import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.sol4k.Connection
 import org.sol4k.PublicKey
-import org.sol4k.instruction.TransferInstruction
+import org.sol4k.instruction.CreateAssociatedTokenAccountInstruction
+import org.sol4k.instruction.SplTransferInstruction
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -105,10 +106,12 @@ class AnswerViewModel(
         const val SERVICE_NOTIFICATION_ID = 1000
         private const val STREAM_TIMEOUT_MS = 2000L // 2 seconds without frames = stream ended
         private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-        private const val LAMPORTS_PER_SOL = 1_000_000_000L
         private const val SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
         private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"
         private const val SOLANA_TESTNET_RPC = "https://api.testnet.solana.com"
+        private const val USDC_DECIMALS = 6
+        private const val USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+        private const val USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 
         private fun decodeBase58(input: String): ByteArray? {
             if (input.isEmpty()) return ByteArray(0)
@@ -855,12 +858,11 @@ class AnswerViewModel(
             return
         }
 
-        val amountSol = request.amountMicroAlgos / 1_000_000.0
         val txData =
             createSolanaTransferTransactionData(
                 fromPublicKey = localAccount.publicKey,
                 toPublicKey = request.creatorAddress,
-                amountSol = amountSol,
+                amountBaseUnits = request.amountMicroAlgos,
                 network = request.network,
             )
 
@@ -868,7 +870,7 @@ class AnswerViewModel(
             sendPaymentResponse(
                 request = request,
                 status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Failed to create Solana transfer transaction",
+                errorMessage = "Failed to create Solana USDC transfer transaction",
             )
             return
         }
@@ -892,22 +894,48 @@ class AnswerViewModel(
         val serializedMessage: ByteArray,
     )
 
-    private suspend fun createSolanaTransferTransactionData(
+    private fun createSolanaTransferTransactionData(
         fromPublicKey: String,
         toPublicKey: String,
-        amountSol: Double,
+        amountBaseUnits: Long,
         network: String,
     ): SolanaTransferTxData? =
         try {
             val rpcEndpoint = SOLANA_DEVNET_RPC
+            val usdcMintAddress = USDC_MINT_DEVNET
 
             val connection = Connection(rpcEndpoint)
-            val lamports = (amountSol * LAMPORTS_PER_SOL).toLong()
             val fromPubKey = PublicKey(fromPublicKey)
             val toPubKey = PublicKey(toPublicKey)
+            val mintPubKey = PublicKey(usdcMintAddress)
+            val fromTokenAccount = PublicKey.findProgramDerivedAddress(fromPubKey, mintPubKey).publicKey
+            val toTokenAccount = PublicKey.findProgramDerivedAddress(toPubKey, mintPubKey).publicKey
             val recentBlockhash = connection.getLatestBlockhash()
-            val transferInstruction = TransferInstruction(fromPubKey, toPubKey, lamports)
-            val transaction = SolanaTransaction(recentBlockhash, transferInstruction, fromPubKey)
+            val toTokenAccountExists = connection.getAccountInfo(toTokenAccount) != null
+            val instructions = mutableListOf<org.sol4k.instruction.Instruction>()
+
+            if (!toTokenAccountExists) {
+                instructions.add(
+                    CreateAssociatedTokenAccountInstruction(
+                        payer = fromPubKey,
+                        associatedToken = toTokenAccount,
+                        owner = toPubKey,
+                        mint = mintPubKey,
+                    ),
+                )
+            }
+
+            instructions.add(
+                SplTransferInstruction(
+                    from = fromTokenAccount,
+                    to = toTokenAccount,
+                    mint = mintPubKey,
+                    owner = fromPubKey,
+                    amount = amountBaseUnits,
+                    decimals = USDC_DECIMALS,
+                ),
+            )
+            val transaction = SolanaTransaction(recentBlockhash, instructions, fromPubKey)
             val serializedWithEmptySig = transaction.serialize()
             val serializedMessage =
                 if (serializedWithEmptySig.isNotEmpty() && serializedWithEmptySig[0] == 0.toByte()) {
@@ -918,7 +946,7 @@ class AnswerViewModel(
 
             SolanaTransferTxData(serializedMessage = serializedMessage)
         } catch (e: Exception) {
-            Napier.e(message = "💰 Failed to create Solana transfer transaction", throwable = e, tag = TAG)
+            Napier.e(message = "💰 Failed to create Solana USDC transfer transaction", throwable = e, tag = TAG)
             null
         }
 
