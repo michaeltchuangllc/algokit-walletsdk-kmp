@@ -9,9 +9,11 @@ import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_see
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_solana_sign
+import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.composedemoapp.generated.resources.wallet_icon
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -85,8 +87,21 @@ fun AccountItem(
 
             Column(
                 horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
                 modifier = Modifier.padding(end = 8.dp),
             ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_usdc),
+                        contentDescription = "USDC",
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = account.usdcBalance?.formatAmount(false) ?: "N/A",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (account.registrationType is AccountRegistrationType.SeedVault) {
                         Icon(
@@ -148,6 +163,7 @@ fun AccountItemPreview() {
             customName = "Sample Account",
             balance = "5000000000", // 5000 Algos in microAlgos
             registrationType = AccountRegistrationType.Algo25,
+            usdcBalance = "5000000000",
         )
 
     AlgoKitTheme {

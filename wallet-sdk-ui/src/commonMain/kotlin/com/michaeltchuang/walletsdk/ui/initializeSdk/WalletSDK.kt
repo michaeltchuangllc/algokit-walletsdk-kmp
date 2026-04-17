@@ -10,6 +10,7 @@ import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaBalancesUseCase
@@ -106,6 +107,9 @@ object WalletSDK {
     private val getSolanaBalancesUseCase: GetSolanaBalancesUseCase
         get() = getKoin().get()
 
+    private val getAccountASABalanceUseCase: GetAccountASABalance
+        get() = getKoin().get()
+
     private val syncSolanaAccountsFromSeedVaultUseCase: SyncSolanaAccountsFromSeedVaultUseCase
         get() = getKoin().get()
 
@@ -158,6 +162,13 @@ object WalletSDK {
     }
 
     suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
+
+    suspend fun getSolanaUsdcBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase.getUsdcBalances(addresses)
+
+    suspend fun getAccountASABalance(
+        address: String,
+        assetId: Long,
+    ): String? = getAccountASABalanceUseCase(address, assetId)?.toString()
 
     suspend fun syncSolanaAccountsFromSeedVault() {
         syncSolanaAccountsFromSeedVaultUseCase()

@@ -4,7 +4,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.address_copied_to_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.copy_address
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_funds_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_algo_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_sol_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_usdc_to_your_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_copy
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_edit
@@ -12,7 +14,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.rename_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
@@ -195,14 +199,32 @@ internal fun ScreenContent(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AccountDetailWebviewItem(
-                            icon = Res.drawable.ic_algo_sign,
-                            title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
+                            icon =
+                                if (state.isSolanaAccount) {
+                                    Res.drawable.ic_solana_sign
+                                } else {
+                                    Res.drawable.ic_algo_sign
+                                },
+                            title =
+                                if (state.isSolanaAccount) {
+                                    localizedStringResource(Res.string.dispenser_add_sol_to_your_account)
+                                } else {
+                                    localizedStringResource(Res.string.dispenser_add_algo_to_your_account)
+                                },
                             url =
                                 if (state.isSolanaAccount) {
                                     "https://faucet.solana.com/"
                                 } else {
                                     "https://lora.algokit.io/testnet/fund?address=$address"
                                 },
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AccountDetailWebviewItem(
+                            icon = Res.drawable.ic_usdc,
+                            title = localizedStringResource(Res.string.dispenser_add_usdc_to_your_account),
+                            url = "https://faucet.circle.com/",
                         )
                     }
 

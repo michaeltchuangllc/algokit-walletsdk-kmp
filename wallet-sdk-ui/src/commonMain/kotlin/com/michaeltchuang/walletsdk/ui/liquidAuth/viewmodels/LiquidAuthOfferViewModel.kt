@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -40,6 +41,7 @@ class LiquidAuthOfferViewModel(
     private val generateOfferUseCase: GenerateLiquidAuthOfferUseCase,
     private val stateDelegate: StateDelegate<OfferState>,
     private val eventDelegate: EventDelegate<OfferEvent>,
+    private val getAccountASABalance: GetAccountASABalance,
     private val sendSignedTransactionUseCase: SendSignedTransactionUseCase,
     private val submitSolanaSignedTransactionUseCase: SubmitSolanaSignedTransactionUseCase,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
@@ -61,8 +63,15 @@ class LiquidAuthOfferViewModel(
     val paymentState: StateFlow<PaymentState> = _paymentState
 
     // Current balance for paid streaming (in microAlgos)
-    private val _remainingBalanceMicroAlgos = MutableStateFlow<Long?>(null)
-    val remainingBalanceMicroAlgos: StateFlow<Long?> = _remainingBalanceMicroAlgos
+    private val _remainingBalanceMicroUsdc = MutableStateFlow<Long?>(null)
+    val remainingBalanceMicroUsdc: StateFlow<Long?> = _remainingBalanceMicroUsdc
+
+    // ASA balance check for QR visibility (null => not opted in / unavailable)
+    private val _creatorAsaBalance = MutableStateFlow<String?>(null)
+    val creatorAsaBalance: StateFlow<String?> = _creatorAsaBalance
+
+    private val _isCheckingCreatorAsaBalance = MutableStateFlow(false)
+    val isCheckingCreatorAsaBalance: StateFlow<Boolean> = _isCheckingCreatorAsaBalance
 
     // Current Algorand block number for UI display
     private val _currentBlockNumber = MutableStateFlow<Long?>(null)
@@ -537,7 +546,7 @@ class LiquidAuthOfferViewModel(
                     totalBlocksWatched = newBlocksWatched,
                     totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroAlgos,
                 )
-            _remainingBalanceMicroAlgos.value = 0
+            _remainingBalanceMicroUsdc.value = 0
 
             updateStreamingPaymentStatus(StreamingPaymentStatus.Depleted)
 
@@ -556,7 +565,7 @@ class LiquidAuthOfferViewModel(
                     remainingMicroAlgos = newBalance,
                     blocksWatched = newBlocksWatched,
                 )
-            _remainingBalanceMicroAlgos.value = newBalance
+            _remainingBalanceMicroUsdc.value = newBalance
 
             // Send balance update event periodically (every 5 blocks)
             if (newBlocksWatched % 5 == 0) {
@@ -575,7 +584,7 @@ class LiquidAuthOfferViewModel(
     /**
      * Get current balance as ALGO (for UI display)
      */
-    fun getRemainingBalanceAlgos(): Double? = _remainingBalanceMicroAlgos.value?.let { it / 1_000_000.0 }
+    fun getRemainingBalanceUsdc(): Double? = _remainingBalanceMicroUsdc.value?.let { it / 1_000_000.0 }
 
     /**
      * Reset payment state (when stream ends)
@@ -584,7 +593,7 @@ class LiquidAuthOfferViewModel(
         blockchainMonitorJob?.cancel()
         blockchainMonitorJob = null
         _paymentState.value = PaymentState.NoPayment
-        _remainingBalanceMicroAlgos.value = null
+        _remainingBalanceMicroUsdc.value = null
         paymentSessionId = null
     }
 
@@ -685,7 +694,7 @@ class LiquidAuthOfferViewModel(
                 remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
                 blocksWatched = 0,
             )
-        _remainingBalanceMicroAlgos.value = DEPOSIT_AMOUNT_MICRO_ALGOS
+        _remainingBalanceMicroUsdc.value = DEPOSIT_AMOUNT_MICRO_ALGOS
 
         eventDelegate.sendEvent(
             OfferEvent.PaymentReceived(
@@ -739,6 +748,31 @@ class LiquidAuthOfferViewModel(
     fun stopRealtimeBlockNumberUpdates() {
         blockNumberPollingJob?.cancel()
         blockNumberPollingJob = null
+    }
+
+    fun fetchAccountASABalance(
+        address: String,
+        assetId: Long,
+    ) {
+        if (assetId <= 0) {
+            _creatorAsaBalance.value = null
+            _isCheckingCreatorAsaBalance.value = false
+            return
+        }
+
+        viewModelScope.launch {
+            _isCheckingCreatorAsaBalance.value = true
+            try {
+                val balance = getAccountASABalance(address, assetId)
+                _creatorAsaBalance.value = balance?.toString()
+                println("Fetched ASA balance (LiquidAuth): ${balance?.toString() ?: "null"}")
+            } catch (e: Exception) {
+                println("Exception fetching ASA balance (LiquidAuth): ${e.message}")
+                _creatorAsaBalance.value = null
+            } finally {
+                _isCheckingCreatorAsaBalance.value = false
+            }
+        }
     }
 
     // ================= Payment State Sealed Classes =================

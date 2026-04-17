@@ -75,7 +75,7 @@ fun LiquidAuthViewerScreen(
     originUrl: String = "-",
     networkLabel: String = "TESTNET",
     currentBlockNumber: Long? = null,
-    balanceAlgos: Double = 0.0,
+    balanceUsdc: Double = 0.0,
 ) {
     val viewModel: LiquidAuthViewerViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
@@ -97,7 +97,7 @@ fun LiquidAuthViewerScreen(
         originUrl = originUrl,
         networkLabel = networkLabel,
         currentBlockNumber = currentBlockNumber,
-        balanceAlgos = balanceAlgos,
+        balanceUsdc = balanceUsdc,
         uiState = uiState,
         onSettingsClick = viewModel::onSettingsClicked,
         onAnalyticsClick = viewModel::onAnalyticsClicked,
@@ -125,7 +125,7 @@ private fun LiquidAuthViewerScreenContent(
     originUrl: String,
     networkLabel: String,
     currentBlockNumber: Long?,
-    balanceAlgos: Double,
+    balanceUsdc: Double,
     uiState: LiquidAuthViewerViewModel.UiState,
     onSettingsClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
@@ -226,7 +226,7 @@ private fun LiquidAuthViewerScreenContent(
                 ) {
                     ConnectedViewersCard(
                         sessionId = sessionId.ifBlank { "session-pending" },
-                        balanceAlgos = balanceAlgos,
+                        balanceUSDC = balanceUsdc,
                         connectionType = connectionType,
                         currentBlockNumber = currentBlockNumber,
                         networkLabel = networkLabel,
@@ -782,7 +782,7 @@ private fun LiquidAuthViewerScreenPreview() {
             originUrl = "https://example.app",
             networkLabel = "TESTNET",
             currentBlockNumber = 38291041L,
-            balanceAlgos = 12.34,
+            balanceUsdc = 12.34,
             uiState = uiState,
             onSettingsClick = { uiState = uiState.copy(showViewerSettingsSheet = true, showAnalyticsModal = false) },
             onAnalyticsClick = { uiState = uiState.copy(showAnalyticsModal = !uiState.showAnalyticsModal) },

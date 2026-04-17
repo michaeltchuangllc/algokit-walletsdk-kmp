@@ -85,9 +85,9 @@ object X402PaymentMessages {
     ) {
         fun toJson(): String = json.encodeToString(serializer(), this)
 
-        fun remainingAlgos(): Double = remainingMicroAlgos / 1_000_000.0
+        fun remainingUsdc(): Double = remainingMicroAlgos / 1_000_000.0
 
-        fun consumedAlgos(): Double = consumedMicroAlgos / 1_000_000.0
+        fun consumedUsdc(): Double = consumedMicroAlgos / 1_000_000.0
 
         companion object {
             fun fromJson(jsonStr: String): BalanceUpdate = json.decodeFromString(serializer(), jsonStr)

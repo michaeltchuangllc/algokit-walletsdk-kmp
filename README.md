@@ -117,12 +117,13 @@ timeline
             : 🔄 Liquid Stream - Implement new Figma app modals
             : 🔄 Transaction - Upgrade to escrow MPP WebRTC standard for micro-billing (Android)
             : 🔄 GitOps - Fix crypto dependencies for new 16KB Android requirement
-            : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+            : Account Details - Send USDC in account detail (between accounts)
             
     section Future 🔮
      2026Q3  : Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
              : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
              : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : TBD
     Backlog
             : Onboarding - Rekey flow
@@ -133,7 +134,6 @@ timeline
             : Account Details - Asset Inbox
             : Onboarding - Fun app animations
             : Onboarding - Multi-sig flow
-            : Account Details - Send USDC in account detail (between accounts)
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
 ```

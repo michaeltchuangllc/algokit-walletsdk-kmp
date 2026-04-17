@@ -41,7 +41,7 @@ import kotlin.math.round
 @Composable
 internal fun ConnectedViewersCard(
     sessionId: String,
-    balanceAlgos: Double,
+    balanceUSDC: Double,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
     blockChainLabel: String = "ALGORAND",
@@ -52,9 +52,9 @@ internal fun ConnectedViewersCard(
 ) {
     val colors = AlgoKitTheme.colors
     val isDarkTheme = LocalThemeIsDark.current.value
-    val balanceText = (round(balanceAlgos * 100) / 100).toString()
+    val balanceText = (round(balanceUSDC * 100) / 100).toString()
     val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
-    val progress = (balanceAlgos / 1.0).coerceIn(0.0, 1.0).toFloat()
+    val progress = (balanceUSDC / 1.0).coerceIn(0.0, 1.0).toFloat()
     val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
     val originDisplay =
         originUrl
@@ -100,13 +100,13 @@ internal fun ConnectedViewersCard(
                 MetricBlock(
                     label = "SESSION VAULT",
                     value = balanceText,
-                    unit = if (balanceCurrencySymbol == "S") "SOL" else "ALGO",
+                    unit = "USDC",
                     alignEnd = false,
                 )
                 MetricBlock(
                     label = "STREAM COST",
                     value = streamCost,
-                    unit = if (balanceCurrencySymbol == "S") "SOL/BLOCK+GAS" else "ALGO/BLOCK+GAS",
+                    unit = "USDC/BLOCK+GAS",
                     alignEnd = true,
                 )
             }
@@ -289,7 +289,7 @@ private fun ConnectedViewersCardLightPreview() {
             ) {
                 ConnectedViewersCard(
                     sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
-                    balanceAlgos = round(0.2 * 100) / 100,
+                    balanceUSDC = round(0.2 * 100) / 100,
                     connectionType = IceConnectionType.RELAY,
                     currentBlockNumber = null,
                     networkLabel = "TESTNET",
@@ -312,7 +312,7 @@ private fun ConnectedViewersCardDarkPreview() {
             ) {
                 ConnectedViewersCard(
                     sessionId = "session-1234567890",
-                    balanceAlgos = round(0.2 * 100) / 100,
+                    balanceUSDC = round(0.2 * 100) / 100,
                     connectionType = IceConnectionType.STUN,
                     currentBlockNumber = null,
                     networkLabel = "MAINNET",
