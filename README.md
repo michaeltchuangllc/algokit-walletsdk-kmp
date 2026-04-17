@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.3")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.3")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.4")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.4")
 }
 ```
 
@@ -114,7 +114,7 @@ timeline
             : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
             : ✅ Design - Create app design system in Figma project
             : ✅ Liquid Stream - Implement new Figma viewer/host screens
-            : 🔄 Liquid Stream - Implement new Figma app modals
+            : ✅ Liquid Stream - Implement new Figma app modals
             : 🔄 Transaction - Upgrade to escrow MPP WebRTC standard for micro-billing (Android)
             : 🔄 GitOps - Fix crypto dependencies for new 16KB Android requirement
             : Account Details - Send USDC in account detail (between accounts)
