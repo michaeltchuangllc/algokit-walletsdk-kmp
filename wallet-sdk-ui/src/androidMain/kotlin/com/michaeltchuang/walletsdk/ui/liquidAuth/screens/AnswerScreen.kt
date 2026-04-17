@@ -94,7 +94,7 @@ fun AnswerScreen(
                     isPaymentProcessing = false
                 }
                 is AnswerViewModel.ViewEvent.BalanceUpdated -> {
-                    Log.d("AnswerScreen", "🎭 BalanceUpdated: ${event.balanceUpdate.remainingAlgos()} ALGO")
+                    Log.d("AnswerScreen", "🎭 BalanceUpdated: ${event.balanceUpdate.remainingUsdc()} USDC")
                 }
                 is AnswerViewModel.ViewEvent.FundsDepleted -> {
                     Log.d("AnswerScreen", "🎭 FundsDepleted")
@@ -171,7 +171,7 @@ fun AnswerScreen(
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
                     originUrl = message?.origin.orEmpty().ifBlank { "-" },
-                    balanceAlgos = paymentBalanceFromState?.toDoubleOrNull() ?: 0.0,
+                    balanceUsdc = paymentBalanceFromState?.toDoubleOrNull() ?: 0.0,
                     onMinimize = {
                         Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
                         onMinimizeToPip()
@@ -204,7 +204,7 @@ fun AnswerScreen(
             LiquidAuthSessionVaultModal(
                 initialAmount = amountText,
                 quickAmounts = listOf(amountText, (amount * 8.0).toString()),
-                currencyLabel = if (isSolanaAccount) "SOL" else "ALGO",
+                currencyLabel = "USDC",
                 isProcessing = isPaymentProcessing,
                 isDismissible = false,
                 onDismiss = {

@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
@@ -100,17 +101,34 @@ class AccountListViewModel(
     }
 
     private suspend fun fetchAndMergeSolanaBalances(accounts: List<AccountLite>): List<AccountLite> {
+        val usdcAssetId =
+            when (currentNetwork) {
+                AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                else -> AssetConstants.USDC_TESTNET_ID
+            }
         val solanaAccounts =
             accounts.filter {
                 it.registrationType is AccountRegistrationType.SeedVault
             }
-        if (solanaAccounts.isEmpty()) return accounts
+        val nonSolanaAccounts =
+            accounts.filterNot {
+                it.registrationType is AccountRegistrationType.SeedVault
+            }
+        if (solanaAccounts.isEmpty()) {
+            return nonSolanaAccounts.map { account ->
+                val usdcBalance = WalletSDK.getAccountASABalance(account.address, usdcAssetId)
+                account.copy(usdcBalance = usdcBalance ?: account.usdcBalance)
+            }
+        }
         val solanaAddresses = solanaAccounts.map { it.address }
         val balancesByAddress =
             WalletSDK.getSolanaBalances(solanaAddresses)
         val usdcBalancesByAddress =
             WalletSDK.getSolanaUsdcBalances(solanaAddresses)
-        println("Solana USDC balances: $usdcBalancesByAddress")
+        val asaUsdcBalancesByAddress =
+            nonSolanaAccounts.associate { account ->
+                account.address to WalletSDK.getAccountASABalance(account.address, usdcAssetId)
+            }
         val failedCount = balancesByAddress.count { it.value == null }
         if (failedCount > 0 && failedCount == solanaAccounts.size) {
             eventDelegate.sendEvent(
@@ -121,9 +139,14 @@ class AccountListViewModel(
         }
         return accounts.map { account ->
             if (account.registrationType is AccountRegistrationType.SeedVault) {
-                account.copy(balance = balancesByAddress[account.address] ?: account.balance)
+                account.copy(
+                    balance = balancesByAddress[account.address] ?: account.balance,
+                    usdcBalance = usdcBalancesByAddress[account.address] ?: account.usdcBalance,
+                )
             } else {
-                account
+                account.copy(
+                    usdcBalance = asaUsdcBalancesByAddress[account.address] ?: account.usdcBalance,
+                )
             }
         }
     }

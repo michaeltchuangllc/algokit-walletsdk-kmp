@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_account
 import androidx.compose.foundation.background
@@ -47,6 +48,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitBu
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.liquidAuth.connect
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.checkMinimumBalanceRequired
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.stringResource
@@ -58,6 +60,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LiquidAuthScreen(
     navController: NavController,
     uri: String?,
+    showSnackBar: (message: String) -> Unit,
     closeSheet: () -> Unit = {},
 ) {
     val viewModel: LiquidAuthViewModel = koinViewModel()
@@ -103,6 +106,7 @@ fun LiquidAuthScreen(
             onConnect.value = true
             selectedAccount = it
         },
+        showSnackBar = showSnackBar,
         onBack = {
             navController.popBackStack()
         },
@@ -192,6 +196,7 @@ private fun InfoField(
 fun ScreenContentLiquidAuth(
     viewState: LiquidAuthViewModel.ViewState,
     onAccountSelected: (String) -> Unit,
+    showSnackBar: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     Box(
@@ -229,7 +234,12 @@ fun ScreenContentLiquidAuth(
                             onAccountItemClick = { address ->
                                 val account = accounts.find { it.address == address }
                                 if (account != null) {
-                                    onAccountSelected(account.address)
+                                    val errorMessage = checkMinimumBalanceRequired(account)
+                                    if (errorMessage != null) {
+                                        showSnackBar(errorMessage)
+                                    } else {
+                                        onAccountSelected(account.address)
+                                    }
                                 }
                             },
                         )
@@ -342,7 +352,22 @@ private fun AccountItem(
 
             Column(
                 horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_usdc),
+                        contentDescription = "USDC",
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = account.usdcBalance?.formatAmount(false) ?: "N/A",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                    )
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (account.registrationType is AccountRegistrationType.SeedVault) {
                         Icon(
@@ -405,6 +430,7 @@ fun LiquidAuthScreenPreview() {
                     customName = "Account 1",
                     registrationType = AccountRegistrationType.HdKey,
                     balance = "1",
+                    usdcBalance = "1"
                 ),
             )
         }
@@ -412,6 +438,7 @@ fun LiquidAuthScreenPreview() {
         viewState = LiquidAuthViewModel.ViewState.Content(accounts),
         onAccountSelected = {
         },
+        showSnackBar = {},
         onBack = { },
     )
 }

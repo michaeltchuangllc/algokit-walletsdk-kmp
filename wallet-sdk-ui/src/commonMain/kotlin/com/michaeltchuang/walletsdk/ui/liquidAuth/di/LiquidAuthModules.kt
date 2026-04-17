@@ -27,6 +27,7 @@ internal val liquidAuthModules =
                     generateOfferUseCase = get<GenerateLiquidAuthOfferUseCase>(),
                     stateDelegate = get(),
                     eventDelegate = get(),
+                    getAccountASABalance = get(),
                     sendSignedTransactionUseCase = get(),
                     submitSolanaSignedTransactionUseCase = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),

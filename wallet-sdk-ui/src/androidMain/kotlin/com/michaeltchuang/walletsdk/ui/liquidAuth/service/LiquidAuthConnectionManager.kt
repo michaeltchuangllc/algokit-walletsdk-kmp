@@ -124,7 +124,7 @@ class AndroidLiquidAuthConnectionManager(
         // Send balance update every block (3 seconds for maximum wow factor)
         val balanceMsg = AlgorandX402Payments.createBalanceUpdate(sessionId, blocksConsumed)
         sendMessage(balanceMsg.toJson())
-        Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingAlgos()} ALGO remaining")
+        Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingUsdc()} USDC remaining")
     }
 
     /**

@@ -654,6 +654,11 @@ fun NavigationBottomSheetNavHost(
                     LiquidAuthScreen(
                         navController = navController,
                         uri = uri,
+                        showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        },
                         closeSheet = { closeSheet() },
                     )
                 }

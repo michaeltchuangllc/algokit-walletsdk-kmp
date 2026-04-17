@@ -58,7 +58,7 @@ class LiquidAuthOfferScreenshotTest(
                     sessionId = "session-funded-44556677",
                 ),
             connectionType = IceConnectionType.STUN,
-            balanceAlgos = 1.0,
+            balanceUsdc = 1.0,
         )
         takeScreenshot("testConnectedFundedState")
     }
@@ -74,7 +74,7 @@ class LiquidAuthOfferScreenshotTest(
                     sessionId = "session-depleted-88990011",
                 ),
             connectionType = IceConnectionType.RELAY,
-            balanceAlgos = 0.0,
+            balanceUsdc = 0.0,
         )
         takeScreenshot("testConnectedDepletedState")
     }
@@ -114,7 +114,7 @@ class LiquidAuthOfferScreenshotTest(
                     isPaid = true,
                 ),
             connectionType = IceConnectionType.LOCAL,
-            balanceAlgos = 0.8,
+            balanceUsdc = 0.8,
             currentBlockNumber = 45_123_456L,
             cameraPreview = {
                 Box(
@@ -142,7 +142,7 @@ class LiquidAuthOfferScreenshotTest(
     private fun setStateContent(
         state: LiquidAuthOfferViewModel.OfferState,
         connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
-        balanceAlgos: Double? = null,
+        balanceUsdc: Double? = null,
         currentBlockNumber: Long? = null,
         cameraPreview: @androidx.compose.runtime.Composable (() -> Unit)? = null,
     ) {
@@ -153,7 +153,7 @@ class LiquidAuthOfferScreenshotTest(
                 onBackPressed = {},
                 state = state,
                 connectionType = connectionType,
-                balanceAlgos = balanceAlgos,
+                balanceUsdc = balanceUsdc,
                 currentBlockNumber = currentBlockNumber,
                 cameraPreview = cameraPreview,
                 onRegenerate = {},

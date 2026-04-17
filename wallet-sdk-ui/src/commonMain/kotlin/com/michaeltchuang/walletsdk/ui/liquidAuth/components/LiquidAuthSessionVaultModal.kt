@@ -53,7 +53,7 @@ fun LiquidAuthSessionVaultModal(
     onTopUpAndStream: (String) -> Unit = { _ -> },
     initialAmount: String = "2.22",
     quickAmounts: List<String> = listOf("0.888", "8.88"),
-    currencyLabel: String = "ALGO",
+    currencyLabel: String = "USDC",
     isProcessing: Boolean = false,
     isDismissible: Boolean = true,
 ) {

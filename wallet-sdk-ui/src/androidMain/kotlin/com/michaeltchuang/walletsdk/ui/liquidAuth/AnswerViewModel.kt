@@ -640,10 +640,10 @@ class AnswerViewModel(
                 msgStr.contains("\"remainingBlocks\"") || msgStr.contains("\"remainingMicroAlgos\"") -> {
                     Napier.d(tag = TAG, message = "💰 Parsing BalanceUpdate...")
                     val update = X402PaymentMessages.BalanceUpdate.fromJson(msgStr)
-                    val remainingAlgos = update.remainingAlgos()
-                    _paymentBalance.value = remainingAlgos.toString()
-                    _fundsDepleted.value = remainingAlgos <= 0.0
-                    Napier.d(tag = TAG, message = "💰 Balance update: $remainingAlgos ALGO remaining")
+                    val remainingUsdc = update.remainingUsdc()
+                    _paymentBalance.value = remainingUsdc.toString()
+                    _fundsDepleted.value = remainingUsdc <= 0.0
+                    Napier.d(tag = TAG, message = "💰 Balance update: $remainingUsdc USDC remaining")
                     viewModelScope.launch {
                         eventDelegate.sendEvent(ViewEvent.BalanceUpdated(update))
                     }
