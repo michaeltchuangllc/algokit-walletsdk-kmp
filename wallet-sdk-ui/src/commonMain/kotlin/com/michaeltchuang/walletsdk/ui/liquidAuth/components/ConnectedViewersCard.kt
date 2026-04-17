@@ -106,7 +106,7 @@ internal fun ConnectedViewersCard(
                 MetricBlock(
                     label = "STREAM COST",
                     value = streamCost,
-                    unit =  "USDC/BLOCK+GAS",
+                    unit = "USDC/BLOCK+GAS",
                     alignEnd = true,
                 )
             }

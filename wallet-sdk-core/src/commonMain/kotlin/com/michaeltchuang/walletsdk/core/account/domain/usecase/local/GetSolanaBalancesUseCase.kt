@@ -5,7 +5,6 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
-import kotlin.math.pow
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -20,6 +19,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
+import kotlin.math.pow
 
 class GetSolanaBalancesUseCase(
     private val httpClient: HttpClient,
@@ -99,8 +99,8 @@ class GetSolanaBalancesUseCase(
         address: String,
         rpcEndpoint: String,
         usdcMintAddress: String,
-    ): String? {
-        return try {
+    ): String? =
+        try {
             val requestJson = buildGetUsdcBalanceRequestJson(address, usdcMintAddress)
             val response =
                 httpClient
@@ -112,7 +112,6 @@ class GetSolanaBalancesUseCase(
         } catch (_: Exception) {
             null
         }
-    }
 
     private fun buildGetUsdcBalanceRequestJson(
         address: String,

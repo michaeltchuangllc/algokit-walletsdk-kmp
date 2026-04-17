@@ -163,7 +163,7 @@ fun AccountItemPreview() {
             customName = "Sample Account",
             balance = "5000000000", // 5000 Algos in microAlgos
             registrationType = AccountRegistrationType.Algo25,
-            usdcBalance = "5000000000"
+            usdcBalance = "5000000000",
         )
 
     AlgoKitTheme {

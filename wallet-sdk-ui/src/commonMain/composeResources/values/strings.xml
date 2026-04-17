@@ -1611,7 +1611,9 @@
     <string name="account_type_seedvault">SeedVault Account</string>
 
     <string name="send_funds_to_another_account">Send funds to another account</string>
-    <string name="dispenser_add_funds_to_your_account">Dispenser - Add funds to your account</string>
+    <string name="dispenser_add_algo_to_your_account">Dispenser - Add ALGO to your account</string>
+    <string name="dispenser_add_sol_to_your_account">Dispenser - Add SOL to your account</string>
+    <string name="dispenser_add_usdc_to_your_account">Dispenser - Add USDC to your account</string>
     <string name="send_algo">Send ALGO</string>
 
     <string name="remove_passkey">Remove passkey</string>

@@ -354,7 +354,6 @@ private fun AccountItem(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = vectorResource(Res.drawable.ic_usdc),
@@ -430,7 +429,7 @@ fun LiquidAuthScreenPreview() {
                     customName = "Account 1",
                     registrationType = AccountRegistrationType.HdKey,
                     balance = "1",
-                    usdcBalance = "1"
+                    usdcBalance = "1",
                 ),
             )
         }

@@ -139,6 +139,7 @@ class LiquidAuthViewModel(
             }
         }
     }
+
     sealed interface ViewState {
         data object Idle : ViewState
 
