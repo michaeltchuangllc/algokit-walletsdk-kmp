@@ -361,7 +361,7 @@ private fun AccountItem(
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
-                        text = account.usdcBalance?.formatAmount(false) ?: "N/A",
+                        text = account.usdcBalance?.formatAmount() ?: "N/A",
                         fontSize = 16.sp,
                         style = typography.footnote.sansMedium,
                         color = AlgoKitTheme.colors.textMain,

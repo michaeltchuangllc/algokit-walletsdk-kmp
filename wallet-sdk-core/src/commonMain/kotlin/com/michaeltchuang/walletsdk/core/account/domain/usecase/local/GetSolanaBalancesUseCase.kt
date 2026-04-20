@@ -1,4 +1,7 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
+
+import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.ionspin.kotlin.bignum.integer.toBigInteger
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -19,7 +22,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
-import kotlin.math.pow
 
 class GetSolanaBalancesUseCase(
     private val httpClient: HttpClient,
@@ -46,7 +48,7 @@ class GetSolanaBalancesUseCase(
         addresses: List<String>,
         rpcEndpoint: String = SOLANA_DEVNET_RPC,
         usdcMintAddress: String = USDC_MINT_DEVNET,
-    ): Map<String, String?> =
+    ): Map<String, BigInteger?> =
         coroutineScope {
             addresses
                 .map { address ->
@@ -99,7 +101,7 @@ class GetSolanaBalancesUseCase(
         address: String,
         rpcEndpoint: String,
         usdcMintAddress: String,
-    ): String? =
+    ): BigInteger? =
         try {
             val requestJson = buildGetUsdcBalanceRequestJson(address, usdcMintAddress)
             val response =
@@ -154,7 +156,7 @@ class GetSolanaBalancesUseCase(
         }
     }
 
-    private fun parseUsdcBalance(response: String): String? {
+    private fun parseUsdcBalance(response: String): BigInteger? {
         return try {
             val jsonElement = json.parseToJsonElement(response) as? JsonObject ?: return null
             if (jsonElement["error"] != null) return null
@@ -163,9 +165,10 @@ class GetSolanaBalancesUseCase(
                 jsonElement["result"]
                     ?.jsonObject
                     ?.get("value")
-                    ?.jsonArray ?: return "0"
+                    ?.jsonArray ?: return BigInteger.ZERO
 
-            var total = 0.0
+            // Normalize to micro-units (6 decimals) to match Algorand ASA amount format.
+            var totalMicroUnits = BigInteger.ZERO
             tokenAccounts.forEach { tokenAccount ->
                 val tokenAmount =
                     tokenAccount
@@ -180,16 +183,16 @@ class GetSolanaBalancesUseCase(
                         ?.get("tokenAmount")
                         ?.jsonObject ?: return@forEach
 
-                val uiAmountString = tokenAmount["uiAmountString"]?.jsonPrimitive?.contentOrNull
-                if (uiAmountString != null) {
-                    total += uiAmountString.toDoubleOrNull() ?: 0.0
+                val rawAmount = tokenAmount["amount"]?.jsonPrimitive?.contentOrNull?.toLongOrNull()
+                if (rawAmount != null) {
+                    totalMicroUnits = totalMicroUnits + rawAmount.toBigInteger()
                 } else {
-                    val rawAmount = tokenAmount["amount"]?.jsonPrimitive?.contentOrNull?.toDoubleOrNull() ?: 0.0
-                    val decimals = tokenAmount["decimals"]?.jsonPrimitive?.contentOrNull?.toIntOrNull() ?: 0
-                    total += rawAmount / 10.0.pow(decimals)
+                    val uiAmountString = tokenAmount["uiAmountString"]?.jsonPrimitive?.contentOrNull
+                    val uiAmount = uiAmountString?.toDoubleOrNull() ?: 0.0
+                    totalMicroUnits = totalMicroUnits + (uiAmount * 1_000_000).toLong().toBigInteger()
                 }
             }
-            total.toString()
+            totalMicroUnits
         } catch (_: Exception) {
             null
         }

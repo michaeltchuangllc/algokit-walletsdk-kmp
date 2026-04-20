@@ -49,19 +49,21 @@ inline fun <reified T> NavController.getData(): T? =
         ?.savedStateHandle
         ?.getObject()
 
-fun String.formatAmount(convertToMicroAlgos: Boolean = true): String =
+val precision: Int = 3
+fun String.formatAmount(convertToMicroAmount: Boolean = true): String =
+
     try {
         val microalgos = BigDecimal.parseString(this)
         var divisor = BigDecimal.parseString("1")
-        if (convertToMicroAlgos) {
+        if (convertToMicroAmount) {
             divisor = BigDecimal.parseString("1000000")
         }
-        val algos = microalgos.divide(divisor)
+        val micros = microalgos.divide(divisor)
 
         // Round to 6 decimal places
         val rounded =
-            algos.roundToDigitPosition(
-                digitPosition = 6,
+            micros.roundToDigitPosition(
+                digitPosition = precision.toLong(),
                 roundingMode = RoundingMode.ROUND_HALF_AWAY_FROM_ZERO,
             )
 
@@ -69,7 +71,7 @@ fun String.formatAmount(convertToMicroAlgos: Boolean = true): String =
         val str = rounded.toStringExpanded()
         val parts = str.split(".")
         val intPart = parts[0]
-        val decPart = parts.getOrNull(1)?.take(6)?.padEnd(6, '0') ?: "000000"
+        val decPart = parts.getOrNull(1)?.take(precision)?.padEnd(precision, '0') ?: "000"
 
         "$intPart.$decPart"
     } catch (e: Exception) {

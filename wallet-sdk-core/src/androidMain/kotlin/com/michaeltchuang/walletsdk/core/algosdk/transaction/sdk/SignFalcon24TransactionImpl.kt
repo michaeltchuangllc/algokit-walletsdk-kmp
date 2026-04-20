@@ -10,6 +10,17 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import io.github.aakira.napier.Napier
 import java.math.BigInteger
 
+private fun List<ByteArray>.flattenToByteArray(): ByteArray {
+    val totalSize = this.sumOf { it.size }
+    val result = ByteArray(totalSize)
+    var offset = 0
+    for (bytes in this) {
+        bytes.copyInto(result, destinationOffset = offset)
+        offset += bytes.size
+    }
+    return result
+}
+
 internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
     override fun signTransaction(
         transactionByteArray: ByteArray,
@@ -31,25 +42,37 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
                 )
             Napier.d(tag = TAG, message = "signFalconBundle returned CSV with length: ${resultCsv.length}")
 
-            // MPP signer contract expects exactly one signed txn blob for the
-            // provided unsigned txn, not a concatenated bundle.
             val signedResults = resultCsv.split(",").filter { it.isNotBlank() }
             val decodedResults = signedResults.map { encodedTxn ->
                 Base64.decode(encodedTxn, Base64.DEFAULT)
             }
-            val matchingSignedTxn = decodedResults.firstOrNull { bytes ->
-                try {
-                    val signed = Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
-                    val tx = signed.tx ?: return@firstOrNull false
-                    matchesExpectedTransaction(expectedTxn, tx)
-                } catch (_: Exception) {
-                    false
-                }
+
+            if (decodedResults.isEmpty()) {
+                throw IllegalStateException("Falcon signer returned no signed transaction")
             }
-            if (matchingSignedTxn == null) {
+
+            val containsExpectedTxn =
+                decodedResults.any { bytes ->
+                    try {
+                        val signed = Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
+                        val tx = signed.tx ?: return@any false
+                        matchesExpectedTransaction(expectedTxn, tx)
+                    } catch (_: Exception) {
+                        false
+                    }
+                }
+
+            if (!containsExpectedTxn) {
                 throw IllegalStateException("Falcon signer did not return a matching SignedTransaction")
             }
-            matchingSignedTxn
+
+            // Falcon bundle signing may return additional dummy transactions for verification budget.
+            // Return the full signed payload so algod receives the complete group.
+            if (decodedResults.size == 1) {
+                decodedResults.first()
+            } else {
+                decodedResults.flattenToByteArray()
+            }
         } catch (e: Exception) {
             Log.e(tag = TAG, message = "Error signing transaction: ${e.message}, cause: ${e.cause}")
             null
