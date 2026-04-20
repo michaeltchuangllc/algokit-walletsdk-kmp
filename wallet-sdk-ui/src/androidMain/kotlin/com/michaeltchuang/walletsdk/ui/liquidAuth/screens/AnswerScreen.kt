@@ -43,6 +43,9 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import kotlinx.coroutines.launch
 
@@ -67,6 +70,7 @@ fun AnswerScreen(
     val pendingPaymentRequestFromState by viewModel.pendingPaymentRequest.collectAsState()
     val paymentBalanceFromState by viewModel.paymentBalance.collectAsState()
     val fundsDepletedFromState by viewModel.fundsDepleted.collectAsState()
+    val pendingMppConsentFromState by viewModel.pendingMppConsent.collectAsState()
 
     var isSolanaAccount by remember { mutableStateOf(false) }
     LaunchedEffect(accountAddress) {
@@ -126,6 +130,14 @@ fun AnswerScreen(
     LaunchedEffect(pendingPaymentRequestFromState) {
         if (pendingPaymentRequest == null && pendingPaymentRequestFromState != null) {
             pendingPaymentRequest = pendingPaymentRequestFromState
+        }
+    }
+
+    LaunchedEffect(pendingMppConsentFromState) {
+        if (pendingMppConsentFromState != null) {
+            showPaymentDialog = true
+            isViewerSheetVisible = true
+            isPaymentProcessing = false
         }
     }
 
@@ -195,10 +207,11 @@ fun AnswerScreen(
             isSolanaAccount = isSolanaAccount,
         )
 
-        // X402 Payment Dialog Overlay
-        if (showPaymentDialog && pendingPaymentRequest != null) {
-            val paymentRequest = pendingPaymentRequest!!
-            val amount = paymentRequest.amountMicroAlgos / 1_000_000.0
+        // Payment dialog overlay for both legacy X402 and MPP consent.
+        val mppConsent = pendingMppConsentFromState
+        if (showPaymentDialog && (pendingPaymentRequest != null || mppConsent != null)) {
+            val amountMicro = pendingPaymentRequest?.amountMicroAlgos ?: mppConsent?.amount?.toLongOrNull() ?: 0L
+            val amount = amountMicro / 1_000_000.0
             val amountText = amount.toString()
             Log.d("AnswerScreen", "🎭 Showing SessionVault payment dialog")
             LiquidAuthSessionVaultModal(
@@ -209,6 +222,13 @@ fun AnswerScreen(
                 isDismissible = false,
                 onDismiss = {
                     if (!isPaymentProcessing) {
+                        if (mppConsent != null) {
+                            viewModel.rejectMppConsent()
+                            showPaymentDialog = false
+                            return@LiquidAuthSessionVaultModal
+                        }
+
+                        val paymentRequest = pendingPaymentRequest ?: return@LiquidAuthSessionVaultModal
                         // When funds are depleted, keep prompt sticky until payment succeeds.
                         if (fundsDepletedFromState) {
                             showPaymentDialog = true
@@ -229,6 +249,19 @@ fun AnswerScreen(
                     isPaymentProcessing = true
                     scope.launch {
                         try {
+                            if (mppConsent != null) {
+                                viewModel.approveMppConsent(
+                                    ConsentApproval(
+                                        approved = true,
+                                        autoPaySegments = false,
+                                        budgetCap = BudgetCap(amount = "1000000", asset = USDC_TESTNET_ID.toString()),
+                                    )
+                                )
+                                showPaymentDialog = false
+                                return@launch
+                            }
+
+                            val paymentRequest = pendingPaymentRequest ?: return@launch
                             viewModel.createAndSendPayment(paymentRequest)
                             showPaymentDialog = false
                         } finally {

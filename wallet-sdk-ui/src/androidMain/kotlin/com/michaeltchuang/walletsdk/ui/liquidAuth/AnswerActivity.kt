@@ -31,6 +31,15 @@ import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalClient
+import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
+import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERVICE_NOTIFICATION_ID
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -39,6 +48,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
 import com.solanamobile.seedvault.SigningRequest
 import com.solanamobile.seedvault.Wallet
 import com.solanamobile.seedvault.WalletContractV1
+import com.algorand.algosdk.util.Encoder
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
@@ -52,6 +62,7 @@ import org.json.JSONObject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -84,6 +95,7 @@ class AnswerActivity : AppCompatActivity() {
     private lateinit var seedVaultSignTransactionLauncher: ActivityResultLauncher<Intent>
     private var pendingSolanaPaymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest? = null
     private var pendingSolanaSerializedMessage: ByteArray? = null
+    private var liquidStreamViewer: LiquidStreamViewer? = null
 
     private data class SeedVaultSigner(
         val authToken: Long,
@@ -753,6 +765,7 @@ class AnswerActivity : AppCompatActivity() {
         if (viewModel.signalService.value != null) {
             Log.d(TAG, "Setting up WebRTC connection...")
             viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers)
+            setupMppPaymentViewer()
             runOnUiThread {
                 if (viewModel.signalService.value?.isDeepLink == true) this@AnswerActivity.onBackPressed()
             }
@@ -781,6 +794,111 @@ class AnswerActivity : AppCompatActivity() {
             )
         } else {
             showToast("Couldn't find service", Toast.LENGTH_LONG)
+        }
+    }
+
+    private fun setupMppPaymentViewer() {
+        val service = viewModel.signalService.value ?: return
+        val peerConnection = service.peerConnection ?: return
+        val accountAddress = algoAddress ?: return
+
+        lifecycleScope.launch {
+            try {
+                val paymentChannel = awaitPaymentDataChannel(service) ?: return@launch
+                liquidStreamViewer?.terminate()
+                liquidStreamViewer =
+                    LiquidStreamViewer(
+                        peerConnection = peerConnection,
+                        dataChannel = paymentChannel,
+                        mppClientConfig =
+                            MppClientConfig(
+                                network = MppNetworks.TESTNET,
+                                signer = buildMppWalletSigner(accountAddress),
+                            ),
+                        consentHandler =
+                            object : ConsentHandler {
+                                override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
+                                    return viewModel.requestMppConsentFromUi(terms)
+                                }
+                            },
+                        clientConfig = ClientConfig(autoPaySegments = false),
+                    ).also {
+                        it.start()
+                    }
+            } catch (_: CancellationException) {
+                // Activity is tearing down.
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to initialize MPP payment viewer", e)
+            }
+        }
+    }
+
+    private suspend fun awaitPaymentDataChannel(
+        service: com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService,
+    ): DataChannel? {
+        service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+        repeat(20) {
+            service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+            kotlinx.coroutines.delay(100)
+        }
+        service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+
+        return suspendCancellableCoroutine { continuation ->
+            val handler = Handler(mainLooper)
+            val poll =
+                object : Runnable {
+                    override fun run() {
+                        val channel = service.getDataChannel(PAYMENT_CHANNEL_LABEL)
+                        if (!continuation.isActive) return
+                        if (channel != null) {
+                            continuation.resume(channel)
+                        } else {
+                            handler.postDelayed(this, 100)
+                        }
+                    }
+                }
+            handler.postDelayed(poll, 100)
+            continuation.invokeOnCancellation { handler.removeCallbacks(poll) }
+        }
+    }
+
+    private fun buildMppWalletSigner(address: String): MppWalletSigner {
+        return object : MppWalletSigner {
+            override val address: String = address
+
+            override suspend fun signTransaction(txn: com.algorand.algosdk.transaction.Transaction): ByteArray {
+                val localAccount = viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
+                return when (localAccount) {
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+                        val secretKey = viewModel.resolveAlgo25SecretKey(address) ?: error("Missing Algo25 key for $address")
+                        com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments.signTransaction(
+                            transactionBytes = Encoder.encodeToMsgPack(txn),
+                            secretKey = secretKey,
+                        )
+                    }
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+                        val seed = viewModel.resolveSeed(localAccount.seedId) ?: error("Missing HD seed for $address")
+                        com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
+                            transactionByteArray = Encoder.encodeToMsgPack(txn),
+                            seed,
+                            localAccount.account,
+                            localAccount.change,
+                            localAccount.keyIndex,
+                        ) ?: error("HD signing failed")
+                    }
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+                        val secretKey =
+                            viewModel.resolveFalcon24SecretKey(address)
+                                ?: error("Missing Falcon24 key for $address")
+                        com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction(
+                            transactionByteArray = Encoder.encodeToMsgPack(txn),
+                            localAccount.publicKey,
+                            secretKey,
+                        ) ?: error("Falcon24 signing failed")
+                    }
+                    else -> error("Unsupported account for MPP signing: ${localAccount::class.simpleName}")
+                }
+            }
         }
     }
 
@@ -1048,6 +1166,8 @@ class AnswerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         shouldEnterPipMode = false
+        liquidStreamViewer?.terminate()
+        liquidStreamViewer = null
         viewModel.clearVideoFrame() // Clear video when activity destroyed
         viewModel.unbindSignalService(this)
     }

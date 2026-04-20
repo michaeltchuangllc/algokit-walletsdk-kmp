@@ -12,9 +12,6 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiqui
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
-import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SubmitSolanaSignedTransactionUseCase
-import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import kotlinx.coroutines.Job
@@ -22,8 +19,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -42,8 +37,6 @@ class LiquidAuthOfferViewModel(
     private val stateDelegate: StateDelegate<OfferState>,
     private val eventDelegate: EventDelegate<OfferEvent>,
     private val getAccountASABalance: GetAccountASABalance,
-    private val sendSignedTransactionUseCase: SendSignedTransactionUseCase,
-    private val submitSolanaSignedTransactionUseCase: SubmitSolanaSignedTransactionUseCase,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
 ) : ViewModel(),
@@ -431,82 +424,22 @@ class LiquidAuthOfferViewModel(
     }
 
     /**
-     * Handle payment response from client
-     * Called when client sends back signed transaction
+     * Handle successful MPP settlement from creator-side paywall server.
      */
-    @OptIn(ExperimentalEncodingApi::class)
-    fun onPaymentResponse(response: X402PaymentMessages.PaymentResponse) {
-        println("💰 onPaymentResponse called with status=${response.status}, client=${response.clientAddress}")
-        when (response.status) {
-            X402PaymentMessages.PaymentResponse.Status.SIGNED -> {
-                println("💰 Payment SIGNED - submitting to blockchain...")
+    fun onMppPaymentSettled(txId: String?) {
+        viewModelScope.launch {
+            handlePaymentConfirmed(txId ?: "")
+        }
+    }
 
-                viewModelScope.launch {
-                    try {
-                        val signedBytes = Base64.decode(response.signedTransactionB64)
-
-                        if (response.clientAddress.length in 32..44) {
-                            val txId = submitSolanaSignedTransactionUseCase(signedBytes)
-                            println("💰🎉 SOLANA TRANSACTION SUBMITTED! Signature: $txId")
-                            handlePaymentConfirmed(txId)
-                        } else {
-                            val signedTxn = SignedTransactionDetail.ExternalTransaction(signedBytes)
-                            println("💰 Submitting transaction to Algorand network...")
-                            sendSignedTransactionUseCase
-                                .sendSignedTransaction(signedTxn)
-                                .collect { result ->
-                                    when (result) {
-                                        is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
-                                            println("💰🎉 TRANSACTION CONFIRMED! TxID: ${result.data}")
-                                            handlePaymentConfirmed(result.data)
-                                        }
-                                        is com.michaeltchuang.walletsdk.utils.DataResource.Error -> {
-                                            println("💰❌ Transaction submission failed: ${result.exception}")
-                                            _paymentState.value =
-                                                PaymentState.Error(
-                                                    "Transaction failed: ${result.exception?.message}",
-                                                )
-                                            updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
-                                        }
-                                        is com.michaeltchuang.walletsdk.utils.DataResource.Loading -> {
-                                            println("💰⏳ Submitting transaction...")
-                                        }
-                                    }
-                                }
-                        }
-                    } catch (e: Exception) {
-                        println("💰❌ Failed to submit transaction: $e")
-                        _paymentState.value = PaymentState.Error("Failed to submit: ${e.message}")
-                        updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
-                    }
-                }
-            }
-            X402PaymentMessages.PaymentResponse.Status.REJECTED -> {
-                println("💰 Payment REJECTED by client")
-                _paymentState.value = PaymentState.Rejected()
-                updateStreamingPaymentStatus(StreamingPaymentStatus.Rejected)
-                println("💰 PaymentState updated to Rejected")
-                viewModelScope.launch {
-                    println("💰 Sending PaymentRejected event...")
-                    eventDelegate.sendEvent(OfferEvent.PaymentRejected)
-                    println("💰 PaymentRejected event sent")
-                }
-            }
-            X402PaymentMessages.PaymentResponse.Status.ERROR -> {
-                println("💰 Payment ERROR: ${response.errorMessage}")
-                _paymentState.value = PaymentState.Error(response.errorMessage ?: "Unknown error")
-                updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
-                println("💰 PaymentState updated to Error")
-                viewModelScope.launch {
-                    println("💰 Sending ShowError event for payment error...")
-                    eventDelegate.sendEvent(
-                        OfferEvent.ShowError(
-                            response.errorMessage ?: "Payment error",
-                        ),
-                    )
-                    println("💰 ShowError event sent")
-                }
-            }
+    /**
+     * Handle rejected MPP payment from creator-side paywall server.
+     */
+    fun onMppPaymentRejected(reason: String) {
+        _paymentState.value = PaymentState.Error(reason)
+        updateStreamingPaymentStatus(StreamingPaymentStatus.Error)
+        viewModelScope.launch {
+            eventDelegate.sendEvent(OfferEvent.ShowError(reason))
         }
     }
 
@@ -912,8 +845,6 @@ class LiquidAuthOfferViewModel(
         /**
          * Payment rejected by client
          */
-        data object PaymentRejected : OfferEvent
-
         /**
          * Balance updated during streaming
          */

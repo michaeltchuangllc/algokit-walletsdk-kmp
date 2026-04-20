@@ -48,6 +48,7 @@ class SignalService : Service() {
 
     // Native WebRTC Components
     var dataChannel: DataChannel? = null
+    var paymentDataChannel: DataChannel? = null
     var peerConnection: PeerConnection? = null
 
     // Simple service binding
@@ -132,6 +133,8 @@ class SignalService : Service() {
     fun stop() {
         signalClient?.disconnect()
         signalClient = null
+        paymentDataChannel?.close()
+        paymentDataChannel = null
     }
 
     /**
@@ -145,7 +148,12 @@ class SignalService : Service() {
         dataChannel = signalClient?.peer(requestId, type, iceServers)
         peerClient = signalClient?.peerClient
         peerConnection = peerClient?.peerConnection
+        paymentDataChannel = null
     }
+
+    fun createDataChannel(label: String): DataChannel? = peerClient?.createAdditionalDataChannel(label)
+
+    fun getDataChannel(label: String): DataChannel? = peerClient?.getAdditionalDataChannel(label)
 
     /**
      * Create a PendingIntent

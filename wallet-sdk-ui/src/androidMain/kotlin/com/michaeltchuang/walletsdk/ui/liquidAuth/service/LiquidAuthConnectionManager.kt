@@ -10,7 +10,16 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.railmpp.ALGO_ASSET
+import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
@@ -50,6 +59,9 @@ class AndroidLiquidAuthConnectionManager(
     private var isBound = false
     private var activeRequestId: String? = null
     private var connectionTypePollingJob: Job? = null
+    private var liquidStreamCreator: LiquidStreamCreator? = null
+    private var activePaymentSessionId: String? = null
+    private var activePaymentRecipient: String? = null
 
     // Connection type state flow - exposed for UI and billing
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
@@ -131,8 +143,94 @@ class AndroidLiquidAuthConnectionManager(
      * Send payment request to client
      */
     override fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest) {
-        Log.d(TAG, "💰 Sending payment request: ${paymentRequest.amountMicroAlgos} microAlgos")
-        sendMessage(paymentRequest.toJson())
+        val service = signalService
+        val peerConnection = service?.peerConnection
+        if (service == null || peerConnection == null) {
+            val message = "MPP payment rail unavailable: peer connection is not ready"
+            Log.e(TAG, message)
+            viewModel?.onMppPaymentRejected(message)
+            return
+        }
+
+        val paymentChannel = service.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service.createDataChannel(PAYMENT_CHANNEL_LABEL)
+        if (paymentChannel == null) {
+            val message = "MPP payment channel unavailable"
+            Log.e(TAG, message)
+            viewModel?.onMppPaymentRejected(message)
+            return
+        }
+
+        try {
+            val network = toMppNetwork(paymentRequest.network)
+            val amount = paymentRequest.amountMicroAlgos.toString()
+            val recipient = paymentRequest.creatorAddress
+            val serverConfig =
+                ServerConfig(
+                    gating =
+                        GatingConfig(
+                            mode = GatingMode.PARTIAL_TIME,
+                            amount = amount,
+                            asset = USDC_TESTNET_ID.toString(),
+                            network = network,
+                            payTo = recipient,
+                            segmentDuration = 3,
+                            leadTime = 5,
+                        ),
+                    gracePeriod = 5,
+                )
+
+            val current = liquidStreamCreator
+            val shouldRecreate =
+                current == null ||
+                    activePaymentSessionId != paymentRequest.id ||
+                    activePaymentRecipient != recipient
+
+            if (shouldRecreate) {
+                current?.terminate("replaced")
+                val creator =
+                    LiquidStreamCreator(
+                        peerConnection = peerConnection,
+                        dataChannel = paymentChannel,
+                        rtpSenders = emptyList(),
+                        mppServerConfig =
+                            MppServerConfig(
+                                network = network,
+                                recipient = recipient,
+                                secretKey = "liquid-auth-mpp-${activeRequestId ?: paymentRequest.id}",
+                            ),
+                        serverConfig = serverConfig.copy(sessionId = paymentRequest.id),
+                    )
+                creator.rtcServer.onPaymentSettled = { receipt ->
+                    Log.d(TAG, "💰 MPP payment settled: txId=${receipt.txId}")
+                    viewModel?.onMppPaymentSettled(receipt.txId)
+                }
+                creator.rtcServer.onPaymentRejected = { reason ->
+                    Log.e(TAG, "💰 MPP payment rejected: $reason")
+                    viewModel?.onMppPaymentRejected(reason)
+                }
+                creator.rtcServer.onError = { e ->
+                    Log.e(TAG, "💰 MPP creator error", e)
+                    viewModel?.onMppPaymentRejected(e.message ?: "MPP creator error")
+                }
+                creator.start()
+                liquidStreamCreator = creator
+                activePaymentSessionId = paymentRequest.id
+                activePaymentRecipient = recipient
+            } else {
+                current.updateConfig(serverConfig.copy(sessionId = paymentRequest.id))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "💰 Failed to initialize MPP creator", e)
+            viewModel?.onMppPaymentRejected(e.message ?: "MPP initialization failed")
+        }
+    }
+
+    private fun toMppNetwork(network: String): String {
+        val n = network.lowercase()
+        return when {
+            n.contains("mainnet") || network == MppNetworks.MAINNET -> MppNetworks.MAINNET
+            else -> MppNetworks.TESTNET
+        }
     }
 
     /**
@@ -312,26 +410,6 @@ class AndroidLiquidAuthConnectionManager(
                         onMessage = { msg ->
                             Log.d(TAG, "📨 Received message: ${msg.take(150)}...")
 
-                            // Check if it's a payment response
-                            if (msg.contains("\"status\"") && msg.contains("\"signedTransactionB64\"")) {
-                                Log.d(TAG, "💰 Payment response detected!")
-                                try {
-                                    val response = X402PaymentMessages.PaymentResponse.fromJson(msg)
-                                    Log.d(TAG, "💰 Payment response parsed: ${response.status}, client=${response.clientAddress}")
-                                    viewModel?.onPaymentResponse(response)
-                                    Log.d(TAG, "💰 onPaymentResponse called successfully")
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "❌ Failed to parse payment response: $e")
-                                }
-                                return@handleMessages
-                            }
-
-                            // Check if it's a balance update request from client (not used yet)
-                            if (msg.contains("\"reference\":\"liquid:payment:balance\"")) {
-                                Log.d(TAG, "💰 Balance update request from client - ignoring")
-                                return@handleMessages
-                            }
-
                             // If we receive any other message, connection is open
                             val currentDcState = service.dataChannel?.state()?.toString()
                             Log.d(TAG, "📨 Non-payment message received; dcState=$currentDcState, requestId=$requestId")
@@ -392,6 +470,10 @@ class AndroidLiquidAuthConnectionManager(
         Log.d(TAG, "Stopping SignalService (activeRequestId=$activeRequestId)")
         stopConnectionTypePolling()
         stopBlockConsumption()
+        liquidStreamCreator?.terminate("stop_listening")
+        liquidStreamCreator = null
+        activePaymentSessionId = null
+        activePaymentRecipient = null
         serviceConnection?.let {
             try {
                 context.unbindService(it)

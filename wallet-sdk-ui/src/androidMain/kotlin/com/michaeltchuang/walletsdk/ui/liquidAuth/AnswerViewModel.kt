@@ -51,6 +51,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments
 import foundation.algorand.crypto.EncoderType
@@ -439,6 +441,14 @@ class AnswerViewModel(
             else -> "algorand"
         }
     }
+
+    suspend fun resolveLocalAccount(address: String): LocalAccount? = getLocalAccount(address)
+
+    suspend fun resolveAlgo25SecretKey(address: String): ByteArray? = getAlgo25SecretKey(address)
+
+    suspend fun resolveFalcon24SecretKey(address: String): ByteArray? = getFalcon24SecretKey(address)
+
+    suspend fun resolveSeed(seedId: Int): ByteArray? = getSeed(seedId)
 
     suspend fun getAccountPublicKey(address: String): ByteArray {
         val localAccount = getLocalAccount(address)
@@ -958,6 +968,12 @@ class AnswerViewModel(
     private val _fundsDepleted = MutableStateFlow(false)
     val fundsDepleted: StateFlow<Boolean> = _fundsDepleted
 
+    // MPP consent request bridge for UI-driven approval dialog
+    private val _pendingMppConsent = MutableStateFlow<ConsentTerms?>(null)
+    val pendingMppConsent: StateFlow<ConsentTerms?> = _pendingMppConsent
+    @Volatile
+    private var pendingMppConsentContinuation: kotlinx.coroutines.CompletableDeferred<ConsentApproval>? = null
+
     /**
      * Encode ResponseMessage to CBOR bytes
      */
@@ -1005,6 +1021,31 @@ class AnswerViewModel(
     fun consumeViewerRuntimeStateForUi() {
         // Keep runtime state in ViewModel so UI can be detached from activity recreation.
         // This method exists as an explicit phase-2 handoff marker for callers.
+    }
+
+    suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
+        val deferred = kotlinx.coroutines.CompletableDeferred<ConsentApproval>()
+        pendingMppConsentContinuation = deferred
+        _pendingMppConsent.value = terms
+        return try {
+            deferred.await()
+        } finally {
+            pendingMppConsentContinuation = null
+            _pendingMppConsent.value = null
+        }
+    }
+
+    fun approveMppConsent(approval: ConsentApproval) {
+        pendingMppConsentContinuation?.complete(approval)
+    }
+
+    fun rejectMppConsent() {
+        pendingMppConsentContinuation?.complete(
+            ConsentApproval(
+                approved = false,
+                autoPaySegments = false,
+            )
+        )
     }
 
     suspend fun processBiometricTransactionSigning(

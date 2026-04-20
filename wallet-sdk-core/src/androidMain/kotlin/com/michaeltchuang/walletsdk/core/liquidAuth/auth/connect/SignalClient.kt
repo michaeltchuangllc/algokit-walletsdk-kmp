@@ -107,6 +107,7 @@ class SignalClient
             return suspendCoroutine { continuation ->
                 scope.launch {
                     val clientType = if (type === "offer") "answer" else "offer"
+                    var dataChannelResolved = false
                     peerClient = PeerApi(context)
                     // Buffer ICE Candidates if they arrive before the Peer Connection is established
                     val candidatesBuffer = mutableListOf<IceCandidate>()
@@ -159,7 +160,10 @@ class SignalClient
                             // Handle a Data Channel from the Peer
                             // This only happens for a client that creates an Answer,
                             // Offer clients are responsible for creating a datachannel
-                            continuation.resume(it)
+                            if (!dataChannelResolved) {
+                                dataChannelResolved = true
+                                continuation.resume(it)
+                            }
                         },
                         iceServers,
                     )
@@ -209,7 +213,10 @@ class SignalClient
                                 }
                             }
                         }
-                        continuation.resume(dc)
+                        if (!dataChannelResolved) {
+                            dataChannelResolved = true
+                            continuation.resume(dc)
+                        }
                     }
                 }
             }
