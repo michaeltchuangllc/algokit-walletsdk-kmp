@@ -8,7 +8,7 @@ import com.algorand.algosdk.account.Account
  */
 data class MppServerConfig(
     /** Algorand CAIP-2 network. Defaults to TestNet for the demo. */
-    val network: String = MppNetworks.TESTNET,
+    val network: String = MppNetworks.ALGORAND_TESTNET,
     /** Custom algod URL. Defaults to [DEFAULT_ALGOD_URLS] for the network. */
     val algodUrl: String? = null,
 
@@ -48,7 +48,7 @@ data class MppServerConfig(
  */
 data class MppClientConfig(
     /** Algorand CAIP-2 network. Defaults to TestNet. */
-    val network: String = MppNetworks.TESTNET,
+    val network: String = MppNetworks.ALGORAND_TESTNET,
     /** Custom algod URL. Defaults to [DEFAULT_ALGOD_URLS] for the network. */
     val algodUrl: String? = null,
 

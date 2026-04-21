@@ -29,6 +29,7 @@ import androidx.lifecycle.lifecycleScope
 import com.google.android.gms.fido.fido2.Fido2ApiClient
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalClient
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
@@ -45,10 +46,11 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERV
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
-import com.solanamobile.seedvault.SigningRequest
 import com.solanamobile.seedvault.Wallet
 import com.solanamobile.seedvault.WalletContractV1
+import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.util.Encoder
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
@@ -92,9 +94,6 @@ class AnswerActivity : AppCompatActivity() {
     private lateinit var attestationIntentLauncher: ActivityResultLauncher<IntentSenderRequest>
     private lateinit var seedVaultSignMessageLauncher: ActivityResultLauncher<Intent>
     private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
-    private lateinit var seedVaultSignTransactionLauncher: ActivityResultLauncher<Intent>
-    private var pendingSolanaPaymentRequest: com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentRequest? = null
-    private var pendingSolanaSerializedMessage: ByteArray? = null
     private var liquidStreamViewer: LiquidStreamViewer? = null
 
     private data class SeedVaultSigner(
@@ -137,46 +136,6 @@ class AnswerActivity : AppCompatActivity() {
                 }
             }
 
-        seedVaultSignTransactionLauncher =
-            registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                val request = pendingSolanaPaymentRequest
-                val serializedMessage = pendingSolanaSerializedMessage
-                pendingSolanaPaymentRequest = null
-                pendingSolanaSerializedMessage = null
-
-                if (request == null || serializedMessage == null) return@registerForActivityResult
-
-                try {
-                    val signingResponses = Wallet.onSignTransactionsResult(result.resultCode, result.data)
-                    Log.d(TAG, "🟣 Solana signTransactions success: responses=${signingResponses.size}")
-                    val signature = signingResponses.firstOrNull()?.signatures?.firstOrNull()
-                    if (signature != null) {
-                        Log.d(TAG, "🟣 Solana signature received: ${signature.size} bytes")
-                        val signedTxn = serializeSignedSolanaTransaction(serializedMessage, signature)
-                        val signedB64 = Base64.Default.encode(signedTxn)
-                        Log.d(TAG, "🟣 Solana signed transaction serialized: ${signedTxn.size} bytes, base64=${signedB64.length} chars")
-                        viewModel.sendPaymentResponse(
-                            request = request,
-                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.SIGNED,
-                            signedTransactionB64 = signedB64,
-                        )
-                        Log.d(TAG, "🟣 Solana payment response sent with SIGNED status for session=${request.id}")
-                    } else {
-                        viewModel.sendPaymentResponse(
-                            request = request,
-                            status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "No signature returned from Seed Vault",
-                        )
-                    }
-                } catch (e: Exception) {
-                    Log.e(TAG, "Seed Vault transaction signing failed", e)
-                    viewModel.sendPaymentResponse(
-                        request = request,
-                        status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
-                        errorMessage = "Seed Vault signing failed: ${e.message}",
-                    )
-                }
-            }
     }
 
     private fun setupUi() {
@@ -315,46 +274,6 @@ class AnswerActivity : AppCompatActivity() {
                             assertionIntentLauncher.launch(
                                 IntentSenderRequest.Builder(pendingIntent).build(),
                             )
-                        }
-                    }
-
-                    is AnswerViewModel.ViewEvent.SignSolanaX402Payment -> {
-                        Log.d(
-                            TAG,
-                            "🟣 Solana payment signing requested: session=${event.paymentRequest.id}, signerPublicKey=${event.signerPublicKey}, messageBytes=${event.serializedMessage.size}",
-                        )
-                        val signer = resolveSeedVaultSigner(event.signerPublicKey)
-                        if (signer == null) {
-                            viewModel.sendPaymentResponse(
-                                request = event.paymentRequest,
-                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
-                                errorMessage = "No Seed Vault signer found for public key",
-                            )
-                            return@collect
-                        }
-
-                        pendingSolanaPaymentRequest = event.paymentRequest
-                        pendingSolanaSerializedMessage = event.serializedMessage
-                        try {
-                            // Use the exact Seed Vault derivation path discovered for this signer.
-                            // Reconstructing path strings can cause signTransactions result=1007.
-                            Log.d(
-                                TAG,
-                                "🟣 SeedVault signer resolved: authToken=${signer.authToken}, derivationPath=${signer.derivationPath}",
-                            )
-                            val signingRequest = SigningRequest(event.serializedMessage, arrayListOf(signer.derivationPath))
-                            val intent = Wallet.signTransactions(this@AnswerActivity, signer.authToken, arrayListOf(signingRequest))
-                            seedVaultSignTransactionLauncher.launch(intent)
-                            Log.d(TAG, "🟣 Launched SeedVault signTransactions intent for session=${event.paymentRequest.id}")
-                        } catch (e: Exception) {
-                            Log.e(TAG, "Failed launching Seed Vault signTransactions intent", e)
-                            viewModel.sendPaymentResponse(
-                                request = event.paymentRequest,
-                                status = com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages.PaymentResponse.Status.ERROR,
-                                errorMessage = "Failed to start Seed Vault signing",
-                            )
-                            pendingSolanaPaymentRequest = null
-                            pendingSolanaSerializedMessage = null
                         }
                     }
 
@@ -806,13 +725,14 @@ class AnswerActivity : AppCompatActivity() {
             try {
                 val paymentChannel = awaitPaymentDataChannel(service) ?: return@launch
                 liquidStreamViewer?.terminate()
+                val mppNetwork = resolveMppClientNetwork(accountAddress)
                 liquidStreamViewer =
                     LiquidStreamViewer(
                         peerConnection = peerConnection,
                         dataChannel = paymentChannel,
                         mppClientConfig =
                             MppClientConfig(
-                                network = MppNetworks.TESTNET,
+                                network = mppNetwork,
                                 signer = buildMppWalletSigner(accountAddress),
                             ),
                         consentHandler =
@@ -823,6 +743,34 @@ class AnswerActivity : AppCompatActivity() {
                             },
                         clientConfig = ClientConfig(autoPaySegments = false),
                     ).also {
+                        it.rtcClient.onPaymentReceipt = { receipt ->
+                            val debit = receipt.amount.toLongOrNull() ?: 0L
+                            Log.d(
+                                TAG,
+                                "💸 MPP receipt accepted: session=${receipt.sessionId} segment=${receipt.segmentIndex} amount=${receipt.amount} asset=${receipt.asset} txId=${receipt.txId}",
+                            )
+                            if (debit > 0L) {
+                                runOnUiThread { viewModel.applyViewerSegmentDebit(debit) }
+                            }
+                        }
+                        it.rtcClient.onStreamGated = { reason ->
+                            Log.e(TAG, "⛔ Viewer stream gated by creator: $reason")
+                            runOnUiThread {
+                                val terms =
+                                    ConsentTerms(
+                                        gatingMode = com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode.PARTIAL_TIME,
+                                        amount = "100000",
+                                        asset = USDC_TESTNET_ID.toString(),
+                                        network = mppNetwork,
+                                        segmentDuration = 3,
+                                    )
+                                lifecycleScope.launch {
+                                    runCatching {
+                                        viewModel.requestMppConsentFromUi(terms)
+                                    }
+                                }
+                            }
+                        }
                         it.start()
                     }
             } catch (_: CancellationException) {
@@ -871,10 +819,10 @@ class AnswerActivity : AppCompatActivity() {
                 return when (localAccount) {
                     is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
                         val secretKey = viewModel.resolveAlgo25SecretKey(address) ?: error("Missing Algo25 key for $address")
-                        com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments.signTransaction(
-                            transactionBytes = Encoder.encodeToMsgPack(txn),
-                            secretKey = secretKey,
-                        )
+                        val txnBytes = txn.bytes()
+                        val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                            ?: error("Algo25 arbitrary signing failed")
+                        Sdk.attachSignature(signature, txnBytes)
                     }
                     is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
                         val seed = viewModel.resolveSeed(localAccount.seedId) ?: error("Missing HD seed for $address")
@@ -896,9 +844,112 @@ class AnswerActivity : AppCompatActivity() {
                             secretKey,
                         ) ?: error("Falcon24 signing failed")
                     }
-                    else -> error("Unsupported account for MPP signing: ${localAccount::class.simpleName}")
+                    else -> error("Unsupported account for Algorand MPP signing: ${localAccount::class.simpleName}")
                 }
             }
+
+            override suspend fun createSolanaSignedTransaction(
+                recipientAddress: String,
+                amount: String,
+                network: String,
+                mint: String?,
+            ): ByteArray {
+                val localAccount = viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
+                if (localAccount !is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.SeedVault) {
+                    error("Unsupported account for Solana MPP signing: ${localAccount::class.simpleName}")
+                }
+
+                val recipient = org.sol4k.PublicKey(recipientAddress)
+                val sender = org.sol4k.PublicKey(address)
+                val connection = org.sol4k.Connection(
+                    when {
+                        network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
+                        network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
+                        else -> "https://api.devnet.solana.com"
+                    }
+                )
+                val blockhash = connection.getLatestBlockhash()
+
+                val instructions: List<org.sol4k.instruction.Instruction> =
+                    if (mint.isNullOrBlank() || mint.equals("SOL", ignoreCase = true)) {
+                        listOf(org.sol4k.instruction.TransferInstruction(sender, recipient, amount.toLong()))
+                    } else {
+                        val mintPk = org.sol4k.PublicKey(mint)
+                        val (senderAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(sender, mintPk)
+                        val (recipientAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(recipient, mintPk)
+
+                        val ataIx =
+                            if (connection.getAccountInfo(recipientAta) == null) {
+                                object : org.sol4k.instruction.Instruction {
+                                    override val data: ByteArray = ByteArray(0)
+                                    override val keys: List<org.sol4k.AccountMeta> = listOf(
+                                        org.sol4k.AccountMeta(sender, writable = true, signer = true),
+                                        org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
+                                        org.sol4k.AccountMeta(recipient, writable = false, signer = false),
+                                        org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
+                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("11111111111111111111111111111111"), writable = false, signer = false),
+                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), writable = false, signer = false),
+                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("SysvarRent111111111111111111111111111111111"), writable = false, signer = false),
+                                    )
+                                    override val programId: org.sol4k.PublicKey = org.sol4k.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+                                }
+                            } else {
+                                null
+                            }
+
+                        val transferCheckedIx =
+                            object : org.sol4k.instruction.Instruction {
+                                override val data: ByteArray
+                                    get() {
+                                        val amountBytes = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(amount.toLong()).array()
+                                        return byteArrayOf(12.toByte()) + amountBytes + byteArrayOf(6.toByte())
+                                    }
+
+                                override val keys: List<org.sol4k.AccountMeta> = listOf(
+                                    org.sol4k.AccountMeta(senderAta, writable = true, signer = false),
+                                    org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
+                                    org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
+                                    org.sol4k.AccountMeta(sender, writable = false, signer = true),
+                                )
+
+                                override val programId: org.sol4k.PublicKey = org.sol4k.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+                            }
+
+                        buildList {
+                            ataIx?.let { add(it) }
+                            add(transferCheckedIx)
+                        }
+                    }
+
+                val tx = org.sol4k.Transaction(blockhash, instructions, sender)
+
+                val serializedWithSigCount = tx.serialize()
+                val message =
+                    if (serializedWithSigCount.isNotEmpty() && serializedWithSigCount[0] == 0.toByte()) {
+                        serializedWithSigCount.copyOfRange(1, serializedWithSigCount.size)
+                    } else {
+                        serializedWithSigCount
+                    }
+
+                val signature = signChallengeWithSeedVault(message, address)
+                    ?: error("Seed Vault Solana signing failed")
+                if (signature.size < 64) error("Seed Vault signature must be 64 bytes")
+
+                val signedTx = ByteArray(1 + 64 + message.size)
+                signedTx[0] = 1
+                signature.copyInto(signedTx, destinationOffset = 1, startIndex = 0, endIndex = 64)
+                message.copyInto(signedTx, destinationOffset = 65)
+                return signedTx
+            }
+        }
+    }
+
+    private suspend fun resolveMppClientNetwork(address: String): String {
+        val localAccount = viewModel.resolveLocalAccount(address)
+        return if (localAccount is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.SeedVault) {
+            MppNetworks.SOLANA_DEVNET
+        } else {
+            MppNetworks.ALGORAND_TESTNET
         }
     }
 
@@ -1019,19 +1070,6 @@ class AnswerActivity : AppCompatActivity() {
         }
 
         return null
-    }
-
-    private fun serializeSignedSolanaTransaction(
-        message: ByteArray,
-        signature: ByteArray,
-    ): ByteArray {
-        val signatureLength = 64
-        val totalSize = 1 + signatureLength + message.size
-        val result = ByteArray(totalSize)
-        result[0] = 1
-        System.arraycopy(signature, 0, result, 1, minOf(signature.size, signatureLength))
-        System.arraycopy(message, 0, result, 1 + signatureLength, message.size)
-        return result
     }
 
     private suspend fun signChallengeWithSeedVault(

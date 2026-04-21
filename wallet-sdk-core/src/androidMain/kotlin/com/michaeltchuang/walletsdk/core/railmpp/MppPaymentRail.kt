@@ -30,7 +30,13 @@ class MppPaymentRail(
 
     override val railId: String = "mpp"
     override val supportedNetworks: List<String> =
-        listOf(MppNetworks.MAINNET, MppNetworks.TESTNET)
+        listOf(
+            MppNetworks.ALGORAND_MAINNET,
+            MppNetworks.ALGORAND_TESTNET,
+            MppNetworks.SOLANA_MAINNET,
+            MppNetworks.SOLANA_DEVNET,
+            MppNetworks.SOLANA_TESTNET,
+        )
 
     private val provider: MppProvider? = serverConfig?.let { MppProvider(it) }
     private val consumer: MppConsumer? = clientConfig?.let { MppConsumer(it) }
@@ -44,16 +50,31 @@ class MppPaymentRail(
             error("MppPaymentRail: payTo (${params.payTo}) does not match recipient (${provider.serverConfig.recipient})")
         }
 
+        val isSolana = params.network.startsWith("solana:", ignoreCase = true)
+
         val asset = params.asset.trim()
         val normalizedAsset = if (asset.equals("algo", ignoreCase = true)) ALGO_ASSET else asset
         val isAlgo = normalizedAsset.isBlank() || normalizedAsset == ALGO_ASSET
-        val currency = if (isAlgo) "ALGO" else "ASA"
+        val currency =
+            if (isSolana) {
+                if (asset.equals("sol", ignoreCase = true) || asset.isBlank()) "SOL" else "SPL"
+            } else {
+                if (isAlgo) "ALGO" else "ASA"
+            }
 
-        val issued = provider.issueChallenge(
-            amount = params.amount,
-            currency = currency,
-            asaId = if (isAlgo) null else normalizedAsset,
-        )
+        val issued = if (isSolana) {
+            provider.issueSolanaChallenge(
+                amount = params.amount,
+                currency = currency,
+                mint = if (currency == "SOL") null else asset,
+            )
+        } else {
+            provider.issueChallenge(
+                amount = params.amount,
+                currency = currency,
+                asaId = if (isAlgo) null else normalizedAsset,
+            )
+        }
 
         val challengeId = issued.challenge.id
         val railPayload = JSONObject().apply {

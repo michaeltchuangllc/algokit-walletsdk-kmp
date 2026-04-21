@@ -13,7 +13,10 @@ import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetwor
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,8 +88,8 @@ class LiquidAuthOfferViewModel(
 
     // Cost per block (0.1 ALGO = 100,000 microAlgos)
     companion object {
-        const val DEPOSIT_AMOUNT_MICRO_ALGOS = 1_000_000L // 1 ALGO
-        const val COST_PER_BLOCK_MICRO_ALGOS = 100_000L // 0.1 ALGO
+        const val DEPOSIT_AMOUNT_MICRO_USDC = 1_000_000L // 1 USDC top-up budget
+        const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC per 3s segment
     }
 
     /**
@@ -169,13 +172,24 @@ class LiquidAuthOfferViewModel(
 
         // Create payment request
         val paymentRequest =
-            X402PaymentMessages.PaymentRequest(
+            PaymentRequest(
                 id = paymentSessionId!!,
-                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                creatorAddress = creatorAddress,
+                sessionId = getCurrentSessionId() ?: paymentSessionId!!,
+                segmentIndex = 0,
+                amount = COST_PER_BLOCK_MICRO_USDC.toString(),
+                asset = "USDC",
                 network = network,
+                payTo = creatorAddress,
+                ttl = 30,
+                nonce = paymentSessionId!!,
+                meta =
+                    PaymentRequestMeta(
+                        gatingMode = GatingMode.PARTIAL_TIME,
+                        enforcement = EnforcementMode.TRACK,
+                        segmentDuration = 3,
+                    ),
             )
-        println("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amountMicroAlgos}")
+        println("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amount}")
 
         _paymentState.value =
             PaymentState.WaitingForDeposit(
@@ -394,11 +408,22 @@ class LiquidAuthOfferViewModel(
 
         // Create payment request
         val paymentRequest =
-            X402PaymentMessages.PaymentRequest(
+            PaymentRequest(
                 id = paymentSessionId!!,
-                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                creatorAddress = creatorAddress,
+                sessionId = getCurrentSessionId() ?: paymentSessionId!!,
+                segmentIndex = 0,
+                amount = COST_PER_BLOCK_MICRO_USDC.toString(),
+                asset = "USDC",
                 network = network,
+                payTo = creatorAddress,
+                ttl = 30,
+                nonce = paymentSessionId!!,
+                meta =
+                    PaymentRequestMeta(
+                        gatingMode = GatingMode.PARTIAL_TIME,
+                        enforcement = EnforcementMode.TRACK,
+                        segmentDuration = 3,
+                    ),
             )
 
         _paymentState.value =
@@ -453,7 +478,7 @@ class LiquidAuthOfferViewModel(
             return // Not in paid streaming mode
         }
 
-        val newBalance = currentPaymentState.remainingMicroAlgos - COST_PER_BLOCK_MICRO_ALGOS
+        val newBalance = currentPaymentState.remainingMicroAlgos - COST_PER_BLOCK_MICRO_USDC
         val newBlocksWatched = currentPaymentState.blocksWatched + 1
 
         if (newBalance <= 0) {
@@ -623,15 +648,15 @@ class LiquidAuthOfferViewModel(
 
         _paymentState.value =
             PaymentState.StreamingWithBalance(
-                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
-                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_USDC,
+                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_USDC,
                 blocksWatched = 0,
             )
-        _remainingBalanceMicroUsdc.value = DEPOSIT_AMOUNT_MICRO_ALGOS
+        _remainingBalanceMicroUsdc.value = DEPOSIT_AMOUNT_MICRO_USDC
 
         eventDelegate.sendEvent(
             OfferEvent.PaymentReceived(
-                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_ALGOS,
+                amountMicroAlgos = DEPOSIT_AMOUNT_MICRO_USDC,
                 txId = txId,
             ),
         )
@@ -714,7 +739,7 @@ class LiquidAuthOfferViewModel(
         data object NoPayment : PaymentState
 
         data class WaitingForDeposit(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: PaymentRequest,
         ) : PaymentState
 
         data class StreamingWithBalance(
@@ -778,7 +803,7 @@ class LiquidAuthOfferViewModel(
             val liquidAuthUrl: String,
             val origin: String,
             val sessionId: String,
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: PaymentRequest,
         ) : OfferState
 
         /**
@@ -831,7 +856,7 @@ class LiquidAuthOfferViewModel(
          * Payment requested - 1 ALGO deposit requested from client
          */
         data class PaymentRequested(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
+            val paymentRequest: PaymentRequest,
         ) : OfferEvent
 
         /**

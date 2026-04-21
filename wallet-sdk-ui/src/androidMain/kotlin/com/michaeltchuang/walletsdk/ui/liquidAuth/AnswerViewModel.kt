@@ -4,6 +4,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
@@ -30,9 +31,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
-import com.michaeltchuang.walletsdk.core.foundation.utils.Result
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
-import com.michaeltchuang.walletsdk.core.foundation.utils.toSuggestedParams
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
@@ -42,7 +41,6 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
-import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
@@ -53,8 +51,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometr
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
-import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
@@ -68,14 +64,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
-import org.sol4k.Connection
-import org.sol4k.PublicKey
-import org.sol4k.instruction.CreateAssociatedTokenAccountInstruction
-import org.sol4k.instruction.SplTransferInstruction
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import org.sol4k.Transaction as SolanaTransaction
 
 class AnswerViewModel(
     private val addNewPasskey: AddNewPasskey,
@@ -99,7 +90,6 @@ class AnswerViewModel(
     private val logAppSignatureUseCase: LogAppSignatureUseCase,
     private val providerHttpClientUseCase: ProvideHttpClientUseCase,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
-    private val getTransactionParams: GetTransactionParams,
 ) : ViewModel(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
@@ -108,12 +98,6 @@ class AnswerViewModel(
         const val SERVICE_NOTIFICATION_ID = 1000
         private const val STREAM_TIMEOUT_MS = 2000L // 2 seconds without frames = stream ended
         private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-        private const val SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
-        private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"
-        private const val SOLANA_TESTNET_RPC = "https://api.testnet.solana.com"
-        private const val USDC_DECIMALS = 6
-        private const val USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-        private const val USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
 
         private fun decodeBase58(input: String): ByteArray? {
             if (input.isEmpty()) return ByteArray(0)
@@ -492,10 +476,7 @@ class AnswerViewModel(
         onVideoFrame: ((VideoFrameData) -> Unit)? = null,
     ) {
         try {
-            Napier.d(tag = TAG, message = "========================================")
-            Napier.d(tag = TAG, message = "📨 RECEIVED MESSAGE FROM DATACHANNEL")
-            Napier.d(tag = TAG, message = "Message length: ${msgStr.length}")
-            Napier.d(tag = TAG, message = "========================================")
+            Napier.d(tag = TAG, message = "Received DataChannel Message length: ${msgStr.length}")
 
             // Check if it's a JSON video frame message (not Base64/CBOR encoded)
             if (msgStr.contains("\"reference\":\"liquid:video:frame\"") && msgStr.contains("\"data\"")) {
@@ -504,18 +485,6 @@ class AnswerViewModel(
                 return
             }
 
-            // Check for X402 payment messages (request/response/balance/depleted)
-            val isX402PaymentMessage =
-                msgStr.contains("\"reference\":\"liquid:payment:") ||
-                    (msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"")) ||
-                    msgStr.contains("\"remainingMicroAlgos\"") ||
-                    msgStr.contains("\"remainingBlocks\"") ||
-                    msgStr.contains("\"totalBlocksWatched\"")
-            if (isX402PaymentMessage) {
-                Napier.d(tag = TAG, message = "💰 X402 payment message detected: ${msgStr.take(100)}...")
-                handleX402PaymentMessage(msgStr)
-                return
-            }
 
             val cborBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
 
@@ -608,369 +577,12 @@ class AnswerViewModel(
         }
     }
 
-    /**
-     * Handle X402 payment messages from broadcaster
-     */
-    private fun handleX402PaymentMessage(msgStr: String) {
-        Napier.d(tag = TAG, message = "💰 handleX402PaymentMessage called with: ${msgStr.take(200)}...")
-        try {
-            when {
-                // Payment request: has amountMicroAlgos and creatorAddress
-                msgStr.contains("\"amountMicroAlgos\"") && msgStr.contains("\"creatorAddress\"") && !msgStr.contains("\"status\"") -> {
-                    Napier.d(tag = TAG, message = "💰 Parsing PaymentRequest...")
-                    val request = X402PaymentMessages.PaymentRequest.fromJson(msgStr)
-                    Napier.d(
-                        tag = TAG,
-                        message =
-                            "💰 Payment request parsed: " +
-                                "id=${request.id}, amount=${request.amountMicroAlgos}, " +
-                                "creator=${request.creatorAddress}",
-                    )
-
-                    // Store payment request for UI handling
-                    _pendingPaymentRequest.value = request
-                    _fundsDepleted.value = false
-                    Napier.d(tag = TAG, message = "💰 Stored in _pendingPaymentRequest")
-
-                    // Emit event to show payment dialog
-                    viewModelScope.launch {
-                        Napier.d(tag = TAG, message = "💰 Sending PaymentRequested event to UI...")
-                        eventDelegate.sendEvent(ViewEvent.PaymentRequested(request))
-                        Napier.d(tag = TAG, message = "💰 PaymentRequested event sent!")
-                    }
-                }
-                // Payment response: has status field
-                msgStr.contains("\"status\"") -> {
-                    Napier.d(tag = TAG, message = "💰 Parsing PaymentResponse...")
-                    val response = X402PaymentMessages.PaymentResponse.fromJson(msgStr)
-                    Napier.d(tag = TAG, message = "💰 Payment response: ${response.status}")
-                    // Handle payment response...
-                }
-                // Balance update: has remainingBlocks
-                msgStr.contains("\"remainingBlocks\"") || msgStr.contains("\"remainingMicroAlgos\"") -> {
-                    Napier.d(tag = TAG, message = "💰 Parsing BalanceUpdate...")
-                    val update = X402PaymentMessages.BalanceUpdate.fromJson(msgStr)
-                    val remainingUsdc = update.remainingUsdc()
-                    _paymentBalance.value = remainingUsdc.toString()
-                    _fundsDepleted.value = remainingUsdc <= 0.0
-                    Napier.d(tag = TAG, message = "💰 Balance update: $remainingUsdc USDC remaining")
-                    viewModelScope.launch {
-                        eventDelegate.sendEvent(ViewEvent.BalanceUpdated(update))
-                    }
-                }
-                // Funds depleted: has totalBlocksWatched
-                msgStr.contains("\"totalBlocksWatched\"") -> {
-                    Napier.d(tag = TAG, message = "💰 Parsing FundsDepleted...")
-                    val depleted = X402PaymentMessages.FundsDepleted.fromJson(msgStr)
-                    _fundsDepleted.value = true
-                    _paymentBalance.value = "0.0"
-                    Napier.d(tag = TAG, message = "💰 Funds depleted after ${depleted.totalBlocksWatched} blocks")
-                    viewModelScope.launch {
-                        eventDelegate.sendEvent(ViewEvent.FundsDepleted(depleted))
-                    }
-                }
-                else -> {
-                    Napier.w(tag = TAG, message = "💰 Unknown X402 message type: ${msgStr.take(100)}")
-                }
-            }
-        } catch (e: Exception) {
-            Napier.e(tag = TAG, message = "❌ Failed to handle X402 payment message: $e")
-        }
-    }
-
-    /**
-     * Create and send X402 payment response with pre-signed transaction
-     */
-    fun sendPaymentResponse(
-        request: X402PaymentMessages.PaymentRequest,
-        status: X402PaymentMessages.PaymentResponse.Status,
-        signedTransactionB64: String? = null,
-        errorMessage: String? = null,
-    ) {
-        val response =
-            X402PaymentMessages.PaymentResponse(
-                id = request.id,
-                signedTransactionB64 = signedTransactionB64 ?: "",
-                clientAddress = _accountAddress.value,
-                status = status,
-                errorMessage = errorMessage,
-            )
-
-        // Send via data channel
-        val signalService = _signalService.value
-        if (signalService != null) {
-            val msgJson = response.toJson()
-            signalService.send(msgJson)
-            Napier.d(tag = TAG, message = "💰 Payment response sent: ${status.name}")
-        } else {
-            Napier.e(tag = TAG, message = "💰 Cannot send payment response - SignalService not available")
-        }
-    }
-
-    /**
-     * Create and send X402 payment transaction for a payment request.
-     * Uses Solana transfer flow for Solana/SeedVault accounts and existing Algorand flow otherwise.
-     */
-    suspend fun createAndSendPayment(request: X402PaymentMessages.PaymentRequest) {
-        val accountAddress = _accountAddress.value
-        if (accountAddress.isEmpty()) {
-            Napier.e(tag = TAG, message = "💰 Cannot create payment - no account address")
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "No account connected",
-            )
-            return
-        }
-
-        val localAccount = getLocalAccount(accountAddress)
-        if (localAccount == null) {
-            Napier.e(tag = TAG, message = "💰 No local account found for address: $accountAddress")
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Account not found in wallet",
-            )
-            return
-        }
-
-        val shouldUseSolanaFlow =
-            localAccount is LocalAccount.SeedVault ||
-                (decodeBase58(accountAddress)?.size == 32 && decodeBase58(request.creatorAddress)?.size == 32)
-
-        if (shouldUseSolanaFlow) {
-            createAndSendSolanaPayment(request, accountAddress)
-            return
-        }
-
-        // Existing Algorand flow
-        val txnParams = getTransactionParams()
-        val transactionParams =
-            when (txnParams) {
-                is Result.Success -> txnParams.data
-                is Result.Error -> {
-                    Napier.e(tag = TAG, message = "💰 Failed to get transaction params")
-                    sendPaymentResponse(
-                        request = request,
-                        status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                        errorMessage = "Failed to get network params",
-                    )
-                    return
-                }
-            }
-
-        val unsignedTxn =
-            AlgorandX402Payments.createDepositTransaction(
-                senderAddress = accountAddress,
-                creatorAddress = request.creatorAddress,
-                sessionId = request.id,
-                suggestedParams = transactionParams.toSuggestedParams(),
-            )
-
-        val signedTxnBytes =
-            when (localAccount) {
-                is LocalAccount.Algo25 -> {
-                    val secretKey = getAlgo25SecretKey(accountAddress)
-                    if (secretKey == null) {
-                        Napier.e(tag = TAG, message = "💰 Failed to get Algo25 secret key")
-                        sendPaymentResponse(
-                            request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "Failed to access account key",
-                        )
-                        return
-                    }
-                    AlgorandX402Payments.signTransaction(unsignedTxn, secretKey)
-                }
-                is LocalAccount.HdKey -> {
-                    val seed = getSeed(localAccount.seedId)
-                    if (seed == null) {
-                        Napier.e(tag = TAG, message = "💰 Failed to get HD seed")
-                        sendPaymentResponse(
-                            request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "Failed to access HD seed",
-                        )
-                        return
-                    }
-                    signHdKeyTransaction(
-                        unsignedTxn,
-                        seed,
-                        localAccount.account,
-                        localAccount.change,
-                        localAccount.keyIndex,
-                    ) ?: run {
-                        Napier.e(tag = TAG, message = "💰 HD Key transaction signing returned null")
-                        sendPaymentResponse(
-                            request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "HD transaction signing failed",
-                        )
-                        return
-                    }
-                }
-                is LocalAccount.Falcon24 -> {
-                    val secretKey = getFalcon24SecretKey(localAccount.address)
-                    if (secretKey == null) {
-                        Napier.e(tag = TAG, message = "💰 Failed to get Falcon24 secret key")
-                        sendPaymentResponse(
-                            request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "Failed to access Falcon24 key",
-                        )
-                        return
-                    }
-                    signFalcon24Transaction(
-                        unsignedTxn,
-                        localAccount.publicKey,
-                        secretKey,
-                    ) ?: run {
-                        Napier.e(tag = TAG, message = "💰 Falcon24 transaction signing returned null")
-                        sendPaymentResponse(
-                            request = request,
-                            status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                            errorMessage = "Falcon24 transaction signing failed",
-                        )
-                        return
-                    }
-                }
-                else -> {
-                    Napier.e(tag = TAG, message = "💰 Unsupported account type: ${localAccount::class.simpleName}")
-                    sendPaymentResponse(
-                        request = request,
-                        status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                        errorMessage = "Unsupported account type",
-                    )
-                    return
-                }
-            }
-
-        val signedB64 = Encoder.encodeToBase64(signedTxnBytes)
-        sendPaymentResponse(
-            request = request,
-            status = X402PaymentMessages.PaymentResponse.Status.SIGNED,
-            signedTransactionB64 = signedB64,
-        )
-        Napier.d(tag = TAG, message = "💰 Payment sent successfully for session ${request.id}")
-    }
-
-    private suspend fun createAndSendSolanaPayment(
-        request: X402PaymentMessages.PaymentRequest,
-        accountAddress: String,
-    ) {
-        val localAccount = getLocalAccount(accountAddress)
-        if (localAccount !is LocalAccount.SeedVault) {
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Solana payments require a Seed Vault account",
-            )
-            return
-        }
-
-        val txData =
-            createSolanaTransferTransactionData(
-                fromPublicKey = localAccount.publicKey,
-                toPublicKey = request.creatorAddress,
-                amountBaseUnits = request.amountMicroAlgos,
-                network = request.network,
-            )
-
-        if (txData == null) {
-            sendPaymentResponse(
-                request = request,
-                status = X402PaymentMessages.PaymentResponse.Status.ERROR,
-                errorMessage = "Failed to create Solana USDC transfer transaction",
-            )
-            return
-        }
-
-        val signerDerivationPath = "m/44'/${localAccount.chainId}'/0'"
-
-        viewModelScope.launch {
-            eventDelegate.sendEvent(
-                ViewEvent.SignSolanaX402Payment(
-                    paymentRequest = request,
-                    serializedMessage = txData.serializedMessage,
-                    signerAddress = accountAddress,
-                    signerPublicKey = localAccount.publicKey,
-                    signerDerivationPath = signerDerivationPath,
-                ),
-            )
-        }
-    }
-
-    private data class SolanaTransferTxData(
-        val serializedMessage: ByteArray,
-    )
-
-    private fun createSolanaTransferTransactionData(
-        fromPublicKey: String,
-        toPublicKey: String,
-        amountBaseUnits: Long,
-        network: String,
-    ): SolanaTransferTxData? =
-        try {
-            val rpcEndpoint = SOLANA_DEVNET_RPC
-            val usdcMintAddress = USDC_MINT_DEVNET
-
-            val connection = Connection(rpcEndpoint)
-            val fromPubKey = PublicKey(fromPublicKey)
-            val toPubKey = PublicKey(toPublicKey)
-            val mintPubKey = PublicKey(usdcMintAddress)
-            val fromTokenAccount = PublicKey.findProgramDerivedAddress(fromPubKey, mintPubKey).publicKey
-            val toTokenAccount = PublicKey.findProgramDerivedAddress(toPubKey, mintPubKey).publicKey
-            val recentBlockhash = connection.getLatestBlockhash()
-            val toTokenAccountExists = connection.getAccountInfo(toTokenAccount) != null
-            val instructions = mutableListOf<org.sol4k.instruction.Instruction>()
-
-            if (!toTokenAccountExists) {
-                instructions.add(
-                    CreateAssociatedTokenAccountInstruction(
-                        payer = fromPubKey,
-                        associatedToken = toTokenAccount,
-                        owner = toPubKey,
-                        mint = mintPubKey,
-                    ),
-                )
-            }
-
-            instructions.add(
-                SplTransferInstruction(
-                    from = fromTokenAccount,
-                    to = toTokenAccount,
-                    mint = mintPubKey,
-                    owner = fromPubKey,
-                    amount = amountBaseUnits,
-                    decimals = USDC_DECIMALS,
-                ),
-            )
-            val transaction = SolanaTransaction(recentBlockhash, instructions, fromPubKey)
-            val serializedWithEmptySig = transaction.serialize()
-            val serializedMessage =
-                if (serializedWithEmptySig.isNotEmpty() && serializedWithEmptySig[0] == 0.toByte()) {
-                    serializedWithEmptySig.copyOfRange(1, serializedWithEmptySig.size)
-                } else {
-                    serializedWithEmptySig
-                }
-
-            SolanaTransferTxData(serializedMessage = serializedMessage)
-        } catch (e: Exception) {
-            Napier.e(message = "💰 Failed to create Solana USDC transfer transaction", throwable = e, tag = TAG)
-            null
-        }
-
-    // Pending payment request + payment runtime state for UI
-    private val _pendingPaymentRequest = MutableStateFlow<X402PaymentMessages.PaymentRequest?>(null)
-    val pendingPaymentRequest: StateFlow<X402PaymentMessages.PaymentRequest?> = _pendingPaymentRequest
-    private val _paymentBalance = MutableStateFlow<String?>(null)
-    val paymentBalance: StateFlow<String?> = _paymentBalance
-    private val _fundsDepleted = MutableStateFlow(false)
-    val fundsDepleted: StateFlow<Boolean> = _fundsDepleted
-
     // MPP consent request bridge for UI-driven approval dialog
     private val _pendingMppConsent = MutableStateFlow<ConsentTerms?>(null)
     val pendingMppConsent: StateFlow<ConsentTerms?> = _pendingMppConsent
+
+    private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
+    val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
     @Volatile
     private var pendingMppConsentContinuation: kotlinx.coroutines.CompletableDeferred<ConsentApproval>? = null
 
@@ -1036,6 +648,12 @@ class AnswerViewModel(
     }
 
     fun approveMppConsent(approval: ConsentApproval) {
+        if (approval.approved) {
+            val micro = approval.budgetCap?.amount?.toLongOrNull() ?: 0L
+            if (micro > 0L) {
+                _viewerSessionVaultMicroUsdc.value = micro
+            }
+        }
         pendingMppConsentContinuation?.complete(approval)
     }
 
@@ -1045,6 +663,17 @@ class AnswerViewModel(
                 approved = false,
                 autoPaySegments = false,
             )
+        )
+    }
+
+    fun applyViewerSegmentDebit(amountMicroUsdc: Long) {
+        if (amountMicroUsdc <= 0L) return
+        val before = _viewerSessionVaultMicroUsdc.value
+        val next = (before - amountMicroUsdc).coerceAtLeast(0L)
+        _viewerSessionVaultMicroUsdc.value = next
+        Log.d(
+            TAG,
+            "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC (${amountMicroUsdc / 1_000_000.0} USDC), before=${before / 1_000_000.0}, after=${next / 1_000_000.0}",
         )
     }
 
@@ -1340,28 +969,6 @@ class AnswerViewModel(
 
         data class VideoFrameReceived(
             val frame: VideoFrameData,
-        ) : ViewEvent
-
-        // ================= X402 Payment Events =================
-
-        data class PaymentRequested(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
-        ) : ViewEvent
-
-        data class BalanceUpdated(
-            val balanceUpdate: X402PaymentMessages.BalanceUpdate,
-        ) : ViewEvent
-
-        data class FundsDepleted(
-            val depleted: X402PaymentMessages.FundsDepleted,
-        ) : ViewEvent
-
-        data class SignSolanaX402Payment(
-            val paymentRequest: X402PaymentMessages.PaymentRequest,
-            val serializedMessage: ByteArray,
-            val signerAddress: String,
-            val signerPublicKey: String,
-            val signerDerivationPath: String,
         ) : ViewEvent
 
         data class StreamDisconnected(

@@ -38,11 +38,24 @@ internal data class ChargeRequest(
     val network: String?,
     val asaId: String?,
     val challengeReference: String,
-    /** REQUIRED per spec. Derived as SHA-256(challengeReference). */
+    /** REQUIRED for Algorand charge. Derived as SHA-256(challengeReference). */
     val lease: String,
     val feePayer: Boolean,
     val feePayerKey: String?,
     val suggestedParams: SuggestedParams?,
+)
+
+/**
+ * Solana-specific charge request fields parsed from `request.methodDetails`.
+ */
+internal data class SolanaChargeRequest(
+    val amount: String,
+    val currency: String,
+    val recipient: String,
+    val description: String?,
+    val externalId: String?,
+    val network: String?,
+    val mint: String?,
 )
 
 internal data class SuggestedParams(
@@ -171,6 +184,19 @@ internal object ChargeRequestCodec {
                     minFee = it.getLong("minFee"),
                 )
             },
+        )
+    }
+
+    fun parseSolanaRequest(request: JSONObject): SolanaChargeRequest {
+        val md = request.optJSONObject("methodDetails") ?: JSONObject()
+        return SolanaChargeRequest(
+            amount = request.getString("amount"),
+            currency = request.getString("currency"),
+            recipient = request.getString("recipient"),
+            description = request.optString("description").ifBlank { null },
+            externalId = request.optString("externalId").ifBlank { null },
+            network = md.optString("network").ifBlank { null },
+            mint = md.optString("mint").ifBlank { null },
         )
     }
 }

@@ -88,7 +88,6 @@ val liquidAuthUIModule =
                 logAppSignatureUseCase = get(),
                 providerHttpClientUseCase = get(),
                 getAccountAlgoBalance = get(),
-                getTransactionParams = get(),
             )
         }
     }

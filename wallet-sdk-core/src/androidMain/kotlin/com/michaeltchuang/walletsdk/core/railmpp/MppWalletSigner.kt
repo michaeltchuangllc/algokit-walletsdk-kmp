@@ -11,7 +11,7 @@ import com.algorand.algosdk.util.Encoder
  * keypair can use [AccountMppSigner] for zero-boilerplate setup.
  */
 interface MppWalletSigner {
-    /** The Algorand address this signer authorizes. */
+    /** Address/public key this signer authorizes (Algorand address or Solana pubkey). */
     val address: String
 
     /**
@@ -20,6 +20,18 @@ interface MppWalletSigner {
      * Must not mutate the input transaction other than attaching a signature.
      */
     suspend fun signTransaction(txn: Transaction): ByteArray
+
+    /**
+     * Build and sign a full Solana transaction for MPP charge, returning serialized signed bytes.
+     * Default is unsupported for non-Solana signers.
+     */
+    suspend fun createSolanaSignedTransaction(
+        recipientAddress: String,
+        amount: String,
+        network: String,
+        mint: String? = null,
+    ): ByteArray =
+        throw UnsupportedOperationException("Solana transaction signing is not supported by this signer")
 }
 
 /**

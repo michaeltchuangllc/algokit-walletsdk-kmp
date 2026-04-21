@@ -12,7 +12,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
-import com.michaeltchuang.walletsdk.core.railmpp.ALGO_ASSET
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
@@ -22,9 +21,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.payments.AlgorandX402Payments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +50,8 @@ class AndroidLiquidAuthConnectionManager(
         private const val NOTIFICATION_ID = 1338
         private const val CHANNEL_ID = "liquid_auth_broadcast"
         private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L // Check every 1 second
+        private const val SOLANA_USDC_DEVNET_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
+        private const val SOLANA_USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     }
 
     private var viewModel: LiquidAuthOfferViewModel? = null
@@ -118,31 +119,27 @@ class AndroidLiquidAuthConnectionManager(
         blocksConsumed++
 
         // Check if depleted
-        if (AlgorandX402Payments.isFundsDepleted(blocksConsumed)) {
+        if (MppPayments.isFundsDepleted(blocksConsumed)) {
             Log.d(TAG, "💰 Funds depleted after $blocksConsumed blocks")
             stopBlockConsumption()
 
             // Send depleted message to client
-            val depletedMsg =
-                X402PaymentMessages.FundsDepleted(
-                    id = sessionId,
-                    totalBlocksWatched = blocksConsumed,
-                    totalConsumedMicroAlgos = blocksConsumed * 100_000L,
-                )
-            sendMessage(depletedMsg.toJson())
+            val depletedJson =
+                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${blocksConsumed * 100_000L}}"""
+            sendMessage(depletedJson)
             return
         }
 
         // Send balance update every block (3 seconds for maximum wow factor)
-        val balanceMsg = AlgorandX402Payments.createBalanceUpdate(sessionId, blocksConsumed)
-        sendMessage(balanceMsg.toJson())
-        Log.d(TAG, "💰 Sent balance update: ${balanceMsg.remainingUsdc()} USDC remaining")
+        val balanceJson = MppPayments.createBalanceUpdateJson(sessionId, blocksConsumed)
+        sendMessage(balanceJson)
+        Log.d(TAG, "💰 Sent balance update: ${MppPayments.remainingUsdc(blocksConsumed)} USDC remaining")
     }
 
     /**
      * Send payment request to client
      */
-    override fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest) {
+    override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         val service = signalService
         val peerConnection = service?.peerConnection
         if (service == null || peerConnection == null) {
@@ -162,15 +159,23 @@ class AndroidLiquidAuthConnectionManager(
 
         try {
             val network = toMppNetwork(paymentRequest.network)
-            val amount = paymentRequest.amountMicroAlgos.toString()
-            val recipient = paymentRequest.creatorAddress
+            val amount = paymentRequest.amount
+            val recipient = paymentRequest.payTo
+            val isSolanaNetwork = network.startsWith("solana:", ignoreCase = true)
+            val asset =
+                if (isSolanaNetwork) {
+                    if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
+                } else {
+                    USDC_TESTNET_ID.toString()
+                }
+            Log.d(TAG, "💰 Building MPP payment request: network=$network recipient=$recipient asset=$asset amount=$amount")
             val serverConfig =
                 ServerConfig(
                     gating =
                         GatingConfig(
                             mode = GatingMode.PARTIAL_TIME,
                             amount = amount,
-                            asset = USDC_TESTNET_ID.toString(),
+                            asset = asset,
                             network = network,
                             payTo = recipient,
                             segmentDuration = 3,
@@ -228,8 +233,11 @@ class AndroidLiquidAuthConnectionManager(
     private fun toMppNetwork(network: String): String {
         val n = network.lowercase()
         return when {
-            n.contains("mainnet") || network == MppNetworks.MAINNET -> MppNetworks.MAINNET
-            else -> MppNetworks.TESTNET
+            network == MppNetworks.SOLANA_MAINNET || n.contains("solana") && (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
+            network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
+            network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
+            n.contains("mainnet") || network == MppNetworks.ALGORAND_MAINNET -> MppNetworks.ALGORAND_MAINNET
+            else -> MppNetworks.ALGORAND_TESTNET
         }
     }
 

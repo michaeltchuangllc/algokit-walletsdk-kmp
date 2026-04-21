@@ -16,12 +16,14 @@ internal data class ChargeCredential(
 
 /** Algorand-specific credential payload (`type: "transaction"`). */
 internal data class ChargePayload(
-    /** Always "transaction" for the algorand charge intent. */
+    /** Always "transaction" for charge intent. */
     val type: String = "transaction",
-    /** Each entry is base64-encoded msgpack of a (signed or unsigned) txn. */
-    val paymentGroup: List<String>,
-    /** Index of the actual payment txn (recipient + amount). */
-    val paymentIndex: Int,
+    /** Algorand: each entry is base64-encoded msgpack of a (signed or unsigned) txn. */
+    val paymentGroup: List<String>? = null,
+    /** Algorand: index of the actual payment txn (recipient + amount). */
+    val paymentIndex: Int? = null,
+    /** Solana: base64-encoded full signed transaction bytes. */
+    val signedTransaction: String? = null,
 )
 
 internal object ChargeCredentialCodec {
@@ -48,8 +50,9 @@ internal object ChargeCredentialCodec {
 
         val payloadJson = JSONObject().apply {
             put("type", credential.payload.type)
-            put("paymentGroup", JSONArray(credential.payload.paymentGroup))
-            put("paymentIndex", credential.payload.paymentIndex)
+            credential.payload.paymentGroup?.let { put("paymentGroup", JSONArray(it)) }
+            credential.payload.paymentIndex?.let { put("paymentIndex", it) }
+            credential.payload.signedTransaction?.let { put("signedTransaction", it) }
         }
 
         val wire = JSONObject().apply {
@@ -83,11 +86,18 @@ internal object ChargeCredentialCodec {
         )
 
         val payloadJson = parsed.getJSONObject("payload")
-        val groupArr = payloadJson.getJSONArray("paymentGroup")
+        val paymentGroup =
+            if (payloadJson.has("paymentGroup")) {
+                val groupArr = payloadJson.getJSONArray("paymentGroup")
+                (0 until groupArr.length()).map { groupArr.getString(it) }
+            } else {
+                null
+            }
         val payment = ChargePayload(
             type = payloadJson.optString("type", "transaction"),
-            paymentGroup = (0 until groupArr.length()).map { groupArr.getString(it) },
-            paymentIndex = payloadJson.getInt("paymentIndex"),
+            paymentGroup = paymentGroup,
+            paymentIndex = if (payloadJson.has("paymentIndex")) payloadJson.getInt("paymentIndex") else null,
+            signedTransaction = payloadJson.optString("signedTransaction").ifBlank { null },
         )
 
         return ChargeCredential(

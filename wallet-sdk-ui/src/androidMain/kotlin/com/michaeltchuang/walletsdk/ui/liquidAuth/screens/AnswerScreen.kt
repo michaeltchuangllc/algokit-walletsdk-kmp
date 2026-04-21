@@ -46,8 +46,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import kotlinx.coroutines.launch
+import kotlin.math.roundToLong
 
 /**
  * Answer Screen for Liquid Auth Client
@@ -67,49 +67,24 @@ fun AnswerScreen(
     val accountAddress by viewModel.accountAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
     val videoFrame by viewModel.videoFrame.collectAsState()
-    val pendingPaymentRequestFromState by viewModel.pendingPaymentRequest.collectAsState()
-    val paymentBalanceFromState by viewModel.paymentBalance.collectAsState()
-    val fundsDepletedFromState by viewModel.fundsDepleted.collectAsState()
     val pendingMppConsentFromState by viewModel.pendingMppConsent.collectAsState()
+    val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
 
     var isSolanaAccount by remember { mutableStateOf(false) }
     LaunchedEffect(accountAddress) {
         isSolanaAccount = accountAddress.isNotBlank() && viewModel.isSeedVaultAccount(accountAddress)
     }
 
-    // X402 Payment dialog state
     var showPaymentDialog by remember { mutableStateOf(false) }
-    var pendingPaymentRequest by remember { mutableStateOf<X402PaymentMessages.PaymentRequest?>(null) }
     var isPaymentProcessing by remember { mutableStateOf(false) }
     var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
 
-    // Listen for X402 payment events
     val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
         Log.d("AnswerScreen", "🎭 Starting to collect view events...")
         viewModel.viewEvent.collect { event ->
             Log.d("AnswerScreen", "🎭 View event received: ${event::class.simpleName}")
             when (event) {
-                is AnswerViewModel.ViewEvent.PaymentRequested -> {
-                    Log.d("AnswerScreen", "🎭 PaymentRequested - showing dialog for ${event.paymentRequest.amountMicroAlgos} microAlgos")
-                    pendingPaymentRequest = event.paymentRequest
-                    showPaymentDialog = true
-                    isViewerSheetVisible = true
-                    isPaymentProcessing = false
-                }
-                is AnswerViewModel.ViewEvent.BalanceUpdated -> {
-                    Log.d("AnswerScreen", "🎭 BalanceUpdated: ${event.balanceUpdate.remainingUsdc()} USDC")
-                }
-                is AnswerViewModel.ViewEvent.FundsDepleted -> {
-                    Log.d("AnswerScreen", "🎭 FundsDepleted")
-                    viewModel.clearVideoFrame()
-                    isViewerSheetVisible = true
-                    // Re-open top-up modal with last known payment request so viewer can immediately add funds.
-                    if (pendingPaymentRequest != null) {
-                        showPaymentDialog = true
-                    }
-                    isPaymentProcessing = false
-                }
                 is AnswerViewModel.ViewEvent.StreamDisconnected -> {
                     Log.w("AnswerScreen", "Viewer stream disconnected: ${event.reason}")
                     isViewerSheetVisible = false
@@ -127,12 +102,6 @@ fun AnswerScreen(
     val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
     val isConnecting = message != null && session == "Logged Out" && !hasError
 
-    LaunchedEffect(pendingPaymentRequestFromState) {
-        if (pendingPaymentRequest == null && pendingPaymentRequestFromState != null) {
-            pendingPaymentRequest = pendingPaymentRequestFromState
-        }
-    }
-
     LaunchedEffect(pendingMppConsentFromState) {
         if (pendingMppConsentFromState != null) {
             showPaymentDialog = true
@@ -141,13 +110,6 @@ fun AnswerScreen(
         }
     }
 
-    LaunchedEffect(shouldShowViewerSheet, fundsDepletedFromState, paymentBalanceFromState, pendingPaymentRequest, isPaymentProcessing) {
-        val parsedBalance = paymentBalanceFromState?.toDoubleOrNull()
-        val hasZeroOrLessBalance = fundsDepletedFromState || (parsedBalance != null && parsedBalance <= 0.0)
-        if (shouldShowViewerSheet && hasZeroOrLessBalance && pendingPaymentRequest != null && !isPaymentProcessing) {
-            showPaymentDialog = true
-        }
-    }
 
     val viewerBottomSheetState =
         rememberModalBottomSheetState(
@@ -183,7 +145,7 @@ fun AnswerScreen(
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
                     originUrl = message?.origin.orEmpty().ifBlank { "-" },
-                    balanceUsdc = paymentBalanceFromState?.toDoubleOrNull() ?: 0.0,
+                    balanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
                     onMinimize = {
                         Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
                         onMinimizeToPip()
@@ -202,67 +164,47 @@ fun AnswerScreen(
             origin = message?.origin,
             requestId = message?.requestId,
             accountAddress = accountAddress,
-            paymentBalance = paymentBalanceFromState,
-            fundsDepleted = fundsDepletedFromState,
+            paymentBalance = null,
+            fundsDepleted = false,
             isSolanaAccount = isSolanaAccount,
         )
 
-        // Payment dialog overlay for both legacy X402 and MPP consent.
+        // Session Vault modal reused for MPP consent approval.
         val mppConsent = pendingMppConsentFromState
-        if (showPaymentDialog && (pendingPaymentRequest != null || mppConsent != null)) {
-            val amountMicro = pendingPaymentRequest?.amountMicroAlgos ?: mppConsent?.amount?.toLongOrNull() ?: 0L
-            val amount = amountMicro / 1_000_000.0
-            val amountText = amount.toString()
-            Log.d("AnswerScreen", "🎭 Showing SessionVault payment dialog")
+        if (showPaymentDialog && mppConsent != null) {
+            val amountMicro = mppConsent.amount.toLongOrNull() ?: 0L
+            val defaultTopUpMicro = 1_000_000L
+            val amountText = (defaultTopUpMicro / 1_000_000.0).toString()
+            Log.d("AnswerScreen", "🎭 Showing MPP consent dialog")
             LiquidAuthSessionVaultModal(
                 initialAmount = amountText,
-                quickAmounts = listOf(amountText, (amount * 8.0).toString()),
+                quickAmounts = listOf(amountText, "8.0"),
                 currencyLabel = "USDC",
                 isProcessing = isPaymentProcessing,
                 isDismissible = false,
                 onDismiss = {
                     if (!isPaymentProcessing) {
-                        if (mppConsent != null) {
-                            viewModel.rejectMppConsent()
-                            showPaymentDialog = false
-                            return@LiquidAuthSessionVaultModal
-                        }
-
-                        val paymentRequest = pendingPaymentRequest ?: return@LiquidAuthSessionVaultModal
-                        // When funds are depleted, keep prompt sticky until payment succeeds.
-                        if (fundsDepletedFromState) {
-                            showPaymentDialog = true
-                            return@LiquidAuthSessionVaultModal
-                        }
-
-                        // Initial payment request can still be rejected/closed by viewer.
-                        viewModel.sendPaymentResponse(
-                            paymentRequest,
-                            X402PaymentMessages.PaymentResponse.Status.REJECTED,
-                            null,
-                        )
+                        viewModel.rejectMppConsent()
                         showPaymentDialog = false
                     }
                 },
-                onTopUpAndStream = { _ ->
+                onTopUpAndStream = { enteredAmount ->
                     if (isPaymentProcessing) return@LiquidAuthSessionVaultModal
                     isPaymentProcessing = true
                     scope.launch {
                         try {
-                            if (mppConsent != null) {
-                                viewModel.approveMppConsent(
-                                    ConsentApproval(
-                                        approved = true,
-                                        autoPaySegments = false,
-                                        budgetCap = BudgetCap(amount = "1000000", asset = USDC_TESTNET_ID.toString()),
-                                    )
+                            val entered = enteredAmount.toDoubleOrNull() ?: (defaultTopUpMicro / 1_000_000.0)
+                            val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
+                            val perSegmentMicro = amountMicro.coerceAtLeast(1L)
+                            val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
+                            viewModel.approveMppConsent(
+                                ConsentApproval(
+                                    approved = true,
+                                    autoPaySegments = true,
+                                    budgetCap = BudgetCap(amount = micro.toString(), asset = USDC_TESTNET_ID.toString()),
+                                    maxAutoPaySegments = maxSegments,
                                 )
-                                showPaymentDialog = false
-                                return@launch
-                            }
-
-                            val paymentRequest = pendingPaymentRequest ?: return@launch
-                            viewModel.createAndSendPayment(paymentRequest)
+                            )
                             showPaymentDialog = false
                         } finally {
                             isPaymentProcessing = false

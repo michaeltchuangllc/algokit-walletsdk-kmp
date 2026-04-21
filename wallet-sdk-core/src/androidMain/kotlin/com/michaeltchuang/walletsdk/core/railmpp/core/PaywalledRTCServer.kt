@@ -192,13 +192,17 @@ class PaywalledRTCServer(
     private fun handleDataChannelMessage(msgStr: String) {
         try {
             val msg = JSONObject(msgStr)
-            when (msg.getString("type")) {
+            val msgType = msg.getString("type")
+            Log.e(TAG, "[DC_MESSAGE_RECEIVED] session=$sessionId type=$msgType bytes=${msgStr.length}")
+            when (msgType) {
                 DCMessageType.SEGMENT_PAYMENT -> {
                     if (msg.isNull("payload")) {
+                        Log.e(TAG, "[SEGMENT_PAYMENT_DENIED] session=$sessionId segment=$segmentIndex")
                         onPaymentRejected?.invoke("Consumer denied payment")
                         terminate("Payment denied")
                     } else {
                         val railPayment = railPaymentFromJson(msg.getJSONObject("payload"))
+                        Log.e(TAG, "[SEGMENT_PAYMENT_PAYLOAD_PARSED] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce} railId=${railPayment.railId}")
                         scope.launch { handlePayment(railPayment) }
                     }
                 }
@@ -235,6 +239,11 @@ class PaywalledRTCServer(
 
                 pendingRequest = request
                 onPaymentRequested?.invoke(request)
+                Log.e(TAG, "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} ttl=${request.ttl}")
+                Log.d(
+                    TAG,
+                    "💸 Segment payment requested: session=$sessionId segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} ttl=${request.ttl}s segmentDuration=${request.meta.segmentDuration ?: -1}s",
+                )
 
                 sendDC(JSONObject().apply {
                     put("type", DCMessageType.SEGMENT_REQUEST)
@@ -243,6 +252,7 @@ class PaywalledRTCServer(
                     put("payload", request.toJson())
                 })
             } catch (e: Throwable) {
+                Log.e(TAG, "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}", e)
                 onError?.invoke(e)
             }
         }
@@ -276,6 +286,7 @@ class PaywalledRTCServer(
 
     private suspend fun handlePayment(railPayment: RailPayment) {
         val request = pendingRequest ?: run {
+            Log.e(TAG, "[HANDLE_PAYMENT_NO_PENDING_REQUEST] session=$sessionId segment=$segmentIndex")
             onPaymentRejected?.invoke("No pending request")
             return
         }
@@ -286,6 +297,7 @@ class PaywalledRTCServer(
 
         // Nonce check
         if (railPayment.nonce != request.nonce) {
+            Log.e(TAG, "[HANDLE_PAYMENT_NONCE_MISMATCH] session=$sessionId segment=$segmentIndex expected=${request.nonce} actual=${railPayment.nonce}")
             onPaymentRejected?.invoke("Nonce mismatch")
             sendDC(JSONObject().apply {
                 put("type", DCMessageType.SEGMENT_REJECTED)
@@ -300,6 +312,7 @@ class PaywalledRTCServer(
         // Replay protection
         val isNew = nonceStore.checkAndStore(railPayment.nonce, config.paymentTTL)
         if (!isNew) {
+            Log.e(TAG, "[HANDLE_PAYMENT_NONCE_REPLAY] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce}")
             onPaymentRejected?.invoke("Nonce replay detected")
             sendDC(JSONObject().apply {
                 put("type", DCMessageType.SEGMENT_REJECTED)
@@ -340,9 +353,17 @@ class PaywalledRTCServer(
             if (config.gating.mode != GatingMode.WHOLE_STREAM) {
                 segmentIndex++
                 val duration = (config.gating.segmentDuration ?: 30) * 1000L
-                scheduleSegmentTimer(duration) { requestPaymentWithGrace() }
+                Log.d(
+                    TAG,
+                    "⏱️ Segment timer scheduled: session=$sessionId nextSegment=$segmentIndex in=${duration}ms (segmentDuration=${config.gating.segmentDuration ?: 30}s)",
+                )
+                scheduleSegmentTimer(duration) {
+                    Log.d(TAG, "⏱️ Segment timer tick: session=$sessionId segment=$segmentIndex")
+                    requestPaymentWithGrace()
+                }
             }
         } catch (e: Throwable) {
+            Log.e(TAG, "[HANDLE_PAYMENT_SETTLE_FAILED] session=$sessionId segment=$segmentIndex amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}", e)
             onError?.invoke(e)
             onPaymentRejected?.invoke(e.message ?: "Payment failed")
             terminate("Payment failed: ${e.message}")

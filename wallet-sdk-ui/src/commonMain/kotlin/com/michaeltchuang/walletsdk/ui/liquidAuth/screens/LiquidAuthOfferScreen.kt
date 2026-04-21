@@ -69,7 +69,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
+import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -363,7 +366,8 @@ fun LiquidAuthOfferScreen(
                     // Auto-request payment when paid streaming is enabled
                     if (canRequestPayment && address != null) {
                         println("💰 Requesting payment from client...")
-                        viewModel.requestPaymentFromClient(address)
+                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     } else {
                         println(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
@@ -376,7 +380,7 @@ fun LiquidAuthOfferScreen(
                     val connected = currentConnectionManager?.isConnected()
                     println("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
-                    println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
+                    println("💰 Payment request sent: ${event.paymentRequest.amount} micro-units")
                 }
 
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
@@ -402,7 +406,8 @@ fun LiquidAuthOfferScreen(
                     }
                     currentCreatorAddress?.let { address ->
                         println("💰 Requesting additional payment from viewer...")
-                        viewModel.requestPaymentFromClient(address)
+                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     }
                 }
 
@@ -999,7 +1004,7 @@ private fun WaitingForPaymentSection(
     sessionId: String,
     connectionType: IceConnectionType,
     balanceUsdc: Double?,
-    paymentRequest: X402PaymentMessages.PaymentRequest,
+    paymentRequest: PaymentRequest,
     onDisconnect: () -> Unit,
     paymentCurrencyLabel: String = "ALGO",
 ) {
@@ -1086,7 +1091,7 @@ private fun WaitingForPaymentSection(
                     )
 
                     Text(
-                        text = "To: ${paymentRequest.creatorAddress.take(8)}...",
+                        text = "To: ${paymentRequest.payTo.take(8)}...", 
                         style = MaterialTheme.typography.bodySmall,
                         color = AlgoKitTheme.colors.textGray,
                     )
@@ -1604,11 +1609,22 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-payment-33221100",
                     paymentRequest =
-                        X402PaymentMessages.PaymentRequest(
+                        PaymentRequest(
                             id = "payment-session-123",
-                            amountMicroAlgos = 1_000_000L,
-                            creatorAddress = "CREATORADDR1234567890ABCDEFGH",
+                            sessionId = "session-payment-33221100",
+                            segmentIndex = 0,
+                            amount = "1000000",
+                            asset = "USDC",
                             network = "testnet",
+                            payTo = "CREATORADDR1234567890ABCDEFGH",
+                            ttl = 30,
+                            nonce = "nonce-preview-123",
+                            meta =
+                                PaymentRequestMeta(
+                                    gatingMode = GatingMode.PARTIAL_TIME,
+                                    enforcement = EnforcementMode.TRACK,
+                                    segmentDuration = 3,
+                                ),
                         ),
                 ),
             cameraPreview = null,
