@@ -65,7 +65,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun LiquidAuthViewerScreen(
+fun LiquidStreamViewerScreen(
     sessionId: String = "",
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
@@ -75,7 +75,8 @@ fun LiquidAuthViewerScreen(
     originUrl: String = "-",
     networkLabel: String = "TESTNET",
     currentBlockNumber: Long? = null,
-    balanceUsdc: Double = 0.0,
+    remainingBalanceUsdc: Double = 0.0,
+    progressBalanceUsdc: Double = 0.0,
 ) {
     val viewModel: LiquidAuthViewerViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
@@ -88,7 +89,7 @@ fun LiquidAuthViewerScreen(
         }
     }
 
-    LiquidAuthViewerScreenContent(
+    LiquidStreamViewerScreenContent(
         sessionId = sessionId,
         connectionType = connectionType,
         cameraPreview = cameraPreview,
@@ -97,7 +98,8 @@ fun LiquidAuthViewerScreen(
         originUrl = originUrl,
         networkLabel = networkLabel,
         currentBlockNumber = currentBlockNumber,
-        balanceUsdc = balanceUsdc,
+        remainingBalanceUsdc = remainingBalanceUsdc,
+        progressBalanceUsdc = progressBalanceUsdc,
         uiState = uiState,
         onSettingsClick = viewModel::onSettingsClicked,
         onAnalyticsClick = viewModel::onAnalyticsClicked,
@@ -116,7 +118,7 @@ fun LiquidAuthViewerScreen(
 }
 
 @Composable
-private fun LiquidAuthViewerScreenContent(
+private fun LiquidStreamViewerScreenContent(
     sessionId: String,
     connectionType: IceConnectionType,
     cameraPreview: @Composable (() -> Unit)?,
@@ -125,7 +127,8 @@ private fun LiquidAuthViewerScreenContent(
     originUrl: String,
     networkLabel: String,
     currentBlockNumber: Long?,
-    balanceUsdc: Double,
+    remainingBalanceUsdc: Double,
+    progressBalanceUsdc: Double,
     uiState: LiquidAuthViewerViewModel.UiState,
     onSettingsClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
@@ -226,12 +229,13 @@ private fun LiquidAuthViewerScreenContent(
                 ) {
                     ConnectedViewersCard(
                         sessionId = sessionId.ifBlank { "session-pending" },
-                        balanceUSDC = balanceUsdc,
+                        remainingBalanceUSDC = remainingBalanceUsdc,
                         connectionType = connectionType,
                         currentBlockNumber = currentBlockNumber,
                         networkLabel = networkLabel,
                         originUrl = originUrl,
                         viewerAddress = viewerAddress,
+                        progressBalanceUSDC = progressBalanceUsdc,
                     )
                 }
             }
@@ -598,44 +602,6 @@ private fun FloatingButtons(
 }
 
 @Composable
-private fun StreamActions(
-    onStopStreaming: () -> Unit,
-    onDisconnect: () -> Unit,
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xFFF53C57))
-                    .clickable(onClick = onStopStreaming),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("Stop Streaming", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Box(
-            modifier =
-                Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0x66001423))
-                    .border(1.dp, Color(0x40FFFFFF), RoundedCornerShape(12.dp))
-                    .clickable(onClick = onDisconnect),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("Disconnect Client", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
 private fun ChatComposer(
     message: String,
     giftAmountTag: String,
@@ -773,7 +739,7 @@ private fun HomeIndicator() {
 private fun LiquidAuthViewerScreenPreview() {
     AlgoKitTheme {
         var uiState by remember { mutableStateOf(LiquidAuthViewerViewModel.UiState()) }
-        LiquidAuthViewerScreenContent(
+        LiquidStreamViewerScreenContent(
             sessionId = "session-preview-id",
             connectionType = IceConnectionType.UNKNOWN,
             cameraPreview = null,
@@ -782,14 +748,22 @@ private fun LiquidAuthViewerScreenPreview() {
             originUrl = "https://example.app",
             networkLabel = "TESTNET",
             currentBlockNumber = 38291041L,
-            balanceUsdc = 12.34,
+            remainingBalanceUsdc = 12.34,
             uiState = uiState,
-            onSettingsClick = { uiState = uiState.copy(showViewerSettingsSheet = true, showAnalyticsModal = false) },
-            onAnalyticsClick = { uiState = uiState.copy(showAnalyticsModal = !uiState.showAnalyticsModal) },
+            onSettingsClick = {
+                uiState = uiState.copy(showViewerSettingsSheet = true, showAnalyticsModal = false)
+            },
+            onAnalyticsClick = {
+                uiState = uiState.copy(showAnalyticsModal = !uiState.showAnalyticsModal)
+            },
             onAnalyticsDismissed = { uiState = uiState.copy(showAnalyticsModal = false) },
             onViewerSettingsDismissed = { uiState = uiState.copy(showViewerSettingsSheet = false) },
-            onPayoutFrequencyTabSelected = { tabId -> uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId) },
-            onWillingToBeRelayerChanged = { enabled -> uiState = uiState.copy(willingToBeRelayerEnabled = enabled) },
+            onPayoutFrequencyTabSelected = { tabId ->
+                uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId)
+            },
+            onWillingToBeRelayerChanged = { enabled ->
+                uiState = uiState.copy(willingToBeRelayerEnabled = enabled)
+            },
             onMessageChanged = { message -> uiState = uiState.copy(message = message) },
             onTopUpClick = { uiState = uiState.copy(showTopUpSheet = true) },
             onTopUpDismissed = { uiState = uiState.copy(showTopUpSheet = false) },
@@ -797,6 +771,7 @@ private fun LiquidAuthViewerScreenPreview() {
             onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
             onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },
             onSendClick = { uiState = uiState.copy(message = "") },
+            progressBalanceUsdc = 0.2,
         )
     }
 }

@@ -9,12 +9,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
+import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import org.junit.Test
@@ -107,6 +107,7 @@ class LiquidAuthOfferScreenshotTest(
                                     gatingMode = GatingMode.PARTIAL_TIME,
                                     enforcement = EnforcementMode.TRACK,
                                     segmentDuration = 3,
+                                    voucherSignature = null,
                                 ),
                         ),
                 ),

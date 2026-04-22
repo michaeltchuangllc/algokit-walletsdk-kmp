@@ -26,9 +26,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
@@ -37,10 +35,13 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignat
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
@@ -49,8 +50,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
@@ -58,6 +57,8 @@ import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,6 +91,7 @@ class AnswerViewModel(
     private val logAppSignatureUseCase: LogAppSignatureUseCase,
     private val providerHttpClientUseCase: ProvideHttpClientUseCase,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
+    private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
 ) : ViewModel(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
@@ -485,7 +487,6 @@ class AnswerViewModel(
                 return
             }
 
-
             val cborBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
 
             // Log first bytes to verify incoming CBOR encoding type
@@ -583,6 +584,14 @@ class AnswerViewModel(
 
     private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
     val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
+    private val _viewerVoucherUsageMicroUsdc = MutableStateFlow(0L)
+    val viewerVoucherUsageMicroUsdc: StateFlow<Long> = _viewerVoucherUsageMicroUsdc
+    private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
+    val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
+    private val _currentBlockNumber = MutableStateFlow<Long?>(null)
+    val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
+    private var blockNumberPollingJob: Job? = null
+
     @Volatile
     private var pendingMppConsentContinuation: kotlinx.coroutines.CompletableDeferred<ConsentApproval>? = null
 
@@ -648,13 +657,26 @@ class AnswerViewModel(
     }
 
     fun approveMppConsent(approval: ConsentApproval) {
+        // Do not seed viewer balance from consent budget; source of truth is on-chain vault read.
         if (approval.approved) {
-            val micro = approval.budgetCap?.amount?.toLongOrNull() ?: 0L
-            if (micro > 0L) {
-                _viewerSessionVaultMicroUsdc.value = micro
-            }
+            _viewerVoucherUsageMicroUsdc.value = 0L
+            _viewerSessionVaultMicroUsdc.value = 0L
+            _viewerProgressBalanceMicroUsdc.value = 0L
         }
         pendingMppConsentContinuation?.complete(approval)
+    }
+
+    fun setViewerSessionVaultBalance(
+        balanceMicroUsdc: Long,
+        resetVoucherUsage: Boolean = false,
+    ) {
+        val normalized = balanceMicroUsdc.coerceAtLeast(0L)
+        if (resetVoucherUsage) {
+            _viewerVoucherUsageMicroUsdc.value = 0L
+        }
+        val usage = _viewerVoucherUsageMicroUsdc.value
+        _viewerSessionVaultMicroUsdc.value = normalized
+        _viewerProgressBalanceMicroUsdc.value = (normalized - usage).coerceAtLeast(0L)
     }
 
     fun rejectMppConsent() {
@@ -662,19 +684,49 @@ class AnswerViewModel(
             ConsentApproval(
                 approved = false,
                 autoPaySegments = false,
-            )
+            ),
         )
     }
 
     fun applyViewerSegmentDebit(amountMicroUsdc: Long) {
         if (amountMicroUsdc <= 0L) return
-        val before = _viewerSessionVaultMicroUsdc.value
-        val next = (before - amountMicroUsdc).coerceAtLeast(0L)
-        _viewerSessionVaultMicroUsdc.value = next
+        val onChain = _viewerSessionVaultMicroUsdc.value
+        val usageBefore = _viewerVoucherUsageMicroUsdc.value
+        val usageAfter = usageBefore + amountMicroUsdc
+        val progressAfter = (onChain - usageAfter).coerceAtLeast(0L)
+
+        _viewerVoucherUsageMicroUsdc.value = usageAfter
+        _viewerProgressBalanceMicroUsdc.value = progressAfter
+
         Log.d(
             TAG,
-            "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC (${amountMicroUsdc / 1_000_000.0} USDC), before=${before / 1_000_000.0}, after=${next / 1_000_000.0}",
+            "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC, onChain=${onChain / 1_000_000.0}, usage=${usageAfter / 1_000_000.0}, progress=${progressAfter / 1_000_000.0}",
         )
+    }
+
+    fun startRealtimeBlockNumberUpdates() {
+        if (blockNumberPollingJob?.isActive == true) return
+        blockNumberPollingJob =
+            viewModelScope.launch {
+                while (true) {
+                    getCurrentBlockUseCase().collect { result ->
+                        when (result) {
+                            is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
+                                _currentBlockNumber.value = result.data
+                            }
+                            is com.michaeltchuang.walletsdk.utils.DataResource.Error,
+                            is com.michaeltchuang.walletsdk.utils.DataResource.Loading,
+                            -> Unit
+                        }
+                    }
+                    delay(1000)
+                }
+            }
+    }
+
+    fun stopRealtimeBlockNumberUpdates() {
+        blockNumberPollingJob?.cancel()
+        blockNumberPollingJob = null
     }
 
     suspend fun processBiometricTransactionSigning(

@@ -3,6 +3,8 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -221,6 +223,22 @@ class PaywalledRTCServer(
     private fun requestPayment() {
         scope.launch(Dispatchers.IO) {
             try {
+                val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+                if (shouldSkipPrompt) {
+                    Log.d(
+                        TAG,
+                        "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
+                    )
+                    if (gated) ungate()
+                    if (config.gating.mode != GatingMode.WHOLE_STREAM) {
+                        val duration = (config.gating.segmentDuration ?: 30) * 1000L
+                        scheduleSegmentTimer(duration) {
+                            requestPaymentWithGrace()
+                        }
+                    }
+                    return@launch
+                }
+
                 val request = paymentRail.createPaymentRequest(PaymentRailRequestParams(
                     sessionId = sessionId,
                     segmentIndex = segmentIndex,
@@ -233,7 +251,9 @@ class PaywalledRTCServer(
                         gatingMode = config.gating.mode,
                         enforcement = config.enforcement,
                         segmentDuration = config.gating.segmentDuration,
-                        segmentBytes = config.gating.segmentBytes
+                        segmentBytes = config.gating.segmentBytes,
+                        viewerAddress = config.viewerAddress,
+                        voucherSignature = null,
                     )
                 ))
 
@@ -282,6 +302,17 @@ class PaywalledRTCServer(
             }
         }
         handler.postDelayed(graceTimer!!, gracePeriod)
+    }
+
+    private fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
+        if (!config.skipPaymentRequestWhenSessionFunded) return false
+        val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
+        val remaining =
+            MppPayments.getRemainingBalanceFromSessionVault(
+                viewerAddress = viewerAddress,
+                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+            )
+        return (remaining ?: 0L) > 0L
     }
 
     private suspend fun handlePayment(railPayment: RailPayment) {

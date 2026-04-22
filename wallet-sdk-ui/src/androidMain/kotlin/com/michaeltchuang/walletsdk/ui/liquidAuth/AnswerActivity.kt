@@ -26,9 +26,12 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
+import com.algorand.algosdk.sdk.Sdk
+import com.algorand.algosdk.util.Encoder
 import com.google.android.gms.fido.fido2.Fido2ApiClient
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalClient
@@ -36,11 +39,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERVICE_NOTIFICATION_ID
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -48,14 +53,12 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.ConfirmTransferScreen
 import com.solanamobile.seedvault.Wallet
 import com.solanamobile.seedvault.WalletContractV1
-import com.algorand.algosdk.sdk.Sdk
-import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
@@ -65,7 +68,9 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
+import kotlinx.coroutines.isActive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -95,6 +100,7 @@ class AnswerActivity : AppCompatActivity() {
     private lateinit var seedVaultSignMessageLauncher: ActivityResultLauncher<Intent>
     private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
     private var liquidStreamViewer: LiquidStreamViewer? = null
+    private var viewerOnChainRefreshJob: Job? = null
 
     private data class SeedVaultSigner(
         val authToken: Long,
@@ -135,7 +141,6 @@ class AnswerActivity : AppCompatActivity() {
                     continuation.resume(null)
                 }
             }
-
     }
 
     private fun setupUi() {
@@ -697,14 +702,28 @@ class AnswerActivity : AppCompatActivity() {
                 {
                     Log.d(TAG, "onStateChange($it)")
                     if (it === "OPEN") {
-                        Log.d(TAG, "Sending Credential")
-                        viewModel.signalService.value?.send(
+                        Log.e(
+                            TAG,
+                            "[VIEWER_LIQUIDAUTH_CONNECTED] requestId=${msg.requestId} account=${algoAddress} dcState=OPEN",
+                        )
+                        Log.e(TAG, "[VIEWER_CREDENTIAL_SEND_START] requestId=${msg.requestId}")
+                        val credentialMessage =
                             viewModel
                                 .getCredentialMessage(
                                     algoAddress!!,
                                     credential,
-                                ).toString(),
+                                ).toString()
+                        Log.e(
+                            TAG,
+                            "[VIEWER_CREDENTIAL_SEND_PAYLOAD] requestId=${msg.requestId} bytes=${credentialMessage.toByteArray().size}",
                         )
+                        viewModel.signalService.value?.send(credentialMessage)
+                        Log.e(TAG, "[VIEWER_CREDENTIAL_SEND_DONE] requestId=${msg.requestId}")
+                        Log.e(
+                            TAG,
+                            "[VIEWER_SESSION_VAULT_REFRESH_BOOTSTRAP] requestId=${msg.requestId} viewer=$algoAddress",
+                        )
+                        startViewerOnChainRefresh(algoAddress.orEmpty())
                     }
                 },
                 viewModel.createNotificationBuilder(this@AnswerActivity),
@@ -724,8 +743,10 @@ class AnswerActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 val paymentChannel = awaitPaymentDataChannel(service) ?: return@launch
+                stopViewerOnChainRefresh()
                 liquidStreamViewer?.terminate()
                 val mppNetwork = resolveMppClientNetwork(accountAddress)
+                var latestPaymentRecipient: String? = null
                 liquidStreamViewer =
                     LiquidStreamViewer(
                         peerConnection = peerConnection,
@@ -738,19 +759,170 @@ class AnswerActivity : AppCompatActivity() {
                         consentHandler =
                             object : ConsentHandler {
                                 override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
-                                    return viewModel.requestMppConsentFromUi(terms)
+                                    val existingOnChainBalance =
+                                        MppPayments.getRemainingBalanceFromSessionVault(
+                                            viewerAddress = accountAddress,
+                                            appId =
+                                                com.michaeltchuang.walletsdk.core.railmpp.utils
+                                                    .RailMppConstants
+                                                    .MPP_SESSION_VAULT_APP_ID,
+                                        )
+
+                                    if (existingOnChainBalance != null && existingOnChainBalance > 0L) {
+                                        runOnUiThread {
+                                            viewModel.setViewerSessionVaultBalance(existingOnChainBalance)
+                                        }
+                                        Log.e(
+                                            TAG,
+                                            "[VIEWER_SESSION_VAULT_FUNDED] balanceMicroUsdc=$existingOnChainBalance balanceUsdc=${existingOnChainBalance / 1_000_000.0} action=skip_payment_modal",
+                                        )
+                                        startViewerOnChainRefresh(accountAddress)
+                                        return ConsentApproval(
+                                            approved = true,
+                                            autoPaySegments = true,
+                                            budgetCap =
+                                                BudgetCap(
+                                                    amount = existingOnChainBalance.toString(),
+                                                    asset = USDC_TESTNET_ID.toString(),
+                                                ),
+                                        )
+                                    }
+
+                                    val approval = viewModel.requestMppConsentFromUi(terms)
+                                    if (!approval.approved) return approval
+
+                                    val payToAddress = latestPaymentRecipient.orEmpty()
+                                    val depositMicroUsdc = 1_000_000L
+                                    val signer = buildMppWalletSigner(accountAddress)
+
+                                    if (payToAddress.isBlank()) {
+                                        Log.e(
+                                            TAG,
+                                            "[VIEWER_SESSION_VAULT_DEPOSIT_SKIP] reason=missing_recipient account=$accountAddress",
+                                        )
+                                        return approval
+                                    }
+
+                                    val onChain =
+                                        MppPayments.openSessionAndDeposit(
+                                            signer = signer,
+                                            viewerAddress = accountAddress,
+                                            creatorAddress = payToAddress,
+                                            depositAmountMicroUsdc = depositMicroUsdc,
+                                        )
+                                    onChain
+                                        .onSuccess { txId ->
+                                            Log.e(TAG, "✅ Session Vault openSession+deposit txId=$txId")
+                                            val onChainRemaining =
+                                                MppPayments.getRemainingBalanceFromSessionVault(
+                                                    viewerAddress = accountAddress,
+                                                    appId =
+                                                        com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                )
+                                            Log.e(
+                                                TAG,
+                                                "[VIEWER_SESSION_VAULT_FETCH_AFTER_DEPOSIT] viewer=$accountAddress remaining=$onChainRemaining",
+                                            )
+                                            if (onChainRemaining != null) {
+                                                runOnUiThread {
+                                                    viewModel.setViewerSessionVaultBalance(
+                                                        onChainRemaining,
+                                                        resetVoucherUsage = true,
+                                                    )
+                                                }
+                                            } else {
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_SESSION_VAULT_FETCH_AFTER_DEPOSIT_NULL] viewer=$accountAddress",
+                                                )
+                                            }
+                                            startViewerOnChainRefresh(accountAddress)
+                                        }.onFailure {
+                                            Log.e(TAG, "❌ Session Vault openSession+deposit failed", it)
+                                        }
+                                    return approval
                                 }
                             },
                         clientConfig = ClientConfig(autoPaySegments = false),
                     ).also {
-                        it.rtcClient.onPaymentReceipt = { receipt ->
-                            val debit = receipt.amount.toLongOrNull() ?: 0L
-                            Log.d(
+                        it.rtcClient.onPaymentRequested = { request ->
+                            latestPaymentRecipient = request.payTo
+                            Log.e(
                                 TAG,
-                                "💸 MPP receipt accepted: session=${receipt.sessionId} segment=${receipt.segmentIndex} amount=${receipt.amount} asset=${receipt.asset} txId=${receipt.txId}",
+                                "[VIEWER_PAYMENT_REQUEST_RECEIVED] session=${request.id} payTo=${request.payTo} amount=${request.amount} asset=${request.asset}",
                             )
-                            if (debit > 0L) {
-                                runOnUiThread { viewModel.applyViewerSegmentDebit(debit) }
+                        }
+                        it.rtcClient.onPaymentReceipt = { receipt ->
+                            lifecycleScope.launch {
+                                latestPaymentRecipient = receipt.payTo
+                                val debit = receipt.amount.toLongOrNull() ?: 0L
+                                val viewerAddress = receipt.payFrom.ifBlank { accountAddress }
+                                val blocksConsumed = (receipt.segmentIndex + 1).coerceAtLeast(0)
+                                val voucherClaimed = MppPayments.computeVoucherClaimedMicroAlgos(blocksConsumed)
+
+                                Log.d(
+                                    TAG,
+                                    "💸 MPP receipt accepted: session=${receipt.sessionId} segment=${receipt.segmentIndex} amount=${receipt.amount} asset=${receipt.asset} txId=${receipt.txId}",
+                                )
+
+                                if (
+                                    MppPayments.shouldAttemptVoucherSettlement(blocksConsumed) &&
+                                    viewerAddress.isNotBlank()
+                                ) {
+                                    val voucherSignature =
+                                        runCatching {
+                                            val message =
+                                                MppPayments.buildClaimMessage(
+                                                    appId =
+                                                        com.michaeltchuang.walletsdk.core.railmpp.utils
+                                                            .RailMppConstants
+                                                            .MPP_SESSION_VAULT_APP_ID,
+                                                    totalAmountClaimedMicroUsdc = voucherClaimed,
+                                                )
+                                            viewModel.signFido2Challenge(message, accountAddress)
+                                        }.getOrNull()
+
+                                    if (voucherSignature != null && voucherSignature.isNotEmpty()) {
+                                        val voucherJson =
+                                            MppPayments.createVoucherJson(
+                                                sessionId = receipt.sessionId,
+                                                viewerAddress = viewerAddress,
+                                                creatorAddress = receipt.payTo,
+                                                blocksConsumed = blocksConsumed,
+                                                totalAmountClaimed = voucherClaimed,
+                                                remainingMicroUsdc = viewModel.viewerSessionVaultMicroUsdc.value,
+                                            )
+                                        Log.d(
+                                            TAG,
+                                            "🎟️ Viewer generated voucher (settlement cadence): $voucherJson sig=${MppPayments.serializeVoucherSignature(
+                                                voucherSignature,
+                                            )}",
+                                        )
+                                    }
+                                }
+                                if (debit > 0L) {
+                                    runOnUiThread { viewModel.applyViewerSegmentDebit(debit) }
+                                }
+
+                                val onChainRemaining =
+                                    MppPayments.getRemainingBalanceFromSessionVault(
+                                        viewerAddress = viewerAddress,
+                                        appId = com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    )
+                                Log.e(
+                                    TAG,
+                                    "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT] viewer=$viewerAddress segment=${receipt.segmentIndex} remaining=$onChainRemaining",
+                                )
+                                if (onChainRemaining != null) {
+                                    runOnUiThread {
+                                        viewModel.setViewerSessionVaultBalance(onChainRemaining)
+                                    }
+                                } else {
+                                    Log.e(
+                                        TAG,
+                                        "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT_NULL] viewer=$viewerAddress segment=${receipt.segmentIndex}",
+                                    )
+                                }
                             }
                         }
                         it.rtcClient.onStreamGated = { reason ->
@@ -779,6 +951,48 @@ class AnswerActivity : AppCompatActivity() {
                 Log.e(TAG, "Failed to initialize MPP payment viewer", e)
             }
         }
+    }
+
+    private fun startViewerOnChainRefresh(viewerAddress: String) {
+        if (viewerAddress.isBlank()) {
+            Log.e(TAG, "[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=blank_viewer")
+            return
+        }
+        Log.e(TAG, "[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress")
+        stopViewerOnChainRefresh()
+        viewerOnChainRefreshJob =
+            lifecycleScope.launch {
+                while (kotlin.coroutines.coroutineContext.isActive) {
+                    runCatching {
+                        MppPayments.getRemainingBalanceFromSessionVault(
+                            viewerAddress = viewerAddress,
+                            appId = com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        )
+                    }.onSuccess { remaining ->
+                        Log.e(
+                            TAG,
+                            "[VIEWER_SESSION_VAULT_REFRESH_TICK] viewer=$viewerAddress remaining=$remaining",
+                        )
+                        if (remaining != null) {
+                            runOnUiThread {
+                                viewModel.setViewerSessionVaultBalance(remaining)
+                            }
+                        }
+                    }.onFailure {
+                        Log.e(
+                            TAG,
+                            "[VIEWER_SESSION_VAULT_REFRESH_ERR] viewer=$viewerAddress",
+                            it,
+                        )
+                    }
+                    kotlinx.coroutines.delay(1000L)
+                }
+            }
+    }
+
+    private fun stopViewerOnChainRefresh() {
+        viewerOnChainRefreshJob?.cancel()
+        viewerOnChainRefreshJob = null
     }
 
     private suspend fun awaitPaymentDataChannel(
@@ -820,8 +1034,9 @@ class AnswerActivity : AppCompatActivity() {
                     is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
                         val secretKey = viewModel.resolveAlgo25SecretKey(address) ?: error("Missing Algo25 key for $address")
                         val txnBytes = txn.bytes()
-                        val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
-                            ?: error("Algo25 arbitrary signing failed")
+                        val signature =
+                            signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                                ?: error("Algo25 arbitrary signing failed")
                         Sdk.attachSignature(signature, txnBytes)
                     }
                     is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
@@ -861,13 +1076,14 @@ class AnswerActivity : AppCompatActivity() {
 
                 val recipient = org.sol4k.PublicKey(recipientAddress)
                 val sender = org.sol4k.PublicKey(address)
-                val connection = org.sol4k.Connection(
-                    when {
-                        network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
-                        network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
-                        else -> "https://api.devnet.solana.com"
-                    }
-                )
+                val connection =
+                    org.sol4k.Connection(
+                        when {
+                            network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
+                            network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
+                            else -> "https://api.devnet.solana.com"
+                        },
+                    )
                 val blockhash = connection.getLatestBlockhash()
 
                 val instructions: List<org.sol4k.instruction.Instruction> =
@@ -882,16 +1098,32 @@ class AnswerActivity : AppCompatActivity() {
                             if (connection.getAccountInfo(recipientAta) == null) {
                                 object : org.sol4k.instruction.Instruction {
                                     override val data: ByteArray = ByteArray(0)
-                                    override val keys: List<org.sol4k.AccountMeta> = listOf(
-                                        org.sol4k.AccountMeta(sender, writable = true, signer = true),
-                                        org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
-                                        org.sol4k.AccountMeta(recipient, writable = false, signer = false),
-                                        org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
-                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("11111111111111111111111111111111"), writable = false, signer = false),
-                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"), writable = false, signer = false),
-                                        org.sol4k.AccountMeta(org.sol4k.PublicKey("SysvarRent111111111111111111111111111111111"), writable = false, signer = false),
-                                    )
-                                    override val programId: org.sol4k.PublicKey = org.sol4k.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL")
+                                    override val keys: List<org.sol4k.AccountMeta> =
+                                        listOf(
+                                            org.sol4k.AccountMeta(sender, writable = true, signer = true),
+                                            org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
+                                            org.sol4k.AccountMeta(recipient, writable = false, signer = false),
+                                            org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
+                                            org.sol4k.AccountMeta(
+                                                org.sol4k.PublicKey("11111111111111111111111111111111"),
+                                                writable = false,
+                                                signer = false,
+                                            ),
+                                            org.sol4k.AccountMeta(
+                                                org.sol4k.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"),
+                                                writable = false,
+                                                signer = false,
+                                            ),
+                                            org.sol4k.AccountMeta(
+                                                org.sol4k.PublicKey("SysvarRent111111111111111111111111111111111"),
+                                                writable = false,
+                                                signer = false,
+                                            ),
+                                        )
+                                    override val programId: org.sol4k.PublicKey =
+                                        org.sol4k.PublicKey(
+                                            "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL",
+                                        )
                                 }
                             } else {
                                 null
@@ -901,18 +1133,28 @@ class AnswerActivity : AppCompatActivity() {
                             object : org.sol4k.instruction.Instruction {
                                 override val data: ByteArray
                                     get() {
-                                        val amountBytes = java.nio.ByteBuffer.allocate(8).order(java.nio.ByteOrder.LITTLE_ENDIAN).putLong(amount.toLong()).array()
+                                        val amountBytes =
+                                            java.nio.ByteBuffer
+                                                .allocate(
+                                                    8,
+                                                ).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                                                .putLong(amount.toLong())
+                                                .array()
                                         return byteArrayOf(12.toByte()) + amountBytes + byteArrayOf(6.toByte())
                                     }
 
-                                override val keys: List<org.sol4k.AccountMeta> = listOf(
-                                    org.sol4k.AccountMeta(senderAta, writable = true, signer = false),
-                                    org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
-                                    org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
-                                    org.sol4k.AccountMeta(sender, writable = false, signer = true),
-                                )
+                                override val keys: List<org.sol4k.AccountMeta> =
+                                    listOf(
+                                        org.sol4k.AccountMeta(senderAta, writable = true, signer = false),
+                                        org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
+                                        org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
+                                        org.sol4k.AccountMeta(sender, writable = false, signer = true),
+                                    )
 
-                                override val programId: org.sol4k.PublicKey = org.sol4k.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA")
+                                override val programId: org.sol4k.PublicKey =
+                                    org.sol4k.PublicKey(
+                                        "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+                                    )
                             }
 
                         buildList {
@@ -931,8 +1173,9 @@ class AnswerActivity : AppCompatActivity() {
                         serializedWithSigCount
                     }
 
-                val signature = signChallengeWithSeedVault(message, address)
-                    ?: error("Seed Vault Solana signing failed")
+                val signature =
+                    signChallengeWithSeedVault(message, address)
+                        ?: error("Seed Vault Solana signing failed")
                 if (signature.size < 64) error("Seed Vault signature must be 64 bytes")
 
                 val signedTx = ByteArray(1 + 64 + message.size)
@@ -1204,6 +1447,7 @@ class AnswerActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         shouldEnterPipMode = false
+        stopViewerOnChainRefresh()
         liquidStreamViewer?.terminate()
         liquidStreamViewer = null
         viewModel.clearVideoFrame() // Clear video when activity destroyed

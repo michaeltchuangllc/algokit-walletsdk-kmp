@@ -38,6 +38,8 @@ internal fun PaymentRequest.toJson(): JSONObject = JSONObject().apply {
         put("enforcement", meta.enforcement.value)
         meta.segmentDuration?.let { put("segmentDuration", it) }
         meta.segmentBytes?.let { put("segmentBytes", it) }
+        meta.viewerAddress?.let { put("viewerAddress", it) }
+        meta.voucherSignature?.let { put("voucherSignature", it) }
     })
     railPayload?.let {
         if (it is JSONObject) put("railPayload", it) else put("railPayload", it.toString())
@@ -54,7 +56,9 @@ internal fun paymentRequestFromJson(json: JSONObject): PaymentRequest {
         enforcement = if (metaJson.getString("enforcement") == "crypto")
             EnforcementMode.CRYPTO else EnforcementMode.TRACK,
         segmentDuration = if (metaJson.has("segmentDuration")) metaJson.getInt("segmentDuration") else null,
-        segmentBytes = if (metaJson.has("segmentBytes")) metaJson.getLong("segmentBytes") else null
+        segmentBytes = if (metaJson.has("segmentBytes")) metaJson.getLong("segmentBytes") else null,
+        viewerAddress = if (metaJson.has("viewerAddress")) metaJson.getString("viewerAddress") else null,
+        voucherSignature = if (metaJson.has("voucherSignature")) metaJson.getString("voucherSignature") else null,
     )
     return PaymentRequest(
         id = json.getString("id"),

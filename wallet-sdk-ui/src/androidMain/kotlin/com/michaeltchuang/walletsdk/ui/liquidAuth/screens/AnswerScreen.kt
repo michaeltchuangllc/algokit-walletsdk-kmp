@@ -38,14 +38,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
-import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
 
@@ -69,6 +70,8 @@ fun AnswerScreen(
     val videoFrame by viewModel.videoFrame.collectAsState()
     val pendingMppConsentFromState by viewModel.pendingMppConsent.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
+    val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
+    val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
 
     var isSolanaAccount by remember { mutableStateOf(false) }
     LaunchedEffect(accountAddress) {
@@ -81,6 +84,7 @@ fun AnswerScreen(
 
     val scope = rememberCoroutineScope()
     LaunchedEffect(viewModel) {
+        viewModel.startRealtimeBlockNumberUpdates()
         Log.d("AnswerScreen", "🎭 Starting to collect view events...")
         viewModel.viewEvent.collect { event ->
             Log.d("AnswerScreen", "🎭 View event received: ${event::class.simpleName}")
@@ -109,7 +113,6 @@ fun AnswerScreen(
             isPaymentProcessing = false
         }
     }
-
 
     val viewerBottomSheetState =
         rememberModalBottomSheetState(
@@ -140,12 +143,14 @@ fun AnswerScreen(
                         .WindowInsets(0, 0, 0, 0)
                 },
             ) {
-                LiquidAuthViewerScreen(
+                LiquidStreamViewerScreen(
                     sessionId = session,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
                     originUrl = message?.origin.orEmpty().ifBlank { "-" },
-                    balanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
+                    currentBlockNumber = currentBlockNumber,
+                    remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
+                    progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
                     onMinimize = {
                         Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
                         onMinimizeToPip()
@@ -197,13 +202,21 @@ fun AnswerScreen(
                             val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
                             val perSegmentMicro = amountMicro.coerceAtLeast(1L)
                             val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
+                            val voucherMessage =
+                                MppPayments.buildClaimMessage(
+                                    appId = com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    totalAmountClaimedMicroUsdc = micro,
+                                )
+                            val voucherSignature = viewModel.signFido2Challenge(voucherMessage, accountAddress)
+
                             viewModel.approveMppConsent(
                                 ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
                                     budgetCap = BudgetCap(amount = micro.toString(), asset = USDC_TESTNET_ID.toString()),
                                     maxAutoPaySegments = maxSegments,
-                                )
+                                    voucherSignature = voucherSignature,
+                                ),
                             )
                             showPaymentDialog = false
                         } finally {
@@ -274,7 +287,7 @@ fun ScreenContentAnswer(
                     accountAddress = accountAddress,
                 )
 
-                // X402 Payment Status (when paid streaming)
+                // MPP Payment Status (when paid streaming)
                 if (paymentBalance != null) {
                     PaymentStatusCard(
                         balance = paymentBalance,

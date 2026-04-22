@@ -12,11 +12,11 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiqui
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,9 +58,13 @@ class LiquidAuthOfferViewModel(
     private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.NoPayment)
     val paymentState: StateFlow<PaymentState> = _paymentState
 
-    // Current balance for paid streaming (in microAlgos)
+    // Host balance model:
+    // - remainingBalanceMicroUsdc: settled on-chain remaining from Session Vault
+    // - progressBarBalanceMicroUsdc: effective UI/progress balance (on-chain minus unsettled voucher)
     private val _remainingBalanceMicroUsdc = MutableStateFlow<Long?>(null)
     val remainingBalanceMicroUsdc: StateFlow<Long?> = _remainingBalanceMicroUsdc
+    private val _progressBarBalanceMicroUsdc = MutableStateFlow<Long?>(null)
+    val progressBarBalanceMicroUsdc: StateFlow<Long?> = _progressBarBalanceMicroUsdc
 
     // ASA balance check for QR visibility (null => not opted in / unavailable)
     private val _creatorAsaBalance = MutableStateFlow<String?>(null)
@@ -143,7 +147,7 @@ class LiquidAuthOfferViewModel(
     }
 
     /**
-     * Request X402 payment from client before starting paid streaming.
+     * Request MPP payment from client before starting paid streaming.
      * Call this when enablePaidStreaming is true and client connects.
      */
     @OptIn(ExperimentalUuidApi::class)
@@ -187,6 +191,7 @@ class LiquidAuthOfferViewModel(
                         gatingMode = GatingMode.PARTIAL_TIME,
                         enforcement = EnforcementMode.TRACK,
                         segmentDuration = 3,
+                        voucherSignature = null,
                     ),
             )
         println("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amount}")
@@ -423,6 +428,7 @@ class LiquidAuthOfferViewModel(
                         gatingMode = GatingMode.PARTIAL_TIME,
                         enforcement = EnforcementMode.TRACK,
                         segmentDuration = 3,
+                        voucherSignature = null,
                     ),
             )
 
@@ -472,16 +478,40 @@ class LiquidAuthOfferViewModel(
      * Consume one block of streaming (deduct 0.1 ALGO)
      * Called every block or periodically while streaming
      */
-    fun consumeBlock() {
+    fun consumeBlock(
+        onChainRemainingMicroUsdc: Long? = null,
+        progressBarBalanceMicroUsdc: Long? = null,
+    ) {
+        val onChainRemaining =
+            onChainRemainingMicroUsdc ?: run {
+                // Require smart-contract source-of-truth for host balance.
+                _remainingBalanceMicroUsdc.value = null
+                _progressBarBalanceMicroUsdc.value = null
+                return
+            }
+        val progressBalance = progressBarBalanceMicroUsdc ?: onChainRemaining
+
+        // Always update card-facing balances from on-chain, even if payment state is not yet streaming.
+        _remainingBalanceMicroUsdc.value = onChainRemaining
+        _progressBarBalanceMicroUsdc.value = progressBalance
+
         val currentPaymentState = _paymentState.value
         if (currentPaymentState !is PaymentState.StreamingWithBalance) {
-            return // Not in paid streaming mode
+            if (onChainRemaining > 0L) {
+                _paymentState.value =
+                    PaymentState.StreamingWithBalance(
+                        initialDepositMicroUsdc = onChainRemaining,
+                        remainingMicroUsdc = progressBalance,
+                        blocksWatched = 0,
+                    )
+                updateStreamingPaymentStatus(StreamingPaymentStatus.Active)
+            }
+            return
         }
 
-        val newBalance = currentPaymentState.remainingMicroAlgos - COST_PER_BLOCK_MICRO_USDC
         val newBlocksWatched = currentPaymentState.blocksWatched + 1
 
-        if (newBalance <= 0) {
+        if (progressBalance <= 0) {
             // Funds depleted - stop streaming immediately
             println("💰⛽ BALANCE DEPLETED! Stopping video stream...")
 
@@ -502,9 +532,10 @@ class LiquidAuthOfferViewModel(
             _paymentState.value =
                 PaymentState.Depleted(
                     totalBlocksWatched = newBlocksWatched,
-                    totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroAlgos,
+                    totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroUsdc,
                 )
             _remainingBalanceMicroUsdc.value = 0
+            _progressBarBalanceMicroUsdc.value = 0
 
             updateStreamingPaymentStatus(StreamingPaymentStatus.Depleted)
 
@@ -512,25 +543,28 @@ class LiquidAuthOfferViewModel(
                 eventDelegate.sendEvent(
                     OfferEvent.FundsDepleted(
                         totalBlocksWatched = newBlocksWatched,
-                        totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroAlgos,
+                        totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroUsdc,
                     ),
                 )
             }
         } else {
-            // Deduct from balance
+            // Keep payment state/progress in sync with effective progress balance.
             _paymentState.value =
                 currentPaymentState.copy(
-                    remainingMicroAlgos = newBalance,
+                    remainingMicroUsdc = progressBalance,
                     blocksWatched = newBlocksWatched,
                 )
-            _remainingBalanceMicroUsdc.value = newBalance
+            // Source-of-truth on-chain remaining from Session Vault smart contract.
+            _remainingBalanceMicroUsdc.value = onChainRemainingMicroUsdc
+            // Progress bar balance = on-chain remaining minus unsettled voucher.
+            _progressBarBalanceMicroUsdc.value = progressBalance
 
             // Send balance update event periodically (every 5 blocks)
             if (newBlocksWatched % 5 == 0) {
                 viewModelScope.launch {
                     eventDelegate.sendEvent(
                         OfferEvent.BalanceUpdated(
-                            remainingMicroAlgos = newBalance,
+                            remainingMicroAlgos = progressBalance,
                             blocksWatched = newBlocksWatched,
                         ),
                     )
@@ -552,6 +586,7 @@ class LiquidAuthOfferViewModel(
         blockchainMonitorJob = null
         _paymentState.value = PaymentState.NoPayment
         _remainingBalanceMicroUsdc.value = null
+        _progressBarBalanceMicroUsdc.value = null
         paymentSessionId = null
     }
 
@@ -591,15 +626,8 @@ class LiquidAuthOfferViewModel(
                                             println("🔗 Initial block stored: $currentBlock")
                                         }
                                         currentBlock > lastBlockNumber!! -> {
-                                            // New block detected - consume it
                                             val blocksAdvanced = (currentBlock - lastBlockNumber!!).toInt()
                                             println("🔗 New block(s) detected! Advanced by $blocksAdvanced blocks")
-
-                                            // Consume block for each new block (usually 1, but could be more if we missed some)
-                                            repeat(blocksAdvanced) {
-                                                consumeBlock()
-                                            }
-
                                             lastBlockNumber = currentBlock
                                         }
                                         else -> {
@@ -632,6 +660,16 @@ class LiquidAuthOfferViewModel(
         println("💰🎉 Payment received on-chain!")
 
         val currentState = state.value
+        val currentPaymentState = _paymentState.value
+        val isInitialPaymentConfirmation =
+            currentState is OfferState.WaitingForPayment || currentPaymentState !is PaymentState.StreamingWithBalance
+
+        if (!isInitialPaymentConfirmation) {
+            // Subsequent settlement ticks should NOT reset host balance back to initial deposit.
+            updateStreamingPaymentStatus(StreamingPaymentStatus.Active)
+            return
+        }
+
         if (currentState is OfferState.WaitingForPayment) {
             println("💰 Transitioning from WaitingForPayment to Streaming state")
             stateDelegate.updateState {
@@ -648,11 +686,12 @@ class LiquidAuthOfferViewModel(
 
         _paymentState.value =
             PaymentState.StreamingWithBalance(
-                initialDepositMicroAlgos = DEPOSIT_AMOUNT_MICRO_USDC,
-                remainingMicroAlgos = DEPOSIT_AMOUNT_MICRO_USDC,
+                initialDepositMicroUsdc = DEPOSIT_AMOUNT_MICRO_USDC,
+                remainingMicroUsdc = 0,
                 blocksWatched = 0,
             )
-        _remainingBalanceMicroUsdc.value = DEPOSIT_AMOUNT_MICRO_USDC
+        _remainingBalanceMicroUsdc.value = null
+        _progressBarBalanceMicroUsdc.value = null
 
         eventDelegate.sendEvent(
             OfferEvent.PaymentReceived(
@@ -743,8 +782,8 @@ class LiquidAuthOfferViewModel(
         ) : PaymentState
 
         data class StreamingWithBalance(
-            val initialDepositMicroAlgos: Long,
-            val remainingMicroAlgos: Long,
+            val initialDepositMicroUsdc: Long,
+            val remainingMicroUsdc: Long,
             val blocksWatched: Int,
         ) : PaymentState
 
@@ -870,6 +909,7 @@ class LiquidAuthOfferViewModel(
         /**
          * Payment rejected by client
          */
+
         /**
          * Balance updated during streaming
          */

@@ -10,20 +10,31 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.algorand.algosdk.sdk.Sdk
+import com.algorand.algosdk.util.Encoder
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
+import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidAuthBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +45,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
-import java.util.Timer
+import org.json.JSONObject
 
 /**
  * Android implementation of LiquidAuthConnectionManager.
@@ -44,6 +55,10 @@ import java.util.Timer
  */
 class AndroidLiquidAuthConnectionManager(
     private val context: Context,
+    private val getLocalAccount: GetLocalAccount,
+    private val getAlgo25SecretKey: GetAlgo25SecretKey,
+    private val getFalcon24SecretKey: GetFalcon24SecretKey,
+    private val getHdSeed: GetHdSeed,
 ) : LiquidAuthConnectionManager {
     companion object {
         private const val TAG = "AndroidLiquidAuthCM"
@@ -63,15 +78,23 @@ class AndroidLiquidAuthConnectionManager(
     private var liquidStreamCreator: LiquidStreamCreator? = null
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
+    private var activeViewerAddressForVault: String? = null
+    private var activeCreatorVoucherSignatureBase64: String? = null
 
     // Connection type state flow - exposed for UI and billing
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
-    // X402 Block consumption timer
-    private var blockConsumptionTimer: Timer? = null
-    private var blocksConsumed: Int = 0
-    private var currentSessionId: String? = null
+    private val blockConsumptionManager =
+        LiquidAuthBlockConsumptionManager(
+            tag = TAG,
+            getViewModel = { viewModel },
+            getActiveViewerAddress = { activeViewerAddressForVault },
+            getActiveCreatorAddress = { activePaymentRecipient },
+            getCreatorVoucherSignatureBase64 = { activeCreatorVoucherSignatureBase64 },
+            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) },
+            sendMessage = { message -> sendMessage(message) },
+        )
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
         Log.d(TAG, "🔌 initialize() called with viewModel=$viewModel")
@@ -81,59 +104,27 @@ class AndroidLiquidAuthConnectionManager(
 
     /**
      * Start X402 block consumption
-     * Now uses real Algorand blockchain blocks via monitorBlockchainBlocks()
      */
     override fun startBlockConsumption(sessionId: String) {
-        Log.d(TAG, "💰 Starting X402 block consumption for session: $sessionId")
-        stopBlockConsumption() // Stop any existing monitoring
-
-        currentSessionId = sessionId
-        blocksConsumed = 0
-
-        // Use ViewModel to monitor real blockchain blocks
-        viewModel?.monitorBlockchainBlocks()
-        Log.d(TAG, "💰 Started monitoring Algorand blockchain blocks")
+        val targetSessionId = activePaymentSessionId ?: sessionId
+        Log.e(
+            TAG,
+            "[SESSION_VAULT_START_BLOCK] requested=$sessionId activePaymentSession=$activePaymentSessionId target=$targetSessionId",
+        )
+        if (activePaymentSessionId != null && activePaymentSessionId != sessionId) {
+            Log.e(
+                TAG,
+                "[SESSION_VAULT_SESSION_MISMATCH] requested=$sessionId usingActivePaymentSession=$targetSessionId",
+            )
+        }
+        blockConsumptionManager.start(targetSessionId)
     }
 
     /**
      * Stop block consumption
      */
     override fun stopBlockConsumption() {
-        Log.d(TAG, "💰 Stopping X402 block consumption")
-        // The monitoring coroutine in ViewModel will stop automatically when
-        // payment state is no longer StreamingWithBalance
-        currentSessionId = null
-        blocksConsumed = 0
-    }
-
-    /**
-     * Consume one block (deduct 0.1 ALGO)
-     * Called every 3 seconds while streaming
-     */
-    private fun consumeBlock() {
-        val viewModel = this.viewModel ?: return
-        val sessionId = this.currentSessionId ?: return
-
-        // Consume block in ViewModel
-        viewModel.consumeBlock()
-        blocksConsumed++
-
-        // Check if depleted
-        if (MppPayments.isFundsDepleted(blocksConsumed)) {
-            Log.d(TAG, "💰 Funds depleted after $blocksConsumed blocks")
-            stopBlockConsumption()
-
-            // Send depleted message to client
-            val depletedJson =
-                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${blocksConsumed * 100_000L}}"""
-            sendMessage(depletedJson)
-            return
-        }
-
-        // Send balance update every block (3 seconds for maximum wow factor)
-        val balanceJson = MppPayments.createBalanceUpdateJson(sessionId, blocksConsumed)
-        sendMessage(balanceJson)
-        Log.d(TAG, "💰 Sent balance update: ${MppPayments.remainingUsdc(blocksConsumed)} USDC remaining")
+        blockConsumptionManager.stop()
     }
 
     /**
@@ -158,6 +149,10 @@ class AndroidLiquidAuthConnectionManager(
         }
 
         try {
+            activeCreatorVoucherSignatureBase64 = paymentRequest.meta.voucherSignature
+            if (activeViewerAddressForVault.isNullOrBlank()) {
+                Log.e(TAG, "[SESSION_VAULT_VIEWER_SET_FROM_REQUEST] viewer=$activeViewerAddressForVault session=${paymentRequest.id}")
+            }
             val network = toMppNetwork(paymentRequest.network)
             val amount = paymentRequest.amount
             val recipient = paymentRequest.payTo
@@ -179,9 +174,11 @@ class AndroidLiquidAuthConnectionManager(
                             network = network,
                             payTo = recipient,
                             segmentDuration = 3,
-                            leadTime = 5,
+                            leadTime = 0,
                         ),
                     gracePeriod = 5,
+                    viewerAddress = activeViewerAddressForVault,
+                    skipPaymentRequestWhenSessionFunded = true,
                 )
 
             val current = liquidStreamCreator
@@ -206,8 +203,34 @@ class AndroidLiquidAuthConnectionManager(
                         serverConfig = serverConfig.copy(sessionId = paymentRequest.id),
                     )
                 creator.rtcServer.onPaymentSettled = { receipt ->
-                    Log.d(TAG, "💰 MPP payment settled: txId=${receipt.txId}")
+                    receipt.payFrom
+                        .takeIf { it.isNotBlank() }
+                        ?.let {
+                            if (it != activeViewerAddressForVault) {
+                                Log.e(TAG, "[SESSION_VAULT_VIEWER_SET_FROM_RECEIPT] viewer=$it txId=${receipt.txId}")
+                            }
+                            activeViewerAddressForVault = it
+                        }
+
+                    Log.e(
+                        TAG,
+                        "[SESSION_VAULT_ON_PAYMENT_SETTLED] txId=${receipt.txId} payFrom=${receipt.payFrom} viewerForVault=$activeViewerAddressForVault session=${receipt.sessionId} activePaymentSession=$activePaymentSessionId",
+                    )
                     viewModel?.onMppPaymentSettled(receipt.txId)
+
+                    val targetSession = activePaymentSessionId ?: receipt.sessionId
+                    if (targetSession.isNotBlank()) {
+                        Log.e(
+                            TAG,
+                            "[SESSION_VAULT_FORCE_START_BLOCK] txId=${receipt.txId} targetSession=$targetSession",
+                        )
+                        startBlockConsumption(targetSession)
+                    } else {
+                        Log.e(
+                            TAG,
+                            "[SESSION_VAULT_FORCE_START_BLOCK_SKIP] reason=missing_session txId=${receipt.txId}",
+                        )
+                    }
                 }
                 creator.rtcServer.onPaymentRejected = { reason ->
                     Log.e(TAG, "💰 MPP payment rejected: $reason")
@@ -221,8 +244,20 @@ class AndroidLiquidAuthConnectionManager(
                 liquidStreamCreator = creator
                 activePaymentSessionId = paymentRequest.id
                 activePaymentRecipient = recipient
+                Log.e(
+                    TAG,
+                    "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_initialized session=${paymentRequest.id} viewer=$activeViewerAddressForVault recipient=$recipient",
+                )
+                startBlockConsumption(paymentRequest.id)
             } else {
                 current.updateConfig(serverConfig.copy(sessionId = paymentRequest.id))
+                activePaymentSessionId = paymentRequest.id
+                activePaymentRecipient = recipient
+                Log.e(
+                    TAG,
+                    "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_reused session=${paymentRequest.id} viewer=$activeViewerAddressForVault recipient=$recipient",
+                )
+                startBlockConsumption(paymentRequest.id)
             }
         } catch (e: Exception) {
             Log.e(TAG, "💰 Failed to initialize MPP creator", e)
@@ -233,7 +268,11 @@ class AndroidLiquidAuthConnectionManager(
     private fun toMppNetwork(network: String): String {
         val n = network.lowercase()
         return when {
-            network == MppNetworks.SOLANA_MAINNET || n.contains("solana") && (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
+            network == MppNetworks.SOLANA_MAINNET ||
+                n.contains(
+                    "solana",
+                ) &&
+                (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
             network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
             network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
             n.contains("mainnet") || network == MppNetworks.ALGORAND_MAINNET -> MppNetworks.ALGORAND_MAINNET
@@ -417,6 +456,7 @@ class AndroidLiquidAuthConnectionManager(
                         activity = act,
                         onMessage = { msg ->
                             Log.d(TAG, "📨 Received message: ${msg.take(150)}...")
+                            tryCaptureViewerAddressFromMessage(msg)
 
                             // If we receive any other message, connection is open
                             val currentDcState = service.dataChannel?.state()?.toString()
@@ -474,6 +514,17 @@ class AndroidLiquidAuthConnectionManager(
             .setPriority(NotificationCompat.PRIORITY_LOW)
     }
 
+    private fun tryCaptureViewerAddressFromMessage(msg: String) {
+        runCatching {
+            val json = JSONObject(msg)
+            val candidate = json.optString("address", "").takeIf { it.isNotBlank() }
+            if (candidate != null && candidate != activeViewerAddressForVault) {
+                activeViewerAddressForVault = candidate
+                Log.d(TAG, "🔑 Captured viewer address from LiquidAuth message: $candidate")
+            }
+        }
+    }
+
     override fun stopListening() {
         Log.d(TAG, "Stopping SignalService (activeRequestId=$activeRequestId)")
         stopConnectionTypePolling()
@@ -482,6 +533,8 @@ class AndroidLiquidAuthConnectionManager(
         liquidStreamCreator = null
         activePaymentSessionId = null
         activePaymentRecipient = null
+        activeViewerAddressForVault = null
+        activeCreatorVoucherSignatureBase64 = null
         serviceConnection?.let {
             try {
                 context.unbindService(it)
@@ -544,10 +597,70 @@ class AndroidLiquidAuthConnectionManager(
         val dataChannelState = signalService?.dataChannel?.state()?.toString()
         return dataChannelState == "OPEN"
     }
+
+    private suspend fun buildCreatorWalletSigner(creatorAddress: String): MppWalletSigner? {
+        val localAccount = getLocalAccount(creatorAddress) ?: return null
+        if (localAccount is LocalAccount.SeedVault) return null
+
+        return object : MppWalletSigner {
+            override val address: String = creatorAddress
+
+            override suspend fun signTransaction(txn: com.algorand.algosdk.transaction.Transaction): ByteArray =
+                when (localAccount) {
+                    is LocalAccount.Algo25 -> {
+                        val secretKey =
+                            getAlgo25SecretKey(creatorAddress)
+                                ?: error("Missing Algo25 key for $creatorAddress")
+                        val txnBytes = txn.bytes()
+                        val signature =
+                            signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                                ?: error("Algo25 arbitrary signing failed")
+                        Sdk.attachSignature(signature, txnBytes)
+                    }
+
+                    is LocalAccount.HdKey -> {
+                        val seed =
+                            getHdSeed(localAccount.seedId)
+                                ?: error("Missing HD seed for $creatorAddress")
+                        signHdKeyTransaction(
+                            transactionByteArray = Encoder.encodeToMsgPack(txn),
+                            seed = seed,
+                            account = localAccount.account,
+                            change = localAccount.change,
+                            key = localAccount.keyIndex,
+                        ) ?: error("HD signing failed")
+                    }
+
+                    is LocalAccount.Falcon24 -> {
+                        val secretKey =
+                            getFalcon24SecretKey(creatorAddress)
+                                ?: error("Missing Falcon24 key for $creatorAddress")
+                        signFalcon24Transaction(
+                            transactionByteArray = Encoder.encodeToMsgPack(txn),
+                            publicKey = localAccount.publicKey,
+                            privateKey = secretKey,
+                        ) ?: error("Falcon24 signing failed")
+                    }
+
+                    else -> error("Unsupported account for Algorand Session Vault claim signing")
+                }
+        }
+    }
 }
 
 /**
  * Android actual implementation of factory function.
  */
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager =
-    AndroidLiquidAuthConnectionManager(platformContext as Context)
+actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager {
+    val context = platformContext as Context
+    val koin =
+        org.koin.java.KoinJavaComponent
+            .getKoin()
+    return AndroidLiquidAuthConnectionManager(
+        context = context,
+        getLocalAccount = koin.get(clazz = GetLocalAccount::class),
+        getAlgo25SecretKey = koin.get(clazz = GetAlgo25SecretKey::class),
+        getFalcon24SecretKey = koin.get(clazz = GetFalcon24SecretKey::class),
+        getHdSeed = koin.get(clazz = GetHdSeed::class),
+    )
+}

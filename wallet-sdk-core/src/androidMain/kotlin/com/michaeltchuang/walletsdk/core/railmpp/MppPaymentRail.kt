@@ -8,10 +8,15 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.RailPayment
 import org.json.JSONObject
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppConsumer
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppProvider
+import com.algorand.algosdk.transaction.SignedTransaction
+import com.algorand.algosdk.transaction.Transaction
+import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.railmpp.spec.AuthParams
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
 import java.util.UUID
 import kotlin.collections.get
+import xyz.goplausible.webrtcpaymentsdk.railmpp.spec.Base64Std
 
 /**
  * MPP "charge" payment rail for Algorand — Kotlin port.
@@ -163,7 +168,7 @@ class MppPaymentRail(
             amount = request.amount,
             asset = request.asset,
             payTo = request.payTo,
-            payFrom = "",
+            payFrom = extractPayerAddress(authHeader),
             feePayer = provider.serverConfig.feePayer?.address?.toString(),
             facilitator = null,
             network = request.network,
@@ -184,6 +189,40 @@ class MppPaymentRail(
             if (!s.isNullOrBlank()) return s
         }
         error("MppPaymentRail: railPayment.paymentPayload missing 'credential' field")
+    }
+
+    private fun extractPayerAddress(authHeader: String): String {
+        return runCatching {
+            val credential = ChargeCredentialCodec.fromAuthHeader(authHeader)
+            val paymentGroup = credential.payload.paymentGroup ?: return ""
+            val paymentIndex = credential.payload.paymentIndex
+
+            val candidateIndexes =
+                buildList {
+                    if (paymentIndex != null && paymentIndex in paymentGroup.indices) add(paymentIndex)
+                    if (!contains(0) && paymentGroup.isNotEmpty()) add(0)
+                }
+
+            for (index in candidateIndexes) {
+                val txnBytes = Base64Std.decode(paymentGroup[index])
+
+                // Signed first, fallback to unsigned for fee-payer style flows.
+                val signed =
+                    runCatching {
+                        Encoder.decodeFromMsgPack(txnBytes, SignedTransaction::class.java)
+                    }.getOrNull()
+                val sender =
+                    if (signed?.tx != null) {
+                        signed.tx.sender.toString()
+                    } else {
+                        val unsigned = Encoder.decodeFromMsgPack(txnBytes, Transaction::class.java)
+                        unsigned.sender.toString()
+                    }
+                if (sender.isNotBlank()) return sender
+            }
+
+            ""
+        }.getOrDefault("")
     }
 
     /** Internal accessor for the provider — used by extractCredential bridging. */

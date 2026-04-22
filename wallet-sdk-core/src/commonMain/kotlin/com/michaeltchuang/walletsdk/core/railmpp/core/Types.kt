@@ -45,7 +45,9 @@ data class PaymentRequestMeta(
     val gatingMode: GatingMode,
     val enforcement: EnforcementMode,
     val segmentDuration: Int? = null,
-    val segmentBytes: Long? = null
+    val segmentBytes: Long? = null,
+    val viewerAddress: String? = null,
+    val voucherSignature: String? = null,
 )
 
 data class PaymentRequest(
@@ -112,7 +114,8 @@ data class ConsentApproval(
     val approved: Boolean,
     val autoPaySegments: Boolean,
     val budgetCap: BudgetCap? = null,
-    val maxAutoPaySegments: Int? = null
+    val maxAutoPaySegments: Int? = null,
+    val voucherSignature: ByteArray? = null,
 )
 
 // ─── Session Stats ───────────────────────────────────────
@@ -159,7 +162,9 @@ data class ServerConfig(
     val gating: GatingConfig,
     val enforcement: EnforcementMode = EnforcementMode.TRACK,
     val paymentTTL: Int = 30,
-    val gracePeriod: Int = 0
+    val gracePeriod: Int = 0,
+    val viewerAddress: String? = null,
+    val skipPaymentRequestWhenSessionFunded: Boolean = false,
 )
 
 data class ClientConfig(

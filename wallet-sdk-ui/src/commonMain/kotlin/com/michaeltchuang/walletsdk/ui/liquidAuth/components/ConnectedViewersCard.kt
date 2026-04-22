@@ -41,20 +41,19 @@ import kotlin.math.round
 @Composable
 internal fun ConnectedViewersCard(
     sessionId: String,
-    balanceUSDC: Double,
+    remainingBalanceUSDC: Double?,
+    progressBalanceUSDC: Double?,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
-    blockChainLabel: String = "ALGORAND",
     networkLabel: String = "TESTNET",
-    balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
     viewerAddress: String? = null,
 ) {
     val colors = AlgoKitTheme.colors
     val isDarkTheme = LocalThemeIsDark.current.value
-    val balanceText = (round(balanceUSDC * 100) / 100).toString()
+    val balanceText = remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
     val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
-    val progress = (balanceUSDC / 1.0).coerceIn(0.0, 1.0).toFloat()
+    val progress = progressBalanceUSDC?.let { (it / 1.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
     val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
     val originDisplay =
         originUrl
@@ -289,10 +288,13 @@ private fun ConnectedViewersCardLightPreview() {
             ) {
                 ConnectedViewersCard(
                     sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
-                    balanceUSDC = round(0.2 * 100) / 100,
+                    remainingBalanceUSDC = 8.88,
                     connectionType = IceConnectionType.RELAY,
                     currentBlockNumber = null,
                     networkLabel = "TESTNET",
+                    progressBalanceUSDC = 0.2,
+                    originUrl = "michaeltchuang.ngrok.dev",
+                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
                 )
             }
         }
@@ -312,10 +314,13 @@ private fun ConnectedViewersCardDarkPreview() {
             ) {
                 ConnectedViewersCard(
                     sessionId = "session-1234567890",
-                    balanceUSDC = round(0.2 * 100) / 100,
+                    remainingBalanceUSDC = 8.88,
                     connectionType = IceConnectionType.STUN,
                     currentBlockNumber = null,
                     networkLabel = "MAINNET",
+                    progressBalanceUSDC = 0.2,
+                    originUrl = "michaeltchuang.ngrok.dev",
+                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
                 )
             }
         }
