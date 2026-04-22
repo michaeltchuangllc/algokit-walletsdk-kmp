@@ -68,7 +68,6 @@ import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.webrtc.DataChannel
 import java.security.Security
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resume
 import kotlinx.coroutines.isActive
 import kotlin.io.encoding.Base64
@@ -101,6 +100,7 @@ class AnswerActivity : AppCompatActivity() {
     private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
     private var liquidStreamViewer: LiquidStreamViewer? = null
     private var viewerOnChainRefreshJob: Job? = null
+    private var latestViewerPaymentRecipient: String? = null
 
     private data class SeedVaultSigner(
         val authToken: Long,
@@ -160,6 +160,11 @@ class AnswerActivity : AppCompatActivity() {
                     AnswerScreen(
                         viewModel = viewModel,
                         onMinimizeToPip = { enterPipMode() },
+                        onViewerTopUpConfirm = { enteredAmount ->
+                            lifecycleScope.launch {
+                                topUpViewerSessionVault(enteredAmount)
+                            }
+                        },
                     )
                     if (showDialogState.value && pendingParams != null && pendingMessage != null) {
                         LaunchedEffect(Unit) {
@@ -746,7 +751,7 @@ class AnswerActivity : AppCompatActivity() {
                 stopViewerOnChainRefresh()
                 liquidStreamViewer?.terminate()
                 val mppNetwork = resolveMppClientNetwork(accountAddress)
-                var latestPaymentRecipient: String? = null
+                latestViewerPaymentRecipient = null
                 liquidStreamViewer =
                     LiquidStreamViewer(
                         peerConnection = peerConnection,
@@ -791,7 +796,7 @@ class AnswerActivity : AppCompatActivity() {
                                     val approval = viewModel.requestMppConsentFromUi(terms)
                                     if (!approval.approved) return approval
 
-                                    val payToAddress = latestPaymentRecipient.orEmpty()
+                                    val payToAddress = latestViewerPaymentRecipient.orEmpty()
                                     val depositMicroUsdc = 1_000_000L
                                     val signer = buildMppWalletSigner(accountAddress)
 
@@ -846,7 +851,7 @@ class AnswerActivity : AppCompatActivity() {
                         clientConfig = ClientConfig(autoPaySegments = false),
                     ).also {
                         it.rtcClient.onPaymentRequested = { request ->
-                            latestPaymentRecipient = request.payTo
+                            latestViewerPaymentRecipient = request.payTo
                             Log.e(
                                 TAG,
                                 "[VIEWER_PAYMENT_REQUEST_RECEIVED] session=${request.id} payTo=${request.payTo} amount=${request.amount} asset=${request.asset}",
@@ -854,7 +859,7 @@ class AnswerActivity : AppCompatActivity() {
                         }
                         it.rtcClient.onPaymentReceipt = { receipt ->
                             lifecycleScope.launch {
-                                latestPaymentRecipient = receipt.payTo
+                                latestViewerPaymentRecipient = receipt.payTo
                                 val debit = receipt.amount.toLongOrNull() ?: 0L
                                 val viewerAddress = receipt.payFrom.ifBlank { accountAddress }
                                 val blocksConsumed = (receipt.segmentIndex + 1).coerceAtLeast(0)
@@ -993,6 +998,64 @@ class AnswerActivity : AppCompatActivity() {
     private fun stopViewerOnChainRefresh() {
         viewerOnChainRefreshJob?.cancel()
         viewerOnChainRefreshJob = null
+    }
+
+    private suspend fun topUpViewerSessionVault(enteredAmount: String) {
+        val accountAddress = algoAddress.orEmpty().ifBlank {
+            showToast("Missing viewer account address", Toast.LENGTH_LONG)
+            return
+        }
+
+        val creatorAddress =
+            waitForViewerPaymentRecipient()
+                ?: run {
+                    showToast("Missing stream recipient. Please wait for payment request and try again.", Toast.LENGTH_LONG)
+                    return
+                }
+
+        val signer =
+            runCatching { buildMppWalletSigner(accountAddress) }
+                .getOrElse {
+                    showToast("Top-up failed: ${it.message}", Toast.LENGTH_LONG)
+                    return
+                }
+
+        viewModel
+            .topUpViewerSessionVault(
+                enteredAmount = enteredAmount,
+                viewerAddress = accountAddress,
+                creatorAddress = creatorAddress,
+                signer = signer,
+            ).onSuccess { onChainRemaining ->
+                if (onChainRemaining != null) {
+                    showToast("SessionVault topped up successfully")
+                    startViewerOnChainRefresh(accountAddress)
+                } else {
+                    showToast("Top-up submitted, but balance refresh is pending", Toast.LENGTH_LONG)
+                }
+            }.onFailure { throwable ->
+                showToast("Top-up failed: ${throwable.message}", Toast.LENGTH_LONG)
+            }
+    }
+
+    private suspend fun waitForViewerPaymentRecipient(timeoutMs: Long = 3000L): String? {
+        latestViewerPaymentRecipient
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
+        val startedAt = System.currentTimeMillis()
+        while ((System.currentTimeMillis() - startedAt) < timeoutMs) {
+            latestViewerPaymentRecipient
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    Log.e(TAG, "[VIEWER_RECIPIENT_READY] payTo=$it")
+                    return it
+                }
+            kotlinx.coroutines.delay(100L)
+        }
+
+        Log.e(TAG, "[VIEWER_RECIPIENT_TIMEOUT] timeoutMs=$timeoutMs")
+        return null
     }
 
     private suspend fun awaitPaymentDataChannel(

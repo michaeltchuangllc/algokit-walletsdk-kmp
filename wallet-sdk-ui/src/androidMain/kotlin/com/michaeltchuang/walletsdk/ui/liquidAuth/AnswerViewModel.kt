@@ -40,8 +40,11 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
@@ -68,6 +71,7 @@ import org.json.JSONObject
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.roundToLong
 
 class AnswerViewModel(
     private val addNewPasskey: AddNewPasskey,
@@ -702,6 +706,54 @@ class AnswerViewModel(
             TAG,
             "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC, onChain=${onChain / 1_000_000.0}, usage=${usageAfter / 1_000_000.0}, progress=${progressAfter / 1_000_000.0}",
         )
+    }
+
+    suspend fun topUpViewerSessionVault(
+        enteredAmount: String,
+        viewerAddress: String,
+        creatorAddress: String,
+        signer: MppWalletSigner,
+    ): Result<Long?> {
+        val amountUsdc = enteredAmount.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
+        val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
+
+        return runCatching {
+            val txId =
+                MppPayments
+                    .openSessionAndDeposit(
+                        signer = signer,
+                        viewerAddress = viewerAddress,
+                        creatorAddress = creatorAddress,
+                        depositAmountMicroUsdc = depositMicroUsdc,
+                    ).getOrThrow()
+            Log.e(
+                TAG,
+                "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress amountMicroUsdc=$depositMicroUsdc txId=$txId",
+            )
+
+            val onChainRemaining =
+                MppPayments.getRemainingBalanceFromSessionVault(
+                    viewerAddress = viewerAddress,
+                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                )
+
+            if (onChainRemaining != null) {
+                setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
+            } else {
+                Log.e(
+                    TAG,
+                    "[VIEWER_SESSION_VAULT_TOPUP_FETCH_NULL] viewer=$viewerAddress txId=$txId",
+                )
+            }
+
+            onChainRemaining
+        }.onFailure { throwable ->
+            Log.e(
+                TAG,
+                "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress amountMicroUsdc=$depositMicroUsdc",
+                throwable,
+            )
+        }
     }
 
     fun startRealtimeBlockNumberUpdates() {

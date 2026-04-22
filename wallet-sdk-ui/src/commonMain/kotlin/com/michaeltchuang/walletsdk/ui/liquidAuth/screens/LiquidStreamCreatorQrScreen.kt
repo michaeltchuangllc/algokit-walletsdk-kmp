@@ -102,6 +102,7 @@ fun LiquidStreamCreatorQrScreen(
                 Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
                     LiquidStreamViewerScreen(
                         onMinimize = { showViewerBottomSheet = false },
+                        onTopUpConfirm = {},
                     )
                 }
             }

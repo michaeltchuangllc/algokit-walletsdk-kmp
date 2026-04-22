@@ -62,6 +62,7 @@ import kotlin.math.roundToLong
 fun AnswerScreen(
     viewModel: AnswerViewModel,
     onMinimizeToPip: () -> Unit = {},
+    onViewerTopUpConfirm: (String) -> Unit = {},
 ) {
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
@@ -155,6 +156,7 @@ fun AnswerScreen(
                         Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
                         onMinimizeToPip()
                     },
+                    onTopUpConfirm = onViewerTopUpConfirm,
                 )
             }
         }

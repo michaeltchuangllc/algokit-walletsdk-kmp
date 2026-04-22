@@ -11,9 +11,8 @@ import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
-import org.bouncycastle.jce.provider.BouncyCastleProvider
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetSessionVaultRemainingBalanceUseCase
 import org.json.JSONObject
-import java.security.Security
 
 /**
  * MPP payment helper for Liquid Stream.
@@ -84,49 +83,17 @@ object MppPayments {
 
     fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double = remainingMicroAlgos / 1_000_000.0
 
+    private val getSessionVaultRemainingBalanceUseCase = GetSessionVaultRemainingBalanceUseCase()
+
     fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
-    ): Long? =
-        runCatching {
-            Security.removeProvider("BC")
-            Security.insertProviderAt(BouncyCastleProvider(), 0)
-            
-            val client = algodClient(algodUrl)
-            val boxName = sessionBoxName(viewerAddress)
-            val boxNameB64 = Encoder.encodeToBase64(boxName)
-            val response =
-                client
-                    .GetApplicationBoxByName(appId)
-                    .name("b64:$boxNameB64")
-                    .execute()
-
-            if (!response.isSuccessful) {
-                Log.e(
-                    TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId viewer=$viewerAddress box=b64:$boxNameB64 code=${response.code()} message=${response.message()}",
-                )
-                return null
-            }
-
-            val sessionBytes = response.body()?.value
-            if (sessionBytes == null) {
-                Log.e(
-                    TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=empty_box_value appId=$appId viewer=$viewerAddress box=b64:$boxNameB64",
-                )
-                return null
-            }
-
-            decodeRemainingBalanceFromSessionInfo(sessionBytes)
-        }.onFailure {
-            Log.e(
-                TAG,
-                "[SESSION_VAULT_REMAINING_ERR] reason=exception appId=$appId viewer=$viewerAddress algodUrl=$algodUrl",
-                it,
-            )
-        }.getOrNull()
+    ): Long? = getSessionVaultRemainingBalanceUseCase(
+        viewerAddress = viewerAddress,
+        appId = appId,
+        algodUrl = algodUrl,
+    )
 
     suspend fun openSessionAndDeposit(
         signer: MppWalletSigner,
@@ -260,24 +227,6 @@ object MppPayments {
                 (bytes.size and 0xFF).toByte(),
             )
         return lengthPrefix + bytes
-    }
-
-    private fun decodeRemainingBalanceFromSessionInfo(bytes: ByteArray): Long {
-        if (bytes.size < 48) error("Invalid session box payload size=${bytes.size}")
-        val totalDeposit = decodeUint64BigEndian(bytes, 32)
-        val lastSettled = decodeUint64BigEndian(bytes, 40)
-        return (totalDeposit - lastSettled).coerceAtLeast(0L)
-    }
-
-    private fun decodeUint64BigEndian(
-        bytes: ByteArray,
-        offset: Int,
-    ): Long {
-        var out = 0L
-        for (i in 0 until 8) {
-            out = (out shl 8) or (bytes[offset + i].toLong() and 0xFF)
-        }
-        return out
     }
 
     private fun algodClient(url: String): AlgodClient {
