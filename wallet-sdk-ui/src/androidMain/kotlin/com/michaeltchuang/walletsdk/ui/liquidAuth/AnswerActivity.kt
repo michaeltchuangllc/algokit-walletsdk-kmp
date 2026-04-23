@@ -47,6 +47,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel.Companion.SERVICE_NOTIFICATION_ID
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -59,6 +60,7 @@ import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -103,6 +105,8 @@ class AnswerActivity : AppCompatActivity() {
     private var pendingSeedVaultSignContinuation: CancellableContinuation<ByteArray?>? = null
     private var liquidStreamViewer: LiquidStreamViewer? = null
     private var viewerOnChainRefreshJob: Job? = null
+    private var viewerRefreshViewerAddress: String? = null
+    private var viewerRefreshHostAddress: String? = null
     private var connectedHostAddress: String? = null
     private var connectedPaymentSessionId: String? = null
     private var viewerBlocksConsumedByRefresh: Int = 0
@@ -943,7 +947,7 @@ class AnswerActivity : AppCompatActivity() {
                                 viewerBlocksConsumedByRefresh = maxOf(viewerBlocksConsumedByRefresh, blocksConsumed)
                                 val voucherUsed =
                                     MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
-                                        .coerceAtMost(MppPayments.voucherSettleWindowMicroUsdc())
+                                        .coerceAtMost(MppPayments.maxSessionDepositMicroUsdc())
 
                                 Log.d(
                                     TAG,
@@ -966,25 +970,34 @@ class AnswerActivity : AppCompatActivity() {
                                                 TAG,
                                                 "[VIEWER_CLAIM_MSG_HASH] source=receipt session=${receipt.sessionId} appId=$claimAppId totalAmountClaimedMicroUsdc=$voucherUsed hash=$claimMessageHash",
                                             )
-                                            val message =
-                                                MppPayments.buildClaimMessage(
-                                                    appId = claimAppId,
-                                                    totalAmountClaimedMicroUsdc = voucherUsed,
-                                                )
-                                            viewModel.signFido2Challenge(message, accountAddress)
+                                            signViewerClaimVoucherMessage(
+                                                appId = claimAppId,
+                                                totalAmountClaimedMicroUsdc = voucherUsed,
+                                                viewerAddress = viewerAddress,
+                                            )
                                         }.getOrNull()
 
                                     if (voucherSignature != null && voucherSignature.isNotEmpty()) {
+                                        val claimAppId =
+                                            com.michaeltchuang.walletsdk.core.railmpp.utils
+                                                .RailMppConstants
+                                                .MPP_SESSION_VAULT_APP_ID
                                         runViewerClaimSignatureSelfTest(
                                             sessionId = receipt.sessionId,
-                                            appId =
-                                                com.michaeltchuang.walletsdk.core.railmpp.utils
-                                                    .RailMppConstants
-                                                    .MPP_SESSION_VAULT_APP_ID,
+                                            appId = claimAppId,
                                             totalAmountClaimedMicroUsdc = voucherUsed,
                                             viewerAddress = viewerAddress,
                                             signature = voucherSignature,
                                         )
+                                        if (RailMppConstants.ENABLE_VIEWER_DEBUG_VERIFY_HELPER_ON_CHAIN) {
+                                            runViewerOnChainHelperCheck(
+                                                sessionId = receipt.sessionId,
+                                                appId = claimAppId,
+                                                viewerAddress = viewerAddress,
+                                                totalAmountClaimedMicroUsdc = voucherUsed,
+                                                signature = voucherSignature,
+                                            )
+                                        }
                                         val voucherJson =
                                             MppPayments.createVoucherJson(
                                                 sessionId = receipt.sessionId,
@@ -999,10 +1012,12 @@ class AnswerActivity : AppCompatActivity() {
                                             JSONObject(voucherJson).apply {
                                                 put("signature", signatureBase64)
                                             }
-                                        viewModel.signalService.value?.send(voucherPayload.toString())
-                                        Log.e(
-                                            TAG,
-                                            "[VIEWER_VOUCHER_SENT] session=${receipt.sessionId} blocks=$blocksConsumed used=$voucherUsed sigBytes=${voucherSignature.size}",
+                                        sendViewerVoucherSafely(
+                                            payload = voucherPayload.toString(),
+                                            source = "receipt",
+                                            sessionId = receipt.sessionId,
+                                            blocksConsumed = blocksConsumed,
+                                            voucherUsed = voucherUsed,
                                         )
                                     }
                                 }
@@ -1076,11 +1091,24 @@ class AnswerActivity : AppCompatActivity() {
             Log.e(TAG, "[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=blank_viewer")
             return
         }
+        if (
+            viewerOnChainRefreshJob?.isActive == true &&
+            viewerRefreshViewerAddress == viewerAddress &&
+            viewerRefreshHostAddress == hostAddress
+        ) {
+            Log.e(
+                TAG,
+                "[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=already_running viewer=$viewerAddress host=$hostAddress",
+            )
+            return
+        }
         Log.e(
             TAG,
             "[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$hostAddress baselineSeed=${viewerSessionStartRemainingMicroUsdc}",
         )
         stopViewerOnChainRefresh()
+        viewerRefreshViewerAddress = viewerAddress
+        viewerRefreshHostAddress = hostAddress
         viewerLastObservedBlockNumber = null
         viewerLastVoucherSentBlocks = 0
         viewerOnChainRefreshJob =
@@ -1132,7 +1160,6 @@ class AnswerActivity : AppCompatActivity() {
                                 val voucherUsed =
                                     MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
                                         .coerceAtMost(sessionCap)
-                                        .coerceAtMost(MppPayments.voucherSettleWindowMicroUsdc())
                                 val voucherSignature =
                                     runCatching {
                                         val claimAppId =
@@ -1148,12 +1175,11 @@ class AnswerActivity : AppCompatActivity() {
                                             TAG,
                                             "[VIEWER_CLAIM_MSG_HASH] source=refresh session=${connectedPaymentSessionId.orEmpty()} appId=$claimAppId totalAmountClaimedMicroUsdc=$voucherUsed hash=$claimMessageHash",
                                         )
-                                        val message =
-                                            MppPayments.buildClaimMessage(
-                                                appId = claimAppId,
-                                                totalAmountClaimedMicroUsdc = voucherUsed,
-                                            )
-                                        viewModel.signFido2Challenge(message, viewerAddress)
+                                        signViewerClaimVoucherMessage(
+                                            appId = claimAppId,
+                                            totalAmountClaimedMicroUsdc = voucherUsed,
+                                            viewerAddress = viewerAddress,
+                                        )
                                     }.getOrNull()
 
                                 if (voucherSignature != null && voucherSignature.isNotEmpty()) {
@@ -1171,16 +1197,26 @@ class AnswerActivity : AppCompatActivity() {
                                             "[VIEWER_VOUCHER_SKIP] reason=session_id_missing_no_delay blocks=$blocksConsumed host=$hostAddress",
                                         )
                                     } else {
+                                        val claimAppId =
+                                            com.michaeltchuang.walletsdk.core.railmpp.utils
+                                                .RailMppConstants
+                                                .MPP_SESSION_VAULT_APP_ID
                                         runViewerClaimSignatureSelfTest(
                                             sessionId = sessionId,
-                                            appId =
-                                                com.michaeltchuang.walletsdk.core.railmpp.utils
-                                                    .RailMppConstants
-                                                    .MPP_SESSION_VAULT_APP_ID,
+                                            appId = claimAppId,
                                             totalAmountClaimedMicroUsdc = voucherUsed,
                                             viewerAddress = viewerAddress,
                                             signature = voucherSignature,
                                         )
+                                        if (RailMppConstants.ENABLE_VIEWER_DEBUG_VERIFY_HELPER_ON_CHAIN) {
+                                            runViewerOnChainHelperCheck(
+                                                sessionId = sessionId,
+                                                appId = claimAppId,
+                                                viewerAddress = viewerAddress,
+                                                totalAmountClaimedMicroUsdc = voucherUsed,
+                                                signature = voucherSignature,
+                                            )
+                                        }
                                         val voucherJson =
                                             MppPayments.createVoucherJson(
                                                 sessionId = sessionId,
@@ -1195,12 +1231,21 @@ class AnswerActivity : AppCompatActivity() {
                                             JSONObject(voucherJson).apply {
                                                 put("signature", signatureBase64)
                                             }
-                                        viewModel.signalService.value?.send(voucherPayload.toString())
-                                        viewerLastVoucherSentBlocks = blocksConsumed
-                                        Log.e(
-                                            TAG,
-                                            "[VIEWER_VOUCHER_SENT] source=refresh session=$sessionId blocks=$blocksConsumed used=$voucherUsed capMicroUsdc=${viewerSessionStartRemainingMicroUsdc ?: remaining} sigBytes=${voucherSignature.size}",
-                                        )
+                                        val sent =
+                                            sendViewerVoucherSafely(
+                                                payload = voucherPayload.toString(),
+                                                source = "refresh",
+                                                sessionId = sessionId,
+                                                blocksConsumed = blocksConsumed,
+                                                voucherUsed = voucherUsed,
+                                            )
+                                        if (sent) {
+                                            viewerLastVoucherSentBlocks = blocksConsumed
+                                            Log.e(
+                                                TAG,
+                                                "[VIEWER_VOUCHER_SENT] source=refresh session=$sessionId blocks=$blocksConsumed used=$voucherUsed capMicroUsdc=${viewerSessionStartRemainingMicroUsdc ?: remaining} sigBytes=${voucherSignature.size}",
+                                            )
+                                        }
                                     }
                                 } else {
                                     Log.e(
@@ -1225,11 +1270,42 @@ class AnswerActivity : AppCompatActivity() {
     private fun stopViewerOnChainRefresh() {
         viewerOnChainRefreshJob?.cancel()
         viewerOnChainRefreshJob = null
+        viewerRefreshViewerAddress = null
+        viewerRefreshHostAddress = null
         connectedPaymentSessionId = null
         viewerBlocksConsumedByRefresh = 0
         viewerLastObservedBlockNumber = null
         viewerLastVoucherSentBlocks = 0
         viewerSessionStartRemainingMicroUsdc = null
+    }
+
+    private fun sendViewerVoucherSafely(
+        payload: String,
+        source: String,
+        sessionId: String,
+        blocksConsumed: Int,
+        voucherUsed: Long,
+    ): Boolean {
+        val service = viewModel.signalService.value
+        val state = service?.dataChannel?.state()
+        if (service == null || state != DataChannel.State.OPEN) {
+            Log.e(
+                TAG,
+                "[VIEWER_VOUCHER_SKIP] source=$source reason=data_channel_unavailable session=$sessionId blocks=$blocksConsumed used=$voucherUsed dcState=$state",
+            )
+            return false
+        }
+
+        return runCatching {
+            service.send(payload)
+            true
+        }.onFailure {
+            Log.e(
+                TAG,
+                "[VIEWER_VOUCHER_SKIP] source=$source reason=send_failed session=$sessionId blocks=$blocksConsumed used=$voucherUsed",
+                it,
+            )
+        }.getOrDefault(false)
     }
 
     private suspend fun awaitPaymentDataChannel(
@@ -1620,6 +1696,84 @@ class AnswerActivity : AppCompatActivity() {
             verifier.update(message, 0, message.size)
             verifier.verifySignature(signature)
         }.getOrDefault(false)
+
+    private suspend fun signViewerClaimVoucherMessage(
+        appId: Long,
+        totalAmountClaimedMicroUsdc: Long,
+        viewerAddress: String,
+    ): ByteArray? {
+        val localAccount = viewModel.resolveLocalAccount(viewerAddress)
+        return if (localAccount is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25) {
+            val secretKey = viewModel.resolveAlgo25SecretKey(viewerAddress)
+            if (secretKey == null) {
+                Log.e(
+                    TAG,
+                    "[VIEWER_CLAIM_SIGN_SKIP] reason=missing_algo25_secret_key viewer=$viewerAddress appId=$appId totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc",
+                )
+                null
+            } else {
+                MppPayments.signClaimMessageWithAlgoSdk(
+                    secretKey = secretKey,
+                    appId = appId,
+                    totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+                )
+            }
+        } else {
+            val message =
+                MppPayments.buildClaimMessage(
+                    appId = appId,
+                    totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+                )
+            viewModel.signFido2Challenge(message, viewerAddress)
+        }
+    }
+
+    private fun runViewerOnChainHelperCheck(
+        sessionId: String,
+        appId: Long,
+        viewerAddress: String,
+        totalAmountClaimedMicroUsdc: Long,
+        signature: ByteArray,
+    ) {
+        if (!RailMppConstants.ENABLE_VIEWER_DEBUG_VERIFY_HELPER_ON_CHAIN) {
+            Log.e(
+                TAG,
+                "[VIEWER_VERIFY_HELPER_SKIP] session=$sessionId reason=feature_flag_disabled totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc viewer=$viewerAddress",
+            )
+            return
+        }
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            val signer = runCatching { buildMppWalletSigner(viewerAddress) }.getOrNull()
+            if (signer == null) {
+                Log.e(
+                    TAG,
+                    "[VIEWER_VERIFY_HELPER_SKIP] session=$sessionId reason=signer_unavailable viewer=$viewerAddress totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc",
+                )
+                return@launch
+            }
+
+            MppPayments
+                .debugVerifyClaimVoucherSignatureOnChain(
+                    signer = signer,
+                    appId = appId,
+                    viewerAddress = viewerAddress,
+                    totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+                    signature = signature,
+                ).onSuccess { result ->
+                    Log.e(
+                        TAG,
+                        "[VIEWER_VERIFY_HELPER_TX] session=$sessionId txId=${result.txId} verified=${result.verified} logCount=${result.logCount} confirmedRound=${result.confirmedRound} totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc viewer=$viewerAddress",
+                    )
+                }.onFailure {
+                    Log.e(
+                        TAG,
+                        "[VIEWER_VERIFY_HELPER_ERR] session=$sessionId totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc viewer=$viewerAddress",
+                        it,
+                    )
+                }
+        }
+    }
 
     private fun runViewerClaimSignatureSelfTest(
         sessionId: String,

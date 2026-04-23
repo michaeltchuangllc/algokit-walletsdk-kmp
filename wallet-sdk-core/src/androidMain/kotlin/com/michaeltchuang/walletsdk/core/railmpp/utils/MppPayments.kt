@@ -8,8 +8,10 @@ import com.algorand.algosdk.transaction.TxGroup
 import com.algorand.algosdk.util.Encoder
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
+import com.algorand.algosdk.v2.client.model.PendingTransactionResponse
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -27,13 +29,14 @@ object MppPayments {
     private const val TAG = "MppPayments"
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
     private const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC
-    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 2
+    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 3
     private const val CLAIM_VOUCHER_APP_CALL_FEE = 12000L
     private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val ABI_OPEN_SESSION = byteArrayOf(0x2f, 0xea.toByte(), 0xf2.toByte(), 0x30)
     private val ABI_DEPOSIT = byteArrayOf(0x2f, 0xab.toByte(), 0xb9.toByte(), 0xf2.toByte())
     private val ABI_CLAIM_VOUCHER = byteArrayOf(0x62, 0x4e, 0x66, 0x90.toByte())
+    private val ABI_VERIFY_CLAIM_VOUCHER_SIG = byteArrayOf(0x3e, 0xb5.toByte(), 0x7d, 0x95.toByte())
 
     fun decodeSignedTransaction(bytes: ByteArray): Any? =
         try {
@@ -347,6 +350,33 @@ object MppPayments {
         return digest.joinToString("") { "%02x".format(it) }
     }
 
+    fun signClaimMessageWithAlgoSdk(
+        secretKey: ByteArray,
+        appId: Long,
+        totalAmountClaimedMicroUsdc: Long,
+    ): ByteArray? =
+        runCatching {
+            val message = buildClaimMessage(appId, totalAmountClaimedMicroUsdc)
+            val normalizedSecretKey =
+                when (secretKey.size) {
+                    32 -> secretKey
+                    64 -> secretKey.copyOfRange(0, 32)
+                    else -> error("Unsupported secret key size=${secretKey.size}")
+                }
+
+            // Avoid Account(...) construction here on Android (can throw Conscrypt EdDSA key-size errors).
+            val signer = Ed25519Signer()
+            signer.init(true, Ed25519PrivateKeyParameters(normalizedSecretKey, 0))
+            signer.update(message, 0, message.size)
+            signer.generateSignature()
+        }.onFailure {
+            Log.e(
+                TAG,
+                "[CLAIM_SIGN_ALGOSDK_ERR] appId=$appId totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc keySize=${secretKey.size}",
+                it,
+            )
+        }.getOrNull()
+
     fun hashHex(bytes: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
         return digest.joinToString("") { "%02x".format(it) }
@@ -369,6 +399,13 @@ object MppPayments {
             verifier.verifySignature(signature)
         }.getOrDefault(false)
 
+    data class VerifyClaimVoucherOnChainResult(
+        val txId: String,
+        val verified: Boolean,
+        val confirmedRound: Long,
+        val logCount: Int,
+    )
+
     suspend fun debugVerifyClaimVoucherSignatureOnChain(
         signer: MppWalletSigner,
         appId: Long,
@@ -376,13 +413,26 @@ object MppPayments {
         totalAmountClaimedMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = TESTNET_ALGOD_URL,
-    ): Result<String> =
+    ): Result<VerifyClaimVoucherOnChainResult> =
         runCatching {
             val client = algodClient(algodUrl)
             val params = client.TransactionParams().execute().body()
             params.fee = VERIFY_HELPER_APP_CALL_FEE
 
-            val abiVerifyClaimVoucherSig = byteArrayOf(0x3e, 0x9a.toByte(), 0x49, 0x80.toByte())
+            val encodedSig = encodeArc4DynamicBytes(signature)
+            val selectorHex = ABI_VERIFY_CLAIM_VOUCHER_SIG.joinToString("") { "%02x".format(it) }
+            val localVerify =
+                verifyClaimSignatureLocally(
+                    viewerAddress = viewerAddress,
+                    appId = appId,
+                    totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+                    signature = signature,
+                )
+            Log.e(
+                TAG,
+                "[VERIFY_HELPER_BUILD] appId=$appId sender=${signer.address} viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc selector=$selectorHex sigLen=${signature.size} arc4SigLen=${encodedSig.size} localVerify=$localVerify",
+            )
+
             val appCallTxn =
                 Transaction
                     .ApplicationCallTransactionBuilder()
@@ -391,18 +441,53 @@ object MppPayments {
                     .applicationId(appId)
                     .args(
                         listOf(
-                            abiVerifyClaimVoucherSig,
+                            ABI_VERIFY_CLAIM_VOUCHER_SIG,
                             Address(viewerAddress).getBytes(),
                             encodeUint64(totalAmountClaimedMicroUsdc),
-                            encodeArc4DynamicBytes(signature),
+                            encodedSig,
                         ),
                     ).build()
 
             appCallTxn.fee = BigInteger.valueOf(VERIFY_HELPER_APP_CALL_FEE)
             val signedAppCall = signer.signTransaction(appCallTxn)
-            val txId = broadcastGroup(client, listOf(signedAppCall))
-            txId ?: appCallTxn.txID()
+            Log.e(
+                TAG,
+                "[VERIFY_HELPER_BROADCAST_ATTEMPT] appId=$appId sender=${signer.address} viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc txId=${appCallTxn.txID()}",
+            )
+            val txId = broadcastGroup(client, listOf(signedAppCall)) ?: appCallTxn.txID()
+            val pending = waitForPendingTransaction(client, txId)
+            VerifyClaimVoucherOnChainResult(
+                txId = txId,
+                verified = true,
+                confirmedRound = pending?.confirmedRound ?: 0L,
+                logCount = pending?.logs?.size ?: 0,
+            )
+        }.onFailure {
+            Log.e(
+                TAG,
+                "[VERIFY_HELPER_BROADCAST_ERR] appId=$appId sender=${signer.address} viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc",
+                it,
+            )
         }
+
+    private fun waitForPendingTransaction(
+        client: AlgodClient,
+        txId: String,
+        maxRounds: Int = 8,
+    ): PendingTransactionResponse? {
+        var last: PendingTransactionResponse? = null
+        repeat(maxRounds) {
+            val pendingResp = client.PendingTransactionInformation(txId).execute()
+            if (!pendingResp.isSuccessful) return last
+            val body = pendingResp.body()
+            last = body
+            val confirmedRound = body?.confirmedRound ?: 0L
+            if (confirmedRound > 0L) return body
+            Thread.sleep(700)
+        }
+        return last
+    }
+
 }
 
 

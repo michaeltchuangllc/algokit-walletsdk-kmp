@@ -277,25 +277,49 @@ internal class LiquidStreamBlockConsumptionManager(
                             buildCreatorWalletSigner(creatorAddress)
                                 ?: error("Unsupported creator account")
 
-                        MppPayments
-                            .debugVerifyClaimVoucherSignatureOnChain(
-                                signer = signer,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                viewerAddress = claimSnapshot.viewerAddress,
-                                totalAmountClaimedMicroUsdc = signedTotalAmount,
-                                signature = signatureBytes,
-                            ).onSuccess { txId ->
+                        if (RailMppConstants.ENABLE_CREATOR_DEBUG_VERIFY_HELPER_ON_CHAIN) {
+                            Log.e(
+                                tag,
+                                "[CREATOR_VERIFY_HELPER_ATTEMPT] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                            )
+                            val helperResult =
+                                MppPayments
+                                    .debugVerifyClaimVoucherSignatureOnChain(
+                                        signer = signer,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        viewerAddress = claimSnapshot.viewerAddress,
+                                        totalAmountClaimedMicroUsdc = signedTotalAmount,
+                                        signature = signatureBytes,
+                                    ).onSuccess { result ->
+                                        Log.e(
+                                            tag,
+                                            "[CREATOR_VERIFY_HELPER_TX] session=$sessionId txId=${result.txId} verified=${result.verified} logCount=${result.logCount} confirmedRound=${result.confirmedRound} totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                                        )
+                                    }.onFailure {
+                                        Log.e(
+                                            tag,
+                                            "[CREATOR_VERIFY_HELPER_ERR] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                                            it,
+                                        )
+                                    }.getOrNull()
+
+                            Log.e(
+                                tag,
+                                "[CREATOR_VERIFY_HELPER_RESULT] session=$sessionId helperVerified=${helperResult?.verified} totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                            )
+                            if (helperResult?.verified != true) {
                                 Log.e(
                                     tag,
-                                    "[CREATOR_VERIFY_HELPER_TX] session=$sessionId txId=$txId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                                    "[SESSION_VAULT_CLAIM_SKIP] reason=helper_not_verified session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount helperVerified=${helperResult?.verified}",
                                 )
-                            }.onFailure {
-                                Log.e(
-                                    tag,
-                                    "[CREATOR_VERIFY_HELPER_ERR] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                                    it,
-                                )
+                                return@runCatching "helper_not_verified"
                             }
+                        } else {
+                            Log.e(
+                                tag,
+                                "[CREATOR_VERIFY_HELPER_SKIP] session=$sessionId reason=feature_flag_disabled totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                            )
+                        }
 
                         MppPayments
                             .claimVoucher(
