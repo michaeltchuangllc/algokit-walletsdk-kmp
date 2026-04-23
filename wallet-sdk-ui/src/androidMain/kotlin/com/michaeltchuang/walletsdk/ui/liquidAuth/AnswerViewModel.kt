@@ -480,10 +480,25 @@ class AnswerViewModel(
         try {
             Napier.d(tag = TAG, message = "Received DataChannel Message length: ${msgStr.length}")
 
-            // Check if it's a JSON video frame message (not Base64/CBOR encoded)
-            if (msgStr.contains("\"reference\":\"liquid:video:frame\"") && msgStr.contains("\"data\"")) {
-                Napier.d(tag = TAG, message = "🎥 Video frame JSON message detected")
-                handleVideoFrameMessage(msgStr, onVideoFrame)
+            // Handle plain JSON messages first (not Base64/CBOR).
+            if (msgStr.trimStart().startsWith("{")) {
+                val json = JSONObject(msgStr)
+                val reference = json.optString("reference")
+                when (reference) {
+                    "liquid:video:frame" -> {
+                        Napier.d(tag = TAG, message = "🎥 Video frame JSON message detected")
+                        handleVideoFrameMessage(msgStr, onVideoFrame)
+                    }
+                    "liquid:payment:balance",
+                    "liquid:payment:voucher",
+                    "liquid:payment:depleted",
+                    -> {
+                        Napier.d(tag = TAG, message = "💳 Liquid payment JSON message detected: $reference")
+                    }
+                    else -> {
+                        Napier.w(tag = TAG, message = "⚠️ Unknown JSON message reference: $reference")
+                    }
+                }
                 return
             }
 

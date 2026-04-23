@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
 import android.util.Log
 import com.algorand.algosdk.crypto.Address
 import com.algorand.algosdk.transaction.AppBoxReference
-import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.transaction.TxGroup
 import com.algorand.algosdk.util.Encoder
@@ -11,8 +10,12 @@ import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
+import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
+import java.math.BigInteger
+import java.security.MessageDigest
 import java.security.Security
 
 /**
@@ -25,14 +28,16 @@ object MppPayments {
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
     private const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 2
+    private const val CLAIM_VOUCHER_APP_CALL_FEE = 12000L
+    private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val ABI_OPEN_SESSION = byteArrayOf(0x2f, 0xea.toByte(), 0xf2.toByte(), 0x30)
-    private val ABI_DEPOSIT = byteArrayOf(0x1f, 0x90.toByte(), 0xff.toByte(), 0xfd.toByte())
-    private val ABI_CLAIM_VOUCHER = byteArrayOf(0x9d.toByte(), 0xbf.toByte(), 0x62, 0x04)
+    private val ABI_DEPOSIT = byteArrayOf(0x2f, 0xab.toByte(), 0xb9.toByte(), 0xf2.toByte())
+    private val ABI_CLAIM_VOUCHER = byteArrayOf(0x62, 0x4e, 0x66, 0x90.toByte())
 
-    fun decodeSignedTransaction(bytes: ByteArray): SignedTransaction? =
+    fun decodeSignedTransaction(bytes: ByteArray): Any? =
         try {
-            Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
+            Encoder.decodeFromMsgPack(bytes, Any::class.java)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to decode signed transaction", e)
             null
@@ -41,7 +46,7 @@ object MppPayments {
     fun createBalanceUpdateJson(
         sessionId: String,
         blocksConsumed: Int,
-        remainingMicroUsdc: Long = estimateRemainingFromBlocks(blocksConsumed),
+        remainingMicroUsdc: Long = estimateRemainingUsdcBalanceFromBlocks(blocksConsumed),
     ): String {
         val consumed = blocksConsumed * COST_PER_BLOCK_MICRO_USDC
 
@@ -54,7 +59,7 @@ object MppPayments {
         viewerAddress: String,
         creatorAddress: String,
         blocksConsumed: Int,
-        totalAmountClaimed: Long,
+        totalAmountUsed: Long,
         remainingMicroUsdc: Long,
     ): String {
         val voucherPayload = JSONObject().apply {
@@ -65,7 +70,7 @@ object MppPayments {
             put("creator", creatorAddress)
             put("blocksWatched", blocksConsumed)
             put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
-            put("totalAmountClaimedMicroUsdc", totalAmountClaimed)
+            put("totalAmountClaimedMicroUsdc", totalAmountUsed)
             put("remainingMicroUsdc", remainingMicroUsdc)
         }
         return voucherPayload.toString()
@@ -74,18 +79,24 @@ object MppPayments {
     fun shouldAttemptVoucherSettlement(blocksConsumed: Int): Boolean =
         blocksConsumed > 0 && blocksConsumed % VOUCHER_SETTLE_EVERY_BLOCKS == 0
 
-    fun computeVoucherClaimedMicroAlgos(blocksConsumed: Int): Long =
+    fun computeVoucherMicroUsdcUsage(blocksConsumed: Int): Long =
         (blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
 
-    fun estimateRemainingFromBlocks(blocksConsumed: Int): Long {
+    fun voucherSettleWindowMicroUsdc(): Long =
+        (VOUCHER_SETTLE_EVERY_BLOCKS.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
+
+    fun estimateRemainingUsdcBalanceFromBlocks(blocksConsumed: Int): Long {
         val consumed = blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC
         return (DEPOSIT_MICRO_USDC_LONG - consumed).coerceAtLeast(0L)
     }
 
     fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double = remainingMicroAlgos / 1_000_000.0
 
+    fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
+
     fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
+        hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Long? =
@@ -94,7 +105,7 @@ object MppPayments {
             Security.insertProviderAt(BouncyCastleProvider(), 0)
             
             val client = algodClient(algodUrl)
-            val boxName = sessionBoxName(viewerAddress)
+            val boxName = sessionBoxName(viewerAddress, hostAddress)
             val boxNameB64 = Encoder.encodeToBase64(boxName)
             val response =
                 client
@@ -105,7 +116,7 @@ object MppPayments {
             if (!response.isSuccessful) {
                 Log.e(
                     TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId viewer=$viewerAddress box=b64:$boxNameB64 code=${response.code()} message=${response.message()}",
+                    "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId viewer=$viewerAddress host=$hostAddress box=b64:$boxNameB64 code=${response.code()} message=${response.message()}",
                 )
                 return null
             }
@@ -114,7 +125,7 @@ object MppPayments {
             if (sessionBytes == null) {
                 Log.e(
                     TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=empty_box_value appId=$appId viewer=$viewerAddress box=b64:$boxNameB64",
+                    "[SESSION_VAULT_REMAINING_ERR] reason=empty_box_value appId=$appId viewer=$viewerAddress host=$hostAddress box=b64:$boxNameB64",
                 )
                 return null
             }
@@ -123,7 +134,7 @@ object MppPayments {
         }.onFailure {
             Log.e(
                 TAG,
-                "[SESSION_VAULT_REMAINING_ERR] reason=exception appId=$appId viewer=$viewerAddress algodUrl=$algodUrl",
+                "[SESSION_VAULT_REMAINING_ERR] reason=exception appId=$appId viewer=$viewerAddress host=$hostAddress algodUrl=$algodUrl",
                 it,
             )
         }.getOrNull()
@@ -155,7 +166,7 @@ object MppPayments {
                         ),
                     ).boxReferences(
                         listOf(
-                            AppBoxReference(appId, sessionBoxName(viewerAddress)),
+                            AppBoxReference(appId, sessionBoxName(viewerAddress, creatorAddress)),
                         ),
                     ).build()
 
@@ -179,6 +190,7 @@ object MppPayments {
                         listOf(
                             ABI_DEPOSIT,
                             Address(viewerAddress).getBytes(),
+                            Address(creatorAddress).getBytes(),
                             encodeDepositPaymentTuple(
                                 assetAmount = depositAmountMicroUsdc,
                                 xferAsset = usdcAssetId,
@@ -187,7 +199,7 @@ object MppPayments {
                     ).foreignAssets(listOf(usdcAssetId))
                     .boxReferences(
                         listOf(
-                            AppBoxReference(appId, sessionBoxName(viewerAddress)),
+                            AppBoxReference(appId, sessionBoxName(viewerAddress, creatorAddress)),
                         ),
                     ).build()
 
@@ -205,7 +217,8 @@ object MppPayments {
         signer: MppWalletSigner,
         appId: Long,
         viewerAddress: String,
-        totalAmountClaimedMicroUsdc: Long,
+        hostAddress: String,
+        totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
         usdcAssetId: Long = 10458941L,
         algodUrl: String = TESTNET_ALGOD_URL,
@@ -213,6 +226,7 @@ object MppPayments {
         runCatching {
             val client = algodClient(algodUrl)
             val params = client.TransactionParams().execute().body()
+            params.fee = CLAIM_VOUCHER_APP_CALL_FEE
             val appCallTxn =
                 Transaction
                     .ApplicationCallTransactionBuilder()
@@ -223,16 +237,18 @@ object MppPayments {
                         listOf(
                             ABI_CLAIM_VOUCHER,
                             Address(viewerAddress).getBytes(),
-                            encodeUint64(totalAmountClaimedMicroUsdc),
+                            Address(hostAddress).getBytes(),
+                            encodeUint64(totalAmountUsedMicroUsdc),
                             encodeArc4DynamicBytes(signature),
                         ),
                     ).foreignAssets(listOf(usdcAssetId))
                     .boxReferences(
                         listOf(
-                            AppBoxReference(appId, sessionBoxName(viewerAddress)),
+                            AppBoxReference(appId, sessionBoxName(viewerAddress, hostAddress)),
                         ),
                     ).build()
 
+            appCallTxn.fee = BigInteger.valueOf(CLAIM_VOUCHER_APP_CALL_FEE)
             val signedAppCall = signer.signTransaction(appCallTxn)
             val txId = broadcastGroup(client, listOf(signedAppCall))
             txId ?: appCallTxn.txID()
@@ -302,9 +318,13 @@ object MppPayments {
         return resp.body()?.txId
     }
 
-    private fun sessionBoxName(viewerAddress: String): ByteArray {
-        val publicKey = Address(viewerAddress).getBytes()
-        return byteArrayOf('s'.code.toByte()) + publicKey
+    private fun sessionBoxName(
+        viewerAddress: String,
+        hostAddress: String,
+    ): ByteArray {
+        val viewerKey = Address(viewerAddress).getBytes()
+        val hostKey = Address(hostAddress).getBytes()
+        return viewerKey + hostKey
     }
 
     fun buildClaimMessage(
@@ -317,6 +337,72 @@ object MppPayments {
     }
 
     fun serializeVoucherSignature(signature: ByteArray): String = java.util.Base64.getEncoder().encodeToString(signature)
+
+    fun buildClaimMessageHashHex(
+        appId: Long,
+        totalAmountClaimedMicroUsdc: Long,
+    ): String {
+        val message = buildClaimMessage(appId, totalAmountClaimedMicroUsdc)
+        val digest = MessageDigest.getInstance("SHA-256").digest(message)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    fun hashHex(bytes: ByteArray): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    fun verifyClaimSignatureLocally(
+        viewerAddress: String,
+        appId: Long,
+        totalAmountClaimedMicroUsdc: Long,
+        signature: ByteArray,
+    ): Boolean =
+        runCatching {
+            val message = buildClaimMessage(appId, totalAmountClaimedMicroUsdc)
+            val publicKey = Address(viewerAddress).getBytes()
+            if (publicKey.size != 32 || signature.size != 64) return false
+
+            val verifier = Ed25519Signer()
+            verifier.init(false, Ed25519PublicKeyParameters(publicKey, 0))
+            verifier.update(message, 0, message.size)
+            verifier.verifySignature(signature)
+        }.getOrDefault(false)
+
+    suspend fun debugVerifyClaimVoucherSignatureOnChain(
+        signer: MppWalletSigner,
+        appId: Long,
+        viewerAddress: String,
+        totalAmountClaimedMicroUsdc: Long,
+        signature: ByteArray,
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): Result<String> =
+        runCatching {
+            val client = algodClient(algodUrl)
+            val params = client.TransactionParams().execute().body()
+            params.fee = VERIFY_HELPER_APP_CALL_FEE
+
+            val abiVerifyClaimVoucherSig = byteArrayOf(0x3e, 0x9a.toByte(), 0x49, 0x80.toByte())
+            val appCallTxn =
+                Transaction
+                    .ApplicationCallTransactionBuilder()
+                    .sender(signer.address)
+                    .suggestedParams(params)
+                    .applicationId(appId)
+                    .args(
+                        listOf(
+                            abiVerifyClaimVoucherSig,
+                            Address(viewerAddress).getBytes(),
+                            encodeUint64(totalAmountClaimedMicroUsdc),
+                            encodeArc4DynamicBytes(signature),
+                        ),
+                    ).build()
+
+            appCallTxn.fee = BigInteger.valueOf(VERIFY_HELPER_APP_CALL_FEE)
+            val signedAppCall = signer.signTransaction(appCallTxn)
+            val txId = broadcastGroup(client, listOf(signedAppCall))
+            txId ?: appCallTxn.txID()
+        }
 }
 
 

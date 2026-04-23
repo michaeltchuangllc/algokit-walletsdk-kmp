@@ -310,6 +310,7 @@ class PaywalledRTCServer(
         val remaining =
             MppPayments.getRemainingBalanceFromSessionVault(
                 viewerAddress = viewerAddress,
+                hostAddress = config.gating.payTo,
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
             )
         return (remaining ?: 0L) > 0L

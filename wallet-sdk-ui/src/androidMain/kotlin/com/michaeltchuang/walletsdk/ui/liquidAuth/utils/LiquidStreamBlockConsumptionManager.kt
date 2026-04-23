@@ -12,15 +12,21 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.Base64
 
-internal class LiquidAuthBlockConsumptionManager(
+internal class LiquidStreamBlockConsumptionManager(
     private val tag: String,
     private val getViewModel: () -> LiquidAuthOfferViewModel?,
     private val getActiveViewerAddress: () -> String?,
     private val getActiveCreatorAddress: () -> String?,
-    private val getCreatorVoucherSignatureBase64: () -> String?,
+    private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
     private val sendMessage: (String) -> Unit,
 ) {
+    data class CreatorVoucherClaimSnapshot(
+        val sessionId: String,
+        val viewerAddress: String,
+        val signatureBase64: String,
+        val totalAmountClaimedMicroUsdc: Long,
+    )
     private var blockDrivenConsumptionJob: Job? = null
     private var blocksConsumed: Int = 0
     private var currentSessionId: String? = null
@@ -146,6 +152,7 @@ internal class LiquidAuthBlockConsumptionManager(
                 )
                 MppPayments.getRemainingBalanceFromSessionVault(
                     viewerAddress = it,
+                    hostAddress = creatorAddress,
                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                 )
             }
@@ -159,8 +166,8 @@ internal class LiquidAuthBlockConsumptionManager(
                 return
             }
 
-        val claimed = MppPayments.computeVoucherClaimedMicroAlgos(blocksConsumed)
-        val progressBarBalanceMicroUsdc = (remainingVaultBalance - claimed).coerceAtLeast(0L)
+        val used = MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
+        val progressBarBalanceMicroUsdc = (remainingVaultBalance - used).coerceAtLeast(0L)
 
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = remainingVaultBalance,
@@ -174,7 +181,7 @@ internal class LiquidAuthBlockConsumptionManager(
                 viewerAddress = viewerAddress,
                 creatorAddress = creatorAddress,
                 blocksConsumed = blocksConsumed,
-                totalAmountClaimed = claimed,
+                totalAmountUsed = used,
                 remainingMicroUsdc = progressBarBalanceMicroUsdc,
             )
         sendMessage(voucherJson)
@@ -189,36 +196,115 @@ internal class LiquidAuthBlockConsumptionManager(
             CoroutineScope(Dispatchers.IO).launch {
                 Log.e(
                     tag,
-                    "[SESSION_VAULT_CLAIM_ATTEMPT] session=$sessionId blocks=$blocksConsumed claimedMicroUsdc=$claimed viewer=$viewerAddress creator=$creatorAddress",
+                    "[SESSION_VAULT_CLAIM_ATTEMPT] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used viewer=$viewerAddress creator=$creatorAddress",
                 )
 
-                val claimSignature =
-                    getCreatorVoucherSignatureBase64()
-                        ?.let {
-                            runCatching {
-                                Base64
-                                    .getDecoder()
-                                    .decode(it)
-                            }.getOrNull()
-                        }
+                val claimSnapshot =
+                    getCreatorVoucherClaimSnapshot() ?: run {
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
+                        )
+                        return@launch
+                    }
+
+                if (claimSnapshot.sessionId != sessionId) {
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_session_mismatch session=$sessionId snapshotSession=${claimSnapshot.sessionId}",
+                    )
+                    return@launch
+                }
+
+                if (claimSnapshot.viewerAddress != viewerAddress) {
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_viewer_mismatch session=$sessionId expectedViewer=$viewerAddress snapshotViewer=${claimSnapshot.viewerAddress}",
+                    )
+                    return@launch
+                }
+
+                val signatureBytes =
+                    runCatching {
+                        Base64
+                            .getDecoder()
+                            .decode(claimSnapshot.signatureBase64)
+                    }.getOrNull() ?: run {
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_CLAIM_SKIP] reason=signature_decode_failed session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
+                        )
+                        return@launch
+                    }
+
+                val signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc.coerceAtLeast(0L)
+                val claimMessageHash =
+                    MppPayments.buildClaimMessageHashHex(
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        totalAmountClaimedMicroUsdc = signedTotalAmount,
+                    )
+                val signatureHash = MppPayments.hashHex(signatureBytes)
+                val creatorLocalVerify =
+                    MppPayments.verifyClaimSignatureLocally(
+                        viewerAddress = claimSnapshot.viewerAddress,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        totalAmountClaimedMicroUsdc = signedTotalAmount,
+                        signature = signatureBytes,
+                    )
+                Log.e(
+                    tag,
+                    "[CREATOR_CLAIM_MSG_HASH] session=$sessionId appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} totalAmountClaimedMicroUsdc=$signedTotalAmount hash=$claimMessageHash viewer=${claimSnapshot.viewerAddress} sigHash=$signatureHash localVerify=$creatorLocalVerify sigLen=${signatureBytes.size}",
+                )
+                if (signedTotalAmount < used) {
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_CLAIM_SKIP] reason=signed_total_behind session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount",
+                    )
+                    return@launch
+                }
+
+                if (signedTotalAmount > MppPayments.maxSessionDepositMicroUsdc()) {
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_CLAIM_SKIP] reason=signed_total_exceeds_deposit session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount maxDepositMicroUsdc=${MppPayments.maxSessionDepositMicroUsdc()}",
+                    )
+                    return@launch
+                }
 
                 val settlementResult =
                     runCatching {
                         val signer =
                             buildCreatorWalletSigner(creatorAddress)
                                 ?: error("Unsupported creator account")
+
+                        MppPayments
+                            .debugVerifyClaimVoucherSignatureOnChain(
+                                signer = signer,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                viewerAddress = claimSnapshot.viewerAddress,
+                                totalAmountClaimedMicroUsdc = signedTotalAmount,
+                                signature = signatureBytes,
+                            ).onSuccess { txId ->
+                                Log.e(
+                                    tag,
+                                    "[CREATOR_VERIFY_HELPER_TX] session=$sessionId txId=$txId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                                )
+                            }.onFailure {
+                                Log.e(
+                                    tag,
+                                    "[CREATOR_VERIFY_HELPER_ERR] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
+                                    it,
+                                )
+                            }
+
                         MppPayments
                             .claimVoucher(
                                 signer = signer,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                viewerAddress = viewerAddress,
-                                totalAmountClaimedMicroUsdc = claimed,
-                                signature =
-                                    claimSignature
-                                        ?: MppPayments.buildClaimMessage(
-                                            RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                            claimed,
-                                        ),
+                                viewerAddress = claimSnapshot.viewerAddress,
+                                hostAddress = creatorAddress,
+                                totalAmountUsedMicroUsdc = signedTotalAmount,
+                                signature = signatureBytes,
                             ).getOrThrow()
                     }
 
@@ -226,12 +312,12 @@ internal class LiquidAuthBlockConsumptionManager(
                     .onSuccess { txId ->
                         Log.e(
                             tag,
-                            "[SESSION_VAULT_CLAIM_OK] txId=$txId session=$sessionId blocks=$blocksConsumed claimedMicroUsdc=$claimed",
+                            "[SESSION_VAULT_CLAIM_OK] txId=$txId session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
                         )
                     }.onFailure {
                         Log.e(
                             tag,
-                            "[SESSION_VAULT_CLAIM_ERR] session=$sessionId blocks=$blocksConsumed claimedMicroUsdc=$claimed",
+                            "[SESSION_VAULT_CLAIM_ERR] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
                             it,
                         )
                     }

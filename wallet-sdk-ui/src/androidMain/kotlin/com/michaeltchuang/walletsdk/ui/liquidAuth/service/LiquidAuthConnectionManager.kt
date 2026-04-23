@@ -10,13 +10,13 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.algorand.algosdk.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
@@ -34,7 +34,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidAuthBlockConsumptionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -79,19 +80,20 @@ class AndroidLiquidAuthConnectionManager(
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
     private var activeViewerAddressForVault: String? = null
-    private var activeCreatorVoucherSignatureBase64: String? = null
+    private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
+
 
     // Connection type state flow - exposed for UI and billing
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
     private val blockConsumptionManager =
-        LiquidAuthBlockConsumptionManager(
+        LiquidStreamBlockConsumptionManager(
             tag = TAG,
             getViewModel = { viewModel },
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
-            getCreatorVoucherSignatureBase64 = { activeCreatorVoucherSignatureBase64 },
+            getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) },
             sendMessage = { message -> sendMessage(message) },
         )
@@ -149,7 +151,7 @@ class AndroidLiquidAuthConnectionManager(
         }
 
         try {
-            activeCreatorVoucherSignatureBase64 = paymentRequest.meta.voucherSignature
+            activeCreatorVoucherClaimSnapshot = null
             if (activeViewerAddressForVault.isNullOrBlank()) {
                 Log.e(TAG, "[SESSION_VAULT_VIEWER_SET_FROM_REQUEST] viewer=$activeViewerAddressForVault session=${paymentRequest.id}")
             }
@@ -517,6 +519,53 @@ class AndroidLiquidAuthConnectionManager(
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
         runCatching {
             val json = JSONObject(msg)
+
+            val voucherRef = json.optString("reference", "")
+            if (voucherRef == "liquid:payment:voucher") {
+                val signature = json.optString("signature", "").takeIf { it.isNotBlank() }
+                val claimedAmount =
+                    json
+                        .optLong("totalAmountClaimedMicroUsdc", -1L)
+                        .takeIf { it >= 0L }
+                val voucherSessionId = json.optString("id", "").takeIf { it.isNotBlank() }
+                val voucherViewer = json.optString("viewer", "").takeIf { it.isNotBlank() }
+
+                if (signature == null || claimedAmount == null || voucherSessionId == null || voucherViewer == null) {
+                    Log.e(
+                        TAG,
+                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${json.optString("id", "")} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
+                    )
+                } else {
+                    val activeSession = activePaymentSessionId
+                    if (activeSession != null && voucherSessionId != activeSession) {
+                        Log.e(
+                            TAG,
+                            "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=session_mismatch voucherSession=$voucherSessionId activeSession=$activeSession",
+                        )
+                    } else {
+                        val previousClaimedAmount = activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc
+                        if (previousClaimedAmount != null && claimedAmount < previousClaimedAmount) {
+                            Log.e(
+                                TAG,
+                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG_STALE_SKIP] session=$voucherSessionId claimedAmountMicroUsdc=$claimedAmount previousClaimedAmountMicroUsdc=$previousClaimedAmount",
+                            )
+                        } else {
+                            activeCreatorVoucherClaimSnapshot =
+                                CreatorVoucherClaimSnapshot(
+                                    sessionId = voucherSessionId,
+                                    viewerAddress = voucherViewer,
+                                    signatureBase64 = signature,
+                                    totalAmountClaimedMicroUsdc = claimedAmount,
+                                )
+                            Log.e(
+                                TAG,
+                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
+                            )
+                        }
+                    }
+                }
+            }
+
             val candidate = json.optString("address", "").takeIf { it.isNotBlank() }
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
@@ -534,7 +583,7 @@ class AndroidLiquidAuthConnectionManager(
         activePaymentSessionId = null
         activePaymentRecipient = null
         activeViewerAddressForVault = null
-        activeCreatorVoucherSignatureBase64 = null
+        activeCreatorVoucherClaimSnapshot = null
         serviceConnection?.let {
             try {
                 context.unbindService(it)
@@ -581,9 +630,13 @@ class AndroidLiquidAuthConnectionManager(
                 java.util.Base64
                     .getEncoder()
                     .encodeToString(frameData)
+            val hostAddress = activePaymentRecipient.orEmpty()
+            val sessionId = activePaymentSessionId.orEmpty()
+            val hostJsonField = if (hostAddress.isNotBlank()) ",\"hostAddress\":\"$hostAddress\"" else ""
+            val sessionJsonField = if (sessionId.isNotBlank()) ",\"sessionId\":\"$sessionId\"" else ""
             val jsonMessage =
                 """
-                {"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height}
+                {"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height$hostJsonField$sessionJsonField}
                 """.trimIndent()
 
             Log.d(TAG, "🎥 Sending video frame: ${width}x$height, ${frameData.size} bytes")
@@ -611,7 +664,7 @@ class AndroidLiquidAuthConnectionManager(
                         val secretKey =
                             getAlgo25SecretKey(creatorAddress)
                                 ?: error("Missing Algo25 key for $creatorAddress")
-                        val txnBytes = txn.bytes()
+                        val txnBytes = Encoder.encodeToMsgPack(txn)
                         val signature =
                             signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
                                 ?: error("Algo25 arbitrary signing failed")
