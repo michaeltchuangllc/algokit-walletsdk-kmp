@@ -63,6 +63,7 @@ import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.math.round
 
 @Composable
 fun LiquidStreamViewerScreen(
@@ -71,6 +72,7 @@ fun LiquidStreamViewerScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     onMinimize: () -> Unit = {},
     onSendClick: () -> Unit = {},
+    onTopUpConfirm: (String) -> Unit = {},
     viewerAddress: String = "-",
     originUrl: String = "-",
     networkLabel: String = "TESTNET",
@@ -110,6 +112,7 @@ fun LiquidStreamViewerScreen(
         onMessageChanged = viewModel::onMessageChanged,
         onTopUpClick = viewModel::onTopUpClicked,
         onTopUpDismissed = viewModel::onTopUpDismissed,
+        onTopUpConfirm = onTopUpConfirm,
         onGiftSupportClick = viewModel::onGiftSupportClicked,
         onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
         onGiftAmountSelected = viewModel::onGiftAmountSelected,
@@ -139,6 +142,7 @@ private fun LiquidStreamViewerScreenContent(
     onMessageChanged: (String) -> Unit,
     onTopUpClick: () -> Unit,
     onTopUpDismissed: () -> Unit,
+    onTopUpConfirm: (String) -> Unit,
     onGiftSupportClick: () -> Unit,
     onGiftSupportDismissed: () -> Unit,
     onGiftAmountSelected: (String) -> Unit,
@@ -256,10 +260,15 @@ private fun LiquidStreamViewerScreenContent(
         }
 
         if (uiState.showTopUpSheet) {
+            val sessionVaultBalanceLabel = ((round(remainingBalanceUsdc * 100) / 100)).toString()
             StreamViewerTopUpModel(
+                balanceLabel = sessionVaultBalanceLabel,
                 networkLabel = networkLabel,
                 onDismiss = onTopUpDismissed,
-                onConfirm = { onTopUpDismissed() },
+                onConfirm = {
+                    onTopUpDismissed()
+                    onTopUpConfirm(it)
+                },
             )
         }
 
@@ -767,6 +776,7 @@ private fun LiquidAuthViewerScreenPreview() {
             onMessageChanged = { message -> uiState = uiState.copy(message = message) },
             onTopUpClick = { uiState = uiState.copy(showTopUpSheet = true) },
             onTopUpDismissed = { uiState = uiState.copy(showTopUpSheet = false) },
+            onTopUpConfirm = {},
             onGiftSupportClick = { uiState = uiState.copy(showGiftSupportSheet = true) },
             onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
             onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },

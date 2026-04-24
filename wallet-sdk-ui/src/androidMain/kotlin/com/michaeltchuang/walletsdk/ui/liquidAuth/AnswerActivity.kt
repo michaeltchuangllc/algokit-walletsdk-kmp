@@ -27,11 +27,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import com.algorand.algosdk.crypto.Address
+import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.util.Encoder
 import com.google.android.gms.fido.fido2.Fido2ApiClient
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
-import com.algorand.algosdk.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
@@ -62,6 +62,7 @@ import foundation.algorand.provider.avm.models.SignTransactionsResult
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.tasks.await
@@ -74,7 +75,6 @@ import org.webrtc.DataChannel
 import java.security.Security
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
-import kotlinx.coroutines.isActive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -145,7 +145,8 @@ class AnswerActivity : AppCompatActivity() {
                 if (continuation == null || !continuation.isActive) return@registerForActivityResult
 
                 try {
-                    val signingResponses = Wallet.onSignMessagesResult(result.resultCode, result.data)
+                    val signingResponses =
+                        Wallet.onSignMessagesResult(result.resultCode, result.data)
                     val signature = signingResponses.firstOrNull()?.signatures?.firstOrNull()
                     continuation.resume(signature)
                 } catch (e: Exception) {
@@ -167,11 +168,17 @@ class AnswerActivity : AppCompatActivity() {
                     val authMessage = viewModel.authMessage.collectAsState().value
                     val session = viewModel.session.collectAsState().value
                     val accountBalance = viewModel.accountBalance.collectAsState().value
-                    val pendingParams = viewModel.pendingSignTransactionsParams.collectAsState().value
+                    val pendingParams =
+                        viewModel.pendingSignTransactionsParams.collectAsState().value
                     val pendingMessage = viewModel.pendingSignMessage.collectAsState().value
                     AnswerScreen(
                         viewModel = viewModel,
                         onMinimizeToPip = { enterPipMode() },
+                        onViewerTopUpConfirm = { enteredAmount ->
+                            lifecycleScope.launch {
+                                topUpViewerSessionVault(enteredAmount)
+                            }
+                        },
                     )
                     if (showDialogState.value && pendingParams != null && pendingMessage != null) {
                         LaunchedEffect(Unit) {
@@ -266,7 +273,10 @@ class AnswerActivity : AppCompatActivity() {
                         lifecycleScope.launch {
                             val accountAddress = algoAddress
                             if (accountAddress == null) {
-                                showToast("Missing account address for authentication", Toast.LENGTH_LONG)
+                                showToast(
+                                    "Missing account address for authentication",
+                                    Toast.LENGTH_LONG
+                                )
                                 return@launch
                             }
 
@@ -324,7 +334,10 @@ class AnswerActivity : AppCompatActivity() {
 
         val addresses = viewModel.getAvailableAccountAddresses()
         if (addresses.isEmpty()) {
-            showToast("No local accounts found. Please create or import an account first.", Toast.LENGTH_LONG)
+            showToast(
+                "No local accounts found. Please create or import an account first.",
+                Toast.LENGTH_LONG
+            )
             return null
         }
 
@@ -381,7 +394,7 @@ class AnswerActivity : AppCompatActivity() {
         val hasIntent = intent?.data != null
         val hasValidAuthMessage =
             AuthMessageStorage.authMessage.origin.isNotEmpty() &&
-                AuthMessageStorage.authMessage.requestId.isNotEmpty()
+                    AuthMessageStorage.authMessage.requestId.isNotEmpty()
 
         if (!hasIntent && hasValidAuthMessage) {
             Log.d(TAG, "No intent detected, auto-connecting with stored AuthMessage")
@@ -415,15 +428,18 @@ class AnswerActivity : AppCompatActivity() {
     private fun hydrateIntents() {
         val isConnected =
             viewModel.signalService.value?.dataChannel is DataChannel &&
-                viewModel.signalService.value
-                    ?.dataChannel
-                    ?.state() === DataChannel.State.OPEN
+                    viewModel.signalService.value
+                        ?.dataChannel
+                        ?.state() === DataChannel.State.OPEN
         val isIntent = intent != null
         val isDeepLink = intent?.data != null && intent.data is Uri
         val isDataChannelMessage = intent?.getStringExtra("msg") != null
         if (isDeepLink) {
             if (isViewerSessionActive()) {
-                Log.d(TAG, "Ignoring deep-link auth bootstrap because viewer session is already active")
+                Log.d(
+                    TAG,
+                    "Ignoring deep-link auth bootstrap because viewer session is already active"
+                )
                 return
             }
             viewModel.signalService.value?.updateDeepLinkFlag(true)
@@ -632,7 +648,9 @@ class AnswerActivity : AppCompatActivity() {
             fun extractHost(obj: JSONObject?): String? {
                 if (obj == null) return null
                 return listOf("hostAddress", "payTo", "recipient", "to", "address")
-                    .firstNotNullOfOrNull { key -> obj.optString(key, "").takeIf { it.isNotBlank() } }
+                    .firstNotNullOfOrNull { key ->
+                        obj.optString(key, "").takeIf { it.isNotBlank() }
+                    }
             }
 
             val direct = extractHost(json)
@@ -655,7 +673,10 @@ class AnswerActivity : AppCompatActivity() {
                     viewerBlocksConsumedByRefresh = 0
                     viewerLastVoucherSentBlocks = 0
                     viewerSessionStartRemainingMicroUsdc = null
-                    Log.e(TAG, "[VIEWER_PAYMENT_SESSION_CACHED] source=signal_message session=$sessionCandidate")
+                    Log.e(
+                        TAG,
+                        "[VIEWER_PAYMENT_SESSION_CACHED] source=signal_message session=$sessionCandidate"
+                    )
                 }
             }
 
@@ -847,7 +868,9 @@ class AnswerActivity : AppCompatActivity() {
 
                                     if (existingOnChainBalance != null && existingOnChainBalance > 0L) {
                                         runOnUiThread {
-                                            viewModel.setViewerSessionVaultBalance(existingOnChainBalance)
+                                            viewModel.setViewerSessionVaultBalance(
+                                                existingOnChainBalance
+                                            )
                                         }
                                         Log.e(
                                             TAG,
@@ -892,7 +915,10 @@ class AnswerActivity : AppCompatActivity() {
                                         )
                                     onChain
                                         .onSuccess { txId ->
-                                            Log.e(TAG, "✅ Session Vault openSession+deposit txId=$txId")
+                                            Log.e(
+                                                TAG,
+                                                "✅ Session Vault openSession+deposit txId=$txId"
+                                            )
                                             val onChainRemaining =
                                                 MppPayments.getRemainingBalanceFromSessionVault(
                                                     viewerAddress = accountAddress,
@@ -922,7 +948,11 @@ class AnswerActivity : AppCompatActivity() {
                                                 hostAddress = payToAddress,
                                             )
                                         }.onFailure {
-                                            Log.e(TAG, "❌ Session Vault openSession+deposit failed", it)
+                                            Log.e(
+                                                TAG,
+                                                "❌ Session Vault openSession+deposit failed",
+                                                it
+                                            )
                                         }
                                     return approval
                                 }
@@ -931,7 +961,8 @@ class AnswerActivity : AppCompatActivity() {
                     ).also {
                         it.rtcClient.onPaymentRequested = { request ->
                             connectedHostAddress = request.payTo.takeIf { it.isNotBlank() }
-                            connectedPaymentSessionId = request.id.takeIf { it.isNotBlank() } ?: connectedPaymentSessionId
+                            connectedPaymentSessionId =
+                                request.id.takeIf { it.isNotBlank() } ?: connectedPaymentSessionId
                             Log.e(
                                 TAG,
                                 "[VIEWER_PAYMENT_REQUEST_RECEIVED] session=${request.id} payTo=${request.payTo} amount=${request.amount} asset=${request.asset}",
@@ -939,12 +970,16 @@ class AnswerActivity : AppCompatActivity() {
                         }
                         it.rtcClient.onPaymentReceipt = { receipt ->
                             lifecycleScope.launch {
-                                connectedHostAddress = receipt.payTo.takeIf { it.isNotBlank() } ?: connectedHostAddress
-                                connectedPaymentSessionId = receipt.sessionId.takeIf { it.isNotBlank() } ?: connectedPaymentSessionId
+                                connectedHostAddress =
+                                    receipt.payTo.takeIf { it.isNotBlank() } ?: connectedHostAddress
+                                connectedPaymentSessionId =
+                                    receipt.sessionId.takeIf { it.isNotBlank() }
+                                        ?: connectedPaymentSessionId
                                 val debit = receipt.amount.toLongOrNull() ?: 0L
                                 val viewerAddress = receipt.payFrom.ifBlank { accountAddress }
                                 val blocksConsumed = (receipt.segmentIndex + 1).coerceAtLeast(0)
-                                viewerBlocksConsumedByRefresh = maxOf(viewerBlocksConsumedByRefresh, blocksConsumed)
+                                viewerBlocksConsumedByRefresh =
+                                    maxOf(viewerBlocksConsumedByRefresh, blocksConsumed)
                                 val voucherUsed =
                                     MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
                                         .coerceAtMost(MppPayments.maxSessionDepositMicroUsdc())
@@ -1007,7 +1042,8 @@ class AnswerActivity : AppCompatActivity() {
                                                 totalAmountUsed = voucherUsed,
                                                 remainingMicroUsdc = viewModel.viewerSessionVaultMicroUsdc.value,
                                             )
-                                        val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
+                                        val signatureBase64 =
+                                            MppPayments.serializeVoucherSignature(voucherSignature)
                                         val voucherPayload =
                                             JSONObject(voucherJson).apply {
                                                 put("signature", signatureBase64)
@@ -1025,7 +1061,8 @@ class AnswerActivity : AppCompatActivity() {
                                     runOnUiThread { viewModel.applyViewerSegmentDebit(debit) }
                                 }
 
-                                val hostAddress = receipt.payTo.ifBlank { connectedHostAddress.orEmpty() }
+                                val hostAddress =
+                                    receipt.payTo.ifBlank { connectedHostAddress.orEmpty() }
                                 val onChainRemaining =
                                     if (hostAddress.isBlank()) {
                                         null
@@ -1156,7 +1193,8 @@ class AnswerActivity : AppCompatActivity() {
                                 blocksConsumed > 0 &&
                                 blocksConsumed > viewerLastVoucherSentBlocks
                             ) {
-                                val sessionCap = (viewerSessionStartRemainingMicroUsdc ?: remaining).coerceAtLeast(0L)
+                                val sessionCap = (viewerSessionStartRemainingMicroUsdc
+                                    ?: remaining).coerceAtLeast(0L)
                                 val voucherUsed =
                                     MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
                                         .coerceAtMost(sessionCap)
@@ -1183,14 +1221,15 @@ class AnswerActivity : AppCompatActivity() {
                                     }.getOrNull()
 
                                 if (voucherSignature != null && voucherSignature.isNotEmpty()) {
-                                    val sessionId = connectedPaymentSessionId?.takeIf { it.isNotBlank() }
-                                        ?: run {
-                                            Log.e(
-                                                TAG,
-                                                "[VIEWER_VOUCHER_SKIP] reason=session_id_missing blocks=$blocksConsumed host=$hostAddress",
-                                            )
-                                            null
-                                        }
+                                    val sessionId =
+                                        connectedPaymentSessionId?.takeIf { it.isNotBlank() }
+                                            ?: run {
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_VOUCHER_SKIP] reason=session_id_missing blocks=$blocksConsumed host=$hostAddress",
+                                                )
+                                                null
+                                            }
                                     if (sessionId == null) {
                                         Log.e(
                                             TAG,
@@ -1226,7 +1265,8 @@ class AnswerActivity : AppCompatActivity() {
                                                 totalAmountUsed = voucherUsed,
                                                 remainingMicroUsdc = remaining,
                                             )
-                                        val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
+                                        val signatureBase64 =
+                                            MppPayments.serializeVoucherSignature(voucherSignature)
                                         val voucherPayload =
                                             JSONObject(voucherJson).apply {
                                                 put("signature", signatureBase64)
@@ -1279,6 +1319,75 @@ class AnswerActivity : AppCompatActivity() {
         viewerSessionStartRemainingMicroUsdc = null
     }
 
+    private suspend fun topUpViewerSessionVault(enteredAmount: String) {
+        val accountAddress = algoAddress.orEmpty().ifBlank {
+            showToast("Missing viewer account address", Toast.LENGTH_LONG)
+            return
+        }
+
+        val creatorAddress =
+            waitForViewerPaymentRecipient()
+                ?: run {
+                    showToast(
+                        "Missing stream recipient. Please wait for payment request and try again.",
+                        Toast.LENGTH_LONG
+                    )
+                    return
+                }
+
+        val signer =
+            runCatching { buildMppWalletSigner(accountAddress) }
+                .getOrElse {
+                    showToast("Top-up failed: ${it.message}", Toast.LENGTH_LONG)
+                    return
+                }
+
+        viewModel
+            .topUpViewerSessionVault(
+                enteredAmount = enteredAmount,
+                viewerAddress = accountAddress,
+                creatorAddress = creatorAddress,
+                signer = signer,
+            ).onSuccess { onChainRemaining ->
+                if (onChainRemaining != null) {
+                    showToast("SessionVault topped up successfully")
+                    connectedHostAddress?.let {
+                        startViewerOnChainRefresh(accountAddress, it)
+                    }
+                } else {
+                    showToast(
+                        "Top-up submitted, but balance refresh is pending",
+                        Toast.LENGTH_LONG
+                    )
+                }
+            }.onFailure { throwable ->
+                showToast(
+                    "Top-up failed: ${throwable.message}",
+                    Toast.LENGTH_LONG
+                )
+            }
+    }
+
+    private suspend fun waitForViewerPaymentRecipient(timeoutMs: Long = 3000L): String? {
+        connectedHostAddress
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
+        val startedAt = System.currentTimeMillis()
+        while ((System.currentTimeMillis() - startedAt) < timeoutMs) {
+            connectedHostAddress
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    Log.e(TAG, "[VIEWER_RECIPIENT_READY] payTo=$it")
+                    return it
+                }
+            kotlinx.coroutines.delay(100L)
+        }
+
+        Log.e(TAG, "[VIEWER_RECIPIENT_TIMEOUT] timeoutMs=$timeoutMs")
+        return null
+    }
+
     private fun sendViewerVoucherSafely(
         payload: String,
         source: String,
@@ -1291,7 +1400,8 @@ class AnswerActivity : AppCompatActivity() {
         if (service == null || state != DataChannel.State.OPEN) {
             Log.e(
                 TAG,
-                "[VIEWER_VOUCHER_SKIP] source=$source reason=data_channel_unavailable session=$sessionId blocks=$blocksConsumed used=$voucherUsed dcState=$state",
+                "[VIEWER_VOUCHER_SKIP] source=$source reason=data_channel_unavailable " +
+                        "session=$sessionId blocks=$blocksConsumed used=$voucherUsed dcState=$state",
             )
             return false
         }
@@ -1302,7 +1412,8 @@ class AnswerActivity : AppCompatActivity() {
         }.onFailure {
             Log.e(
                 TAG,
-                "[VIEWER_VOUCHER_SKIP] source=$source reason=send_failed session=$sessionId blocks=$blocksConsumed used=$voucherUsed",
+                "[VIEWER_VOUCHER_SKIP] source=$source reason=send_failed session=$sessionId "
+                        + "blocks=$blocksConsumed used=$voucherUsed",
                 it,
             )
         }.getOrDefault(false)
@@ -1341,19 +1452,27 @@ class AnswerActivity : AppCompatActivity() {
         return object : MppWalletSigner {
             override val address: String = address
 
-            override suspend fun signTransaction(txn: com.algorand.algosdk.transaction.Transaction): ByteArray {
-                val localAccount = viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
+            override suspend fun signTransaction(
+                txn: com.algorand.algosdk.transaction.Transaction
+            ): ByteArray {
+                val localAccount =
+                    viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
                 return when (localAccount) {
-                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
-                        val secretKey = viewModel.resolveAlgo25SecretKey(address) ?: error("Missing Algo25 key for $address")
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.
+                    Algo25 -> {
+                        val secretKey = viewModel.resolveAlgo25SecretKey(address)
+                            ?: error("Missing Algo25 key for $address")
                         val txnBytes = Encoder.encodeToMsgPack(txn)
                         val signature =
                             signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
                                 ?: error("Algo25 arbitrary signing failed")
                         Sdk.attachSignature(signature, txnBytes)
                     }
-                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
-                        val seed = viewModel.resolveSeed(localAccount.seedId) ?: error("Missing HD seed for $address")
+
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.
+                    HdKey -> {
+                        val seed = viewModel.resolveSeed(localAccount.seedId)
+                            ?: error("Missing HD seed for $address")
                         com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
                             transactionByteArray = Encoder.encodeToMsgPack(txn),
                             seed,
@@ -1362,7 +1481,9 @@ class AnswerActivity : AppCompatActivity() {
                             localAccount.keyIndex,
                         ) ?: error("HD signing failed")
                     }
-                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+
+                    is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.
+                    Falcon24 -> {
                         val secretKey =
                             viewModel.resolveFalcon24SecretKey(address)
                                 ?: error("Missing Falcon24 key for $address")
@@ -1372,7 +1493,11 @@ class AnswerActivity : AppCompatActivity() {
                             secretKey,
                         ) ?: error("Falcon24 signing failed")
                     }
-                    else -> error("Unsupported account for Algorand MPP signing: ${localAccount::class.simpleName}")
+
+                    else -> error(
+                        "Unsupported account for Algorand MPP signing:" +
+                                " ${localAccount::class.simpleName}"
+                    )
                 }
             }
 
@@ -1382,7 +1507,8 @@ class AnswerActivity : AppCompatActivity() {
                 network: String,
                 mint: String?,
             ): ByteArray {
-                val localAccount = viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
+                val localAccount =
+                    viewModel.resolveLocalAccount(address) ?: error("No local account for $address")
                 if (localAccount !is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.SeedVault) {
                     error("Unsupported account for Solana MPP signing: ${localAccount::class.simpleName}")
                 }
@@ -1392,8 +1518,16 @@ class AnswerActivity : AppCompatActivity() {
                 val connection =
                     org.sol4k.Connection(
                         when {
-                            network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
-                            network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
+                            network.contains(
+                                "mainnet",
+                                ignoreCase = true
+                            ) -> "https://api.mainnet-beta.solana.com"
+
+                            network.contains(
+                                "testnet",
+                                ignoreCase = true
+                            ) -> "https://api.testnet.solana.com"
+
                             else -> "https://api.devnet.solana.com"
                         },
                     )
@@ -1401,11 +1535,23 @@ class AnswerActivity : AppCompatActivity() {
 
                 val instructions: List<org.sol4k.instruction.Instruction> =
                     if (mint.isNullOrBlank() || mint.equals("SOL", ignoreCase = true)) {
-                        listOf(org.sol4k.instruction.TransferInstruction(sender, recipient, amount.toLong()))
+                        listOf(
+                            org.sol4k.instruction.TransferInstruction(
+                                sender,
+                                recipient,
+                                amount.toLong()
+                            )
+                        )
                     } else {
                         val mintPk = org.sol4k.PublicKey(mint)
-                        val (senderAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(sender, mintPk)
-                        val (recipientAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(recipient, mintPk)
+                        val (senderAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(
+                            sender,
+                            mintPk
+                        )
+                        val (recipientAta, _) = org.sol4k.PublicKey.findProgramDerivedAddress(
+                            recipient,
+                            mintPk
+                        )
 
                         val ataIx =
                             if (connection.getAccountInfo(recipientAta) == null) {
@@ -1413,10 +1559,26 @@ class AnswerActivity : AppCompatActivity() {
                                     override val data: ByteArray = ByteArray(0)
                                     override val keys: List<org.sol4k.AccountMeta> =
                                         listOf(
-                                            org.sol4k.AccountMeta(sender, writable = true, signer = true),
-                                            org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
-                                            org.sol4k.AccountMeta(recipient, writable = false, signer = false),
-                                            org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
+                                            org.sol4k.AccountMeta(
+                                                sender,
+                                                writable = true,
+                                                signer = true
+                                            ),
+                                            org.sol4k.AccountMeta(
+                                                recipientAta,
+                                                writable = true,
+                                                signer = false
+                                            ),
+                                            org.sol4k.AccountMeta(
+                                                recipient,
+                                                writable = false,
+                                                signer = false
+                                            ),
+                                            org.sol4k.AccountMeta(
+                                                mintPk,
+                                                writable = false,
+                                                signer = false
+                                            ),
                                             org.sol4k.AccountMeta(
                                                 org.sol4k.PublicKey("11111111111111111111111111111111"),
                                                 writable = false,
@@ -1453,15 +1615,33 @@ class AnswerActivity : AppCompatActivity() {
                                                 ).order(java.nio.ByteOrder.LITTLE_ENDIAN)
                                                 .putLong(amount.toLong())
                                                 .array()
-                                        return byteArrayOf(12.toByte()) + amountBytes + byteArrayOf(6.toByte())
+                                        return byteArrayOf(12.toByte()) + amountBytes + byteArrayOf(
+                                            6.toByte()
+                                        )
                                     }
 
                                 override val keys: List<org.sol4k.AccountMeta> =
                                     listOf(
-                                        org.sol4k.AccountMeta(senderAta, writable = true, signer = false),
-                                        org.sol4k.AccountMeta(mintPk, writable = false, signer = false),
-                                        org.sol4k.AccountMeta(recipientAta, writable = true, signer = false),
-                                        org.sol4k.AccountMeta(sender, writable = false, signer = true),
+                                        org.sol4k.AccountMeta(
+                                            senderAta,
+                                            writable = true,
+                                            signer = false
+                                        ),
+                                        org.sol4k.AccountMeta(
+                                            mintPk,
+                                            writable = false,
+                                            signer = false
+                                        ),
+                                        org.sol4k.AccountMeta(
+                                            recipientAta,
+                                            writable = true,
+                                            signer = false
+                                        ),
+                                        org.sol4k.AccountMeta(
+                                            sender,
+                                            writable = false,
+                                            signer = true
+                                        ),
                                     )
 
                                 override val programId: org.sol4k.PublicKey =
@@ -1584,7 +1764,8 @@ class AnswerActivity : AppCompatActivity() {
         val pipWidth = (width * 0.33f).toInt().coerceAtLeast(320)
         val pipHeight = (pipWidth * 16f / 9f).toInt()
 
-        val left = (width - pipWidth - (16 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
+        val left =
+            (width - pipWidth - (16 * resources.displayMetrics.density).toInt()).coerceAtLeast(0)
         val top = (height - pipHeight - bottomPaddingPx).coerceAtLeast(0)
 
         return Rect(left, top, left + pipWidth, top + pipHeight)
@@ -1612,14 +1793,21 @@ class AnswerActivity : AppCompatActivity() {
                             address,
                         )
                     } catch (e: Exception) {
-                        Log.e(TAG, "Failed to query Seed Vault accounts for authToken=$authToken", e)
+                        Log.e(
+                            TAG,
+                            "Failed to query Seed Vault accounts for authToken=$authToken",
+                            e
+                        )
                         continue
                     }
 
                 accountsCursor?.use { accountCursor ->
                     if (accountCursor.moveToFirst()) {
                         val derivationPath = Uri.parse(accountCursor.getString(1))
-                        return SeedVaultSigner(authToken = authToken, derivationPath = derivationPath)
+                        return SeedVaultSigner(
+                            authToken = authToken,
+                            derivationPath = derivationPath
+                        )
                     }
                 }
             }
@@ -1793,7 +1981,8 @@ class AnswerActivity : AppCompatActivity() {
                 totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
             )
         val positive = verifyClaimSignatureLocally(message, signature, viewerAddress)
-        val negative = verifyClaimSignatureLocally(message + byteArrayOf(0x00), signature, viewerAddress)
+        val negative =
+            verifyClaimSignatureLocally(message + byteArrayOf(0x00), signature, viewerAddress)
         Log.e(
             TAG,
             "[VIEWER_CLAIM_SIG_SELF_TEST] session=$sessionId viewer=$viewerAddress appId=$appId totalAmountClaimedMicroUsdc=$totalAmountClaimedMicroUsdc hash=$hash positiveVerify=$positive negativeVerify=$negative sigLen=${signature.size}",
