@@ -1326,7 +1326,7 @@ class AnswerActivity : AppCompatActivity() {
         }
 
         val creatorAddress =
-            waitForViewerPaymentRecipient()
+            connectedHostAddress
                 ?: run {
                     showToast(
                         "Missing stream recipient. Please wait for payment request and try again.",
@@ -1366,26 +1366,6 @@ class AnswerActivity : AppCompatActivity() {
                     Toast.LENGTH_LONG
                 )
             }
-    }
-
-    private suspend fun waitForViewerPaymentRecipient(timeoutMs: Long = 3000L): String? {
-        connectedHostAddress
-            ?.takeIf { it.isNotBlank() }
-            ?.let { return it }
-
-        val startedAt = System.currentTimeMillis()
-        while ((System.currentTimeMillis() - startedAt) < timeoutMs) {
-            connectedHostAddress
-                ?.takeIf { it.isNotBlank() }
-                ?.let {
-                    Log.e(TAG, "[VIEWER_RECIPIENT_READY] payTo=$it")
-                    return it
-                }
-            kotlinx.coroutines.delay(100L)
-        }
-
-        Log.e(TAG, "[VIEWER_RECIPIENT_TIMEOUT] timeoutMs=$timeoutMs")
-        return null
     }
 
     private fun sendViewerVoucherSafely(
