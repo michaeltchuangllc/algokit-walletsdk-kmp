@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase
 
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
+import com.michaeltchuang.walletsdk.core.utils.AppId
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -19,7 +20,7 @@ class GenerateLiquidAuthOfferUseCase {
 
     /**
      * Generate the liquid auth URL for QR code display
-     * Format: liquid://<host>/?requestId=<requestId>
+     * Format: liquid://<host>/?requestId=<requestId>&appId=LIQUID_AUTH_STREAM
      *
      * @param origin The origin URL (e.g., https://auth.example.com)
      * @param requestId The request ID to include in the URL
@@ -35,7 +36,7 @@ class GenerateLiquidAuthOfferUseCase {
                 .replace("http://", "")
                 .removePrefix("/")
                 .removeSuffix("/")
-        return "liquid://$host/?requestId=$requestId"
+        return "liquid://$host/?requestId=$requestId&appId=${AppId.LIQUID_AUTH_STREAM.name}"
     }
 
     /**

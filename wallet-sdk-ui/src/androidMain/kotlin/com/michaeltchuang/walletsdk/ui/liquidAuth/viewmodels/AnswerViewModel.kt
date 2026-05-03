@@ -1,21 +1,25 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth
+package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.content.ServiceConnection
 import android.os.Build
 import android.util.Log
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.app.NotificationCompat.Builder
+import androidx.biometric.R
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.fasterxml.uuid.Generators
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
+import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
@@ -26,11 +30,13 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
+import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
@@ -45,7 +51,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
-import com.michaeltchuang.walletsdk.ui.R
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -53,19 +58,24 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
+import foundation.algorand.crypto.avm.Encoder
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.RequestMessage
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.math.BigInteger
@@ -134,7 +144,7 @@ class AnswerViewModel(
         val versionName = "1.0"
         "$applicationId/$versionName (Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
     }
-    private val _session = MutableStateFlow("Logged Out")
+    private val _session = MutableStateFlow(SESSION_LOGGED_OUT)
     val session: StateFlow<String> = _session
     private val _authMessage = MutableStateFlow<AuthMessage?>(null)
     val authMessage: StateFlow<AuthMessage?> = _authMessage
@@ -150,17 +160,16 @@ class AnswerViewModel(
     val accountAddress: StateFlow<String> = _accountAddress
     private var currentAccountType: String = "algorand"
     private val encoder =
-        foundation.algorand.crypto.avm
-            .Encoder()
+        Encoder()
     var currentChallenge: ByteArray? = null
     var showConfirmationDialog = MutableStateFlow(false)
     private val _pendingSignTransactionsParams = MutableStateFlow<SignTransactionsParams?>(null)
     val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> = _pendingSignTransactionsParams
     private val _pendingSignMessage = MutableStateFlow<Message?>(null)
     val pendingSignMessage: StateFlow<Message?> = _pendingSignMessage
-    private var signalServiceConnection: android.content.ServiceConnection? = null
+    private var signalServiceConnection: ServiceConnection? = null
     private val _signalService =
-        MutableStateFlow<com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService?>(
+        MutableStateFlow<SignalService?>(
             null,
         )
     val signalService = _signalService
@@ -197,7 +206,7 @@ class AnswerViewModel(
                 if (shouldTimeoutDisconnect) {
                     hasTimedOutCurrentStream = true
                     clearVideoFrame()
-                    _session.value = "Logged Out"
+                    _session.value = SESSION_LOGGED_OUT
                     _authMessage.value = null
                     _signalService.value?.stop()
                     val reason =
@@ -208,7 +217,7 @@ class AnswerViewModel(
                     eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
                 }
 
-                kotlinx.coroutines.delay(500) // Check every 500ms
+                delay(500) // Check every 500ms
             }
         }
     }
@@ -290,6 +299,7 @@ class AnswerViewModel(
     }
 
     fun unbindSignalService(context: Context) {
+        _signalService.value?.stop()
         signalServiceConnection?.let { manageSignalServiceUseCase.unbind(context, it) }
         _signalService.value = null
     }
@@ -473,7 +483,7 @@ class AnswerViewModel(
     // --- AVM & DataChannel Message Logic ---
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? =
-        Encoder.decodeFromMsgPack(Base64.decode(unsignedTxn), Transaction::class.java)
+        com.algorand.algosdk.util.Encoder.decodeFromMsgPack(Base64.Default.decode(unsignedTxn), Transaction::class.java)
 
     @OptIn(ExperimentalEncodingApi::class)
     fun handleMessages(
@@ -506,7 +516,7 @@ class AnswerViewModel(
                 return
             }
 
-            val cborBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
+            val cborBytes = Base64.Default.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
 
             // Log first bytes to verify incoming CBOR encoding type
             if (cborBytes.isNotEmpty()) {
@@ -573,7 +583,7 @@ class AnswerViewModel(
         onVideoFrame: ((VideoFrameData) -> Unit)?,
     ) {
         try {
-            val json = org.json.JSONObject(msgStr)
+            val json = JSONObject(msgStr)
             val dataBase64 = json.getString("data")
             val frameData =
                 java.util.Base64
@@ -612,7 +622,7 @@ class AnswerViewModel(
     private var blockNumberPollingJob: Job? = null
 
     @Volatile
-    private var pendingMppConsentContinuation: kotlinx.coroutines.CompletableDeferred<ConsentApproval>? = null
+    private var pendingMppConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
     /**
      * Encode ResponseMessage to CBOR bytes
@@ -631,7 +641,7 @@ class AnswerViewModel(
                         ),
                         EncoderType.NONE,
                     )
-                val result = kotlinx.coroutines.runBlocking { processSignTransactions(params) }
+                val result = runBlocking { processSignTransactions(params) }
                 return ResponseMessage(
                     id = uuidGenerator.generate().toString(),
                     reference = "arc0027:sign_transactions:response",
@@ -664,7 +674,7 @@ class AnswerViewModel(
     }
 
     suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
-        val deferred = kotlinx.coroutines.CompletableDeferred<ConsentApproval>()
+        val deferred = CompletableDeferred<ConsentApproval>()
         pendingMppConsentContinuation = deferred
         _pendingMppConsent.value = terms
         return try {
@@ -772,6 +782,59 @@ class AnswerViewModel(
         }
     }
 
+    /**
+     * Build an [MppWalletSigner] for the given account address.
+     * Supports Algo25, HdKey, and Falcon24 local accounts.
+     */
+    suspend fun buildMppWalletSigner(address: String): MppWalletSigner? {
+        val localAccount = getLocalAccount(address) ?: return null
+        if (localAccount is LocalAccount.SeedVault) return null
+
+        return object : MppWalletSigner {
+            override val address: String = address
+
+            override suspend fun signTransaction(txn: Transaction): ByteArray =
+                when (localAccount) {
+                    is LocalAccount.Algo25 -> {
+                        val secretKey = getAlgo25SecretKey(address)
+                            ?: error("Missing Algo25 key for $address")
+                        val txnBytes = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn)
+                        val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                            ?: error("Algo25 arbitrary signing failed")
+                        Sdk.attachSignature(signature, txnBytes)
+                    }
+
+                    is LocalAccount.HdKey -> {
+                        val seed = getSeed(localAccount.seedId)
+                            ?: error("Missing HD seed for $address")
+                        signHdKeyTransaction(
+                            transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(
+                                txn
+                            ),
+                            seed = seed,
+                            account = localAccount.account,
+                            change = localAccount.change,
+                            key = localAccount.keyIndex,
+                        ) ?: error("HD signing failed")
+                    }
+
+                    is LocalAccount.Falcon24 -> {
+                        val secretKey = getFalcon24SecretKey(address)
+                            ?: error("Missing Falcon24 key for $address")
+                        signFalcon24Transaction(
+                            transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(
+                                txn
+                            ),
+                            publicKey = localAccount.publicKey,
+                            privateKey = secretKey,
+                        ) ?: error("Falcon24 signing failed")
+                    }
+
+                    else -> error("Unsupported account for MPP wallet signing: ${localAccount::class.simpleName}")
+                }
+        }
+    }
+
     fun startRealtimeBlockNumberUpdates() {
         if (blockNumberPollingJob?.isActive == true) return
         blockNumberPollingJob =
@@ -779,11 +842,11 @@ class AnswerViewModel(
                 while (true) {
                     getCurrentBlockUseCase().collect { result ->
                         when (result) {
-                            is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
+                            is DataResource.Success -> {
                                 _currentBlockNumber.value = result.data
                             }
-                            is com.michaeltchuang.walletsdk.utils.DataResource.Error,
-                            is com.michaeltchuang.walletsdk.utils.DataResource.Loading,
+                            is DataResource.Error,
+                            is DataResource.Loading,
                             -> Unit
                         }
                     }
@@ -798,7 +861,7 @@ class AnswerViewModel(
     }
 
     suspend fun processBiometricTransactionSigning(
-        activity: androidx.fragment.app.FragmentActivity,
+        activity: FragmentActivity,
         params: SignTransactionsParams,
         message: Message,
     ) {
@@ -1041,12 +1104,12 @@ class AnswerViewModel(
         contentText: String = "Tap to open the app.",
         contentTitle: String = "Liquid Auth",
         channelId: String = NOTIFICATION_CHANNEL_ID,
-    ): Builder =
-        Builder(context, channelId)
+    ): NotificationCompat.Builder =
+        NotificationCompat.Builder(context, channelId)
             .setContentTitle(contentTitle)
             .setContentText(contentText)
-            .setColor(ContextCompat.getColor(context, androidx.biometric.R.color.biometric_error_color))
-            .setSmallIcon(R.drawable.ic_key)
+            .setColor(ContextCompat.getColor(context, R.color.biometric_error_color))
+            .setSmallIcon(com.michaeltchuang.walletsdk.ui.R.drawable.ic_key)
 
     // --- ViewEvents ---
     sealed interface ViewEvent {
@@ -1078,7 +1141,7 @@ class AnswerViewModel(
         ) : ViewEvent
 
         data class AuthenticationSuccess(
-            val publicKeyCredentialRequestOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions,
+            val publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions,
             val credentialId: String,
         ) : ViewEvent
 

@@ -117,9 +117,14 @@ class SignalService : Service() {
         httpClient: OkHttpClient,
         notificationBuilder: Builder,
         notificationId: Int,
-        activityClass: Class<out Activity>,
+        activityClass: Class<out Activity>?,
     ) {
-        startForeground(notificationBuilder.setContentIntent(createPendingIntent(activityClass, 0)), notificationId)
+        val builder = activityClass?.let {
+            createPendingIntent(it, 0)?.let { pendingIntent ->
+                notificationBuilder.setContentIntent(pendingIntent)
+            }
+        } ?: notificationBuilder
+        startForeground(builder, notificationId)
         val isInitialized = signalClient != null
         if (isInitialized) {
             signalClient?.disconnect()
@@ -131,10 +136,14 @@ class SignalService : Service() {
      * Stop the Liquid WebRTC Service
      */
     fun stop() {
-        signalClient?.disconnect()
+        signalClient?.disconnect() // peerClient.destroy() already closes/disposes all channels & peerConnection
         signalClient = null
-        paymentDataChannel?.close()
+        peerConnection = null
+        dataChannel = null
         paymentDataChannel = null
+        peerClient = null
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        stopSelf()
     }
 
     /**
@@ -161,10 +170,11 @@ class SignalService : Service() {
      * This PendingIntent is used to open the SignTransactionActivity when a transaction message is received
      */
     fun createPendingIntent(
-        activityClass: Class<out Activity>,
+        activityClass: Class<out Activity>?,
         requestCode: Int = 0,
         msg: String? = null,
-    ): PendingIntent {
+    ): PendingIntent? {
+        if (activityClass == null) return null
         val answerIntent = Intent(this@SignalService, activityClass)
         answerIntent.setFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
         msg?.let {
@@ -191,7 +201,7 @@ class SignalService : Service() {
         onStateChange: ((state: String?) -> Unit)? = null,
         notificationBuilder: Builder,
         notificationId: Int = LIQUID_NOTIFICATION_ID,
-        activityClass: Class<out Activity>,
+        activityClass: Class<out Activity>?,
     ) {
         var requestCode = 1
         var serviceIntentRequestCode = 0
@@ -205,23 +215,22 @@ class SignalService : Service() {
 
                 if (!activity.hasWindowFocus()) {
                     Log.d(TAG, "DataChannel Message: $msg")
-                    notify(
-                        notificationBuilder
-                            .setContentText(msg)
-                            .setContentIntent(createPendingIntent(activityClass, requestCode, msg)),
-                        notificationId,
-                    )
+                    val builder = notificationBuilder.setContentText(msg)
+                    createPendingIntent(activityClass, requestCode, msg)?.let { pendingIntent ->
+                        builder.setContentIntent(pendingIntent)
+                    }
+                    notify(builder, notificationId)
                     requestCode += 1
                 }
             }, { state ->
                 if (state == "CLOSED" || state == "CLOSING") {
-                    notify(
-                        notificationBuilder
-                            .setContentText("Tap to open the app.")
-                            .setOnlyAlertOnce(true)
-                            .setContentIntent(createPendingIntent(activityClass, serviceIntentRequestCode, null)),
-                        notificationId,
-                    )
+                    val builder = notificationBuilder
+                        .setContentText("Tap to open the app.")
+                        .setOnlyAlertOnce(true)
+                    createPendingIntent(activityClass, serviceIntentRequestCode, null)?.let { pendingIntent ->
+                        builder.setContentIntent(pendingIntent)
+                    }
+                    notify(builder, notificationId)
                 }
                 onStateChange?.invoke(state)
             })

@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.fromUri
 import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
@@ -20,6 +21,7 @@ import kotlinx.coroutines.launch
 data class AuthMessage(
     val origin: String,
     val requestId: String,
+    val appId: String,
 )
 
 class LiquidAuthViewModel(
@@ -30,7 +32,7 @@ class LiquidAuthViewModel(
 ) : ViewModel(),
     StateViewModel<LiquidAuthViewModel.ViewState> by stateDelegate,
     EventViewModel<LiquidAuthViewModel.ViewEvent> by eventDelegate {
-    lateinit var authMessage: AuthMessage
+    var authMessage: AuthMessage? = null
     private var currentNetwork: AlgorandNetwork? = null
 
     init {
@@ -39,20 +41,33 @@ class LiquidAuthViewModel(
         viewModelScope.launch {
             networkNodeSettings.collect { network ->
                 currentNetwork = network
-                fetchAccounts()
+                authMessage?.let {
+                    fetchAccounts(it)
+                }
+
             }
         }
     }
 
-    fun fetchAccounts() {
+    private fun fetchAccounts(authMessage: AuthMessage) {
         stateDelegate.updateState { ViewState.Loading }
         viewModelScope.launch {
             try {
                 // Fetch account details for all accounts to get their amounts
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
+
+                val accounts = accountLite.takeIf {
+                    authMessage.appId == AppId.LIQUID_AUTH_STREAM.name
+                }?.filter {
+                    it.registrationType in setOf(
+                        AccountRegistrationType.Algo25,
+                        AccountRegistrationType.HdKey
+                    )
+                } ?: accountLite
+
                 stateDelegate.updateState {
-                    ViewState.Content(accountLite)
+                    ViewState.Content(accounts)
                 }
             } catch (e: Exception) {
                 stateDelegate.updateState { ViewState.Error(e.message ?: "Unknown error") }
@@ -66,7 +81,6 @@ class LiquidAuthViewModel(
     }
 
     fun initialize(uri: String?) {
-        fetchAccounts()
         viewModelScope.launch {
             if (uri.isNullOrEmpty()) {
                 stateDelegate.updateState {
@@ -81,6 +95,8 @@ class LiquidAuthViewModel(
 
             try {
                 authMessage = fromUri(uri)
+                authMessage?.let { fetchAccounts(it) }
+
             } catch (e: Exception) {
                 stateDelegate.updateState {
                     ViewState.Error("Failed to parse URI: ${e.message}")

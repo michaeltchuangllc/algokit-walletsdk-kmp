@@ -64,10 +64,5 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <activity android:name=".liquidAuth.AnswerActivity"
-            android:theme="@style/Theme.AppCompat.NoActionBar"
-            android:supportsPictureInPicture="true"
-            />
-
     </application>
 </manifest>

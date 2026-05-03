@@ -1,6 +1,32 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
+import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+
+/**
+ * Simple URL decoder for common percent-encoded characters.
+ * Decodes hex sequences like %20, %3D, %26, %3F, %23, %25 etc.
+ */
+private fun String.urlDecode(): String {
+    val hexChars = "0123456789ABCDEF"
+    val sb = StringBuilder()
+    var i = 0
+    while (i < this.length) {
+        val c = this[i]
+        if (c == '%' && i + 2 < this.length) {
+            val high = hexChars.indexOf(this[i + 1].uppercaseChar())
+            val low = hexChars.indexOf(this[i + 2].uppercaseChar())
+            if (high != -1 && low != -1) {
+                sb.append((high * 16 + low).toChar())
+                i += 3
+                continue
+            }
+        }
+        sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
 
 private fun String.findParameterValue(parameterName: String): String? {
     // Extract query string from URI (everything after '?')
@@ -17,7 +43,8 @@ private fun String.findParameterValue(parameterName: String): String? {
             ?.map {
                 val parts = it.split('=')
                 val name = parts.firstOrNull() ?: ""
-                val value = parts.drop(1).joinToString("=") // Join back in case value had '='
+                val rawValue = parts.drop(1).joinToString("=") // Join back in case value had '='
+                val value = rawValue.urlDecode() // URL-decode the parameter value
                 println("      found param: '$name' = '$value'")
                 Pair(name, value)
             }
@@ -51,5 +78,13 @@ fun fromUri(uri: String): AuthMessage {
         println("   Expected format: liquid://host/?requestId=...")
     }
 
-    return AuthMessage(origin, requestId)
+    // Parse appId if present
+    val appId =
+        uri.findParameterValue("appId")
+            ?: AppId.NONE.name
+
+
+    println("   AppId found: '$appId'")
+
+    return AuthMessage(origin, requestId, appId)
 }

@@ -1,7 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import platform.Foundation.NSLog
 
@@ -9,41 +7,39 @@ import platform.Foundation.NSLog
  * Global handler for iOS Liquid Auth.
  * This should be set by the iOS app during initialization.
  */
-var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? = null
+var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? =
+    null
 
-@Composable
-actual fun connect(
+
+actual fun connectLiquidAuth(
     authMessage: AuthMessage,
     accountAddress: String,
 ) {
-    LaunchedEffect(authMessage, accountAddress) {
-        NSLog("🔗 iOS Liquid Auth connect() called")
-        NSLog("   Origin: '${authMessage.origin}'")
-        NSLog("   RequestID: '${authMessage.requestId}'")
-        NSLog("   RequestID length: ${authMessage.requestId.length}")
-        NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
-        NSLog("   AlgoAddress: '$accountAddress'")
+    NSLog("🔗 iOS Liquid Auth connect() called")
+    NSLog("   Origin: '${authMessage.origin}'")
+    NSLog("   RequestID: '${authMessage.requestId}'")
+    NSLog("   RequestID length: ${authMessage.requestId.length}")
+    NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
+    NSLog("   AlgoAddress: '$accountAddress'")
 
-        // Verify requestId is not empty
-        if (authMessage.requestId.isEmpty()) {
-            NSLog("❌ ERROR: RequestID is empty!")
-            NSLog("   This usually means the URL wasn't parsed correctly")
-            NSLog("   Expected URL format: liquid://host/?requestId=...")
-            return@LaunchedEffect
-        }
+    // Verify requestId is not empty
+    if (authMessage.requestId.isEmpty()) {
+        NSLog("❌ ERROR: RequestID is empty!")
+        NSLog("   This usually means the URL wasn't parsed correctly")
+        NSLog("   Expected URL format: liquid://host/?requestId=...")
+    }
 
-        // Call the registered handler
-        val handler = iosLiquidAuthHandler
-        if (handler != null) {
-            NSLog("✅ Calling iOS handler with:")
-            NSLog("   - origin: '${authMessage.origin}'")
-            NSLog("   - requestId: '${authMessage.requestId}'")
-            NSLog("   - address: '$accountAddress'")
-            handler(authMessage.origin, authMessage.requestId, accountAddress)
-        } else {
-            NSLog("⚠️ No iOS Liquid Auth handler registered!")
-            NSLog("📝 Call setIosLiquidAuthHandler() from Swift app initialization")
-        }
+    // Call the registered handler
+    val handler = iosLiquidAuthHandler
+    if (handler != null) {
+        NSLog("✅ Calling iOS handler with:")
+        NSLog("   - origin: '${authMessage.origin}'")
+        NSLog("   - requestId: '${authMessage.requestId}'")
+        NSLog("   - address: '$accountAddress'")
+        handler(authMessage.origin, authMessage.requestId, accountAddress)
+    } else {
+        NSLog("⚠️ No iOS Liquid Auth handler registered!")
+        NSLog("📝 Call setIosLiquidAuthHandler() from Swift app initialization")
     }
 }
 

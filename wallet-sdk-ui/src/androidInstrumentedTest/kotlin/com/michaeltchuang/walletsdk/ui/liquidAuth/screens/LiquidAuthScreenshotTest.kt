@@ -33,7 +33,8 @@ class LiquidAuthScreenshotTest(
             ScreenContentLiquidAuth(
                 viewState = LiquidAuthViewModel.ViewState.Content(accounts),
                 onAccountSelected = {}, // Stub
-                onBack = {}, // Stub
+                onBack = {},
+                showSnackBar = {}, // Stub
             )
         }
         takeScreenshot("testContent")

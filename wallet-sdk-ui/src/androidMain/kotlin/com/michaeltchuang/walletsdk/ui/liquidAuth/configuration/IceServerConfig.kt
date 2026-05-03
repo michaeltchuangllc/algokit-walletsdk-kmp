@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth
+package com.michaeltchuang.walletsdk.ui.liquidAuth.configuration
 
 import org.webrtc.PeerConnection
 
