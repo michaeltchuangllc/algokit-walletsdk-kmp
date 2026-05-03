@@ -15,4 +15,5 @@ object ConnectionStatusState {
     var origin by mutableStateOf("")
     var requestId by mutableStateOf("")
     var accountAddress by mutableStateOf("")
+    var onDisconnect: (() -> Unit)? = null
 }

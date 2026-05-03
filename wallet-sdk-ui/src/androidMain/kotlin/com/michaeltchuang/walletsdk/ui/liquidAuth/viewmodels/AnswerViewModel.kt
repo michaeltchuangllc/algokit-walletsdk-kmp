@@ -112,7 +112,7 @@ class AnswerViewModel(
         private const val TAG = "AnswerViewModel"
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
-        private const val STREAM_TIMEOUT_MS = 2000L // 2 seconds without frames = stream ended
+        private const val STREAM_TIMEOUT_MS = 10000L // 10 seconds without frames = stream ended
         private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
         private fun decodeBase58(input: String): ByteArray? {
@@ -182,7 +182,9 @@ class AnswerViewModel(
     val lastFrameTimestamp: StateFlow<Long> = _lastFrameTimestamp
     private val _isStreamActive = MutableStateFlow(false)
     val isStreamActive: StateFlow<Boolean> = _isStreamActive
+    @Volatile
     private var hasReceivedAtLeastOneFrame = false
+    @Volatile
     private var hasTimedOutCurrentStream = false
 
     init {
@@ -203,7 +205,16 @@ class AnswerViewModel(
                         !currentlyActive &&
                         !hasTimedOutCurrentStream
 
+                Napier.d(
+                    tag = TAG,
+                    message = "Stream monitor - lastFrame=$lastFrame, currentlyActive=$currentlyActive, " +
+                        "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
+                        "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
+                        "shouldTimeout=$shouldTimeoutDisconnect",
+                )
+
                 if (shouldTimeoutDisconnect) {
+                    Napier.w(tag = TAG, message = "Stream timeout triggered - disconnecting")
                     hasTimedOutCurrentStream = true
                     clearVideoFrame()
                     _session.value = SESSION_LOGGED_OUT
@@ -257,9 +268,11 @@ class AnswerViewModel(
     fun setVideoFrame(frame: VideoFrameData?) {
         _videoFrame.value = frame
         if (frame != null) {
-            _lastFrameTimestamp.value = System.currentTimeMillis()
+            val now = System.currentTimeMillis()
+            _lastFrameTimestamp.value = now
             hasReceivedAtLeastOneFrame = true
             hasTimedOutCurrentStream = false
+            Napier.d(tag = TAG, message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now")
         }
     }
 

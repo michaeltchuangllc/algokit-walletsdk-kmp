@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
@@ -20,12 +20,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
 
 @Composable
 fun ConnectionStatusBar(modifier: Modifier = Modifier) {
@@ -37,8 +39,6 @@ fun ConnectionStatusBar(modifier: Modifier = Modifier) {
         modifier =
             modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(12.dp))
                 .background(ColorPalette.Gray700)
                 .clickable { state.isExpanded = !state.isExpanded }
                 .padding(16.dp),
@@ -51,20 +51,39 @@ fun ConnectionStatusBar(modifier: Modifier = Modifier) {
         ) {
             Text(
                 text =
-                    if (state.session.isNotBlank()) {
-                        "Connected to ${state.session}"
-                    } else {
-                        "Connected to Session"
+                    when {
+                        state.session == SESSION_LOGGED_OUT -> {
+                            "Connecting to LiquidAuth"
+                        }
+                        state.session.isBlank() -> {
+                            "Waiting for session"
+                        }
+                        else -> {
+                            "Connected to ${state.session}"
+                        }
                     },
                 color = ColorPalette.Turquoise500,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
             )
-            Icon(
-                imageVector = if (state.isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                contentDescription = if (state.isExpanded) "Collapse" else "Expand",
-                tint = ColorPalette.Turquoise500,
-            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (state.session.isNotBlank() && state.session != SESSION_LOGGED_OUT) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Disconnect",
+                        tint = Color.Red,
+                        modifier = Modifier.clickable { state.onDisconnect?.invoke() },
+                    )
+                }
+                Icon(
+                    imageVector = if (state.isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (state.isExpanded) "Collapse" else "Expand",
+                    tint = ColorPalette.Turquoise500,
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -94,7 +113,7 @@ fun ConnectionStatusBar(modifier: Modifier = Modifier) {
                 if (state.accountAddress.isNotBlank()) {
                     InfoRow(
                         label = "Account",
-                        value = truncateAddress(state.accountAddress),
+                        value = state.accountAddress.toShortenedAddress(),
                     )
                 }
             }
@@ -123,13 +142,5 @@ private fun InfoRow(
             color = AlgoKitTheme.colors.textMain,
             fontWeight = FontWeight.Normal,
         )
-    }
-}
-
-private fun truncateAddress(address: String): String {
-    return if (address.length > 12) {
-        "${address.take(4)}...${address.takeLast(4)}"
-    } else {
-        address
     }
 }

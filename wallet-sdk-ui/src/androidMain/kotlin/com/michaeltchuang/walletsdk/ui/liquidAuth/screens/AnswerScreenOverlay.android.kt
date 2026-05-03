@@ -5,7 +5,6 @@ import android.content.Context
 import android.os.StrictMode
 import android.util.Log
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -284,14 +283,21 @@ actual fun AnswerScreenOverlay() {
             }
         }
 
-        BackHandler {
-            AnswerScreenState.isVisible = false
-            ConnectionStatusState.isVisible = false
-            ConnectionStatusState.isExpanded = false
-            ConnectionStatusState.session = ""
-            ConnectionStatusState.origin = ""
-            ConnectionStatusState.requestId = ""
-            ConnectionStatusState.accountAddress = ""
+        DisposableEffect(Unit) {
+            ConnectionStatusState.onDisconnect = {
+                viewModel.unbindSignalService(context)
+                viewModelStoreOwner.viewModelStore.clear()
+                AnswerScreenState.isVisible = false
+                ConnectionStatusState.isVisible = false
+                ConnectionStatusState.isExpanded = false
+                ConnectionStatusState.session = ""
+                ConnectionStatusState.origin = ""
+                ConnectionStatusState.requestId = ""
+                ConnectionStatusState.accountAddress = ""
+            }
+            onDispose {
+                ConnectionStatusState.onDisconnect = null
+            }
         }
 
         val showDialog by viewModel.showConfirmationDialog.collectAsState()

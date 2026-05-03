@@ -12,9 +12,9 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.fromUri
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.getSupportedAccountsByAppId
 import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 
@@ -57,14 +57,7 @@ class LiquidAuthViewModel(
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
 
-                val accounts = accountLite.takeIf {
-                    authMessage.appId == AppId.LIQUID_AUTH_STREAM.name
-                }?.filter {
-                    it.registrationType in setOf(
-                        AccountRegistrationType.Algo25,
-                        AccountRegistrationType.HdKey
-                    )
-                } ?: accountLite
+                val accounts = getSupportedAccountsByAppId(authMessage.appId,accountLite)
 
                 stateDelegate.updateState {
                     ViewState.Content(accounts)

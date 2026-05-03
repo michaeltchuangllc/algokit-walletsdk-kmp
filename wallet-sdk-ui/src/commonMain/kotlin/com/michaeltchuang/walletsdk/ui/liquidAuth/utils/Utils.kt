@@ -1,5 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
+import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 
@@ -87,4 +90,27 @@ fun fromUri(uri: String): AuthMessage {
     println("   AppId found: '$appId'")
 
     return AuthMessage(origin, requestId, appId)
+}
+
+fun getSupportedAccountsByAppId(appId: String, accountLite: List<AccountLite>):
+        List<AccountLite> {
+    return accountLite.takeIf {
+        appId == AppId.LIQUID_AUTH_STREAM.name
+    }?.filter {
+        it.registrationType in setOf(
+            AccountRegistrationType.Algo25,
+            AccountRegistrationType.HdKey
+        )
+    } ?: accountLite
+}
+
+fun getSupportedLocalAccountsByAppId(
+    appId: String,
+    localAccount: List<LocalAccount>
+): List<LocalAccount> {
+    return localAccount.takeIf {
+        appId == AppId.LIQUID_AUTH_STREAM.name
+    }?.filter {
+        it is LocalAccount.HdKey || it is LocalAccount.Algo25
+    } ?: localAccount
 }

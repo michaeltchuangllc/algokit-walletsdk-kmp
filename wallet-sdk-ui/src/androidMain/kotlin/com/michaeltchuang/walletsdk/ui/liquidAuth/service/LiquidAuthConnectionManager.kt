@@ -34,6 +34,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -353,6 +355,20 @@ class AndroidLiquidAuthConnectionManager(
             TAG,
             "🔌 startListening() called - isBound=$isBound, activeRequestId=$activeRequestId, newRequestId=$requestId, viewModel=$viewModel",
         )
+
+        // Prevent broadcast from interfering with active viewer session.
+        // Both viewer and broadcaster share the same SignalService, and
+        // SignalService.start() disconnects any existing WebRTC client.
+        if (AnswerScreenState.isVisible || ConnectionStatusState.isVisible) {
+            Log.w(
+                TAG,
+                "⛔ Active viewer session detected (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping broadcast start to avoid disconnecting viewer.",
+            )
+            return
+        }
+
         if (isBound) {
             if (activeRequestId == requestId) {
                 Log.d(TAG, "Already bound to service for same requestId, skipping")
@@ -591,7 +607,21 @@ class AndroidLiquidAuthConnectionManager(
                 // Service not bound
             }
         }
-        signalService?.stop()
+
+        // Only stop the shared SignalService if no viewer session is still active.
+        // Otherwise we would kill the viewer's WebRTC connection.
+        val viewerStillActive = AnswerScreenState.isVisible || ConnectionStatusState.isVisible
+        if (!viewerStillActive) {
+            signalService?.stop()
+        } else {
+            Log.w(
+                TAG,
+                "⏸️ Viewer session still active (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping signalService.stop() to preserve viewer connection.",
+            )
+        }
+
         signalService = null
         serviceConnection = null
         isBound = false
