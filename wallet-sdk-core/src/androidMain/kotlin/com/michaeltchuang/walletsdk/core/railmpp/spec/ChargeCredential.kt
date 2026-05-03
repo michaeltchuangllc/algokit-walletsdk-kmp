@@ -36,30 +36,33 @@ internal object ChargeCredentialCodec {
      */
     fun toAuthHeader(credential: ChargeCredential): String {
         val challenge = credential.challenge
-        val challengeJson = JSONObject().apply {
-            put("id", challenge.id)
-            put("realm", challenge.realm)
-            put("method", challenge.method)
-            put("intent", challenge.intent)
-            put("request", ChargeRequestCodec.serialize(challenge.request))
-            challenge.expires?.let { put("expires", it) }
-            challenge.description?.let { put("description", it) }
-            challenge.digest?.let { put("digest", it) }
-            challenge.opaque?.let { put("opaque", ChargeRequestCodec.serialize(it)) }
-        }
+        val challengeJson =
+            JSONObject().apply {
+                put("id", challenge.id)
+                put("realm", challenge.realm)
+                put("method", challenge.method)
+                put("intent", challenge.intent)
+                put("request", ChargeRequestCodec.serialize(challenge.request))
+                challenge.expires?.let { put("expires", it) }
+                challenge.description?.let { put("description", it) }
+                challenge.digest?.let { put("digest", it) }
+                challenge.opaque?.let { put("opaque", ChargeRequestCodec.serialize(it)) }
+            }
 
-        val payloadJson = JSONObject().apply {
-            put("type", credential.payload.type)
-            credential.payload.paymentGroup?.let { put("paymentGroup", JSONArray(it)) }
-            credential.payload.paymentIndex?.let { put("paymentIndex", it) }
-            credential.payload.signedTransaction?.let { put("signedTransaction", it) }
-        }
+        val payloadJson =
+            JSONObject().apply {
+                put("type", credential.payload.type)
+                credential.payload.paymentGroup?.let { put("paymentGroup", JSONArray(it)) }
+                credential.payload.paymentIndex?.let { put("paymentIndex", it) }
+                credential.payload.signedTransaction?.let { put("signedTransaction", it) }
+            }
 
-        val wire = JSONObject().apply {
-            put("challenge", challengeJson)
-            put("payload", payloadJson)
-            credential.source?.let { put("source", it) }
-        }
+        val wire =
+            JSONObject().apply {
+                put("challenge", challengeJson)
+                put("payload", payloadJson)
+                credential.source?.let { put("source", it) }
+            }
 
         val canonical = JcsJson.canonicalize(wire)
         return "Payment " + Base64Url.encode(canonical)
@@ -72,18 +75,22 @@ internal object ChargeCredentialCodec {
         val parsed = JSONObject(json)
 
         val challengeJson = parsed.getJSONObject("challenge")
-        val challenge = ChargeChallenge(
-            id = challengeJson.getString("id"),
-            realm = challengeJson.getString("realm"),
-            method = challengeJson.getString("method"),
-            intent = challengeJson.getString("intent"),
-            request = ChargeRequestCodec.deserialize(challengeJson.getString("request")),
-            expires = challengeJson.optString("expires").ifBlank { null },
-            description = challengeJson.optString("description").ifBlank { null },
-            digest = challengeJson.optString("digest").ifBlank { null },
-            opaque = challengeJson.optString("opaque").ifBlank { null }
-                ?.let { ChargeRequestCodec.deserialize(it) },
-        )
+        val challenge =
+            ChargeChallenge(
+                id = challengeJson.getString("id"),
+                realm = challengeJson.getString("realm"),
+                method = challengeJson.getString("method"),
+                intent = challengeJson.getString("intent"),
+                request = ChargeRequestCodec.deserialize(challengeJson.getString("request")),
+                expires = challengeJson.optString("expires").ifBlank { null },
+                description = challengeJson.optString("description").ifBlank { null },
+                digest = challengeJson.optString("digest").ifBlank { null },
+                opaque =
+                    challengeJson
+                        .optString("opaque")
+                        .ifBlank { null }
+                        ?.let { ChargeRequestCodec.deserialize(it) },
+            )
 
         val payloadJson = parsed.getJSONObject("payload")
         val paymentGroup =
@@ -93,12 +100,13 @@ internal object ChargeCredentialCodec {
             } else {
                 null
             }
-        val payment = ChargePayload(
-            type = payloadJson.optString("type", "transaction"),
-            paymentGroup = paymentGroup,
-            paymentIndex = if (payloadJson.has("paymentIndex")) payloadJson.getInt("paymentIndex") else null,
-            signedTransaction = payloadJson.optString("signedTransaction").ifBlank { null },
-        )
+        val payment =
+            ChargePayload(
+                type = payloadJson.optString("type", "transaction"),
+                paymentGroup = paymentGroup,
+                paymentIndex = if (payloadJson.has("paymentIndex")) payloadJson.getInt("paymentIndex") else null,
+                signedTransaction = payloadJson.optString("signedTransaction").ifBlank { null },
+            )
 
         return ChargeCredential(
             challenge = challenge,

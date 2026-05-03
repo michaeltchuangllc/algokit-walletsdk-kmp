@@ -1,9 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
-/**
- * Core interfaces for webrtc-payment-sdk.
- * Extension points for auth providers, payment rails, and signaling adapters.
- */
+// Core interfaces for webrtc-payment-sdk.
+// Extension points for auth providers, payment rails, and signaling adapters.
 
 // ─── Authentication Provider ─────────────────────────────
 
@@ -14,7 +12,10 @@ interface AuthProvider {
 
     suspend fun respondToChallenge(challenge: AuthChallenge): Pair<AuthIdentity, String>
 
-    suspend fun verifyIdentity(challenge: AuthChallenge, proof: String): AuthIdentity?
+    suspend fun verifyIdentity(
+        challenge: AuthChallenge,
+        proof: String,
+    ): AuthIdentity?
 }
 
 // ─── Payment Rail ────────────────────────────────────────
@@ -27,7 +28,7 @@ data class PaymentRailRequestParams(
     val network: String,
     val payTo: String,
     val ttl: Int,
-    val meta: PaymentRequestMeta
+    val meta: PaymentRequestMeta,
 )
 
 interface PaymentRail {
@@ -38,7 +39,10 @@ interface PaymentRail {
 
     suspend fun createRailPayment(request: PaymentRequest): RailPayment
 
-    suspend fun verifyAndSettle(railPayment: RailPayment, request: PaymentRequest): PaymentReceipt
+    suspend fun verifyAndSettle(
+        railPayment: RailPayment,
+        request: PaymentRequest,
+    ): PaymentReceipt
 }
 
 // ─── Consent Handler ─────────────────────────────────────
@@ -51,5 +55,8 @@ interface ConsentHandler {
 
 interface NonceStore {
     /** Returns false if nonce already exists (replay detected) */
-    suspend fun checkAndStore(nonce: String, ttlSeconds: Int): Boolean
+    suspend fun checkAndStore(
+        nonce: String,
+        ttlSeconds: Int,
+    ): Boolean
 }

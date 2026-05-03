@@ -43,9 +43,10 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             Napier.d(tag = TAG, message = "signFalconBundle returned CSV with length: ${resultCsv.length}")
 
             val signedResults = resultCsv.split(",").filter { it.isNotBlank() }
-            val decodedResults = signedResults.map { encodedTxn ->
-                Base64.decode(encodedTxn, Base64.DEFAULT)
-            }
+            val decodedResults =
+                signedResults.map { encodedTxn ->
+                    Base64.decode(encodedTxn, Base64.DEFAULT)
+                }
 
             if (decodedResults.isEmpty()) {
                 throw IllegalStateException("Falcon signer returned no signed transaction")
@@ -78,7 +79,10 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             null
         }
 
-    private fun matchesExpectedTransaction(expected: Transaction, actual: Transaction): Boolean {
+    private fun matchesExpectedTransaction(
+        expected: Transaction,
+        actual: Transaction,
+    ): Boolean {
         if (expected.type != actual.type) return false
         if (expected.sender?.toString() != actual.sender?.toString()) return false
         return when (expected.type?.toString()) {

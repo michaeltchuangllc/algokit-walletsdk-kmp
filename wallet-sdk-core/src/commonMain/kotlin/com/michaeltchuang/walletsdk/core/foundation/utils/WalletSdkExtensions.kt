@@ -50,6 +50,7 @@ inline fun <reified T> NavController.getData(): T? =
         ?.getObject()
 
 val precision: Int = 3
+
 fun String.formatAmount(convertToMicroAmount: Boolean = true): String =
 
     try {

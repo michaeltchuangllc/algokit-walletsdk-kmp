@@ -42,7 +42,7 @@ class PaywalledRTCServer(
     private val peerConnection: PeerConnection,
     private val paymentRail: PaymentRail,
     private var config: ServerConfig,
-    private val nonceStore: NonceStore = InMemoryNonceStore()
+    private val nonceStore: NonceStore = InMemoryNonceStore(),
 ) {
     companion object {
         private const val TAG = "PaywalledRTCServer"
@@ -97,36 +97,43 @@ class PaywalledRTCServer(
      * Start the paywalled session with an existing DataChannel and the list of RTP senders
      * to gate (typically the video + audio senders you added via `pc.addTrack`).
      */
-    fun listen(dataChannel: DataChannel, rtpSenders: List<RtpSender>) {
+    fun listen(
+        dataChannel: DataChannel,
+        rtpSenders: List<RtpSender>,
+    ) {
         if (started) return
         started = true
 
         this.dc = dataChannel
         this.senders = rtpSenders
 
-        dataChannel.registerObserver(object : DataChannel.Observer {
-            override fun onBufferedAmountChange(amount: Long) {}
-            override fun onStateChange() {
-                val state = dataChannel.state()
-                Log.d(TAG, "DC state: $state")
-                if (state == DataChannel.State.OPEN) {
-                    handler.post { handleDataChannelOpen() }
-                } else if (state == DataChannel.State.CLOSED) {
-                    handler.post { handleDisconnect() }
-                }
-            }
-            override fun onMessage(buffer: DataChannel.Buffer?) {
-                try {
-                    buffer?.data?.let { byteBuffer ->
-                        val bytes = ByteArray(byteBuffer.remaining())
-                        byteBuffer.get(bytes)
-                        handler.post { handleDataChannelMessage(String(bytes)) }
+        dataChannel.registerObserver(
+            object : DataChannel.Observer {
+                override fun onBufferedAmountChange(amount: Long) {}
+
+                override fun onStateChange() {
+                    val state = dataChannel.state()
+                    Log.d(TAG, "DC state: $state")
+                    if (state == DataChannel.State.OPEN) {
+                        handler.post { handleDataChannelOpen() }
+                    } else if (state == DataChannel.State.CLOSED) {
+                        handler.post { handleDisconnect() }
                     }
-                } catch (e: Exception) {
-                    Log.e(TAG, "onMessage error", e)
                 }
-            }
-        })
+
+                override fun onMessage(buffer: DataChannel.Buffer?) {
+                    try {
+                        buffer?.data?.let { byteBuffer ->
+                            val bytes = ByteArray(byteBuffer.remaining())
+                            byteBuffer.get(bytes)
+                            handler.post { handleDataChannelMessage(String(bytes)) }
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "onMessage error", e)
+                    }
+                }
+            },
+        )
 
         // If DC is already open, start immediately
         if (dataChannel.state() == DataChannel.State.OPEN) {
@@ -166,12 +173,17 @@ class PaywalledRTCServer(
         disposed = true
         cancelTimers()
         gate()
-        sendDC(JSONObject().apply {
-            put("type", DCMessageType.SESSION_TERMINATE)
-            put("sessionId", sessionId)
-            put("payload", JSONObject().apply { put("reason", reason ?: "") })
-        })
-        try { dc?.close() } catch (_: Exception) {}
+        sendDC(
+            JSONObject().apply {
+                put("type", DCMessageType.SESSION_TERMINATE)
+                put("sessionId", sessionId)
+                put("payload", JSONObject().apply { put("reason", reason ?: "") })
+            },
+        )
+        try {
+            dc?.close()
+        } catch (_: Exception) {
+        }
         onSessionTerminated?.invoke(sessionId)
     }
 
@@ -204,7 +216,10 @@ class PaywalledRTCServer(
                         terminate("Payment denied")
                     } else {
                         val railPayment = railPaymentFromJson(msg.getJSONObject("payload"))
-                        Log.e(TAG, "[SEGMENT_PAYMENT_PAYLOAD_PARSED] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce} railId=${railPayment.railId}")
+                        Log.e(
+                            TAG,
+                            "[SEGMENT_PAYMENT_PAYLOAD_PARSED] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce} railId=${railPayment.railId}",
+                        )
                         scope.launch { handlePayment(railPayment) }
                     }
                 }
@@ -239,40 +254,53 @@ class PaywalledRTCServer(
                     return@launch
                 }
 
-                val request = paymentRail.createPaymentRequest(PaymentRailRequestParams(
-                    sessionId = sessionId,
-                    segmentIndex = segmentIndex,
-                    amount = config.gating.amount,
-                    asset = config.gating.asset,
-                    network = config.gating.network,
-                    payTo = config.gating.payTo,
-                    ttl = config.paymentTTL,
-                    meta = PaymentRequestMeta(
-                        gatingMode = config.gating.mode,
-                        enforcement = config.enforcement,
-                        segmentDuration = config.gating.segmentDuration,
-                        segmentBytes = config.gating.segmentBytes,
-                        viewerAddress = config.viewerAddress,
-                        voucherSignature = null,
+                val request =
+                    paymentRail.createPaymentRequest(
+                        PaymentRailRequestParams(
+                            sessionId = sessionId,
+                            segmentIndex = segmentIndex,
+                            amount = config.gating.amount,
+                            asset = config.gating.asset,
+                            network = config.gating.network,
+                            payTo = config.gating.payTo,
+                            ttl = config.paymentTTL,
+                            meta =
+                                PaymentRequestMeta(
+                                    gatingMode = config.gating.mode,
+                                    enforcement = config.enforcement,
+                                    segmentDuration = config.gating.segmentDuration,
+                                    segmentBytes = config.gating.segmentBytes,
+                                    viewerAddress = config.viewerAddress,
+                                    voucherSignature = null,
+                                ),
+                        ),
                     )
-                ))
 
                 pendingRequest = request
                 onPaymentRequested?.invoke(request)
-                Log.e(TAG, "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} ttl=${request.ttl}")
+                Log.e(
+                    TAG,
+                    "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} ttl=${request.ttl}",
+                )
                 Log.d(
                     TAG,
                     "💸 Segment payment requested: session=$sessionId segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} ttl=${request.ttl}s segmentDuration=${request.meta.segmentDuration ?: -1}s",
                 )
 
-                sendDC(JSONObject().apply {
-                    put("type", DCMessageType.SEGMENT_REQUEST)
-                    put("sessionId", sessionId)
-                    put("segmentIndex", segmentIndex)
-                    put("payload", request.toJson())
-                })
+                sendDC(
+                    JSONObject().apply {
+                        put("type", DCMessageType.SEGMENT_REQUEST)
+                        put("sessionId", sessionId)
+                        put("segmentIndex", segmentIndex)
+                        put("payload", request.toJson())
+                    },
+                )
             } catch (e: Throwable) {
-                Log.e(TAG, "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}", e)
+                Log.e(
+                    TAG,
+                    "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}",
+                    e,
+                )
                 onError?.invoke(e)
             }
         }
@@ -295,12 +323,13 @@ class PaywalledRTCServer(
         // First payment — no grace timer
         if (stats.segmentsPaid == 0) return
 
-        graceTimer = Runnable {
-            graceTimer = null
-            if (pendingRequest != null) {
-                gate()
+        graceTimer =
+            Runnable {
+                graceTimer = null
+                if (pendingRequest != null) {
+                    gate()
+                }
             }
-        }
         handler.postDelayed(graceTimer!!, gracePeriod)
     }
 
@@ -317,26 +346,35 @@ class PaywalledRTCServer(
     }
 
     private suspend fun handlePayment(railPayment: RailPayment) {
-        val request = pendingRequest ?: run {
-            Log.e(TAG, "[HANDLE_PAYMENT_NO_PENDING_REQUEST] session=$sessionId segment=$segmentIndex")
-            onPaymentRejected?.invoke("No pending request")
-            return
-        }
+        val request =
+            pendingRequest ?: run {
+                Log.e(TAG, "[HANDLE_PAYMENT_NO_PENDING_REQUEST] session=$sessionId segment=$segmentIndex")
+                onPaymentRejected?.invoke("No pending request")
+                return
+            }
 
         onPaymentReceived?.invoke(railPayment)
 
-        graceTimer?.let { handler.removeCallbacks(it); graceTimer = null }
+        graceTimer?.let {
+            handler.removeCallbacks(it)
+            graceTimer = null
+        }
 
         // Nonce check
         if (railPayment.nonce != request.nonce) {
-            Log.e(TAG, "[HANDLE_PAYMENT_NONCE_MISMATCH] session=$sessionId segment=$segmentIndex expected=${request.nonce} actual=${railPayment.nonce}")
+            Log.e(
+                TAG,
+                "[HANDLE_PAYMENT_NONCE_MISMATCH] session=$sessionId segment=$segmentIndex expected=${request.nonce} actual=${railPayment.nonce}",
+            )
             onPaymentRejected?.invoke("Nonce mismatch")
-            sendDC(JSONObject().apply {
-                put("type", DCMessageType.SEGMENT_REJECTED)
-                put("sessionId", sessionId)
-                put("segmentIndex", segmentIndex)
-                put("payload", JSONObject().apply { put("reason", "nonce_mismatch") })
-            })
+            sendDC(
+                JSONObject().apply {
+                    put("type", DCMessageType.SEGMENT_REJECTED)
+                    put("sessionId", sessionId)
+                    put("segmentIndex", segmentIndex)
+                    put("payload", JSONObject().apply { put("reason", "nonce_mismatch") })
+                },
+            )
             terminate("Nonce mismatch")
             return
         }
@@ -346,37 +384,43 @@ class PaywalledRTCServer(
         if (!isNew) {
             Log.e(TAG, "[HANDLE_PAYMENT_NONCE_REPLAY] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce}")
             onPaymentRejected?.invoke("Nonce replay detected")
-            sendDC(JSONObject().apply {
-                put("type", DCMessageType.SEGMENT_REJECTED)
-                put("sessionId", sessionId)
-                put("segmentIndex", segmentIndex)
-                put("payload", JSONObject().apply { put("reason", "nonce_replay") })
-            })
+            sendDC(
+                JSONObject().apply {
+                    put("type", DCMessageType.SEGMENT_REJECTED)
+                    put("sessionId", sessionId)
+                    put("segmentIndex", segmentIndex)
+                    put("payload", JSONObject().apply { put("reason", "nonce_replay") })
+                },
+            )
             return
         }
 
         // Verify and settle via rail
         try {
-            val receipt = withContext(Dispatchers.IO) {
-                paymentRail.verifyAndSettle(railPayment, request)
-            }
+            val receipt =
+                withContext(Dispatchers.IO) {
+                    paymentRail.verifyAndSettle(railPayment, request)
+                }
 
             stats.segmentsPaid++
-            stats.totalAmountReceived = (
-                stats.totalAmountReceived.toBigInteger() + request.amount.toBigInteger()
-            ).toString()
+            stats.totalAmountReceived =
+                (
+                    stats.totalAmountReceived.toBigInteger() + request.amount.toBigInteger()
+                ).toString()
 
             pendingRequest = null
             onPaymentSettled?.invoke(receipt)
 
             if (gated) ungate()
 
-            sendDC(JSONObject().apply {
-                put("type", DCMessageType.SEGMENT_ACCEPTED)
-                put("sessionId", sessionId)
-                put("segmentIndex", segmentIndex)
-                put("payload", receipt.toJson())
-            })
+            sendDC(
+                JSONObject().apply {
+                    put("type", DCMessageType.SEGMENT_ACCEPTED)
+                    put("sessionId", sessionId)
+                    put("segmentIndex", segmentIndex)
+                    put("payload", receipt.toJson())
+                },
+            )
 
             stats.segmentsDelivered++
             onSegmentStarted?.invoke(segmentIndex)
@@ -395,7 +439,11 @@ class PaywalledRTCServer(
                 }
             }
         } catch (e: Throwable) {
-            Log.e(TAG, "[HANDLE_PAYMENT_SETTLE_FAILED] session=$sessionId segment=$segmentIndex amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}", e)
+            Log.e(
+                TAG,
+                "[HANDLE_PAYMENT_SETTLE_FAILED] session=$sessionId segment=$segmentIndex amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}",
+                e,
+            )
             onError?.invoke(e)
             onPaymentRejected?.invoke(e.message ?: "Payment failed")
             terminate("Payment failed: ${e.message}")
@@ -416,18 +464,27 @@ class PaywalledRTCServer(
         }
     }
 
-    private fun scheduleSegmentTimer(delayMs: Long, action: () -> Unit) {
+    private fun scheduleSegmentTimer(
+        delayMs: Long,
+        action: () -> Unit,
+    ) {
         cancelSegmentTimer()
         segmentTimer = Runnable { action() }
         handler.postDelayed(segmentTimer!!, delayMs)
     }
 
     private fun cancelSegmentTimer() {
-        segmentTimer?.let { handler.removeCallbacks(it); segmentTimer = null }
+        segmentTimer?.let {
+            handler.removeCallbacks(it)
+            segmentTimer = null
+        }
     }
 
     private fun cancelTimers() {
         cancelSegmentTimer()
-        graceTimer?.let { handler.removeCallbacks(it); graceTimer = null }
+        graceTimer?.let {
+            handler.removeCallbacks(it)
+            graceTimer = null
+        }
     }
 }

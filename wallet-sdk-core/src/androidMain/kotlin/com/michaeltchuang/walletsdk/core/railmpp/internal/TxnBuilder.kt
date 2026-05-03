@@ -21,7 +21,6 @@ import java.math.BigInteger
  * algod fetch + broadcast.
  */
 internal object TxnBuilder {
-
     /** Build the payment transaction (ALGO `pay` or ASA `axfer`). */
     fun buildPaymentTxn(
         sender: String,
@@ -36,27 +35,30 @@ internal object TxnBuilder {
         val normalizedAsaId = asaId?.trim()
         val isAlgo = normalizedAsaId == null || normalizedAsaId == ALGO_ASSET || normalizedAsaId.equals("algo", ignoreCase = true)
 
-        val txn: Transaction = if (isAlgo) {
-            Transaction.PaymentTransactionBuilder()
-                .sender(Address(sender))
-                .receiver(Address(receiver))
-                .amount(amount)
-                .suggestedParams(params)
-                .apply { if (note != null) note(note) }
-                .build()
-        } else {
-            // asaId is non-null here by the isAlgo check above, but Kotlin
-            // smart-cast doesn't carry through the conjunction — assert explicitly.
-            val asaIdLong = requireNotNull(normalizedAsaId) { "asaId required for ASA transfer" }.toLong()
-            Transaction.AssetTransferTransactionBuilder()
-                .sender(Address(sender))
-                .assetReceiver(Address(receiver))
-                .assetAmount(amount)
-                .assetIndex(asaIdLong)
-                .suggestedParams(params)
-                .apply { if (note != null) note(note) }
-                .build()
-        }
+        val txn: Transaction =
+            if (isAlgo) {
+                Transaction
+                    .PaymentTransactionBuilder()
+                    .sender(Address(sender))
+                    .receiver(Address(receiver))
+                    .amount(amount)
+                    .suggestedParams(params)
+                    .apply { if (note != null) note(note) }
+                    .build()
+            } else {
+                // asaId is non-null here by the isAlgo check above, but Kotlin
+                // smart-cast doesn't carry through the conjunction — assert explicitly.
+                val asaIdLong = requireNotNull(normalizedAsaId) { "asaId required for ASA transfer" }.toLong()
+                Transaction
+                    .AssetTransferTransactionBuilder()
+                    .sender(Address(sender))
+                    .assetReceiver(Address(receiver))
+                    .assetAmount(amount)
+                    .assetIndex(asaIdLong)
+                    .suggestedParams(params)
+                    .apply { if (note != null) note(note) }
+                    .build()
+            }
 
         if (useFeePayer) {
             // Fee payer covers all fees — consumer txn pays 0.
@@ -75,13 +77,15 @@ internal object TxnBuilder {
         pooledFee: Long,
         note: ByteArray?,
     ): Transaction {
-        val txn = Transaction.PaymentTransactionBuilder()
-            .sender(Address(feePayerAddress))
-            .receiver(Address(feePayerAddress))
-            .amount(0)
-            .suggestedParams(params)
-            .apply { if (note != null) note(note) }
-            .build()
+        val txn =
+            Transaction
+                .PaymentTransactionBuilder()
+                .sender(Address(feePayerAddress))
+                .receiver(Address(feePayerAddress))
+                .amount(0)
+                .suggestedParams(params)
+                .apply { if (note != null) note(note) }
+                .build()
         txn.fee = BigInteger.valueOf(pooledFee)
         return txn
     }
@@ -101,7 +105,5 @@ internal object TxnBuilder {
     fun encodeSignedTxnBase64(signedBytes: ByteArray): String = Base64Std.encode(signedBytes)
 
     /** Fetch the network's suggested params from algod. */
-    fun fetchSuggestedParams(algodClient: AlgodClient): TransactionParametersResponse {
-        return algodClient.TransactionParams().execute().body()
-    }
+    fun fetchSuggestedParams(algodClient: AlgodClient): TransactionParametersResponse = algodClient.TransactionParams().execute().body()
 }

@@ -9,6 +9,17 @@ import com.algorand.algosdk.util.Encoder
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
+import com.michaeltchuang.walletsdk.core.railmpp.ALGO_ASSET
+import com.michaeltchuang.walletsdk.core.railmpp.DEFAULT_ALGOD_URLS
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallenge
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequest
+import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequestCodec
+import com.michaeltchuang.walletsdk.core.railmpp.spec.SuggestedParams
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -22,18 +33,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 import org.json.JSONObject
-import com.michaeltchuang.walletsdk.core.railmpp.ALGO_ASSET
-import com.michaeltchuang.walletsdk.core.railmpp.DEFAULT_ALGOD_URLS
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
-import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import xyz.goplausible.webrtcpaymentsdk.railmpp.spec.Base64Std
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallenge
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeReceipt
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequest
-import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequestCodec
-import com.michaeltchuang.walletsdk.core.railmpp.spec.SuggestedParams
 import java.math.BigInteger
 import java.net.URI
 import java.security.MessageDigest
@@ -49,7 +49,9 @@ import java.util.UUID
  *  1. issueChallenge() → builds the WWW-Authenticate header
  *  2. verifyAndBroadcast() → verifies credential, signs fee payer if any, broadcasts
  */
-internal class MppProvider(private val config: MppServerConfig) {
+internal class MppProvider(
+    private val config: MppServerConfig,
+) {
     companion object {
         private const val TAG = "MppProvider"
     }
@@ -64,40 +66,48 @@ internal class MppProvider(private val config: MppServerConfig) {
         currency: String,
         asaId: String?,
     ): IssuedChallenge {
-        Log.e(TAG, "[ISSUE_CHALLENGE] method=algorand network=${config.network} recipient=${config.recipient} amount=$amount currency=$currency asaId=${asaId ?: "ALGO"}")
+        Log.e(
+            TAG,
+            "[ISSUE_CHALLENGE] method=algorand network=${config.network} recipient=${config.recipient} amount=$amount currency=$currency asaId=${asaId ?: "ALGO"}",
+        )
         val challengeReference = UUID.randomUUID().toString()
         val expires = futureRfc3339(config.challengeTtlSeconds)
         val lease = computeLease(challengeReference)
 
         val params = fetchAndSerializeParams()
 
-        val methodDetails = JSONObject().apply {
-            put("network", config.network)
-            put("challengeReference", challengeReference)
-            put("lease", lease)
-            if (asaId != null && asaId != ALGO_ASSET) {
-                put("asaId", asaId)
+        val methodDetails =
+            JSONObject().apply {
+                put("network", config.network)
+                put("challengeReference", challengeReference)
+                put("lease", lease)
+                if (asaId != null && asaId != ALGO_ASSET) {
+                    put("asaId", asaId)
+                }
+                if (config.feePayer != null) {
+                    put("feePayer", true)
+                    put("feePayerKey", config.feePayer.address.toString())
+                }
+                put(
+                    "suggestedParams",
+                    JSONObject().apply {
+                        put("firstValid", params.firstValid)
+                        put("lastValid", params.lastValid)
+                        put("genesisHash", params.genesisHash)
+                        put("genesisId", params.genesisId)
+                        put("fee", params.fee)
+                        put("minFee", params.minFee)
+                    },
+                )
             }
-            if (config.feePayer != null) {
-                put("feePayer", true)
-                put("feePayerKey", config.feePayer.address.toString())
-            }
-            put("suggestedParams", JSONObject().apply {
-                put("firstValid", params.firstValid)
-                put("lastValid", params.lastValid)
-                put("genesisHash", params.genesisHash)
-                put("genesisId", params.genesisId)
-                put("fee", params.fee)
-                put("minFee", params.minFee)
-            })
-        }
 
-        val request = JSONObject().apply {
-            put("amount", amount)
-            put("currency", currency)
-            put("recipient", config.recipient)
-            put("methodDetails", methodDetails)
-        }
+        val request =
+            JSONObject().apply {
+                put("amount", amount)
+                put("currency", currency)
+                put("recipient", config.recipient)
+                put("methodDetails", methodDetails)
+            }
 
         return issueChallengeWithMethod(request = request, method = "algorand", expires = expires)
     }
@@ -108,16 +118,18 @@ internal class MppProvider(private val config: MppServerConfig) {
         mint: String?,
     ): IssuedChallenge {
         val expires = futureRfc3339(config.challengeTtlSeconds)
-        val methodDetails = JSONObject().apply {
-            put("network", config.network)
-            if (!mint.isNullOrBlank()) put("mint", mint)
-        }
-        val request = JSONObject().apply {
-            put("amount", amount)
-            put("currency", currency)
-            put("recipient", config.recipient)
-            put("methodDetails", methodDetails)
-        }
+        val methodDetails =
+            JSONObject().apply {
+                put("network", config.network)
+                if (!mint.isNullOrBlank()) put("mint", mint)
+            }
+        val request =
+            JSONObject().apply {
+                put("amount", amount)
+                put("currency", currency)
+                put("recipient", config.recipient)
+                put("methodDetails", methodDetails)
+            }
         return issueChallengeWithMethod(request = request, method = "solana", expires = expires)
     }
 
@@ -126,14 +138,15 @@ internal class MppProvider(private val config: MppServerConfig) {
         method: String,
         expires: String,
     ): IssuedChallenge {
-        val challengeForHmac = ChargeChallenge(
-            id = "",
-            realm = config.realm,
-            method = method,
-            intent = "charge",
-            request = request,
-            expires = expires,
-        )
+        val challengeForHmac =
+            ChargeChallenge(
+                id = "",
+                realm = config.realm,
+                method = method,
+                intent = "charge",
+                request = request,
+                expires = expires,
+            )
         val id = ChargeChallengeCodec.computeId(challengeForHmac, config.secretKey)
         val challenge = challengeForHmac.copy(id = id)
 
@@ -146,83 +159,93 @@ internal class MppProvider(private val config: MppServerConfig) {
     /**
      * Verify the credential and broadcast the txn group. Returns the on-chain TxID.
      */
-    suspend fun verifyAndBroadcast(authHeader: String): ChargeReceipt = withContext(Dispatchers.IO) {
-        Log.e(TAG, "[VERIFY_START] authHeaderBytes=${authHeader.length}")
-        val credential = ChargeCredentialCodec.fromAuthHeader(authHeader)
-        val challenge = credential.challenge
-        Log.e(TAG, "[VERIFY_CHALLENGE] method=${challenge.method} id=${challenge.id} expires=${challenge.expires ?: "none"}")
+    suspend fun verifyAndBroadcast(authHeader: String): ChargeReceipt =
+        withContext(Dispatchers.IO) {
+            Log.e(TAG, "[VERIFY_START] authHeaderBytes=${authHeader.length}")
+            val credential = ChargeCredentialCodec.fromAuthHeader(authHeader)
+            val challenge = credential.challenge
+            Log.e(TAG, "[VERIFY_CHALLENGE] method=${challenge.method} id=${challenge.id} expires=${challenge.expires ?: "none"}")
 
-        // 1. Verify HMAC-bound challenge id
-        if (!ChargeChallengeCodec.verifyId(challenge, config.secretKey)) {
-            throw MppVerifyException("Invalid challenge id (HMAC mismatch)")
-        }
-
-        // 2. Validate expires
-        challenge.expires?.let {
-            val expiresMs = parseRfc3339Ms(it)
-            if (expiresMs != null && expiresMs < System.currentTimeMillis()) {
-                throw MppVerifyException("Challenge expired")
+            // 1. Verify HMAC-bound challenge id
+            if (!ChargeChallengeCodec.verifyId(challenge, config.secretKey)) {
+                throw MppVerifyException("Invalid challenge id (HMAC mismatch)")
             }
-        }
 
-        // 3. Decode, verify, and settle based on challenge method
-        if (challenge.method.equals("solana", ignoreCase = true)) {
-            return@withContext verifyAndBroadcastSolana(credential)
-        }
-
-        val req = ChargeRequestCodec.parseAlgorandRequest(challenge.request)
-        Log.e(TAG, "[VERIFY_ALGO_REQ] recipient=${req.recipient} configuredRecipient=${config.recipient} amount=${req.amount} currency=${req.currency} asaId=${req.asaId ?: "ALGO"} feePayer=${req.feePayer}")
-        if (req.recipient != config.recipient) {
-            throw MppVerifyException("Recipient mismatch: challenge=${req.recipient} configured=${config.recipient}")
-        }
-
-        val payment = credential.payload
-        val paymentGroup = payment.paymentGroup ?: throw MppVerifyException("paymentGroup is required for algorand method")
-        val paymentIndex = payment.paymentIndex ?: throw MppVerifyException("paymentIndex is required for algorand method")
-        if (paymentGroup.isEmpty() || paymentGroup.size > 16) {
-            throw MppVerifyException("paymentGroup must contain 1..16 entries")
-        }
-        if (paymentIndex !in paymentGroup.indices) {
-            throw MppVerifyException("paymentIndex out of range")
-        }
-
-        val decoded: List<DecodedTxn> = paymentGroup.mapIndexed { i, b64 ->
-            val bytes = Base64Std.decode(b64)
-            tryDecode(bytes, isFeePayerSlot = req.feePayer && i == 0)
-        }
-        Log.e(TAG, "[VERIFY_ALGO_GROUP] txCount=${decoded.size} providedPaymentIndex=$paymentIndex feePayer=${req.feePayer}")
-
-        val resolvedPaymentIndex = verifyGroup(req, paymentIndex, decoded)
-        Log.e(TAG, "[VERIFY_ALGO_GROUP_OK] resolvedPaymentIndex=$resolvedPaymentIndex")
-
-        val txIdToReturn: String = if (req.feePayer) {
-            val feePayerSlot = decoded[0]
-            val signer = config.feePayer
-                ?: throw MppVerifyException("Challenge requires fee payer but provider has none configured")
-            val unsignedFeePayerTxn = feePayerSlot.unsigned
-                ?: throw MppVerifyException("Fee payer slot must contain an unsigned transaction")
-            val signedFeePayer = signer.signTransaction(unsignedFeePayerTxn)
-            val feePayerBytes = Encoder.encodeToMsgPack(signedFeePayer)
-            val others = decoded.drop(1).map {
-                it.signedRaw ?: throw MppVerifyException("Non-fee-payer slot must be signed")
+            // 2. Validate expires
+            challenge.expires?.let {
+                val expiresMs = parseRfc3339Ms(it)
+                if (expiresMs != null && expiresMs < System.currentTimeMillis()) {
+                    throw MppVerifyException("Challenge expired")
+                }
             }
-            val broadcastTxId = broadcastGroup(listOf(feePayerBytes) + others)
-            decoded[resolvedPaymentIndex].computedTxId
-                ?: broadcastTxId
-                ?: throw MppVerifyException("Could not derive payment TxID")
-        } else {
-            val allSigned = decoded.map {
-                it.signedRaw ?: throw MppVerifyException("All txns must be signed when feePayer = false")
-            }
-            val broadcastTxId = broadcastGroup(allSigned)
-            decoded[resolvedPaymentIndex].computedTxId
-                ?: broadcastTxId
-                ?: throw MppVerifyException("Could not derive payment TxID")
-        }
 
-        Log.e(TAG, "[VERIFY_SETTLE_OK] txId=$txIdToReturn")
-        ChargeReceipt(reference = txIdToReturn)
-    }
+            // 3. Decode, verify, and settle based on challenge method
+            if (challenge.method.equals("solana", ignoreCase = true)) {
+                return@withContext verifyAndBroadcastSolana(credential)
+            }
+
+            val req = ChargeRequestCodec.parseAlgorandRequest(challenge.request)
+            Log.e(
+                TAG,
+                "[VERIFY_ALGO_REQ] recipient=${req.recipient} configuredRecipient=${config.recipient} amount=${req.amount} currency=${req.currency} asaId=${req.asaId ?: "ALGO"} feePayer=${req.feePayer}",
+            )
+            if (req.recipient != config.recipient) {
+                throw MppVerifyException("Recipient mismatch: challenge=${req.recipient} configured=${config.recipient}")
+            }
+
+            val payment = credential.payload
+            val paymentGroup = payment.paymentGroup ?: throw MppVerifyException("paymentGroup is required for algorand method")
+            val paymentIndex = payment.paymentIndex ?: throw MppVerifyException("paymentIndex is required for algorand method")
+            if (paymentGroup.isEmpty() || paymentGroup.size > 16) {
+                throw MppVerifyException("paymentGroup must contain 1..16 entries")
+            }
+            if (paymentIndex !in paymentGroup.indices) {
+                throw MppVerifyException("paymentIndex out of range")
+            }
+
+            val decoded: List<DecodedTxn> =
+                paymentGroup.mapIndexed { i, b64 ->
+                    val bytes = Base64Std.decode(b64)
+                    tryDecode(bytes, isFeePayerSlot = req.feePayer && i == 0)
+                }
+            Log.e(TAG, "[VERIFY_ALGO_GROUP] txCount=${decoded.size} providedPaymentIndex=$paymentIndex feePayer=${req.feePayer}")
+
+            val resolvedPaymentIndex = verifyGroup(req, paymentIndex, decoded)
+            Log.e(TAG, "[VERIFY_ALGO_GROUP_OK] resolvedPaymentIndex=$resolvedPaymentIndex")
+
+            val txIdToReturn: String =
+                if (req.feePayer) {
+                    val feePayerSlot = decoded[0]
+                    val signer =
+                        config.feePayer
+                            ?: throw MppVerifyException("Challenge requires fee payer but provider has none configured")
+                    val unsignedFeePayerTxn =
+                        feePayerSlot.unsigned
+                            ?: throw MppVerifyException("Fee payer slot must contain an unsigned transaction")
+                    val signedFeePayer = signer.signTransaction(unsignedFeePayerTxn)
+                    val feePayerBytes = Encoder.encodeToMsgPack(signedFeePayer)
+                    val others =
+                        decoded.drop(1).map {
+                            it.signedRaw ?: throw MppVerifyException("Non-fee-payer slot must be signed")
+                        }
+                    val broadcastTxId = broadcastGroup(listOf(feePayerBytes) + others)
+                    decoded[resolvedPaymentIndex].computedTxId
+                        ?: broadcastTxId
+                        ?: throw MppVerifyException("Could not derive payment TxID")
+                } else {
+                    val allSigned =
+                        decoded.map {
+                            it.signedRaw ?: throw MppVerifyException("All txns must be signed when feePayer = false")
+                        }
+                    val broadcastTxId = broadcastGroup(allSigned)
+                    decoded[resolvedPaymentIndex].computedTxId
+                        ?: broadcastTxId
+                        ?: throw MppVerifyException("Could not derive payment TxID")
+                }
+
+            Log.e(TAG, "[VERIFY_SETTLE_OK] txId=$txIdToReturn")
+            ChargeReceipt(reference = txIdToReturn)
+        }
 
     // ─── Internal helpers ─────────────────────────────────
 
@@ -253,11 +276,16 @@ internal class MppProvider(private val config: MppServerConfig) {
         decoded: List<DecodedTxn>,
     ): Int {
         // All txns in the group must share a group id.
-        val firstGroupBytes = decoded.first().txn.group?.bytes
-            ?: throw MppVerifyException("Group id missing on first txn")
+        val firstGroupBytes =
+            decoded
+                .first()
+                .txn.group
+                ?.bytes
+                ?: throw MppVerifyException("Group id missing on first txn")
         for (d in decoded) {
-            val gBytes = d.txn.group?.bytes
-                ?: throw MppVerifyException("Group id missing on txn")
+            val gBytes =
+                d.txn.group?.bytes
+                    ?: throw MppVerifyException("Group id missing on txn")
             if (!gBytes.contentEquals(firstGroupBytes)) {
                 throw MppVerifyException("Group id mismatch across txns")
             }
@@ -304,14 +332,14 @@ internal class MppProvider(private val config: MppServerConfig) {
         isAlgo: Boolean,
         expectedAmount: BigInteger,
     ): Int {
-        val expectedRecipientBytes = decodeAlgorandAddressBytes(req.recipient)
-            ?: throw MppVerifyException("Invalid recipient address in challenge: ${req.recipient}")
+        val expectedRecipientBytes =
+            decodeAlgorandAddressBytes(req.recipient)
+                ?: throw MppVerifyException("Invalid recipient address in challenge: ${req.recipient}")
 
-        fun sameAddress(actual: Address?): Boolean =
-            actual != null && actual.bytes.contentEquals(expectedRecipientBytes)
+        fun sameAddress(actual: Address?): Boolean = actual != null && actual.bytes.contentEquals(expectedRecipientBytes)
 
-        fun matchesCharge(txn: Transaction): Boolean {
-            return if (isAlgo) {
+        fun matchesCharge(txn: Transaction): Boolean =
+            if (isAlgo) {
                 txn.type == Transaction.Type.Payment &&
                     sameAddress(txn.receiver) &&
                     (txn.amount ?: BigInteger.ZERO) == expectedAmount
@@ -321,7 +349,6 @@ internal class MppProvider(private val config: MppServerConfig) {
                     (txn.assetAmount ?: BigInteger.ZERO) == expectedAmount &&
                     (txn.xferAsset ?: BigInteger.ZERO).toLong() == req.asaId!!.toLong()
             }
-        }
 
         val providedTxn = decoded[providedPaymentIndex].txn
         if (matchesCharge(providedTxn)) {
@@ -333,20 +360,26 @@ internal class MppProvider(private val config: MppServerConfig) {
             return matchedIndex
         }
 
-        val txnDebug = decoded.mapIndexed { index, d ->
-            "idx=$index type=${d.txn.type} sender=${safeAddress(d.txn.sender)} receiver=${safeAddress(d.txn.receiver)} amount=${d.txn.amount} " +
-                "assetReceiver=${safeAddress(d.txn.assetReceiver)} assetAmount=${d.txn.assetAmount} xferAsset=${d.txn.xferAsset} assetIndex=${d.txn.assetIndex}"
-        }.joinToString(separator = " | ")
+        val txnDebug =
+            decoded
+                .mapIndexed { index, d ->
+                    "idx=$index type=${d.txn.type} sender=${safeAddress(
+                        d.txn.sender,
+                    )} receiver=${safeAddress(d.txn.receiver)} amount=${d.txn.amount} " +
+                        "assetReceiver=${safeAddress(
+                            d.txn.assetReceiver,
+                        )} assetAmount=${d.txn.assetAmount} xferAsset=${d.txn.xferAsset} assetIndex=${d.txn.assetIndex}"
+                }.joinToString(separator = " | ")
 
         if (isAlgo) {
             throw MppVerifyException(
                 "Payment txn must be type=pay for ALGO charge; providedIndex=$providedPaymentIndex " +
-                    "expectedRecipient=${req.recipient} expectedAmount=$expectedAmount txns=[$txnDebug]"
+                    "expectedRecipient=${req.recipient} expectedAmount=$expectedAmount txns=[$txnDebug]",
             )
         }
         throw MppVerifyException(
             "Payment txn must be type=axfer for ASA charge; providedIndex=$providedPaymentIndex " +
-                "expectedAsaId=${req.asaId} expectedRecipient=${req.recipient} expectedAmount=$expectedAmount txns=[$txnDebug]"
+                "expectedAsaId=${req.asaId} expectedRecipient=${req.recipient} expectedAmount=$expectedAmount txns=[$txnDebug]",
         )
     }
 
@@ -405,8 +438,9 @@ internal class MppProvider(private val config: MppServerConfig) {
             throw MppVerifyException("Recipient mismatch: challenge=${req.recipient} configured=${config.recipient}")
         }
 
-        val signedTxB64 = credential.payload.signedTransaction
-            ?: throw MppVerifyException("signedTransaction is required for solana method")
+        val signedTxB64 =
+            credential.payload.signedTransaction
+                ?: throw MppVerifyException("signedTransaction is required for solana method")
         val signedTx = Base64Std.decode(signedTxB64)
 
         val txId = broadcastSolanaTransaction(signedTx, req.network ?: config.network)
@@ -414,7 +448,10 @@ internal class MppProvider(private val config: MppServerConfig) {
     }
 
     @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-    private suspend fun broadcastSolanaTransaction(signedTransaction: ByteArray, network: String): String {
+    private suspend fun broadcastSolanaTransaction(
+        signedTransaction: ByteArray,
+        network: String,
+    ): String {
         val endpoint =
             when {
                 network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
@@ -431,7 +468,10 @@ internal class MppProvider(private val config: MppServerConfig) {
                     "params" to
                         JsonArray(
                             listOf(
-                                JsonPrimitive(kotlin.io.encoding.Base64.encode(signedTransaction)),
+                                JsonPrimitive(
+                                    kotlin.io.encoding.Base64
+                                        .encode(signedTransaction),
+                                ),
                                 JsonObject(
                                     mapOf(
                                         "encoding" to JsonPrimitive("base64"),
@@ -456,73 +496,93 @@ internal class MppProvider(private val config: MppServerConfig) {
                 httpClient.close()
             }
 
-        val json = kotlinx.serialization.json.Json.parseToJsonElement(responseText).jsonObject
+        val json =
+            kotlinx.serialization.json.Json
+                .parseToJsonElement(responseText)
+                .jsonObject
         val rpcError = json["error"]?.toString()
         if (rpcError != null) {
             Log.e(TAG, "[BROADCAST_SOLANA_FAILED] network=$network endpoint=$endpoint error=$rpcError")
             throw MppVerifyException("Solana RPC error: $rpcError")
         }
 
-        val signature = json["result"]?.toString()?.trim('"')
-            ?: throw MppVerifyException("Missing Solana transaction signature in RPC response")
+        val signature =
+            json["result"]?.toString()?.trim('"')
+                ?: throw MppVerifyException("Missing Solana transaction signature in RPC response")
         Log.e(TAG, "[BROADCAST_SOLANA_OK] network=$network signature=$signature")
         return signature
     }
 
-    private fun tryDecode(bytes: ByteArray, isFeePayerSlot: Boolean): DecodedTxn {
+    private fun tryDecode(
+        bytes: ByteArray,
+        isFeePayerSlot: Boolean,
+    ): DecodedTxn {
         // Try signed first (most common); fall back to unsigned for fee payer slot.
-        val signed = try {
-            Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
-        } catch (signedDecodeErr: Exception) {
-            if (!isFeePayerSlot) {
-                throw MppVerifyException(
-                    "Could not decode signed transaction at non-fee-payer slot: bytes=${bytes.size}. signedDecode=${signedDecodeErr.message}."
-                )
-            }
+        val signed =
             try {
-                val unsigned: Transaction = Encoder.decodeFromMsgPack(bytes, Transaction::class.java)
-                return DecodedTxn(txn = unsigned, signedRaw = null, unsigned = unsigned, computedTxId = unsigned.txID())
-            } catch (e: Exception) {
-                throw MppVerifyException("Could not decode unsigned fee payer txn: ${e.message}")
+                Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
+            } catch (signedDecodeErr: Exception) {
+                if (!isFeePayerSlot) {
+                    throw MppVerifyException(
+                        "Could not decode signed transaction at non-fee-payer slot: bytes=${bytes.size}. signedDecode=${signedDecodeErr.message}.",
+                    )
+                }
+                try {
+                    val unsigned: Transaction = Encoder.decodeFromMsgPack(bytes, Transaction::class.java)
+                    return DecodedTxn(txn = unsigned, signedRaw = null, unsigned = unsigned, computedTxId = unsigned.txID())
+                } catch (e: Exception) {
+                    throw MppVerifyException("Could not decode unsigned fee payer txn: ${e.message}")
+                }
             }
-        }
 
         val txn = signed.tx ?: throw MppVerifyException("Signed txn missing inner txn body")
-        val txId = try {
-            txn.txID()
-        } catch (_: Exception) {
-            // Some signed blobs decode fine but cannot be re-serialized by the SDK
-            // for local txid derivation. Keep verification/broadcast flow alive.
-            null
-        }
+        val txId =
+            try {
+                txn.txID()
+            } catch (_: Exception) {
+                // Some signed blobs decode fine but cannot be re-serialized by the SDK
+                // for local txid derivation. Keep verification/broadcast flow alive.
+                null
+            }
         return DecodedTxn(txn = txn, signedRaw = bytes, unsigned = null, computedTxId = txId)
     }
 
     private fun algodClient(): AlgodClient {
-        val url = config.algodUrl
-            ?: DEFAULT_ALGOD_URLS[config.network]
-            ?: DEFAULT_ALGOD_URLS[MppNetworks.ALGORAND_TESTNET]!!
+        val url =
+            config.algodUrl
+                ?: DEFAULT_ALGOD_URLS[config.network]
+                ?: DEFAULT_ALGOD_URLS[MppNetworks.ALGORAND_TESTNET]!!
         val parsed = URI(url)
-        val port = if (parsed.port > 0) parsed.port else if (parsed.scheme == "https") 443 else 80
+        val port =
+            if (parsed.port > 0) {
+                parsed.port
+            } else if (parsed.scheme == "https") {
+                443
+            } else {
+                80
+            }
         val host = "${parsed.scheme}://${parsed.host}"
         return AlgodClient(host, port, "")
     }
 
     private fun futureRfc3339(secondsFromNow: Int): String {
-        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
-        }
+        val sdf =
+            SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                timeZone = TimeZone.getTimeZone("UTC")
+            }
         return sdf.format(Date(System.currentTimeMillis() + secondsFromNow * 1000L))
     }
 
-    private fun parseRfc3339Ms(value: String): Long? = try {
-        val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-            timeZone = TimeZone.getTimeZone("UTC")
+    private fun parseRfc3339Ms(value: String): Long? =
+        try {
+            val sdf =
+                SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+                    timeZone = TimeZone.getTimeZone("UTC")
+                }
+            sdf.parse(value)?.time
+        } catch (_: Exception) {
+            null
         }
-        sdf.parse(value)?.time
-    } catch (_: Exception) {
-        null
-    }
 
     internal data class IssuedChallenge(
         val challenge: ChargeChallenge,
@@ -537,4 +597,6 @@ internal class MppProvider(private val config: MppServerConfig) {
     )
 }
 
-internal class MppVerifyException(message: String) : RuntimeException(message)
+internal class MppVerifyException(
+    message: String,
+) : RuntimeException(message)

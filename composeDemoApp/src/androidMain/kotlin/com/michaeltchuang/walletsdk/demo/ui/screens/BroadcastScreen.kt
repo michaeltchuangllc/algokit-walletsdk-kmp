@@ -72,10 +72,11 @@ actual fun BroadcastScreen(
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
     val accountResult by produceState<Pair<Boolean, List<LocalAccount>>>(initialValue = false to emptyList()) {
-        value = true to getSupportedLocalAccountsByAppId(
-            appId = AppId.LIQUID_AUTH_STREAM.name,
-            localAccount = getLocalAccountsUseCase()
-        )
+        value = true to
+            getSupportedLocalAccountsByAppId(
+                appId = AppId.LIQUID_AUTH_STREAM.name,
+                localAccount = getLocalAccountsUseCase(),
+            )
     }
     val accountsLoaded = accountResult.first
     val accounts = accountResult.second

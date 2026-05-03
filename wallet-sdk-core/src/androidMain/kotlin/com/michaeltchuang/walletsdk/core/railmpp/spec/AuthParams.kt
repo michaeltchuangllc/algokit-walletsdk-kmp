@@ -48,9 +48,10 @@ internal object AuthParams {
 
     /** Serialize auth-params back to a `Payment <k1="v1", k2="v2", ...>` header. */
     fun serialize(params: Map<String, String>): String {
-        val parts = params.entries.joinToString(", ") { (k, v) ->
-            "$k=\"${escape(v)}\""
-        }
+        val parts =
+            params.entries.joinToString(", ") { (k, v) ->
+                "$k=\"${escape(v)}\""
+            }
         return "Payment $parts"
     }
 
@@ -69,7 +70,10 @@ internal object AuthParams {
 
     private val PREFIX_RE = Regex("^\\s*Payment\\s+", RegexOption.IGNORE_CASE)
 
-    private fun readValue(s: String, start: Int): Pair<String, Int> {
+    private fun readValue(
+        s: String,
+        start: Int,
+    ): Pair<String, Int> {
         if (start >= s.length) return "" to start
         if (s[start] != '"') {
             // Unquoted token — read until comma.

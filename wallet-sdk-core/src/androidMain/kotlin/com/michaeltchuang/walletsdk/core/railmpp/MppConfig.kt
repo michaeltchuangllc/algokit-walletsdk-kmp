@@ -11,22 +11,18 @@ data class MppServerConfig(
     val network: String = MppNetworks.ALGORAND_TESTNET,
     /** Custom algod URL. Defaults to [DEFAULT_ALGOD_URLS] for the network. */
     val algodUrl: String? = null,
-
     /** Address that receives the payment. Must match `params.payTo`. */
     val recipient: String,
-
     /**
      * HMAC secret used to sign challenge IDs. Per-session is fine; per-deployment
      * is recommended for cross-process challenge verification.
      */
     val secretKey: String,
-
     /**
      * Server "realm" string echoed in the challenge. Defaults to
      * `"webrtc-mpp"` — visible to consumers as part of the challenge envelope.
      */
     val realm: String = "webrtc-mpp",
-
     /**
      * If non-null, the provider operates in fee-sponsorship mode: it includes a
      * fee payer transaction in the issued challenge and signs that txn before
@@ -34,7 +30,6 @@ data class MppServerConfig(
      * in `methodDetails`.
      */
     val feePayer: Account? = null,
-
     /**
      * Time-to-live for issued challenges in seconds. Used to compute the
      * `expires` field on each WWW-Authenticate header.
@@ -51,10 +46,8 @@ data class MppClientConfig(
     val network: String = MppNetworks.ALGORAND_TESTNET,
     /** Custom algod URL. Defaults to [DEFAULT_ALGOD_URLS] for the network. */
     val algodUrl: String? = null,
-
     /** Wallet that signs the payment transaction. */
     val signer: MppWalletSigner,
-
     /** Optional progress callback (mirrors the TS rail's onProgress). */
     val onProgress: ((MppProgressEvent) -> Unit)? = null,
 )
@@ -76,5 +69,7 @@ sealed interface MppProgressEvent {
     data object Signing : MppProgressEvent
 
     /** Signed credential ready to send to provider. */
-    data class Signed(val paymentGroup: List<String>) : MppProgressEvent
+    data class Signed(
+        val paymentGroup: List<String>,
+    ) : MppProgressEvent
 }

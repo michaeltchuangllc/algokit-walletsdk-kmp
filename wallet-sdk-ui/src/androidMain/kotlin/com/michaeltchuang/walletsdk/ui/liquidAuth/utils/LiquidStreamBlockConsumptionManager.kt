@@ -27,6 +27,7 @@ internal class LiquidStreamBlockConsumptionManager(
         val signatureBase64: String,
         val totalAmountClaimedMicroUsdc: Long,
     )
+
     private var blockDrivenConsumptionJob: Job? = null
     private var blocksConsumed: Int = 0
     private var currentSessionId: String? = null
@@ -47,10 +48,11 @@ internal class LiquidStreamBlockConsumptionManager(
         Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_START] session=$sessionId")
         stop()
 
-        val viewModel = getViewModel() ?: run {
-            Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_START_SKIP] reason=viewModel_null session=$sessionId")
-            return
-        }
+        val viewModel =
+            getViewModel() ?: run {
+                Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_START_SKIP] reason=viewModel_null session=$sessionId")
+                return
+            }
         currentSessionId = sessionId
         blocksConsumed = 0
 

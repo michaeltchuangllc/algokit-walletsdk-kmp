@@ -53,7 +53,17 @@ object MppPayments {
     ): String {
         val consumed = blocksConsumed * COST_PER_BLOCK_MICRO_USDC
 
-        return """{"reference":"liquid:payment:balance","id":"$sessionId","initialDepositMicroUsdc":1000000,"consumedMicroUsdc":$consumed,"remainingMicroUsdc":$remainingMicroUsdc,"blocksWatched":$blocksConsumed,"costPerBlockMicroUsdc":100000}"""
+        return """
+            {
+                "reference":"liquid:payment:balance",
+                "id":"$sessionId",
+                "initialDepositMicroUsdc":1000000,
+                "consumedMicroUsdc":$consumed,
+                "remainingMicroUsdc":$remainingMicroUsdc,
+                "blocksWatched":$blocksConsumed,
+                "costPerBlockMicroUsdc":100000
+            }
+            """.trimIndent()
     }
 
     fun createVoucherJson(
@@ -65,28 +75,27 @@ object MppPayments {
         totalAmountUsed: Long,
         remainingMicroUsdc: Long,
     ): String {
-        val voucherPayload = JSONObject().apply {
-            put("reference", "liquid:payment:voucher")
-            put("id", sessionId)
-            put("appId", appId)
-            put("viewer", viewerAddress)
-            put("creator", creatorAddress)
-            put("blocksWatched", blocksConsumed)
-            put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
-            put("totalAmountClaimedMicroUsdc", totalAmountUsed)
-            put("remainingMicroUsdc", remainingMicroUsdc)
-        }
+        val voucherPayload =
+            JSONObject().apply {
+                put("reference", "liquid:payment:voucher")
+                put("id", sessionId)
+                put("appId", appId)
+                put("viewer", viewerAddress)
+                put("creator", creatorAddress)
+                put("blocksWatched", blocksConsumed)
+                put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
+                put("totalAmountClaimedMicroUsdc", totalAmountUsed)
+                put("remainingMicroUsdc", remainingMicroUsdc)
+            }
         return voucherPayload.toString()
     }
 
     fun shouldAttemptVoucherSettlement(blocksConsumed: Int): Boolean =
         blocksConsumed > 0 && blocksConsumed % VOUCHER_SETTLE_EVERY_BLOCKS == 0
 
-    fun computeVoucherMicroUsdcUsage(blocksConsumed: Int): Long =
-        (blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
+    fun computeVoucherMicroUsdcUsage(blocksConsumed: Int): Long = (blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
 
-    fun voucherSettleWindowMicroUsdc(): Long =
-        (VOUCHER_SETTLE_EVERY_BLOCKS.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
+    fun voucherSettleWindowMicroUsdc(): Long = (VOUCHER_SETTLE_EVERY_BLOCKS.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
 
     fun estimateRemainingUsdcBalanceFromBlocks(blocksConsumed: Int): Long {
         val consumed = blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC
@@ -106,7 +115,7 @@ object MppPayments {
         runCatching {
             Security.removeProvider("BC")
             Security.insertProviderAt(BouncyCastleProvider(), 0)
-            
+
             val client = algodClient(algodUrl)
             val boxName = sessionBoxName(viewerAddress, hostAddress)
             val boxNameB64 = Encoder.encodeToBase64(boxName)
@@ -304,7 +313,16 @@ object MppPayments {
         val uri = java.net.URI(clean)
         val host = uri.host ?: error("Invalid algod host: $url")
         val scheme = uri.scheme ?: "https"
-        val port = if (uri.port == -1) if (scheme == "https") 443 else 80 else uri.port
+        val port =
+            if (uri.port == -1) {
+                if (scheme == "https") {
+                    443
+                } else {
+                    80
+                }
+            } else {
+                uri.port
+            }
         return AlgodClient("$scheme://$host", port, "")
     }
 
@@ -334,12 +352,23 @@ object MppPayments {
         appId: Long,
         totalAmountClaimedMicroUsdc: Long,
     ): ByteArray {
-        val appBytes = java.nio.ByteBuffer.allocate(8).putLong(appId).array()
-        val amountBytes = java.nio.ByteBuffer.allocate(8).putLong(totalAmountClaimedMicroUsdc).array()
+        val appBytes =
+            java.nio.ByteBuffer
+                .allocate(8)
+                .putLong(appId)
+                .array()
+        val amountBytes =
+            java.nio.ByteBuffer
+                .allocate(8)
+                .putLong(totalAmountClaimedMicroUsdc)
+                .array()
         return appBytes + amountBytes + "settle".toByteArray()
     }
 
-    fun serializeVoucherSignature(signature: ByteArray): String = java.util.Base64.getEncoder().encodeToString(signature)
+    fun serializeVoucherSignature(signature: ByteArray): String =
+        java.util.Base64
+            .getEncoder()
+            .encodeToString(signature)
 
     fun buildClaimMessageHashHex(
         appId: Long,
@@ -487,9 +516,7 @@ object MppPayments {
         }
         return last
     }
-
 }
-
 
 sealed class MppPaymentVerificationResult {
     data class Valid(

@@ -30,8 +30,7 @@ interface MppWalletSigner {
         amount: String,
         network: String,
         mint: String? = null,
-    ): ByteArray =
-        throw UnsupportedOperationException("Solana transaction signing is not supported by this signer")
+    ): ByteArray = throw UnsupportedOperationException("Solana transaction signing is not supported by this signer")
 }
 
 /**

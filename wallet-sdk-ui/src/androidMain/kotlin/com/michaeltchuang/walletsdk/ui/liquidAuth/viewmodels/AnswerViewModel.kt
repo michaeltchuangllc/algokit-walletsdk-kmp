@@ -182,8 +182,10 @@ class AnswerViewModel(
     val lastFrameTimestamp: StateFlow<Long> = _lastFrameTimestamp
     private val _isStreamActive = MutableStateFlow(false)
     val isStreamActive: StateFlow<Boolean> = _isStreamActive
+
     @Volatile
     private var hasReceivedAtLeastOneFrame = false
+
     @Volatile
     private var hasTimedOutCurrentStream = false
 
@@ -207,10 +209,11 @@ class AnswerViewModel(
 
                 Napier.d(
                     tag = TAG,
-                    message = "Stream monitor - lastFrame=$lastFrame, currentlyActive=$currentlyActive, " +
-                        "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
-                        "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
-                        "shouldTimeout=$shouldTimeoutDisconnect",
+                    message =
+                        "Stream monitor - lastFrame=$lastFrame, currentlyActive=$currentlyActive, " +
+                            "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
+                            "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
+                            "shouldTimeout=$shouldTimeoutDisconnect",
                 )
 
                 if (shouldTimeoutDisconnect) {
@@ -496,7 +499,8 @@ class AnswerViewModel(
     // --- AVM & DataChannel Message Logic ---
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? =
-        com.algorand.algosdk.util.Encoder.decodeFromMsgPack(Base64.Default.decode(unsignedTxn), Transaction::class.java)
+        com.algorand.algosdk.util.Encoder
+            .decodeFromMsgPack(Base64.Default.decode(unsignedTxn), Transaction::class.java)
 
     @OptIn(ExperimentalEncodingApi::class)
     fun handleMessages(
@@ -529,7 +533,10 @@ class AnswerViewModel(
                 return
             }
 
-            val cborBytes = Base64.Default.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(msgStr)
+            val cborBytes =
+                Base64.Default.UrlSafe
+                    .withPadding(Base64.PaddingOption.ABSENT)
+                    .decode(msgStr)
 
             // Log first bytes to verify incoming CBOR encoding type
             if (cborBytes.isNotEmpty()) {
@@ -809,21 +816,27 @@ class AnswerViewModel(
             override suspend fun signTransaction(txn: Transaction): ByteArray =
                 when (localAccount) {
                     is LocalAccount.Algo25 -> {
-                        val secretKey = getAlgo25SecretKey(address)
-                            ?: error("Missing Algo25 key for $address")
-                        val txnBytes = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn)
-                        val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
-                            ?: error("Algo25 arbitrary signing failed")
+                        val secretKey =
+                            getAlgo25SecretKey(address)
+                                ?: error("Missing Algo25 key for $address")
+                        val txnBytes =
+                            com.algorand.algosdk.util.Encoder
+                                .encodeToMsgPack(txn)
+                        val signature =
+                            signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                                ?: error("Algo25 arbitrary signing failed")
                         Sdk.attachSignature(signature, txnBytes)
                     }
 
                     is LocalAccount.HdKey -> {
-                        val seed = getSeed(localAccount.seedId)
-                            ?: error("Missing HD seed for $address")
+                        val seed =
+                            getSeed(localAccount.seedId)
+                                ?: error("Missing HD seed for $address")
                         signHdKeyTransaction(
-                            transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(
-                                txn
-                            ),
+                            transactionByteArray =
+                                com.algorand.algosdk.util.Encoder.encodeToMsgPack(
+                                    txn,
+                                ),
                             seed = seed,
                             account = localAccount.account,
                             change = localAccount.change,
@@ -832,12 +845,14 @@ class AnswerViewModel(
                     }
 
                     is LocalAccount.Falcon24 -> {
-                        val secretKey = getFalcon24SecretKey(address)
-                            ?: error("Missing Falcon24 key for $address")
+                        val secretKey =
+                            getFalcon24SecretKey(address)
+                                ?: error("Missing Falcon24 key for $address")
                         signFalcon24Transaction(
-                            transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(
-                                txn
-                            ),
+                            transactionByteArray =
+                                com.algorand.algosdk.util.Encoder.encodeToMsgPack(
+                                    txn,
+                                ),
                             publicKey = localAccount.publicKey,
                             privateKey = secretKey,
                         ) ?: error("Falcon24 signing failed")
@@ -1118,7 +1133,8 @@ class AnswerViewModel(
         contentTitle: String = "Liquid Auth",
         channelId: String = NOTIFICATION_CHANNEL_ID,
     ): NotificationCompat.Builder =
-        NotificationCompat.Builder(context, channelId)
+        NotificationCompat
+            .Builder(context, channelId)
             .setContentTitle(contentTitle)
             .setContentText(contentText)
             .setColor(ContextCompat.getColor(context, R.color.biometric_error_color))

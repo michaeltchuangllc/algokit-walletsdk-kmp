@@ -76,18 +76,22 @@ internal object ChargeChallengeCodec {
      *
      * Optional fields are empty strings when absent. Output: base64url-no-pad.
      */
-    fun computeId(challenge: ChargeChallenge, secretKey: String): String {
+    fun computeId(
+        challenge: ChargeChallenge,
+        secretKey: String,
+    ): String {
         val requestSerialized = ChargeRequestCodec.serialize(challenge.request)
         val opaqueSerialized = challenge.opaque?.let { ChargeRequestCodec.serialize(it) } ?: ""
-        val input = listOf(
-            challenge.realm,
-            challenge.method,
-            challenge.intent,
-            requestSerialized,
-            challenge.expires ?: "",
-            challenge.digest ?: "",
-            opaqueSerialized,
-        ).joinToString(separator = "|")
+        val input =
+            listOf(
+                challenge.realm,
+                challenge.method,
+                challenge.intent,
+                requestSerialized,
+                challenge.expires ?: "",
+                challenge.digest ?: "",
+                opaqueSerialized,
+            ).joinToString(separator = "|")
 
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secretKey.toByteArray(Charsets.UTF_8), "HmacSHA256"))
@@ -96,7 +100,10 @@ internal object ChargeChallengeCodec {
     }
 
     /** Constant-time challenge ID verification. */
-    fun verifyId(challenge: ChargeChallenge, secretKey: String): Boolean {
+    fun verifyId(
+        challenge: ChargeChallenge,
+        secretKey: String,
+    ): Boolean {
         val expected = computeId(challenge, secretKey).toByteArray(Charsets.UTF_8)
         val actual = challenge.id.toByteArray(Charsets.UTF_8)
         return MessageDigest.isEqual(expected, actual)
@@ -174,16 +181,17 @@ internal object ChargeRequestCodec {
             lease = md.getString("lease"),
             feePayer = md.optBoolean("feePayer", false),
             feePayerKey = md.optString("feePayerKey").ifBlank { null },
-            suggestedParams = sp?.let {
-                SuggestedParams(
-                    firstValid = it.getLong("firstValid"),
-                    lastValid = it.getLong("lastValid"),
-                    genesisHash = it.getString("genesisHash"),
-                    genesisId = it.getString("genesisId"),
-                    fee = it.getLong("fee"),
-                    minFee = it.getLong("minFee"),
-                )
-            },
+            suggestedParams =
+                sp?.let {
+                    SuggestedParams(
+                        firstValid = it.getLong("firstValid"),
+                        lastValid = it.getLong("lastValid"),
+                        genesisHash = it.getString("genesisHash"),
+                        genesisId = it.getString("genesisId"),
+                        fee = it.getLong("fee"),
+                        minFee = it.getLong("minFee"),
+                    )
+                },
         )
     }
 

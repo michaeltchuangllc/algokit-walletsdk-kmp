@@ -22,12 +22,13 @@ internal data class ChargeReceipt(
 
 internal object ChargeReceiptCodec {
     fun toHeader(receipt: ChargeReceipt): String {
-        val json = JSONObject().apply {
-            put("method", receipt.method)
-            put("reference", receipt.reference)
-            put("status", receipt.status)
-            put("timestamp", receipt.timestamp)
-        }
+        val json =
+            JSONObject().apply {
+                put("method", receipt.method)
+                put("reference", receipt.reference)
+                put("status", receipt.status)
+                put("timestamp", receipt.timestamp)
+            }
         val canonical = JcsJson.canonicalize(json)
         return "Payment " + Base64Url.encode(canonical)
     }
@@ -46,8 +47,9 @@ internal object ChargeReceiptCodec {
 }
 
 private fun nowRfc3339(): String {
-    val sdf = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
-        timeZone = TimeZone.getTimeZone("UTC")
-    }
+    val sdf =
+        SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
+            timeZone = TimeZone.getTimeZone("UTC")
+        }
     return sdf.format(Date())
 }

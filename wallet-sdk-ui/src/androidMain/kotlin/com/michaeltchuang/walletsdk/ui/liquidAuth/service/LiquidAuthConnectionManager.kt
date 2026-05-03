@@ -84,7 +84,6 @@ class AndroidLiquidAuthConnectionManager(
     private var activeViewerAddressForVault: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
-
     // Connection type state flow - exposed for UI and billing
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
@@ -549,7 +548,10 @@ class AndroidLiquidAuthConnectionManager(
                 if (signature == null || claimedAmount == null || voucherSessionId == null || voucherViewer == null) {
                     Log.e(
                         TAG,
-                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${json.optString("id", "")} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
+                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${json.optString(
+                            "id",
+                            "",
+                        )} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
                     )
                 } else {
                     val activeSession = activePaymentSessionId

@@ -10,7 +10,6 @@ import platform.Foundation.NSLog
 var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? =
     null
 
-
 actual fun connectLiquidAuth(
     authMessage: AuthMessage,
     accountAddress: String,

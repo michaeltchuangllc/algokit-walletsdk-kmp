@@ -6,13 +6,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.SetLiquidStreamViewerAutoPayUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StartLiquidStreamCreatorUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StartLiquidStreamViewerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorConfigUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorGatingUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.usecases.SetLiquidStreamViewerAutoPayUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StopLiquidStreamCreatorUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StopLiquidStreamViewerUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorGatingUseCase
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
 import org.webrtc.RtpSender
@@ -32,11 +32,12 @@ class LiquidStreamCreator(
     private val updateGatingUseCase: UpdateLiquidStreamCreatorGatingUseCase = UpdateLiquidStreamCreatorGatingUseCase(),
 ) {
     val paymentRail: MppPaymentRail = MppPaymentRail(serverConfig = mppServerConfig)
-    val rtcServer: PaywalledRTCServer = PaywalledRTCServer(
-        peerConnection = peerConnection,
-        paymentRail = paymentRail,
-        config = serverConfig,
-    )
+    val rtcServer: PaywalledRTCServer =
+        PaywalledRTCServer(
+            peerConnection = peerConnection,
+            paymentRail = paymentRail,
+            config = serverConfig,
+        )
 
     init {
         require(serverConfig.gating.payTo == mppServerConfig.recipient) {
@@ -78,12 +79,13 @@ class LiquidStreamViewer(
     private val setAutoPayUseCase: SetLiquidStreamViewerAutoPayUseCase = SetLiquidStreamViewerAutoPayUseCase(),
 ) {
     val paymentRail: MppPaymentRail = MppPaymentRail(clientConfig = mppClientConfig)
-    val rtcClient: PaywalledRTCClient = PaywalledRTCClient(
-        peerConnection = peerConnection,
-        paymentRail = paymentRail,
-        consent = consentHandler,
-        config = clientConfig,
-    )
+    val rtcClient: PaywalledRTCClient =
+        PaywalledRTCClient(
+            peerConnection = peerConnection,
+            paymentRail = paymentRail,
+            consent = consentHandler,
+            config = clientConfig,
+        )
 
     fun start() {
         startUseCase(rtcClient, dataChannel)

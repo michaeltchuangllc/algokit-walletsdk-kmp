@@ -161,8 +161,7 @@ object WalletSDK {
         nameRegistrationUseCase.deleteAccount(address)
     }
 
-    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> =
-        getSolanaBalancesUseCase(addresses)
+    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
 
     suspend fun getSolanaUsdcBalances(addresses: List<String>): Map<String, String?> =
         getSolanaBalancesUseCase
@@ -227,7 +226,7 @@ object WalletSDK {
 
                         AlgoKitEvent.ALGO25_ACCOUNT_CREATED,
                         AlgoKitEvent.HD_ACCOUNT_CREATED,
-                            -> {
+                        -> {
                             onAccountCreated()
                             state.hide()
                             onDismiss()

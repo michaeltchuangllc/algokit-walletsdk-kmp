@@ -89,7 +89,6 @@ fun AnswerScreen(
         }
     }
 
-
     LaunchedEffect(pendingMppConsentFromState) {
         if (pendingMppConsentFromState != null) {
             showPaymentDialog = true

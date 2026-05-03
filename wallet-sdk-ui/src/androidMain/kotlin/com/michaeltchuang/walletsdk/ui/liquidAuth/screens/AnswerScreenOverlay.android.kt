@@ -58,11 +58,12 @@ actual fun AnswerScreenOverlay() {
     val activity = context as? AppCompatActivity ?: return
     val scope = rememberCoroutineScope()
 
-    val viewModelStoreOwner = remember {
-        object : ViewModelStoreOwner {
-            override val viewModelStore = ViewModelStore()
+    val viewModelStoreOwner =
+        remember {
+            object : ViewModelStoreOwner {
+                override val viewModelStore = ViewModelStore()
+            }
         }
-    }
 
     CompositionLocalProvider(
         LocalViewModelStoreOwner provides viewModelStoreOwner,
@@ -73,32 +74,40 @@ actual fun AnswerScreenOverlay() {
 
         val fido2Client = remember { Fido2ApiClient(activity) }
 
-        val attestationLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.StartIntentSenderForResult(),
-        ) { activityResult ->
-            scope.launch {
-                val useCase = HandleAttestationResultUseCase(
-                    attestationApiUseCase = KoinPlatform.getKoin().get(),
-                )
-                val result = useCase(activityResult, viewModel)
-                viewModel.handleAttestationResultFromLauncher(result, address)
+        val attestationLauncher =
+            rememberLauncherForActivityResult(
+                ActivityResultContracts.StartIntentSenderForResult(),
+            ) { activityResult ->
+                scope.launch {
+                    val useCase =
+                        HandleAttestationResultUseCase(
+                            attestationApiUseCase = KoinPlatform.getKoin().get(),
+                        )
+                    val result = useCase(activityResult, viewModel)
+                    viewModel.handleAttestationResultFromLauncher(result, address)
+                }
             }
-        }
 
-        val assertionLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.StartIntentSenderForResult(),
-        ) { activityResult ->
-            scope.launch {
-                val useCase = HandleAssertionResultUseCase(
-                    assertionApiUseCase = KoinPlatform.getKoin().get(),
-                )
-                val result = useCase(activityResult, viewModel)
-                viewModel.handleAssertionResultFromLauncher(result)
+        val assertionLauncher =
+            rememberLauncherForActivityResult(
+                ActivityResultContracts.StartIntentSenderForResult(),
+            ) { activityResult ->
+                scope.launch {
+                    val useCase =
+                        HandleAssertionResultUseCase(
+                            assertionApiUseCase = KoinPlatform.getKoin().get(),
+                        )
+                    val result = useCase(activityResult, viewModel)
+                    viewModel.handleAssertionResultFromLauncher(result)
+                }
             }
-        }
 
         LaunchedEffect(Unit) {
-            val policy = StrictMode.ThreadPolicy.Builder().permitAll().build()
+            val policy =
+                StrictMode.ThreadPolicy
+                    .Builder()
+                    .permitAll()
+                    .build()
             StrictMode.setThreadPolicy(policy)
             Security.removeProvider("BC")
             Security.insertProviderAt(BouncyCastleProvider(), 0)
@@ -145,11 +154,12 @@ actual fun AnswerScreenOverlay() {
                                 onCredentialNotFound = {
                                     scope.launch {
                                         viewModel.deleteCredentialByAccountAddress(address)
-                                        Toast.makeText(
-                                            context,
-                                            "Credential not found on server. Re-registering...",
-                                            Toast.LENGTH_LONG,
-                                        ).show()
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "Credential not found on server. Re-registering...",
+                                                Toast.LENGTH_LONG,
+                                            ).show()
                                         viewModel.registerPasskey(
                                             authMessage = msg,
                                             accountAddress = address,
@@ -235,9 +245,11 @@ actual fun AnswerScreenOverlay() {
                         if (signature != null) {
                             viewModel.currentChallenge = signature
                             try {
-                                val pendingIntent = fido2Client.getRegisterPendingIntent(
-                                    event.pubKeyCredentialCreationOptions,
-                                ).await()
+                                val pendingIntent =
+                                    fido2Client
+                                        .getRegisterPendingIntent(
+                                            event.pubKeyCredentialCreationOptions,
+                                        ).await()
                                 attestationLauncher.launch(
                                     IntentSenderRequest.Builder(pendingIntent).build(),
                                 )
@@ -256,9 +268,11 @@ actual fun AnswerScreenOverlay() {
                         if (signature != null) {
                             viewModel.currentChallenge = signature
                             try {
-                                val pendingIntent = fido2Client.getSignPendingIntent(
-                                    event.publicKeyCredentialRequestOptions,
-                                ).await()
+                                val pendingIntent =
+                                    fido2Client
+                                        .getSignPendingIntent(
+                                            event.publicKeyCredentialRequestOptions,
+                                        ).await()
                                 assertionLauncher.launch(
                                     IntentSenderRequest.Builder(pendingIntent).build(),
                                 )
@@ -327,8 +341,7 @@ actual fun AnswerScreenOverlay() {
 
         AlgoKitTheme {
             Box {
-
-                if (authMessage?.appId== AppId.LIQUID_AUTH_STREAM.name) {
+                if (authMessage?.appId == AppId.LIQUID_AUTH_STREAM.name) {
                     AnswerScreen(
                         viewModel = viewModel,
                         onMinimizeToPip = {
@@ -436,11 +449,12 @@ private suspend fun topUpViewerSessionVault(
         return
     }
     if (hostAddress.isBlank()) {
-        Toast.makeText(
-            context,
-            "Missing stream recipient. Please wait for payment request and try again.",
-            Toast.LENGTH_LONG,
-        ).show()
+        Toast
+            .makeText(
+                context,
+                "Missing stream recipient. Please wait for payment request and try again.",
+                Toast.LENGTH_LONG,
+            ).show()
         return
     }
 
@@ -456,30 +470,31 @@ private suspend fun topUpViewerSessionVault(
             viewerAddress = viewerAddress,
             creatorAddress = hostAddress,
             signer = signer,
-        )
-        .onSuccess { remaining ->
+        ).onSuccess { remaining ->
             if (remaining != null) {
                 Toast.makeText(context, "SessionVault topped up successfully", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(
+                Toast
+                    .makeText(
+                        context,
+                        "Top-up submitted, but balance refresh is pending",
+                        Toast.LENGTH_LONG,
+                    ).show()
+            }
+        }.onFailure { throwable ->
+            Toast
+                .makeText(
                     context,
-                    "Top-up submitted, but balance refresh is pending",
+                    "Top-up failed: ${throwable.message}",
                     Toast.LENGTH_LONG,
                 ).show()
-            }
-        }
-        .onFailure { throwable ->
-            Toast.makeText(
-                context,
-                "Top-up failed: ${throwable.message}",
-                Toast.LENGTH_LONG,
-            ).show()
         }
 }
 
 private fun extractHostAddress(msgStr: String): String? {
     return runCatching {
         val json = JSONObject(msgStr)
+
         fun extractHost(obj: JSONObject?): String? {
             if (obj == null) return null
             return listOf("hostAddress", "payTo", "recipient", "to", "address")

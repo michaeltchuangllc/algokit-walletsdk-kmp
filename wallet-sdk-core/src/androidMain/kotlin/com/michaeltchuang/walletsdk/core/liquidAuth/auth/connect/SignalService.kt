@@ -119,11 +119,12 @@ class SignalService : Service() {
         notificationId: Int,
         activityClass: Class<out Activity>?,
     ) {
-        val builder = activityClass?.let {
-            createPendingIntent(it, 0)?.let { pendingIntent ->
-                notificationBuilder.setContentIntent(pendingIntent)
-            }
-        } ?: notificationBuilder
+        val builder =
+            activityClass?.let {
+                createPendingIntent(it, 0)?.let { pendingIntent ->
+                    notificationBuilder.setContentIntent(pendingIntent)
+                }
+            } ?: notificationBuilder
         startForeground(builder, notificationId)
         val isInitialized = signalClient != null
         if (isInitialized) {
@@ -224,9 +225,10 @@ class SignalService : Service() {
                 }
             }, { state ->
                 if (state == "CLOSED" || state == "CLOSING") {
-                    val builder = notificationBuilder
-                        .setContentText("Tap to open the app.")
-                        .setOnlyAlertOnce(true)
+                    val builder =
+                        notificationBuilder
+                            .setContentText("Tap to open the app.")
+                            .setOnlyAlertOnce(true)
                     createPendingIntent(activityClass, serviceIntentRequestCode, null)?.let { pendingIntent ->
                         builder.setContentIntent(pendingIntent)
                     }

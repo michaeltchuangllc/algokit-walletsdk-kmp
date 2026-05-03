@@ -28,6 +28,4 @@ object WalletSdkConstants {
     const val EXPLORER_TESTNET_URL = "https://testnet.explorer.perawallet.app"
     const val PERA_WALLET_MAINNET_URL = "https://api.perawallet.app"
     const val PERA_WALLET_TESTNET_URL = "https://testnet.api.perawallet.app"
-
 }
-

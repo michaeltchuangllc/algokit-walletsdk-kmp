@@ -86,31 +86,33 @@ fun fromUri(uri: String): AuthMessage {
         uri.findParameterValue("appId")
             ?: AppId.NONE.name
 
-
     println("   AppId found: '$appId'")
 
     return AuthMessage(origin, requestId, appId)
 }
 
-fun getSupportedAccountsByAppId(appId: String, accountLite: List<AccountLite>):
-        List<AccountLite> {
-    return accountLite.takeIf {
-        appId == AppId.LIQUID_AUTH_STREAM.name
-    }?.filter {
-        it.registrationType in setOf(
-            AccountRegistrationType.Algo25,
-            AccountRegistrationType.HdKey
-        )
-    } ?: accountLite
-}
+fun getSupportedAccountsByAppId(
+    appId: String,
+    accountLite: List<AccountLite>,
+): List<AccountLite> =
+    accountLite
+        .takeIf {
+            appId == AppId.LIQUID_AUTH_STREAM.name
+        }?.filter {
+            it.registrationType in
+                setOf(
+                    AccountRegistrationType.Algo25,
+                    AccountRegistrationType.HdKey,
+                )
+        } ?: accountLite
 
 fun getSupportedLocalAccountsByAppId(
     appId: String,
-    localAccount: List<LocalAccount>
-): List<LocalAccount> {
-    return localAccount.takeIf {
-        appId == AppId.LIQUID_AUTH_STREAM.name
-    }?.filter {
-        it is LocalAccount.HdKey || it is LocalAccount.Algo25
-    } ?: localAccount
-}
+    localAccount: List<LocalAccount>,
+): List<LocalAccount> =
+    localAccount
+        .takeIf {
+            appId == AppId.LIQUID_AUTH_STREAM.name
+        }?.filter {
+            it is LocalAccount.HdKey || it is LocalAccount.Algo25
+        } ?: localAccount

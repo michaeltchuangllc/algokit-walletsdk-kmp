@@ -907,10 +907,6 @@ class LiquidAuthOfferViewModel(
         ) : OfferEvent
 
         /**
-         * Payment rejected by client
-         */
-
-        /**
          * Balance updated during streaming
          */
         data class BalanceUpdated(

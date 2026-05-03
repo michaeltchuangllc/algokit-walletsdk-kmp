@@ -44,7 +44,6 @@ class LiquidAuthViewModel(
                 authMessage?.let {
                     fetchAccounts(it)
                 }
-
             }
         }
     }
@@ -57,7 +56,7 @@ class LiquidAuthViewModel(
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
 
-                val accounts = getSupportedAccountsByAppId(authMessage.appId,accountLite)
+                val accounts = getSupportedAccountsByAppId(authMessage.appId, accountLite)
 
                 stateDelegate.updateState {
                     ViewState.Content(accounts)
@@ -89,7 +88,6 @@ class LiquidAuthViewModel(
             try {
                 authMessage = fromUri(uri)
                 authMessage?.let { fetchAccounts(it) }
-
             } catch (e: Exception) {
                 stateDelegate.updateState {
                     ViewState.Error("Failed to parse URI: ${e.message}")

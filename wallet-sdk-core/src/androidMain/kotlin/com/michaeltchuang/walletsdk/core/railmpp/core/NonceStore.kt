@@ -9,7 +9,10 @@ import java.util.concurrent.ConcurrentHashMap
 class InMemoryNonceStore : NonceStore {
     private val store = ConcurrentHashMap<String, Long>()
 
-    override suspend fun checkAndStore(nonce: String, ttlSeconds: Int): Boolean {
+    override suspend fun checkAndStore(
+        nonce: String,
+        ttlSeconds: Int,
+    ): Boolean {
         cleanExpired()
         if (store.containsKey(nonce)) return false
         store[nonce] = System.currentTimeMillis() + ttlSeconds * 1000L
