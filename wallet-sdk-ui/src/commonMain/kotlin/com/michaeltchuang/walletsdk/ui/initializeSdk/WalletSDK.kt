@@ -163,7 +163,10 @@ object WalletSDK {
 
     suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
 
-    suspend fun getSolanaUsdcBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase.getUsdcBalances(addresses)
+    suspend fun getSolanaUsdcBalances(addresses: List<String>): Map<String, String?> =
+        getSolanaBalancesUseCase
+            .getUsdcBalances(addresses)
+            .mapValues { (_, balance) -> balance?.toString() }
 
     suspend fun getAccountASABalance(
         address: String,
@@ -220,6 +223,7 @@ object WalletSDK {
                             state.hide()
                             onDismiss()
                         }
+
                         AlgoKitEvent.ALGO25_ACCOUNT_CREATED,
                         AlgoKitEvent.HD_ACCOUNT_CREATED,
                         -> {

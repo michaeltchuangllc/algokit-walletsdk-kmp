@@ -65,11 +65,14 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -224,7 +227,8 @@ fun LiquidAuthOfferScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
-    val remainingBalanceMicroUsdc by viewModel.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val remainingBalanceOnChainMicroUsdc by viewModel.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val progressBarBalanceMicroUsdc by viewModel.progressBarBalanceMicroUsdc.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
     val currentNetworkLabel by viewModel.currentNetworkLabel.collectAsStateWithLifecycle()
     val creatorAsaBalance by viewModel.creatorAsaBalance.collectAsStateWithLifecycle()
@@ -244,8 +248,11 @@ fun LiquidAuthOfferScreen(
         viewModel.regenerateOffer(origin)
     }
 
-    // Convert microAlgos to AlgOS for display
-    val balanceUsdc = remainingBalanceMicroUsdc?.let { it / 1_000_000.0 }
+    // Host card uses split balances:
+    // - remainingBalanceUsdc: on-chain session balance value
+    // - progressBalanceUsdc: effective remaining for progress behavior
+    val remainingBalanceUsdc = remainingBalanceOnChainMicroUsdc?.let { it / 1_000_000.0 }
+    val progressBalanceUsdc = progressBarBalanceMicroUsdc?.let { it / 1_000_000.0 }
 
     // Auto-generate offer on first composition
     LaunchedEffect(origin) {
@@ -363,7 +370,8 @@ fun LiquidAuthOfferScreen(
                     // Auto-request payment when paid streaming is enabled
                     if (canRequestPayment && address != null) {
                         println("💰 Requesting payment from client...")
-                        viewModel.requestPaymentFromClient(address)
+                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     } else {
                         println(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
@@ -376,7 +384,7 @@ fun LiquidAuthOfferScreen(
                     val connected = currentConnectionManager?.isConnected()
                     println("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
-                    println("💰 Payment request sent: ${event.paymentRequest.amountMicroAlgos} microAlgos")
+                    println("💰 Payment request sent: ${event.paymentRequest.amount} micro-units")
                 }
 
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
@@ -402,7 +410,8 @@ fun LiquidAuthOfferScreen(
                     }
                     currentCreatorAddress?.let { address ->
                         println("💰 Requesting additional payment from viewer...")
-                        viewModel.requestPaymentFromClient(address)
+                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     }
                 }
 
@@ -437,7 +446,8 @@ fun LiquidAuthOfferScreen(
         paymentCurrencyLabel = paymentCurrencyLabel,
         networkLabel = currentNetworkLabel,
         connectionType = connectionType,
-        balanceUsdc = balanceUsdc,
+        progressBalanceUsdc = progressBalanceUsdc,
+        remainingBalanceUsdc = remainingBalanceUsdc,
         currentBlockNumber = currentBlockNumber,
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
@@ -467,7 +477,8 @@ fun LiquidAuthOfferScreenContent(
     paymentCurrencyLabel: String = "ALGO",
     networkLabel: String = "TESTNET",
     connectionType: IceConnectionType,
-    balanceUsdc: Double?,
+    progressBalanceUsdc: Double?,
+    remainingBalanceUsdc: Double?,
     currentBlockNumber: Long?,
     blockChainLabel: String = "Algorand",
     balanceCurrencySymbol: String = "A",
@@ -586,7 +597,8 @@ fun LiquidAuthOfferScreenContent(
                 onMinimise()
             },
             sessionId = sessionIdForStats,
-            balanceUsdc = balanceUsdc,
+            progressBalanceUsdc = progressBalanceUsdc,
+            remainingBalanceUsdc = remainingBalanceUsdc,
             connectionType = connectionType,
             currentBlockNumber = currentBlockNumber,
             networkLabel = networkLabel,
@@ -607,7 +619,8 @@ private fun StreamHostBottomSheet(
     onMinimise: () -> Unit,
     onDismiss: () -> Unit,
     sessionId: String?,
-    balanceUsdc: Double?,
+    progressBalanceUsdc: Double?,
+    remainingBalanceUsdc: Double?,
     connectionType: IceConnectionType,
     currentBlockNumber: Long?,
     networkLabel: String,
@@ -633,7 +646,8 @@ private fun StreamHostBottomSheet(
                 onStatsClick = onStatsClick,
                 onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
                 sessionId = sessionId,
-                balanceUsdc = balanceUsdc,
+                progressBalanceUsdc = progressBalanceUsdc,
+                remainingBalanceUsdc = remainingBalanceUsdc,
                 connectionType = connectionType,
                 currentBlockNumber = currentBlockNumber,
                 blockChainLabel = blockChainLabel,
@@ -677,7 +691,8 @@ private fun StreamHostBottomSheet(
                     onStatsClick = {},
                     onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
                     sessionId = sessionId,
-                    balanceUsdc = balanceUsdc,
+                    progressBalanceUsdc = progressBalanceUsdc,
+                    remainingBalanceUsdc = remainingBalanceUsdc,
                     connectionType = connectionType,
                     currentBlockNumber = currentBlockNumber,
                     blockChainLabel = blockChainLabel,
@@ -999,7 +1014,7 @@ private fun WaitingForPaymentSection(
     sessionId: String,
     connectionType: IceConnectionType,
     balanceUsdc: Double?,
-    paymentRequest: X402PaymentMessages.PaymentRequest,
+    paymentRequest: PaymentRequest,
     onDisconnect: () -> Unit,
     paymentCurrencyLabel: String = "ALGO",
 ) {
@@ -1086,7 +1101,7 @@ private fun WaitingForPaymentSection(
                     )
 
                     Text(
-                        text = "To: ${paymentRequest.creatorAddress.take(8)}...",
+                        text = "To: ${paymentRequest.payTo.take(8)}...",
                         style = MaterialTheme.typography.bodySmall,
                         color = AlgoKitTheme.colors.textGray,
                     )
@@ -1453,7 +1468,8 @@ private fun LiquidAuthOfferWaitingForConnectionPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1491,10 +1507,13 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
             )
             ConnectedViewersCard(
                 sessionId = "session-direct-12345678",
-                balanceUSDC = 0.8,
+                remainingBalanceUSDC = 0.8,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = 45123456L,
                 networkLabel = "TESTNET",
+                progressBalanceUSDC = 0.2,
+                originUrl = "michaeltchuang.ngrok.dev",
+                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1525,7 +1544,8 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1554,7 +1574,8 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1583,7 +1604,8 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1604,11 +1626,23 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
                     origin = "https://auth.example.com",
                     sessionId = "session-payment-33221100",
                     paymentRequest =
-                        X402PaymentMessages.PaymentRequest(
+                        PaymentRequest(
                             id = "payment-session-123",
-                            amountMicroAlgos = 1_000_000L,
-                            creatorAddress = "CREATORADDR1234567890ABCDEFGH",
+                            sessionId = "session-payment-33221100",
+                            segmentIndex = 0,
+                            amount = "1000000",
+                            asset = "USDC",
                             network = "testnet",
+                            payTo = "CREATORADDR1234567890ABCDEFGH",
+                            ttl = 30,
+                            nonce = "nonce-preview-123",
+                            meta =
+                                PaymentRequestMeta(
+                                    gatingMode = GatingMode.PARTIAL_TIME,
+                                    enforcement = EnforcementMode.TRACK,
+                                    segmentDuration = 3,
+                                    voucherSignature = null,
+                                ),
                         ),
                 ),
             cameraPreview = null,
@@ -1619,7 +1653,8 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1645,7 +1680,8 @@ private fun LiquidAuthOfferErrorPreview() {
             streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
             cameraPreviewController = remember { CameraStreamingPreviewController() },
             connectionType = IceConnectionType.UNKNOWN,
-            balanceUsdc = null,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
             currentBlockNumber = null,
         )
     }
@@ -1664,10 +1700,13 @@ private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
         ) {
             ConnectedViewersCard(
                 sessionId = "session-preview-12345678",
-                balanceUSDC = 0.7,
+                remainingBalanceUSDC = 0.7,
                 connectionType = IceConnectionType.STUN,
                 currentBlockNumber = 45123501L,
                 networkLabel = "TESTNET",
+                progressBalanceUSDC = 0.2,
+                originUrl = "michaeltchuang.ngrok.dev",
+                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
             )
         }
     }
@@ -1686,9 +1725,12 @@ private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
         ) {
             ConnectedViewersCard(
                 sessionId = "session-preview-87654321",
-                balanceUSDC = 0.7,
+                remainingBalanceUSDC = 0.7,
                 connectionType = IceConnectionType.STUN,
                 networkLabel = "TESTNET",
+                progressBalanceUSDC = 0.2,
+                originUrl = "michaeltchuang.ngrok.dev",
+                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
             )
         }
     }

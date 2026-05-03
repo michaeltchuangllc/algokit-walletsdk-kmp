@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -55,7 +55,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     // ================= X402 Payment Stubs =================
 
-    override fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest) {
+    override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         println("IOSLiquidAuthConnectionManager.sendPaymentRequest: iOS stub")
     }
 

@@ -115,15 +115,17 @@ timeline
             : ✅ Design - Create app design system in Figma project
             : ✅ Liquid Stream - Implement new Figma viewer/host screens
             : ✅ Liquid Stream - Implement new Figma app modals
-            : 🔄 Transaction - Upgrade to escrow MPP WebRTC standard for micro-billing (Android)
+            : ✅ Transaction - Upgrade to escrow smart contract manager for non-PQ account micro-billing (Android)
+            : 🔄 Transaction - Upgrade to escrow smart contract manager for PQ account micro-billing (Android)
             : 🔄 GitOps - Fix crypto dependencies for new 16KB Android requirement
-            : Account Details - Send USDC in account detail (between accounts)
+            : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
             
     section Future 🔮
      2026Q3  : Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
              : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
              : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : Account Details - Send USDC in account detail (between accounts)
              : TBD
     Backlog
             : Onboarding - Rekey flow

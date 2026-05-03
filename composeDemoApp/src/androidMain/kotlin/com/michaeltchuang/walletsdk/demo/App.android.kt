@@ -3,9 +3,9 @@ package com.michaeltchuang.walletsdk.demo
 import android.app.Application
 import android.content.Context
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
@@ -39,7 +39,7 @@ class AndroidApp : Application() {
     }
 }
 
-class AppActivity : ComponentActivity() {
+class AppActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

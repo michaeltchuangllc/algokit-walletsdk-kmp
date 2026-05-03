@@ -1,3 +1,4 @@
+import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -132,6 +133,10 @@ kotlin {
             implementation(libs.jackson.dataformat.msgpack)
             implementation(libs.jackson.dataformat.cbor)
             implementation(libs.json.kotlin.schema)
+
+            // JCS (RFC 8785) JSON canonicalization — required for challenge HMAC input and
+            // `request` field serialization per draft-algorand-charge.
+            implementation(libs.json.canonicalization)
         }
         commonMain.dependencies {
             api(libs.napier)

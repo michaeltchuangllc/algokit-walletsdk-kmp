@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AuthenticateWithBiometricsUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams

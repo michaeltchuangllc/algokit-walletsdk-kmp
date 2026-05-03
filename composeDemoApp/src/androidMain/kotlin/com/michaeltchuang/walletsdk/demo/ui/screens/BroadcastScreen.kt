@@ -27,6 +27,7 @@ import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.SeedVault
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
+import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
@@ -34,6 +35,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.components.createCameraStreami
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.getSupportedLocalAccountsByAppId
 import org.koin.compose.koinInject
 
 /**
@@ -70,7 +72,11 @@ actual fun BroadcastScreen(
     // Get accounts for X402 creator address (using produceState for suspend function)
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
     val accountResult by produceState<Pair<Boolean, List<LocalAccount>>>(initialValue = false to emptyList()) {
-        value = true to getLocalAccountsUseCase()
+        value = true to
+            getSupportedLocalAccountsByAppId(
+                appId = AppId.LIQUID_AUTH_STREAM.name,
+                localAccount = getLocalAccountsUseCase(),
+            )
     }
     val accountsLoaded = accountResult.first
     val accounts = accountResult.second

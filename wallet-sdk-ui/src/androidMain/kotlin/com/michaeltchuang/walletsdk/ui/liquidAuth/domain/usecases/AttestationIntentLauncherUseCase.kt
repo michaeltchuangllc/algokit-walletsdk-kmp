@@ -5,7 +5,7 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

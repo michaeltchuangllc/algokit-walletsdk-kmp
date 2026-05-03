@@ -11,6 +11,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.model.StreamMetricsCardStyle
 internal const val PAYOUT_EVERY_BLOCK_TAB_ID = "every_block"
 internal const val PAYOUT_EVERY_256_BLOCKS_TAB_ID = "every_256_blocks"
 
+const val LIQUID_AUTH_SESSION = "LiquidAuth"
+const val SESSION_LOGGED_OUT = "Logged Out"
 val streamMetricsCardStyle =
     StreamMetricsCardStyle(
         sectionSpacing = 15.dp,

@@ -1,8 +1,8 @@
 [versions]
 agp = "8.10.0"
-algoGoMobilesdk = "2026.2.2"
+algoGoMobilesdk = "2026.2.3"
 algoSdk = "2.10.1"
-algokit-walletSdk = "3.202602.4"
+algokit-walletSdk = "3.202602.5"
 algorand-foundation = "0.1.0"
 android-compileSdk = "36"
 android-minSdk = "34"
@@ -43,6 +43,7 @@ jackson-annotations = "2.16.1"
 jackson-dataformat-cbor = "2.16.1"
 jackson-dataformat-msgpack = "0.9.8"
 javaxInject = "1"
+jsonCanonicalization = "1.1"
 json-kotlin-schema = "0.46"
 junit = "4.13.2"
 junitKtx = "1.2.1"
@@ -245,6 +246,7 @@ jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations
 jackson-dataformat-msgpack = { module = "org.msgpack:jackson-dataformat-msgpack", version.ref = "jackson-dataformat-msgpack" }
 jackson-dataformat-cbor = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor", version.ref = "jackson-dataformat-cbor" }
 json-kotlin-schema = { module = "net.pwall.json:json-kotlin-schema", version.ref = "json-kotlin-schema" }
+json-canonicalization = { module = "io.github.erdtman:java-json-canonicalization", version.ref = "jsonCanonicalization" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

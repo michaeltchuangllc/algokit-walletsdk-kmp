@@ -14,9 +14,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.demo.ui.components.ConnectionStatusBar
 import com.michaeltchuang.walletsdk.demo.ui.components.NetworkStatusBar
 import com.michaeltchuang.walletsdk.demo.ui.viewmodel.AppViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreenOverlay
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthMiniPlayerOverlay
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import org.koin.compose.viewmodel.koinViewModel
@@ -45,6 +47,7 @@ fun AppNavigation() {
                 Column {
                     TopBar()
                     NetworkStatusBar()
+                    ConnectionStatusBar()
                 }
             },
             snackbarHost = {
@@ -80,5 +83,7 @@ fun AppNavigation() {
                 }
             },
         )
+
+        AnswerScreenOverlay()
     }
 }

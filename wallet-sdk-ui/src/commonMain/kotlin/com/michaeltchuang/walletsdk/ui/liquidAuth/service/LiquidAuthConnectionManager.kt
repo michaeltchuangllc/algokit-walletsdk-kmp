@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.X402PaymentMessages
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.flow.StateFlow
 
@@ -80,7 +80,7 @@ interface LiquidAuthConnectionManager {
      * Send X402 payment request to client.
      * Requests 1 ALGO deposit to start paid streaming.
      */
-    fun sendPaymentRequest(paymentRequest: X402PaymentMessages.PaymentRequest)
+    fun sendPaymentRequest(paymentRequest: PaymentRequest)
 
     /**
      * Start X402 block consumption timer.

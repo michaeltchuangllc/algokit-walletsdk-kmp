@@ -24,6 +24,7 @@ class PeerApi(
 
     // Data Channel to send and receive messages
     private var dataChannel: DataChannel? = null
+    private val additionalDataChannels: MutableMap<String, DataChannel> = mutableMapOf()
 
     // Create the Peer Connection Factory
     private var peerConnectionFactory: PeerConnectionFactory
@@ -78,8 +79,14 @@ class PeerApi(
 
                     override fun onDataChannel(p0: DataChannel?) {
                         Log.d(TAG, "onDataChannel($p0)")
-                        dataChannel = p0
-                        onDataChannel(p0!!)
+                        val incomingChannel = p0 ?: return
+                        val label = incomingChannel.label()
+                        if (label == "liquid" || dataChannel == null) {
+                            dataChannel = incomingChannel
+                        } else {
+                            additionalDataChannels[label] = incomingChannel
+                        }
+                        onDataChannel(incomingChannel)
                     }
 
                     override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
@@ -296,9 +303,24 @@ class PeerApi(
             throw Exception("peerConnection is null")
         }
         dataChannel?.close()
-        dataChannel = peerConnection?.createDataChannel(label, DataChannel.Init())
-        return dataChannel
+        additionalDataChannels.clear()
+        val channel = peerConnection?.createDataChannel(label, DataChannel.Init())
+        dataChannel = channel
+        return channel
     }
+
+    fun createAdditionalDataChannel(label: String): DataChannel? {
+        if (peerConnection === null) {
+            throw Exception("peerConnection is null")
+        }
+        val channel = peerConnection?.createDataChannel(label, DataChannel.Init())
+        if (channel != null) {
+            additionalDataChannels[label] = channel
+        }
+        return channel
+    }
+
+    fun getAdditionalDataChannel(label: String): DataChannel? = additionalDataChannels[label]
 
     fun send(message: String) {
         if (dataChannel === null) {
@@ -316,6 +338,8 @@ class PeerApi(
     fun destroy() {
         dataChannel?.close()
 //        dataChannel?.dispose()
+        additionalDataChannels.values.forEach { it.close() }
+        additionalDataChannels.clear()
         peerConnection?.close()
         peerConnection?.dispose()
         peerConnection = null

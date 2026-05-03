@@ -47,7 +47,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
-import com.michaeltchuang.walletsdk.ui.liquidAuth.connect
+import com.michaeltchuang.walletsdk.ui.liquidAuth.connectLiquidAuth
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.checkMinimumBalanceRequired
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
 import org.jetbrains.compose.resources.DrawableResource
@@ -116,7 +116,9 @@ fun LiquidAuthScreen(
         onConnect.value = false
         closeSheet()
         navController.popBackStack()
-        connect(viewModel.authMessage, selectedAccount)
+        viewModel.authMessage?.let {
+            connectLiquidAuth(it, selectedAccount)
+        }
     }
 }
 
@@ -125,7 +127,7 @@ private fun CenteredMessage(message: String) {
     CenteredContent {
         Text(
             text = message,
-            style = AlgoKitTheme.typography.body.regular.sans,
+            style = typography.body.regular.sans,
             color = AlgoKitTheme.colors.textGray,
         )
     }
@@ -361,7 +363,7 @@ private fun AccountItem(
                         modifier = Modifier.size(16.dp),
                     )
                     Text(
-                        text = account.usdcBalance?.formatAmount(false) ?: "N/A",
+                        text = account.usdcBalance?.formatAmount() ?: "N/A",
                         fontSize = 16.sp,
                         style = typography.footnote.sansMedium,
                         color = AlgoKitTheme.colors.textMain,
