@@ -208,6 +208,7 @@ class PaywalledRTCClient(
                     amount = request.amount,
                     asset = request.asset,
                     network = request.network,
+                    payTo = request.payTo,
                     segmentDuration = request.meta.segmentDuration,
                     segmentBytes = request.meta.segmentBytes,
                 )

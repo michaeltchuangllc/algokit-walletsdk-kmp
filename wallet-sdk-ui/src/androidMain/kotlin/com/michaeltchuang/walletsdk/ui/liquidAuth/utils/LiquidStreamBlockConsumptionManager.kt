@@ -240,9 +240,16 @@ internal class LiquidStreamBlockConsumptionManager(
                     }
 
                 val signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc.coerceAtLeast(0L)
+                val channelId =
+                    MppPayments.deriveChannelId(
+                        viewerAddress = claimSnapshot.viewerAddress,
+                        hostAddress = creatorAddress,
+                        authorizedSignerAddress = claimSnapshot.viewerAddress,
+                    )
                 val claimMessageHash =
                     MppPayments.buildClaimMessageHashHex(
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        channelId = channelId,
                         totalAmountClaimedMicroUsdc = signedTotalAmount,
                     )
                 val signatureHash = MppPayments.hashHex(signatureBytes)
@@ -250,6 +257,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     MppPayments.verifyClaimSignatureLocally(
                         viewerAddress = claimSnapshot.viewerAddress,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        channelId = channelId,
                         totalAmountClaimedMicroUsdc = signedTotalAmount,
                         signature = signatureBytes,
                     )
@@ -290,6 +298,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                         signer = signer,
                                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                         viewerAddress = claimSnapshot.viewerAddress,
+                                        hostAddress = creatorAddress,
                                         totalAmountClaimedMicroUsdc = signedTotalAmount,
                                         signature = signatureBytes,
                                     ).onSuccess { result ->
@@ -324,7 +333,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         }
 
                         MppPayments
-                            .claimVoucher(
+                            .settleVoucher(
                                 signer = signer,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                 viewerAddress = claimSnapshot.viewerAddress,
