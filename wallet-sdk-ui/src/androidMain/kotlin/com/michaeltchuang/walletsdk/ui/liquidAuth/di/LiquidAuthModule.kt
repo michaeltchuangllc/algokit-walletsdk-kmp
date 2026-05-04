@@ -18,6 +18,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
@@ -36,6 +37,7 @@ val liquidAuthUIModule =
         singleOf(::HandleAssertionResultUseCase)
         singleOf(::PrepareAuthenticationUseCase)
         single { ProcessBiometricTransactionSigningUseCase(get()) }
+        singleOf(::SetupMppPaymentViewerUseCase)
         singleOf(::LogAppSignatureUseCase)
         single {
             val getMnemonic: suspend (String) -> String? = { algoAddr ->
@@ -89,6 +91,7 @@ val liquidAuthUIModule =
                 providerHttpClientUseCase = get(),
                 getAccountAlgoBalance = get(),
                 getCurrentBlockUseCase = get(),
+                setupMppPaymentViewerUseCase = get(),
             )
         }
     }
