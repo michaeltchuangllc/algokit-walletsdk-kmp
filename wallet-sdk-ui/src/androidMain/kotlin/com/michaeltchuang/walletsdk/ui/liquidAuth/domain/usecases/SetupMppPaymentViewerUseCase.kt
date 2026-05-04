@@ -393,9 +393,7 @@ class SetupMppPaymentViewerUseCase {
         viewerOnChainRefreshJob = null
     }
 
-    private suspend fun awaitPaymentDataChannel(
-        service: SignalService,
-    ): DataChannel? {
+    private suspend fun awaitPaymentDataChannel(service: SignalService): DataChannel? {
         service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
         repeat(20) {
             service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { channel -> return channel }

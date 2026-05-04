@@ -133,10 +133,14 @@ class AnswerViewModel(
 
             val raw =
                 value.toByteArray().let { bytes ->
-                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) bytes.copyOfRange(
-                        1,
-                        bytes.size
-                    ) else bytes
+                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) {
+                        bytes.copyOfRange(
+                            1,
+                            bytes.size,
+                        )
+                    } else {
+                        bytes
+                    }
                 }
 
             val leadingZeroCount = input.takeWhile { it == '1' }.length
@@ -212,16 +216,16 @@ class AnswerViewModel(
 
                 val shouldTimeoutDisconnect =
                     hasReceivedAtLeastOneFrame &&
-                            !currentlyActive &&
-                            !hasTimedOutCurrentStream
+                        !currentlyActive &&
+                        !hasTimedOutCurrentStream
 
                 Napier.d(
                     tag = TAG,
                     message =
                         "Stream monitor - lastFrame=$lastFrame, currentlyActive=$currentlyActive, " +
-                                "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
-                                "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
-                                "shouldTimeout=$shouldTimeoutDisconnect",
+                            "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
+                            "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
+                            "shouldTimeout=$shouldTimeoutDisconnect",
                 )
 
                 if (shouldTimeoutDisconnect) {
@@ -233,7 +237,7 @@ class AnswerViewModel(
                     _signalService.value?.stop()
                     val reason =
                         "Stream disconnected because no video frames were received for a few seconds. " +
-                                "Please reconnect to continue watching."
+                            "Please reconnect to continue watching."
                     _error.value = reason
                     eventDelegate.sendEvent(ViewEvent.ShowToast(reason))
                     eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
@@ -285,7 +289,7 @@ class AnswerViewModel(
             hasTimedOutCurrentStream = false
             Napier.d(
                 tag = TAG,
-                message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now"
+                message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now",
             )
         }
     }
@@ -369,19 +373,18 @@ class AnswerViewModel(
         if (credentialId != null) {
             Napier.d(
                 tag = TAG,
-                message = "Deleting credential: $credentialId for address: $accountAddress"
+                message = "Deleting credential: $credentialId for address: $accountAddress",
             )
             passkeyRepository.removePasskeyByCredentialId(credentialId)
         } else {
             Napier.w(
                 tag = TAG,
-                message = "No credential found to delete for address: $accountAddress"
+                message = "No credential found to delete for address: $accountAddress",
             )
         }
     }
 
-    suspend fun getAvailableAccountAddresses(): List<String> =
-        getLocalAccounts().map { it.address }.distinct()
+    suspend fun getAvailableAccountAddresses(): List<String> = getLocalAccounts().map { it.address }.distinct()
 
     fun getCredentialMessage(
         account: String,
@@ -466,8 +469,7 @@ class AnswerViewModel(
         }
     }
 
-    suspend fun isSeedVaultAccount(address: String): Boolean =
-        getLocalAccount(address) is LocalAccount.SeedVault
+    suspend fun isSeedVaultAccount(address: String): Boolean = getLocalAccount(address) is LocalAccount.SeedVault
 
     suspend fun getAccountTypeForFido2(address: String): String {
         val localAccount = getLocalAccount(address)
@@ -482,8 +484,7 @@ class AnswerViewModel(
 
     suspend fun resolveAlgo25SecretKey(address: String): ByteArray? = getAlgo25SecretKey(address)
 
-    suspend fun resolveFalcon24SecretKey(address: String): ByteArray? =
-        getFalcon24SecretKey(address)
+    suspend fun resolveFalcon24SecretKey(address: String): ByteArray? = getFalcon24SecretKey(address)
 
     suspend fun resolveSeed(seedId: Int): ByteArray? = getSeed(seedId)
 
@@ -547,17 +548,17 @@ class AnswerViewModel(
                     "liquid:payment:balance",
                     "liquid:payment:voucher",
                     "liquid:payment:depleted",
-                        -> {
+                    -> {
                         Napier.d(
                             tag = TAG,
-                            message = "💳 Liquid payment JSON message detected: $reference"
+                            message = "💳 Liquid payment JSON message detected: $reference",
                         )
                     }
 
                     else -> {
                         Napier.w(
                             tag = TAG,
-                            message = "⚠️ Unknown JSON message reference: $reference"
+                            message = "⚠️ Unknown JSON message reference: $reference",
                         )
                     }
                 }
@@ -577,11 +578,11 @@ class AnswerViewModel(
                     tag = TAG,
                     message =
                         "Incoming CBOR encoding: " +
-                                if (cborBytes[0].toInt() and 0x1F == 0x1F) {
-                                    "INDEFINITE-LENGTH"
-                                } else {
-                                    "DEFINITE-LENGTH"
-                                },
+                            if (cborBytes[0].toInt() and 0x1F == 0x1F) {
+                                "INDEFINITE-LENGTH"
+                            } else {
+                                "DEFINITE-LENGTH"
+                            },
                 )
             }
 
@@ -604,7 +605,7 @@ class AnswerViewModel(
                             )
                         Napier.d(
                             tag = TAG,
-                            message = "Decoded ${params.txns.size} transaction(s) from request"
+                            message = "Decoded ${params.txns.size} transaction(s) from request",
                         )
                         Napier.d(tag = TAG, message = "Provider ID: ${params.providerId}")
                         _pendingSignTransactionsParams.value = params
@@ -624,7 +625,7 @@ class AnswerViewModel(
                 else -> {
                     Napier.w(
                         tag = TAG,
-                        message = "⚠️ Unknown request reference: ${request.reference}"
+                        message = "⚠️ Unknown request reference: ${request.reference}",
                     )
                 }
             }
@@ -661,7 +662,7 @@ class AnswerViewModel(
 
             Napier.d(
                 tag = TAG,
-                message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes"
+                message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes",
             )
             onVideoFrame?.invoke(videoFrame)
         } catch (e: Exception) {
@@ -689,8 +690,7 @@ class AnswerViewModel(
     /**
      * Encode ResponseMessage to CBOR bytes
      */
-    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray =
-        encoder.encode(responseMessage, EncoderType.CBOR)
+    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray = encoder.encode(responseMessage, EncoderType.CBOR)
 
     fun handleMessage(message: Message): Any {
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
@@ -919,7 +919,7 @@ class AnswerViewModel(
 
                             is DataResource.Error,
                             is DataResource.Loading,
-                                -> Unit
+                            -> Unit
                         }
                     }
                     delay(1000)
@@ -1133,14 +1133,12 @@ class AnswerViewModel(
     fun getAttestationIntentLauncher(
         activity: AppCompatActivity,
         callback: (HandleAttestationResultUseCase.Result) -> Unit,
-    ): ActivityResultLauncher<IntentSenderRequest> =
-        attestationIntentLauncherUseCase(activity, this, callback)
+    ): ActivityResultLauncher<IntentSenderRequest> = attestationIntentLauncherUseCase(activity, this, callback)
 
     fun getAssertionIntentLauncher(
         activity: AppCompatActivity,
         callback: (HandleAssertionResultUseCase.Result) -> Unit,
-    ): ActivityResultLauncher<IntentSenderRequest> =
-        assertionIntentLauncherUseCase(activity, this, callback)
+    ): ActivityResultLauncher<IntentSenderRequest> = assertionIntentLauncherUseCase(activity, this, callback)
 
     fun handleAssertionResultFromLauncher(result: HandleAssertionResultUseCase.Result) {
         viewModelScope.launch {
