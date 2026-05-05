@@ -27,6 +27,12 @@ import java.security.Security
  */
 object MppPayments {
     private const val TAG = "MppPayments"
+
+    init {
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 0)
+    }
+
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
     private const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 3
@@ -113,9 +119,6 @@ object MppPayments {
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Long? =
         runCatching {
-            Security.removeProvider("BC")
-            Security.insertProviderAt(BouncyCastleProvider(), 0)
-
             val client = algodClient(algodUrl)
             val boxName = sessionBoxName(viewerAddress, hostAddress)
             val boxNameB64 = Encoder.encodeToBase64(boxName)

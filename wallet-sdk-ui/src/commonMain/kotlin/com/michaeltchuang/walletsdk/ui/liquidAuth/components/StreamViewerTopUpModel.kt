@@ -457,7 +457,7 @@ private fun TopUpActions(
             }
             Spacer(Modifier.size(10.dp))
             Text(
-                text = "Confirm & Stream",
+                text = "Top-Up",
                 color = ColorPalette.White,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,

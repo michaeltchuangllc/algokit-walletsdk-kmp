@@ -120,7 +120,7 @@ fun LiquidAuthSessionVaultModal(
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "Estimated 1 hour of watch time: ~1.50 $currencyLabel.",
+                            text = "Estimated 30 secs of watch time: ~1 $currencyLabel.",
                             color = Color(0xFFB5CFD4),
                             fontSize = 14.sp,
                             textAlign = TextAlign.Center,

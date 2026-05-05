@@ -46,6 +46,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
@@ -58,6 +59,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
@@ -106,6 +108,7 @@ class AnswerViewModel(
     private val providerHttpClientUseCase: ProvideHttpClientUseCase,
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
+    private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
 ) : ViewModel(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
@@ -113,7 +116,8 @@ class AnswerViewModel(
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
         private const val STREAM_TIMEOUT_MS = 10000L // 10 seconds without frames = stream ended
-        private const val BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+        private const val BASE58_ALPHABET =
+            "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
         private fun decodeBase58(input: String): ByteArray? {
             if (input.isEmpty()) return ByteArray(0)
@@ -129,7 +133,14 @@ class AnswerViewModel(
 
             val raw =
                 value.toByteArray().let { bytes ->
-                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) bytes.copyOfRange(1, bytes.size) else bytes
+                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) {
+                        bytes.copyOfRange(
+                            1,
+                            bytes.size,
+                        )
+                    } else {
+                        bytes
+                    }
                 }
 
             val leadingZeroCount = input.takeWhile { it == '1' }.length
@@ -164,7 +175,8 @@ class AnswerViewModel(
     var currentChallenge: ByteArray? = null
     var showConfirmationDialog = MutableStateFlow(false)
     private val _pendingSignTransactionsParams = MutableStateFlow<SignTransactionsParams?>(null)
-    val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> = _pendingSignTransactionsParams
+    val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> =
+        _pendingSignTransactionsParams
     private val _pendingSignMessage = MutableStateFlow<Message?>(null)
     val pendingSignMessage: StateFlow<Message?> = _pendingSignMessage
     private var signalServiceConnection: ServiceConnection? = null
@@ -275,7 +287,10 @@ class AnswerViewModel(
             _lastFrameTimestamp.value = now
             hasReceivedAtLeastOneFrame = true
             hasTimedOutCurrentStream = false
-            Napier.d(tag = TAG, message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now")
+            Napier.d(
+                tag = TAG,
+                message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now",
+            )
         }
     }
 
@@ -315,6 +330,7 @@ class AnswerViewModel(
     }
 
     fun unbindSignalService(context: Context) {
+        stopMppPaymentViewer()
         _signalService.value?.stop()
         signalServiceConnection?.let { manageSignalServiceUseCase.unbind(context, it) }
         _signalService.value = null
@@ -355,10 +371,16 @@ class AnswerViewModel(
     suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
         val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
         if (credentialId != null) {
-            Napier.d(tag = TAG, message = "Deleting credential: $credentialId for address: $accountAddress")
+            Napier.d(
+                tag = TAG,
+                message = "Deleting credential: $credentialId for address: $accountAddress",
+            )
             passkeyRepository.removePasskeyByCredentialId(credentialId)
         } else {
-            Napier.w(tag = TAG, message = "No credential found to delete for address: $accountAddress")
+            Napier.w(
+                tag = TAG,
+                message = "No credential found to delete for address: $accountAddress",
+            )
         }
     }
 
@@ -480,6 +502,7 @@ class AnswerViewModel(
                     ByteArray(0)
                 }
             }
+
             is LocalAccount.SeedVault -> {
                 val decoded = decodeBase58(localAccount.publicKey)
                 if (decoded == null || decoded.size != 32) {
@@ -492,6 +515,7 @@ class AnswerViewModel(
                     decoded
                 }
             }
+
             else -> ByteArray(0)
         }
     }
@@ -520,14 +544,22 @@ class AnswerViewModel(
                         Napier.d(tag = TAG, message = "🎥 Video frame JSON message detected")
                         handleVideoFrameMessage(msgStr, onVideoFrame)
                     }
+
                     "liquid:payment:balance",
                     "liquid:payment:voucher",
                     "liquid:payment:depleted",
                     -> {
-                        Napier.d(tag = TAG, message = "💳 Liquid payment JSON message detected: $reference")
+                        Napier.d(
+                            tag = TAG,
+                            message = "💳 Liquid payment JSON message detected: $reference",
+                        )
                     }
+
                     else -> {
-                        Napier.w(tag = TAG, message = "⚠️ Unknown JSON message reference: $reference")
+                        Napier.w(
+                            tag = TAG,
+                            message = "⚠️ Unknown JSON message reference: $reference",
+                        )
                     }
                 }
                 return
@@ -571,7 +603,10 @@ class AnswerViewModel(
                                 ),
                                 EncoderType.NONE,
                             )
-                        Napier.d(tag = TAG, message = "Decoded ${params.txns.size} transaction(s) from request")
+                        Napier.d(
+                            tag = TAG,
+                            message = "Decoded ${params.txns.size} transaction(s) from request",
+                        )
                         Napier.d(tag = TAG, message = "Provider ID: ${params.providerId}")
                         _pendingSignTransactionsParams.value = params
                         _pendingSignMessage.value = message
@@ -579,14 +614,19 @@ class AnswerViewModel(
                         onSignTransaction?.invoke(params, message)
                     }
                 }
+
                 "liquid:video:frame" -> {
                     Napier.d(tag = TAG, message = "🎥 Video frame message detected (CBOR encoded)")
                     // Some peers may send ARC-style video-frame references via CBOR envelope.
                     // Fall back to JSON parser using original payload so viewer still renders frames.
                     handleVideoFrameMessage(msgStr, onVideoFrame)
                 }
+
                 else -> {
-                    Napier.w(tag = TAG, message = "⚠️ Unknown request reference: ${request.reference}")
+                    Napier.w(
+                        tag = TAG,
+                        message = "⚠️ Unknown request reference: ${request.reference}",
+                    )
                 }
             }
         } catch (e: Throwable) {
@@ -620,7 +660,10 @@ class AnswerViewModel(
                     format = json.optString("format", "jpeg"),
                 )
 
-            Napier.d(tag = TAG, message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
+            Napier.d(
+                tag = TAG,
+                message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes",
+            )
             onVideoFrame?.invoke(videoFrame)
         } catch (e: Exception) {
             Napier.e(tag = TAG, message = "❌ Failed to decode video frame: $e")
@@ -873,6 +916,7 @@ class AnswerViewModel(
                             is DataResource.Success -> {
                                 _currentBlockNumber.value = result.data
                             }
+
                             is DataResource.Error,
                             is DataResource.Loading,
                             -> Unit
@@ -887,6 +931,50 @@ class AnswerViewModel(
         blockNumberPollingJob?.cancel()
         blockNumberPollingJob = null
     }
+
+    fun setupMppPaymentViewer(
+        viewerAddress: String?,
+        hostAddress: String? = null,
+    ) {
+        setupMppPaymentViewerUseCase(
+            SetupMppPaymentViewerUseCase.Params(
+                signalService = signalService.value,
+                viewerAddress = viewerAddress,
+                hostAddress = hostAddress,
+                scope = viewModelScope,
+                buildMppWalletSigner = ::buildMppWalletSigner,
+                resolveMppClientNetwork = ::resolveMppClientNetwork,
+                requestMppConsent = ::requestMppConsentFromUi,
+                setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
+                applyViewerSegmentDebit = ::applyViewerSegmentDebit,
+                viewerSessionVaultMicroUsdc = { viewerSessionVaultMicroUsdc.value },
+                signFido2Challenge = ::signFido2Challenge,
+            ),
+        )
+    }
+
+    fun startViewerOnChainRefresh(
+        viewerAddress: String,
+        hostAddress: String? = null,
+    ) {
+        setupMppPaymentViewerUseCase.startViewerOnChainRefresh(
+            scope = viewModelScope,
+            viewerAddress = viewerAddress,
+            hostAddress = hostAddress,
+            setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
+        )
+    }
+
+    fun stopMppPaymentViewer() {
+        setupMppPaymentViewerUseCase.stop()
+    }
+
+    private suspend fun resolveMppClientNetwork(address: String): String =
+        if (getLocalAccount(address) is LocalAccount.SeedVault) {
+            MppNetworks.SOLANA_DEVNET
+        } else {
+            MppNetworks.ALGORAND_TESTNET
+        }
 
     suspend fun processBiometricTransactionSigning(
         activity: FragmentActivity,

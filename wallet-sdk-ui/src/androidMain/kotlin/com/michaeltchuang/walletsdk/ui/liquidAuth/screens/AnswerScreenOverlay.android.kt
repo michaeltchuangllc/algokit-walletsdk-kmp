@@ -292,6 +292,7 @@ actual fun AnswerScreenOverlay() {
 
         DisposableEffect(Unit) {
             onDispose {
+                viewModel.stopMppPaymentViewer()
                 viewModel.unbindSignalService(context)
                 viewModelStoreOwner.viewModelStore.clear()
             }
@@ -299,6 +300,7 @@ actual fun AnswerScreenOverlay() {
 
         DisposableEffect(Unit) {
             ConnectionStatusState.onDisconnect = {
+                viewModel.stopMppPaymentViewer()
                 viewModel.unbindSignalService(context)
                 viewModelStoreOwner.viewModelStore.clear()
                 AnswerScreenState.isVisible = false
@@ -410,12 +412,20 @@ private suspend fun handleWebRTCSetup(
     if (viewModel.signalService.value != null) {
         Log.d(TAG, "Setting up WebRTC connection...")
         viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers)
+        var hasStartedMppViewer = false
         viewModel.signalService.value?.handleMessages(
             activity = activity,
             onMessage = { peerMsg ->
                 // Cache host / pay-to address from incoming messages for top-up flows.
                 extractHostAddress(peerMsg)?.let { host ->
-                    if (host.isNotBlank()) onHostAddressChanged(host)
+                    if (host.isNotBlank()) {
+                        onHostAddressChanged(host)
+                        if (!hasStartedMppViewer) {
+                            hasStartedMppViewer = true
+                            viewModel.setupMppPaymentViewer(viewerAddress = address, hostAddress = host)
+                            viewModel.startViewerOnChainRefresh(address, host)
+                        }
+                    }
                 }
                 viewModel.handleMessages(
                     msgStr = peerMsg,
@@ -473,6 +483,7 @@ private suspend fun topUpViewerSessionVault(
         ).onSuccess { remaining ->
             if (remaining != null) {
                 Toast.makeText(context, "SessionVault topped up successfully", Toast.LENGTH_SHORT).show()
+                viewModel.startViewerOnChainRefresh(viewerAddress, hostAddress)
             } else {
                 Toast
                     .makeText(
