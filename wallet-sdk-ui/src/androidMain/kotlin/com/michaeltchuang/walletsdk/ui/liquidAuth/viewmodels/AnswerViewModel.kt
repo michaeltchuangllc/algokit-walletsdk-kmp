@@ -826,14 +826,7 @@ class AnswerViewModel(
                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                 )
 
-            if (onChainRemaining != null) {
-                setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
-            } else {
-                Log.e(
-                    TAG,
-                    "[VIEWER_SESSION_VAULT_TOPUP_FETCH_NULL] viewer=$viewerAddress txId=$txId",
-                )
-            }
+            setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
 
             onChainRemaining
         }.onFailure { throwable ->
@@ -855,6 +848,7 @@ class AnswerViewModel(
 
         return object : MppWalletSigner {
             override val address: String = address
+            override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
             override suspend fun signTransaction(txn: Transaction): ByteArray =
                 when (localAccount) {

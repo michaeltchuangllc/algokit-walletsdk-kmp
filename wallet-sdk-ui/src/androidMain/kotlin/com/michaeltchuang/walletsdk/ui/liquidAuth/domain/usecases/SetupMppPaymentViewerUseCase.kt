@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
@@ -140,7 +141,7 @@ class SetupMppPaymentViewerUseCase {
                                             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                         )
 
-                                    if (existingOnChainBalance != null && existingOnChainBalance > 0L) {
+                                    if (existingOnChainBalance > 0L) {
                                         params.setViewerSessionVaultBalance(existingOnChainBalance, false)
                                         Log.d(
                                             TAG,
@@ -205,14 +206,7 @@ class SetupMppPaymentViewerUseCase {
                                                 TAG,
                                                 "[VIEWER_SESSION_VAULT_FETCH_AFTER_DEPOSIT] viewer=$accountAddress remaining=$onChainRemaining",
                                             )
-                                            if (onChainRemaining != null) {
-                                                params.setViewerSessionVaultBalance(onChainRemaining, true)
-                                            } else {
-                                                Log.e(
-                                                    TAG,
-                                                    "[VIEWER_SESSION_VAULT_FETCH_AFTER_DEPOSIT_NULL] viewer=$accountAddress",
-                                                )
-                                            }
+                                            params.setViewerSessionVaultBalance(onChainRemaining, true)
                                             startViewerOnChainRefresh(
                                                 scope = params.scope,
                                                 viewerAddress = accountAddress,
@@ -260,6 +254,8 @@ class SetupMppPaymentViewerUseCase {
                                                 MppPayments.buildClaimMessage(
                                                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                                     totalAmountClaimedMicroUsdc = voucherClaimed,
+                                                    viewerAddress = receiptViewerAddress,
+                                                    hostAddress = sessionVaultHostAddress,
                                                 )
                                             params.signFido2Challenge(message, accountAddress)
                                         }.getOrNull()
@@ -297,14 +293,7 @@ class SetupMppPaymentViewerUseCase {
                                     TAG,
                                     "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT] viewer=$receiptViewerAddress segment=${receipt.segmentIndex} remaining=$onChainRemaining",
                                 )
-                                if (onChainRemaining != null) {
-                                    params.setViewerSessionVaultBalance(onChainRemaining, false)
-                                } else {
-                                    Log.e(
-                                        TAG,
-                                        "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT_NULL] viewer=$receiptViewerAddress segment=${receipt.segmentIndex}",
-                                    )
-                                }
+                                params.setViewerSessionVaultBalance(onChainRemaining, false)
                             }
                         }
                         viewer.rtcClient.onStreamGated = { reason ->
@@ -362,14 +351,7 @@ class SetupMppPaymentViewerUseCase {
                             TAG,
                             "[VIEWER_SESSION_VAULT_REFRESH_TICK] viewer=$viewerAddress host=$sessionVaultHostAddress remaining=$remaining",
                         )
-                        if (remaining != null) {
-                            setViewerSessionVaultBalance(remaining, false)
-                        } else {
-                            Log.e(
-                                TAG,
-                                "[VIEWER_SESSION_VAULT_REFRESH_NULL] viewer=$viewerAddress host=$sessionVaultHostAddress",
-                            )
-                        }
+                        setViewerSessionVaultBalance(remaining, false)
                     }.onFailure {
                         Log.e(
                             TAG,
@@ -402,7 +384,7 @@ class SetupMppPaymentViewerUseCase {
         service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
 
         return suspendCancellableCoroutine { continuation ->
-            val handler = Handler(android.os.Looper.getMainLooper())
+            val handler = Handler(Looper.getMainLooper())
             val poll =
                 object : Runnable {
                     override fun run() {

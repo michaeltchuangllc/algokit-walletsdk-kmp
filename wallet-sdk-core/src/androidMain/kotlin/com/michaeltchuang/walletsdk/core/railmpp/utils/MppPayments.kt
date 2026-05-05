@@ -31,8 +31,7 @@ object MppPayments {
     private const val TAG = "MppPayments"
 
     init {
-        Security.removeProvider("BC")
-        Security.insertProviderAt(BouncyCastleProvider(), 0)
+        ensureBouncyCastleProvider()
     }
 
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
@@ -41,11 +40,11 @@ object MppPayments {
     private const val APP_CALL_FEE = 12000L
     private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
-    private val ABI_OPEN = byteArrayOf(0xca.toByte(), 0x54, 0x0f, 0x2d)
-    private val ABI_TOP_UP = byteArrayOf(0x1f, 0xd4.toByte(), 0xeb.toByte(), 0xc2.toByte())
+    private const val SIGNER_TYPE_ED25519 = 0L
+    private const val SIGNER_TYPE_FALCON_TXN_AUTH = 1L
+    private val CHANNEL_ID_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
+    private val ABI_OPEN = byteArrayOf(0xab.toByte(), 0xb1.toByte(), 0x00, 0xf2.toByte())
     private val ABI_SETTLE = byteArrayOf(0xf7.toByte(), 0xdf.toByte(), 0x8d.toByte(), 0xe2.toByte())
-    private val ABI_GET_SESSION_DYNAMIC_DATA = byteArrayOf(0x42, 0x6c, 0x95.toByte(), 0xfe.toByte())
-    private val ABI_SETTLE_MESSAGE = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
     private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
 
     fun decodeSignedTransaction(bytes: ByteArray): Any? =
@@ -121,14 +120,27 @@ object MppPayments {
         hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
-    ): Long? {
-        val channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress)
-        return getRemainingBalanceFromSessionVaultByChannelId(
-            channelId = channelId,
-            appId = appId,
-            algodUrl = algodUrl,
-            logContext = "viewer=$viewerAddress host=$hostAddress",
-        )
+    ): Long {
+        val baseContext = "viewer=$viewerAddress host=$hostAddress"
+        val channelIdCandidates =
+            listOf(
+                deriveChannelId(viewerAddress, hostAddress, authorizedSignerAddress = viewerAddress, salt = CHANNEL_ID_SALT),
+                deriveChannelId(viewerAddress, hostAddress, authorizedSignerAddress = hostAddress, salt = CHANNEL_ID_SALT),
+            ).distinctBy { Encoder.encodeToBase64(it) }
+
+        channelIdCandidates.forEachIndexed { index, channelId ->
+            val result =
+                getRemainingBalanceFromSessionVaultByChannelId(
+                    channelId = channelId,
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    logContext = "$baseContext candidate=$index",
+                )
+            if (result != null) return result
+        }
+
+        Log.d(TAG, "[SESSION_VAULT_REMAINING_MISS] appId=$appId context=$baseContext action=assume_zero_balance")
+        return 0L
     }
 
     fun getRemainingBalanceFromSessionVaultByChannelId(
@@ -147,10 +159,17 @@ object MppPayments {
                     .execute()
 
             if (!response.isSuccessful) {
-                Log.e(
-                    TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()} code=${response.code()} message=${response.message()}",
-                )
+                if (response.code() == 404) {
+                    Log.d(
+                        TAG,
+                        "[SESSION_VAULT_REMAINING_BOX_MISSING] appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
+                    )
+                } else {
+                    Log.e(
+                        TAG,
+                        "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()} code=${response.code()} message=${response.message()}",
+                    )
+                }
                 return null
             }
 
@@ -197,8 +216,9 @@ object MppPayments {
                             ABI_OPEN,
                             Address(creatorAddress).getBytes(),
                             encodeUint64(depositAmountMicroUsdc),
-                            encodeArc4DynamicBytes(ByteArray(0)),
+                            encodeArc4DynamicBytes(CHANNEL_ID_SALT),
                             Address(viewerAddress).getBytes(),
+                            encodeUint64(normalizeSignerType(signer.signerType)),
                         ),
                     ).foreignAssets(listOf(usdcAssetId))
                     .boxReferences(listOf(AppBoxReference(appId, channelId)))
@@ -247,7 +267,7 @@ object MppPayments {
         }
 
     private fun encodeUint64(value: Long): ByteArray =
-        java.nio.ByteBuffer
+        ByteBuffer
             .allocate(8)
             .putLong(value)
             .array()
@@ -316,7 +336,7 @@ object MppPayments {
         hostAddress: String,
         authorizedSignerAddress: String = viewerAddress,
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-        salt: ByteArray = ByteArray(0),
+        salt: ByteArray = CHANNEL_ID_SALT,
     ): ByteArray {
         val payer = Address(viewerAddress).getBytes()
         val payee = Address(hostAddress).getBytes()
@@ -406,6 +426,12 @@ object MppPayments {
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
         return digest.joinToString("") { "%02x".format(it) }
     }
+
+    private fun normalizeSignerType(rawSignerType: Long): Long =
+        when (rawSignerType) {
+            SIGNER_TYPE_FALCON_TXN_AUTH -> SIGNER_TYPE_FALCON_TXN_AUTH
+            else -> SIGNER_TYPE_ED25519
+        }
 
     fun verifyClaimSignatureLocally(
         viewerAddress: String,
@@ -517,6 +543,13 @@ object MppPayments {
             Thread.sleep(700)
         }
         return last
+    }
+
+    @Synchronized
+    private fun ensureBouncyCastleProvider() {
+        if (Security.getProvider("BC") == null) {
+            Security.insertProviderAt(BouncyCastleProvider(), 1)
+        }
     }
 }
 

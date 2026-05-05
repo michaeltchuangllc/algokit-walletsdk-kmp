@@ -14,6 +14,10 @@ interface MppWalletSigner {
     /** Address/public key this signer authorizes (Algorand address or Solana pubkey). */
     val address: String
 
+    /** Signer mode for Session Vault contract: 0=Ed25519 (Algo25/HD), 1=Falcon txn-auth. */
+    val signerType: Long
+        get() = 0L
+
     /**
      * Sign the given Algorand [Transaction] and return the raw msgpack bytes
      * of the signed transaction (as produced by `Encoder.encodeToMsgPack`).
