@@ -11,6 +11,7 @@ import com.algorand.algosdk.v2.client.model.PendingTransactionResponse
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
@@ -30,6 +31,18 @@ import java.security.Security
 object MppPayments {
     private const val TAG = "MppPayments"
 
+    private fun contractClient(
+        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): EscrowSessionVaultManagerClient =
+        EscrowSessionVaultManagerClient(
+            appId = appId,
+            usdcAssetId = usdcAssetId,
+            defaultSalt = CHANNEL_ID_SALT,
+            defaultAlgodUrl = algodUrl,
+        )
+
     init {
         ensureBouncyCastleProvider()
     }
@@ -37,14 +50,9 @@ object MppPayments {
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
     private const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 3
-    private const val APP_CALL_FEE = 12000L
     private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
-    private const val SIGNER_TYPE_ED25519 = 0L
-    private const val SIGNER_TYPE_FALCON_TXN_AUTH = 1L
     private val CHANNEL_ID_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
-    private val ABI_OPEN = byteArrayOf(0xab.toByte(), 0xb1.toByte(), 0x00, 0xf2.toByte())
-    private val ABI_SETTLE = byteArrayOf(0xf7.toByte(), 0xdf.toByte(), 0x8d.toByte(), 0xe2.toByte())
     private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
 
     fun decodeSignedTransaction(bytes: ByteArray): Any? =
@@ -121,6 +129,7 @@ object MppPayments {
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Long {
+        ensureBouncyCastleProvider()
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
         val channelIdCandidates =
             listOf(
@@ -200,35 +209,18 @@ object MppPayments {
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> =
-        runCatching {
-            val channelId = deriveChannelId(viewerAddress, creatorAddress, viewerAddress)
-            val client = algodClient(algodUrl)
-            val params = client.TransactionParams().execute().body()
-
-            val openTxn =
-                Transaction
-                    .ApplicationCallTransactionBuilder()
-                    .sender(signer.address)
-                    .suggestedParams(params)
-                    .applicationId(appId)
-                    .args(
-                        listOf(
-                            ABI_OPEN,
-                            Address(creatorAddress).getBytes(),
-                            encodeUint64(depositAmountMicroUsdc),
-                            encodeArc4DynamicBytes(CHANNEL_ID_SALT),
-                            Address(viewerAddress).getBytes(),
-                            encodeUint64(normalizeSignerType(signer.signerType)),
-                        ),
-                    ).foreignAssets(listOf(usdcAssetId))
-                    .boxReferences(listOf(AppBoxReference(appId, channelId)))
-                    .build()
-
-            openTxn.fee = BigInteger.valueOf(APP_CALL_FEE)
-            val signedOpen = signer.signTransaction(openTxn)
-            val txId = broadcastGroup(client, listOf(signedOpen))
-            txId ?: openTxn.txID()
-        }
+        contractClient(
+            appId = appId,
+            usdcAssetId = usdcAssetId,
+            algodUrl = algodUrl,
+        ).openAndDeposit(
+            signer = signer,
+            payeeAddress = creatorAddress,
+            depositMicroUsdc = depositAmountMicroUsdc,
+            authorizedSignerAddress = viewerAddress,
+            signerType = signer.signerType,
+            algodUrl = algodUrl,
+        )
 
     suspend fun settleVoucher(
         signer: MppWalletSigner,
@@ -238,33 +230,20 @@ object MppPayments {
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = TESTNET_ALGOD_URL,
-    ): Result<String> =
-        runCatching {
-            val channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress)
-            val client = algodClient(algodUrl)
-            val params = client.TransactionParams().execute().body()
-            params.fee = APP_CALL_FEE
-            val appCallTxn =
-                Transaction
-                    .ApplicationCallTransactionBuilder()
-                    .sender(signer.address)
-                    .suggestedParams(params)
-                    .applicationId(appId)
-                    .args(
-                        listOf(
-                            ABI_SETTLE,
-                            encodeArc4DynamicBytes(channelId),
-                            encodeUint64(totalAmountUsedMicroUsdc),
-                            encodeArc4DynamicBytes(signature),
-                        ),
-                    ).boxReferences(listOf(AppBoxReference(appId, channelId)))
-                    .build()
-
-            appCallTxn.fee = BigInteger.valueOf(APP_CALL_FEE)
-            val signedAppCall = signer.signTransaction(appCallTxn)
-            val txId = broadcastGroup(client, listOf(signedAppCall))
-            txId ?: appCallTxn.txID()
-        }
+    ): Result<String> {
+        val channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress)
+        return contractClient(
+            appId = appId,
+            usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+            algodUrl = algodUrl,
+        ).settle(
+            signer = signer,
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = totalAmountUsedMicroUsdc,
+            signature = signature,
+            algodUrl = algodUrl,
+        )
+    }
 
     private fun encodeUint64(value: Long): ByteArray =
         ByteBuffer
@@ -283,9 +262,13 @@ object MppPayments {
     }
 
     private fun decodeRemainingBalanceFromSessionInfo(bytes: ByteArray): Long {
-        if (bytes.size < 48) error("Invalid session box payload size=${bytes.size}")
-        val totalDeposit = decodeUint64BigEndian(bytes, 32)
-        val lastSettled = decodeUint64BigEndian(bytes, 40)
+        // ChannelInfo layout in EscrowSessionVaultManager:
+        // payer(32) + payee(32) + authorizedSigner(32) + signerType(8)
+        // + totalDeposit(8) + lastSettled(8) + latestVoucherAmount(8)
+        // + startRound(8) + startTimestamp(8) + closeRequestedAt(8)
+        if (bytes.size < 120) error("Invalid session box payload size=${bytes.size}")
+        val totalDeposit = decodeUint64BigEndian(bytes, 104)
+        val lastSettled = decodeUint64BigEndian(bytes, 112)
         return (totalDeposit - lastSettled).coerceAtLeast(0L)
     }
 
@@ -338,11 +321,13 @@ object MppPayments {
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
         salt: ByteArray = CHANNEL_ID_SALT,
     ): ByteArray {
-        val payer = Address(viewerAddress).getBytes()
-        val payee = Address(hostAddress).getBytes()
-        val authorizedSigner = Address(authorizedSignerAddress).getBytes()
-        val material = payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner
-        return MessageDigest.getInstance("SHA-256").digest(material)
+        ensureBouncyCastleProvider()
+        return contractClient(usdcAssetId = usdcAssetId).deriveChannelId(
+            payerAddress = viewerAddress,
+            payeeAddress = hostAddress,
+            authorizedSignerAddress = authorizedSignerAddress,
+            salt = salt,
+        )
     }
 
     fun buildClaimMessage(
@@ -426,12 +411,6 @@ object MppPayments {
         val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
         return digest.joinToString("") { "%02x".format(it) }
     }
-
-    private fun normalizeSignerType(rawSignerType: Long): Long =
-        when (rawSignerType) {
-            SIGNER_TYPE_FALCON_TXN_AUTH -> SIGNER_TYPE_FALCON_TXN_AUTH
-            else -> SIGNER_TYPE_ED25519
-        }
 
     fun verifyClaimSignatureLocally(
         viewerAddress: String,
@@ -547,9 +526,8 @@ object MppPayments {
 
     @Synchronized
     private fun ensureBouncyCastleProvider() {
-        if (Security.getProvider("BC") == null) {
-            Security.insertProviderAt(BouncyCastleProvider(), 1)
-        }
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 0)
     }
 }
 
