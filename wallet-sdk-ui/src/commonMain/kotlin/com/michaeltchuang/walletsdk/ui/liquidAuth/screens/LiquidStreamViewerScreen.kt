@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_lock
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_analytics
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
@@ -600,7 +600,7 @@ private fun FloatingButtons(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    vectorResource(Res.drawable.figma_ic_lock),
+                    vectorResource(Res.drawable.ic_analytics),
                     contentDescription = null,
                     tint = Color(0xFF0C2A48),
                     modifier = Modifier.size(20.dp),
