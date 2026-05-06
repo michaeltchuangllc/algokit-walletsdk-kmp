@@ -62,9 +62,9 @@ fun QRCodeScannerScreen(
                             .replace(" ", "%20")
                     navController.navigate(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                            "?receiver=${it.assetTransfer.receiverAccountAddress}" +
+                            "?assetId=${it.assetTransfer.assetId}" +
+                            "&receiver=${it.assetTransfer.receiverAccountAddress}" +
                             "&amount=${it.assetTransfer.amount}" +
-                            "&assetId=${it.assetTransfer.assetId}" +
                             "&note=$encodedNote",
                     )
                 }
