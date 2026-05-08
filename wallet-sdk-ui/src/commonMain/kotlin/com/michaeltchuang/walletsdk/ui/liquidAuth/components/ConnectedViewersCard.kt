@@ -43,6 +43,7 @@ internal fun ConnectedViewersCard(
     sessionId: String,
     remainingBalanceUSDC: Double?,
     progressBalanceUSDC: Double?,
+    progressCapacityUSDC: Double? = null,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
     networkLabel: String = "TESTNET",
@@ -53,7 +54,17 @@ internal fun ConnectedViewersCard(
     val isDarkTheme = LocalThemeIsDark.current.value
     val balanceText = remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
     val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
-    val progress = progressBalanceUSDC?.let { (it / 1.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
+    val progress =
+        if (progressBalanceUSDC != null) {
+            val capacity = (progressCapacityUSDC ?: remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
+            if (capacity > 0.0) {
+                (progressBalanceUSDC / capacity).coerceIn(0.0, 1.0).toFloat()
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
     val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
     val originDisplay =
         originUrl

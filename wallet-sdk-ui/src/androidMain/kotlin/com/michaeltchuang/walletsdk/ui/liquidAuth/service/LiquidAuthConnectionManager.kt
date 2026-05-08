@@ -10,7 +10,10 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.algorand.algosdk.sdk.BytesArray
 import com.algorand.algosdk.sdk.Sdk
+import com.algorand.algosdk.transaction.SignedTransaction
+import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
@@ -18,7 +21,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon2
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
@@ -49,6 +51,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import java.util.Base64
 
 /**
  * Android implementation of LiquidAuthConnectionManager.
@@ -81,6 +84,7 @@ class AndroidLiquidAuthConnectionManager(
     private var liquidStreamCreator: LiquidStreamCreator? = null
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
+    private var activePaymentAmount: String? = null
     private var activeViewerAddressForVault: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
@@ -181,6 +185,11 @@ class AndroidLiquidAuthConnectionManager(
                         ),
                     gracePeriod = 5,
                     viewerAddress = activeViewerAddressForVault,
+                    viewerAuthorizedSignerPublicKey =
+                        activeCreatorVoucherClaimSnapshot
+                            ?.viewerPublicKeyBase64
+                            ?.takeIf { it.isNotBlank() }
+                            ?.let { encoded -> runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() },
                     skipPaymentRequestWhenSessionFunded = true,
                 )
 
@@ -247,6 +256,7 @@ class AndroidLiquidAuthConnectionManager(
                 liquidStreamCreator = creator
                 activePaymentSessionId = paymentRequest.id
                 activePaymentRecipient = recipient
+                activePaymentAmount = amount
                 Log.e(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_initialized session=${paymentRequest.id} viewer=$activeViewerAddressForVault recipient=$recipient",
@@ -256,6 +266,7 @@ class AndroidLiquidAuthConnectionManager(
                 current.updateConfig(serverConfig.copy(sessionId = paymentRequest.id))
                 activePaymentSessionId = paymentRequest.id
                 activePaymentRecipient = recipient
+                activePaymentAmount = amount
                 Log.e(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_reused session=${paymentRequest.id} viewer=$activeViewerAddressForVault recipient=$recipient",
@@ -544,8 +555,9 @@ class AndroidLiquidAuthConnectionManager(
                         .takeIf { it >= 0L }
                 val voucherSessionId = json.optString("id", "").takeIf { it.isNotBlank() }
                 val voucherViewer = json.optString("viewer", "").takeIf { it.isNotBlank() }
+                val voucherViewerPublicKey = json.optString("viewerPublicKey", "").takeIf { it.isNotBlank() }
 
-                if (signature == null || claimedAmount == null || voucherSessionId == null || voucherViewer == null) {
+                if (signature == null || claimedAmount == null || voucherSessionId == null || voucherViewer == null || voucherViewerPublicKey == null) {
                     Log.e(
                         TAG,
                         "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${json.optString(
@@ -572,12 +584,33 @@ class AndroidLiquidAuthConnectionManager(
                                 CreatorVoucherClaimSnapshot(
                                     sessionId = voucherSessionId,
                                     viewerAddress = voucherViewer,
+                                    viewerPublicKeyBase64 = voucherViewerPublicKey,
                                     signatureBase64 = signature,
                                     totalAmountClaimedMicroUsdc = claimedAmount,
                                 )
+                            val signerKey = runCatching { Base64.getDecoder().decode(voucherViewerPublicKey) }.getOrNull()
+                            liquidStreamCreator?.updateConfig(
+                                ServerConfig(
+                                    sessionId = activePaymentSessionId,
+                                    gating =
+                                        GatingConfig(
+                                            mode = GatingMode.PARTIAL_TIME,
+                                            amount = activePaymentAmount ?: "10000",
+                                            asset = USDC_TESTNET_ID.toString(),
+                                            network = MppNetworks.ALGORAND_TESTNET,
+                                            payTo = activePaymentRecipient.orEmpty(),
+                                            segmentDuration = 3,
+                                            leadTime = 0,
+                                        ),
+                                    gracePeriod = 5,
+                                    viewerAddress = activeViewerAddressForVault,
+                                    viewerAuthorizedSignerPublicKey = signerKey,
+                                    skipPaymentRequestWhenSessionFunded = true,
+                                ),
+                            )
                             Log.e(
                                 TAG,
-                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
+                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
                             )
                         }
                     }
@@ -683,12 +716,169 @@ class AndroidLiquidAuthConnectionManager(
         return dataChannelState == "OPEN"
     }
 
+    private fun signFalconTxnFromBundle(
+        txn: Transaction,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): ByteArray =
+        signFalconTxnGroupFromBundle(
+            txns = listOf(txn),
+            publicKey = publicKey,
+            privateKey = privateKey,
+        ).first()
+
+    private fun decodeFalconBundlePiece(encoded: String): ByteArray? {
+        val trimmed = encoded.trim()
+        if (trimmed.isEmpty()) return null
+
+        fun addPadding(s: String): String {
+            val rem = s.length % 4
+            return if (rem == 0) s else s + "=".repeat(4 - rem)
+        }
+
+        val candidates =
+            listOf(trimmed, addPadding(trimmed))
+                .flatMap { value ->
+                    listOf(value, value.replace('+', '-').replace('/', '_'))
+                }.distinct()
+
+        candidates.forEach { candidate ->
+            runCatching { Base64.getDecoder().decode(candidate) }.getOrNull()?.let { return it }
+            runCatching { Base64.getUrlDecoder().decode(candidate) }.getOrNull()?.let { return it }
+        }
+        return null
+    }
+
+    private fun matchesExpectedTransaction(
+        expected: Transaction,
+        actual: Transaction,
+    ): Boolean {
+        if (expected.type?.toString() != actual.type?.toString()) return false
+        if (expected.sender?.toString() != actual.sender?.toString()) return false
+
+        return when (expected.type?.toString()) {
+            "pay" -> {
+                expected.receiver?.toString() == actual.receiver?.toString() &&
+                    (expected.amount ?: java.math.BigInteger.ZERO) == (actual.amount ?: java.math.BigInteger.ZERO)
+            }
+            "axfer" -> {
+                expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
+                    (expected.assetAmount ?: java.math.BigInteger.ZERO) == (actual.assetAmount ?: java.math.BigInteger.ZERO) &&
+                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
+            }
+            "appl" -> {
+                expected.applicationId.toLong() == actual.applicationId.toLong() &&
+                    (expected.applicationArgs ?: emptyList<ByteArray>()) == (actual.applicationArgs ?: emptyList<ByteArray>())
+            }
+            else -> true
+        }
+    }
+
+    private fun signFalconTxnGroupFromBundle(
+        txns: List<Transaction>,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): List<ByteArray> {
+        if (txns.isEmpty()) return emptyList()
+
+        Log.e(
+            TAG,
+            "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
+        )
+
+        val expectedTxns = txns.map { Encoder.encodeToMsgPack(it) }
+        val expectedTxIds = txns.map { it.txID() }
+        val txnList = BytesArray().apply { expectedTxns.forEach { append(it) } }
+        val resultCsv =
+            Sdk.signFalconBundle(
+                txnList,
+                publicKey.copyOf(),
+                privateKey.copyOf(),
+            )
+
+        val rawSigned =
+            resultCsv
+                .split(",")
+                .filter { it.isNotBlank() }
+                .mapNotNull { decodeFalconBundlePiece(it) }
+
+        val decodedSigned =
+            rawSigned
+                .mapNotNull { signedBytes ->
+                    runCatching {
+                        val signed = Encoder.decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                        val signedTxn = signed.tx ?: return@runCatching null
+                        Triple(signedTxn.txID(), signedTxn, signedBytes)
+                    }.getOrNull()
+                }
+
+        val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
+        val decodedFirstGroup = decodedSigned.firstOrNull()?.second?.group?.toString()
+        val decodedAllGrouped = decodedSigned.all { it.second.group != null && it.second.group.toString().isNotBlank() }
+
+        Log.e(
+            TAG,
+            "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
+        )
+
+        // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
+        // In that mode we must return the full signed set for broadcast, not only the requested subset.
+        if (txns.firstOrNull()?.group == null || txns.firstOrNull()?.group.toString().isBlank()) {
+            if (rawSigned.size > txns.size) {
+                Log.e(
+                    TAG,
+                    "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
+                )
+                return rawSigned
+            }
+        }
+
+        val remaining = decodedSigned.toMutableList()
+        val out = mutableListOf<ByteArray>()
+
+        expectedTxIds.forEachIndexed { index, expectedTxId ->
+            val txIdMatchIndex = remaining.indexOfFirst { it.first == expectedTxId }
+            if (txIdMatchIndex >= 0) {
+                out += remaining.removeAt(txIdMatchIndex).third
+            } else {
+                val expectedTxn = txns[index]
+                val semanticMatchIndex = remaining.indexOfFirst { (_, actualTxn, _) ->
+                    matchesExpectedTransaction(expectedTxn, actualTxn)
+                }
+                if (semanticMatchIndex >= 0) {
+                    out += remaining.removeAt(semanticMatchIndex).third
+                } else {
+                    error("Falcon bundle missing signed txn for grouped request txId=$expectedTxId")
+                }
+            }
+        }
+
+        Log.e(
+            TAG,
+            "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
+        )
+        return out
+    }
+
     private suspend fun buildCreatorWalletSigner(creatorAddress: String): MppWalletSigner? {
         val localAccount = getLocalAccount(creatorAddress) ?: return null
         if (localAccount is LocalAccount.SeedVault) return null
 
+        val authorizedSignerPublicKey =
+            when (localAccount) {
+                is LocalAccount.HdKey -> localAccount.publicKey
+                is LocalAccount.Falcon24 -> localAccount.publicKey
+                is LocalAccount.Algo25 -> {
+                    val secretKey = getAlgo25SecretKey(creatorAddress)
+                    if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(32, 64) else ByteArray(0)
+                }
+                else -> ByteArray(0)
+            }
+
         return object : MppWalletSigner {
             override val address: String = creatorAddress
+            override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
+            override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
             override suspend fun signTransaction(txn: com.algorand.algosdk.transaction.Transaction): ByteArray =
                 when (localAccount) {
@@ -720,14 +910,30 @@ class AndroidLiquidAuthConnectionManager(
                         val secretKey =
                             getFalcon24SecretKey(creatorAddress)
                                 ?: error("Missing Falcon24 key for $creatorAddress")
-                        signFalcon24Transaction(
-                            transactionByteArray = Encoder.encodeToMsgPack(txn),
+                        signFalconTxnFromBundle(
+                            txn = txn,
                             publicKey = localAccount.publicKey,
                             privateKey = secretKey,
-                        ) ?: error("Falcon24 signing failed")
+                        )
                     }
 
                     else -> error("Unsupported account for Algorand Session Vault claim signing")
+                }
+
+            override suspend fun signTransactions(txns: List<com.algorand.algosdk.transaction.Transaction>): List<ByteArray> =
+                when (localAccount) {
+                    is LocalAccount.Falcon24 -> {
+                        val secretKey =
+                            getFalcon24SecretKey(creatorAddress)
+                                ?: error("Missing Falcon24 key for $creatorAddress")
+                        signFalconTxnGroupFromBundle(
+                            txns = txns,
+                            publicKey = localAccount.publicKey,
+                            privateKey = secretKey,
+                        )
+                    }
+
+                    else -> super.signTransactions(txns)
                 }
         }
     }

@@ -171,6 +171,7 @@ data class ServerConfig(
     val paymentTTL: Int = 30,
     val gracePeriod: Int = 0,
     val viewerAddress: String? = null,
+    val viewerAuthorizedSignerPublicKey: ByteArray? = null,
     val skipPaymentRequestWhenSessionFunded: Boolean = false,
 )
 

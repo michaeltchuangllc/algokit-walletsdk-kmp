@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -82,6 +83,14 @@ fun LiquidStreamViewerScreen(
 ) {
     val viewModel: LiquidAuthViewerViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
+    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+
+    LaunchedEffect(remainingBalanceUsdc) {
+        if (remainingBalanceUsdc > progressCapacityUsdc) {
+            progressCapacityUsdc = remainingBalanceUsdc
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
             when (event) {
@@ -102,6 +111,7 @@ fun LiquidStreamViewerScreen(
         currentBlockNumber = currentBlockNumber,
         remainingBalanceUsdc = remainingBalanceUsdc,
         progressBalanceUsdc = progressBalanceUsdc,
+        progressCapacityUsdc = progressCapacityUsdc,
         uiState = uiState,
         onSettingsClick = viewModel::onSettingsClicked,
         onAnalyticsClick = viewModel::onAnalyticsClicked,
@@ -132,6 +142,7 @@ private fun LiquidStreamViewerScreenContent(
     currentBlockNumber: Long?,
     remainingBalanceUsdc: Double,
     progressBalanceUsdc: Double,
+    progressCapacityUsdc: Double,
     uiState: LiquidAuthViewerViewModel.UiState,
     onSettingsClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
@@ -240,6 +251,7 @@ private fun LiquidStreamViewerScreenContent(
                         originUrl = originUrl,
                         viewerAddress = viewerAddress,
                         progressBalanceUSDC = progressBalanceUsdc,
+                        progressCapacityUSDC = progressCapacityUsdc,
                     )
                 }
             }
@@ -782,6 +794,7 @@ private fun LiquidAuthViewerScreenPreview() {
             onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },
             onSendClick = { uiState = uiState.copy(message = "") },
             progressBalanceUsdc = 0.2,
+            progressCapacityUsdc = 12.34,
         )
     }
 }

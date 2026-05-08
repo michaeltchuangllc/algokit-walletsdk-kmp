@@ -48,12 +48,13 @@ object MppPayments {
     }
 
     private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
-    private const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC
-    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 3
+    private const val COST_PER_BLOCK_MICRO_USDC = 10_000L // 0.01 USDC
+    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 2
     private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val CHANNEL_ID_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
     private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
+    private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".toByteArray(StandardCharsets.UTF_8)
 
     fun decodeSignedTransaction(bytes: ByteArray): Any? =
         try {
@@ -78,7 +79,7 @@ object MppPayments {
                 "consumedMicroUsdc":$consumed,
                 "remainingMicroUsdc":$remainingMicroUsdc,
                 "blocksWatched":$blocksConsumed,
-                "costPerBlockMicroUsdc":100000
+                "costPerBlockMicroUsdc":10000
             }
             """.trimIndent()
     }
@@ -87,10 +88,12 @@ object MppPayments {
         sessionId: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         viewerAddress: String,
+        viewerPublicKey: ByteArray,
         creatorAddress: String,
         blocksConsumed: Int,
         totalAmountUsed: Long,
         remainingMicroUsdc: Long,
+        signatureBase64: String? = null,
     ): String {
         val voucherPayload =
             JSONObject().apply {
@@ -98,11 +101,13 @@ object MppPayments {
                 put("id", sessionId)
                 put("appId", appId)
                 put("viewer", viewerAddress)
+                put("viewerPublicKey", java.util.Base64.getEncoder().encodeToString(viewerPublicKey))
                 put("creator", creatorAddress)
                 put("blocksWatched", blocksConsumed)
                 put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
                 put("totalAmountClaimedMicroUsdc", totalAmountUsed)
                 put("remainingMicroUsdc", remainingMicroUsdc)
+                signatureBase64?.takeIf { it.isNotBlank() }?.let { put("signature", it) }
             }
         return voucherPayload.toString()
     }
@@ -128,14 +133,27 @@ object MppPayments {
         hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
+        authorizedSignerPublicKey: ByteArray? = null,
     ): Long {
         ensureBouncyCastleProvider()
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
+        val viewerPublicKey = Address(viewerAddress).getBytes()
+        val hostPublicKey = Address(hostAddress).getBytes()
+        val signerCandidates =
+            authorizedSignerPublicKey
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { listOf(it) }
+                ?: listOf(viewerPublicKey, hostPublicKey)
         val channelIdCandidates =
-            listOf(
-                deriveChannelId(viewerAddress, hostAddress, authorizedSignerAddress = viewerAddress, salt = CHANNEL_ID_SALT),
-                deriveChannelId(viewerAddress, hostAddress, authorizedSignerAddress = hostAddress, salt = CHANNEL_ID_SALT),
-            ).distinctBy { Encoder.encodeToBase64(it) }
+            signerCandidates
+                .map { signerKey ->
+                    deriveChannelId(
+                        viewerAddress,
+                        hostAddress,
+                        authorizedSignerPublicKey = signerKey,
+                        salt = CHANNEL_ID_SALT,
+                    )
+                }.distinctBy { Encoder.encodeToBase64(it) }
 
         channelIdCandidates.forEachIndexed { index, channelId ->
             val result =
@@ -159,38 +177,7 @@ object MppPayments {
         logContext: String? = null,
     ): Long? =
         runCatching {
-            val client = algodClient(algodUrl)
-            val boxNameB64 = Encoder.encodeToBase64(channelId)
-            val response =
-                client
-                    .GetApplicationBoxByName(appId)
-                    .name("b64:$boxNameB64")
-                    .execute()
-
-            if (!response.isSuccessful) {
-                if (response.code() == 404) {
-                    Log.d(
-                        TAG,
-                        "[SESSION_VAULT_REMAINING_BOX_MISSING] appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
-                    )
-                } else {
-                    Log.e(
-                        TAG,
-                        "[SESSION_VAULT_REMAINING_ERR] reason=box_fetch_failed appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()} code=${response.code()} message=${response.message()}",
-                    )
-                }
-                return null
-            }
-
-            val sessionBytes = response.body()?.value
-            if (sessionBytes == null) {
-                Log.e(
-                    TAG,
-                    "[SESSION_VAULT_REMAINING_ERR] reason=empty_box_value appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
-                )
-                return null
-            }
-
+            val sessionBytes = getSessionBoxBytesByChannelId(channelId, appId, algodUrl, logContext) ?: return null
             decodeRemainingBalanceFromSessionInfo(sessionBytes)
         }.onFailure {
             Log.e(
@@ -208,8 +195,9 @@ object MppPayments {
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
         algodUrl: String = TESTNET_ALGOD_URL,
-    ): Result<String> =
-        contractClient(
+    ): Result<String> {
+        require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
+        return contractClient(
             appId = appId,
             usdcAssetId = usdcAssetId,
             algodUrl = algodUrl,
@@ -217,33 +205,219 @@ object MppPayments {
             signer = signer,
             payeeAddress = creatorAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
-            authorizedSignerAddress = viewerAddress,
+            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
             signerType = signer.signerType,
             algodUrl = algodUrl,
         )
+    }
 
-    suspend fun settleVoucher(
+    suspend fun topUpSessionVault(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        hostAddress: String,
+        additionalDepositMicroUsdc: Long,
+        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
+        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): Result<String> {
+        val channelId = deriveChannelId(signer.address, hostAddress, authorizedSignerPublicKey, usdcAssetId)
+        return contractClient(
+            appId = appId,
+            usdcAssetId = usdcAssetId,
+            algodUrl = algodUrl,
+        ).topUp(
+            signer = signer,
+            channelId = channelId,
+            additionalDepositMicroUsdc = additionalDepositMicroUsdc,
+            algodUrl = algodUrl,
+        )
+    }
+
+    suspend fun setAuthorizedSignerForSession(
+        signer: MppWalletSigner,
+        appId: Long,
+        viewerAddress: String,
+        hostAddress: String,
+        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): Result<String> {
+        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        val result =
+            contractClient(
+                appId = appId,
+                usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+                algodUrl = algodUrl,
+            ).setAuthorizedSignerPublicKey(
+                signer = signer,
+                channelId = channelId,
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+                algodUrl = algodUrl,
+            )
+
+        result
+            .onSuccess { txId ->
+                Log.d(
+                    TAG,
+                    "[VIEWER_SET_AUTH_SIGNER_OK] appId=$appId signer=${signer.address} viewer=$viewerAddress host=$hostAddress txId=$txId",
+                )
+            }.onFailure { throwable ->
+                Log.e(
+                    TAG,
+                    "[VIEWER_SET_AUTH_SIGNER_ERR] appId=$appId signer=${signer.address} viewer=$viewerAddress host=$hostAddress",
+                    throwable,
+                )
+            }
+
+        return result
+    }
+
+    suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
         appId: Long,
         viewerAddress: String,
         hostAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
+        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress)
+        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        val channelIdHash = hashHex(channelId).take(16)
+        Log.d(
+            TAG,
+            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=$appId signer=${signer.address} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc sigLen=${signature.size} signerPkLen=${authorizedSignerPublicKey.size} channelIdHash=$channelIdHash",
+        )
+
+        val result =
+            contractClient(
+                appId = appId,
+                usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+                algodUrl = algodUrl,
+            ).updateVoucher(
+                signer = signer,
+                channelId = channelId,
+                cumulativeAmountMicroUsdc = totalAmountUsedMicroUsdc,
+                signature = signature,
+                algodUrl = algodUrl,
+            )
+
+        result
+            .onSuccess { txId ->
+                Log.d(
+                    TAG,
+                    "[VIEWER_UPDATE_VOUCHER_OK] txId=$txId signer=${signer.address} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
+                )
+            }.onFailure { throwable ->
+                val errText = throwable.message.orEmpty()
+                val duplicateVoucherUpdate =
+                    errText.contains("pc=622", ignoreCase = true) &&
+                        (
+                            errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                errText.contains("Voucher not increasing", ignoreCase = true)
+                        )
+                if (duplicateVoucherUpdate) {
+                    Log.e(
+                        TAG,
+                        "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] signer=${signer.address} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash reason=already_recorded_onchain",
+                    )
+                } else {
+                    Log.e(
+                        TAG,
+                        "[VIEWER_UPDATE_VOUCHER_ERR] signer=${signer.address} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc sigLen=${signature.size} signerPkLen=${authorizedSignerPublicKey.size} channelIdHash=$channelIdHash",
+                        throwable,
+                    )
+                }
+            }
+
+        return result
+    }
+
+    suspend fun settleLatestVoucher(
+        signer: MppWalletSigner,
+        appId: Long,
+        viewerAddress: String,
+        hostAddress: String,
+        authorizedSignerPublicKey: ByteArray = Address(viewerAddress).getBytes(),
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): Result<String> {
+        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
         return contractClient(
             appId = appId,
             usdcAssetId = AssetConstants.USDC_TESTNET_ID,
             algodUrl = algodUrl,
-        ).settle(
+        ).settleLatest(
             signer = signer,
             channelId = channelId,
-            cumulativeAmountMicroUsdc = totalAmountUsedMicroUsdc,
-            signature = signature,
             algodUrl = algodUrl,
         )
     }
+
+    data class SessionDynamicData(
+        val totalDeposit: Long,
+        val lastSettled: Long,
+        val latestVoucherAmount: Long,
+    ) {
+        val unclaimedVoucherAmount: Long get() = (latestVoucherAmount - lastSettled).coerceAtLeast(0L)
+    }
+
+    fun getSessionDynamicDataFromVault(
+        viewerAddress: String,
+        hostAddress: String,
+        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        algodUrl: String = TESTNET_ALGOD_URL,
+        authorizedSignerPublicKey: ByteArray? = null,
+    ): SessionDynamicData? {
+        ensureBouncyCastleProvider()
+        val baseContext = "viewer=$viewerAddress host=$hostAddress"
+        val viewerPublicKey = Address(viewerAddress).getBytes()
+        val hostPublicKey = Address(hostAddress).getBytes()
+        val signerCandidates =
+            authorizedSignerPublicKey
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { listOf(it) }
+                ?: listOf(viewerPublicKey, hostPublicKey)
+        val channelIdCandidates =
+            signerCandidates
+                .map { signerKey ->
+                    deriveChannelId(
+                        viewerAddress,
+                        hostAddress,
+                        authorizedSignerPublicKey = signerKey,
+                        salt = CHANNEL_ID_SALT,
+                    )
+                }.distinctBy { Encoder.encodeToBase64(it) }
+
+        channelIdCandidates.forEachIndexed { index, channelId ->
+            val result =
+                getSessionDynamicDataFromVaultByChannelId(
+                    channelId = channelId,
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    logContext = "$baseContext candidate=$index",
+                )
+            if (result != null) return result
+        }
+
+        return null
+    }
+
+    fun getSessionDynamicDataFromVaultByChannelId(
+        channelId: ByteArray,
+        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        algodUrl: String = TESTNET_ALGOD_URL,
+        logContext: String? = null,
+    ): SessionDynamicData? =
+        runCatching {
+            val sessionBytes = getSessionBoxBytesByChannelId(channelId, appId, algodUrl, logContext) ?: return null
+            decodeSessionDynamicDataFromSessionInfo(sessionBytes)
+        }.onFailure {
+            Log.e(
+                TAG,
+                "[SESSION_VAULT_DYNAMIC_ERR] reason=exception appId=$appId context=${logContext.orEmpty()} algodUrl=$algodUrl",
+                it,
+            )
+        }.getOrNull()
 
     private fun encodeUint64(value: Long): ByteArray =
         ByteBuffer
@@ -261,15 +435,128 @@ object MppPayments {
         return lengthPrefix + bytes
     }
 
+    private data class SessionInfoOffsets(
+        val totalDepositOffset: Int,
+        val lastSettledOffset: Int,
+        val latestVoucherAmountOffset: Int,
+    )
+
+    private fun decodeSessionInfoOffsets(bytes: ByteArray): SessionInfoOffsets {
+        // ChannelInfo has two known wire layouts in the app history:
+        // 1) ARC4 struct head/tail (current): uint64 fields fixed at offsets 66/74/82,
+        //    while bytes[64..65] stores dynamic-field tail offset (can vary, e.g. 98 or 114).
+        // 2) Legacy: payer(32) + payee(32) + signerLen(2) + signerBytes(N) + uint64 fields...
+        if (bytes.size < 98) error("Invalid session box payload size=${bytes.size}")
+
+        val markerAt64 = ((bytes[64].toInt() and 0xFF) shl 8) or (bytes[65].toInt() and 0xFF)
+        val arc4Offsets =
+            SessionInfoOffsets(
+                totalDepositOffset = 66,
+                lastSettledOffset = 74,
+                latestVoucherAmountOffset = 82,
+            )
+
+        if (isPlausibleSessionLayout(bytes, arc4Offsets)) {
+            return arc4Offsets
+        }
+
+        val signerLen = markerAt64
+        val totalsOffset = 66 + signerLen
+        val legacyFits = bytes.size >= totalsOffset + (8 * 3)
+        if (legacyFits) {
+            val legacyOffsets =
+                SessionInfoOffsets(
+                    totalDepositOffset = totalsOffset,
+                    lastSettledOffset = totalsOffset + 8,
+                    latestVoucherAmountOffset = totalsOffset + 16,
+                )
+            if (isPlausibleSessionLayout(bytes, legacyOffsets)) {
+                return legacyOffsets
+            }
+            return legacyOffsets
+        }
+
+        // Final fallback for current ARC4 variants where marker is a tail offset (not signer length).
+        if (markerAt64 >= 98 && markerAt64 <= bytes.size) {
+            return arc4Offsets
+        }
+
+        error("Invalid session box payload (markerAt64=$markerAt64 size=${bytes.size})")
+    }
+
+    private fun isPlausibleSessionLayout(
+        bytes: ByteArray,
+        offsets: SessionInfoOffsets,
+    ): Boolean {
+        val latestEnd = offsets.latestVoucherAmountOffset + 8
+        if (latestEnd > bytes.size) return false
+
+        return runCatching {
+            val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
+            val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
+            val latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
+            totalDeposit >= lastSettled && totalDeposit >= latestVoucherAmount && latestVoucherAmount >= lastSettled
+        }.getOrDefault(false)
+    }
+
     private fun decodeRemainingBalanceFromSessionInfo(bytes: ByteArray): Long {
-        // ChannelInfo layout in EscrowSessionVaultManager:
-        // payer(32) + payee(32) + authorizedSigner(32) + signerType(8)
-        // + totalDeposit(8) + lastSettled(8) + latestVoucherAmount(8)
-        // + startRound(8) + startTimestamp(8) + closeRequestedAt(8)
-        if (bytes.size < 120) error("Invalid session box payload size=${bytes.size}")
-        val totalDeposit = decodeUint64BigEndian(bytes, 104)
-        val lastSettled = decodeUint64BigEndian(bytes, 112)
+        val offsets = decodeSessionInfoOffsets(bytes)
+        val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
+        val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
         return (totalDeposit - lastSettled).coerceAtLeast(0L)
+    }
+
+    private fun decodeSessionDynamicDataFromSessionInfo(bytes: ByteArray): SessionDynamicData {
+        val offsets = decodeSessionInfoOffsets(bytes)
+        val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
+        val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
+        val latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
+        return SessionDynamicData(
+            totalDeposit = totalDeposit,
+            lastSettled = lastSettled,
+            latestVoucherAmount = latestVoucherAmount,
+        )
+    }
+
+    private fun getSessionBoxBytesByChannelId(
+        channelId: ByteArray,
+        appId: Long,
+        algodUrl: String,
+        logContext: String? = null,
+    ): ByteArray? {
+        val client = algodClient(algodUrl)
+        val boxNameB64 = Encoder.encodeToBase64(channelId)
+        val response =
+            client
+                .GetApplicationBoxByName(appId)
+                .name("b64:$boxNameB64")
+                .execute()
+
+        if (!response.isSuccessful) {
+            if (response.code() == 404) {
+                Log.d(
+                    TAG,
+                    "[SESSION_VAULT_BOX_MISSING] appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
+                )
+            } else {
+                Log.e(
+                    TAG,
+                    "[SESSION_VAULT_BOX_ERR] reason=box_fetch_failed appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()} code=${response.code()} message=${response.message()}",
+                )
+            }
+            return null
+        }
+
+        val sessionBytes = response.body()?.value
+        if (sessionBytes == null) {
+            Log.e(
+                TAG,
+                "[SESSION_VAULT_BOX_ERR] reason=empty_box_value appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
+            )
+            return null
+        }
+
+        return sessionBytes
     }
 
     private fun decodeUint64BigEndian(
@@ -317,7 +604,7 @@ object MppPayments {
     fun deriveChannelId(
         viewerAddress: String,
         hostAddress: String,
-        authorizedSignerAddress: String = viewerAddress,
+        authorizedSignerPublicKey: ByteArray = Address(viewerAddress).getBytes(),
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
         salt: ByteArray = CHANNEL_ID_SALT,
     ): ByteArray {
@@ -325,7 +612,7 @@ object MppPayments {
         return contractClient(usdcAssetId = usdcAssetId).deriveChannelId(
             payerAddress = viewerAddress,
             payeeAddress = hostAddress,
-            authorizedSignerAddress = authorizedSignerAddress,
+            authorizedSignerPublicKey = authorizedSignerPublicKey,
             salt = salt,
         )
     }
@@ -345,10 +632,11 @@ object MppPayments {
         viewerAddress: String,
         hostAddress: String,
         totalAmountClaimedMicroUsdc: Long,
+        authorizedSignerPublicKey: ByteArray = Address(viewerAddress).getBytes(),
     ): ByteArray =
         buildClaimMessage(
             appId = appId,
-            channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress),
+            channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey),
             totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
         )
 
@@ -375,7 +663,7 @@ object MppPayments {
     ): String =
         buildClaimMessageHashHex(
             appId = appId,
-            channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress),
+            channelId = deriveChannelId(viewerAddress, hostAddress, Address(viewerAddress).getBytes()),
             totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
         )
 
@@ -444,10 +732,11 @@ object MppPayments {
         hostAddress: String,
         totalAmountClaimedMicroUsdc: Long,
         signature: ByteArray,
+        authorizedSignerPublicKey: ByteArray = Address(viewerAddress).getBytes(),
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<VerifyClaimVoucherOnChainResult> =
         runCatching {
-            val channelId = deriveChannelId(viewerAddress, hostAddress, viewerAddress)
+            val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
             val client = algodClient(algodUrl)
             val params = client.TransactionParams().execute().body()
             params.fee = VERIFY_HELPER_APP_CALL_FEE
@@ -481,8 +770,12 @@ object MppPayments {
                             encodeUint64(totalAmountClaimedMicroUsdc),
                             encodedSig,
                         ),
-                    ).boxReferences(listOf(AppBoxReference(appId, channelId)))
-                    .build()
+                    ).boxReferences(
+                        listOf(
+                            AppBoxReference(appId, channelId),
+                            AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        ),
+                    ).build()
 
             appCallTxn.fee = BigInteger.valueOf(VERIFY_HELPER_APP_CALL_FEE)
             val signedAppCall = signer.signTransaction(appCallTxn)
