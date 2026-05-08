@@ -11,8 +11,15 @@ import com.algorand.algosdk.util.Encoder
  * keypair can use [AccountMppSigner] for zero-boilerplate setup.
  */
 interface MppWalletSigner {
-    /** Address/public key this signer authorizes (Algorand address or Solana pubkey). */
+    /** Transaction sender address. */
     val address: String
+
+    /** Full authorized signer public key bytes used by Session Vault. */
+    val authorizedSignerPublicKey: ByteArray
+
+    /** Signer mode for Session Vault contract: 0=Ed25519 (Algo25/HD), 1=Falcon txn-auth. */
+    val signerType: Long
+        get() = 0L
 
     /**
      * Sign the given Algorand [Transaction] and return the raw msgpack bytes
@@ -20,6 +27,12 @@ interface MppWalletSigner {
      * Must not mutate the input transaction other than attaching a signature.
      */
     suspend fun signTransaction(txn: Transaction): ByteArray
+
+    /**
+     * Sign a full Algorand group in-order.
+     * Default behavior signs each transaction independently via [signTransaction].
+     */
+    suspend fun signTransactions(txns: List<Transaction>): List<ByteArray> = txns.map { signTransaction(it) }
 
     /**
      * Build and sign a full Solana transaction for MPP charge, returning serialized signed bytes.
@@ -42,6 +55,9 @@ class AccountMppSigner(
 ) : MppWalletSigner {
     override val address: String
         get() = account.address.toString()
+
+    override val authorizedSignerPublicKey: ByteArray
+        get() = account.address.getBytes()
 
     override suspend fun signTransaction(txn: Transaction): ByteArray {
         val signed = account.signTransaction(txn)

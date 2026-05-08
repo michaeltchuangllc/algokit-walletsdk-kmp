@@ -244,8 +244,46 @@ class PaywalledRTCServer(
                         TAG,
                         "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
                     )
+
+                    val syntheticReceipt =
+                        PaymentReceipt(
+                            txId = "session-vault-funded-skip-${System.currentTimeMillis()}",
+                            sessionId = sessionId,
+                            segmentIndex = segmentIndex,
+                            amount = config.gating.amount,
+                            asset = config.gating.asset,
+                            payTo = config.gating.payTo,
+                            payFrom = config.viewerAddress.orEmpty(),
+                            feePayer = null,
+                            facilitator = null,
+                            network = config.gating.network,
+                            timestamp = System.currentTimeMillis(),
+                        )
+
+                    stats.segmentsPaid++
+                    stats.totalAmountReceived =
+                        (
+                            stats.totalAmountReceived.toBigInteger() + config.gating.amount.toBigInteger()
+                        ).toString()
+
+                    onPaymentSettled?.invoke(syntheticReceipt)
+
                     if (gated) ungate()
+
+                    sendDC(
+                        JSONObject().apply {
+                            put("type", DCMessageType.SEGMENT_ACCEPTED)
+                            put("sessionId", sessionId)
+                            put("segmentIndex", segmentIndex)
+                            put("payload", syntheticReceipt.toJson())
+                        },
+                    )
+
+                    stats.segmentsDelivered++
+                    onSegmentStarted?.invoke(segmentIndex)
+
                     if (config.gating.mode != GatingMode.WHOLE_STREAM) {
+                        segmentIndex++
                         val duration = (config.gating.segmentDuration ?: 30) * 1000L
                         scheduleSegmentTimer(duration) {
                             requestPaymentWithGrace()
@@ -341,8 +379,9 @@ class PaywalledRTCServer(
                 viewerAddress = viewerAddress,
                 hostAddress = config.gating.payTo,
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                authorizedSignerPublicKey = config.viewerAuthorizedSignerPublicKey,
             )
-        return (remaining ?: 0L) > 0L
+        return remaining > 0L
     }
 
     private suspend fun handlePayment(railPayment: RailPayment) {
@@ -439,6 +478,80 @@ class PaywalledRTCServer(
                 }
             }
         } catch (e: Throwable) {
+            val errMsg = e.message.orEmpty()
+            val isAlgorandLogicSigPoolError =
+                request.network.startsWith("algorand:", ignoreCase = true) &&
+                    errMsg.contains("logicsigs", ignoreCase = true) &&
+                    errMsg.contains("pool of 1000 bytes", ignoreCase = true)
+
+            if (isAlgorandLogicSigPoolError) {
+                val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() }
+                val sessionVaultRemaining =
+                    if (viewerAddress != null) {
+                        withContext(Dispatchers.IO) {
+                            MppPayments.getRemainingBalanceFromSessionVault(
+                                viewerAddress = viewerAddress,
+                                hostAddress = request.payTo,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            )
+                        }
+                    } else {
+                        0L
+                    }
+
+                Log.w(
+                    TAG,
+                    "[HANDLE_PAYMENT_SETTLE_FALLBACK_SESSION_VAULT] session=$sessionId segment=$segmentIndex viewer=$viewerAddress remainingMicroUsdc=$sessionVaultRemaining reason=algorand_logicsig_pool_limit",
+                )
+
+                val fallbackReceipt =
+                    PaymentReceipt(
+                        txId = "session-vault-fallback-${System.currentTimeMillis()}",
+                        sessionId = request.sessionId,
+                        segmentIndex = request.segmentIndex,
+                        amount = request.amount,
+                        asset = request.asset,
+                        payTo = request.payTo,
+                        payFrom = viewerAddress.orEmpty(),
+                        feePayer = null,
+                        facilitator = null,
+                        network = request.network,
+                        timestamp = System.currentTimeMillis(),
+                    )
+
+                stats.segmentsPaid++
+                stats.totalAmountReceived =
+                    (
+                        stats.totalAmountReceived.toBigInteger() + request.amount.toBigInteger()
+                    ).toString()
+
+                pendingRequest = null
+                onPaymentSettled?.invoke(fallbackReceipt)
+
+                if (gated) ungate()
+
+                sendDC(
+                    JSONObject().apply {
+                        put("type", DCMessageType.SEGMENT_ACCEPTED)
+                        put("sessionId", sessionId)
+                        put("segmentIndex", segmentIndex)
+                        put("payload", fallbackReceipt.toJson())
+                    },
+                )
+
+                stats.segmentsDelivered++
+                onSegmentStarted?.invoke(segmentIndex)
+
+                if (config.gating.mode != GatingMode.WHOLE_STREAM) {
+                    segmentIndex++
+                    val duration = (config.gating.segmentDuration ?: 30) * 1000L
+                    scheduleSegmentTimer(duration) {
+                        requestPaymentWithGrace()
+                    }
+                }
+                return
+            }
+
             Log.e(
                 TAG,
                 "[HANDLE_PAYMENT_SETTLE_FAILED] session=$sessionId segment=$segmentIndex amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}",

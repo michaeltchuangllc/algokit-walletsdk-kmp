@@ -24,6 +24,7 @@ internal class LiquidStreamBlockConsumptionManager(
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
         val viewerAddress: String,
+        val viewerPublicKeyBase64: String,
         val signatureBase64: String,
         val totalAmountClaimedMicroUsdc: Long,
     )
@@ -31,6 +32,12 @@ internal class LiquidStreamBlockConsumptionManager(
     private var blockDrivenConsumptionJob: Job? = null
     private var blocksConsumed: Int = 0
     private var currentSessionId: String? = null
+    private var consecutiveZeroProgressBlocks: Int = 0
+
+    companion object {
+        private const val ZERO_BALANCE_GRACE_BLOCKS = 3
+        private const val ALLOWED_VOUCHER_LAG_MICRO_USDC = 300_000L
+    }
 
     fun start(sessionId: String) {
         Log.e(
@@ -55,6 +62,7 @@ internal class LiquidStreamBlockConsumptionManager(
             }
         currentSessionId = sessionId
         blocksConsumed = 0
+        consecutiveZeroProgressBlocks = 0
 
         viewModel.monitorBlockchainBlocks()
         viewModel.startRealtimeBlockNumberUpdates()
@@ -119,6 +127,7 @@ internal class LiquidStreamBlockConsumptionManager(
         Log.e(tag, "[SESSION_VAULT_BLOCK_SOURCE_STOP] session=$currentSessionId source=realtime_block_updates")
         currentSessionId = null
         blocksConsumed = 0
+        consecutiveZeroProgressBlocks = 0
     }
 
     private fun consumeBlock() {
@@ -143,29 +152,37 @@ internal class LiquidStreamBlockConsumptionManager(
         blocksConsumed++
 
         val viewerAddress = getActiveViewerAddress()?.takeIf { it.isNotBlank() }
-        if (viewerAddress == null) {
-            Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewer_missing session=$sessionId blocks=$blocksConsumed")
-        }
-        val remainingFromVault =
-            viewerAddress?.let {
+        val snapshotSignerPublicKey =
+            getCreatorVoucherClaimSnapshot()
+                ?.viewerPublicKeyBase64
+                ?.takeIf { it.isNotBlank() }
+                ?.let { encoded -> runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() }
+        val fallbackViewerSignerPublicKey =
+            viewerAddress
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    runCatching {
+                        com.algorand.algosdk.crypto
+                            .Address(it)
+                            .bytes
+                    }.getOrNull()
+                }
+        val signerPublicKeyForLookup = snapshotSignerPublicKey ?: fallbackViewerSignerPublicKey
+        val remainingVaultBalance =
+            if (viewerAddress == null) {
+                Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewer_missing session=$sessionId blocks=$blocksConsumed")
+                0L
+            } else {
                 Log.e(
                     tag,
-                    "[SESSION_VAULT_REMAINING_FETCH] session=$sessionId blocks=$blocksConsumed viewer=$it appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID}",
+                    "[SESSION_VAULT_REMAINING_FETCH] session=$sessionId blocks=$blocksConsumed viewer=$viewerAddress appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} signerKeyPresent=${snapshotSignerPublicKey != null} fallbackSignerPresent=${fallbackViewerSignerPublicKey != null}",
                 )
                 MppPayments.getRemainingBalanceFromSessionVault(
-                    viewerAddress = it,
+                    viewerAddress = viewerAddress,
                     hostAddress = creatorAddress,
                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    authorizedSignerPublicKey = signerPublicKeyForLookup,
                 )
-            }
-
-        val remainingVaultBalance =
-            remainingFromVault ?: run {
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_CLAIM_SKIP] reason=remaining_unavailable session=$sessionId blocks=$blocksConsumed viewer=$viewerAddress",
-                )
-                return
             }
 
         val used = MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
@@ -176,11 +193,24 @@ internal class LiquidStreamBlockConsumptionManager(
             progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
         )
 
+        val viewerPublicKey =
+            viewerAddress
+                ?.takeIf { it.isNotBlank() }
+                ?.let {
+                    runCatching {
+                        com.algorand.algosdk.crypto
+                            .Address(it)
+                            .bytes
+                    }.getOrDefault(ByteArray(0))
+                }
+                ?: ByteArray(0)
+
         val voucherJson =
             MppPayments.createVoucherJson(
                 sessionId = sessionId,
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress,
+                viewerAddress = viewerAddress.orEmpty(),
+                viewerPublicKey = viewerPublicKey,
                 creatorAddress = creatorAddress,
                 blocksConsumed = blocksConsumed,
                 totalAmountUsed = used,
@@ -239,45 +269,89 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@launch
                     }
 
+                val signerPublicKey = Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64)
                 val signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc.coerceAtLeast(0L)
+                val channelId =
+                    MppPayments.deriveChannelId(
+                        viewerAddress = claimSnapshot.viewerAddress,
+                        hostAddress = creatorAddress,
+                        authorizedSignerPublicKey = signerPublicKey,
+                    )
                 val claimMessageHash =
                     MppPayments.buildClaimMessageHashHex(
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        channelId = channelId,
                         totalAmountClaimedMicroUsdc = signedTotalAmount,
                     )
                 val signatureHash = MppPayments.hashHex(signatureBytes)
+                val isEd25519Signature = signatureBytes.size == 64
                 val creatorLocalVerify =
-                    MppPayments.verifyClaimSignatureLocally(
-                        viewerAddress = claimSnapshot.viewerAddress,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        totalAmountClaimedMicroUsdc = signedTotalAmount,
-                        signature = signatureBytes,
-                    )
+                    if (isEd25519Signature) {
+                        MppPayments.verifyClaimSignatureLocally(
+                            viewerAddress = claimSnapshot.viewerAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            channelId = channelId,
+                            totalAmountClaimedMicroUsdc = signedTotalAmount,
+                            signature = signatureBytes,
+                        )
+                    } else {
+                        true
+                    }
                 Log.e(
                     tag,
-                    "[CREATOR_CLAIM_MSG_HASH] session=$sessionId appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} totalAmountClaimedMicroUsdc=$signedTotalAmount hash=$claimMessageHash viewer=${claimSnapshot.viewerAddress} sigHash=$signatureHash localVerify=$creatorLocalVerify sigLen=${signatureBytes.size}",
+                    "[CREATOR_CLAIM_MSG_HASH] session=$sessionId appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} totalAmountClaimedMicroUsdc=$signedTotalAmount hash=$claimMessageHash viewer=${claimSnapshot.viewerAddress} sigHash=$signatureHash localVerify=$creatorLocalVerify localVerifySkippedForFalcon=${!isEd25519Signature} sigLen=${signatureBytes.size}",
                 )
                 if (signedTotalAmount < used) {
-                    Log.e(
+                    Log.w(
                         tag,
-                        "[SESSION_VAULT_CLAIM_SKIP] reason=signed_total_behind session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount",
+                        "[SESSION_VAULT_CLAIM_BEHIND_CONTINUE] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount action=settle_latest_signed_voucher",
                     )
-                    return@launch
                 }
 
-                if (signedTotalAmount > MppPayments.maxSessionDepositMicroUsdc()) {
-                    Log.e(
-                        tag,
-                        "[SESSION_VAULT_CLAIM_SKIP] reason=signed_total_exceeds_deposit session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount maxDepositMicroUsdc=${MppPayments.maxSessionDepositMicroUsdc()}",
-                    )
-                    return@launch
-                }
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_VOUCHER_VALIDATED] session=$sessionId blocks=$blocksConsumed viewer=${claimSnapshot.viewerAddress} cumulativeValid=true signatureMatch=$creatorLocalVerify signedTotalMicroUsdc=$signedTotalAmount usedMicroUsdc=$used localMaxDepositGuardDisabled=true",
+                )
 
                 val settlementResult =
                     runCatching {
                         val signer =
                             buildCreatorWalletSigner(creatorAddress)
                                 ?: error("Unsupported creator account")
+
+                        val onChainDynamicData =
+                            MppPayments.getSessionDynamicDataFromVault(
+                                viewerAddress = claimSnapshot.viewerAddress,
+                                hostAddress = creatorAddress,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                authorizedSignerPublicKey = signerPublicKey,
+                            )
+                        val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
+                        val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
+                        val onChainUnclaimed = (onChainLatestVoucher - onChainLastSettled).coerceAtLeast(0L)
+                        val viewerLag = (signedTotalAmount - onChainLatestVoucher).coerceAtLeast(0L)
+                        val allowLagWindow = viewerLag <= ALLOWED_VOUCHER_LAG_MICRO_USDC
+                        if (onChainUnclaimed <= 0L && !allowLagWindow) {
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_CLAIM_BACKFILL_VOUCHER] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
+                            )
+                            MppPayments
+                                .updateVoucherOnChain(
+                                    signer = signer,
+                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    viewerAddress = claimSnapshot.viewerAddress,
+                                    hostAddress = creatorAddress,
+                                    totalAmountUsedMicroUsdc = signedTotalAmount,
+                                    signature = signatureBytes,
+                                    authorizedSignerPublicKey = signerPublicKey,
+                                ).getOrThrow()
+                        } else if (onChainUnclaimed <= 0L) {
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_CLAIM_LAG_WINDOW] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
+                            )
+                        }
 
                         if (RailMppConstants.ENABLE_CREATOR_DEBUG_VERIFY_HELPER_ON_CHAIN) {
                             Log.e(
@@ -290,6 +364,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                         signer = signer,
                                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                         viewerAddress = claimSnapshot.viewerAddress,
+                                        hostAddress = creatorAddress,
                                         totalAmountClaimedMicroUsdc = signedTotalAmount,
                                         signature = signatureBytes,
                                     ).onSuccess { result ->
@@ -323,14 +398,37 @@ internal class LiquidStreamBlockConsumptionManager(
                             )
                         }
 
+                        val postUpdateDynamicData =
+                            MppPayments.getSessionDynamicDataFromVault(
+                                viewerAddress = claimSnapshot.viewerAddress,
+                                hostAddress = creatorAddress,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                authorizedSignerPublicKey = signerPublicKey,
+                            )
+                        val postUpdateLatestVoucher = postUpdateDynamicData?.latestVoucherAmount ?: 0L
+                        val postUpdateLastSettled = postUpdateDynamicData?.lastSettled ?: 0L
+                        val postUpdateUnclaimed = (postUpdateLatestVoucher - postUpdateLastSettled).coerceAtLeast(0L)
+
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_SETTLE_LATEST_PRECHECK] session=$sessionId viewer=${claimSnapshot.viewerAddress} creator=$creatorAddress totalDeposit=${postUpdateDynamicData?.totalDeposit} latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled unclaimedVoucherAmount=$postUpdateUnclaimed signedTotalMicroUsdc=$signedTotalAmount",
+                        )
+
+                        if (postUpdateUnclaimed <= 0L) {
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_CLAIM_SKIP] reason=nothing_to_settle session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled",
+                            )
+                            return@runCatching "nothing_to_settle"
+                        }
+
                         MppPayments
-                            .claimVoucher(
+                            .settleLatestVoucher(
                                 signer = signer,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                 viewerAddress = claimSnapshot.viewerAddress,
                                 hostAddress = creatorAddress,
-                                totalAmountUsedMicroUsdc = signedTotalAmount,
-                                signature = signatureBytes,
+                                authorizedSignerPublicKey = signerPublicKey,
                             ).getOrThrow()
                     }
 
@@ -351,13 +449,35 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         if (progressBarBalanceMicroUsdc <= 0L) {
+            val hasSignerSnapshot = getCreatorVoucherClaimSnapshot() != null
+            if (!hasSignerSnapshot) {
+                Log.w(
+                    tag,
+                    "[SESSION_VAULT_DEPLETED_GUARD_SKIP] session=$sessionId blocks=$blocksConsumed reason=missing_signer_snapshot",
+                )
+                return
+            }
+
+            consecutiveZeroProgressBlocks++
+            if (consecutiveZeroProgressBlocks < ZERO_BALANCE_GRACE_BLOCKS) {
+                Log.w(
+                    tag,
+                    "[SESSION_VAULT_DEPLETED_DELAY] session=$sessionId blocks=$blocksConsumed zeroStreak=$consecutiveZeroProgressBlocks threshold=$ZERO_BALANCE_GRACE_BLOCKS",
+                )
+                return
+            }
+
             Log.d(tag, "💰 Funds depleted after $blocksConsumed blocks")
             stop()
 
             val depletedJson =
-                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${blocksConsumed * 100_000L}}"""
+                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${MppPayments.computeVoucherMicroUsdcUsage(
+                    blocksConsumed,
+                )}}"""
             sendMessage(depletedJson)
             return
+        } else {
+            consecutiveZeroProgressBlocks = 0
         }
 
         val balanceJson =

@@ -196,9 +196,17 @@ fun AnswerScreen(
                             val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
                             val perSegmentMicro = amountMicro.coerceAtLeast(1L)
                             val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
+                            val hostAddress = mppConsent.payTo.orEmpty()
+                            if (hostAddress.isBlank()) {
+                                viewModel.rejectMppConsent()
+                                showPaymentDialog = false
+                                return@launch
+                            }
                             val voucherMessage =
                                 MppPayments.buildClaimMessage(
                                     appId = com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    viewerAddress = accountAddress,
+                                    hostAddress = hostAddress,
                                     totalAmountClaimedMicroUsdc = micro,
                                 )
                             val voucherSignature = viewModel.signFido2Challenge(voucherMessage, accountAddress)

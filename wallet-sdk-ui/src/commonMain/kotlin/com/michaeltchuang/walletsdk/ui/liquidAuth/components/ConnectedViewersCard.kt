@@ -28,6 +28,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -43,6 +44,7 @@ internal fun ConnectedViewersCard(
     sessionId: String,
     remainingBalanceUSDC: Double?,
     progressBalanceUSDC: Double?,
+    progressCapacityUSDC: Double? = null,
     connectionType: IceConnectionType,
     currentBlockNumber: Long? = null,
     networkLabel: String = "TESTNET",
@@ -52,8 +54,23 @@ internal fun ConnectedViewersCard(
     val colors = AlgoKitTheme.colors
     val isDarkTheme = LocalThemeIsDark.current.value
     val balanceText = remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
-    val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
-    val progress = progressBalanceUSDC?.let { (it / 1.0).coerceIn(0.0, 1.0).toFloat() } ?: 0f
+    val streamCost =
+        if (connectionType == IceConnectionType.RELAY) {
+            "0.5"
+        } else {
+            microUsdcToUsdcDisplay(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC)
+        }
+    val progress =
+        if (progressBalanceUSDC != null) {
+            val capacity = (progressCapacityUSDC ?: remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
+            if (capacity > 0.0) {
+                (progressBalanceUSDC / capacity).coerceIn(0.0, 1.0).toFloat()
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
     val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
     val originDisplay =
         originUrl
@@ -251,6 +268,13 @@ private fun MetaRow(
             maxLines = 1,
         )
     }
+}
+
+@Composable
+private fun microUsdcToUsdcDisplay(microUsdc: Long): String {
+    val usdc = microUsdc / 1_000_000.0
+    val rounded = round(usdc * 100) / 100
+    return rounded.toString()
 }
 
 @Composable
