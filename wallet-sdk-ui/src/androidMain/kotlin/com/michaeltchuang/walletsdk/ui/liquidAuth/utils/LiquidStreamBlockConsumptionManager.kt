@@ -160,7 +160,13 @@ internal class LiquidStreamBlockConsumptionManager(
         val fallbackViewerSignerPublicKey =
             viewerAddress
                 ?.takeIf { it.isNotBlank() }
-                ?.let { runCatching { com.algorand.algosdk.crypto.Address(it).bytes }.getOrNull() }
+                ?.let {
+                    runCatching {
+                        com.algorand.algosdk.crypto
+                            .Address(it)
+                            .bytes
+                    }.getOrNull()
+                }
         val signerPublicKeyForLookup = snapshotSignerPublicKey ?: fallbackViewerSignerPublicKey
         val remainingVaultBalance =
             if (viewerAddress == null) {
@@ -190,7 +196,13 @@ internal class LiquidStreamBlockConsumptionManager(
         val viewerPublicKey =
             viewerAddress
                 ?.takeIf { it.isNotBlank() }
-                ?.let { runCatching { com.algorand.algosdk.crypto.Address(it).bytes }.getOrDefault(ByteArray(0)) }
+                ?.let {
+                    runCatching {
+                        com.algorand.algosdk.crypto
+                            .Address(it)
+                            .bytes
+                    }.getOrDefault(ByteArray(0))
+                }
                 ?: ByteArray(0)
 
         val voucherJson =
@@ -459,7 +471,9 @@ internal class LiquidStreamBlockConsumptionManager(
             stop()
 
             val depletedJson =
-                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)}}"""
+                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${MppPayments.computeVoucherMicroUsdcUsage(
+                    blocksConsumed,
+                )}}"""
             sendMessage(depletedJson)
             return
         } else {

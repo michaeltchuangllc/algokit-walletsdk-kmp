@@ -351,175 +351,175 @@ class SetupMppPaymentViewerUseCase {
                                                 "[VIEWER_UPDATE_VOUCHER_DISABLED_DEBUG] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                             )
                                         } else {
-
-                                        val updateVoucherOnChain =
-                                            suspend {
-                                                MppPayments.updateVoucherOnChain(
-                                                    signer = signer,
-                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                    viewerAddress = receiptViewerAddress,
-                                                    hostAddress = sessionVaultHostAddress,
-                                                    totalAmountUsedMicroUsdc = voucherClaimed,
-                                                    signature = voucherSignature,
-                                                )
-                                            }
-
-                                        var updateResult =
-                                            if (voucherClaimed <= preUpdateLatestVoucher) {
-                                                val skipReason =
-                                                    if (voucherClaimed == preUpdateLatestVoucher) {
-                                                        "already_onchain_equal"
-                                                    } else {
-                                                        "behind_latest"
-                                                    }
-                                                Log.e(
-                                                    TAG,
-                                                    "[VIEWER_VOUCHER_PRECHECK_SKIP] session=${receipt.sessionId} claimed=$voucherClaimed onChainLatestVoucherMicroUsdc=$preUpdateLatestVoucher viewer=$receiptViewerAddress host=$sessionVaultHostAddress reason=$skipReason",
-                                                )
-                                                Result.success("SKIPPED_ALREADY_ONCHAIN")
-                                            } else {
-                                                updateVoucherOnChain()
-                                            }
-                                        if (updateResult.isFailure) {
-                                            val firstErrText = updateResult.exceptionOrNull()?.message.orEmpty()
-                                            val duplicateVoucherUpdate =
-                                                (
-                                                    firstErrText.contains("pc=622", ignoreCase = true) ||
-                                                        firstErrText.contains("pc=661", ignoreCase = true)
-                                                ) &&
-                                                    (
-                                                        firstErrText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                            firstErrText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                            firstErrText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
-                                                    )
-                                            if (!duplicateVoucherUpdate) {
-                                                Log.w(
-                                                    TAG,
-                                                    "[VIEWER_VOUCHER_UPDATE_RETRY] session=${receipt.sessionId} claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
-                                                    updateResult.exceptionOrNull(),
-                                                )
-                                                delay(350L)
-                                                updateResult = updateVoucherOnChain()
-                                            }
-                                        }
-
-                                        if (updateResult.isFailure) {
-                                            val errText = updateResult.exceptionOrNull()?.message.orEmpty()
-                                            val missingSignerBox =
-                                                errText.contains("box_len; bury 1; assert", ignoreCase = true) ||
-                                                    errText.contains("Authorized signer public key not set yet", ignoreCase = true)
-                                            if (missingSignerBox) {
-                                                Log.w(
-                                                    TAG,
-                                                    "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_START] session=${receipt.sessionId} viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
-                                                    updateResult.exceptionOrNull(),
-                                                )
-                                                MppPayments
-                                                    .setAuthorizedSignerForSession(
+                                            val updateVoucherOnChain =
+                                                suspend {
+                                                    MppPayments.updateVoucherOnChain(
                                                         signer = signer,
                                                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                                         viewerAddress = receiptViewerAddress,
                                                         hostAddress = sessionVaultHostAddress,
-                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                                    ).onSuccess { signerTxId ->
-                                                        Log.d(
-                                                            TAG,
-                                                            "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_OK] session=${receipt.sessionId} txId=$signerTxId",
-                                                        )
-                                                    }.onFailure { signerErr ->
-                                                        Log.e(
-                                                            TAG,
-                                                            "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_ERR] session=${receipt.sessionId} viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
-                                                            signerErr,
-                                                        )
-                                                    }
-                                                delay(350L)
-                                                updateResult = updateVoucherOnChain()
-                                            }
-                                        }
+                                                        totalAmountUsedMicroUsdc = voucherClaimed,
+                                                        signature = voucherSignature,
+                                                    )
+                                                }
 
-                                        updateResult
-                                            .onSuccess { txId ->
-                                                Log.d(
-                                                    TAG,
-                                                    "✅ Viewer updateVoucher sent: txId=$txId claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
-                                                )
-                                            }.onFailure { err ->
-                                                val errText = err.message.orEmpty()
+                                            var updateResult =
+                                                if (voucherClaimed <= preUpdateLatestVoucher) {
+                                                    val skipReason =
+                                                        if (voucherClaimed == preUpdateLatestVoucher) {
+                                                            "already_onchain_equal"
+                                                        } else {
+                                                            "behind_latest"
+                                                        }
+                                                    Log.e(
+                                                        TAG,
+                                                        "[VIEWER_VOUCHER_PRECHECK_SKIP] session=${receipt.sessionId} claimed=$voucherClaimed onChainLatestVoucherMicroUsdc=$preUpdateLatestVoucher viewer=$receiptViewerAddress host=$sessionVaultHostAddress reason=$skipReason",
+                                                    )
+                                                    Result.success("SKIPPED_ALREADY_ONCHAIN")
+                                                } else {
+                                                    updateVoucherOnChain()
+                                                }
+                                            if (updateResult.isFailure) {
+                                                val firstErrText = updateResult.exceptionOrNull()?.message.orEmpty()
                                                 val duplicateVoucherUpdate =
                                                     (
-                                                        errText.contains("pc=622", ignoreCase = true) ||
-                                                            errText.contains("pc=661", ignoreCase = true)
+                                                        firstErrText.contains("pc=622", ignoreCase = true) ||
+                                                            firstErrText.contains("pc=661", ignoreCase = true)
                                                     ) &&
                                                         (
-                                                            errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                errText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                                errText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
+                                                            firstErrText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                                                firstErrText.contains("Voucher not increasing", ignoreCase = true) ||
+                                                                firstErrText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
                                                         )
-                                                if (duplicateVoucherUpdate) {
-                                                    Log.e(
+                                                if (!duplicateVoucherUpdate) {
+                                                    Log.w(
                                                         TAG,
-                                                        "[VIEWER_VOUCHER_DUPLICATE_SKIP] claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress reason=already_recorded_onchain",
-                                                        err,
+                                                        "[VIEWER_VOUCHER_UPDATE_RETRY] session=${receipt.sessionId} claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                                        updateResult.exceptionOrNull(),
                                                     )
-                                                } else {
-                                                    Log.e(
-                                                        TAG,
-                                                        "❌ Viewer updateVoucher failed: claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
-                                                        err,
-                                                    )
+                                                    delay(350L)
+                                                    updateResult = updateVoucherOnChain()
                                                 }
                                             }
 
-                                        val onChainDynamicData =
-                                            MppPayments.getSessionDynamicDataFromVault(
-                                                viewerAddress = receiptViewerAddress,
-                                                hostAddress = sessionVaultHostAddress,
-                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                            )
-                                        val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
-                                        val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
-                                        val duplicateVoucherUpdate =
-                                            updateResult.exceptionOrNull()
-                                                ?.message
-                                                .orEmpty()
-                                                .let { msg ->
-                                                    msg.contains("pc=622", ignoreCase = true) &&
-                                                        (
-                                                            msg.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                msg.contains("Voucher not increasing", ignoreCase = true)
-                                                        )
+                                            if (updateResult.isFailure) {
+                                                val errText = updateResult.exceptionOrNull()?.message.orEmpty()
+                                                val missingSignerBox =
+                                                    errText.contains("box_len; bury 1; assert", ignoreCase = true) ||
+                                                        errText.contains("Authorized signer public key not set yet", ignoreCase = true)
+                                                if (missingSignerBox) {
+                                                    Log.w(
+                                                        TAG,
+                                                        "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_START] session=${receipt.sessionId} viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                                        updateResult.exceptionOrNull(),
+                                                    )
+                                                    MppPayments
+                                                        .setAuthorizedSignerForSession(
+                                                            signer = signer,
+                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            viewerAddress = receiptViewerAddress,
+                                                            hostAddress = sessionVaultHostAddress,
+                                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        ).onSuccess { signerTxId ->
+                                                            Log.d(
+                                                                TAG,
+                                                                "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_OK] session=${receipt.sessionId} txId=$signerTxId",
+                                                            )
+                                                        }.onFailure { signerErr ->
+                                                            Log.e(
+                                                                TAG,
+                                                                "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_ERR] session=${receipt.sessionId} viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                                                signerErr,
+                                                            )
+                                                        }
+                                                    delay(350L)
+                                                    updateResult = updateVoucherOnChain()
                                                 }
-                                        val effectiveUpdateOk = updateResult.isSuccess || duplicateVoucherUpdate
-                                        val caughtUp = onChainLatestVoucher >= voucherClaimed
-                                        val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
-                                        Log.d(
-                                            TAG,
-                                            "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
-                                        )
+                                            }
 
-                                        val voucherJson =
-                                            MppPayments.createVoucherJson(
-                                                sessionId = receipt.sessionId,
-                                                viewerAddress = receiptViewerAddress,
-                                                viewerPublicKey = signer.authorizedSignerPublicKey,
-                                                creatorAddress = receipt.payTo,
-                                                blocksConsumed = blocksConsumed,
-                                                totalAmountUsed = voucherClaimed,
-                                                remainingMicroUsdc = params.viewerSessionVaultMicroUsdc(),
-                                                signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
+                                            updateResult
+                                                .onSuccess { txId ->
+                                                    Log.d(
+                                                        TAG,
+                                                        "✅ Viewer updateVoucher sent: txId=$txId claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                                    )
+                                                }.onFailure { err ->
+                                                    val errText = err.message.orEmpty()
+                                                    val duplicateVoucherUpdate =
+                                                        (
+                                                            errText.contains("pc=622", ignoreCase = true) ||
+                                                                errText.contains("pc=661", ignoreCase = true)
+                                                        ) &&
+                                                            (
+                                                                errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                                                    errText.contains("Voucher not increasing", ignoreCase = true) ||
+                                                                    errText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
+                                                            )
+                                                    if (duplicateVoucherUpdate) {
+                                                        Log.e(
+                                                            TAG,
+                                                            "[VIEWER_VOUCHER_DUPLICATE_SKIP] claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress reason=already_recorded_onchain",
+                                                            err,
+                                                        )
+                                                    } else {
+                                                        Log.e(
+                                                            TAG,
+                                                            "❌ Viewer updateVoucher failed: claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                                            err,
+                                                        )
+                                                    }
+                                                }
+
+                                            val onChainDynamicData =
+                                                MppPayments.getSessionDynamicDataFromVault(
+                                                    viewerAddress = receiptViewerAddress,
+                                                    hostAddress = sessionVaultHostAddress,
+                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                )
+                                            val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
+                                            val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
+                                            val duplicateVoucherUpdate =
+                                                updateResult
+                                                    .exceptionOrNull()
+                                                    ?.message
+                                                    .orEmpty()
+                                                    .let { msg ->
+                                                        msg.contains("pc=622", ignoreCase = true) &&
+                                                            (
+                                                                msg.contains("opcodes=dig 2", ignoreCase = true) ||
+                                                                    msg.contains("Voucher not increasing", ignoreCase = true)
+                                                            )
+                                                    }
+                                            val effectiveUpdateOk = updateResult.isSuccess || duplicateVoucherUpdate
+                                            val caughtUp = onChainLatestVoucher >= voucherClaimed
+                                            val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
+                                            Log.d(
+                                                TAG,
+                                                "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
                                             )
-                                        val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
-                                        Log.d(
-                                            TAG,
-                                            "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
-                                        )
-                                        Log.d(
-                                            TAG,
-                                            "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
-                                        )
-                                        service.send(voucherJson)
+
+                                            val voucherJson =
+                                                MppPayments.createVoucherJson(
+                                                    sessionId = receipt.sessionId,
+                                                    viewerAddress = receiptViewerAddress,
+                                                    viewerPublicKey = signer.authorizedSignerPublicKey,
+                                                    creatorAddress = receipt.payTo,
+                                                    blocksConsumed = blocksConsumed,
+                                                    totalAmountUsed = voucherClaimed,
+                                                    remainingMicroUsdc = params.viewerSessionVaultMicroUsdc(),
+                                                    signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
+                                                )
+                                            val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
+                                            Log.d(
+                                                TAG,
+                                                "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
+                                            )
+                                            Log.d(
+                                                TAG,
+                                                "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
+                                            )
+                                            service.send(voucherJson)
                                         }
                                     }
                                 }

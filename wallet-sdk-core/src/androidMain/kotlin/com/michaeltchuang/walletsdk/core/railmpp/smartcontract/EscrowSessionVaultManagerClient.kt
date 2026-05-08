@@ -2,10 +2,10 @@ package com.michaeltchuang.walletsdk.core.railmpp.smartcontract
 
 import android.util.Log
 import com.algorand.algosdk.crypto.Address
+import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.AppBoxReference
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.transaction.TxGroup
-import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
@@ -29,6 +29,7 @@ class EscrowSessionVaultManagerClient(
     private val defaultAlgodUrl: String = DEFAULT_ALGOD_URL,
 ) {
     private val tag = "EscrowSessionVaultClient"
+
     companion object {
         // Retained for backwards compatibility with existing callers.
         const val SIGNER_TYPE_ED25519 = 0L
@@ -79,17 +80,19 @@ class EscrowSessionVaultManagerClient(
             submitAssetTransferAndAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                appCallArgs = listOf(
-                    ABI_OPEN,
-                    Address(payeeAddress).getBytes(),
-                    encodeArc4DynamicBytes(defaultSalt),
-                    encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
-                    encodeArc4DynamicBytes(authorizedSignerPublicKey),
-                ),
-                appCallBoxReferences = listOf(
-                    AppBoxReference(appId, channelId),
-                    AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                ),
+                appCallArgs =
+                    listOf(
+                        ABI_OPEN,
+                        Address(payeeAddress).getBytes(),
+                        encodeArc4DynamicBytes(defaultSalt),
+                        encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
+                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                    ),
+                appCallBoxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,
             )
@@ -105,10 +108,11 @@ class EscrowSessionVaultManagerClient(
             submitAssetTransferAndAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                appCallArgs = listOf(
-                    ABI_TOP_UP,
-                    encodeArc4DynamicBytes(channelId),
-                ),
+                appCallArgs =
+                    listOf(
+                        ABI_TOP_UP,
+                        encodeArc4DynamicBytes(channelId),
+                    ),
                 appCallBoxReferences = listOf(AppBoxReference(appId, channelId)),
                 appCallForeignAssets = emptyList(),
                 depositAmountMicroUsdc = additionalDepositMicroUsdc,
@@ -125,15 +129,17 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY,
-                    encodeArc4DynamicBytes(channelId),
-                    encodeArc4DynamicBytes(authorizedSignerPublicKey),
-                ),
-                boxReferences = listOf(
-                    AppBoxReference(appId, channelId),
-                    AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                    ),
+                boxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
             )
         }
 
@@ -148,16 +154,18 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_UPDATE_VOUCHER,
-                    encodeArc4DynamicBytes(channelId),
-                    encodeUint64(cumulativeAmountMicroUsdc),
-                    encodeArc4DynamicBytes(signature),
-                ),
-                boxReferences = listOf(
-                    AppBoxReference(appId, channelId),
-                    AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_UPDATE_VOUCHER,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
             )
         }
 
@@ -172,16 +180,18 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_SETTLE,
-                    encodeArc4DynamicBytes(channelId),
-                    encodeUint64(cumulativeAmountMicroUsdc),
-                    encodeArc4DynamicBytes(signature),
-                ),
-                boxReferences = listOf(
-                    AppBoxReference(appId, channelId),
-                    AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_SETTLE,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
                 foreignAssets = listOf(usdcAssetId),
             )
         }
@@ -195,10 +205,11 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_SETTLE_LATEST,
-                    encodeArc4DynamicBytes(channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_SETTLE_LATEST,
+                        encodeArc4DynamicBytes(channelId),
+                    ),
                 boxReferences = listOf(AppBoxReference(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
             )
@@ -213,10 +224,11 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_CLOSE,
-                    encodeArc4DynamicBytes(channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_CLOSE,
+                        encodeArc4DynamicBytes(channelId),
+                    ),
                 boxReferences = listOf(AppBoxReference(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
             )
@@ -231,10 +243,11 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_REQUEST_CLOSE,
-                    encodeArc4DynamicBytes(channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_REQUEST_CLOSE,
+                        encodeArc4DynamicBytes(channelId),
+                    ),
                 boxReferences = listOf(AppBoxReference(appId, channelId)),
             )
         }
@@ -248,10 +261,11 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_WITHDRAW,
-                    encodeArc4DynamicBytes(channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_WITHDRAW,
+                        encodeArc4DynamicBytes(channelId),
+                    ),
                 boxReferences = listOf(AppBoxReference(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
             )
@@ -266,10 +280,11 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_FUND_MBR_POOL,
-                    Address(receiverAddress).getBytes(),
-                ),
+                args =
+                    listOf(
+                        ABI_FUND_MBR_POOL,
+                        Address(receiverAddress).getBytes(),
+                    ),
             )
         }
 
@@ -297,16 +312,18 @@ class EscrowSessionVaultManagerClient(
             submitAppCall(
                 signer = signer,
                 algodUrl = algodUrl,
-                args = listOf(
-                    ABI_VERIFY_SETTLE_SIGNATURE,
-                    encodeArc4DynamicBytes(channelId),
-                    encodeUint64(cumulativeAmountMicroUsdc),
-                    encodeArc4DynamicBytes(signature),
-                ),
-                boxReferences = listOf(
-                    AppBoxReference(appId, channelId),
-                    AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                ),
+                args =
+                    listOf(
+                        ABI_VERIFY_SETTLE_SIGNATURE,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
             )
         }
 
@@ -413,8 +430,7 @@ class EscrowSessionVaultManagerClient(
     fun buildSettleMessage(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
-    ): ByteArray =
-        encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".toByteArray(StandardCharsets.UTF_8)
+    ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".toByteArray(StandardCharsets.UTF_8)
 
     private suspend fun submitAppCall(
         signer: MppWalletSigner,
@@ -674,7 +690,9 @@ class EscrowSessionVaultManagerClient(
         algodUrl: String,
     ): ByteArray {
         val client = algodClient(algodUrl)
-        val boxNameB64 = com.algorand.algosdk.util.Encoder.encodeToBase64(channelId)
+        val boxNameB64 =
+            com.algorand.algosdk.util.Encoder
+                .encodeToBase64(channelId)
         val response =
             client
                 .GetApplicationBoxByName(appId)

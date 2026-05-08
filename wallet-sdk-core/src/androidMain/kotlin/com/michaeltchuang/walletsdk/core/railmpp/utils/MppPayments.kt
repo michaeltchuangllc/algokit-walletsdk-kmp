@@ -102,7 +102,12 @@ object MppPayments {
                 put("id", sessionId)
                 put("appId", appId)
                 put("viewer", viewerAddress)
-                put("viewerPublicKey", java.util.Base64.getEncoder().encodeToString(viewerPublicKey))
+                put(
+                    "viewerPublicKey",
+                    java.util.Base64
+                        .getEncoder()
+                        .encodeToString(viewerPublicKey),
+                )
                 put("creator", creatorAddress)
                 put("blocksWatched", blocksConsumed)
                 put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
@@ -362,7 +367,6 @@ object MppPayments {
             algodUrl = algodUrl,
         )
     }
-
 
     data class SessionDynamicData(
         val totalDeposit: Long,

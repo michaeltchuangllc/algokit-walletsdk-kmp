@@ -558,7 +558,12 @@ class AndroidLiquidAuthConnectionManager(
                 val voucherViewer = json.optString("viewer", "").takeIf { it.isNotBlank() }
                 val voucherViewerPublicKey = json.optString("viewerPublicKey", "").takeIf { it.isNotBlank() }
 
-                if (signature == null || claimedAmount == null || voucherSessionId == null || voucherViewer == null || voucherViewerPublicKey == null) {
+                if (signature == null ||
+                    claimedAmount == null ||
+                    voucherSessionId == null ||
+                    voucherViewer == null ||
+                    voucherViewerPublicKey == null
+                ) {
                     Log.e(
                         TAG,
                         "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${json.optString(
@@ -814,8 +819,19 @@ class AndroidLiquidAuthConnectionManager(
                 }
 
         val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-        val decodedFirstGroup = decodedSigned.firstOrNull()?.second?.group?.toString()
-        val decodedAllGrouped = decodedSigned.all { it.second.group != null && it.second.group.toString().isNotBlank() }
+        val decodedFirstGroup =
+            decodedSigned
+                .firstOrNull()
+                ?.second
+                ?.group
+                ?.toString()
+        val decodedAllGrouped =
+            decodedSigned.all {
+                it.second.group != null &&
+                    it.second.group
+                        .toString()
+                        .isNotBlank()
+            }
 
         Log.e(
             TAG,
@@ -824,7 +840,13 @@ class AndroidLiquidAuthConnectionManager(
 
         // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
         // In that mode we must return the full signed set for broadcast, not only the requested subset.
-        if (txns.firstOrNull()?.group == null || txns.firstOrNull()?.group.toString().isBlank()) {
+        if (txns.firstOrNull()?.group == null ||
+            txns
+                .firstOrNull()
+                ?.group
+                .toString()
+                .isBlank()
+        ) {
             if (rawSigned.size > txns.size) {
                 Log.e(
                     TAG,
@@ -843,9 +865,10 @@ class AndroidLiquidAuthConnectionManager(
                 out += remaining.removeAt(txIdMatchIndex).third
             } else {
                 val expectedTxn = txns[index]
-                val semanticMatchIndex = remaining.indexOfFirst { (_, actualTxn, _) ->
-                    matchesExpectedTransaction(expectedTxn, actualTxn)
-                }
+                val semanticMatchIndex =
+                    remaining.indexOfFirst { (_, actualTxn, _) ->
+                        matchesExpectedTransaction(expectedTxn, actualTxn)
+                    }
                 if (semanticMatchIndex >= 0) {
                     out += remaining.removeAt(semanticMatchIndex).third
                 } else {

@@ -946,8 +946,16 @@ class AnswerViewModel(
                 }.distinct()
 
         candidates.forEach { candidate ->
-            runCatching { java.util.Base64.getDecoder().decode(candidate) }.getOrNull()?.let { return it }
-            runCatching { java.util.Base64.getUrlDecoder().decode(candidate) }.getOrNull()?.let { return it }
+            runCatching {
+                java.util.Base64
+                    .getDecoder()
+                    .decode(candidate)
+            }.getOrNull()?.let { return it }
+            runCatching {
+                java.util.Base64
+                    .getUrlDecoder()
+                    .decode(candidate)
+            }.getOrNull()?.let { return it }
             runCatching { Base64.UrlSafe.withPadding(Base64.PaddingOption.PRESENT).decode(candidate) }.getOrNull()?.let { return it }
         }
         return null
@@ -990,7 +998,11 @@ class AnswerViewModel(
             "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
         )
 
-        val expectedTxns = txns.map { com.algorand.algosdk.util.Encoder.encodeToMsgPack(it) }
+        val expectedTxns =
+            txns.map {
+                com.algorand.algosdk.util.Encoder
+                    .encodeToMsgPack(it)
+            }
         val expectedTxIds = txns.map { it.txID() }
         val txnList = BytesArray().apply { expectedTxns.forEach { append(it) } }
         val resultCsv =
@@ -1010,15 +1022,28 @@ class AnswerViewModel(
             rawSigned
                 .mapNotNull { signedBytes ->
                     runCatching {
-                        val signed = com.algorand.algosdk.util.Encoder.decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                        val signed =
+                            com.algorand.algosdk.util.Encoder
+                                .decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
                         val signedTxn = signed.tx ?: return@runCatching null
                         Triple(signedTxn.txID(), signedTxn, signedBytes)
                     }.getOrNull()
                 }
 
         val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-        val decodedFirstGroup = decodedSigned.firstOrNull()?.second?.group?.toString()
-        val decodedAllGrouped = decodedSigned.all { it.second.group != null && it.second.group.toString().isNotBlank() }
+        val decodedFirstGroup =
+            decodedSigned
+                .firstOrNull()
+                ?.second
+                ?.group
+                ?.toString()
+        val decodedAllGrouped =
+            decodedSigned.all {
+                it.second.group != null &&
+                    it.second.group
+                        .toString()
+                        .isNotBlank()
+            }
 
         Log.e(
             TAG,
@@ -1027,7 +1052,13 @@ class AnswerViewModel(
 
         // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
         // In that mode we must return the full signed set for broadcast, not only the requested subset.
-        if (txns.firstOrNull()?.group == null || txns.firstOrNull()?.group.toString().isBlank()) {
+        if (txns.firstOrNull()?.group == null ||
+            txns
+                .firstOrNull()
+                ?.group
+                .toString()
+                .isBlank()
+        ) {
             if (rawSigned.size > txns.size) {
                 Log.e(
                     TAG,
@@ -1046,9 +1077,10 @@ class AnswerViewModel(
                 out += remaining.removeAt(txIdMatchIndex).third
             } else {
                 val expectedTxn = txns[index]
-                val semanticMatchIndex = remaining.indexOfFirst { (_, actualTxn, _) ->
-                    matchesExpectedTransaction(expectedTxn, actualTxn)
-                }
+                val semanticMatchIndex =
+                    remaining.indexOfFirst { (_, actualTxn, _) ->
+                        matchesExpectedTransaction(expectedTxn, actualTxn)
+                    }
                 if (semanticMatchIndex >= 0) {
                     out += remaining.removeAt(semanticMatchIndex).third
                 } else {

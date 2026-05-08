@@ -15,8 +15,8 @@ import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
