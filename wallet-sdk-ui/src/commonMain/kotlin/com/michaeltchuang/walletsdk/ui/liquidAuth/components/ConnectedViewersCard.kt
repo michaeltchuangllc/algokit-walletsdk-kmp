@@ -33,6 +33,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
+import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -53,7 +54,12 @@ internal fun ConnectedViewersCard(
     val colors = AlgoKitTheme.colors
     val isDarkTheme = LocalThemeIsDark.current.value
     val balanceText = remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
-    val streamCost = if (connectionType == IceConnectionType.RELAY) "0.5" else "0.1"
+    val streamCost =
+        if (connectionType == IceConnectionType.RELAY) {
+            "0.5"
+        } else {
+            microUsdcToUsdcDisplay(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC)
+        }
     val progress =
         if (progressBalanceUSDC != null) {
             val capacity = (progressCapacityUSDC ?: remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
@@ -262,6 +268,13 @@ private fun MetaRow(
             maxLines = 1,
         )
     }
+}
+
+@Composable
+private fun microUsdcToUsdcDisplay(microUsdc: Long): String {
+    val usdc = microUsdc / 1_000_000.0
+    val rounded = round(usdc * 100) / 100
+    return rounded.toString()
 }
 
 @Composable

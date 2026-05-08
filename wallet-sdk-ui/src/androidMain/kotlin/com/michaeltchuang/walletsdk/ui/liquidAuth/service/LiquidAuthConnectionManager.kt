@@ -33,6 +33,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
@@ -595,7 +596,7 @@ class AndroidLiquidAuthConnectionManager(
                                     gating =
                                         GatingConfig(
                                             mode = GatingMode.PARTIAL_TIME,
-                                            amount = activePaymentAmount ?: "10000",
+                                            amount = activePaymentAmount ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
                                             asset = USDC_TESTNET_ID.toString(),
                                             network = MppNetworks.ALGORAND_TESTNET,
                                             payTo = activePaymentRecipient.orEmpty(),

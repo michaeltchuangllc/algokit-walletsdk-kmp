@@ -257,12 +257,13 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@launch
                     }
 
+                val signerPublicKey = Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64)
                 val signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc.coerceAtLeast(0L)
                 val channelId =
                     MppPayments.deriveChannelId(
                         viewerAddress = claimSnapshot.viewerAddress,
                         hostAddress = creatorAddress,
-                        authorizedSignerPublicKey = java.util.Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64),
+                        authorizedSignerPublicKey = signerPublicKey,
                     )
                 val claimMessageHash =
                     MppPayments.buildClaimMessageHashHex(
@@ -311,22 +312,32 @@ internal class LiquidStreamBlockConsumptionManager(
                                 viewerAddress = claimSnapshot.viewerAddress,
                                 hostAddress = creatorAddress,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = java.util.Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64),
+                                authorizedSignerPublicKey = signerPublicKey,
                             )
-                        val onChainUnclaimed = onChainDynamicData?.unclaimedVoucherAmount ?: 0L
-                        val viewerLag = (signedTotalAmount - (onChainDynamicData?.latestVoucherAmount ?: 0L)).coerceAtLeast(0L)
+                        val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
+                        val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
+                        val onChainUnclaimed = (onChainLatestVoucher - onChainLastSettled).coerceAtLeast(0L)
+                        val viewerLag = (signedTotalAmount - onChainLatestVoucher).coerceAtLeast(0L)
                         val allowLagWindow = viewerLag <= ALLOWED_VOUCHER_LAG_MICRO_USDC
                         if (onChainUnclaimed <= 0L && !allowLagWindow) {
                             Log.e(
                                 tag,
-                                "[SESSION_VAULT_CLAIM_SKIP] reason=onchain_voucher_not_advanced session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=${onChainDynamicData?.lastSettled} onChainLatestVoucher=${onChainDynamicData?.latestVoucherAmount} viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
+                                "[SESSION_VAULT_CLAIM_BACKFILL_VOUCHER] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
                             )
-                            return@runCatching "onchain_voucher_not_advanced"
-                        }
-                        if (onChainUnclaimed <= 0L) {
+                            MppPayments
+                                .updateVoucherOnChain(
+                                    signer = signer,
+                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    viewerAddress = claimSnapshot.viewerAddress,
+                                    hostAddress = creatorAddress,
+                                    totalAmountUsedMicroUsdc = signedTotalAmount,
+                                    signature = signatureBytes,
+                                    authorizedSignerPublicKey = signerPublicKey,
+                                ).getOrThrow()
+                        } else if (onChainUnclaimed <= 0L) {
                             Log.e(
                                 tag,
-                                "[SESSION_VAULT_CLAIM_LAG_WINDOW] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=${onChainDynamicData?.lastSettled} onChainLatestVoucher=${onChainDynamicData?.latestVoucherAmount} viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
+                                "[SESSION_VAULT_CLAIM_LAG_WINDOW] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
                             )
                         }
 
@@ -375,10 +386,29 @@ internal class LiquidStreamBlockConsumptionManager(
                             )
                         }
 
+                        val postUpdateDynamicData =
+                            MppPayments.getSessionDynamicDataFromVault(
+                                viewerAddress = claimSnapshot.viewerAddress,
+                                hostAddress = creatorAddress,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                authorizedSignerPublicKey = signerPublicKey,
+                            )
+                        val postUpdateLatestVoucher = postUpdateDynamicData?.latestVoucherAmount ?: 0L
+                        val postUpdateLastSettled = postUpdateDynamicData?.lastSettled ?: 0L
+                        val postUpdateUnclaimed = (postUpdateLatestVoucher - postUpdateLastSettled).coerceAtLeast(0L)
+
                         Log.e(
                             tag,
-                            "[SESSION_VAULT_SETTLE_LATEST_PRECHECK] session=$sessionId viewer=${claimSnapshot.viewerAddress} creator=$creatorAddress totalDeposit=${onChainDynamicData?.totalDeposit} latestVoucherAmount=${onChainDynamicData?.latestVoucherAmount} lastSettled=${onChainDynamicData?.lastSettled} unclaimedVoucherAmount=$onChainUnclaimed signedTotalMicroUsdc=$signedTotalAmount",
+                            "[SESSION_VAULT_SETTLE_LATEST_PRECHECK] session=$sessionId viewer=${claimSnapshot.viewerAddress} creator=$creatorAddress totalDeposit=${postUpdateDynamicData?.totalDeposit} latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled unclaimedVoucherAmount=$postUpdateUnclaimed signedTotalMicroUsdc=$signedTotalAmount",
                         )
+
+                        if (postUpdateUnclaimed <= 0L) {
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_CLAIM_SKIP] reason=nothing_to_settle session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled",
+                            )
+                            return@runCatching "nothing_to_settle"
+                        }
 
                         MppPayments
                             .settleLatestVoucher(
@@ -386,7 +416,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                 viewerAddress = claimSnapshot.viewerAddress,
                                 hostAddress = creatorAddress,
-                                authorizedSignerPublicKey = java.util.Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64),
+                                authorizedSignerPublicKey = signerPublicKey,
                             ).getOrThrow()
                     }
 
@@ -429,7 +459,7 @@ internal class LiquidStreamBlockConsumptionManager(
             stop()
 
             val depletedJson =
-                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${blocksConsumed * 10_000L}}"""
+                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)}}"""
             sendMessage(depletedJson)
             return
         } else {

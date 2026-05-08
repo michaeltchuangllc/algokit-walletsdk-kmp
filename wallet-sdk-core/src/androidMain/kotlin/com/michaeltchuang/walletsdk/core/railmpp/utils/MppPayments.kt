@@ -12,6 +12,7 @@ import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
@@ -47,9 +48,9 @@ object MppPayments {
         ensureBouncyCastleProvider()
     }
 
-    private const val DEPOSIT_MICRO_USDC_LONG = 1_000_000L
-    private const val COST_PER_BLOCK_MICRO_USDC = 10_000L // 0.01 USDC
-    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 2
+    private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
+    private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
+    private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
     private const val VERIFY_HELPER_APP_CALL_FEE = 12000L
     private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val CHANNEL_ID_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
@@ -177,8 +178,17 @@ object MppPayments {
         logContext: String? = null,
     ): Long? =
         runCatching {
-            val sessionBytes = getSessionBoxBytesByChannelId(channelId, appId, algodUrl, logContext) ?: return null
-            decodeRemainingBalanceFromSessionInfo(sessionBytes)
+            val dynamicData =
+                contractClient(
+                    appId = appId,
+                    usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+                    algodUrl = algodUrl,
+                ).getSessionDynamicData(
+                    channelId = channelId,
+                    algodUrl = algodUrl,
+                ).getOrThrow()
+
+            (dynamicData.totalDeposit - dynamicData.lastSettled).coerceAtLeast(0L)
         }.onFailure {
             Log.e(
                 TAG,
@@ -353,6 +363,7 @@ object MppPayments {
         )
     }
 
+
     data class SessionDynamicData(
         val totalDeposit: Long,
         val lastSettled: Long,
@@ -409,8 +420,21 @@ object MppPayments {
         logContext: String? = null,
     ): SessionDynamicData? =
         runCatching {
-            val sessionBytes = getSessionBoxBytesByChannelId(channelId, appId, algodUrl, logContext) ?: return null
-            decodeSessionDynamicDataFromSessionInfo(sessionBytes)
+            val dynamicData =
+                contractClient(
+                    appId = appId,
+                    usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+                    algodUrl = algodUrl,
+                ).getSessionDynamicData(
+                    channelId = channelId,
+                    algodUrl = algodUrl,
+                ).getOrThrow()
+
+            SessionDynamicData(
+                totalDeposit = dynamicData.totalDeposit,
+                lastSettled = dynamicData.lastSettled,
+                latestVoucherAmount = dynamicData.latestVoucherAmount,
+            )
         }.onFailure {
             Log.e(
                 TAG,
@@ -433,141 +457,6 @@ object MppPayments {
                 (bytes.size and 0xFF).toByte(),
             )
         return lengthPrefix + bytes
-    }
-
-    private data class SessionInfoOffsets(
-        val totalDepositOffset: Int,
-        val lastSettledOffset: Int,
-        val latestVoucherAmountOffset: Int,
-    )
-
-    private fun decodeSessionInfoOffsets(bytes: ByteArray): SessionInfoOffsets {
-        // ChannelInfo has two known wire layouts in the app history:
-        // 1) ARC4 struct head/tail (current): uint64 fields fixed at offsets 66/74/82,
-        //    while bytes[64..65] stores dynamic-field tail offset (can vary, e.g. 98 or 114).
-        // 2) Legacy: payer(32) + payee(32) + signerLen(2) + signerBytes(N) + uint64 fields...
-        if (bytes.size < 98) error("Invalid session box payload size=${bytes.size}")
-
-        val markerAt64 = ((bytes[64].toInt() and 0xFF) shl 8) or (bytes[65].toInt() and 0xFF)
-        val arc4Offsets =
-            SessionInfoOffsets(
-                totalDepositOffset = 66,
-                lastSettledOffset = 74,
-                latestVoucherAmountOffset = 82,
-            )
-
-        if (isPlausibleSessionLayout(bytes, arc4Offsets)) {
-            return arc4Offsets
-        }
-
-        val signerLen = markerAt64
-        val totalsOffset = 66 + signerLen
-        val legacyFits = bytes.size >= totalsOffset + (8 * 3)
-        if (legacyFits) {
-            val legacyOffsets =
-                SessionInfoOffsets(
-                    totalDepositOffset = totalsOffset,
-                    lastSettledOffset = totalsOffset + 8,
-                    latestVoucherAmountOffset = totalsOffset + 16,
-                )
-            if (isPlausibleSessionLayout(bytes, legacyOffsets)) {
-                return legacyOffsets
-            }
-            return legacyOffsets
-        }
-
-        // Final fallback for current ARC4 variants where marker is a tail offset (not signer length).
-        if (markerAt64 >= 98 && markerAt64 <= bytes.size) {
-            return arc4Offsets
-        }
-
-        error("Invalid session box payload (markerAt64=$markerAt64 size=${bytes.size})")
-    }
-
-    private fun isPlausibleSessionLayout(
-        bytes: ByteArray,
-        offsets: SessionInfoOffsets,
-    ): Boolean {
-        val latestEnd = offsets.latestVoucherAmountOffset + 8
-        if (latestEnd > bytes.size) return false
-
-        return runCatching {
-            val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
-            val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
-            val latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
-            totalDeposit >= lastSettled && totalDeposit >= latestVoucherAmount && latestVoucherAmount >= lastSettled
-        }.getOrDefault(false)
-    }
-
-    private fun decodeRemainingBalanceFromSessionInfo(bytes: ByteArray): Long {
-        val offsets = decodeSessionInfoOffsets(bytes)
-        val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
-        val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
-        return (totalDeposit - lastSettled).coerceAtLeast(0L)
-    }
-
-    private fun decodeSessionDynamicDataFromSessionInfo(bytes: ByteArray): SessionDynamicData {
-        val offsets = decodeSessionInfoOffsets(bytes)
-        val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
-        val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
-        val latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
-        return SessionDynamicData(
-            totalDeposit = totalDeposit,
-            lastSettled = lastSettled,
-            latestVoucherAmount = latestVoucherAmount,
-        )
-    }
-
-    private fun getSessionBoxBytesByChannelId(
-        channelId: ByteArray,
-        appId: Long,
-        algodUrl: String,
-        logContext: String? = null,
-    ): ByteArray? {
-        val client = algodClient(algodUrl)
-        val boxNameB64 = Encoder.encodeToBase64(channelId)
-        val response =
-            client
-                .GetApplicationBoxByName(appId)
-                .name("b64:$boxNameB64")
-                .execute()
-
-        if (!response.isSuccessful) {
-            if (response.code() == 404) {
-                Log.d(
-                    TAG,
-                    "[SESSION_VAULT_BOX_MISSING] appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
-                )
-            } else {
-                Log.e(
-                    TAG,
-                    "[SESSION_VAULT_BOX_ERR] reason=box_fetch_failed appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()} code=${response.code()} message=${response.message()}",
-                )
-            }
-            return null
-        }
-
-        val sessionBytes = response.body()?.value
-        if (sessionBytes == null) {
-            Log.e(
-                TAG,
-                "[SESSION_VAULT_BOX_ERR] reason=empty_box_value appId=$appId box=b64:$boxNameB64 context=${logContext.orEmpty()}",
-            )
-            return null
-        }
-
-        return sessionBytes
-    }
-
-    private fun decodeUint64BigEndian(
-        bytes: ByteArray,
-        offset: Int,
-    ): Long {
-        var out = 0L
-        for (i in 0 until 8) {
-            out = (out shl 8) or (bytes[offset + i].toLong() and 0xFF)
-        }
-        return out
     }
 
     private fun algodClient(url: String): AlgodClient {

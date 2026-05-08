@@ -310,24 +310,105 @@ class EscrowSessionVaultManagerClient(
             )
         }
 
-    fun deriveChannelId(
+    data class SessionStaticData(
+        val startRound: Long,
+        val startTimestamp: Long,
+    )
+
+    data class SessionDynamicData(
+        val totalDeposit: Long,
+        val lastSettled: Long,
+        val latestVoucherAmount: Long,
+    )
+
+    private data class SessionInfoOffsets(
+        val totalDepositOffset: Int,
+        val lastSettledOffset: Int,
+        val latestVoucherAmountOffset: Int,
+    )
+
+    fun getSessionStaticData(
+        channelId: ByteArray,
+        algodUrl: String = defaultAlgodUrl,
+    ): Result<SessionStaticData> =
+        runCatching {
+            val sessionBytes = getSessionBoxBytes(channelId, algodUrl)
+            val startRound = decodeUint64BigEndian(sessionBytes, 90)
+            val startTimestamp = decodeUint64BigEndian(sessionBytes, 98)
+            SessionStaticData(
+                startRound = startRound,
+                startTimestamp = startTimestamp,
+            )
+        }
+
+    fun getSessionDynamicData(
+        channelId: ByteArray,
+        algodUrl: String = defaultAlgodUrl,
+    ): Result<SessionDynamicData> =
+        runCatching {
+            val sessionBytes = getSessionBoxBytes(channelId, algodUrl)
+            val offsets = decodeSessionInfoOffsets(sessionBytes)
+            SessionDynamicData(
+                totalDeposit = decodeUint64BigEndian(sessionBytes, offsets.totalDepositOffset),
+                lastSettled = decodeUint64BigEndian(sessionBytes, offsets.lastSettledOffset),
+                latestVoucherAmount = decodeUint64BigEndian(sessionBytes, offsets.latestVoucherAmountOffset),
+            )
+        }
+
+    fun computeChannelId(
         payerAddress: String,
         payeeAddress: String,
-        authorizedSignerPublicKey: ByteArray,
+        authorizedSigner: ByteArray,
         salt: ByteArray = defaultSalt,
     ): ByteArray {
         ensureBouncyCastleProvider()
         val payer = Address(payerAddress).getBytes()
         val payee = Address(payeeAddress).getBytes()
-        val signerHash = computeSignerPubkeyHash(authorizedSignerPublicKey)
-        val material = payer + payee + encodeUint64(usdcAssetId) + salt + signerHash
+        val material = payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner
         return MessageDigest.getInstance("SHA-256").digest(material)
     }
+
+    fun deriveChannelId(
+        payerAddress: String,
+        payeeAddress: String,
+        authorizedSignerPublicKey: ByteArray,
+        salt: ByteArray = defaultSalt,
+    ): ByteArray =
+        computeChannelId(
+            payerAddress = payerAddress,
+            payeeAddress = payeeAddress,
+            authorizedSigner = computeSignerPubkeyHash(authorizedSignerPublicKey),
+            salt = salt,
+        )
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray {
         ensureBouncyCastleProvider()
         return MessageDigest.getInstance("SHA-512/256").digest(authorizedSigner)
     }
+
+    fun settleMessage(
+        channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+    ): ByteArray =
+        buildSettleMessage(
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+        )
+
+    suspend fun verifySettleSignature(
+        signer: MppWalletSigner,
+        channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+        signature: ByteArray,
+        algodUrl: String = defaultAlgodUrl,
+    ): Result<String> =
+        verifySettleSignatureOnChain(
+            signer = signer,
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+            signature = signature,
+            algodUrl = algodUrl,
+        )
 
     fun buildSettleMessage(
         channelId: ByteArray,
@@ -524,6 +605,90 @@ class EscrowSessionVaultManagerClient(
 
     private fun applicationAddress(): Address = Address.forApplication(appId)
 
+    private fun decodeSessionInfoOffsets(bytes: ByteArray): SessionInfoOffsets {
+        if (bytes.size < 98) error("Invalid session box payload size=${bytes.size}")
+
+        val markerAt64 = ((bytes[64].toInt() and 0xFF) shl 8) or (bytes[65].toInt() and 0xFF)
+        val arc4Offsets =
+            SessionInfoOffsets(
+                totalDepositOffset = 66,
+                lastSettledOffset = 74,
+                latestVoucherAmountOffset = 82,
+            )
+
+        if (isPlausibleSessionLayout(bytes, arc4Offsets)) {
+            return arc4Offsets
+        }
+
+        val signerLen = markerAt64
+        val totalsOffset = 66 + signerLen
+        val legacyFits = bytes.size >= totalsOffset + (8 * 3)
+        if (legacyFits) {
+            val legacyOffsets =
+                SessionInfoOffsets(
+                    totalDepositOffset = totalsOffset,
+                    lastSettledOffset = totalsOffset + 8,
+                    latestVoucherAmountOffset = totalsOffset + 16,
+                )
+            if (isPlausibleSessionLayout(bytes, legacyOffsets)) {
+                return legacyOffsets
+            }
+            return legacyOffsets
+        }
+
+        if (markerAt64 >= 98 && markerAt64 <= bytes.size) {
+            return arc4Offsets
+        }
+
+        error("Invalid session box payload (markerAt64=$markerAt64 size=${bytes.size})")
+    }
+
+    private fun isPlausibleSessionLayout(
+        bytes: ByteArray,
+        offsets: SessionInfoOffsets,
+    ): Boolean {
+        val latestEnd = offsets.latestVoucherAmountOffset + 8
+        if (latestEnd > bytes.size) return false
+
+        return runCatching {
+            val totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
+            val lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
+            val latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
+            totalDeposit >= lastSettled && totalDeposit >= latestVoucherAmount && latestVoucherAmount >= lastSettled
+        }.getOrDefault(false)
+    }
+
+    private fun decodeUint64BigEndian(
+        bytes: ByteArray,
+        offset: Int,
+    ): Long {
+        var out = 0L
+        for (i in 0 until 8) {
+            out = (out shl 8) or (bytes[offset + i].toLong() and 0xFF)
+        }
+        return out
+    }
+
+    private fun getSessionBoxBytes(
+        channelId: ByteArray,
+        algodUrl: String,
+    ): ByteArray {
+        val client = algodClient(algodUrl)
+        val boxNameB64 = com.algorand.algosdk.util.Encoder.encodeToBase64(channelId)
+        val response =
+            client
+                .GetApplicationBoxByName(appId)
+                .name("b64:$boxNameB64")
+                .execute()
+
+        if (!response.isSuccessful) {
+            val err = response.message() ?: "box fetch failed"
+            error("EscrowSessionVaultManager box fetch failed: $err")
+        }
+
+        return response.body()?.value ?: error("EscrowSessionVaultManager empty box value")
+    }
+
     private fun encodeUint64(value: Long): ByteArray =
         ByteBuffer
             .allocate(8)
@@ -573,8 +738,7 @@ class EscrowSessionVaultManagerClient(
 
     @Synchronized
     private fun ensureBouncyCastleProvider() {
-        if (Security.getProvider("BC") == null) {
-            Security.insertProviderAt(BouncyCastleProvider(), 1)
-        }
+        Security.removeProvider("BC")
+        Security.insertProviderAt(BouncyCastleProvider(), 1)
     }
 }

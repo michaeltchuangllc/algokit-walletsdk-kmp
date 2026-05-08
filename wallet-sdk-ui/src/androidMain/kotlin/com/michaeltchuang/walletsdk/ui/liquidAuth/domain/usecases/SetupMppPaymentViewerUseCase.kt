@@ -30,8 +30,6 @@ import kotlin.coroutines.resume
 class SetupMppPaymentViewerUseCase {
     companion object {
         private const val TAG = "SetupMppPaymentViewer"
-        private var useHardcodedTestCumulative = true
-        private var hardcodedTestCumulativeMicroUsdc = 10_000L
         private const val DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG = false
     }
 
@@ -302,7 +300,6 @@ class SetupMppPaymentViewerUseCase {
                                     val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
                                     val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
                                     val hasOnChainSessionData = preUpdateDynamicData != null && preUpdateTotalDeposit > 0L
-                                    val voucherMax = preUpdateTotalDeposit.coerceAtLeast(0L)
                                     val voucherBase = maxOf(viewerVoucherClaimedMicroUsdc, preUpdateLatestVoucher)
                                     val voucherClaimedRaw = (voucherBase + voucherIncrement).coerceAtLeast(0L)
 
@@ -315,25 +312,21 @@ class SetupMppPaymentViewerUseCase {
                                         }
 
                                     val voucherClaimed =
-                                        if (useHardcodedTestCumulative) {
-                                            (preUpdateLatestVoucher + hardcodedTestCumulativeMicroUsdc)
-                                                .coerceAtLeast(minRequiredCumulative)
-                                                .coerceAtMost(maxAllowedCumulative)
-                                        } else {
-                                            voucherClaimedRaw.coerceAtMost(voucherMax)
-                                        }
+                                        voucherClaimedRaw
+                                            .coerceAtLeast(minRequiredCumulative)
+                                            .coerceAtMost(maxAllowedCumulative)
 
-                                    if (!useHardcodedTestCumulative && voucherClaimedRaw > voucherMax && viewerVoucherCapLoggedSessionId != receipt.sessionId) {
+                                    if (voucherClaimedRaw > maxAllowedCumulative && viewerVoucherCapLoggedSessionId != receipt.sessionId) {
                                         viewerVoucherCapLoggedSessionId = receipt.sessionId
                                         Log.e(
                                             TAG,
-                                            "[VIEWER_VOUCHER_CLAMP_DEPOSIT] session=${receipt.sessionId} claimedRaw=$voucherClaimedRaw clampedClaimed=$voucherClaimed voucherMax=$voucherMax totalDeposit=$preUpdateTotalDeposit viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
+                                            "[VIEWER_VOUCHER_CLAMP_DEPOSIT] session=${receipt.sessionId} claimedRaw=$voucherClaimedRaw clampedClaimed=$voucherClaimed maxAllowedCumulative=$maxAllowedCumulative totalDeposit=$preUpdateTotalDeposit viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                         )
                                     }
 
                                     Log.e(
                                         TAG,
-                                        "[VIEWER_VOUCHER_ASSERT_PRECHECK] session=${receipt.sessionId} lastSettled=$preUpdateLastSettled latestVoucher=$preUpdateLatestVoucher totalDeposit=$preUpdateTotalDeposit signedCumulative=$voucherClaimed hardcodedMode=$useHardcodedTestCumulative hardcodedTarget=$hardcodedTestCumulativeMicroUsdc",
+                                        "[VIEWER_VOUCHER_ASSERT_PRECHECK] session=${receipt.sessionId} lastSettled=$preUpdateLastSettled latestVoucher=$preUpdateLatestVoucher totalDeposit=$preUpdateTotalDeposit signedCumulative=$voucherClaimed",
                                     )
 
                                     viewerVoucherClaimedMicroUsdc = voucherClaimed
@@ -556,7 +549,7 @@ class SetupMppPaymentViewerUseCase {
                                     params.requestMppConsent(
                                         ConsentTerms(
                                             gatingMode = GatingMode.PARTIAL_TIME,
-                                            amount = "10000",
+                                            amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
                                             asset = USDC_TESTNET_ID.toString(),
                                             network = mppNetwork,
                                             segmentDuration = 3,

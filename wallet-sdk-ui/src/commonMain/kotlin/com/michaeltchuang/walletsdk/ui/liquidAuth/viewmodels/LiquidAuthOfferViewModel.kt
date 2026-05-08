@@ -15,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
 import kotlinx.coroutines.Job
@@ -90,10 +91,9 @@ class LiquidAuthOfferViewModel(
     // Payment consumption monitor job (must be singleton to avoid double-deduction)
     private var blockchainMonitorJob: Job? = null
 
-    // Cost per block (0.1 ALGO = 100,000 microAlgos)
     companion object {
-        const val DEPOSIT_AMOUNT_MICRO_USDC = 1_000_000L // 1 USDC top-up budget
-        const val COST_PER_BLOCK_MICRO_USDC = 100_000L // 0.1 USDC per 3s segment
+        const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
+        const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     }
 
     /**
