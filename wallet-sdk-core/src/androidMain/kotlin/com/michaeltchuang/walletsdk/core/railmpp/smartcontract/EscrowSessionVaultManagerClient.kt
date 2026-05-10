@@ -12,6 +12,7 @@ import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import org.bouncycastle.crypto.digests.SHA512tDigest
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -41,6 +42,8 @@ class EscrowSessionVaultManagerClient(
         private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
         private val DEFAULT_CHANNEL_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
         private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".toByteArray(StandardCharsets.UTF_8)
+        private const val ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH = 32
+        private const val ALGORAND_ADDRESS_CHECKSUM_LENGTH = 4
 
         private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
         private val ABI_TOP_UP = byteArrayOf(0xbd.toByte(), 0xcf.toByte(), 0xac.toByte(), 0x58)
@@ -379,10 +382,57 @@ class EscrowSessionVaultManagerClient(
         salt: ByteArray = defaultSalt,
     ): ByteArray {
         ensureBouncyCastleProvider()
-        val payer = Address(payerAddress).getBytes()
-        val payee = Address(payeeAddress).getBytes()
+        val payer = decodeAlgorandAddressPublicKey(payerAddress)
+        val payee = decodeAlgorandAddressPublicKey(payeeAddress)
         val material = payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner
         return MessageDigest.getInstance("SHA-256").digest(material)
+    }
+
+
+
+    private fun decodeAlgorandAddressPublicKey(address: String): ByteArray {
+        val decoded = decodeBase32(address)
+        require(decoded.size >= ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH + ALGORAND_ADDRESS_CHECKSUM_LENGTH) {
+            "Invalid Algorand address length"
+        }
+        return decoded.copyOfRange(0, ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH)
+    }
+
+    private fun decodeBase32(value: String): ByteArray {
+        var buffer = 0
+        var bitsLeft = 0
+        val bytes = mutableListOf<Byte>()
+
+        value
+            .trim()
+            .trimEnd('=')
+            .uppercase()
+            .forEach { char ->
+                val charValue =
+                    when (char) {
+                        in 'A'..'Z' -> char - 'A'
+                        in '2'..'7' -> char - '2' + 26
+                        else -> error("Invalid base32 character: $char")
+                    }
+
+                buffer = (buffer shl 5) or charValue
+                bitsLeft += 5
+
+                if (bitsLeft >= 8) {
+                    bitsLeft -= 8
+                    bytes.add(((buffer shr bitsLeft) and 0xFF).toByte())
+                }
+            }
+
+        return bytes.toByteArray()
+    }
+
+    private fun sha512256(bytes: ByteArray): ByteArray {
+        val digest = SHA512tDigest(256)
+        val output = ByteArray(32)
+        digest.update(bytes, 0, bytes.size)
+        digest.doFinal(output, 0)
+        return output
     }
 
     fun deriveChannelId(
@@ -400,7 +450,7 @@ class EscrowSessionVaultManagerClient(
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray {
         ensureBouncyCastleProvider()
-        return MessageDigest.getInstance("SHA-512/256").digest(authorizedSigner)
+        return sha512256(authorizedSigner)
     }
 
     fun settleMessage(

@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dmsans_bold
@@ -54,8 +54,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.vectorResource

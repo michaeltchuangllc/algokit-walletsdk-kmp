@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.model
+package com.michaeltchuang.walletsdk.ui.liquidStream.model
 
 /**
  * WebRTC ICE Connection Type

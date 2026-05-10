@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import android.R
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -35,8 +36,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
@@ -52,6 +53,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import org.koin.java.KoinJavaComponent
+import java.math.BigInteger
 import java.util.Base64
 
 /**
@@ -618,6 +621,7 @@ class AndroidLiquidAuthConnectionManager(
                                 TAG,
                                 "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
                             )
+                            startBlockConsumption(voucherSessionId)
                         }
                     }
                 }
@@ -698,7 +702,7 @@ class AndroidLiquidAuthConnectionManager(
         try {
             // Create JSON video frame message
             val base64Data =
-                java.util.Base64
+                Base64
                     .getEncoder()
                     .encodeToString(frameData)
             val hostAddress = activePaymentRecipient.orEmpty()
@@ -765,11 +769,11 @@ class AndroidLiquidAuthConnectionManager(
         return when (expected.type?.toString()) {
             "pay" -> {
                 expected.receiver?.toString() == actual.receiver?.toString() &&
-                    (expected.amount ?: java.math.BigInteger.ZERO) == (actual.amount ?: java.math.BigInteger.ZERO)
+                    (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
             }
             "axfer" -> {
                 expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                    (expected.assetAmount ?: java.math.BigInteger.ZERO) == (actual.assetAmount ?: java.math.BigInteger.ZERO) &&
+                    (expected.assetAmount ?: BigInteger.ZERO) == (actual.assetAmount ?: BigInteger.ZERO) &&
                     expected.assetIndex.toLong() == actual.assetIndex.toLong()
             }
             "appl" -> {
@@ -904,7 +908,7 @@ class AndroidLiquidAuthConnectionManager(
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
-            override suspend fun signTransaction(txn: com.algorand.algosdk.transaction.Transaction): ByteArray =
+            override suspend fun signTransaction(txn: Transaction): ByteArray =
                 when (localAccount) {
                     is LocalAccount.Algo25 -> {
                         val secretKey =
@@ -944,7 +948,7 @@ class AndroidLiquidAuthConnectionManager(
                     else -> error("Unsupported account for Algorand Session Vault claim signing")
                 }
 
-            override suspend fun signTransactions(txns: List<com.algorand.algosdk.transaction.Transaction>): List<ByteArray> =
+            override suspend fun signTransactions(txns: List<Transaction>): List<ByteArray> =
                 when (localAccount) {
                     is LocalAccount.Falcon24 -> {
                         val secretKey =
@@ -969,7 +973,7 @@ class AndroidLiquidAuthConnectionManager(
 actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager {
     val context = platformContext as Context
     val koin =
-        org.koin.java.KoinJavaComponent
+        KoinJavaComponent
             .getKoin()
     return AndroidLiquidAuthConnectionManager(
         context = context,

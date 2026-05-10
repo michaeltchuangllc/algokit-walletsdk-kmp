@@ -35,7 +35,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertio
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LIQUID_AUTH_SESSION
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await

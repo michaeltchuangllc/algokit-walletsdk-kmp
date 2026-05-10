@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.model
+package com.michaeltchuang.walletsdk.ui.liquidStream.model
 
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp

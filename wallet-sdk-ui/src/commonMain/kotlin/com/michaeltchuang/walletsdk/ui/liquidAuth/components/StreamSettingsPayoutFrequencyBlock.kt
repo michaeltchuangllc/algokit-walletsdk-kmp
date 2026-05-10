@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.payoutFrequencyTabs
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.payoutFrequencyTabs
 
 @Composable
 internal fun StreamSettingsPayoutFrequencyBlock(

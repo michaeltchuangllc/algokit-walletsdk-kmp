@@ -32,7 +32,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable

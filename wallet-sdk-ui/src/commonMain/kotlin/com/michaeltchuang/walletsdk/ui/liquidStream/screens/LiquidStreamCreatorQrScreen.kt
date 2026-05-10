@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_lock
@@ -43,12 +43,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
+import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -166,7 +168,7 @@ private fun HeaderRow() {
 @Composable
 private fun HeaderSquareButton(
     background: Color,
-    icon: org.jetbrains.compose.resources.DrawableResource,
+    icon: DrawableResource,
     tint: Color,
 ) {
     Box(
@@ -226,7 +228,7 @@ private fun StatusBanner() {
 
 @Composable
 private fun CreatorQrCard(
-    qrPainter: androidx.compose.ui.graphics.painter.Painter,
+    qrPainter: Painter,
     requestId: String,
     onGenerateNewQrCode: () -> Unit,
 ) {

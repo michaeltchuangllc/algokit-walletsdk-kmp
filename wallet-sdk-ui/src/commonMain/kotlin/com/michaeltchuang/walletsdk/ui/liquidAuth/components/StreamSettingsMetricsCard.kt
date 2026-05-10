@@ -24,7 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.streamMetricsCardStyle
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.streamMetricsCardStyle
 import org.jetbrains.compose.resources.vectorResource
 
 @Composable

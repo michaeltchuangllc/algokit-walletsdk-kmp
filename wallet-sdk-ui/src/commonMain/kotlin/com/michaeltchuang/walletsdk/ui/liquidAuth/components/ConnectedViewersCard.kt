@@ -34,8 +34,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.displayName
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.round
 

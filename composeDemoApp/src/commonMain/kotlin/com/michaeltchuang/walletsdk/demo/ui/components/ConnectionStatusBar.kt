@@ -27,7 +27,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 
 @Composable
 fun ConnectionStatusBar(modifier: Modifier = Modifier) {

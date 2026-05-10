@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
@@ -57,9 +57,9 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCar
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamViewerTopUpModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview

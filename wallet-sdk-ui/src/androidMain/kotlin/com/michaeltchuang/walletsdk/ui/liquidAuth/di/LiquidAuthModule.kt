@@ -37,7 +37,7 @@ val liquidAuthUIModule =
         singleOf(::HandleAssertionResultUseCase)
         singleOf(::PrepareAuthenticationUseCase)
         single { ProcessBiometricTransactionSigningUseCase(get()) }
-        singleOf(::SetupMppPaymentViewerUseCase)
+        single { SetupMppPaymentViewerUseCase(get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
             val getMnemonic: suspend (String) -> String? = { algoAddr ->
@@ -92,6 +92,7 @@ val liquidAuthUIModule =
                 getAccountAlgoBalance = get(),
                 getCurrentBlockUseCase = get(),
                 setupMppPaymentViewerUseCase = get(),
+                getRemainingSessionVaultBalanceUseCase = get(),
             )
         }
     }

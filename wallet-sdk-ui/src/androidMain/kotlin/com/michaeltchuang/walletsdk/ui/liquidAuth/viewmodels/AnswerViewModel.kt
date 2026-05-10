@@ -51,6 +51,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
@@ -61,7 +63,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.Encoder
@@ -110,6 +112,8 @@ class AnswerViewModel(
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
+        GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
 ) : ViewModel(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
@@ -822,12 +826,14 @@ class AnswerViewModel(
             )
 
             val onChainRemaining =
-                MppPayments.getRemainingBalanceFromSessionVault(
-                    viewerAddress = viewerAddress,
-                    hostAddress = creatorAddress,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                )
+                getRemainingSessionVaultBalanceUseCase(
+                    GetRemainingSessionVaultBalanceUseCase.Params(
+                        viewerAddress = viewerAddress,
+                        hostAddress = creatorAddress,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                    ),
+                ).getOrThrow()
 
             setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
 

@@ -24,9 +24,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LIQUID_AUTH_SESSION
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import kotlinx.coroutines.launch
 import kotlin.math.roundToLong
 

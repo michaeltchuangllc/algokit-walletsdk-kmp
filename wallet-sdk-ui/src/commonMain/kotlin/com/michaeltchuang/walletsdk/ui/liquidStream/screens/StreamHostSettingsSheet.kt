@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_cross
@@ -45,7 +45,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsFootn
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsMetricsCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsPayoutFrequencyBlock
 import com.michaeltchuang.walletsdk.ui.liquidAuth.components.StreamSettingsTopSquareIconButton
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private const val STREAM_COST_FREE_TAB_ID = "free"

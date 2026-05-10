@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.base.di
 import com.michaeltchuang.walletsdk.core.foundation.di.walletSdkCoreModules
 import com.michaeltchuang.walletsdk.ui.accountdetails.di.accountDetailModules
 import com.michaeltchuang.walletsdk.ui.liquidAuth.di.liquidAuthModules
+import com.michaeltchuang.walletsdk.ui.liquidStream.di.liquidStreamModules
 import com.michaeltchuang.walletsdk.ui.onboarding.di.onboardingModules
 import com.michaeltchuang.walletsdk.ui.qrscanner.di.qrScannerModules
 import com.michaeltchuang.walletsdk.ui.settings.di.settingsModules
@@ -18,4 +19,5 @@ val walletSdkUiModules =
         addAll(settingsModules)
         addAll(signingModules)
         addAll(liquidAuthModules)
+        addAll(liquidStreamModules)
     }

@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -20,6 +22,8 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
     private val sendMessage: (String) -> Unit,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
+        GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
 ) {
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -96,6 +100,16 @@ internal class LiquidStreamBlockConsumptionManager(
                             return@collectLatest
                         }
 
+                        val claimSnapshot = getCreatorVoucherClaimSnapshot()
+                        if (claimSnapshot == null) {
+                            lastObservedBlock = blockNumber
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_BLOCK_WAITING_FOR_CLAIM_SNAPSHOT] session=$sessionId block=$blockNumber previous=$previous action=hold_consumption_until_viewer_voucher",
+                            )
+                            return@collectLatest
+                        }
+
                         val advanced = (blockNumber - previous).toInt()
                         if (advanced > 0) {
                             Log.e(
@@ -130,7 +144,7 @@ internal class LiquidStreamBlockConsumptionManager(
         consecutiveZeroProgressBlocks = 0
     }
 
-    private fun consumeBlock() {
+    private suspend fun consumeBlock() {
         val viewModel = getViewModel()
         val sessionId = currentSessionId
         val creatorAddress = getActiveCreatorAddress()
@@ -157,17 +171,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 ?.viewerPublicKeyBase64
                 ?.takeIf { it.isNotBlank() }
                 ?.let { encoded -> runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() }
-        val fallbackViewerSignerPublicKey =
-            viewerAddress
-                ?.takeIf { it.isNotBlank() }
-                ?.let {
-                    runCatching {
-                        com.algorand.algosdk.crypto
-                            .Address(it)
-                            .bytes
-                    }.getOrNull()
-                }
-        val signerPublicKeyForLookup = snapshotSignerPublicKey ?: fallbackViewerSignerPublicKey
+        
         val remainingVaultBalance =
             if (viewerAddress == null) {
                 Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewer_missing session=$sessionId blocks=$blocksConsumed")
@@ -175,14 +179,16 @@ internal class LiquidStreamBlockConsumptionManager(
             } else {
                 Log.e(
                     tag,
-                    "[SESSION_VAULT_REMAINING_FETCH] session=$sessionId blocks=$blocksConsumed viewer=$viewerAddress appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} signerKeyPresent=${snapshotSignerPublicKey != null} fallbackSignerPresent=${fallbackViewerSignerPublicKey != null}",
+                    "[SESSION_VAULT_REMAINING_FETCH] session=$sessionId blocks=$blocksConsumed viewer=$viewerAddress appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} signerKeyPresent=${snapshotSignerPublicKey != null}}",
                 )
-                MppPayments.getRemainingBalanceFromSessionVault(
-                    viewerAddress = viewerAddress,
-                    hostAddress = creatorAddress,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    authorizedSignerPublicKey = signerPublicKeyForLookup,
-                )
+                getRemainingSessionVaultBalanceUseCase(
+                    GetRemainingSessionVaultBalanceUseCase.Params(
+                        viewerAddress = viewerAddress,
+                        hostAddress = creatorAddress,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        authorizedSignerPublicKey = snapshotSignerPublicKey,
+                    ),
+                ).getOrDefault(0L)
             }
 
         val used = MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
