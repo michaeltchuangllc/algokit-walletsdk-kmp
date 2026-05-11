@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -86,6 +87,14 @@ fun LiquidStreamHostLiveScreen(
 ) {
     val viewModel: LiquidStreamHostViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
+    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+
+    LaunchedEffect(remainingBalanceUsdc) {
+        val balance = remainingBalanceUsdc ?: 0.0
+        if (balance > progressCapacityUsdc) {
+            progressCapacityUsdc = balance
+        }
+    }
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -118,6 +127,7 @@ fun LiquidStreamHostLiveScreen(
         sessionId = sessionId,
         progressBalanceUsdc = progressBalanceUsdc,
         remainingBalanceUsdc = remainingBalanceUsdc,
+        progressCapacityUsdc = progressCapacityUsdc,
         connectionType = connectionType,
         currentBlockNumber = currentBlockNumber,
         blockChainLabel = blockChainLabel,
@@ -151,6 +161,7 @@ private fun LiquidStreamHostLiveScreenContent(
     sessionId: String?,
     progressBalanceUsdc: Double?,
     remainingBalanceUsdc: Double?,
+    progressCapacityUsdc: Double,
     connectionType: IceConnectionType,
     currentBlockNumber: Long?,
     blockChainLabel: String,
@@ -251,6 +262,7 @@ private fun LiquidStreamHostLiveScreenContent(
                         sessionId = sessionId ?: "session-pending",
                         remainingBalanceUSDC = remainingBalanceUsdc,
                         progressBalanceUSDC = progressBalanceUsdc,
+                        progressCapacityUSDC = progressCapacityUsdc,
                         connectionType = connectionType,
                         currentBlockNumber = currentBlockNumber,
                         networkLabel = networkLabel,
@@ -650,6 +662,7 @@ private fun LiquidStreamHostLiveScreenPreview() {
             sessionId = "session-preview-id",
             progressBalanceUsdc = 11.9,
             remainingBalanceUsdc = 12.0,
+            progressCapacityUsdc = 12.0,
             connectionType = IceConnectionType.UNKNOWN,
             currentBlockNumber = 38291041L,
             blockChainLabel = "ALGORAND",

@@ -46,9 +46,7 @@ class SetupMppPaymentViewerUseCase(
         val buildMppWalletSigner: suspend (String) -> MppWalletSigner?,
         val resolveMppClientNetwork: suspend (String) -> String,
         val requestMppConsent: suspend (ConsentTerms) -> ConsentApproval,
-        val setViewerSessionVaultBalance: (balanceMicroUsdc: Long, resetVoucherUsage: Boolean) -> Unit,
-        val applyViewerSegmentDebit: (Long) -> Unit,
-        val viewerSessionVaultMicroUsdc: () -> Long,
+        val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
     )
 
@@ -161,7 +159,7 @@ class SetupMppPaymentViewerUseCase(
                                         ).getOrDefault(0L)
 
                                     if (existingOnChainBalance > 0L) {
-                                        params.setViewerSessionVaultBalance(existingOnChainBalance, false)
+                                        params.setViewerSessionVaultProgress(existingOnChainBalance, existingOnChainBalance)
                                         Log.d(
                                             TAG,
                                             "[VIEWER_SESSION_VAULT_FUNDED] balanceMicroUsdc=$existingOnChainBalance balanceUsdc=${existingOnChainBalance / 1_000_000.0} action=skip_payment_modal",
@@ -171,7 +169,7 @@ class SetupMppPaymentViewerUseCase(
                                             viewerAddress = accountAddress,
                                             hostAddress = sessionVaultHostAddress,
                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                            setViewerSessionVaultBalance = params.setViewerSessionVaultBalance,
+                                            setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                         )
                                         return ConsentApproval(
                                             approved = true,
@@ -250,13 +248,13 @@ class SetupMppPaymentViewerUseCase(
                                                 TAG,
                                                 "[VIEWER_SESSION_VAULT_FETCH_AFTER_DEPOSIT] viewer=$accountAddress remaining=$onChainRemaining",
                                             )
-                                            params.setViewerSessionVaultBalance(onChainRemaining, true)
+                                            params.setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
                                             startViewerOnChainRefresh(
                                                 scope = params.scope,
                                                 viewerAddress = accountAddress,
                                                 hostAddress = sessionVaultHostAddress,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                                setViewerSessionVaultBalance = params.setViewerSessionVaultBalance,
+                                                setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                             )
                                         }.onFailure {
                                             Log.e(TAG, "❌ Session Vault openSession+deposit failed", it)
@@ -508,6 +506,13 @@ class SetupMppPaymentViewerUseCase(
                                                 "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
                                             )
 
+                                            val progressSnapshot =
+                                                MppPayments.getSessionProgressSnapshotFromVault(
+                                                    viewerAddress = receiptViewerAddress,
+                                                    hostAddress = sessionVaultHostAddress,
+                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                )
                                             val voucherJson =
                                                 MppPayments.createVoucherJson(
                                                     sessionId = receipt.sessionId,
@@ -516,7 +521,7 @@ class SetupMppPaymentViewerUseCase(
                                                     creatorAddress = receipt.payTo,
                                                     blocksConsumed = blocksConsumed,
                                                     totalAmountUsed = voucherClaimed,
-                                                    remainingMicroUsdc = params.viewerSessionVaultMicroUsdc(),
+                                                    remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
                                                     signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
                                                 )
                                             val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
@@ -533,24 +538,20 @@ class SetupMppPaymentViewerUseCase(
                                     }
                                 }
 
-                                if (debit > 0L) {
-                                    params.applyViewerSegmentDebit(debit)
-                                }
-
-                                val onChainRemaining =
-                                    getRemainingSessionVaultBalanceUseCase(
-                                        GetRemainingSessionVaultBalanceUseCase.Params(
-                                            viewerAddress = receiptViewerAddress,
-                                            hostAddress = sessionVaultHostAddress,
-                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                        ),
-                                    ).getOrDefault(0L)
+                                val progressSnapshot =
+                                    MppPayments.getSessionProgressSnapshotFromVault(
+                                        viewerAddress = receiptViewerAddress,
+                                        hostAddress = sessionVaultHostAddress,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                    )
+                                val onChainRemaining = progressSnapshot?.remainingSettledMicroUsdc ?: 0L
+                                val progressBalance = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
                                 Log.d(
                                     TAG,
-                                    "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT] viewer=$receiptViewerAddress segment=${receipt.segmentIndex} remaining=$onChainRemaining",
+                                    "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT] viewer=$receiptViewerAddress segment=${receipt.segmentIndex} remaining=$onChainRemaining progress=$progressBalance",
                                 )
-                                params.setViewerSessionVaultBalance(onChainRemaining, false)
+                                params.setViewerSessionVaultProgress(onChainRemaining, progressBalance)
                             }
                         }
                         viewer.rtcClient.onStreamGated = { reason ->
@@ -586,7 +587,7 @@ class SetupMppPaymentViewerUseCase(
         viewerAddress: String,
         hostAddress: String?,
         authorizedSignerPublicKey: ByteArray? = null,
-        setViewerSessionVaultBalance: (balanceMicroUsdc: Long, resetVoucherUsage: Boolean) -> Unit,
+        setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
     ) {
         if (viewerAddress.isBlank()) {
             Log.w(TAG, "[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=blank_viewer")
@@ -612,7 +613,7 @@ class SetupMppPaymentViewerUseCase(
                             TAG,
                             "[VIEWER_SESSION_VAULT_REFRESH_TICK] viewer=$viewerAddress host=$sessionVaultHostAddress remaining=$remaining",
                         )
-                        setViewerSessionVaultBalance(remaining, false)
+                        setViewerSessionVaultProgress(remaining, remaining)
                     }.onFailure {
                         Log.e(
                             TAG,

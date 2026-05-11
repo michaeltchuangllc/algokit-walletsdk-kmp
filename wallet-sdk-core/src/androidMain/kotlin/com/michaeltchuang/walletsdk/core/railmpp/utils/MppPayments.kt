@@ -469,6 +469,50 @@ object MppPayments {
                 )
     }
 
+    data class SessionProgressSnapshot(
+        val totalDepositMicroUsdc: Long,
+        val remainingSettledMicroUsdc: Long,
+        val progressBalanceMicroUsdc: Long,
+        val lastSettledMicroUsdc: Long,
+        val latestVoucherAmountMicroUsdc: Long,
+    )
+
+    fun computeSessionProgressSnapshot(dynamicData: SessionDynamicData): SessionProgressSnapshot {
+        val totalDeposit = dynamicData.totalDeposit.coerceAtLeast(0L)
+        val lastSettled = dynamicData.lastSettled.coerceAtLeast(0L)
+        val latestVoucherAmount = dynamicData.latestVoucherAmount.coerceAtLeast(0L)
+        val remainingSettled = (totalDeposit - lastSettled).coerceAtLeast(0L)
+        val effectiveClaimed = maxOf(lastSettled, latestVoucherAmount)
+        val progressBalance = (totalDeposit - effectiveClaimed).coerceAtLeast(0L)
+
+        return SessionProgressSnapshot(
+            totalDepositMicroUsdc = totalDeposit,
+            remainingSettledMicroUsdc = remainingSettled,
+            progressBalanceMicroUsdc = progressBalance,
+            lastSettledMicroUsdc = lastSettled,
+            latestVoucherAmountMicroUsdc = latestVoucherAmount,
+        )
+    }
+
+    fun getSessionProgressSnapshotFromVault(
+        viewerAddress: String,
+        hostAddress: String,
+        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        algodUrl: String = TESTNET_ALGOD_URL,
+        authorizedSignerPublicKey: ByteArray? = null,
+    ): SessionProgressSnapshot? {
+        val dynamicData =
+            getSessionDynamicDataFromVault(
+                viewerAddress = viewerAddress,
+                hostAddress = hostAddress,
+                appId = appId,
+                algodUrl = algodUrl,
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+            ) ?: return null
+
+        return computeSessionProgressSnapshot(dynamicData)
+    }
+
     fun getSessionDynamicDataFromVault(
         viewerAddress: String,
         hostAddress: String,

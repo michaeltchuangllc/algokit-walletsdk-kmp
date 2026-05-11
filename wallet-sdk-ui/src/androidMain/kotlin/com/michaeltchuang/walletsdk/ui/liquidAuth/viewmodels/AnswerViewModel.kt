@@ -681,8 +681,6 @@ class AnswerViewModel(
 
     private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
     val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
-    private val _viewerVoucherUsageMicroUsdc = MutableStateFlow(0L)
-    val viewerVoucherUsageMicroUsdc: StateFlow<Long> = _viewerVoucherUsageMicroUsdc
     private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
     val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
     private val _currentBlockNumber = MutableStateFlow<Long?>(null)
@@ -756,24 +754,25 @@ class AnswerViewModel(
     fun approveMppConsent(approval: ConsentApproval) {
         // Do not seed viewer balance from consent budget; source of truth is on-chain vault read.
         if (approval.approved) {
-            _viewerVoucherUsageMicroUsdc.value = 0L
             _viewerSessionVaultMicroUsdc.value = 0L
             _viewerProgressBalanceMicroUsdc.value = 0L
         }
         pendingMppConsentContinuation?.complete(approval)
     }
 
-    fun setViewerSessionVaultBalance(
-        balanceMicroUsdc: Long,
-        resetVoucherUsage: Boolean = false,
+    fun setViewerSessionVaultProgress(
+        remainingBalanceMicroUsdc: Long,
+        progressBalanceMicroUsdc: Long,
     ) {
-        val normalized = balanceMicroUsdc.coerceAtLeast(0L)
-        if (resetVoucherUsage) {
-            _viewerVoucherUsageMicroUsdc.value = 0L
-        }
-        val usage = _viewerVoucherUsageMicroUsdc.value
-        _viewerSessionVaultMicroUsdc.value = normalized
-        _viewerProgressBalanceMicroUsdc.value = (normalized - usage).coerceAtLeast(0L)
+        _viewerSessionVaultMicroUsdc.value = remainingBalanceMicroUsdc.coerceAtLeast(0L)
+        _viewerProgressBalanceMicroUsdc.value = progressBalanceMicroUsdc.coerceAtLeast(0L)
+    }
+
+    fun setViewerSessionVaultBalance(balanceMicroUsdc: Long) {
+        setViewerSessionVaultProgress(
+            remainingBalanceMicroUsdc = balanceMicroUsdc,
+            progressBalanceMicroUsdc = balanceMicroUsdc,
+        )
     }
 
     fun rejectMppConsent() {
@@ -785,21 +784,6 @@ class AnswerViewModel(
         )
     }
 
-    fun applyViewerSegmentDebit(amountMicroUsdc: Long) {
-        if (amountMicroUsdc <= 0L) return
-        val onChain = _viewerSessionVaultMicroUsdc.value
-        val usageBefore = _viewerVoucherUsageMicroUsdc.value
-        val usageAfter = usageBefore + amountMicroUsdc
-        val progressAfter = (onChain - usageAfter).coerceAtLeast(0L)
-
-        _viewerVoucherUsageMicroUsdc.value = usageAfter
-        _viewerProgressBalanceMicroUsdc.value = progressAfter
-
-        Log.d(
-            TAG,
-            "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC, onChain=${onChain / 1_000_000.0}, usage=${usageAfter / 1_000_000.0}, progress=${progressAfter / 1_000_000.0}",
-        )
-    }
 
     suspend fun topUpViewerSessionVault(
         enteredAmount: String,
@@ -835,7 +819,7 @@ class AnswerViewModel(
                     ),
                 ).getOrThrow()
 
-            setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
+            setViewerSessionVaultBalance(onChainRemaining)
 
             onChainRemaining
         }.onFailure { throwable ->
@@ -1141,9 +1125,7 @@ class AnswerViewModel(
                 buildMppWalletSigner = ::buildMppWalletSigner,
                 resolveMppClientNetwork = ::resolveMppClientNetwork,
                 requestMppConsent = ::requestMppConsentFromUi,
-                setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
-                applyViewerSegmentDebit = ::applyViewerSegmentDebit,
-                viewerSessionVaultMicroUsdc = { viewerSessionVaultMicroUsdc.value },
+                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 signFido2Challenge = ::signFido2Challenge,
             ),
         )
@@ -1158,7 +1140,7 @@ class AnswerViewModel(
             viewerAddress = viewerAddress,
             hostAddress = hostAddress,
             authorizedSignerPublicKey = null,
-            setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
+            setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
         )
     }
 
