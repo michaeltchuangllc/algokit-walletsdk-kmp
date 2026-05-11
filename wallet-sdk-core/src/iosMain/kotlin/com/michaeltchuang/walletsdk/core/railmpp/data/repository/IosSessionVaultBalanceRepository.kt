@@ -5,9 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.SessionVaultB
 class IosSessionVaultBalanceRepository(
     private val mockRemainingBalanceMicroUsdc: Long = DEFAULT_MOCK_REMAINING_BALANCE_MICRO_USDC,
 ) : SessionVaultBalanceRepository {
-    override suspend fun getRemainingBalance(
-        params: SessionVaultBalanceRepository.GetRemainingBalanceParams,
-    ): Result<Long> =
+    override suspend fun getRemainingBalance(params: SessionVaultBalanceRepository.GetRemainingBalanceParams): Result<Long> =
         runCatching {
             mockRemainingBalanceMicroUsdc.coerceAtLeast(0L)
         }

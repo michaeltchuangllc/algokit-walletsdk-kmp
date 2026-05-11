@@ -253,15 +253,16 @@ class PaywalledRTCServer(
                         "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
                     )
 
-                    val syntheticReceipt = createSessionVaultReceipt(
-                        txIdPrefix = "session-vault-funded-skip",
-                        segmentIndex = segmentIndex,
-                        amount = config.gating.amount,
-                        asset = config.gating.asset,
-                        payTo = config.gating.payTo,
-                        payFrom = config.viewerAddress.orEmpty(),
-                        network = config.gating.network,
-                    )
+                    val syntheticReceipt =
+                        createSessionVaultReceipt(
+                            txIdPrefix = "session-vault-funded-skip",
+                            segmentIndex = segmentIndex,
+                            amount = config.gating.amount,
+                            asset = config.gating.asset,
+                            payTo = config.gating.payTo,
+                            payFrom = config.viewerAddress.orEmpty(),
+                            network = config.gating.network,
+                        )
 
                     completePaidSegment(syntheticReceipt, config.gating.amount)
                     return@launch
@@ -564,5 +565,4 @@ class PaywalledRTCServer(
         cancelSegmentTimer()
         cancelGraceTimer()
     }
-
 }

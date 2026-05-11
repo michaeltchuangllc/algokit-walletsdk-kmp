@@ -388,8 +388,6 @@ class EscrowSessionVaultManagerClient(
         return MessageDigest.getInstance("SHA-256").digest(material)
     }
 
-
-
     private fun decodeAlgorandAddressPublicKey(address: String): ByteArray {
         val decoded = decodeBase32(address)
         require(decoded.size >= ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH + ALGORAND_ADDRESS_CHECKSUM_LENGTH) {

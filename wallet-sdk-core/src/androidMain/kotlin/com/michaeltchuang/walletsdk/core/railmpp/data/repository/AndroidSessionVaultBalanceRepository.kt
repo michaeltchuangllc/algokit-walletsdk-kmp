@@ -4,9 +4,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.SessionVaultB
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 
 class AndroidSessionVaultBalanceRepository : SessionVaultBalanceRepository {
-    override suspend fun getRemainingBalance(
-        params: SessionVaultBalanceRepository.GetRemainingBalanceParams,
-    ): Result<Long> =
+    override suspend fun getRemainingBalance(params: SessionVaultBalanceRepository.GetRemainingBalanceParams): Result<Long> =
         runCatching {
             MppPayments.getRemainingBalanceFromSessionVault(
                 viewerAddress = params.viewerAddress,

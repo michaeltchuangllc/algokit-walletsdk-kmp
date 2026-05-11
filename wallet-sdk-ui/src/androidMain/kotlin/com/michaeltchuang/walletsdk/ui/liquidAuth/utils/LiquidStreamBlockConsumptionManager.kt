@@ -171,7 +171,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 ?.viewerPublicKeyBase64
                 ?.takeIf { it.isNotBlank() }
                 ?.let { encoded -> runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() }
-        
+
         val remainingVaultBalance =
             if (viewerAddress == null) {
                 Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewer_missing session=$sessionId blocks=$blocksConsumed")

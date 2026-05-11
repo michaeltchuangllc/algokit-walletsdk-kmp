@@ -124,22 +124,18 @@ object MppPayments {
     fun shouldAttemptVoucherSettlement(blocksConsumed: Int): Boolean =
         blocksConsumed > 0 && blocksConsumed % VOUCHER_SETTLE_EVERY_BLOCKS == 0
 
-    fun computeVoucherMicroUsdcUsage(blocksConsumed: Int): Long =
-        (blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
+    fun computeVoucherMicroUsdcUsage(blocksConsumed: Int): Long = (blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
 
-    fun voucherSettleWindowMicroUsdc(): Long =
-        (VOUCHER_SETTLE_EVERY_BLOCKS.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
+    fun voucherSettleWindowMicroUsdc(): Long = (VOUCHER_SETTLE_EVERY_BLOCKS.toLong() * COST_PER_BLOCK_MICRO_USDC).coerceAtLeast(0L)
 
     fun estimateRemainingUsdcBalanceFromBlocks(blocksConsumed: Int): Long {
         val consumed = blocksConsumed.toLong() * COST_PER_BLOCK_MICRO_USDC
         return (DEPOSIT_MICRO_USDC_LONG - consumed).coerceAtLeast(0L)
     }
 
-    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double =
-        remainingMicroAlgos / 1_000_000.0
+    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double = remainingMicroAlgos / 1_000_000.0
 
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
-
 
     fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
@@ -181,7 +177,7 @@ object MppPayments {
 
         Log.d(
             TAG,
-            "[SESSION_VAULT_REMAINING_MISS] appId=$appId context=$baseContext action=assume_zero_balance"
+            "[SESSION_VAULT_REMAINING_MISS] appId=$appId context=$baseContext action=assume_zero_balance",
         )
         return 0L
     }
@@ -290,7 +286,6 @@ object MppPayments {
                 it,
             )
         }.getOrNull()
-
 
     suspend fun openSessionAndDeposit(
         signer: MppWalletSigner,
@@ -418,13 +413,13 @@ object MppPayments {
                 val errText = throwable.message.orEmpty()
                 val duplicateVoucherUpdate =
                     errText.contains("pc=622", ignoreCase = true) &&
-                            (
-                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                            errText.contains(
-                                                "Voucher not increasing",
-                                                ignoreCase = true
-                                            )
-                                    )
+                        (
+                            errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                errText.contains(
+                                    "Voucher not increasing",
+                                    ignoreCase = true,
+                                )
+                        )
                 if (duplicateVoucherUpdate) {
                     Log.e(
                         TAG,
@@ -468,9 +463,10 @@ object MppPayments {
         val latestVoucherAmount: Long,
     ) {
         val unclaimedVoucherAmount: Long
-            get() = (latestVoucherAmount - lastSettled).coerceAtLeast(
-                0L
-            )
+            get() =
+                (latestVoucherAmount - lastSettled).coerceAtLeast(
+                    0L,
+                )
     }
 
     fun getSessionDynamicDataFromVault(
@@ -654,11 +650,12 @@ object MppPayments {
     ): String =
         buildClaimMessageHashHex(
             appId = appId,
-            channelId = deriveChannelId(
-                viewerAddress,
-                hostAddress,
-                Address(viewerAddress).getBytes()
-            ),
+            channelId =
+                deriveChannelId(
+                    viewerAddress,
+                    hostAddress,
+                    Address(viewerAddress).getBytes(),
+                ),
             totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
         )
 
@@ -770,7 +767,7 @@ object MppPayments {
                             AppBoxReference(appId, channelId),
                             AppBoxReference(
                                 appId,
-                                AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId
+                                AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId,
                             ),
                         ),
                     ).build()

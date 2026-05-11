@@ -6,19 +6,20 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostV
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
-internal val liquidStreamModules =  listOf(
-    module {
-        viewModel {
-            LiquidStreamHostViewModel(
-                stateDelegate = StateDelegate(),
-                eventDelegate = get(),
-            )
-        }
-        viewModel {
-            LiquidAuthViewerViewModel(
-                stateDelegate = StateDelegate(),
-                eventDelegate = get(),
-            )
-        }
-    },
-)
+internal val liquidStreamModules =
+    listOf(
+        module {
+            viewModel {
+                LiquidStreamHostViewModel(
+                    stateDelegate = StateDelegate(),
+                    eventDelegate = get(),
+                )
+            }
+            viewModel {
+                LiquidAuthViewerViewModel(
+                    stateDelegate = StateDelegate(),
+                    eventDelegate = get(),
+                )
+            }
+        },
+    )
