@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
-import android.R
 import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -36,8 +35,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
-import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidStream.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager

@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.flow.StateFlow
 

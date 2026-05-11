@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidStream.model
+package com.michaeltchuang.walletsdk.ui.liquidStream.domain.model
 
 import kotlinx.serialization.Serializable
 

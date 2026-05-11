@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.components
+package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

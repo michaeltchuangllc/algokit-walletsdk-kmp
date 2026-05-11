@@ -53,8 +53,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.ConnectedViewersCard
-import com.michaeltchuang.walletsdk.ui.liquidStream.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font

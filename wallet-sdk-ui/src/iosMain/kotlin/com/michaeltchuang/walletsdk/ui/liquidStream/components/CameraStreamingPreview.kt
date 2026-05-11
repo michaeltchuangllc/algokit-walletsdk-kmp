@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.components
+package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

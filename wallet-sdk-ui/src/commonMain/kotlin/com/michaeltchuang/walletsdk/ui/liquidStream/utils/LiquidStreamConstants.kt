@@ -5,8 +5,8 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_every_block
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.SegmentedTabItem
-import com.michaeltchuang.walletsdk.ui.liquidStream.model.StreamMetricsCardStyle
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.SegmentedTabItem
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.StreamMetricsCardStyle
 
 internal const val PAYOUT_EVERY_BLOCK_TAB_ID = "every_block"
 internal const val PAYOUT_EVERY_256_BLOCKS_TAB_ID = "every_256_blocks"

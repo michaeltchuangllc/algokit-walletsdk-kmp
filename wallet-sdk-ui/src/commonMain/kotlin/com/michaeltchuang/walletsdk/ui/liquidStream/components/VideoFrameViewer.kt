@@ -1,8 +1,9 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.components
+package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -73,7 +74,7 @@ fun VideoFrameViewer(
                             .fillMaxWidth()
                             .padding(bottom = 8.dp),
                 ) {
-                    androidx.compose.foundation.layout.Row(
+                    Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.align(Alignment.TopStart),
                     ) {

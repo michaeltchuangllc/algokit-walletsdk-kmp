@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidAuth.components
+package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -10,6 +10,7 @@ import android.graphics.Rect
 import android.graphics.YuvImage
 import android.media.Image
 import android.util.Log
+import android.util.Size
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
@@ -176,7 +177,7 @@ private fun CameraPreviewContent(
                 val preview =
                     Preview
                         .Builder()
-                        .setTargetResolution(android.util.Size(640, 480))
+                        .setTargetResolution(Size(640, 480))
                         .build()
                         .also {
                             it.setSurfaceProvider(previewView.surfaceProvider)

@@ -21,8 +21,9 @@ import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TEST
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.LiquidAuthSessionVaultModal
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
@@ -205,7 +206,7 @@ fun AnswerScreen(
                             }
                             val voucherMessage =
                                 MppPayments.buildClaimMessage(
-                                    appId = com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                     viewerAddress = accountAddress,
                                     hostAddress = hostAddress,
                                     totalAmountClaimedMicroUsdc = micro,
