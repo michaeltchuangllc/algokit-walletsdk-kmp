@@ -46,7 +46,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.core.deeplink.model.KeyRegTransactionDetail
-import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
@@ -66,10 +65,13 @@ fun ConfirmTransactionRequestScreen(
     showSnackBar: (message: String, isError: Boolean) -> Unit,
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
-    val minimumFee by viewModel.minimumFee.collectAsStateWithLifecycle()
+    val transactionDetail = remember { viewModel.getPendingTransactionRequest() }
     val lifecycleOwner = LocalLifecycleOwner.current
     LaunchedEffect(Unit) {
         viewModel.setup(lifecycle = lifecycleOwner.lifecycle)
+    }
+    LaunchedEffect(transactionDetail) {
+        viewModel.calculateMinimumFee(transactionDetail)
     }
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -92,8 +94,7 @@ fun ConfirmTransactionRequestScreen(
         viewState = viewState,
         onConfirm = { viewModel.confirmTransaction() },
         onBack = { navController.popBackStack() },
-        minimumFee = minimumFee,
-        transactionDetail = viewModel.getPendingTransactionRequest(),
+        transactionDetail = transactionDetail,
     )
 }
 
@@ -102,7 +103,6 @@ internal fun ScreenContent(
     viewState: KeyRegConfirmViewModel.ViewState,
     onConfirm: () -> Unit,
     onBack: () -> Unit,
-    minimumFee: String,
     transactionDetail: KeyRegTransactionDetail?,
 ) {
     when (viewState) {
@@ -110,7 +110,7 @@ internal fun ScreenContent(
             Content(
                 onConfirm = onConfirm,
                 onBack = onBack,
-                minimumFee = minimumFee,
+                viewState = viewState,
                 transactionDetail = transactionDetail,
             )
         }
@@ -125,7 +125,7 @@ internal fun ScreenContent(
 fun Content(
     onConfirm: () -> Unit,
     onBack: () -> Unit,
-    minimumFee: String,
+    viewState: KeyRegConfirmViewModel.ViewState.Content,
     transactionDetail: KeyRegTransactionDetail?,
 ) {
     Box(
@@ -141,11 +141,9 @@ fun Content(
                 onClick = onBack,
             )
             transactionDetail?.let {
-                LaunchedEffect(transactionDetail) {
-                }
                 ContentItems(
                     transactionDetail,
-                    minimumFee,
+                    viewState.minimumFee,
                 )
             }
         }
@@ -182,7 +180,7 @@ fun ContentItems(
         )
 
         // Fee
-        LabeledText(label = "Fee", value = ("\u00A6") + (txnDetail?.fee?.formatAmount() ?: minimumFee))
+        LabeledText(label = "Fee", value = ("\u00A6") + minimumFee)
 
         // Type
         LabeledText(label = "Type", value = txnDetail?.type ?: "Unknown")

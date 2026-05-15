@@ -48,6 +48,7 @@ val keyRegTransactionModule =
                 get(),
                 get(),
                 get(),
+                get(),
             )
         }
         single { GetExplorerBaseUrlUseCase() }

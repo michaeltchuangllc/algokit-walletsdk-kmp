@@ -14,10 +14,9 @@ class KeyRegConfirmScreenshotTest(
     fun testKeyRegConfirmContent() {
         setTestContent {
             ScreenContent(
-                viewState = KeyRegConfirmViewModel.ViewState.Content,
+                viewState = KeyRegConfirmViewModel.ViewState.Content(minimumFee = "0.001"),
                 onConfirm = {},
                 onBack = {},
-                minimumFee = "0.001",
                 transactionDetail =
                     KeyRegTransactionDetail(
                         address = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
@@ -42,10 +41,9 @@ class KeyRegConfirmScreenshotTest(
     fun testContent() {
         setTestContent {
             ScreenContent(
-                viewState = KeyRegConfirmViewModel.ViewState.Content,
+                viewState = KeyRegConfirmViewModel.ViewState.Content(minimumFee = "0.001"),
                 onConfirm = {},
                 onBack = {},
-                minimumFee = "0.001",
                 transactionDetail =
                     KeyRegTransactionDetail(
                         address = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
