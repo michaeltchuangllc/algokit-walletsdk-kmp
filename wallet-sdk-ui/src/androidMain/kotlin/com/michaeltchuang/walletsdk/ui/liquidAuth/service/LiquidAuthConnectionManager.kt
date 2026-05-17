@@ -173,7 +173,7 @@ class AndroidLiquidAuthConnectionManager(
         }
 
         try {
-          activeCreatorVoucherClaimSnapshot = null
+            activeCreatorVoucherClaimSnapshot = null
             if (activeViewerAddressForVault.isNullOrBlank()) {
                 Log.e(
                     TAG,
@@ -604,8 +604,7 @@ class AndroidLiquidAuthConnectionManager(
                 val helloPublicKeyBase64 =
                     json.optString("viewerPublicKey", "").takeIf { it.isNotBlank() }
                 if (helloPublicKeyBase64 != null) {
-                    val signerKey =
-                        runCatching { Base64.getDecoder().decode(helloPublicKeyBase64) }.getOrNull()
+                    val signerKey = decodeBase64OrNull(helloPublicKeyBase64)
                     if (signerKey != null) {
                         if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
                             activeViewerAddressForVault = helloViewer
@@ -620,27 +619,7 @@ class AndroidLiquidAuthConnectionManager(
 
                         // If the creator already exists, push the key immediately so
                         // PaywalledRTCServer.viewerKeyDeferred resolves without waiting.
-                        liquidStreamCreator?.updateConfig(
-                            ServerConfig(
-                                sessionId = activePaymentSessionId,
-                                gating =
-                                    GatingConfig(
-                                        mode = GatingMode.PARTIAL_TIME,
-                                        amount = activePaymentAmount
-                                            ?: MppPayments.voucherSettleWindowMicroUsdc()
-                                                .toString(),
-                                        asset = USDC_TESTNET_ID.toString(),
-                                        network = MppNetworks.ALGORAND_TESTNET,
-                                        payTo = activePaymentRecipient.orEmpty(),
-                                        segmentDuration = 3,
-                                        leadTime = 0,
-                                    ),
-                                gracePeriod = 5,
-                                viewerAddress = activeViewerAddressForVault,
-                                viewerAuthorizedSignerPublicKey = signerKey,
-                                skipPaymentRequestWhenSessionFunded = true,
-                            ),
-                        )
+                        updateCreatorViewerSignerConfig(signerKey)
                     }
                 }
             }
@@ -695,30 +674,8 @@ class AndroidLiquidAuthConnectionManager(
                                     signatureBase64 = signature,
                                     totalAmountClaimedMicroUsdc = claimedAmount,
                                 )
-                            val signerKey = runCatching {
-                                Base64.getDecoder().decode(voucherViewerPublicKey)
-                            }.getOrNull()
-                            liquidStreamCreator?.updateConfig(
-                                ServerConfig(
-                                    sessionId = activePaymentSessionId,
-                                    gating =
-                                        GatingConfig(
-                                            mode = GatingMode.PARTIAL_TIME,
-                                            amount = activePaymentAmount
-                                                ?: MppPayments.voucherSettleWindowMicroUsdc()
-                                                    .toString(),
-                                            asset = USDC_TESTNET_ID.toString(),
-                                            network = MppNetworks.ALGORAND_TESTNET,
-                                            payTo = activePaymentRecipient.orEmpty(),
-                                            segmentDuration = 3,
-                                            leadTime = 0,
-                                        ),
-                                    gracePeriod = 5,
-                                    viewerAddress = activeViewerAddressForVault,
-                                    viewerAuthorizedSignerPublicKey = signerKey,
-                                    skipPaymentRequestWhenSessionFunded = true,
-                                ),
-                            )
+                            val signerKey = decodeBase64OrNull(voucherViewerPublicKey)
+                            updateCreatorViewerSignerConfig(signerKey)
                             Log.e(
                                 TAG,
                                 "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
@@ -736,6 +693,32 @@ class AndroidLiquidAuthConnectionManager(
                 Log.d(TAG, "🔑 Captured viewer address from LiquidAuth message: $candidate")
             }
         }
+    }
+
+    private fun decodeBase64OrNull(value: String): ByteArray? =
+        runCatching { Base64.getDecoder().decode(value) }.getOrNull()
+
+    private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
+        liquidStreamCreator?.updateConfig(
+            ServerConfig(
+                sessionId = activePaymentSessionId,
+                gating =
+                    GatingConfig(
+                        mode = GatingMode.PARTIAL_TIME,
+                        amount = activePaymentAmount
+                            ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
+                        asset = USDC_TESTNET_ID.toString(),
+                        network = MppNetworks.ALGORAND_TESTNET,
+                        payTo = activePaymentRecipient.orEmpty(),
+                        segmentDuration = 3,
+                        leadTime = 0,
+                    ),
+                gracePeriod = 5,
+                viewerAddress = activeViewerAddressForVault,
+                viewerAuthorizedSignerPublicKey = signerKey,
+                skipPaymentRequestWhenSessionFunded = true,
+            ),
+        )
     }
 
     override fun stopListening() {
