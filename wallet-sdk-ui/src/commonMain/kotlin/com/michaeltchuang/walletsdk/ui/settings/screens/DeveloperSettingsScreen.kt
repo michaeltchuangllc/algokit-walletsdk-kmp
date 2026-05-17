@@ -7,6 +7,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_node
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.node_settings
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.payment_test
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -57,6 +58,7 @@ fun DeveloperSettingsScreen(
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
         onNavigateToNodeSettings = { navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name) },
         onNavigateToHDWalletSelection = { navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name) },
+        onNavigateToDeveloperTestScreen = { navController.navigate(AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) },
     )
 }
 
@@ -66,6 +68,7 @@ internal fun ScreenContent(
     onCreateAlgoAccount: () -> Unit = {},
     onNavigateToNodeSettings: () -> Unit = {},
     onNavigateToHDWalletSelection: () -> Unit = {},
+    onNavigateToDeveloperTestScreen: () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -99,6 +102,13 @@ internal fun ScreenContent(
             localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
             onNavigateToHDWalletSelection()
+        }
+
+        SettingsItem(
+            Res.drawable.ic_wallet,
+            localizedStringResource(Res.string.payment_test),
+        ) {
+            onNavigateToDeveloperTestScreen()
         }
     }
 }

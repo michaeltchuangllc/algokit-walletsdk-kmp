@@ -1,5 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.test
 
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.payment_test
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +32,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
@@ -41,7 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
  * 3. Settle the latest voucher – transferring earned funds to the creator.
  */
 @Composable
-fun PaymentTestScreen() {
+fun PaymentTestScreen(navController: NavController) {
     val viewModel: PaymentTestViewModel = koinViewModel()
 
     val viewerAddress by viewModel.viewerAddress.collectAsStateWithLifecycle()
@@ -57,15 +63,13 @@ fun PaymentTestScreen() {
                 .fillMaxSize()
                 .background(AlgoKitTheme.colors.background)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 24.dp),
+                .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // ── Title ────────────────────────────────────────────────────────────
-        Text(
-            text = "Payment Test",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = AlgoKitTheme.colors.textMain,
+        AlgoKitTopBar(
+            title = localizedStringResource(Res.string.developer_settings),
+            onClick = { navController.popBackStack() },
         )
 
         Text(

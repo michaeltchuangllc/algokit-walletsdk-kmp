@@ -215,6 +215,7 @@
     <string name="date">Data</string>
     <string name="copy">Copia</string>
     <string name="developer_settings">Impostazioni Sviluppatore</string>
+    <string name="payment_test">Schermata test</string>
     <string name="localization_settings">Lingua</string>
     <string name="currency">Valuta</string>
     <string name="algorand_dispenser">Dispenser Algorand</string>
