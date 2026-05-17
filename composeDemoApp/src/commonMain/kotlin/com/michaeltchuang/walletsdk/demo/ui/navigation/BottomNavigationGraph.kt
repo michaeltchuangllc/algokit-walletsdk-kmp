@@ -11,7 +11,6 @@ import androidx.navigation.toRoute
 import com.michaeltchuang.walletsdk.demo.ui.screens.AccountListScreen
 import com.michaeltchuang.walletsdk.demo.ui.screens.BroadcastScreen
 import com.michaeltchuang.walletsdk.demo.ui.screens.DiscoverScreen
-import com.michaeltchuang.walletsdk.ui.settings.screens.PaymentTestScreen
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackBarLayout
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
