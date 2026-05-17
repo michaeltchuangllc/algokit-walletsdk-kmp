@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.core.foundation.utils
 import androidx.lifecycle.SavedStateHandle
 import androidx.navigation.NavController
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
-import com.ionspin.kotlin.bignum.decimal.RoundingMode
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import kotlinx.serialization.json.Json
@@ -49,35 +48,61 @@ inline fun <reified T> NavController.getData(): T? =
         ?.savedStateHandle
         ?.getObject()
 
-val precision: Int = 3
+const val AMOUNT_FORMAT_DECIMAL_PLACES: Int = 6
 
 fun String.formatAmount(convertToMicroAmount: Boolean = true): String =
-
     try {
-        val microalgos = BigDecimal.parseString(this)
-        var divisor = BigDecimal.parseString("1")
-        if (convertToMicroAmount) {
-            divisor = BigDecimal.parseString("1000000")
-        }
-        val micros = microalgos.divide(divisor)
-
-        // Round to 6 decimal places
-        val rounded =
-            micros.roundToDigitPosition(
-                digitPosition = precision.toLong(),
-                roundingMode = RoundingMode.ROUND_HALF_AWAY_FROM_ZERO,
-            )
-
-        // Format with exactly 6 decimal places
-        val str = rounded.toStringExpanded()
-        val parts = str.split(".")
-        val intPart = parts[0]
-        val decPart = parts.getOrNull(1)?.take(precision)?.padEnd(precision, '0') ?: "000"
-
-        "$intPart.$decPart"
+        val amount = BigDecimal.parseString(this)
+        val divisor = if (convertToMicroAmount) BigDecimal.parseString(MICRO_ALGO_DIVISOR) else BigDecimal.ONE
+        amount.divide(divisor).toStringExpanded().roundDecimalString(AMOUNT_FORMAT_DECIMAL_PLACES)
     } catch (e: Exception) {
         this
     }
+
+private fun String.roundDecimalString(decimalPlaces: Int): String {
+    val parts = split(".")
+    var intPart = parts[0]
+    val decimalPart = parts.getOrNull(1).orEmpty()
+    val roundedDecimalPart = decimalPart.take(decimalPlaces).padEnd(decimalPlaces, '0').toCharArray()
+    val shouldRoundUp = decimalPart.getOrNull(decimalPlaces)?.digitToIntOrNull()?.let { it >= 5 } == true
+
+    if (shouldRoundUp) {
+        var index = roundedDecimalPart.lastIndex
+        var carry = true
+        while (index >= 0 && carry) {
+            if (roundedDecimalPart[index] == '9') {
+                roundedDecimalPart[index] = '0'
+                index--
+            } else {
+                roundedDecimalPart[index] = roundedDecimalPart[index] + 1
+                carry = false
+            }
+        }
+        if (carry) {
+            intPart = intPart.incrementDecimalIntegerString()
+        }
+    }
+
+    return "$intPart.${roundedDecimalPart.concatToString()}"
+}
+
+private fun String.incrementDecimalIntegerString(): String {
+    val digits = toCharArray()
+    var index = digits.lastIndex
+    var carry = true
+    while (index >= 0 && carry) {
+        if (digits[index] == '9') {
+            digits[index] = '0'
+            index--
+        } else {
+            digits[index] = digits[index] + 1
+            carry = false
+        }
+    }
+    return if (carry) "1${digits.concatToString()}" else digits.concatToString()
+}
+
+private const val MICRO_ALGO_DIVISOR = "1000000"
 
 expect class BytesArray
 
