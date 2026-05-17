@@ -9,6 +9,7 @@ import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PendingTransactionResponse
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
+import com.google.common.collect.Multimaps.index
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -17,13 +18,12 @@ import org.bouncycastle.crypto.digests.SHA512tDigest
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
-import org.bouncycastle.jce.provider.BouncyCastleProvider
+import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
 import org.json.JSONObject
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.security.Security
 
 /**
  * MPP payment helper for Liquid Stream.
@@ -46,7 +46,7 @@ object MppPayments {
         )
 
     init {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
     }
 
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
@@ -56,7 +56,7 @@ object MppPayments {
     private val CHANNEL_ID_SALT = "walletsdk-session-v1".toByteArray(StandardCharsets.UTF_8)
     private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
     private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".toByteArray(StandardCharsets.UTF_8)
-    private const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
+    const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private const val ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH = 32
     private const val ALGORAND_ADDRESS_CHECKSUM_LENGTH = 4
 
@@ -133,7 +133,8 @@ object MppPayments {
         return (DEPOSIT_MICRO_USDC_LONG - consumed).coerceAtLeast(0L)
     }
 
-    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double = remainingMicroAlgos / 1_000_000.0
+    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double =
+        remainingMicroAlgos / 1_000_000.0
 
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
 
@@ -144,36 +145,25 @@ object MppPayments {
         algodUrl: String?,
         authorizedSignerPublicKey: ByteArray?,
     ): Long {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val viewerPublicKey = decodeAlgorandAddressPublicKey(viewerAddress)
-        val hostPublicKey = decodeAlgorandAddressPublicKey(hostAddress)
-        val signerCandidates =
-            authorizedSignerPublicKey
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { listOf(it) }
-                ?: listOf(viewerPublicKey, hostPublicKey)
-        val channelIdCandidates =
-            signerCandidates
-                .map { signerKey ->
-                    deriveChannelId(
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
-                        authorizedSignerPublicKey = signerKey,
-                    )
-                }.distinctBy { Encoder.encodeToBase64(it) }
-
-        channelIdCandidates.forEachIndexed { index, channelId ->
-            val result =
-                getRemainingBalanceByChannelId(
-                    channelId = channelId,
-                    appId = appId,
-                    algodUrl = algodUrl,
-                    logContext = "$baseContext candidate=$index",
-                )
-            Log.d(TAG, "[SESSION_VAULT_REMAINING_BALANCE_CHECK] GetRemainingBalance=${result ?: "null"}")
-            if (result != null) return result
-        }
+        val channelId = deriveChannelId(
+            viewerAddress = viewerAddress,
+            hostAddress = hostAddress,
+            authorizedSignerPublicKey = authorizedSignerPublicKey ?: Address(viewerAddress).getBytes(),
+        )
+        val result =
+            getRemainingBalanceByChannelId(
+                channelId = channelId,
+                appId = appId,
+                algodUrl = algodUrl,
+                logContext = baseContext,
+            )
+        Log.e(
+            TAG,
+            "[SESSION_VAULT_REMAINING_BALANCE_CHECK] GetRemainingBalance=${result ?: "null"}"
+        )
+        if (result != null) return result
 
         Log.d(
             TAG,
@@ -203,18 +193,18 @@ object MppPayments {
             )
         }
 
-    private fun deriveChannelId(
-        viewerAddress: String,
-        hostAddress: String,
-        authorizedSignerPublicKey: ByteArray,
-        usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-    ): ByteArray {
-        val viewerPublicKey = decodeAlgorandAddressPublicKey(viewerAddress)
-        val hostPublicKey = decodeAlgorandAddressPublicKey(hostAddress)
-        val authorizedSignerHash = sha512256(authorizedSignerPublicKey)
-        val material = viewerPublicKey + hostPublicKey + encodeUint64(usdcAssetId) + CHANNEL_ID_SALT + authorizedSignerHash
-        return MessageDigest.getInstance("SHA-256").digest(material)
-    }
+    /*    private fun deriveChannelId(
+            viewerAddress: String,
+            hostAddress: String,
+            authorizedSignerPublicKey: ByteArray,
+            usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
+        ): ByteArray {
+            val viewerPublicKey = decodeAlgorandAddressPublicKey(viewerAddress)
+            val hostPublicKey = decodeAlgorandAddressPublicKey(hostAddress)
+            val authorizedSignerHash = sha512256(authorizedSignerPublicKey)
+            val material = viewerPublicKey + hostPublicKey + encodeUint64(usdcAssetId) + CHANNEL_ID_SALT + authorizedSignerHash
+            return MessageDigest.getInstance("SHA-256").digest(material)
+        }*/
 
     private fun decodeAlgorandAddressPublicKey(address: String): ByteArray {
         val decoded = decodeBase32(address)
@@ -413,13 +403,13 @@ object MppPayments {
                 val errText = throwable.message.orEmpty()
                 val duplicateVoucherUpdate =
                     errText.contains("pc=622", ignoreCase = true) &&
-                        (
-                            errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                errText.contains(
-                                    "Voucher not increasing",
-                                    ignoreCase = true,
-                                )
-                        )
+                            (
+                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                            errText.contains(
+                                                "Voucher not increasing",
+                                                ignoreCase = true,
+                                            )
+                                    )
                 if (duplicateVoucherUpdate) {
                     Log.e(
                         TAG,
@@ -429,7 +419,6 @@ object MppPayments {
                     Log.e(
                         TAG,
                         "[VIEWER_UPDATE_VOUCHER_ERR] signer=${signer.address} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc sigLen=${signature.size} signerPkLen=${authorizedSignerPublicKey.size} channelIdHash=$channelIdHash",
-                        throwable,
                     )
                 }
             }
@@ -456,6 +445,83 @@ object MppPayments {
             algodUrl = algodUrl,
         )
     }
+
+    suspend fun settle(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        hostAddress: String,
+        appId: Long,
+        algodUrl: String = TESTNET_ALGOD_URL,
+        cumulativeAmountMicroUsdc: Long,
+        signature: ByteArray,
+        // The authorized signer public key used when the channel was opened (payer/viewer key).
+        // Used to derive the channelId and must match what was stored on-chain.
+        // Defaults to signer.authorizedSignerPublicKey for backward compatibility, but callers
+        // should explicitly pass the viewer/payer's key when signer is the payee (creator).
+        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
+    ): Result<String> {
+        val channelId = contractClient(appId = appId).deriveChannelId(
+            payerAddress = viewerAddress,
+            payeeAddress = hostAddress,
+            authorizedSignerPublicKey = authorizedSignerPublicKey,
+        )
+        return contractClient(
+            appId = appId,
+            usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+            algodUrl = algodUrl,
+        ).settle(
+            signer = signer,
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+            signature = signature,
+            algodUrl = algodUrl,
+        )
+    }
+
+    suspend fun verifySettleSignature(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        hostAddress: String,
+        cumulativeAmountMicroUsdc: Long,
+        signature: ByteArray,
+        algodUrl: String = TESTNET_ALGOD_URL,
+    ): Result<String> {
+        val channelId = contractClient().deriveChannelId(
+            payerAddress = viewerAddress,
+            payeeAddress = hostAddress,
+            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+        )
+      return  contractClient(
+            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+            usdcAssetId = AssetConstants.USDC_TESTNET_ID,
+            algodUrl = algodUrl,
+        ).verifySettleSignature(
+            signer = signer,
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+            signature = signature,
+            algodUrl = algodUrl,
+        )
+    }
+
+    fun settleMessage(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        hostAddress: String,
+        cumulativeAmountMicroUsdc: Long,
+    ): ByteArray {
+        val channelId = contractClient().deriveChannelId(
+            payerAddress = viewerAddress,
+            payeeAddress = hostAddress,
+            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+        )
+        return contractClient().settleMessage(
+            channelId = channelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+        )
+    }
+
+
 
     data class SessionDynamicData(
         val totalDeposit: Long,
@@ -520,10 +586,10 @@ object MppPayments {
         algodUrl: String = TESTNET_ALGOD_URL,
         authorizedSignerPublicKey: ByteArray? = null,
     ): SessionDynamicData? {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val viewerPublicKey = Address(viewerAddress).getBytes()
-        val hostPublicKey = Address(hostAddress).getBytes()
+        val viewerPublicKey = decodeAlgorandAddressPublicKey(viewerAddress)
+        val hostPublicKey = decodeAlgorandAddressPublicKey(hostAddress)
         val signerCandidates =
             authorizedSignerPublicKey
                 ?.takeIf { it.isNotEmpty() }
@@ -639,7 +705,7 @@ object MppPayments {
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
         salt: ByteArray = CHANNEL_ID_SALT,
     ): ByteArray {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
         return contractClient(usdcAssetId = usdcAssetId).deriveChannelId(
             payerAddress = viewerAddress,
             payeeAddress = hostAddress,
@@ -838,6 +904,25 @@ object MppPayments {
             )
         }
 
+    /**
+     * Polls the Algorand node until [txId] reaches a confirmed round or [maxRounds] is exceeded.
+     *
+     * **Must be called on an IO dispatcher** — it blocks with [Thread.sleep] between polls.
+     *
+     * @return `true` if the transaction was confirmed, `false` if the polling window expired.
+     */
+    fun awaitTransactionConfirmation(
+        txId: String,
+        algodUrl: String = TESTNET_ALGOD_URL,
+        maxRounds: Int = 10,
+    ): Boolean {
+        val client = algodClient(algodUrl)
+        return waitForPendingTransaction(client, txId, maxRounds)
+            ?.confirmedRound
+            ?.let { it > 0L }
+            ?: false
+    }
+
     private fun waitForPendingTransaction(
         client: AlgodClient,
         txId: String,
@@ -856,11 +941,6 @@ object MppPayments {
         return last
     }
 
-    @Synchronized
-    private fun ensureBouncyCastleProvider() {
-        Security.removeProvider("BC")
-        Security.insertProviderAt(BouncyCastleProvider(), 0)
-    }
 }
 
 sealed class MppPaymentVerificationResult {

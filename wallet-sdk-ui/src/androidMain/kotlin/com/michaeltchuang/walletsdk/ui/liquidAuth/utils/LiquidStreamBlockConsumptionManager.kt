@@ -8,10 +8,12 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Base64
-
 internal class LiquidStreamBlockConsumptionManager(
     private val tag: String,
     private val getViewModel: () -> LiquidAuthOfferViewModel?,
@@ -21,6 +23,7 @@ internal class LiquidStreamBlockConsumptionManager(
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
     private val sendMessage: (String) -> Unit,
 ) {
+
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
         val viewerAddress: String,
@@ -29,465 +32,471 @@ internal class LiquidStreamBlockConsumptionManager(
         val totalAmountClaimedMicroUsdc: Long,
     )
 
+    companion object {
+        private const val ZERO_BALANCE_GRACE_BLOCKS = 3
+        private const val CHAIN_READ_TIMEOUT_MS = 10_000L
+        private const val CHAIN_WRITE_TIMEOUT_MS = 15_000L
+    }
+
+    /**
+     * Single managed scope.
+     * Prevents leaked coroutines from anonymous CoroutineScope().
+     */
+    private val scope = CoroutineScope(
+        SupervisorJob() + Dispatchers.Default,
+    )
+
+    /**
+     * Prevents concurrent settlements.
+     */
+    private val settlementMutex = Mutex()
+
     private var blockDrivenConsumptionJob: Job? = null
+
     private var blocksConsumed: Int = 0
     private var currentSessionId: String? = null
     private var consecutiveZeroProgressBlocks: Int = 0
-
-    companion object {
-        private const val ZERO_BALANCE_GRACE_BLOCKS = 3
-        private const val ALLOWED_VOUCHER_LAG_MICRO_USDC = 300_000L
-    }
+    private val settlementGateLock = Any()
+    private var settlementInFlight: Boolean = false
 
     fun start(sessionId: String) {
+
         Log.e(
             tag,
-            "[SESSION_VAULT_BLOCK_LOOP_START_REQUEST] session=$sessionId active=${blockDrivenConsumptionJob?.isActive == true} currentSession=$currentSessionId",
+            "[SESSION_VAULT_BLOCK_LOOP_START_REQUEST] " +
+                    "session=$sessionId " +
+                    "active=${blockDrivenConsumptionJob?.isActive == true} " +
+                    "currentSession=$currentSessionId",
         )
-        if (currentSessionId == sessionId && blockDrivenConsumptionJob?.isActive == true) {
+
+        if (
+            currentSessionId == sessionId &&
+            blockDrivenConsumptionJob?.isActive == true
+        ) {
             Log.e(
                 tag,
-                "[SESSION_VAULT_BLOCK_LOOP_ALREADY_RUNNING] session=$sessionId blocks=$blocksConsumed",
+                "[SESSION_VAULT_BLOCK_LOOP_ALREADY_RUNNING] " +
+                        "session=$sessionId blocks=$blocksConsumed",
             )
             return
         }
 
-        Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_START] session=$sessionId")
         stop()
 
         val viewModel =
             getViewModel() ?: run {
-                Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_START_SKIP] reason=viewModel_null session=$sessionId")
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_BLOCK_LOOP_START_SKIP] " +
+                            "reason=viewModel_null session=$sessionId",
+                )
                 return
             }
+
         currentSessionId = sessionId
         blocksConsumed = 0
         consecutiveZeroProgressBlocks = 0
 
         viewModel.monitorBlockchainBlocks()
         viewModel.startRealtimeBlockNumberUpdates()
-        Log.e(tag, "[SESSION_VAULT_BLOCK_SOURCE_START] session=$sessionId source=realtime_block_updates")
 
         var lastObservedBlock: Long? = null
-        blockDrivenConsumptionJob =
-            CoroutineScope(Dispatchers.Default).launch {
-                Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_JOB_STARTED] session=$sessionId")
-                viewModel.currentBlockNumber
-                    .collectLatest { blockNumber ->
-                        if (blockNumber == null) {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_BLOCK_WAITING] session=$sessionId currentBlock=null",
-                            )
-                            return@collectLatest
-                        }
 
-                        val previous = lastObservedBlock
+        blockDrivenConsumptionJob =
+            scope.launch {
+
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_BLOCK_LOOP_JOB_STARTED] session=$sessionId",
+                )
+
+                viewModel.currentBlockNumber.collect { blockNumber ->
+
+                    if (blockNumber == null) {
+                        return@collect
+                    }
+
+                    val previous = lastObservedBlock
+
+                    if (previous == null) {
+                        lastObservedBlock = blockNumber
                         Log.e(
                             tag,
-                            "[SESSION_VAULT_BLOCK_OBSERVED] session=$sessionId block=$blockNumber previous=$previous",
+                            "[SESSION_VAULT_BLOCK_BASELINE_SET] " +
+                                    "baseline=$blockNumber",
                         )
-                        if (previous == null) {
-                            lastObservedBlock = blockNumber
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_BLOCK_BASELINE_SET] session=$sessionId baseline=$blockNumber",
-                            )
-                            return@collectLatest
-                        }
-
-                        val claimSnapshot = getCreatorVoucherClaimSnapshot()
-                        if (claimSnapshot == null) {
-                            lastObservedBlock = blockNumber
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_BLOCK_WAITING_FOR_CLAIM_SNAPSHOT] session=$sessionId block=$blockNumber previous=$previous action=hold_consumption_until_viewer_voucher",
-                            )
-                            return@collectLatest
-                        }
-
-                        val advanced = (blockNumber - previous).toInt()
-                        if (advanced > 0) {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_BLOCK_ADVANCED] session=$sessionId from=$previous to=$blockNumber count=$advanced",
-                            )
-                            repeat(advanced) { consumeBlock() }
-                            lastObservedBlock = blockNumber
-                        } else {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_BLOCK_NO_ADVANCE] session=$sessionId block=$blockNumber previous=$previous",
-                            )
-                        }
+                        return@collect
                     }
-            }
 
-        Log.e(tag, "[SESSION_VAULT_BLOCK_LOOP_MONITORING] session=$sessionId")
+                    val claimSnapshot = getCreatorVoucherClaimSnapshot()
+
+                    if (claimSnapshot == null) {
+                        lastObservedBlock = blockNumber
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_BLOCK_WAITING_FOR_CLAIM_SNAPSHOT] " +
+                                    "session=$sessionId block=$blockNumber",
+                        )
+                        return@collect
+                    }
+
+                    if (claimSnapshot.sessionId != sessionId) {
+                        lastObservedBlock = blockNumber
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_BLOCK_WAITING_FOR_SESSION_VOUCHER] " +
+                                    "session=$sessionId " +
+                                    "snapshotSession=${claimSnapshot.sessionId}",
+                        )
+                        return@collect
+                    }
+
+                    val advanced = (blockNumber - previous).toInt()
+
+                    if (advanced <= 0) {
+                        return@collect
+                    }
+
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_BLOCK_ADVANCED] " +
+                                "from=$previous to=$blockNumber count=$advanced",
+                    )
+
+                    /**
+                     * STRICTLY SEQUENTIAL
+                     * Financial operations must complete in order.
+                     */
+                    repeat(advanced) {
+
+                        /**
+                         * Session may have been stopped while suspended.
+                         */
+                        if (sessionId != currentSessionId) {
+                            Log.w(
+                                tag,
+                                "[SESSION_VAULT_BLOCK_ABORT] " +
+                                        "session_changed current=$currentSessionId",
+                            )
+                            return@collect
+                        }
+
+                        consumeBlockSequentially()
+                    }
+
+                    lastObservedBlock = blockNumber
+                }
+            }
     }
 
     fun stop() {
+
         Log.e(
             tag,
-            "[SESSION_VAULT_BLOCK_LOOP_STOP] session=$currentSessionId active=${blockDrivenConsumptionJob?.isActive == true} blocks=$blocksConsumed",
+            "[SESSION_VAULT_BLOCK_LOOP_STOP] " +
+                    "session=$currentSessionId " +
+                    "active=${blockDrivenConsumptionJob?.isActive == true}",
         )
+
         blockDrivenConsumptionJob?.cancel()
         blockDrivenConsumptionJob = null
+
         getViewModel()?.stopRealtimeBlockNumberUpdates()
-        Log.e(tag, "[SESSION_VAULT_BLOCK_SOURCE_STOP] session=$currentSessionId source=realtime_block_updates")
+
         currentSessionId = null
         blocksConsumed = 0
         consecutiveZeroProgressBlocks = 0
+        endSettlement()
     }
 
-    private suspend fun consumeBlock() {
-        val viewModel = getViewModel()
+    private suspend fun consumeBlockSequentially() {
+
         val sessionId = currentSessionId
         val creatorAddress = getActiveCreatorAddress()
-        Log.e(tag, "[SESSION_VAULT_CLAIM_TICK] session=$sessionId blocks=$blocksConsumed creator=$creatorAddress")
+        val viewModel = getViewModel()
 
         if (viewModel == null) {
             Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewModel_null")
             return
         }
+
         if (sessionId.isNullOrBlank()) {
             Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=session_missing")
             return
         }
+
         if (creatorAddress.isNullOrBlank()) {
-            Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=creator_missing session=$sessionId")
+            Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=creator_missing")
             return
         }
 
         blocksConsumed++
 
-        val viewerAddress = getActiveViewerAddress()?.takeIf { it.isNotBlank() }
+        /**
+         * Snapshot immediately.
+         */
+        val localBlocksConsumed = blocksConsumed
+
+        val viewerAddress =
+            getActiveViewerAddress()
+                ?.takeIf { it.isNotBlank() }
+
         val snapshotSignerPublicKey =
             getCreatorVoucherClaimSnapshot()
                 ?.viewerPublicKeyBase64
                 ?.takeIf { it.isNotBlank() }
-                ?.let { encoded -> runCatching { Base64.getDecoder().decode(encoded) }.getOrNull() }
+                ?.let { encoded ->
+                    runCatching {
+                        Base64.getDecoder().decode(encoded)
+                    }.getOrNull()
+                }
 
         val progressSnapshot =
             if (viewerAddress == null) {
-                Log.e(tag, "[SESSION_VAULT_CLAIM_SKIP] reason=viewer_missing session=$sessionId blocks=$blocksConsumed")
                 null
             } else {
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_PROGRESS_FETCH] session=$sessionId blocks=$blocksConsumed viewer=$viewerAddress appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} signerKeyPresent=${snapshotSignerPublicKey != null}}",
-                )
-                MppPayments.getSessionProgressSnapshotFromVault(
-                    viewerAddress = viewerAddress,
-                    hostAddress = creatorAddress,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    authorizedSignerPublicKey = snapshotSignerPublicKey,
-                )
+                try {
+                    withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                        MppPayments.getSessionProgressSnapshotFromVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = creatorAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            authorizedSignerPublicKey = snapshotSignerPublicKey,
+                        )
+                    }
+                } catch (t: Throwable) {
+                    Log.e(
+                        tag,
+                        "[SESSION_VAULT_PROGRESS_FETCH_TIMEOUT_OR_ERR] session=$sessionId blocks=$localBlocksConsumed viewer=$viewerAddress creator=$creatorAddress timeoutMs=$CHAIN_READ_TIMEOUT_MS",
+                        t,
+                    )
+                    null
+                }
             }
 
-        val remainingVaultBalance = progressSnapshot?.remainingSettledMicroUsdc ?: 0L
-        val progressBarBalanceMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
-        val used = MppPayments.computeVoucherMicroUsdcUsage(blocksConsumed)
+        val remainingVaultBalance =
+            progressSnapshot?.remainingSettledMicroUsdc ?: 0L
+
+        val progressBarBalanceMicroUsdc =
+            progressSnapshot?.progressBalanceMicroUsdc ?: 0L
+
 
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = remainingVaultBalance,
             progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
         )
 
-        val viewerPublicKey =
-            viewerAddress
-                ?.takeIf { it.isNotBlank() }
-                ?.let {
-                    runCatching {
-                        com.algorand.algosdk.crypto
-                            .Address(it)
-                            .bytes
-                    }.getOrDefault(ByteArray(0))
-                }
-                ?: ByteArray(0)
+    }
 
-        val voucherJson =
-            MppPayments.createVoucherJson(
-                sessionId = sessionId,
-                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress.orEmpty(),
-                viewerPublicKey = viewerPublicKey,
-                creatorAddress = creatorAddress,
-                blocksConsumed = blocksConsumed,
-                totalAmountUsed = used,
-                remainingMicroUsdc = progressBarBalanceMicroUsdc,
-            )
-        sendMessage(voucherJson)
+    private suspend fun startSettlement(
+        sessionId: String,
+        viewerAddress: String?,
+        creatorAddress: String,
+        used: Long,
+        localBlocksConsumed: Int,
+    ) {
 
-        val shouldSettleByCadence = MppPayments.shouldAttemptVoucherSettlement(blocksConsumed)
-        if (!shouldSettleByCadence) {
+        Log.e(
+            tag,
+            "[SESSION_VAULT_CLAIM_ATTEMPT] " +
+                    "session=$sessionId " +
+                    "blocks=$localBlocksConsumed",
+        )
+
+        val claimSnapshot =
+            getCreatorVoucherClaimSnapshot() ?: run {
+
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing",
+                )
+
+                return
+            }
+
+        if (claimSnapshot.sessionId != sessionId) {
+
             Log.e(
                 tag,
-                "[SESSION_VAULT_CLAIM_SKIP] reason=cadence_not_reached session=$sessionId blocks=$blocksConsumed remainingVault=$remainingVaultBalance progress=$progressBarBalanceMicroUsdc",
+                "[SESSION_VAULT_CLAIM_SKIP] " +
+                        "reason=session_mismatch",
             )
-        } else {
-            CoroutineScope(Dispatchers.IO).launch {
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_CLAIM_ATTEMPT] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used viewer=$viewerAddress creator=$creatorAddress",
-                )
 
-                val claimSnapshot =
-                    getCreatorVoucherClaimSnapshot() ?: run {
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
-                        )
-                        return@launch
-                    }
+            return
+        }
 
-                if (claimSnapshot.sessionId != sessionId) {
-                    Log.e(
-                        tag,
-                        "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_session_mismatch session=$sessionId snapshotSession=${claimSnapshot.sessionId}",
-                    )
-                    return@launch
+        if (claimSnapshot.viewerAddress != viewerAddress) {
+
+            Log.e(
+                tag,
+                "[SESSION_VAULT_CLAIM_SKIP] " +
+                        "reason=viewer_mismatch",
+            )
+
+            return
+        }
+
+        val signerPublicKey =
+            Base64
+                .getDecoder()
+                .decode(claimSnapshot.viewerPublicKeyBase64)
+
+        val signedTotalAmount =
+            claimSnapshot.totalAmountClaimedMicroUsdc
+                .coerceAtLeast(0L)
+
+        val settlementResult =
+            try {
+                /**
+                 * Session stopped while suspended.
+                 */
+                if (sessionId != currentSessionId) {
+                    error("Session changed during settlement")
                 }
 
-                if (claimSnapshot.viewerAddress != viewerAddress) {
-                    Log.e(
-                        tag,
-                        "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_viewer_mismatch session=$sessionId expectedViewer=$viewerAddress snapshotViewer=${claimSnapshot.viewerAddress}",
-                    )
-                    return@launch
-                }
+                val signer =
+                    buildCreatorWalletSigner(creatorAddress)
+                        ?: error("Unsupported creator account")
 
-                val signatureBytes =
-                    runCatching {
-                        Base64
-                            .getDecoder()
-                            .decode(claimSnapshot.signatureBase64)
-                    }.getOrNull() ?: run {
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_CLAIM_SKIP] reason=signature_decode_failed session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
-                        )
-                        return@launch
-                    }
-
-                val signerPublicKey = Base64.getDecoder().decode(claimSnapshot.viewerPublicKeyBase64)
-                val signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc.coerceAtLeast(0L)
-                val channelId =
-                    MppPayments.deriveChannelId(
-                        viewerAddress = claimSnapshot.viewerAddress,
-                        hostAddress = creatorAddress,
-                        authorizedSignerPublicKey = signerPublicKey,
-                    )
-                val claimMessageHash =
-                    MppPayments.buildClaimMessageHashHex(
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        channelId = channelId,
-                        totalAmountClaimedMicroUsdc = signedTotalAmount,
-                    )
-                val signatureHash = MppPayments.hashHex(signatureBytes)
-                val isEd25519Signature = signatureBytes.size == 64
-                val creatorLocalVerify =
-                    if (isEd25519Signature) {
-                        MppPayments.verifyClaimSignatureLocally(
+                val refreshed =
+                    withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                        MppPayments.getSessionDynamicDataFromVault(
                             viewerAddress = claimSnapshot.viewerAddress,
+                            hostAddress = creatorAddress,
                             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            channelId = channelId,
-                            totalAmountClaimedMicroUsdc = signedTotalAmount,
-                            signature = signatureBytes,
+                            authorizedSignerPublicKey = signerPublicKey,
                         )
-                    } else {
-                        true
                     }
-                Log.e(
-                    tag,
-                    "[CREATOR_CLAIM_MSG_HASH] session=$sessionId appId=${RailMppConstants.MPP_SESSION_VAULT_APP_ID} totalAmountClaimedMicroUsdc=$signedTotalAmount hash=$claimMessageHash viewer=${claimSnapshot.viewerAddress} sigHash=$signatureHash localVerify=$creatorLocalVerify localVerifySkippedForFalcon=${!isEd25519Signature} sigLen=${signatureBytes.size}",
-                )
-                if (signedTotalAmount < used) {
-                    Log.w(
+
+                val refreshedLatest =
+                    refreshed?.latestVoucherAmount ?: 0L
+
+                val refreshedSettled =
+                    refreshed?.lastSettled ?: 0L
+
+                val refreshedUnclaimed =
+                    (refreshedLatest - refreshedSettled)
+                        .coerceAtLeast(0L)
+
+                if (refreshedUnclaimed <= 0L) {
+                    // Creator is payee: only settle on-chain voucher amounts.
+                    // Viewer (payer) is responsible for updateVoucher transactions.
+                    if (signedTotalAmount > refreshedLatest) {
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_CLAIM_SKIP] " +
+                                    "reason=viewer_update_pending " +
+                                    "signedTotal=$signedTotalAmount " +
+                                    "onChainLatest=$refreshedLatest",
+                        )
+                    }
+
+                    Log.e(
                         tag,
-                        "[SESSION_VAULT_CLAIM_BEHIND_CONTINUE] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount action=settle_latest_signed_voucher",
+                        "[SESSION_VAULT_CLAIM_SKIP] " +
+                                "reason=nothing_to_settle",
                     )
-                }
 
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_VOUCHER_VALIDATED] session=$sessionId blocks=$blocksConsumed viewer=${claimSnapshot.viewerAddress} cumulativeValid=true signatureMatch=$creatorLocalVerify signedTotalMicroUsdc=$signedTotalAmount usedMicroUsdc=$used localMaxDepositGuardDisabled=true",
-                )
-
-                val settlementResult =
-                    runCatching {
-                        val signer =
-                            buildCreatorWalletSigner(creatorAddress)
-                                ?: error("Unsupported creator account")
-
-                        val onChainDynamicData =
-                            MppPayments.getSessionDynamicDataFromVault(
-                                viewerAddress = claimSnapshot.viewerAddress,
-                                hostAddress = creatorAddress,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = signerPublicKey,
-                            )
-                        val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
-                        val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
-                        val onChainUnclaimed = (onChainLatestVoucher - onChainLastSettled).coerceAtLeast(0L)
-                        val viewerLag = (signedTotalAmount - onChainLatestVoucher).coerceAtLeast(0L)
-                        val allowLagWindow = viewerLag <= ALLOWED_VOUCHER_LAG_MICRO_USDC
-                        if (onChainUnclaimed <= 0L && !allowLagWindow) {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_CLAIM_BACKFILL_VOUCHER] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
-                            )
+                    Result.success("nothing_to_settle")
+                } else {
+                    val txId =
+                        withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
                             MppPayments
-                                .updateVoucherOnChain(
+                                .settleLatestVoucher(
                                     signer = signer,
                                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                     viewerAddress = claimSnapshot.viewerAddress,
                                     hostAddress = creatorAddress,
-                                    totalAmountUsedMicroUsdc = signedTotalAmount,
-                                    signature = signatureBytes,
                                     authorizedSignerPublicKey = signerPublicKey,
                                 ).getOrThrow()
-                        } else if (onChainUnclaimed <= 0L) {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_CLAIM_LAG_WINDOW] session=$sessionId blocks=$blocksConsumed signedTotalMicroUsdc=$signedTotalAmount onChainLastSettled=$onChainLastSettled onChainLatestVoucher=$onChainLatestVoucher viewerLagMicroUsdc=$viewerLag lagWindowMicroUsdc=$ALLOWED_VOUCHER_LAG_MICRO_USDC",
-                            )
                         }
-
-                        if (RailMppConstants.ENABLE_CREATOR_DEBUG_VERIFY_HELPER_ON_CHAIN) {
-                            Log.e(
-                                tag,
-                                "[CREATOR_VERIFY_HELPER_ATTEMPT] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                            )
-                            val helperResult =
-                                MppPayments
-                                    .debugVerifyClaimVoucherSignatureOnChain(
-                                        signer = signer,
-                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                        viewerAddress = claimSnapshot.viewerAddress,
-                                        hostAddress = creatorAddress,
-                                        totalAmountClaimedMicroUsdc = signedTotalAmount,
-                                        signature = signatureBytes,
-                                    ).onSuccess { result ->
-                                        Log.e(
-                                            tag,
-                                            "[CREATOR_VERIFY_HELPER_TX] session=$sessionId txId=${result.txId} verified=${result.verified} logCount=${result.logCount} confirmedRound=${result.confirmedRound} totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                                        )
-                                    }.onFailure {
-                                        Log.e(
-                                            tag,
-                                            "[CREATOR_VERIFY_HELPER_ERR] session=$sessionId totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                                            it,
-                                        )
-                                    }.getOrNull()
-
-                            Log.e(
-                                tag,
-                                "[CREATOR_VERIFY_HELPER_RESULT] session=$sessionId helperVerified=${helperResult?.verified} totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                            )
-                            if (helperResult?.verified != true) {
-                                Log.e(
-                                    tag,
-                                    "[SESSION_VAULT_CLAIM_SKIP] reason=helper_not_verified session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount helperVerified=${helperResult?.verified}",
-                                )
-                                return@runCatching "helper_not_verified"
-                            }
-                        } else {
-                            Log.e(
-                                tag,
-                                "[CREATOR_VERIFY_HELPER_SKIP] session=$sessionId reason=feature_flag_disabled totalAmountClaimedMicroUsdc=$signedTotalAmount viewer=${claimSnapshot.viewerAddress}",
-                            )
-                        }
-
-                        val postUpdateDynamicData =
-                            MppPayments.getSessionDynamicDataFromVault(
-                                viewerAddress = claimSnapshot.viewerAddress,
-                                hostAddress = creatorAddress,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = signerPublicKey,
-                            )
-                        val postUpdateLatestVoucher = postUpdateDynamicData?.latestVoucherAmount ?: 0L
-                        val postUpdateLastSettled = postUpdateDynamicData?.lastSettled ?: 0L
-                        val postUpdateUnclaimed = (postUpdateLatestVoucher - postUpdateLastSettled).coerceAtLeast(0L)
-
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_SETTLE_LATEST_PRECHECK] session=$sessionId viewer=${claimSnapshot.viewerAddress} creator=$creatorAddress totalDeposit=${postUpdateDynamicData?.totalDeposit} latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled unclaimedVoucherAmount=$postUpdateUnclaimed signedTotalMicroUsdc=$signedTotalAmount",
-                        )
-
-                        if (postUpdateUnclaimed <= 0L) {
-                            Log.e(
-                                tag,
-                                "[SESSION_VAULT_CLAIM_SKIP] reason=nothing_to_settle session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used signedTotalMicroUsdc=$signedTotalAmount latestVoucherAmount=$postUpdateLatestVoucher lastSettled=$postUpdateLastSettled",
-                            )
-                            return@runCatching "nothing_to_settle"
-                        }
-
-                        MppPayments
-                            .settleLatestVoucher(
-                                signer = signer,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                viewerAddress = claimSnapshot.viewerAddress,
-                                hostAddress = creatorAddress,
-                                authorizedSignerPublicKey = signerPublicKey,
-                            ).getOrThrow()
-                    }
-
-                settlementResult
-                    .onSuccess { txId ->
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_CLAIM_OK] txId=$txId session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
-                        )
-                    }.onFailure {
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_CLAIM_ERR] session=$sessionId blocks=$blocksConsumed usedMicroUsdc=$used",
-                            it,
-                        )
-                    }
+                    Result.success(txId)
+                }
+            } catch (t: Throwable) {
+                Result.failure(t)
             }
-        }
 
-        if (progressBarBalanceMicroUsdc <= 0L) {
-            val hasSignerSnapshot = getCreatorVoucherClaimSnapshot() != null
-            if (!hasSignerSnapshot) {
-                Log.w(
+        settlementResult
+            .onSuccess { txId ->
+
+                Log.e(
                     tag,
-                    "[SESSION_VAULT_DEPLETED_GUARD_SKIP] session=$sessionId blocks=$blocksConsumed reason=missing_signer_snapshot",
+                    "[SESSION_VAULT_CLAIM_OK] " +
+                            "txId=$txId " +
+                            "blocks=$localBlocksConsumed " +
+                            "used=$used",
                 )
-                return
             }
+            .onFailure {
 
-            consecutiveZeroProgressBlocks++
-            if (consecutiveZeroProgressBlocks < ZERO_BALANCE_GRACE_BLOCKS) {
-                Log.w(
+                Log.e(
                     tag,
-                    "[SESSION_VAULT_DEPLETED_DELAY] session=$sessionId blocks=$blocksConsumed zeroStreak=$consecutiveZeroProgressBlocks threshold=$ZERO_BALANCE_GRACE_BLOCKS",
+                    "[SESSION_VAULT_CLAIM_ERR] " +
+                            "blocks=$localBlocksConsumed",
+                    it,
                 )
-                return
             }
+    }
 
-            Log.d(tag, "💰 Funds depleted after $blocksConsumed blocks")
-            stop()
-
-            val depletedJson =
-                """{"reference":"liquid:payment:depleted","id":"$sessionId","totalBlocksWatched":$blocksConsumed,"totalConsumedMicroAlgos":${MppPayments.computeVoucherMicroUsdcUsage(
-                    blocksConsumed,
-                )}}"""
-            sendMessage(depletedJson)
+    fun triggerSettlementFromViewerVoucher(sessionId: String) {
+        val creatorAddress = getActiveCreatorAddress()
+        val viewerAddress = getActiveViewerAddress()
+        val activeSession = currentSessionId
+        if (creatorAddress.isNullOrBlank()) {
+            Log.e(tag, "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=creator_missing session=$sessionId")
             return
-        } else {
-            consecutiveZeroProgressBlocks = 0
+        }
+        if (activeSession.isNullOrBlank() || activeSession != sessionId) {
+            Log.e(
+                tag,
+                "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$activeSession",
+            )
+            return
+        }
+        if (!tryBeginSettlement()) {
+            Log.e(tag, "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=request_in_flight session=$sessionId")
+            return
         }
 
-        val balanceJson =
-            MppPayments.createBalanceUpdateJson(
-                sessionId = sessionId,
-                blocksConsumed = blocksConsumed,
-                remainingMicroUsdc = progressBarBalanceMicroUsdc,
-            )
-        sendMessage(balanceJson)
-        Log.d(tag, "💰 Sent balance update: ${MppPayments.remainingUsdcFromMicroAlgos(remainingVaultBalance)} USDC remaining")
+        val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
+        val used = MppPayments.computeVoucherMicroUsdcUsage(localBlocksConsumed)
+        scope.launch {
+            try {
+                settlementMutex.withLock {
+                    if (sessionId != currentSessionId) {
+                        Log.e(
+                            tag,
+                            "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$currentSessionId",
+                        )
+                        return@withLock
+                    }
+                    startSettlement(
+                        sessionId = sessionId,
+                        viewerAddress = viewerAddress,
+                        creatorAddress = creatorAddress,
+                        used = used,
+                        localBlocksConsumed = localBlocksConsumed,
+                    )
+                }
+            } finally {
+                endSettlement()
+            }
+        }
+    }
+
+    private fun tryBeginSettlement(): Boolean =
+        synchronized(settlementGateLock) {
+            if (settlementInFlight) {
+                false
+            } else {
+                settlementInFlight = true
+                true
+            }
+        }
+
+    private fun endSettlement() {
+        synchronized(settlementGateLock) {
+            settlementInFlight = false
+        }
     }
 }

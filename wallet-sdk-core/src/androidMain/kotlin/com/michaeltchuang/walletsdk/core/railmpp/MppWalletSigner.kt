@@ -21,6 +21,11 @@ interface MppWalletSigner {
     val signerType: Long
         get() = 0L
 
+    suspend fun signMessage(
+        message: ByteArray,
+    ): ByteArray = throw UnsupportedOperationException("Message signing is not supported by this signer")
+
+
     /**
      * Sign the given Algorand [Transaction] and return the raw msgpack bytes
      * of the signed transaction (as produced by `Encoder.encodeToMsgPack`).
@@ -45,7 +50,6 @@ interface MppWalletSigner {
         mint: String? = null,
     ): ByteArray = throw UnsupportedOperationException("Solana transaction signing is not supported by this signer")
 }
-
 /**
  * Convenience [MppWalletSigner] that signs with an in-process
  * [com.algorand.algosdk.account.Account].

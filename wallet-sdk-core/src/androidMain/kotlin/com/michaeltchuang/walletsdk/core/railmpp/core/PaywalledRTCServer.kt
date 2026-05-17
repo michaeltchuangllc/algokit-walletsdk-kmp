@@ -6,11 +6,13 @@ import android.util.Log
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
@@ -50,6 +52,15 @@ class PaywalledRTCServer(
     companion object {
         private const val TAG = "PaywalledRTCServer"
         private const val DEFAULT_SEGMENT_DURATION_SECONDS = 30
+
+        /**
+         * How long to wait for [ServerConfig.viewerAuthorizedSignerPublicKey] to arrive
+         * (via the viewer's first voucher message → [updateConfig]) before giving up and
+         * proceeding without the key.  The key is required for an accurate
+         * [shouldSkipPaymentRequestBecauseSessionFunded] check; without it the vault
+         * balance cannot be verified and a full payment round-trip is forced.
+         */
+        private const val VIEWER_KEY_WAIT_TIMEOUT_MS = 5_000L
     }
 
     // ─── Callbacks ──────────────────────────────────────────
@@ -80,6 +91,23 @@ class PaywalledRTCServer(
     private var graceTimer: Runnable? = null
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    /**
+     * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
+     *
+     * On the very first session the key is null at construction time — it only arrives
+     * later when the viewer sends its first voucher message, which calls [updateConfig].
+     * [handleDataChannelOpen] awaits this deferred (with [VIEWER_KEY_WAIT_TIMEOUT_MS])
+     * so the funded-skip check in [shouldSkipPaymentRequestBecauseSessionFunded] has
+     * the key before it runs.
+     *
+     * If the key is already present at construction (e.g. reconnection) the deferred
+     * is completed immediately so there is no wait.
+     */
+    private val viewerKeyDeferred: CompletableDeferred<Unit> =
+        CompletableDeferred<Unit>().also { deferred ->
+            if (config.viewerAuthorizedSignerPublicKey != null) deferred.complete(Unit)
+        }
+
     private val segmentDurationMs: Long
         get() = (config.gating.segmentDuration ?: DEFAULT_SEGMENT_DURATION_SECONDS) * 1000L
 
@@ -87,9 +115,18 @@ class PaywalledRTCServer(
 
     /**
      * Update gating config at runtime (e.g., hybrid scenario switching from whole-stream to partial).
+     *
+     * Also resolves [viewerKeyDeferred] the first time [ServerConfig.viewerAuthorizedSignerPublicKey]
+     * transitions from null → non-null, unblocking [handleDataChannelOpen] so the
+     * funded-skip check can run with the correct key.
      */
     fun updateConfig(newConfig: ServerConfig) {
+        val hadKey = config.viewerAuthorizedSignerPublicKey != null
         config = newConfig
+        if (!hadKey && newConfig.viewerAuthorizedSignerPublicKey != null) {
+            Log.d(TAG, "🔑 viewerAuthorizedSignerPublicKey received — resolving viewerKeyDeferred")
+            viewerKeyDeferred.complete(Unit)
+        }
     }
 
     fun updateGating(gating: GatingConfig) {
@@ -200,15 +237,58 @@ class PaywalledRTCServer(
         if (disposed) return
         // Small delay to ensure the remote side has set up its onmessage handler
         handler.postDelayed({
-            if (config.gating.mode == GatingMode.WHOLE_STREAM) {
-                requestPayment()
-            } else {
-                ungate()
-                val leadTime =
-                    (config.gating.leadTime ?: config.gating.segmentDuration ?: DEFAULT_SEGMENT_DURATION_SECONDS) * 1000L
-                scheduleSegmentTimer(leadTime) { requestPaymentWithGrace() }
+            scope.launch {
+                // If skipPaymentRequestWhenSessionFunded is enabled but the viewer's
+                // authorized signer key is not yet known (it arrives via the viewer's
+                // first voucher message → updateConfig), wait for it before running the
+                // funded-skip check.  Without the key the vault balance query cannot be
+                // authorized and would fall through to a full payment request even when
+                // the vault is already funded.
+                val needsKey =
+                    config.skipPaymentRequestWhenSessionFunded &&
+                        !config.viewerAddress.isNullOrBlank() &&
+                        config.viewerAuthorizedSignerPublicKey == null
+
+                if (needsKey) {
+                    Log.d(
+                        TAG,
+                        "⏳ Waiting up to ${VIEWER_KEY_WAIT_TIMEOUT_MS}ms for viewerAuthorizedSignerPublicKey before first payment check…",
+                    )
+                    val received =
+                        withTimeoutOrNull(VIEWER_KEY_WAIT_TIMEOUT_MS) {
+                            viewerKeyDeferred.await()
+                        }
+                    if (received == null) {
+                        Log.w(
+                            TAG,
+                            "⚠️ Timed out waiting for viewerAuthorizedSignerPublicKey — proceeding without it. " +
+                                "Funded-skip check will be skipped and a full payment request will be issued.",
+                        )
+                    } else {
+                        Log.d(TAG, "✅ viewerAuthorizedSignerPublicKey ready — proceeding with payment flow")
+                    }
+                }
+
+                startPaymentFlow()
             }
         }, 100)
+    }
+
+    /**
+     * Kick off the payment flow based on the configured [GatingMode].
+     * Called after [handleDataChannelOpen] has optionally waited for
+     * [viewerKeyDeferred] to resolve.
+     */
+    private fun startPaymentFlow() {
+        if (disposed) return
+        if (config.gating.mode == GatingMode.WHOLE_STREAM) {
+            requestPayment()
+        } else {
+            ungate()
+            val leadTime =
+                (config.gating.leadTime ?: config.gating.segmentDuration ?: DEFAULT_SEGMENT_DURATION_SECONDS) * 1000L
+            scheduleSegmentTimer(leadTime) { requestPaymentWithGrace() }
+        }
     }
 
     private fun handleDataChannelMessage(msgStr: String) {
@@ -231,6 +311,19 @@ class PaywalledRTCServer(
                         scope.launch { handlePayment(railPayment) }
                     }
                 }
+
+                DCMessageType.VIEWER_VAULT_FUNDED -> {
+                    // Viewer has topped up the session vault — re-issue the segment
+                    // request so it can pay for the previously stalled segment.
+                    Log.e(
+                        TAG,
+                        "[VIEWER_VAULT_FUNDED_RECEIVED] session=$sessionId segment=$segmentIndex gated=$gated pending=${pendingRequest != null}",
+                    )
+                    if (gated || pendingRequest != null) {
+                        cancelTimers()
+                        requestPayment()
+                    }
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "handleDataChannelMessage error", e)
@@ -247,6 +340,7 @@ class PaywalledRTCServer(
         scope.launch(Dispatchers.IO) {
             try {
                 val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+                Log.e(TAG, "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=${shouldSkipPrompt}")
                 if (shouldSkipPrompt) {
                     Log.d(
                         TAG,
@@ -348,7 +442,7 @@ class PaywalledRTCServer(
     }
 
     private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
-        if (!config.skipPaymentRequestWhenSessionFunded) return false
+       if (!config.skipPaymentRequestWhenSessionFunded) return false
         val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
         val remaining =
             getRemainingSessionVaultBalanceUseCase(

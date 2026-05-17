@@ -12,13 +12,12 @@ import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
 import org.bouncycastle.crypto.digests.SHA512tDigest
-import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.math.BigInteger
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
-import java.security.Security
 
 /**
  * Kotlin client for EscrowSessionVaultManager ARC-56 contract.
@@ -68,7 +67,7 @@ class EscrowSessionVaultManagerClient(
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            ensureBouncyCastleProvider()
+            BouncyCastleProviderSetup.ensure()
             // Kept for API compatibility with previous call sites.
             normalizeSignerType(signerType)
 
@@ -381,7 +380,7 @@ class EscrowSessionVaultManagerClient(
         authorizedSigner: ByteArray,
         salt: ByteArray = defaultSalt,
     ): ByteArray {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
         val payer = decodeAlgorandAddressPublicKey(payerAddress)
         val payee = decodeAlgorandAddressPublicKey(payeeAddress)
         val material = payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner
@@ -447,7 +446,7 @@ class EscrowSessionVaultManagerClient(
         )
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray {
-        ensureBouncyCastleProvider()
+        BouncyCastleProviderSetup.ensure()
         return sha512256(authorizedSigner)
     }
 
@@ -802,9 +801,4 @@ class EscrowSessionVaultManagerClient(
         return response.body()?.txId
     }
 
-    @Synchronized
-    private fun ensureBouncyCastleProvider() {
-        Security.removeProvider("BC")
-        Security.insertProviderAt(BouncyCastleProvider(), 1)
-    }
 }

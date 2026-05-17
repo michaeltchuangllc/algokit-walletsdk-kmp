@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
@@ -67,6 +68,10 @@ class PaywalledRTCClient(
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
+    init {
+        BouncyCastleProviderSetup.ensure()
+    }
+
     // ─── Public API ─────────────────────────────────────────
 
     /**
@@ -118,6 +123,47 @@ class PaywalledRTCClient(
 
     fun getAutoPay(): Boolean = consentApproval?.autoPaySegments ?: false
 
+    /**
+     * Extends the viewer's budget cap after a session-vault top-up.
+     *
+     * The new cap is calculated as `currentSpend + additionalMicroUsdc` so that
+     * the next segment payment passes the budget check even though spend has
+     * already accumulated from previous segments.
+     * Also clears [ConsentApproval.maxAutoPaySegments] so the segment-count limit
+     * does not prematurely re-trigger consent.
+     */
+    fun extendBudget(additionalMicroUsdc: Long, asset: String) {
+        val currentSpend = spend.totalAmount.toLongOrNull() ?: 0L
+        val newCap = currentSpend + additionalMicroUsdc
+        consentApproval = consentApproval?.copy(
+            budgetCap = BudgetCap(amount = newCap.toString(), asset = asset),
+            maxAutoPaySegments = null,
+        ) ?: ConsentApproval(
+            approved = true,
+            autoPaySegments = true,
+            budgetCap = BudgetCap(amount = newCap.toString(), asset = asset),
+        )
+        Log.d(
+            TAG,
+            "[VIEWER_BUDGET_EXTENDED] currentSpend=$currentSpend additional=$additionalMicroUsdc newCap=$newCap asset=$asset",
+        )
+    }
+
+    /**
+     * Sends a [DCMessageType.VIEWER_VAULT_FUNDED] message to the server via the
+     * DataChannel, signalling that the viewer has topped up the session vault and
+     * the server should re-issue the pending [DCMessageType.SEGMENT_REQUEST].
+     */
+    fun notifyVaultFunded(sessionId: String) {
+        Log.d(TAG, "[VIEWER_VAULT_FUNDED_NOTIFY] sessionId=$sessionId")
+        sendDC(
+            JSONObject().apply {
+                put("type", DCMessageType.VIEWER_VAULT_FUNDED)
+                put("sessionId", sessionId)
+            },
+        )
+    }
+
     fun terminate() {
         if (disposed) return
         disposed = true
@@ -139,8 +185,14 @@ class PaywalledRTCClient(
                 DCMessageType.SEGMENT_REQUEST -> {
                     val payload = msg.getJSONObject("payload")
                     // Merge envelope fields if not in payload
-                    if (!payload.has("sessionId")) payload.put("sessionId", msg.getString("sessionId"))
-                    if (!payload.has("segmentIndex")) payload.put("segmentIndex", msg.getInt("segmentIndex"))
+                    if (!payload.has("sessionId")) payload.put(
+                        "sessionId",
+                        msg.getString("sessionId")
+                    )
+                    if (!payload.has("segmentIndex")) payload.put(
+                        "segmentIndex",
+                        msg.getInt("segmentIndex")
+                    )
                     val request = paymentRequestFromJson(payload)
                     Log.e(
                         TAG,
@@ -148,6 +200,7 @@ class PaywalledRTCClient(
                     )
                     scope.launch { handlePaymentRequest(request) }
                 }
+
                 DCMessageType.SEGMENT_ACCEPTED -> {
                     val payload = msg.getJSONObject("payload")
                     val receipt =
@@ -163,10 +216,12 @@ class PaywalledRTCClient(
                         )
                     onPaymentReceipt?.invoke(receipt)
                 }
+
                 DCMessageType.SEGMENT_REJECTED -> {
                     val reason = msg.optJSONObject("payload")?.optString("reason") ?: "rejected"
                     onStreamGated?.invoke(reason)
                 }
+
                 DCMessageType.SESSION_TERMINATE -> {
                     onSessionTerminated?.invoke()
                 }
@@ -182,12 +237,20 @@ class PaywalledRTCClient(
             "[VIEWER_HANDLE_PAYMENT_START] session=${request.sessionId} segment=${request.segmentIndex} nonce=${request.nonce} amount=${request.amount} asset=${request.asset}",
         )
         onPaymentRequested?.invoke(request)
+        Log.e(
+            TAG,
+            "[VIEWER_HANDLE_PAYMENT_REQUEST] session=${request.sessionId} segment=${request.segmentIndex} nonce=${request.nonce} amount=${request.amount} asset=${request.asset}",
+        )
 
         // Auto-pay configured + usage payment (not access gate) → skip consent entirely
         if (consentApproval == null &&
             config.autoPaySegments &&
             request.meta.gatingMode != GatingMode.WHOLE_STREAM
         ) {
+            Log.e(
+                TAG,
+                "[VIEWER_HANDLE_PAYMENT_AUTO_PAY] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset}",
+            )
             consentApproval =
                 ConsentApproval(
                     approved = true,
@@ -197,7 +260,10 @@ class PaywalledRTCClient(
                 )
             spend.asset = request.asset
         }
-
+        Log.e(
+            TAG,
+            "[VIEWER_HANDLE_PAYMENT_AUTO_PAY] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset}",
+        )
         // Request consent if: first payment and no auto-approval, OR auto-pay is off
         val needsConsent = consentApproval == null || !consentApproval!!.autoPaySegments
 
@@ -216,6 +282,7 @@ class PaywalledRTCClient(
                 TAG,
                 "[VIEWER_CONSENT_REQUESTED] session=${request.sessionId} segment=${request.segmentIndex} amount=${terms.amount} asset=${terms.asset} network=${terms.network}",
             )
+            Log.e("[VIEWER_CONSENT_TERMS]", terms.toString())
             onConsentRequested?.invoke(terms)
             val approval =
                 try {
@@ -226,7 +293,10 @@ class PaywalledRTCClient(
                 }
 
             if (!approval.approved) {
-                Log.e(TAG, "[VIEWER_CONSENT_DENIED] session=${request.sessionId} segment=${request.segmentIndex}")
+                Log.e(
+                    TAG,
+                    "[VIEWER_CONSENT_DENIED] session=${request.sessionId} segment=${request.segmentIndex}"
+                )
                 onConsentDenied?.invoke()
                 sendDC(
                     JSONObject().apply {
@@ -246,6 +316,11 @@ class PaywalledRTCClient(
 
         // Budget cap
         consentApproval!!.budgetCap?.let { cap ->
+            Log.e(
+                TAG,
+                "[" +
+                        "VIEWER_HANDLE_PAYMENT_BUDGET_CHECK] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} total=${spend.totalAmount} cap=${cap.amount}",
+            )
             val newTotal = spend.totalAmount.toBigInteger() + request.amount.toBigInteger()
             if (newTotal > cap.amount.toBigInteger()) {
                 onBudgetExceeded?.invoke(spend)
@@ -253,6 +328,10 @@ class PaywalledRTCClient(
                 return
             }
         }
+        Log.e(
+            TAG,
+            "[VIEWER_HANDLE_PAYMENT_BUDGET_CHECK] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} total=${spend.totalAmount} cap=${consentApproval!!.budgetCap?.amount}",
+        )
 
         // Max auto-pay segments
         consentApproval!!.maxAutoPaySegments?.let { max ->
@@ -265,8 +344,13 @@ class PaywalledRTCClient(
 
         // Create and sign payment via the rail
         try {
+            Log.e(
+                TAG,
+                "[VIEWER_CREATE_RAIL_PAYMENT] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset}",
+            )
             val railPayment =
                 withContext(Dispatchers.IO) {
+                    BouncyCastleProviderSetup.ensure()
                     paymentRail.createRailPayment(request)
                 }
             Log.e(
@@ -276,7 +360,8 @@ class PaywalledRTCClient(
             onPaymentSubmitted?.invoke(railPayment)
 
             spend.segmentsPaid++
-            spend.totalAmount = (spend.totalAmount.toBigInteger() + request.amount.toBigInteger()).toString()
+            spend.totalAmount =
+                (spend.totalAmount.toBigInteger() + request.amount.toBigInteger()).toString()
             spend.transactions.add(
                 SpendTransaction(
                     txId = "pending",
@@ -324,4 +409,5 @@ class PaywalledRTCClient(
             Log.e(TAG, "sendDC failed", e)
         }
     }
+
 }

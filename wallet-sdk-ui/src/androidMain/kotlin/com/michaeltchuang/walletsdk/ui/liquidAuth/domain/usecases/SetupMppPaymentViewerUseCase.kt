@@ -21,10 +21,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeout
+import org.json.JSONObject
 import org.webrtc.DataChannel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
@@ -36,6 +39,7 @@ class SetupMppPaymentViewerUseCase(
     companion object {
         private const val TAG = "SetupMppPaymentViewer"
         private const val DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG = false
+        private const val CHAIN_WRITE_TIMEOUT_MS = 15_000L
     }
 
     data class Params(
@@ -265,6 +269,32 @@ class SetupMppPaymentViewerUseCase(
                             },
                         clientConfig = ClientConfig(autoPaySegments = false),
                     ).also { viewer ->
+                        // ── Early key announcement ────────────────────────────────────────
+                        // Send the viewer's authorized signer public key to the creator the
+                        // moment the DataChannel opens — BEFORE any segment:request arrives.
+                        viewer.rtcClient.onDataChannelOpen = {
+                            val pubKeyBytes = signer.authorizedSignerPublicKey
+                            if (pubKeyBytes != null && pubKeyBytes.isNotEmpty()) {
+                                try {
+                                    val pubKeyBase64 =
+                                        android.util.Base64.encodeToString(pubKeyBytes, android.util.Base64.NO_WRAP)
+                                    val helloMsg =
+                                        JSONObject().apply {
+                                            put("reference", "liquid:viewer:hello")
+                                            put("viewer", accountAddress)
+                                            put("viewerPublicKey", pubKeyBase64)
+                                        }
+                                    service.send(helloMsg.toString())
+                                    Log.d(
+                                        TAG,
+                                        "[VIEWER_HELLO_SENT] viewer=$accountAddress pubKeyLen=${pubKeyBytes.size}",
+                                    )
+                                } catch (e: Exception) {
+                                    Log.w(TAG, "[VIEWER_HELLO_SEND_FAILED] viewer=$accountAddress", e)
+                                }
+                            }
+                        }
+
                         viewer.rtcClient.onPaymentRequested = { request ->
                             Log.d(
                                 TAG,
@@ -297,12 +327,14 @@ class SetupMppPaymentViewerUseCase(
 
                                 if (receiptViewerAddress.isNotBlank()) {
                                     val preUpdateDynamicData =
-                                        MppPayments.getSessionDynamicDataFromVault(
-                                            viewerAddress = receiptViewerAddress,
-                                            hostAddress = sessionVaultHostAddress,
-                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                        )
+                                        safeApiCall("getSessionDynamicData.preUpdate") {
+                                            MppPayments.getSessionDynamicDataFromVault(
+                                                viewerAddress = receiptViewerAddress,
+                                                hostAddress = sessionVaultHostAddress,
+                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                            )
+                                        }
                                     val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
                                     val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
                                     val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
@@ -353,21 +385,37 @@ class SetupMppPaymentViewerUseCase(
 
                                     if (voucherSignature != null && voucherSignature.isNotEmpty()) {
                                         if (DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG) {
-                                            Log.e(
+                                            Log.d(
                                                 TAG,
                                                 "[VIEWER_UPDATE_VOUCHER_DISABLED_DEBUG] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                             )
                                         } else {
                                             val updateVoucherOnChain =
                                                 suspend {
-                                                    MppPayments.updateVoucherOnChain(
-                                                        signer = signer,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                        viewerAddress = receiptViewerAddress,
-                                                        hostAddress = sessionVaultHostAddress,
-                                                        totalAmountUsedMicroUsdc = voucherClaimed,
-                                                        signature = voucherSignature,
-                                                    )
+                                                    try {
+                                                        Result.success(
+                                                            withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
+                                                                MppPayments
+                                                                    .updateVoucherOnChain(
+                                                                        signer = signer,
+                                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                                        viewerAddress = receiptViewerAddress,
+                                                                        hostAddress = sessionVaultHostAddress,
+                                                                        totalAmountUsedMicroUsdc = voucherClaimed,
+                                                                        signature = voucherSignature,
+                                                                    ).getOrThrow()
+                                                            },
+                                                        )
+                                                    } catch (timeout: TimeoutCancellationException) {
+                                                        Result.failure(
+                                                            IllegalStateException(
+                                                                "updateVoucher timeout after ${CHAIN_WRITE_TIMEOUT_MS}ms",
+                                                                timeout,
+                                                            ),
+                                                        )
+                                                    } catch (t: Throwable) {
+                                                        Result.failure(t)
+                                                    }
                                                 }
 
                                             var updateResult =
@@ -399,7 +447,7 @@ class SetupMppPaymentViewerUseCase(
                                                                 firstErrText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
                                                         )
                                                 if (!duplicateVoucherUpdate) {
-                                                    Log.w(
+                                                    Log.e(
                                                         TAG,
                                                         "[VIEWER_VOUCHER_UPDATE_RETRY] session=${receipt.sessionId} claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                                         updateResult.exceptionOrNull(),
@@ -415,7 +463,7 @@ class SetupMppPaymentViewerUseCase(
                                                     errText.contains("box_len; bury 1; assert", ignoreCase = true) ||
                                                         errText.contains("Authorized signer public key not set yet", ignoreCase = true)
                                                 if (missingSignerBox) {
-                                                    Log.w(
+                                                    Log.e(
                                                         TAG,
                                                         "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_START] session=${receipt.sessionId} viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                                         updateResult.exceptionOrNull(),
@@ -428,7 +476,7 @@ class SetupMppPaymentViewerUseCase(
                                                             hostAddress = sessionVaultHostAddress,
                                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                         ).onSuccess { signerTxId ->
-                                                            Log.d(
+                                                            Log.e(
                                                                 TAG,
                                                                 "[VIEWER_VOUCHER_SET_SIGNER_RECOVERY_OK] session=${receipt.sessionId} txId=$signerTxId",
                                                             )
@@ -446,7 +494,7 @@ class SetupMppPaymentViewerUseCase(
 
                                             updateResult
                                                 .onSuccess { txId ->
-                                                    Log.d(
+                                                    Log.e(
                                                         TAG,
                                                         "✅ Viewer updateVoucher sent: txId=$txId claimed=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress",
                                                     )
@@ -478,12 +526,14 @@ class SetupMppPaymentViewerUseCase(
                                                 }
 
                                             val onChainDynamicData =
-                                                MppPayments.getSessionDynamicDataFromVault(
-                                                    viewerAddress = receiptViewerAddress,
-                                                    hostAddress = sessionVaultHostAddress,
-                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                                )
+                                                safeApiCall("getSessionDynamicData.postUpdate") {
+                                                    MppPayments.getSessionDynamicDataFromVault(
+                                                        viewerAddress = receiptViewerAddress,
+                                                        hostAddress = sessionVaultHostAddress,
+                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                    )
+                                                }
                                             val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
                                             val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
                                             val duplicateVoucherUpdate =
@@ -501,18 +551,20 @@ class SetupMppPaymentViewerUseCase(
                                             val effectiveUpdateOk = updateResult.isSuccess || duplicateVoucherUpdate
                                             val caughtUp = onChainLatestVoucher >= voucherClaimed
                                             val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
-                                            Log.d(
+                                            Log.e(
                                                 TAG,
                                                 "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
                                             )
 
                                             val progressSnapshot =
-                                                MppPayments.getSessionProgressSnapshotFromVault(
-                                                    viewerAddress = receiptViewerAddress,
-                                                    hostAddress = sessionVaultHostAddress,
-                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                                )
+                                                safeApiCall("getSessionProgressSnapshot.postUpdate") {
+                                                    MppPayments.getSessionProgressSnapshotFromVault(
+                                                        viewerAddress = receiptViewerAddress,
+                                                        hostAddress = sessionVaultHostAddress,
+                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                    )
+                                                }
                                             val voucherJson =
                                                 MppPayments.createVoucherJson(
                                                     sessionId = receipt.sessionId,
@@ -525,11 +577,11 @@ class SetupMppPaymentViewerUseCase(
                                                     signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
                                                 )
                                             val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
-                                            Log.d(
+                                            Log.e(
                                                 TAG,
                                                 "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
                                             )
-                                            Log.d(
+                                            Log.e(
                                                 TAG,
                                                 "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
                                             )
@@ -539,15 +591,17 @@ class SetupMppPaymentViewerUseCase(
                                 }
 
                                 val progressSnapshot =
-                                    MppPayments.getSessionProgressSnapshotFromVault(
-                                        viewerAddress = receiptViewerAddress,
-                                        hostAddress = sessionVaultHostAddress,
-                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                    )
+                                    safeApiCall("getSessionProgressSnapshot.onReceipt") {
+                                        MppPayments.getSessionProgressSnapshotFromVault(
+                                            viewerAddress = receiptViewerAddress,
+                                            hostAddress = sessionVaultHostAddress,
+                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                        )
+                                    }
                                 val onChainRemaining = progressSnapshot?.remainingSettledMicroUsdc ?: 0L
                                 val progressBalance = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
-                                Log.d(
+                                Log.e(
                                     TAG,
                                     "[VIEWER_SESSION_VAULT_FETCH_ON_RECEIPT] viewer=$receiptViewerAddress segment=${receipt.segmentIndex} remaining=$onChainRemaining progress=$progressBalance",
                                 )
@@ -558,14 +612,163 @@ class SetupMppPaymentViewerUseCase(
                             Log.w(TAG, "[VIEWER_STREAM_GATED] viewer=$accountAddress host=$sessionVaultHostAddress reason=$reason")
                             params.scope.launch {
                                 runCatching {
-                                    params.requestMppConsent(
+                                    val approval = params.requestMppConsent(
                                         ConsentTerms(
                                             gatingMode = GatingMode.PARTIAL_TIME,
                                             amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
                                             asset = USDC_TESTNET_ID.toString(),
                                             network = mppNetwork,
+                                            payTo = sessionVaultHostAddress,
                                             segmentDuration = 3,
                                         ),
+                                    )
+
+                                    if (!approval.approved) {
+                                        Log.w(
+                                            TAG,
+                                            "[VIEWER_STREAM_GATED_CONSENT_REJECTED] viewer=$accountAddress host=$sessionVaultHostAddress",
+                                        )
+                                        return@runCatching
+                                    }
+
+                                    val depositMicroUsdc =
+                                        approval.budgetCap
+                                            ?.amount
+                                            ?.toLongOrNull()
+                                            ?.takeIf { it > 0L }
+                                            ?: 1_000_000L
+
+                                    Log.e(
+                                        TAG,
+                                        "[VIEWER_STREAM_GATED_TOPUP_START] viewer=$accountAddress host=$sessionVaultHostAddress amountMicroUsdc=$depositMicroUsdc",
+                                    )
+
+                                    // Check whether the session vault already exists so we can
+                                    // choose between topUp (existing session) vs openAndDeposit (new session).
+                                    val existingSessionData =
+                                        safeApiCall("getSessionDynamicData.streamGated") {
+                                            MppPayments.getSessionDynamicDataFromVault(
+                                                viewerAddress = accountAddress,
+                                                hostAddress = sessionVaultHostAddress,
+                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                            )
+                                        }
+
+                                    if (existingSessionData != null) {
+                                        // Session vault exists — just top it up with more funds.
+                                        MppPayments
+                                            .topUpSessionVault(
+                                                signer = signer,
+                                                viewerAddress = accountAddress,
+                                                hostAddress = sessionVaultHostAddress,
+                                                additionalDepositMicroUsdc = depositMicroUsdc,
+                                            ).onSuccess { txId ->
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_STREAM_GATED_TOPUP_OK] txId=$txId viewer=$accountAddress host=$sessionVaultHostAddress amountMicroUsdc=$depositMicroUsdc",
+                                                )
+                                                val onChainRemaining =
+                                                    getRemainingSessionVaultBalanceUseCase(
+                                                        GetRemainingSessionVaultBalanceUseCase.Params(
+                                                            viewerAddress = accountAddress,
+                                                            hostAddress = sessionVaultHostAddress,
+                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        ),
+                                                    ).getOrDefault(0L)
+                                                params.setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
+                                                startViewerOnChainRefresh(
+                                                    scope = params.scope,
+                                                    viewerAddress = accountAddress,
+                                                    hostAddress = sessionVaultHostAddress,
+                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                    setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
+                                                )
+                                                // Extend the viewer's budget cap so the next payment
+                                                // request doesn't immediately hit the exhausted limit,
+                                                // then tell the server to re-issue the segment request.
+                                                liquidStreamViewer?.rtcClient?.extendBudget(
+                                                    additionalMicroUsdc = depositMicroUsdc,
+                                                    asset = USDC_TESTNET_ID.toString(),
+                                                )
+                                                liquidStreamViewer?.rtcClient?.notifyVaultFunded(
+                                                    sessionId = viewerVoucherSessionId ?: "",
+                                                )
+                                            }.onFailure {
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_STREAM_GATED_TOPUP_ERR] viewer=$accountAddress host=$sessionVaultHostAddress amountMicroUsdc=$depositMicroUsdc",
+                                                    it,
+                                                )
+                                            }
+                                    } else {
+                                        // No session vault yet — open a new one and deposit.
+                                        MppPayments
+                                            .openSessionAndDeposit(
+                                                signer = signer,
+                                                viewerAddress = accountAddress,
+                                                creatorAddress = sessionVaultHostAddress,
+                                                depositAmountMicroUsdc = depositMicroUsdc,
+                                            ).onSuccess { txId ->
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_STREAM_GATED_OPEN_DEPOSIT_OK] txId=$txId viewer=$accountAddress host=$sessionVaultHostAddress amountMicroUsdc=$depositMicroUsdc",
+                                                )
+                                                MppPayments
+                                                    .setAuthorizedSignerForSession(
+                                                        signer = signer,
+                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        viewerAddress = accountAddress,
+                                                        hostAddress = sessionVaultHostAddress,
+                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                    ).onFailure {
+                                                        Log.e(
+                                                            TAG,
+                                                            "[VIEWER_STREAM_GATED_SET_SIGNER_ERR] viewer=$accountAddress host=$sessionVaultHostAddress",
+                                                            it,
+                                                        )
+                                                    }
+                                                val onChainRemaining =
+                                                    getRemainingSessionVaultBalanceUseCase(
+                                                        GetRemainingSessionVaultBalanceUseCase.Params(
+                                                            viewerAddress = accountAddress,
+                                                            hostAddress = sessionVaultHostAddress,
+                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        ),
+                                                    ).getOrDefault(0L)
+                                                params.setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
+                                                startViewerOnChainRefresh(
+                                                    scope = params.scope,
+                                                    viewerAddress = accountAddress,
+                                                    hostAddress = sessionVaultHostAddress,
+                                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                    setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
+                                                )
+                                                // Extend the viewer's budget cap so the next payment
+                                                // request doesn't immediately hit the exhausted limit,
+                                                // then tell the server to re-issue the segment request.
+                                                liquidStreamViewer?.rtcClient?.extendBudget(
+                                                    additionalMicroUsdc = depositMicroUsdc,
+                                                    asset = USDC_TESTNET_ID.toString(),
+                                                )
+                                                liquidStreamViewer?.rtcClient?.notifyVaultFunded(
+                                                    sessionId = viewerVoucherSessionId ?: "",
+                                                )
+                                            }.onFailure {
+                                                Log.e(
+                                                    TAG,
+                                                    "[VIEWER_STREAM_GATED_OPEN_DEPOSIT_ERR] viewer=$accountAddress host=$sessionVaultHostAddress amountMicroUsdc=$depositMicroUsdc",
+                                                    it,
+                                                )
+                                            }
+                                    }
+                                }.onFailure {
+                                    Log.e(
+                                        TAG,
+                                        "[VIEWER_STREAM_GATED_CONSENT_ERR] viewer=$accountAddress host=$sessionVaultHostAddress",
+                                        it,
                                     )
                                 }
                             }
@@ -614,6 +817,25 @@ class SetupMppPaymentViewerUseCase(
                             "[VIEWER_SESSION_VAULT_REFRESH_TICK] viewer=$viewerAddress host=$sessionVaultHostAddress remaining=$remaining",
                         )
                         setViewerSessionVaultProgress(remaining, remaining)
+                        // When the on-chain balance reaches 0, collapse the local budget cap
+                        // to the current spend so the very next segment payment immediately
+                        // triggers onBudgetExceeded → onStreamGated → topUp popup.
+                        // Without this, the viewer keeps auto-paying additional segments until
+                        // the locally-tracked spend naturally reaches the initial budget cap,
+                        // delaying the popup by up to N more segments.
+                        if (remaining == 0L) {
+                            val viewer = liquidStreamViewer
+                            if (viewer != null) {
+                                Log.e(
+                                    TAG,
+                                    "[VIEWER_SESSION_VAULT_BALANCE_DEPLETED] viewer=$viewerAddress host=$sessionVaultHostAddress collapsing_budget_cap",
+                                )
+                                viewer.rtcClient.extendBudget(
+                                    additionalMicroUsdc = 0L,
+                                    asset = USDC_TESTNET_ID.toString(),
+                                )
+                            }
+                        }
                     }.onFailure {
                         Log.e(
                             TAG,
@@ -667,4 +889,15 @@ class SetupMppPaymentViewerUseCase(
             continuation.invokeOnCancellation { handler.removeCallbacks(poll) }
         }
     }
+
+    private suspend fun <T> safeApiCall(
+        apiName: String,
+        block: suspend () -> T,
+    ): T? =
+        try {
+            block()
+        } catch (t: Throwable) {
+            Log.e(TAG, "[VIEWER_API_ERR] api=$apiName", t)
+            null
+        }
 }
