@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.test
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.payment_test
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
