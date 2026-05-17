@@ -7,8 +7,10 @@ import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.aakira.napier.Napier
 import java.math.BigInteger
+
 
 private fun List<ByteArray>.flattenToByteArray(): ByteArray {
     val totalSize = this.sumOf { it.size }
@@ -35,15 +37,17 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             Napier.d(tag = TAG, message = "Signing Falcon24 transaction, input bytes: ${transactionByteArray.size}")
             val expectedTxn = Encoder.decodeFromMsgPack(transactionByteArray, Transaction::class.java)
 
-            val txnList = BytesArray()
-            txnList.append(transactionByteArray.copyOf())
-
-            val resultCsv =
+            // BytesArray construction and signFalconBundle must run on the dedicated Go-mobile
+            // OS thread to prevent "fatal error: bulkBarrierPreWrite: unaligned arguments".
+            val resultCsv = GoMobileDispatcher.runOnGoThread {
+                val txnList = BytesArray()
+                txnList.append(transactionByteArray.copyOf())
                 Sdk.signFalconBundle(
                     txnList,
                     publicKey.copyOf(),
                     privateKey.copyOf(),
                 )
+            }
             Napier.d(tag = TAG, message = "signFalconBundle returned CSV with length: ${resultCsv.length}")
 
             val signedResults = resultCsv.split(",").filter { it.isNotBlank() }
@@ -113,12 +117,17 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             require(publicKey.isNotEmpty()) { "publicKey must not be empty" }
             require(privateKey.isNotEmpty()) { "privateKey must not be empty" }
 
-            val signedBytes =
+            // rawSign must also run on the dedicated Go-mobile OS thread so it cannot
+            // race with signFalconBundle (concurrent calls from different threads cause
+            // the Go GC to scan a half-initialised JNI goroutine and crash with
+            // "bulkBarrierPreWrite: unaligned arguments").
+            val signedBytes = GoMobileDispatcher.runOnGoThread {
                 Sdk.rawSign(
                     data.copyOf(),
                     publicKey.copyOf(),
                     privateKey.copyOf(),
                 )
+            }
             signedBytes
         } catch (t: Throwable) {
             Log.e(TAG, "Error signing arbitrary data: ${t.message}, cause: ${t.cause}")

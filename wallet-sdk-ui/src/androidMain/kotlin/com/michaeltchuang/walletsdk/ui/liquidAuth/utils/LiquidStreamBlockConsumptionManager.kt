@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -12,8 +13,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.Base64
+import java.util.concurrent.atomic.AtomicInteger
+
 internal class LiquidStreamBlockConsumptionManager(
     private val tag: String,
     private val getViewModel: () -> LiquidAuthOfferViewModel?,
@@ -21,7 +23,6 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getActiveCreatorAddress: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
-    private val sendMessage: (String) -> Unit,
 ) {
 
     data class CreatorVoucherClaimSnapshot(
@@ -33,7 +34,6 @@ internal class LiquidStreamBlockConsumptionManager(
     )
 
     companion object {
-        private const val ZERO_BALANCE_GRACE_BLOCKS = 3
         private const val CHAIN_READ_TIMEOUT_MS = 10_000L
         private const val CHAIN_WRITE_TIMEOUT_MS = 15_000L
     }
@@ -43,21 +43,18 @@ internal class LiquidStreamBlockConsumptionManager(
      * Prevents leaked coroutines from anonymous CoroutineScope().
      */
     private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.Default,
+        SupervisorJob() + Dispatchers.IO,
     )
 
-    /**
-     * Prevents concurrent settlements.
-     */
     private val settlementMutex = Mutex()
+    private val settlementJobLock = Any()
 
     private var blockDrivenConsumptionJob: Job? = null
+    private var settlementJob: Job? = null
 
-    private var blocksConsumed: Int = 0
+    private val blocksConsumed = AtomicInteger(0)
+    @Volatile
     private var currentSessionId: String? = null
-    private var consecutiveZeroProgressBlocks: Int = 0
-    private val settlementGateLock = Any()
-    private var settlementInFlight: Boolean = false
 
     fun start(sessionId: String) {
 
@@ -76,7 +73,7 @@ internal class LiquidStreamBlockConsumptionManager(
             Log.e(
                 tag,
                 "[SESSION_VAULT_BLOCK_LOOP_ALREADY_RUNNING] " +
-                        "session=$sessionId blocks=$blocksConsumed",
+                        "session=$sessionId blocks=${blocksConsumed.get()}",
             )
             return
         }
@@ -94,8 +91,7 @@ internal class LiquidStreamBlockConsumptionManager(
             }
 
         currentSessionId = sessionId
-        blocksConsumed = 0
-        consecutiveZeroProgressBlocks = 0
+        blocksConsumed.set(0)
 
         viewModel.monitorBlockchainBlocks()
         viewModel.startRealtimeBlockNumberUpdates()
@@ -151,11 +147,13 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@collect
                     }
 
-                    val advanced = (blockNumber - previous).toInt()
+                    val advancedLong = blockNumber - previous
 
-                    if (advanced <= 0) {
+                    if (advancedLong <= 0L) {
                         return@collect
                     }
+
+                    val advanced = advancedLong.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
 
                     Log.e(
                         tag,
@@ -204,9 +202,14 @@ internal class LiquidStreamBlockConsumptionManager(
         getViewModel()?.stopRealtimeBlockNumberUpdates()
 
         currentSessionId = null
-        blocksConsumed = 0
-        consecutiveZeroProgressBlocks = 0
-        endSettlement()
+        blocksConsumed.set(0)
+        val jobToCancel =
+            synchronized(settlementJobLock) {
+                val job = settlementJob
+                settlementJob = null
+                job
+            }
+        jobToCancel?.cancel()
     }
 
     private suspend fun consumeBlockSequentially() {
@@ -230,12 +233,7 @@ internal class LiquidStreamBlockConsumptionManager(
             return
         }
 
-        blocksConsumed++
-
-        /**
-         * Snapshot immediately.
-         */
-        val localBlocksConsumed = blocksConsumed
+        val localBlocksConsumed = blocksConsumed.incrementAndGet()
 
         val viewerAddress =
             getActiveViewerAddress()
@@ -264,6 +262,8 @@ internal class LiquidStreamBlockConsumptionManager(
                             authorizedSignerPublicKey = snapshotSignerPublicKey,
                         )
                     }
+                } catch (ce: CancellationException) {
+                    throw ce
                 } catch (t: Throwable) {
                     Log.e(
                         tag,
@@ -337,9 +337,18 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         val signerPublicKey =
-            Base64
-                .getDecoder()
-                .decode(claimSnapshot.viewerPublicKeyBase64)
+            runCatching {
+                Base64
+                    .getDecoder()
+                    .decode(claimSnapshot.viewerPublicKeyBase64)
+            }.getOrElse {
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_CLAIM_SKIP] reason=invalid_viewer_public_key",
+                    it,
+                )
+                return
+            }
 
         val signedTotalAmount =
             claimSnapshot.totalAmountClaimedMicroUsdc
@@ -412,6 +421,8 @@ internal class LiquidStreamBlockConsumptionManager(
                         }
                     Result.success(txId)
                 }
+            } catch (ce: CancellationException) {
+                throw ce
             } catch (t: Throwable) {
                 Result.failure(t)
             }
@@ -453,23 +464,30 @@ internal class LiquidStreamBlockConsumptionManager(
             )
             return
         }
-        if (!tryBeginSettlement()) {
-            Log.e(tag, "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=request_in_flight session=$sessionId")
+
+        if (!settlementMutex.tryLock()) {
+            Log.e(
+                tag,
+                "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=request_in_flight session=$sessionId",
+            )
             return
         }
 
-        val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
+        val localBlocksConsumed = blocksConsumed.get().coerceAtLeast(0)
         val used = MppPayments.computeVoucherMicroUsdcUsage(localBlocksConsumed)
-        scope.launch {
-            try {
-                settlementMutex.withLock {
+        val job =
+            scope.launch {
+                val currentJob = coroutineContext[Job]
+
+                try {
                     if (sessionId != currentSessionId) {
                         Log.e(
                             tag,
                             "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$currentSessionId",
                         )
-                        return@withLock
+                        return@launch
                     }
+
                     startSettlement(
                         sessionId = sessionId,
                         viewerAddress = viewerAddress,
@@ -477,26 +495,17 @@ internal class LiquidStreamBlockConsumptionManager(
                         used = used,
                         localBlocksConsumed = localBlocksConsumed,
                     )
+                } finally {
+                    settlementMutex.unlock()
+                    synchronized(settlementJobLock) {
+                        if (settlementJob == currentJob) {
+                            settlementJob = null
+                        }
+                    }
                 }
-            } finally {
-                endSettlement()
             }
-        }
-    }
-
-    private fun tryBeginSettlement(): Boolean =
-        synchronized(settlementGateLock) {
-            if (settlementInFlight) {
-                false
-            } else {
-                settlementInFlight = true
-                true
-            }
-        }
-
-    private fun endSettlement() {
-        synchronized(settlementGateLock) {
-            settlementInFlight = false
+        synchronized(settlementJobLock) {
+            settlementJob = job
         }
     }
 }

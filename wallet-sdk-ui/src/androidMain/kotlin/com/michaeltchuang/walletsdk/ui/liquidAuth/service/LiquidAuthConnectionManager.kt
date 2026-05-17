@@ -37,7 +37,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.GoMobileDispatcher
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -114,8 +114,7 @@ class AndroidLiquidAuthConnectionManager(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
-            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) },
-            sendMessage = { message -> sendMessage(message) },
+            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) }
         )
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
@@ -1051,7 +1050,9 @@ class AndroidLiquidAuthConnectionManager(
                         val signature =
                             signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
                                 ?: error("Algo25 arbitrary signing failed")
-                        Sdk.attachSignature(signature, txnBytes)
+                        withContext(GoMobileDispatcher.dispatcher) {
+                            Sdk.attachSignature(signature, txnBytes)
+                        }
                     }
 
                     is LocalAccount.HdKey -> {

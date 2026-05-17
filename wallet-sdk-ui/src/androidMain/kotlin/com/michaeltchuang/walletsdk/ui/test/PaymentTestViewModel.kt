@@ -24,7 +24,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.TESTNET_ALGOD_URL
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.GoMobileDispatcher
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -1046,7 +1046,9 @@ class PaymentTestViewModel(
                                 Log.e(TAG, "Algo25 arbitrary signing failed for $creatorAddress")
                                 return ByteArray(0)
                             }
-                            Sdk.attachSignature(signature, txnBytes)
+                            withContext(GoMobileDispatcher.dispatcher) {
+                                Sdk.attachSignature(signature, txnBytes)
+                            }
                         }
 
                         is LocalAccount.HdKey -> {

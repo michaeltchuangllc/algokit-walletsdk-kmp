@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressDerivat
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressIndex
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 import com.michaeltchuang.walletsdk.core.encryption.domain.utils.clearFromMemory
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.xhdwalletapi.Bip32DerivationType
 import foundation.algorand.xhdwalletapi.KeyContext
 import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
@@ -59,7 +60,7 @@ internal class AlgorandBip39Wallet internal constructor(
 
     @OptIn(kotlin.ExperimentalStdlibApi::class)
     override fun generateFalcon24Address(mnemonic: String): Falcon24 {
-        val algorandKeyInfo = Sdk.deriveFromMnemonic(mnemonic, "")
+        val algorandKeyInfo = GoMobileDispatcher.runOnGoThread { Sdk.deriveFromMnemonic(mnemonic, "") }
         return Falcon24(
             address = algorandKeyInfo.algorandAddress,
             publicKey = algorandKeyInfo.publicKey,

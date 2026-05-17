@@ -63,7 +63,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.GoMobileDispatcher
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
@@ -882,7 +882,9 @@ class AnswerViewModel(
                                 Log.e(TAG, "Algo25 arbitrary signing failed for $address")
                                 return ByteArray(0)
                             }
-                            Sdk.attachSignature(signature, txnBytes)
+                            withContext(GoMobileDispatcher.dispatcher) {
+                                Sdk.attachSignature(signature, txnBytes)
+                            }
                         }
 
                         is LocalAccount.HdKey -> {

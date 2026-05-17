@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import org.bouncycastle.crypto.digests.SHA512tDigest
 import java.math.BigInteger
 import java.nio.ByteBuffer
@@ -651,7 +652,11 @@ class EscrowSessionVaultManagerClient(
         params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
         index: Int,
     ): Transaction {
-        val falconLsigAddress = Address(Sdk.getFalconLsigAddress())
+        // getFalconLsigAddress must run on the dedicated Go-mobile OS thread.
+        // Calling any Sdk.* function from a fresh JNI thread while signFalconBundle
+        // runs concurrently causes the Go GC to scan a half-initialised goroutine
+        // and crash with "bulkBarrierPreWrite: unaligned arguments".
+        val falconLsigAddress = Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
 
         val txn =
             Transaction
