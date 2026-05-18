@@ -28,18 +28,25 @@ internal class MppConsumer(
         private const val TAG = "MppConsumer"
     }
 
+    init {
+        BouncyCastleProviderSetup.ensure()
+    }
+
     /** Build, sign, and serialize the credential for the given challenge. */
     suspend fun createCredential(challenge: ChargeChallenge): String =
         withContext(Dispatchers.IO) {
             try {
-                Log.e(TAG, "[CREATE_CREDENTIAL_START] method=${challenge.method} id=${challenge.id} network=${config.network}")
                 if (challenge.method.equals("solana", ignoreCase = true)) {
                     createSolanaCredential(challenge)
                 } else {
                     createAlgorandCredential(challenge)
                 }
             } catch (t: Throwable) {
-                Log.e(TAG, "[CREATE_CREDENTIAL_FAILED] method=${challenge.method} id=${challenge.id} error=${t.message}", t)
+                Log.e(
+                    TAG,
+                    "[CREATE_CREDENTIAL_FAILED] method=${challenge.method} id=${challenge.id} error=${t.message}",
+                    t,
+                )
                 throw t
             }
         }
@@ -138,7 +145,6 @@ internal class MppConsumer(
     private suspend fun createSolanaCredential(challenge: ChargeChallenge): String {
         val req = ChargeRequestCodec.parseSolanaRequest(challenge.request)
         val network = req.network ?: config.network
-        Log.e(TAG, "[CREATE_CREDENTIAL_SOLANA] recipient=${req.recipient} amount=${req.amount} mint=${req.mint ?: "SOL"} network=$network")
 
         config.onProgress?.invoke(
             MppProgressEvent.Challenge(

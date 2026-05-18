@@ -30,12 +30,12 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAcc
 import com.michaeltchuang.walletsdk.core.utils.AppId
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.CameraStreamingPreviewController
-import com.michaeltchuang.walletsdk.ui.liquidAuth.components.createCameraStreamingPreview
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.getSupportedLocalAccountsByAppId
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.createCameraStreamingPreview
 import org.koin.compose.koinInject
 
 /**

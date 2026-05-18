@@ -25,5 +25,6 @@ internal actual fun platformKoinModule(): Module =
         includes(
             com.michaeltchuang.walletsdk.core.account.di.solanaAccountModule,
             passkeyModule,
+            com.michaeltchuang.walletsdk.core.railmpp.di.railMppModule,
         )
     }

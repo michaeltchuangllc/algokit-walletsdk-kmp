@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.AlgoSdkNumberExtensions.toUint64
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.ktor.utils.io.charsets.Charsets
 import io.ktor.utils.io.core.toByteArray
 
@@ -40,9 +41,10 @@ fun String.urlSafeBase64ToStandard(): String =
             it + "=".repeat(padding)
         }
 
-actual fun ByteArray.signTransaction(secretKey: ByteArray): ByteArray = Sdk.signTransaction(secretKey, this)
+actual fun ByteArray.signTransaction(secretKey: ByteArray): ByteArray =
+    GoMobileDispatcher.runOnGoThread { Sdk.signTransaction(secretKey, this) }
 
-actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray = Sdk.signTransaction(secretKey, this)
+actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray = GoMobileDispatcher.runOnGoThread { Sdk.signTransaction(secretKey, this) }
 
 actual fun TransactionParams.makeAlgoTx(
     senderAddress: String,
@@ -97,27 +99,31 @@ actual fun TransactionParams.makeAddAssetTx(
     publicKey: String,
     assetId: Long,
 ): ByteArray =
-    Sdk.makeAssetAcceptanceTxn(
-        publicKey,
-        null,
-        toSuggestedParams(),
-        assetId,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeAssetAcceptanceTxn(
+            publicKey,
+            null,
+            toSuggestedParams(),
+            assetId,
+        )
+    }
 
 actual fun TransactionParams.makeRemoveAssetTx(
     senderAddress: String,
     creatorPublicKey: String,
     assetId: Long,
 ): ByteArray =
-    Sdk.makeAssetTransferTxn(
-        senderAddress,
-        creatorPublicKey,
-        creatorPublicKey,
-        0L.toUint64(),
-        null,
-        toSuggestedParams(addGenesisId = false),
-        assetId,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeAssetTransferTxn(
+            senderAddress,
+            creatorPublicKey,
+            creatorPublicKey,
+            0L.toUint64(),
+            null,
+            toSuggestedParams(addGenesisId = false),
+            assetId,
+        )
+    }
 
 actual fun TransactionParams.makeSendAndRemoveAssetTx(
     senderAddress: String,
@@ -126,22 +132,26 @@ actual fun TransactionParams.makeSendAndRemoveAssetTx(
     amount: BigInteger,
     noteInByteArray: ByteArray?,
 ): ByteArray =
-    Sdk.makeAssetTransferTxn(
-        senderAddress,
-        receiverAddress,
-        receiverAddress,
-        amount.toString().toBigInteger().toUint64(),
-        noteInByteArray,
-        toSuggestedParams(addGenesisId = false),
-        assetId,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeAssetTransferTxn(
+            senderAddress,
+            receiverAddress,
+            receiverAddress,
+            amount.toString().toBigInteger().toUint64(),
+            noteInByteArray,
+            toSuggestedParams(addGenesisId = false),
+            assetId,
+        )
+    }
 
 actual fun TransactionParams.makeRekeyTx(
     rekeyAddress: String,
     rekeyAdminAddress: String,
 ): ByteArray =
-    Sdk.makeRekeyTxn(
-        rekeyAddress,
-        rekeyAdminAddress,
-        toSuggestedParams(),
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeRekeyTxn(
+            rekeyAddress,
+            rekeyAdminAddress,
+            toSuggestedParams(),
+        )
+    }

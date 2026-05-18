@@ -4,6 +4,7 @@ import com.algorand.algosdk.crypto.Address
 import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.xhdwalletapi.Bip32DerivationType
 import foundation.algorand.xhdwalletapi.KeyContext
 import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
@@ -48,10 +49,15 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
                     ),
                 )
 
-            return if (tx.sender != pkAddress) {
-                Sdk.attachSignatureWithSigner(signedTxn, transactionByteArray, pkAddress.toString())
-            } else {
-                Sdk.attachSignature(signedTxn, transactionByteArray)
+            // attachSignature/attachSignatureWithSigner must run on the dedicated Go-mobile
+            // OS thread to prevent concurrent GC races with signFalconBundle
+            // ("bulkBarrierPreWrite: unaligned arguments").
+            return GoMobileDispatcher.runOnGoThread {
+                if (tx.sender != pkAddress) {
+                    Sdk.attachSignatureWithSigner(signedTxn, transactionByteArray, pkAddress.toString())
+                } else {
+                    Sdk.attachSignature(signedTxn, transactionByteArray)
+                }
             }
         } catch (e: Exception) {
             null

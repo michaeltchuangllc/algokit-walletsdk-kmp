@@ -323,16 +323,21 @@ class PeerApi(
     fun getAdditionalDataChannel(label: String): DataChannel? = additionalDataChannels[label]
 
     fun send(message: String) {
-        if (dataChannel === null) {
-            throw Exception("dataChannel is null")
+        val channel = dataChannel
+        if (channel == null) {
+            Log.w(TAG, "Skipping send: dataChannel is null")
+            return
         }
-        dataChannel?.state()?.let {
-            if (it !== DataChannel.State.OPEN) {
-                throw Exception("dataChannel is not open")
-            }
+        val state = channel.state()
+        if (state !== DataChannel.State.OPEN) {
+            Log.w(TAG, "Skipping send: dataChannel is $state")
+            return
         }
         val buffer = ByteBuffer.wrap(message.toByteArray())
-        dataChannel?.send(DataChannel.Buffer(buffer, false))
+        val sent = channel.send(DataChannel.Buffer(buffer, false))
+        if (!sent) {
+            Log.w(TAG, "Skipping send: dataChannel rejected message")
+        }
     }
 
     fun destroy() {

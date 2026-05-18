@@ -252,8 +252,20 @@ class SignalService : Service() {
      */
     fun send(msg: String) {
         Log.d(TAG, "Sending: $msg from $lastKnownReferer")
-        if (dataChannel != null) {
+        val channel = dataChannel
+        if (channel == null) {
+            Log.w(TAG, "Skipping send: dataChannel is null")
+            return
+        }
+        val state = channel.state()
+        if (state != DataChannel.State.OPEN) {
+            Log.w(TAG, "Skipping send: dataChannel is $state")
+            return
+        }
+        runCatching {
             peerClient?.send(msg)
+        }.onFailure { throwable ->
+            Log.w(TAG, "Skipping send: peerClient send failed", throwable)
         }
     }
 

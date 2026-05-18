@@ -55,6 +55,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.PaymentTestScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AddAssetScreen
@@ -109,6 +110,7 @@ enum class AlgoKitScreens {
     ADD_ASSET_SCREEN,
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
+    DEVELOPER_TEST_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -718,6 +720,9 @@ fun NavigationBottomSheetNavHost(
                         },
                         onAccountsImported = onFinish,
                     )
+                }
+                composable(route = AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) {
+                    PaymentTestScreen(navController)
                 }
             }
         }

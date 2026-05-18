@@ -12,6 +12,13 @@ object DCMessageType {
     const val SEGMENT_REJECTED = "segment:rejected"
     const val SEGMENT_KEY = "segment:key"
     const val SESSION_TERMINATE = "session:terminate"
+
+    /**
+     * Sent by the viewer to the server after a session-vault top-up completes.
+     * Signals the server to re-issue a [SEGMENT_REQUEST] so the viewer can pay
+     * with its newly extended budget.
+     */
+    const val VIEWER_VAULT_FUNDED = "viewer:vault:funded"
 }
 
 /**

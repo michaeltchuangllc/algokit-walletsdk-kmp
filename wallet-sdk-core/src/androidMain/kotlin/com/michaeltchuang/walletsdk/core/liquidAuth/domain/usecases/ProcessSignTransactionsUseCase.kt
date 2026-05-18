@@ -12,9 +12,11 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
 
 class ProcessSignTransactionsUseCase(
@@ -48,28 +50,34 @@ class ProcessSignTransactionsUseCase(
                 getFalcon24SecretKey(accountAddress)
                     ?: throw IllegalArgumentException("Falcon24 private key not found for address: $accountAddress")
 
-            // Prepare the list of all transactions - SDK handles sender filtering internally
-            val txnList = BytesArray()
-            params.txns.forEachIndexed { index, txn ->
-                val txnBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
-                txnList.append(txnBytes)
-                Napier.d(tag = TAG, message = "Falcon24 - Added transaction $index to bundle")
-            }
+            // Prepare the list of all transactions - SDK handles sender filtering internally.
+            // BytesArray construction, append, and signFalconBundle must all run on the
+            // dedicated Go-mobile OS thread to prevent "bulkBarrierPreWrite: unaligned arguments".
+            val decodedTxnBytes =
+                params.txns.mapIndexed { index, txn ->
+                    val bytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
+                    Napier.d(tag = TAG, message = "Falcon24 - Decoded transaction $index")
+                    bytes
+                }
 
-            if (txnList.length() == 0L) {
+            if (decodedTxnBytes.isEmpty()) {
                 throw IllegalStateException("No transactions found to sign")
             }
 
-            Napier.d(tag = TAG, message = "Falcon24 - Signing ${txnList.length()} transaction(s)")
+            Napier.d(tag = TAG, message = "Falcon24 - Signing ${decodedTxnBytes.size} transaction(s)")
 
             // Call the Go Bundle Signer - SDK auto-adds dummies and manages group
             try {
                 val resultCsv =
-                    Sdk.signFalconBundle(
-                        txnList,
-                        localAccount.publicKey.copyOf(),
-                        privateKey.copyOf(),
-                    )
+                    withContext(GoMobileDispatcher.dispatcher) {
+                        val txnList = BytesArray()
+                        decodedTxnBytes.forEach { txnList.append(it) }
+                        Sdk.signFalconBundle(
+                            txnList,
+                            localAccount.publicKey.copyOf(),
+                            privateKey.copyOf(),
+                        )
+                    }
 
                 // SDK returns all transactions signed in order
                 val signedResults = resultCsv.split(",")

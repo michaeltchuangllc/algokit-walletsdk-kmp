@@ -71,7 +71,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun solanaAccountDao(): SeedVaultDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 4 // Bumped for passkey address column rename
+        const val DATABASE_VERSION = 4
         const val DATABASE_NAME = "algokit_database"
     }
 }

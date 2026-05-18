@@ -1,13 +1,10 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
-import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidStreamHostViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -30,18 +27,6 @@ internal val liquidAuthModules =
                     getAccountASABalance = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),
                     getCurrentNetworkUseCase = get<GetCurrentNetworkUseCase>(),
-                )
-            }
-            viewModel {
-                LiquidStreamHostViewModel(
-                    stateDelegate = StateDelegate<LiquidStreamHostViewModel.UiState>(),
-                    eventDelegate = get(),
-                )
-            }
-            viewModel {
-                LiquidAuthViewerViewModel(
-                    stateDelegate = StateDelegate<LiquidAuthViewerViewModel.UiState>(),
-                    eventDelegate = get(),
                 )
             }
         },

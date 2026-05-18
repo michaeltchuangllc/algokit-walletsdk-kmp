@@ -51,8 +51,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -61,7 +64,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.Encoder
@@ -79,6 +82,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import java.math.BigInteger
@@ -110,6 +114,8 @@ class AnswerViewModel(
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
+        GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
 ) : ViewModel(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
@@ -392,11 +398,15 @@ class AnswerViewModel(
         credential: PublicKeyCredential,
     ): JSONObject {
         val credMessage = JSONObject()
+        val origin = authMessage.value?.origin
+        if (origin == null) {
+            Log.e(TAG, "Missing auth message origin when building credential message")
+        }
         credMessage.put("address", account)
         credMessage.put("device", Build.MODEL)
-        credMessage.put("origin", authMessage.value!!.origin)
+        credMessage.put("origin", origin ?: "")
         credMessage.put("id", credential.id)
-        credMessage.put("prevCounter", count.value!!)
+        credMessage.put("prevCounter", count.value)
         credMessage.put("type", "credential")
         return credMessage
     }
@@ -449,7 +459,16 @@ class AnswerViewModel(
 
             is LocalAccount.Falcon24 -> {
                 val privateKey = getFalcon24SecretKey(address) ?: return null
-                signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
+                if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
+                    println("DEBUG: signFido2Challenge skipped — empty input for Falcon24 signing")
+                    return null
+                }
+                try {
+                    signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
+                } catch (t: Throwable) {
+                    println("DEBUG: signFalcon24ArbitraryData threw: ${t.message}")
+                    null
+                }
             }
 
             is LocalAccount.SeedVault -> {
@@ -677,8 +696,6 @@ class AnswerViewModel(
 
     private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
     val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
-    private val _viewerVoucherUsageMicroUsdc = MutableStateFlow(0L)
-    val viewerVoucherUsageMicroUsdc: StateFlow<Long> = _viewerVoucherUsageMicroUsdc
     private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
     val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
     private val _currentBlockNumber = MutableStateFlow<Long?>(null)
@@ -738,11 +755,17 @@ class AnswerViewModel(
     }
 
     suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
+        Log.e(
+            TAG,
+            "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
+        )
         val deferred = CompletableDeferred<ConsentApproval>()
         pendingMppConsentContinuation = deferred
         _pendingMppConsent.value = terms
         return try {
-            deferred.await()
+            val approval = deferred.await()
+            Log.e(TAG, "[VIEWER_MPP_CONSENT_RESOLVED] approved=${approval.approved}")
+            approval
         } finally {
             pendingMppConsentContinuation = null
             _pendingMppConsent.value = null
@@ -752,48 +775,34 @@ class AnswerViewModel(
     fun approveMppConsent(approval: ConsentApproval) {
         // Do not seed viewer balance from consent budget; source of truth is on-chain vault read.
         if (approval.approved) {
-            _viewerVoucherUsageMicroUsdc.value = 0L
             _viewerSessionVaultMicroUsdc.value = 0L
             _viewerProgressBalanceMicroUsdc.value = 0L
         }
         pendingMppConsentContinuation?.complete(approval)
     }
 
-    fun setViewerSessionVaultBalance(
-        balanceMicroUsdc: Long,
-        resetVoucherUsage: Boolean = false,
+    fun setViewerSessionVaultProgress(
+        remainingBalanceMicroUsdc: Long,
+        progressBalanceMicroUsdc: Long,
     ) {
-        val normalized = balanceMicroUsdc.coerceAtLeast(0L)
-        if (resetVoucherUsage) {
-            _viewerVoucherUsageMicroUsdc.value = 0L
-        }
-        val usage = _viewerVoucherUsageMicroUsdc.value
-        _viewerSessionVaultMicroUsdc.value = normalized
-        _viewerProgressBalanceMicroUsdc.value = (normalized - usage).coerceAtLeast(0L)
+        _viewerSessionVaultMicroUsdc.value = remainingBalanceMicroUsdc.coerceAtLeast(0L)
+        _viewerProgressBalanceMicroUsdc.value = progressBalanceMicroUsdc.coerceAtLeast(0L)
+    }
+
+    fun setViewerSessionVaultBalance(balanceMicroUsdc: Long) {
+        setViewerSessionVaultProgress(
+            remainingBalanceMicroUsdc = balanceMicroUsdc,
+            progressBalanceMicroUsdc = balanceMicroUsdc,
+        )
     }
 
     fun rejectMppConsent() {
+        Log.e(TAG, "[VIEWER_MPP_CONSENT_REJECTED]")
         pendingMppConsentContinuation?.complete(
             ConsentApproval(
                 approved = false,
                 autoPaySegments = false,
             ),
-        )
-    }
-
-    fun applyViewerSegmentDebit(amountMicroUsdc: Long) {
-        if (amountMicroUsdc <= 0L) return
-        val onChain = _viewerSessionVaultMicroUsdc.value
-        val usageBefore = _viewerVoucherUsageMicroUsdc.value
-        val usageAfter = usageBefore + amountMicroUsdc
-        val progressAfter = (onChain - usageAfter).coerceAtLeast(0L)
-
-        _viewerVoucherUsageMicroUsdc.value = usageAfter
-        _viewerProgressBalanceMicroUsdc.value = progressAfter
-
-        Log.d(
-            TAG,
-            "💳 Viewer segment receipt/debit: -${amountMicroUsdc}µUSDC, onChain=${onChain / 1_000_000.0}, usage=${usageAfter / 1_000_000.0}, progress=${progressAfter / 1_000_000.0}",
         )
     }
 
@@ -822,14 +831,16 @@ class AnswerViewModel(
             )
 
             val onChainRemaining =
-                MppPayments.getRemainingBalanceFromSessionVault(
-                    viewerAddress = viewerAddress,
-                    hostAddress = creatorAddress,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                )
+                getRemainingSessionVaultBalanceUseCase(
+                    GetRemainingSessionVaultBalanceUseCase.Params(
+                        viewerAddress = viewerAddress,
+                        hostAddress = creatorAddress,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                    ),
+                ).getOrThrow()
 
-            setViewerSessionVaultBalance(onChainRemaining, resetVoucherUsage = true)
+            setViewerSessionVaultBalance(onChainRemaining)
 
             onChainRemaining
         }.onFailure { throwable ->
@@ -856,79 +867,118 @@ class AnswerViewModel(
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
-            override suspend fun signTransaction(txn: Transaction): ByteArray =
-                when (localAccount) {
-                    is LocalAccount.Algo25 -> {
-                        val secretKey =
-                            getAlgo25SecretKey(address)
-                                ?: error("Missing Algo25 key for $address")
-                        val txnBytes =
-                            com.algorand.algosdk.util.Encoder
-                                .encodeToMsgPack(txn)
-                        val signature =
-                            signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
-                                ?: error("Algo25 arbitrary signing failed")
-                        Sdk.attachSignature(signature, txnBytes)
-                    }
+            override suspend fun signTransaction(txn: Transaction): ByteArray {
+                return try {
+                    when (localAccount) {
+                        is LocalAccount.Algo25 -> {
+                            val secretKey = getAlgo25SecretKey(address)
+                            if (secretKey == null) {
+                                Log.e(TAG, "Missing Algo25 key for $address")
+                                return ByteArray(0)
+                            }
+                            val txnBytes =
+                                com.algorand.algosdk.util.Encoder
+                                    .encodeToMsgPack(txn)
+                            val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
+                            if (signature == null) {
+                                Log.e(TAG, "Algo25 arbitrary signing failed for $address")
+                                return ByteArray(0)
+                            }
+                            withContext(GoMobileDispatcher.dispatcher) {
+                                Sdk.attachSignature(signature, txnBytes)
+                            }
+                        }
 
-                    is LocalAccount.HdKey -> {
-                        val seed =
-                            getSeed(localAccount.seedId)
-                                ?: error("Missing HD seed for $address")
-                        signHdKeyTransaction(
-                            transactionByteArray =
-                                com.algorand.algosdk.util.Encoder.encodeToMsgPack(
-                                    txn,
-                                ),
-                            seed = seed,
-                            account = localAccount.account,
-                            change = localAccount.change,
-                            key = localAccount.keyIndex,
-                        ) ?: error("HD signing failed")
-                    }
+                        is LocalAccount.HdKey -> {
+                            val seed = getSeed(localAccount.seedId)
+                            if (seed == null) {
+                                Log.e(TAG, "Missing HD seed for $address")
+                                return ByteArray(0)
+                            }
+                            signHdKeyTransaction(
+                                transactionByteArray =
+                                    com.algorand.algosdk.util.Encoder.encodeToMsgPack(
+                                        txn,
+                                    ),
+                                seed = seed,
+                                account = localAccount.account,
+                                change = localAccount.change,
+                                key = localAccount.keyIndex,
+                            ) ?: run {
+                                Log.e(TAG, "HD signing failed for $address")
+                                return ByteArray(0)
+                            }
+                        }
 
-                    is LocalAccount.Falcon24 -> {
-                        val secretKey =
-                            getFalcon24SecretKey(address)
-                                ?: error("Missing Falcon24 key for $address")
-                        signFalconTxnFromBundle(
-                            txn = txn,
-                            publicKey = localAccount.publicKey,
-                            privateKey = secretKey,
-                        )
-                    }
+                        is LocalAccount.Falcon24 -> {
+                            val secretKey = getFalcon24SecretKey(address)
+                            if (secretKey == null) {
+                                Log.e(TAG, "Missing Falcon24 key for $address")
+                                return ByteArray(0)
+                            }
+                            signFalconTxnFromBundle(
+                                txn = txn,
+                                publicKey = localAccount.publicKey,
+                                privateKey = secretKey,
+                            )
+                        }
 
-                    else -> error("Unsupported account for MPP wallet signing: ${localAccount::class.simpleName}")
+                        else -> {
+                            Log.e(
+                                TAG,
+                                "Unsupported account for MPP wallet signing: ${localAccount::class.simpleName}",
+                            )
+                            ByteArray(0)
+                        }
+                    }
+                } catch (t: Throwable) {
+                    Log.e(TAG, "signTransaction failed for $address", t)
+                    ByteArray(0)
                 }
+            }
 
-            override suspend fun signTransactions(txns: List<Transaction>): List<ByteArray> =
-                when (localAccount) {
-                    is LocalAccount.Falcon24 -> {
-                        val secretKey =
-                            getFalcon24SecretKey(address)
-                                ?: error("Missing Falcon24 key for $address")
-                        signFalconTxnGroupFromBundle(
-                            txns = txns,
-                            publicKey = localAccount.publicKey,
-                            privateKey = secretKey,
-                        )
+            override suspend fun signTransactions(txns: List<Transaction>): List<ByteArray> {
+                return try {
+                    when (localAccount) {
+                        is LocalAccount.Falcon24 -> {
+                            val secretKey = getFalcon24SecretKey(address)
+                            if (secretKey == null) {
+                                Log.e(TAG, "Missing Falcon24 key for $address")
+                                return emptyList()
+                            }
+                            signFalconTxnGroupFromBundle(
+                                txns = txns,
+                                publicKey = localAccount.publicKey,
+                                privateKey = secretKey,
+                            )
+                        }
+
+                        else -> super.signTransactions(txns)
                     }
-
-                    else -> super.signTransactions(txns)
+                } catch (t: Throwable) {
+                    Log.e(TAG, "signTransactions failed for $address", t)
+                    emptyList()
                 }
+            }
         }
     }
 
-    private fun signFalconTxnFromBundle(
+    private suspend fun signFalconTxnFromBundle(
         txn: Transaction,
         publicKey: ByteArray,
         privateKey: ByteArray,
-    ): ByteArray =
-        signFalconTxnGroupFromBundle(
-            txns = listOf(txn),
-            publicKey = publicKey,
-            privateKey = privateKey,
-        ).first()
+    ): ByteArray {
+        val signed =
+            signFalconTxnGroupFromBundle(
+                txns = listOf(txn),
+                publicKey = publicKey,
+                privateKey = privateKey,
+            )
+        return signed.firstOrNull() ?: run {
+            Log.e(TAG, "Falcon bundle returned no signed txn")
+            ByteArray(0)
+        }
+    }
 
     private fun decodeFalconBundlePiece(encoded: String): ByteArray? {
         val trimmed = encoded.trim()
@@ -986,114 +1036,135 @@ class AnswerViewModel(
         }
     }
 
-    private fun signFalconTxnGroupFromBundle(
+    private suspend fun signFalconTxnGroupFromBundle(
         txns: List<Transaction>,
         publicKey: ByteArray,
         privateKey: ByteArray,
     ): List<ByteArray> {
         if (txns.isEmpty()) return emptyList()
+        if (publicKey.isEmpty() || privateKey.isEmpty()) {
+            Log.e(TAG, "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}")
+            return emptyList()
+        }
 
         Log.e(
             TAG,
             "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
         )
 
-        val expectedTxns =
-            txns.map {
-                com.algorand.algosdk.util.Encoder
-                    .encodeToMsgPack(it)
-            }
-        val expectedTxIds = txns.map { it.txID() }
-        val txnList = BytesArray().apply { expectedTxns.forEach { append(it) } }
-        val resultCsv =
-            Sdk.signFalconBundle(
-                txnList,
-                publicKey.copyOf(),
-                privateKey.copyOf(),
+        // Dispatch the entire BytesArray construction + Go call onto the dedicated
+        // GoMobile OS thread.  Go's GC write-barrier requires pointer-containing types
+        // (like BytesArray.v [][]byte) to be at 8-byte-aligned addresses.  Thread-pool
+        // threads may call Go from a context not yet initialised by the Go runtime,
+        // triggering "fatal error: bulkBarrierPreWrite: unaligned arguments".
+        // A single persistent OS thread ensures consistent, properly-aligned execution.
+        return withContext(GoMobileDispatcher.dispatcher) {
+            val expectedTxns =
+                txns.map {
+                    com.algorand.algosdk.util.Encoder
+                        .encodeToMsgPack(it)
+                }
+            val expectedTxIds = txns.map { it.txID() }
+            val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
+            val resultCsv =
+                try {
+                    Sdk.signFalconBundle(
+                        txnList,
+                        publicKey.copyOf(),
+                        privateKey.copyOf(),
+                    )
+                } catch (t: Throwable) {
+                    Log.e(TAG, "[FALCON_BUNDLE_SIGN_FAILED] error=${t.message}", t)
+                    return@withContext emptyList()
+                }
+
+            val rawSigned =
+                resultCsv
+                    .split(",")
+                    .filter { it.isNotBlank() }
+                    .mapNotNull { decodeFalconBundlePiece(it) }
+
+            val decodedSigned =
+                rawSigned
+                    .mapNotNull { signedBytes ->
+                        runCatching {
+                            val signed =
+                                com.algorand.algosdk.util.Encoder
+                                    .decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                            val signedTxn = signed.tx ?: return@runCatching null
+                            Triple(signedTxn.txID(), signedTxn, signedBytes)
+                        }.getOrNull()
+                    }
+
+            val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
+            val decodedFirstGroup =
+                decodedSigned
+                    .firstOrNull()
+                    ?.second
+                    ?.group
+                    ?.toString()
+            val decodedAllGrouped =
+                decodedSigned.all {
+                    it.second.group != null &&
+                        it.second.group
+                            .toString()
+                            .isNotBlank()
+                }
+
+            Log.e(
+                TAG,
+                "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
             )
 
-        val rawSigned =
-            resultCsv
-                .split(",")
-                .filter { it.isNotBlank() }
-                .mapNotNull { decodeFalconBundlePiece(it) }
-
-        val decodedSigned =
-            rawSigned
-                .mapNotNull { signedBytes ->
-                    runCatching {
-                        val signed =
-                            com.algorand.algosdk.util.Encoder
-                                .decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
-                        val signedTxn = signed.tx ?: return@runCatching null
-                        Triple(signedTxn.txID(), signedTxn, signedBytes)
-                    }.getOrNull()
+            // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
+            // In that mode we must return the full signed set for broadcast, not only the requested subset.
+            if (txns.firstOrNull()?.group == null ||
+                txns
+                    .firstOrNull()
+                    ?.group
+                    .toString()
+                    .isBlank()
+            ) {
+                if (rawSigned.size > txns.size) {
+                    Log.e(
+                        TAG,
+                        "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
+                    )
+                    return@withContext rawSigned
                 }
-
-        val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-        val decodedFirstGroup =
-            decodedSigned
-                .firstOrNull()
-                ?.second
-                ?.group
-                ?.toString()
-        val decodedAllGrouped =
-            decodedSigned.all {
-                it.second.group != null &&
-                    it.second.group
-                        .toString()
-                        .isNotBlank()
             }
 
-        Log.e(
-            TAG,
-            "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
-        )
+            val remaining = decodedSigned.toMutableList()
+            val out = mutableListOf<ByteArray>()
 
-        // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
-        // In that mode we must return the full signed set for broadcast, not only the requested subset.
-        if (txns.firstOrNull()?.group == null ||
-            txns
-                .firstOrNull()
-                ?.group
-                .toString()
-                .isBlank()
-        ) {
-            if (rawSigned.size > txns.size) {
-                Log.e(
-                    TAG,
-                    "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
-                )
-                return rawSigned
-            }
-        }
-
-        val remaining = decodedSigned.toMutableList()
-        val out = mutableListOf<ByteArray>()
-
-        expectedTxIds.forEachIndexed { index, expectedTxId ->
-            val txIdMatchIndex = remaining.indexOfFirst { it.first == expectedTxId }
-            if (txIdMatchIndex >= 0) {
-                out += remaining.removeAt(txIdMatchIndex).third
-            } else {
-                val expectedTxn = txns[index]
-                val semanticMatchIndex =
-                    remaining.indexOfFirst { (_, actualTxn, _) ->
-                        matchesExpectedTransaction(expectedTxn, actualTxn)
-                    }
-                if (semanticMatchIndex >= 0) {
-                    out += remaining.removeAt(semanticMatchIndex).third
+            expectedTxIds.forEachIndexed { index, expectedTxId ->
+                val txIdMatchIndex = remaining.indexOfFirst { it.first == expectedTxId }
+                if (txIdMatchIndex >= 0) {
+                    out += remaining.removeAt(txIdMatchIndex).third
                 } else {
-                    error("Falcon bundle missing signed txn for grouped request txId=$expectedTxId")
+                    val expectedTxn = txns[index]
+                    val semanticMatchIndex =
+                        remaining.indexOfFirst { (_, actualTxn, _) ->
+                            matchesExpectedTransaction(expectedTxn, actualTxn)
+                        }
+                    if (semanticMatchIndex >= 0) {
+                        out += remaining.removeAt(semanticMatchIndex).third
+                    } else {
+                        Log.e(
+                            TAG,
+                            "Falcon bundle missing signed txn for grouped request txId=$expectedTxId",
+                        )
+                        return@withContext emptyList()
+                    }
                 }
             }
-        }
 
-        Log.e(
-            TAG,
-            "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
-        )
-        return out
+            Log.e(
+                TAG,
+                "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
+            )
+            out
+        }
     }
 
     fun startRealtimeBlockNumberUpdates() {
@@ -1135,9 +1206,7 @@ class AnswerViewModel(
                 buildMppWalletSigner = ::buildMppWalletSigner,
                 resolveMppClientNetwork = ::resolveMppClientNetwork,
                 requestMppConsent = ::requestMppConsentFromUi,
-                setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
-                applyViewerSegmentDebit = ::applyViewerSegmentDebit,
-                viewerSessionVaultMicroUsdc = { viewerSessionVaultMicroUsdc.value },
+                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 signFido2Challenge = ::signFido2Challenge,
             ),
         )
@@ -1152,7 +1221,7 @@ class AnswerViewModel(
             viewerAddress = viewerAddress,
             hostAddress = hostAddress,
             authorizedSignerPublicKey = null,
-            setViewerSessionVaultBalance = ::setViewerSessionVaultBalance,
+            setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
         )
     }
 
@@ -1360,12 +1429,13 @@ class AnswerViewModel(
     ) {
         when (result) {
             is HandleAttestationResultUseCase.Result.Success -> {
-                if (accountAddress != null && getAttestationApiResponse() != null) {
+                val apiResponse = getAttestationApiResponse()
+                if (accountAddress != null && apiResponse != null) {
                     viewModelScope.launch {
                         saveCredential(
                             account = accountAddress,
                             credential = result.credential,
-                            response = getAttestationApiResponse()!!,
+                            response = apiResponse,
                         )
                         eventDelegate.sendEvent(ViewEvent.AttestationSuccess(result.credential))
                     }

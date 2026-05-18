@@ -18,6 +18,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toSuggestedParams
 import com.michaeltchuang.walletsdk.core.foundation.utils.urlSafeBase64ToStandard
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -182,18 +183,20 @@ actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArra
             java.math.BigInteger.ZERO
                 .toUint64()
 
-        Sdk.makeKeyRegTxnWithStateProofKey(
-            senderAddress,
-            note?.toByteArray(),
-            suggestedParams,
-            null,
-            null,
-            null,
-            defaultVoteValue,
-            defaultVoteValue,
-            defaultVoteValue,
-            false,
-        )
+        GoMobileDispatcher.runOnGoThread {
+            Sdk.makeKeyRegTxnWithStateProofKey(
+                senderAddress,
+                note?.toByteArray(),
+                suggestedParams,
+                null,
+                null,
+                null,
+                defaultVoteValue,
+                defaultVoteValue,
+                defaultVoteValue,
+                false,
+            )
+        }
     }
 
 actual fun createTransaction(payload: OnlineKeyRegTransactionPayload): ByteArray =
@@ -208,28 +211,32 @@ actual fun createTransaction(payload: OnlineKeyRegTransactionPayload): ByteArray
         val voteLast = voteLastRound.toLongOrNull() ?: 0L
         val voteDilution = voteKeyDilution.toLongOrNull() ?: 0L
 
-        Sdk.makeKeyRegTxnWithStateProofKey(
-            senderAddress,
-            note?.toByteArray(),
-            suggestedParams,
-            voteKey.urlSafeBase64ToStandard(),
-            selectionPublicKey.urlSafeBase64ToStandard(),
-            stateProofKey.urlSafeBase64ToStandard(),
-            voteFirst.toUint64(),
-            voteLast.toUint64(),
-            voteDilution.toUint64(),
-            false,
-        )
+        GoMobileDispatcher.runOnGoThread {
+            Sdk.makeKeyRegTxnWithStateProofKey(
+                senderAddress,
+                note?.toByteArray(),
+                suggestedParams,
+                voteKey.urlSafeBase64ToStandard(),
+                selectionPublicKey.urlSafeBase64ToStandard(),
+                stateProofKey.urlSafeBase64ToStandard(),
+                voteFirst.toUint64(),
+                voteLast.toUint64(),
+                voteDilution.toUint64(),
+                false,
+            )
+        }
     }
 
 actual fun getReceiverMinBalanceFee(
     receiverAlgoAmount: String,
     receiverMinBalanceAmount: String,
 ): Long =
-    Sdk.getReceiverMinBalanceFee(
-        receiverAlgoAmount.toBigInteger().toUint64(),
-        receiverMinBalanceAmount.toBigInteger().toUint64(),
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.getReceiverMinBalanceFee(
+            receiverAlgoAmount.toBigInteger().toUint64(),
+            receiverMinBalanceAmount.toBigInteger().toUint64(),
+        )
+    }
 
 actual fun makeAssetTransferTxn(
     senderAddress: String,
@@ -239,15 +246,17 @@ actual fun makeAssetTransferTxn(
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
 ): ByteArray =
-    Sdk.makeAssetTransferTxn(
-        senderAddress,
-        receiverAddress,
-        "",
-        amount.toBigInteger().toUint64(),
-        noteInByteArray,
-        suggestedParams,
-        assetId,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeAssetTransferTxn(
+            senderAddress,
+            receiverAddress,
+            "",
+            amount.toBigInteger().toUint64(),
+            noteInByteArray,
+            suggestedParams,
+            assetId,
+        )
+    }
 
 actual fun makePaymentTxn(
     senderAddress: String,
@@ -257,23 +266,27 @@ actual fun makePaymentTxn(
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
 ): ByteArray =
-    Sdk.makePaymentTxn(
-        senderAddress,
-        receiverAddress,
-        amount.toBigInteger().toUint64(),
-        noteInByteArray,
-        if (isMax) receiverAddress else "",
-        suggestedParams,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makePaymentTxn(
+            senderAddress,
+            receiverAddress,
+            amount.toBigInteger().toUint64(),
+            noteInByteArray,
+            if (isMax) receiverAddress else "",
+            suggestedParams,
+        )
+    }
 
 actual fun makeAssetAcceptanceTxn(
     publicKey: String,
     assetId: Long,
     suggestedParams: SuggestedParams,
 ): ByteArray =
-    Sdk.makeAssetAcceptanceTxn(
-        publicKey,
-        null,
-        suggestedParams,
-        assetId,
-    )
+    GoMobileDispatcher.runOnGoThread {
+        Sdk.makeAssetAcceptanceTxn(
+            publicKey,
+            null,
+            suggestedParams,
+            assetId,
+        )
+    }
