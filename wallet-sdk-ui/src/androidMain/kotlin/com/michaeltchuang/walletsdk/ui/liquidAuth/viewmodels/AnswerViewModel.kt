@@ -55,6 +55,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionV
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -63,7 +64,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
@@ -755,7 +755,10 @@ class AnswerViewModel(
     }
 
     suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
-        Log.e(TAG, "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}")
+        Log.e(
+            TAG,
+            "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
+        )
         val deferred = CompletableDeferred<ConsentApproval>()
         pendingMppConsentContinuation = deferred
         _pendingMppConsent.value = terms
@@ -802,7 +805,6 @@ class AnswerViewModel(
             ),
         )
     }
-
 
     suspend fun topUpViewerSessionVault(
         enteredAmount: String,

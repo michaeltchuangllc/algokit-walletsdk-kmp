@@ -612,16 +612,17 @@ class SetupMppPaymentViewerUseCase(
                             Log.w(TAG, "[VIEWER_STREAM_GATED] viewer=$accountAddress host=$sessionVaultHostAddress reason=$reason")
                             params.scope.launch {
                                 runCatching {
-                                    val approval = params.requestMppConsent(
-                                        ConsentTerms(
-                                            gatingMode = GatingMode.PARTIAL_TIME,
-                                            amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
-                                            asset = USDC_TESTNET_ID.toString(),
-                                            network = mppNetwork,
-                                            payTo = sessionVaultHostAddress,
-                                            segmentDuration = 3,
-                                        ),
-                                    )
+                                    val approval =
+                                        params.requestMppConsent(
+                                            ConsentTerms(
+                                                gatingMode = GatingMode.PARTIAL_TIME,
+                                                amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
+                                                asset = USDC_TESTNET_ID.toString(),
+                                                network = mppNetwork,
+                                                payTo = sessionVaultHostAddress,
+                                                segmentDuration = 3,
+                                            ),
+                                        )
 
                                     if (!approval.approved) {
                                         Log.w(

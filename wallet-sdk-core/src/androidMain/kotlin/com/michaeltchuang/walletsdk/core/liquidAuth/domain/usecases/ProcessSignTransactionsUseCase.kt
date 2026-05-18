@@ -6,13 +6,13 @@ import com.algorand.algosdk.sdk.BytesArray
 import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
@@ -53,11 +53,12 @@ class ProcessSignTransactionsUseCase(
             // Prepare the list of all transactions - SDK handles sender filtering internally.
             // BytesArray construction, append, and signFalconBundle must all run on the
             // dedicated Go-mobile OS thread to prevent "bulkBarrierPreWrite: unaligned arguments".
-            val decodedTxnBytes = params.txns.mapIndexed { index, txn ->
-                val bytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
-                Napier.d(tag = TAG, message = "Falcon24 - Decoded transaction $index")
-                bytes
-            }
+            val decodedTxnBytes =
+                params.txns.mapIndexed { index, txn ->
+                    val bytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
+                    Napier.d(tag = TAG, message = "Falcon24 - Decoded transaction $index")
+                    bytes
+                }
 
             if (decodedTxnBytes.isEmpty()) {
                 throw IllegalStateException("No transactions found to sign")
@@ -67,15 +68,16 @@ class ProcessSignTransactionsUseCase(
 
             // Call the Go Bundle Signer - SDK auto-adds dummies and manages group
             try {
-                val resultCsv = withContext(GoMobileDispatcher.dispatcher) {
-                    val txnList = BytesArray()
-                    decodedTxnBytes.forEach { txnList.append(it) }
-                    Sdk.signFalconBundle(
-                        txnList,
-                        localAccount.publicKey.copyOf(),
-                        privateKey.copyOf(),
-                    )
-                }
+                val resultCsv =
+                    withContext(GoMobileDispatcher.dispatcher) {
+                        val txnList = BytesArray()
+                        decodedTxnBytes.forEach { txnList.append(it) }
+                        Sdk.signFalconBundle(
+                            txnList,
+                            localAccount.publicKey.copyOf(),
+                            privateKey.copyOf(),
+                        )
+                    }
 
                 // SDK returns all transactions signed in order
                 val signedResults = resultCsv.split(",")

@@ -190,7 +190,7 @@ fun AnswerScreen(
                     }
                 },
                 onTopUpAndStream = { enteredAmount ->
-                    if (isPaymentProcessing){
+                    if (isPaymentProcessing) {
                         Log.d("AnswerScreen", "Payment processing already in progress")
                         return@LiquidAuthSessionVaultModal
                     }
@@ -202,7 +202,10 @@ fun AnswerScreen(
                             val perSegmentMicro = amountMicro.coerceAtLeast(1L)
                             val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
                             val hostAddress = mppConsent.payTo.orEmpty()
-                            Log.e("AnswerScreen", "[VIEWER_MPP_CONSENT_TOPUP] viewer=$accountAddress host=$hostAddress amountMicroUsdc=$micro perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments")
+                            Log.e(
+                                "AnswerScreen",
+                                "[VIEWER_MPP_CONSENT_TOPUP] viewer=$accountAddress host=$hostAddress amountMicroUsdc=$micro perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments",
+                            )
                             if (hostAddress.isBlank()) {
                                 Log.e("AnswerScreen", "Invalid host address: $hostAddress")
                                 viewModel.rejectMppConsent()

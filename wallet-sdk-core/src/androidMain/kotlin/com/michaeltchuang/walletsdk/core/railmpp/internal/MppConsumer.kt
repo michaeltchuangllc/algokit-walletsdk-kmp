@@ -45,7 +45,7 @@ internal class MppConsumer(
                 Log.e(
                     TAG,
                     "[CREATE_CREDENTIAL_FAILED] method=${challenge.method} id=${challenge.id} error=${t.message}",
-                    t
+                    t,
                 )
                 throw t
             }

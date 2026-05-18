@@ -42,7 +42,6 @@ class PaymentTestViewModel(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getHdSeed: GetHdSeed,
 ) : ViewModel() {
-
     companion object {
         private const val TAG = "PaymentTestViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
@@ -109,7 +108,6 @@ class PaymentTestViewModel(
             _isLoading.value = true
             _statusMessage.value = "Depositing $amountUsdc USDC to Session Vault…"
             try {
-
                 val signer = buildCreatorWalletSigner(viewer)
                 signer?.let {
                     val result =
@@ -128,14 +126,12 @@ class PaymentTestViewModel(
                                 "✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId"
                             Log.d(
                                 TAG,
-                                "[ADD_TO_VAULT_OK] txId=$txId viewer=$viewer creator=$creator depositMicroUsdc=$depositMicroUsdc"
+                                "[ADD_TO_VAULT_OK] txId=$txId viewer=$viewer creator=$creator depositMicroUsdc=$depositMicroUsdc",
                             )
-                        }
-                        .onFailure { err ->
+                        }.onFailure { err ->
                             showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
                         }
                 } ?: showError(PaymentError.SignerNotFound(viewer), "ADD_TO_VAULT_NO_SIGNER")
-
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "ADD_TO_VAULT_EXCEPTION", e)
             } finally {
@@ -181,7 +177,7 @@ class PaymentTestViewModel(
                     "✅ Remaining balance: $usdc USDC\n($remaining microUSDC)"
                 Log.d(
                     TAG,
-                    "[FETCH_BALANCE_OK] remaining=$remaining viewer=$viewer creator=$creator"
+                    "[FETCH_BALANCE_OK] remaining=$remaining viewer=$viewer creator=$creator",
                 )
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "FETCH_BALANCE_ERR", e)
@@ -198,119 +194,6 @@ class PaymentTestViewModel(
      * earned amount from the Session Vault to the **creator** account.
      * The creator wallet must already be stored on this device.
      */
-    /*  fun settleAmount() {
-          val viewer = _viewerAddress.value.trim()
-          val creator = _creatorAddress.value.trim()
-          val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
-          val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
-
-
-         if (viewer.isBlank() || creator.isBlank()) {
-              _statusMessage.value = "Error: Viewer and Creator addresses are required."
-              return
-          }
-
-          viewModelScope.launch {
-              _isLoading.value = true
-              _statusMessage.value = "Settling amount from Session Vault to creator…"
-              try {
-                 // val signer = buildCreatorWalletSigner(creator)
-                  val viewerSigner = buildCreatorWalletSigner(viewer)
-
-                  viewerSigner?.let {
-
-                      val updateResult =
-                          withContext(Dispatchers.IO) {
-
-                              MppPayments.updateVoucherOnChain(
-                                  signer = viewerSigner,
-                                  appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                  viewerAddress = viewer,
-                                  hostAddress = creator,
-                                  totalAmountUsedMicroUsdc = depositMicroUsdc,
-                                  signature = viewerSigner.authorizedSignerPublicKey,
-                              )
-                          }
-
-                      updateResult
-                          .onSuccess { txId ->
-
-                              Log.d(
-                                  TAG,
-                                  "[UPDATE_VOUCHER_OK] txId=$txId",
-                              )
-                          }
-                          .onFailure { err ->
-
-                              _statusMessage.value =
-                                  "❌ Voucher update failed:\n${err.message}"
-
-                              Log.e(
-                                  TAG,
-                                  "[UPDATE_VOUCHER_ERR]",
-                                  err,
-                              )
-
-                              return@launch
-                          }
-
-
-
-                      val verifyResult =
-                          withContext(Dispatchers.IO) {
-                              MppPayments.verifySettleSignature(
-                                  signer = viewerSigner,
-                                  viewerAddress = viewer,
-                                  hostAddress = creator,
-                                  cumulativeAmountMicroUsdc = depositMicroUsdc,
-                                  signature = viewerSigner.authorizedSignerPublicKey,
-                              )
-                          }
-
-                      verifyResult
-                          .onFailure { err ->
-                              _statusMessage.value =
-                                  "❌ Signature verification failed:\n${err.message}"
-
-                              Log.e(TAG, "[VERIFY_SIGNATURE_ERR]", err)
-                              return@launch
-                          }
-
-                      Log.d(TAG, "[VERIFY_SIGNATURE_OK]")
-
-
-                      val result =
-                          withContext(Dispatchers.IO) {
-                              MppPayments.settle(
-                                  signer = it,
-                                  viewerAddress = viewer,
-                                  hostAddress = creator,
-                                  appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                  cumulativeAmountMicroUsdc = depositMicroUsdc,
-                              )
-                          }
-
-                      result
-                          .onSuccess { txId ->
-                              _statusMessage.value =
-                                  "✅ Settlement successful!\nTxId: $txId"
-                              Log.d(TAG, "[SETTLE_OK] txId=$txId viewer=$viewer creator=$creator")
-                          }
-                          .onFailure { err ->
-                              _statusMessage.value = "❌ Settlement failed:\n${err.message}"
-                              Log.e(TAG, "[SETTLE_ERR] viewer=$viewer creator=$creator", err)
-                          }
-                  }
-
-              } catch (e: Exception) {
-                  _statusMessage.value = "❌ Unexpected error:\n${e.message}"
-                  Log.e(TAG, "[SETTLE_EXCEPTION] viewer=$viewer creator=$creator", e)
-              } finally {
-                  _isLoading.value = false
-              }
-          }
-      }*/
-
     fun settleAmount() {
         val viewer = _viewerAddress.value.trim()
         val creator = _creatorAddress.value.trim()
@@ -339,7 +222,7 @@ class PaymentTestViewModel(
                         ?: run {
                             showError(
                                 PaymentError.SignerNotFound(viewer),
-                                "SETTLE_NO_VIEWER_SIGNER"
+                                "SETTLE_NO_VIEWER_SIGNER",
                             )
                             return@launch
                         }
@@ -373,11 +256,11 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [SESSION_STATE]
-                totalDeposit=$totalDeposit
-                lastSettled=$lastSettled
-                latestVoucher=$latestVoucher
-                """.trimIndent()
+                    [SESSION_STATE]
+                    totalDeposit=$totalDeposit
+                    lastSettled=$lastSettled
+                    latestVoucher=$latestVoucher
+                    """.trimIndent(),
                 )
 
                 //
@@ -389,10 +272,10 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [NEW_CUMULATIVE]
-                requestedIncrement=$requestedIncrementMicroUsdc
-                newCumulative=$newCumulative
-                """.trimIndent()
+                    [NEW_CUMULATIVE]
+                    requestedIncrement=$requestedIncrementMicroUsdc
+                    newCumulative=$newCumulative
+                    """.trimIndent(),
                 )
 
                 //
@@ -403,10 +286,10 @@ class PaymentTestViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     Log.e(
                         TAG,
-                        "[VOUCHER_EXCEEDS_DEPOSIT] deposit=$totalDeposit requested=$newCumulative"
+                        "[VOUCHER_EXCEEDS_DEPOSIT] deposit=$totalDeposit requested=$newCumulative",
                     )
                     return@launch
                 }
@@ -415,7 +298,7 @@ class PaymentTestViewModel(
                     _statusMessage.value = "❌ ${PaymentError.NothingToSettle.userMessage}"
                     Log.e(
                         TAG,
-                        "[NOTHING_NEW_TO_SETTLE] newCumulative=$newCumulative lastSettled=$lastSettled"
+                        "[NOTHING_NEW_TO_SETTLE] newCumulative=$newCumulative lastSettled=$lastSettled",
                     )
                     return@launch
                 }
@@ -440,34 +323,17 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [SIGNATURE_CREATED]
-                sigLen=${viewerSignature.size}
-                """.trimIndent()
+                    [SIGNATURE_CREATED]
+                    sigLen=${viewerSignature.size}
+                    """.trimIndent(),
                 )
 
                 //
                 // STEP 6: VERIFY SIGNATURE
                 //
-           /*     val verifyResult =
-                    withContext(Dispatchers.IO) {
-                        MppPayments.verifySettleSignature(
-                            signer = viewerSigner,
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            cumulativeAmountMicroUsdc = newCumulative,
-                            signature = viewerSignature,
-                        )
-                    }
-
-                verifyResult
-                    .onFailure { err ->
-                        showError(PaymentError.from(err), "VERIFY_SIGNATURE_ERR", err)
-                        return@launch
-                    }*/
-
                 Log.d(
                     TAG,
-                    "[VERIFY_SIGNATURE_OK]"
+                    "[VERIFY_SIGNATURE_OK]",
                 )
 
                 //
@@ -521,14 +387,13 @@ class PaymentTestViewModel(
                         ?: run {
                             showError(
                                 PaymentError.SignerNotFound(creator),
-                                "SETTLE_NO_CREATOR_SIGNER"
+                                "SETTLE_NO_CREATOR_SIGNER",
                             )
                             return@launch
                         }
 
                 val settleResult =
                     withContext(Dispatchers.IO) {
-
                        /* MppPayments.settle(
                             signer = creatorSigner,
                             viewerAddress = viewer,
@@ -546,9 +411,8 @@ class PaymentTestViewModel(
                             viewerAddress = viewer,
                             hostAddress = creator,
                             authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
-                            algodUrl = TESTNET_ALGOD_URL
+                            algodUrl = TESTNET_ALGOD_URL,
                         )
-
                     }
 
                 settleResult
@@ -556,25 +420,22 @@ class PaymentTestViewModel(
 
                         _statusMessage.value =
                             """
-                        ✅ Settlement successful
-                        
-                        TxId:
-                        $txId
-                        """.trimIndent()
+                            ✅ Settlement successful
+                            
+                            TxId:
+                            $txId
+                            """.trimIndent()
 
                         Log.d(
                             TAG,
-                            "[SETTLE_OK] txId=$txId"
+                            "[SETTLE_OK] txId=$txId",
                         )
-                    }
-                    .onFailure { err ->
+                    }.onFailure { err ->
                         showError(PaymentError.from(err), "SETTLE_ERR", err)
                     }
-
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "SETTLE_EXCEPTION", e)
             } finally {
-
                 _isLoading.value = false
             }
         }
@@ -597,12 +458,13 @@ class PaymentTestViewModel(
                 val viewerSigner = buildCreatorWalletSigner(viewer)
                 viewerSigner?.let {
                     // Build settle message and sign it — must NOT pass the raw public key as signature.
-                    val settleMessage = MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                    )
+                    val settleMessage =
+                        MppPayments.settleMessage(
+                            signer = viewerSigner,
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            cumulativeAmountMicroUsdc = depositMicroUsdc,
+                        )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     withContext(Dispatchers.IO) {
@@ -645,12 +507,13 @@ class PaymentTestViewModel(
                 val viewerSigner = buildCreatorWalletSigner(viewer)
                 viewerSigner?.let {
                     // Build and sign the settle message first — must NOT pass raw public key as signature.
-                    val settleMessage = MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                    )
+                    val settleMessage =
+                        MppPayments.settleMessage(
+                            signer = viewerSigner,
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            cumulativeAmountMicroUsdc = depositMicroUsdc,
+                        )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     val result =
@@ -679,14 +542,12 @@ class PaymentTestViewModel(
         }
     }
 
-
     fun startSettlePayment(
         viewerAddress: String,
         creatorAddress: String,
         amountUsdc: Long = 1L,
-        viewerAuthSignKey: ByteArray
+        viewerAuthSignKey: ByteArray,
     ) {
-
         val viewer = viewerAddress.trim()
         val creator = creatorAddress.trim()
 
@@ -700,11 +561,9 @@ class PaymentTestViewModel(
         }
 
         viewModelScope.launch {
-
             _isLoading.value = true
 
             try {
-
                 _statusMessage.value =
                     "Preparing settlement..."
 
@@ -713,7 +572,7 @@ class PaymentTestViewModel(
                         ?: run {
                             showError(
                                 PaymentError.SignerNotFound(viewer),
-                                "SETTLE_NO_VIEWER_SIGNER"
+                                "SETTLE_NO_VIEWER_SIGNER",
                             )
                             return@launch
                         }
@@ -723,7 +582,6 @@ class PaymentTestViewModel(
                 //
                 val snapshot =
                     withContext(Dispatchers.IO) {
-
                         MppPayments.getSessionProgressSnapshotFromVault(
                             viewerAddress = viewer,
                             hostAddress = creator,
@@ -732,10 +590,9 @@ class PaymentTestViewModel(
                                 viewerSigner.authorizedSignerPublicKey,
                         )
                     } ?: run {
-
                         showError(
                             PaymentError.SessionNotFound,
-                            "SETTLE_NO_SNAPSHOT"
+                            "SETTLE_NO_SNAPSHOT",
                         )
                         return@launch
                     }
@@ -752,11 +609,11 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [SESSION_STATE]
-                totalDeposit=$totalDeposit
-                lastSettled=$lastSettled
-                latestVoucher=$latestVoucher
-                """.trimIndent()
+                    [SESSION_STATE]
+                    totalDeposit=$totalDeposit
+                    lastSettled=$lastSettled
+                    latestVoucher=$latestVoucher
+                    """.trimIndent(),
                 )
 
                 //
@@ -768,17 +625,16 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [NEW_CUMULATIVE]
-                requestedIncrement=$requestedIncrementMicroUsdc
-                newCumulative=$newCumulative
-                """.trimIndent()
+                    [NEW_CUMULATIVE]
+                    requestedIncrement=$requestedIncrementMicroUsdc
+                    newCumulative=$newCumulative
+                    """.trimIndent(),
                 )
 
                 //
                 // STEP 3: VALIDATIONS
                 //
                 if (newCumulative > totalDeposit) {
-
                     val depositUsdc =
                         totalDeposit / 1_000_000.0
 
@@ -787,24 +643,23 @@ class PaymentTestViewModel(
 
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
 
                     Log.e(
                         TAG,
-                        "[VOUCHER_EXCEEDS_DEPOSIT] deposit=$totalDeposit requested=$newCumulative"
+                        "[VOUCHER_EXCEEDS_DEPOSIT] deposit=$totalDeposit requested=$newCumulative",
                     )
 
                     return@launch
                 }
 
                 if (newCumulative <= lastSettled) {
-
                     _statusMessage.value =
                         "❌ ${PaymentError.NothingToSettle.userMessage}"
 
                     Log.e(
                         TAG,
-                        "[NOTHING_NEW_TO_SETTLE] newCumulative=$newCumulative lastSettled=$lastSettled"
+                        "[NOTHING_NEW_TO_SETTLE] newCumulative=$newCumulative lastSettled=$lastSettled",
                     )
 
                     return@launch
@@ -830,9 +685,9 @@ class PaymentTestViewModel(
                 Log.d(
                     TAG,
                     """
-                [SIGNATURE_CREATED]
-                sigLen=${viewerSignature.size}
-                """.trimIndent()
+                    [SIGNATURE_CREATED]
+                    sigLen=${viewerSignature.size}
+                    """.trimIndent(),
                 )
 
                 //
@@ -840,7 +695,6 @@ class PaymentTestViewModel(
                 //
                 val verifyResult =
                     withContext(Dispatchers.IO) {
-
                         MppPayments.verifySettleSignature(
                             signer = viewerSigner,
                             viewerAddress = viewer,
@@ -855,7 +709,7 @@ class PaymentTestViewModel(
                     showError(
                         PaymentError.from(err),
                         "VERIFY_SIGNATURE_ERR",
-                        err
+                        err,
                     )
 
                     return@launch
@@ -871,7 +725,6 @@ class PaymentTestViewModel(
 
                 val updateTxId =
                     withContext(Dispatchers.IO) {
-
                         MppPayments.updateVoucherOnChain(
                             signer = viewerSigner,
                             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
@@ -885,7 +738,7 @@ class PaymentTestViewModel(
                         showError(
                             PaymentError.from(err),
                             "UPDATE_VOUCHER_ERR",
-                            err
+                            err,
                         )
 
                         return@launch
@@ -901,17 +754,15 @@ class PaymentTestViewModel(
 
                 val confirmed =
                     withContext(Dispatchers.IO) {
-
                         MppPayments.awaitTransactionConfirmation(
-                            txId = updateTxId
+                            txId = updateTxId,
                         )
                     }
 
                 if (!confirmed) {
-
                     showError(
                         PaymentError.TransactionNotConfirmed,
-                        "UPDATE_VOUCHER_NOT_CONFIRMED"
+                        "UPDATE_VOUCHER_NOT_CONFIRMED",
                     )
 
                     return@launch
@@ -919,7 +770,7 @@ class PaymentTestViewModel(
 
                 Log.d(
                     TAG,
-                    "[UPDATE_VOUCHER_CONFIRMED] txId=$updateTxId"
+                    "[UPDATE_VOUCHER_CONFIRMED] txId=$updateTxId",
                 )
 
                 //
@@ -928,10 +779,9 @@ class PaymentTestViewModel(
                 val creatorSigner =
                     buildCreatorWalletSigner(creator)
                         ?: run {
-
                             showError(
                                 PaymentError.SignerNotFound(creator),
-                                "SETTLE_NO_CREATOR_SIGNER"
+                                "SETTLE_NO_CREATOR_SIGNER",
                             )
 
                             return@launch
@@ -939,7 +789,6 @@ class PaymentTestViewModel(
 
                 val settleResult =
                     withContext(Dispatchers.IO) {
-
                         MppPayments.settle(
                             signer = creatorSigner,
                             viewerAddress = viewer,
@@ -957,36 +806,31 @@ class PaymentTestViewModel(
 
                         _statusMessage.value =
                             """
-                        ✅ Settlement successful
-                        
-                        TxId:
-                        $txId
-                        """.trimIndent()
+                            ✅ Settlement successful
+                            
+                            TxId:
+                            $txId
+                            """.trimIndent()
 
                         Log.d(
                             TAG,
-                            "[SETTLE_OK] txId=$txId"
+                            "[SETTLE_OK] txId=$txId",
                         )
-                    }
-                    .onFailure { err ->
+                    }.onFailure { err ->
 
                         showError(
                             PaymentError.from(err),
                             "SETTLE_ERR",
-                            err
+                            err,
                         )
                     }
-
             } catch (e: Exception) {
-
                 showError(
                     PaymentError.from(e),
                     "SETTLE_EXCEPTION",
-                    e
+                    e,
                 )
-
             } finally {
-
                 _isLoading.value = false
             }
         }
@@ -1017,10 +861,14 @@ class PaymentTestViewModel(
                 is LocalAccount.Falcon24 -> localAccount.publicKey
                 is LocalAccount.Algo25 -> {
                     val secretKey = getAlgo25SecretKey(creatorAddress)
-                    if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(
-                        32,
-                        64
-                    ) else ByteArray(0)
+                    if (secretKey != null && secretKey.size == 64) {
+                        secretKey.copyOfRange(
+                            32,
+                            64,
+                        )
+                    } else {
+                        ByteArray(0)
+                    }
                 }
 
                 else -> ByteArray(0)
@@ -1117,10 +965,7 @@ class PaymentTestViewModel(
                 }
             }
 
-
-            override suspend fun signMessage(
-                message: ByteArray
-            ): ByteArray {
+            override suspend fun signMessage(message: ByteArray): ByteArray {
                 return try {
                     when (localAccount) {
                         is LocalAccount.Algo25 -> {
@@ -1188,7 +1033,6 @@ class PaymentTestViewModel(
         }
     }
 
-
     private suspend fun signFalconTxnGroupFromBundle(
         txns: List<Transaction>,
         publicKey: ByteArray,
@@ -1253,9 +1097,9 @@ class PaymentTestViewModel(
             val decodedAllGrouped =
                 decodedSigned.all {
                     it.second.group != null &&
-                            it.second.group
-                                .toString()
-                                .isNotBlank()
+                        it.second.group
+                            .toString()
+                            .isNotBlank()
                 }
 
             Log.e(
@@ -1342,7 +1186,6 @@ class PaymentTestViewModel(
         return null
     }
 
-
     private fun matchesExpectedTransaction(
         expected: Transaction,
         actual: Transaction,
@@ -1353,22 +1196,30 @@ class PaymentTestViewModel(
         return when (expected.type?.toString()) {
             "pay" -> {
                 expected.receiver?.toString() == actual.receiver?.toString() &&
-                        (expected.amount ?: java.math.BigInteger.ZERO) == (actual.amount
-                    ?: java.math.BigInteger.ZERO)
+                    (expected.amount ?: java.math.BigInteger.ZERO) == (
+                        actual.amount
+                            ?: java.math.BigInteger.ZERO
+                    )
             }
 
             "axfer" -> {
                 expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                        (expected.assetAmount ?: java.math.BigInteger.ZERO) == (actual.assetAmount
-                    ?: java.math.BigInteger.ZERO) &&
-                        expected.assetIndex.toLong() == actual.assetIndex.toLong()
+                    (expected.assetAmount ?: java.math.BigInteger.ZERO) == (
+                        actual.assetAmount
+                            ?: java.math.BigInteger.ZERO
+                    ) &&
+                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
             }
 
             "appl" -> {
                 expected.applicationId.toLong() == actual.applicationId.toLong() &&
-                        (expected.applicationArgs
-                            ?: emptyList<ByteArray>()) == (actual.applicationArgs
-                    ?: emptyList<ByteArray>())
+                    (
+                        expected.applicationArgs
+                            ?: emptyList<ByteArray>()
+                    ) == (
+                        actual.applicationArgs
+                            ?: emptyList<ByteArray>()
+                    )
             }
 
             else -> true

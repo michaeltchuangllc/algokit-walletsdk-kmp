@@ -11,7 +11,6 @@ import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.aakira.napier.Napier
 import java.math.BigInteger
 
-
 private fun List<ByteArray>.flattenToByteArray(): ByteArray {
     val totalSize = this.sumOf { it.size }
     val result = ByteArray(totalSize)
@@ -39,15 +38,16 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
 
             // BytesArray construction and signFalconBundle must run on the dedicated Go-mobile
             // OS thread to prevent "fatal error: bulkBarrierPreWrite: unaligned arguments".
-            val resultCsv = GoMobileDispatcher.runOnGoThread {
-                val txnList = BytesArray()
-                txnList.append(transactionByteArray.copyOf())
-                Sdk.signFalconBundle(
-                    txnList,
-                    publicKey.copyOf(),
-                    privateKey.copyOf(),
-                )
-            }
+            val resultCsv =
+                GoMobileDispatcher.runOnGoThread {
+                    val txnList = BytesArray()
+                    txnList.append(transactionByteArray.copyOf())
+                    Sdk.signFalconBundle(
+                        txnList,
+                        publicKey.copyOf(),
+                        privateKey.copyOf(),
+                    )
+                }
             Napier.d(tag = TAG, message = "signFalconBundle returned CSV with length: ${resultCsv.length}")
 
             val signedResults = resultCsv.split(",").filter { it.isNotBlank() }
@@ -121,13 +121,14 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             // race with signFalconBundle (concurrent calls from different threads cause
             // the Go GC to scan a half-initialised JNI goroutine and crash with
             // "bulkBarrierPreWrite: unaligned arguments").
-            val signedBytes = GoMobileDispatcher.runOnGoThread {
-                Sdk.rawSign(
-                    data.copyOf(),
-                    publicKey.copyOf(),
-                    privateKey.copyOf(),
-                )
-            }
+            val signedBytes =
+                GoMobileDispatcher.runOnGoThread {
+                    Sdk.rawSign(
+                        data.copyOf(),
+                        publicKey.copyOf(),
+                        privateKey.copyOf(),
+                    )
+                }
             signedBytes
         } catch (t: Throwable) {
             Log.e(TAG, "Error signing arbitrary data: ${t.message}, cause: ${t.cause}")

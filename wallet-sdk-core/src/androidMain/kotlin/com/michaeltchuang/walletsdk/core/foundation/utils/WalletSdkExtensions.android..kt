@@ -9,10 +9,10 @@ import com.algorand.algosdk.sdk.SuggestedParams
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.AlgoSdkNumberExtensions.toUint64
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.ktor.utils.io.charsets.Charsets
 import io.ktor.utils.io.core.toByteArray
 
@@ -44,8 +44,7 @@ fun String.urlSafeBase64ToStandard(): String =
 actual fun ByteArray.signTransaction(secretKey: ByteArray): ByteArray =
     GoMobileDispatcher.runOnGoThread { Sdk.signTransaction(secretKey, this) }
 
-actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray =
-    GoMobileDispatcher.runOnGoThread { Sdk.signTransaction(secretKey, this) }
+actual fun ByteArray.signTx(secretKey: ByteArray): ByteArray = GoMobileDispatcher.runOnGoThread { Sdk.signTransaction(secretKey, this) }
 
 actual fun TransactionParams.makeAlgoTx(
     senderAddress: String,

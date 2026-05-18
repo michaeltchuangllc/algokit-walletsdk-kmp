@@ -26,7 +26,6 @@ import java.security.Security
  *    ALL callers, regardless of which class instance they originate from.
  */
 internal object BouncyCastleProviderSetup {
-
     @Volatile
     private var installed = false
 

@@ -132,8 +132,7 @@ object MppPayments {
         return (DEPOSIT_MICRO_USDC_LONG - consumed).coerceAtLeast(0L)
     }
 
-    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double =
-        remainingMicroAlgos / 1_000_000.0
+    fun remainingUsdcFromMicroAlgos(remainingMicroAlgos: Long): Double = remainingMicroAlgos / 1_000_000.0
 
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
 
@@ -146,11 +145,12 @@ object MppPayments {
     ): Long {
         BouncyCastleProviderSetup.ensure()
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val channelId = deriveChannelId(
-            viewerAddress = viewerAddress,
-            hostAddress = hostAddress,
-            authorizedSignerPublicKey = authorizedSignerPublicKey ?: Address(viewerAddress).getBytes(),
-        )
+        val channelId =
+            deriveChannelId(
+                viewerAddress = viewerAddress,
+                hostAddress = hostAddress,
+                authorizedSignerPublicKey = authorizedSignerPublicKey ?: Address(viewerAddress).getBytes(),
+            )
         val result =
             getRemainingBalanceByChannelId(
                 channelId = channelId,
@@ -160,7 +160,7 @@ object MppPayments {
             )
         Log.e(
             TAG,
-            "[SESSION_VAULT_REMAINING_BALANCE_CHECK] GetRemainingBalance=${result ?: "null"}"
+            "[SESSION_VAULT_REMAINING_BALANCE_CHECK] GetRemainingBalance=${result ?: "null"}",
         )
         if (result != null) return result
 
@@ -191,19 +191,6 @@ object MppPayments {
                 logContext = logContext,
             )
         }
-
-    /*    private fun deriveChannelId(
-            viewerAddress: String,
-            hostAddress: String,
-            authorizedSignerPublicKey: ByteArray,
-            usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-        ): ByteArray {
-            val viewerPublicKey = decodeAlgorandAddressPublicKey(viewerAddress)
-            val hostPublicKey = decodeAlgorandAddressPublicKey(hostAddress)
-            val authorizedSignerHash = sha512256(authorizedSignerPublicKey)
-            val material = viewerPublicKey + hostPublicKey + encodeUint64(usdcAssetId) + CHANNEL_ID_SALT + authorizedSignerHash
-            return MessageDigest.getInstance("SHA-256").digest(material)
-        }*/
 
     private fun decodeAlgorandAddressPublicKey(address: String): ByteArray {
         val decoded = decodeBase32(address)
@@ -402,13 +389,13 @@ object MppPayments {
                 val errText = throwable.message.orEmpty()
                 val duplicateVoucherUpdate =
                     errText.contains("pc=622", ignoreCase = true) &&
-                            (
-                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                            errText.contains(
-                                                "Voucher not increasing",
-                                                ignoreCase = true,
-                                            )
-                                    )
+                        (
+                            errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                errText.contains(
+                                    "Voucher not increasing",
+                                    ignoreCase = true,
+                                )
+                        )
                 if (duplicateVoucherUpdate) {
                     Log.e(
                         TAG,
@@ -459,11 +446,12 @@ object MppPayments {
         // should explicitly pass the viewer/payer's key when signer is the payee (creator).
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
-        val channelId = contractClient(appId = appId).deriveChannelId(
-            payerAddress = viewerAddress,
-            payeeAddress = hostAddress,
-            authorizedSignerPublicKey = authorizedSignerPublicKey,
-        )
+        val channelId =
+            contractClient(appId = appId).deriveChannelId(
+                payerAddress = viewerAddress,
+                payeeAddress = hostAddress,
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+            )
         return contractClient(
             appId = appId,
             usdcAssetId = AssetConstants.USDC_TESTNET_ID,
@@ -485,12 +473,13 @@ object MppPayments {
         signature: ByteArray,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = contractClient().deriveChannelId(
-            payerAddress = viewerAddress,
-            payeeAddress = hostAddress,
-            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-        )
-      return  contractClient(
+        val channelId =
+            contractClient().deriveChannelId(
+                payerAddress = viewerAddress,
+                payeeAddress = hostAddress,
+                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+            )
+        return contractClient(
             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
             usdcAssetId = AssetConstants.USDC_TESTNET_ID,
             algodUrl = algodUrl,
@@ -509,18 +498,17 @@ object MppPayments {
         hostAddress: String,
         cumulativeAmountMicroUsdc: Long,
     ): ByteArray {
-        val channelId = contractClient().deriveChannelId(
-            payerAddress = viewerAddress,
-            payeeAddress = hostAddress,
-            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-        )
+        val channelId =
+            contractClient().deriveChannelId(
+                payerAddress = viewerAddress,
+                payeeAddress = hostAddress,
+                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+            )
         return contractClient().settleMessage(
             channelId = channelId,
             cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
         )
     }
-
-
 
     data class SessionDynamicData(
         val totalDeposit: Long,
@@ -939,7 +927,6 @@ object MppPayments {
         }
         return last
     }
-
 }
 
 sealed class MppPaymentVerificationResult {

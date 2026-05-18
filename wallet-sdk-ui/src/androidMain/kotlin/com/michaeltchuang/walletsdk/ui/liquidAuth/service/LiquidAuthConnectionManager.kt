@@ -34,10 +34,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -114,7 +114,7 @@ class AndroidLiquidAuthConnectionManager(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
-            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) }
+            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) },
         )
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
@@ -163,7 +163,7 @@ class AndroidLiquidAuthConnectionManager(
 
         val paymentChannel =
             service.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service.createDataChannel(
-                PAYMENT_CHANNEL_LABEL
+                PAYMENT_CHANNEL_LABEL,
             )
         if (paymentChannel == null) {
             val message = "MPP payment channel unavailable"
@@ -177,7 +177,7 @@ class AndroidLiquidAuthConnectionManager(
             if (activeViewerAddressForVault.isNullOrBlank()) {
                 Log.e(
                     TAG,
-                    "[SESSION_VAULT_VIEWER_SET_FROM_REQUEST] viewer=$activeViewerAddressForVault session=${paymentRequest.id}"
+                    "[SESSION_VAULT_VIEWER_SET_FROM_REQUEST] viewer=$activeViewerAddressForVault session=${paymentRequest.id}",
                 )
             }
             val network = toMppNetwork(paymentRequest.network)
@@ -201,7 +201,7 @@ class AndroidLiquidAuthConnectionManager(
                 }
             Log.d(
                 TAG,
-                "💰 Building MPP payment request: network=$network recipient=$recipient asset=$asset amount=$amount"
+                "💰 Building MPP payment request: network=$network recipient=$recipient asset=$asset amount=$amount",
             )
             val serverConfig =
                 ServerConfig(
@@ -236,7 +236,7 @@ class AndroidLiquidAuthConnectionManager(
             val current = liquidStreamCreator
             val shouldRecreate =
                 current == null ||
-                        activePaymentRecipient != recipient
+                    activePaymentRecipient != recipient
 
             if (shouldRecreate) {
                 current?.terminate("replaced")
@@ -260,7 +260,7 @@ class AndroidLiquidAuthConnectionManager(
                             if (it != activeViewerAddressForVault) {
                                 Log.e(
                                     TAG,
-                                    "[SESSION_VAULT_VIEWER_SET_FROM_RECEIPT] viewer=$it txId=${receipt.txId}"
+                                    "[SESSION_VAULT_VIEWER_SET_FROM_RECEIPT] viewer=$it txId=${receipt.txId}",
                                 )
                             }
                             activeViewerAddressForVault = it
@@ -325,10 +325,10 @@ class AndroidLiquidAuthConnectionManager(
         val n = network.lowercase()
         return when {
             network == MppNetworks.SOLANA_MAINNET ||
-                    n.contains(
-                        "solana",
-                    ) &&
-                    (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
+                n.contains(
+                    "solana",
+                ) &&
+                (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
 
             network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
             network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
@@ -416,8 +416,8 @@ class AndroidLiquidAuthConnectionManager(
             Log.w(
                 TAG,
                 "⛔ Active viewer session detected (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
-                        "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
-                        "Skipping broadcast start to avoid disconnecting viewer.",
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping broadcast start to avoid disconnecting viewer.",
             )
             return
         }
@@ -429,7 +429,7 @@ class AndroidLiquidAuthConnectionManager(
             }
             Log.d(
                 TAG,
-                "🔁 RequestId changed while bound ($activeRequestId -> $requestId), restarting service binding"
+                "🔁 RequestId changed while bound ($activeRequestId -> $requestId), restarting service binding",
             )
             stopListening()
         }
@@ -536,7 +536,7 @@ class AndroidLiquidAuthConnectionManager(
                             val currentDcState = service.dataChannel?.state()?.toString()
                             Log.d(
                                 TAG,
-                                "📨 Non-payment message received; dcState=$currentDcState, requestId=$requestId"
+                                "📨 Non-payment message received; dcState=$currentDcState, requestId=$requestId",
                             )
                             if (currentDcState == "OPEN") {
                                 Log.d(TAG, "📨 Triggering onClientConnected from onMessage fallback")
@@ -695,8 +695,7 @@ class AndroidLiquidAuthConnectionManager(
         }
     }
 
-    private fun decodeBase64OrNull(value: String): ByteArray? =
-        runCatching { Base64.getDecoder().decode(value) }.getOrNull()
+    private fun decodeBase64OrNull(value: String): ByteArray? = runCatching { Base64.getDecoder().decode(value) }.getOrNull()
 
     private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
         liquidStreamCreator?.updateConfig(
@@ -705,8 +704,9 @@ class AndroidLiquidAuthConnectionManager(
                 gating =
                     GatingConfig(
                         mode = GatingMode.PARTIAL_TIME,
-                        amount = activePaymentAmount
-                            ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
+                        amount =
+                            activePaymentAmount
+                                ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
                         asset = USDC_TESTNET_ID.toString(),
                         network = MppNetworks.ALGORAND_TESTNET,
                         payTo = activePaymentRecipient.orEmpty(),
@@ -750,8 +750,8 @@ class AndroidLiquidAuthConnectionManager(
             Log.w(
                 TAG,
                 "⏸️ Viewer session still active (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
-                        "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
-                        "Skipping signalService.stop() to preserve viewer connection.",
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping signalService.stop() to preserve viewer connection.",
             )
         }
 
@@ -768,7 +768,7 @@ class AndroidLiquidAuthConnectionManager(
             TAG,
             "📤 sendMessage called: dcState=$dataChannelState, isOpen=$isOpen, bytes=${message.length}, preview=${
                 message.take(
-                    120
+                    120,
                 )
             }",
         )
@@ -863,21 +863,27 @@ class AndroidLiquidAuthConnectionManager(
         return when (expected.type?.toString()) {
             "pay" -> {
                 expected.receiver?.toString() == actual.receiver?.toString() &&
-                        (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
+                    (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
             }
 
             "axfer" -> {
                 expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                        (expected.assetAmount ?: BigInteger.ZERO) == (actual.assetAmount
-                    ?: BigInteger.ZERO) &&
-                        expected.assetIndex.toLong() == actual.assetIndex.toLong()
+                    (expected.assetAmount ?: BigInteger.ZERO) == (
+                        actual.assetAmount
+                            ?: BigInteger.ZERO
+                    ) &&
+                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
             }
 
             "appl" -> {
                 expected.applicationId.toLong() == actual.applicationId.toLong() &&
-                        (expected.applicationArgs
-                            ?: emptyList<ByteArray>()) == (actual.applicationArgs
-                    ?: emptyList<ByteArray>())
+                    (
+                        expected.applicationArgs
+                            ?: emptyList<ByteArray>()
+                    ) == (
+                        actual.applicationArgs
+                            ?: emptyList<ByteArray>()
+                    )
             }
 
             else -> true
@@ -943,9 +949,9 @@ class AndroidLiquidAuthConnectionManager(
             val decodedAllGrouped =
                 decodedSigned.all {
                     it.second.group != null &&
-                            it.second.group
-                                .toString()
-                                .isNotBlank()
+                        it.second.group
+                            .toString()
+                            .isNotBlank()
                 }
 
             Log.e(
@@ -1009,10 +1015,14 @@ class AndroidLiquidAuthConnectionManager(
                 is LocalAccount.Falcon24 -> localAccount.publicKey
                 is LocalAccount.Algo25 -> {
                     val secretKey = getAlgo25SecretKey(creatorAddress)
-                    if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(
-                        32,
-                        64
-                    ) else ByteArray(0)
+                    if (secretKey != null && secretKey.size == 64) {
+                        secretKey.copyOfRange(
+                            32,
+                            64,
+                        )
+                    } else {
+                        ByteArray(0)
+                    }
                 }
 
                 else -> ByteArray(0)

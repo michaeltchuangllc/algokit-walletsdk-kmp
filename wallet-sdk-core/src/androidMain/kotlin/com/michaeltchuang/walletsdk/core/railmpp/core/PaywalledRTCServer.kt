@@ -340,7 +340,7 @@ class PaywalledRTCServer(
         scope.launch(Dispatchers.IO) {
             try {
                 val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
-                Log.e(TAG, "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=${shouldSkipPrompt}")
+                Log.e(TAG, "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt")
                 if (shouldSkipPrompt) {
                     Log.d(
                         TAG,
@@ -442,7 +442,7 @@ class PaywalledRTCServer(
     }
 
     private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
-       if (!config.skipPaymentRequestWhenSessionFunded) return false
+        if (!config.skipPaymentRequestWhenSessionFunded) return false
         val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
         val remaining =
             getRemainingSessionVaultBalanceUseCase(

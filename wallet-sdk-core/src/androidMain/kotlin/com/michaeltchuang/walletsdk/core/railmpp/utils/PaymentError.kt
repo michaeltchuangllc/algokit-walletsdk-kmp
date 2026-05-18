@@ -11,7 +11,6 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
  *   showError(error.userMessage)
  */
 sealed class PaymentError {
-
     /** Short, human-readable sentence suitable for displaying directly in the UI. */
     abstract val userMessage: String
 
@@ -238,7 +237,9 @@ sealed class PaymentError {
      * The local wallet account for [address] is not stored on this device.
      * Both the viewer and creator accounts must be present to run the settle flow.
      */
-    data class SignerNotFound(val address: String) : PaymentError() {
+    data class SignerNotFound(
+        val address: String,
+    ) : PaymentError() {
         override val userMessage =
             "Wallet account not found on this device for address: $address. " +
                 "Ensure both the viewer and creator accounts are imported."
@@ -257,28 +258,31 @@ sealed class PaymentError {
      * [rawMessage] is the trimmed inner message extracted from the node's JSON response
      * (PC numbers and raw opcode mnemonics are stripped before display).
      */
-    data class BroadcastFailed(val rawMessage: String) : PaymentError() {
-        override val userMessage: String = run {
-            when {
-                rawMessage.contains("overspend", ignoreCase = true) ->
-                    "Insufficient ALGO balance to cover transaction fees. Please add ALGO to your wallet."
-                rawMessage.contains("balance below min", ignoreCase = true) ->
-                    "Your account balance would drop below the minimum required amount (MBR). Add more ALGO first."
-                rawMessage.contains("asset not opted in", ignoreCase = true) ||
-                rawMessage.contains("asset not found", ignoreCase = true) ->
-                    "The account has not opted into the required asset (USDC). Please opt in before transacting."
-                rawMessage.contains("fee too small", ignoreCase = true) ->
-                    "Transaction fee is too small. Please retry with a higher fee."
-                rawMessage.contains("logic eval error", ignoreCase = true) ->
-                    // Strip the ". Details: app=..., pc=..., opcodes=..." suffix — not user-readable
-                    "The transaction was rejected by the smart contract. " +
-                        "Please check that the channel is open and all amounts are valid."
-                rawMessage.isNotBlank() ->
-                    "The transaction was rejected by the network. ${rawMessage.take(120)}"
-                else ->
-                    "The transaction could not be submitted. Please check your connection and try again."
+    data class BroadcastFailed(
+        val rawMessage: String,
+    ) : PaymentError() {
+        override val userMessage: String =
+            run {
+                when {
+                    rawMessage.contains("overspend", ignoreCase = true) ->
+                        "Insufficient ALGO balance to cover transaction fees. Please add ALGO to your wallet."
+                    rawMessage.contains("balance below min", ignoreCase = true) ->
+                        "Your account balance would drop below the minimum required amount (MBR). Add more ALGO first."
+                    rawMessage.contains("asset not opted in", ignoreCase = true) ||
+                        rawMessage.contains("asset not found", ignoreCase = true) ->
+                        "The account has not opted into the required asset (USDC). Please opt in before transacting."
+                    rawMessage.contains("fee too small", ignoreCase = true) ->
+                        "Transaction fee is too small. Please retry with a higher fee."
+                    rawMessage.contains("logic eval error", ignoreCase = true) ->
+                        // Strip the ". Details: app=..., pc=..., opcodes=..." suffix — not user-readable
+                        "The transaction was rejected by the smart contract. " +
+                            "Please check that the channel is open and all amounts are valid."
+                    rawMessage.isNotBlank() ->
+                        "The transaction was rejected by the network. ${rawMessage.take(120)}"
+                    else ->
+                        "The transaction could not be submitted. Please check your connection and try again."
+                }
             }
-        }
     }
 
     // ─── Fallback ─────────────────────────────────────────────────────────────
@@ -295,148 +299,151 @@ sealed class PaymentError {
     // ─── Companion ────────────────────────────────────────────────────────────
 
     companion object {
-
         /**
          * Parses any [Throwable] — including wrapped on-chain assertion errors —
          * into the most specific [PaymentError] subtype.
          */
-        fun from(throwable: Throwable): PaymentError =
-            parse(throwable.message ?: "", throwable)
+        fun from(throwable: Throwable): PaymentError = parse(throwable.message ?: "", throwable)
 
         /**
          * Parses a raw error [message] string into the most specific [PaymentError] subtype.
          */
-        fun parse(message: String, cause: Throwable? = null): PaymentError = when {
+        fun parse(
+            message: String,
+            cause: Throwable? = null,
+        ): PaymentError =
+            when {
+                // ── Channel state ──────────────────────────────────────────────────
+                message.contains("Channel does not exist", ignoreCase = true) ->
+                    ChannelNotFound
 
-            // ── Channel state ──────────────────────────────────────────────────
-            message.contains("Channel does not exist", ignoreCase = true) ->
-                ChannelNotFound
+                // ── Authorization ──────────────────────────────────────────────────
+                message.contains("Only payer can top up", ignoreCase = true) ||
+                    message.contains("Only payer can reopen channel", ignoreCase = true) ->
+                    OnlyPayerCanDeposit
 
-            // ── Authorization ──────────────────────────────────────────────────
-            message.contains("Only payer can top up", ignoreCase = true) ||
-                message.contains("Only payer can reopen channel", ignoreCase = true) ->
-                OnlyPayerCanDeposit
+                message.contains("Only payer can update voucher", ignoreCase = true) ->
+                    OnlyPayerCanUpdateVoucher
 
-            message.contains("Only payer can update voucher", ignoreCase = true) ->
-                OnlyPayerCanUpdateVoucher
+                message.contains("Only payer can set authorized signer", ignoreCase = true) ->
+                    OnlyPayerCanSetSigner
 
-            message.contains("Only payer can set authorized signer", ignoreCase = true) ->
-                OnlyPayerCanSetSigner
+                message.contains("Only payer can request close", ignoreCase = true) ->
+                    OnlyPayerCanRequestClose
 
-            message.contains("Only payer can request close", ignoreCase = true) ->
-                OnlyPayerCanRequestClose
+                message.contains("Only payer can withdraw", ignoreCase = true) ->
+                    OnlyPayerCanWithdraw
 
-            message.contains("Only payer can withdraw", ignoreCase = true) ->
-                OnlyPayerCanWithdraw
+                message.contains("Only payee can settle", ignoreCase = true) ->
+                    OnlyPayeeCanSettle
 
-            message.contains("Only payee can settle", ignoreCase = true) ->
-                OnlyPayeeCanSettle
+                message.contains("Only payee can close", ignoreCase = true) ->
+                    OnlyPayeeCanClose
 
-            message.contains("Only payee can close", ignoreCase = true) ->
-                OnlyPayeeCanClose
+                message.contains("Only creator can opt in USDC", ignoreCase = true) ->
+                    OnlyContractCreatorCanOptIn
 
-            message.contains("Only creator can opt in USDC", ignoreCase = true) ->
-                OnlyContractCreatorCanOptIn
+                // ── Voucher ────────────────────────────────────────────────────────
+                message.contains("Voucher exceeds deposit", ignoreCase = true) ->
+                    VoucherExceedsDeposit
 
-            // ── Voucher ────────────────────────────────────────────────────────
-            message.contains("Voucher exceeds deposit", ignoreCase = true) ->
-                VoucherExceedsDeposit
+                message.contains("Voucher not increasing", ignoreCase = true) ->
+                    VoucherNotIncreasing
 
-            message.contains("Voucher not increasing", ignoreCase = true) ->
-                VoucherNotIncreasing
+                message.contains("Voucher below settled amount", ignoreCase = true) ->
+                    VoucherBelowSettled
 
-            message.contains("Voucher below settled amount", ignoreCase = true) ->
-                VoucherBelowSettled
+                // ── Settlement ─────────────────────────────────────────────────────
+                message.contains("Nothing new to settle", ignoreCase = true) ->
+                    NothingToSettle
 
-            // ── Settlement ─────────────────────────────────────────────────────
-            message.contains("Nothing new to settle", ignoreCase = true) ->
-                NothingToSettle
+                message.contains("Settle exceeds latest voucher", ignoreCase = true) ->
+                    SettleExceedsVoucher
 
-            message.contains("Settle exceeds latest voucher", ignoreCase = true) ->
-                SettleExceedsVoucher
+                message.contains("Unclaimed voucher funds remain", ignoreCase = true) ->
+                    UnclaimedFundsRemain
 
-            message.contains("Unclaimed voucher funds remain", ignoreCase = true) ->
-                UnclaimedFundsRemain
+                // ── Close / Withdraw ───────────────────────────────────────────────
+                message.contains("Close not requested", ignoreCase = true) ->
+                    CloseNotRequested
 
-            // ── Close / Withdraw ───────────────────────────────────────────────
-            message.contains("Close not requested", ignoreCase = true) ->
-                CloseNotRequested
+                message.contains("Close grace period not elapsed", ignoreCase = true) ->
+                    CloseGracePeriodActive
 
-            message.contains("Close grace period not elapsed", ignoreCase = true) ->
-                CloseGracePeriodActive
+                // ── Signer / Signature ─────────────────────────────────────────────
+                message.contains("Authorized signer public key not set yet", ignoreCase = true) ||
+                    message.contains("Authorized signer pubkey required", ignoreCase = true) ->
+                    SignerPublicKeyNotSet
 
-            // ── Signer / Signature ─────────────────────────────────────────────
-            message.contains("Authorized signer public key not set yet", ignoreCase = true) ||
-                message.contains("Authorized signer pubkey required", ignoreCase = true) ->
-                SignerPublicKeyNotSet
+                message.contains("Invalid signer pubkey", ignoreCase = true) ->
+                    InvalidSignerPublicKey
 
-            message.contains("Invalid signer pubkey", ignoreCase = true) ->
-                InvalidSignerPublicKey
+                // "Authorized signer hash mismatch" appears in both open() and setAuthorizedSignerPublicKeyIfProvided()
+                message.contains("Authorized signer hash mismatch", ignoreCase = true) ->
+                    SignerHashMismatch
 
-            // "Authorized signer hash mismatch" appears in both open() and setAuthorizedSignerPublicKeyIfProvided()
-            message.contains("Authorized signer hash mismatch", ignoreCase = true) ->
-                SignerHashMismatch
+                message.contains("Signer hash must be 32 bytes", ignoreCase = true) ->
+                    SignerHashWrongLength
 
-            message.contains("Signer hash must be 32 bytes", ignoreCase = true) ->
-                SignerHashWrongLength
+                message.contains("Invalid Ed25519 signature length", ignoreCase = true) ->
+                    InvalidSignatureLength
 
-            message.contains("Invalid Ed25519 signature length", ignoreCase = true) ->
-                InvalidSignatureLength
+                // Check this after the more specific "Invalid signer pubkey" and "Invalid Ed25519" checks
+                message.contains("Invalid signature", ignoreCase = true) ->
+                    InvalidSignature
 
-            // Check this after the more specific "Invalid signer pubkey" and "Invalid Ed25519" checks
-            message.contains("Invalid signature", ignoreCase = true) ->
-                InvalidSignature
+                // ── Deposit / USDC Transfer ────────────────────────────────────────
+                message.contains("Deposit must be > 0", ignoreCase = true) ->
+                    DepositMustBePositive
 
-            // ── Deposit / USDC Transfer ────────────────────────────────────────
-            message.contains("Deposit must be > 0", ignoreCase = true) ->
-                DepositMustBePositive
+                message.contains("Payment sender mismatch", ignoreCase = true) ->
+                    DepositSenderMismatch
 
-            message.contains("Payment sender mismatch", ignoreCase = true) ->
-                DepositSenderMismatch
+                message.contains("Payment asset must be USDC", ignoreCase = true) ->
+                    DepositMustBeUsdc
 
-            message.contains("Payment asset must be USDC", ignoreCase = true) ->
-                DepositMustBeUsdc
+                message.contains("Payment must be to contract", ignoreCase = true) ->
+                    DepositReceiverMismatch
 
-            message.contains("Payment must be to contract", ignoreCase = true) ->
-                DepositReceiverMismatch
+                message.contains("Clawback transfer not allowed", ignoreCase = true) ->
+                    ClawbackNotAllowed
 
-            message.contains("Clawback transfer not allowed", ignoreCase = true) ->
-                ClawbackNotAllowed
+                message.contains("Asset close not allowed", ignoreCase = true) ->
+                    AssetCloseNotAllowed
 
-            message.contains("Asset close not allowed", ignoreCase = true) ->
-                AssetCloseNotAllowed
+                // ── Channel Config ─────────────────────────────────────────────────
+                message.contains("Payee mismatch", ignoreCase = true) ->
+                    PayeeMismatch
 
-            // ── Channel Config ─────────────────────────────────────────────────
-            message.contains("Payee mismatch", ignoreCase = true) ->
-                PayeeMismatch
+                // ── Transaction lifecycle ──────────────────────────────────────────
+                message.contains("not confirmed in time", ignoreCase = true) ||
+                    message.contains("did not confirm", ignoreCase = true) ->
+                    TransactionNotConfirmed
 
-            // ── Transaction lifecycle ──────────────────────────────────────────
-            message.contains("not confirmed in time", ignoreCase = true) ||
-                message.contains("did not confirm", ignoreCase = true) ->
-                TransactionNotConfirmed
+                // ── Client / device ────────────────────────────────────────────────
+                message.contains("not found for address:", ignoreCase = true) -> {
+                    val address =
+                        Regex("not found for address:\\s*(\\S+)")
+                            .find(message)
+                            ?.groupValues
+                            ?.getOrNull(1)
+                            .orEmpty()
+                    SignerNotFound(address)
+                }
 
-            // ── Client / device ────────────────────────────────────────────────
-            message.contains("not found for address:", ignoreCase = true) -> {
-                val address =
-                    Regex("not found for address:\\s*(\\S+)")
-                        .find(message)?.groupValues?.getOrNull(1)
-                        .orEmpty()
-                SignerNotFound(address)
+                message.contains("signer not found", ignoreCase = true) ->
+                    SignerNotFound("")
+
+                message.contains("Session snapshot not found", ignoreCase = true) ||
+                    message.contains("Session data not found", ignoreCase = true) ->
+                    SessionNotFound
+
+                // ── Network ───────────────────────────────────────────────────────────
+                message.contains("broadcast failed", ignoreCase = true) ->
+                    parseBroadcastError(message)
+
+                else -> Unknown(message.ifBlank { null }, cause)
             }
-
-            message.contains("signer not found", ignoreCase = true) ->
-                SignerNotFound("")
-
-            message.contains("Session snapshot not found", ignoreCase = true) ||
-                message.contains("Session data not found", ignoreCase = true) ->
-                SessionNotFound
-
-            // ── Network ───────────────────────────────────────────────────────────
-            message.contains("broadcast failed", ignoreCase = true) ->
-                parseBroadcastError(message)
-
-            else -> Unknown(message.ifBlank { null }, cause)
-        }
 
         /**
          * Deep-parses a "broadcast failed: {json}" error from the Algorand node.
@@ -458,20 +465,29 @@ sealed class PaymentError {
          */
         private fun parseBroadcastError(message: String): PaymentError {
             // Step 1: pull the "message" field out of the JSON body
-            val inner = Regex(""""message"\s*:\s*"([^"]+)"""")
-                .find(message)?.groupValues?.getOrNull(1)?.trim() ?: ""
+            val inner =
+                Regex(""""message"\s*:\s*"([^"]+)"""")
+                    .find(message)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.trim() ?: ""
 
             // Step 2: decode common JSON Unicode escapes so we can match symbols
-            val decoded = inner
-                .replace("\\u003c", "<")   // < (less-than)
-                .replace("\\u003e", ">")   // > (greater-than)
-                .replace("\\u003d", "=")   // = (equals)
-                .replace("\\u0026", "&")   // &
-                .replace("\\u0027", "'")   // '
+            val decoded =
+                inner
+                    .replace("\\u003c", "<") // < (less-than)
+                    .replace("\\u003e", ">") // > (greater-than)
+                    .replace("\\u003d", "=") // = (equals)
+                    .replace("\\u0026", "&") // &
+                    .replace("\\u0027", "'") // '
 
             // Step 3: extract the opcodes token from "Details: app=..., pc=..., opcodes=..."
-            val opcodes = Regex("""opcodes\s*=\s*([^\n"\\]+)""")
-                .find(decoded)?.groupValues?.getOrNull(1)?.trim() ?: ""
+            val opcodes =
+                Regex("""opcodes\s*=\s*([^\n"\\]+)""")
+                    .find(decoded)
+                    ?.groupValues
+                    ?.getOrNull(1)
+                    ?.trim() ?: ""
 
             return when {
                 // ── "dig N; <=; assert" ────────────────────────────────────────
@@ -498,10 +514,11 @@ sealed class PaymentError {
 
                 // ── Fallback: strip PC / opcodes detail so users never see mnemonics ──
                 else -> {
-                    val clean = decoded
-                        .substringBefore(". Details:")
-                        .removePrefix("TransactionPool.Remember: ")
-                        .trim()
+                    val clean =
+                        decoded
+                            .substringBefore(". Details:")
+                            .removePrefix("TransactionPool.Remember: ")
+                            .trim()
                     BroadcastFailed(clean.ifBlank { message }.take(200))
                 }
             }

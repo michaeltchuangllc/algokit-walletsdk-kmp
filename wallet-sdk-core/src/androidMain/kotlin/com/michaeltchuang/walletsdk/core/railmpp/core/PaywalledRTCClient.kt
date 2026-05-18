@@ -3,12 +3,12 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
 import org.json.JSONObject
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
@@ -132,7 +132,10 @@ class PaywalledRTCClient(
      * Also clears [ConsentApproval.maxAutoPaySegments] so the segment-count limit
      * does not prematurely re-trigger consent.
      */
-    fun extendBudget(additionalMicroUsdc: Long, asset: String) {
+    fun extendBudget(
+        additionalMicroUsdc: Long,
+        asset: String,
+    ) {
         val currentSpend = spend.totalAmount.toLongOrNull() ?: 0L
         val newCap = currentSpend + additionalMicroUsdc
         consentApproval = consentApproval?.copy(
@@ -185,14 +188,18 @@ class PaywalledRTCClient(
                 DCMessageType.SEGMENT_REQUEST -> {
                     val payload = msg.getJSONObject("payload")
                     // Merge envelope fields if not in payload
-                    if (!payload.has("sessionId")) payload.put(
-                        "sessionId",
-                        msg.getString("sessionId")
-                    )
-                    if (!payload.has("segmentIndex")) payload.put(
-                        "segmentIndex",
-                        msg.getInt("segmentIndex")
-                    )
+                    if (!payload.has("sessionId")) {
+                        payload.put(
+                            "sessionId",
+                            msg.getString("sessionId"),
+                        )
+                    }
+                    if (!payload.has("segmentIndex")) {
+                        payload.put(
+                            "segmentIndex",
+                            msg.getInt("segmentIndex"),
+                        )
+                    }
                     val request = paymentRequestFromJson(payload)
                     Log.e(
                         TAG,
@@ -295,7 +302,7 @@ class PaywalledRTCClient(
             if (!approval.approved) {
                 Log.e(
                     TAG,
-                    "[VIEWER_CONSENT_DENIED] session=${request.sessionId} segment=${request.segmentIndex}"
+                    "[VIEWER_CONSENT_DENIED] session=${request.sessionId} segment=${request.segmentIndex}",
                 )
                 onConsentDenied?.invoke()
                 sendDC(
@@ -319,7 +326,7 @@ class PaywalledRTCClient(
             Log.e(
                 TAG,
                 "[" +
-                        "VIEWER_HANDLE_PAYMENT_BUDGET_CHECK] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} total=${spend.totalAmount} cap=${cap.amount}",
+                    "VIEWER_HANDLE_PAYMENT_BUDGET_CHECK] session=${request.sessionId} segment=${request.segmentIndex} amount=${request.amount} asset=${request.asset} total=${spend.totalAmount} cap=${cap.amount}",
             )
             val newTotal = spend.totalAmount.toBigInteger() + request.amount.toBigInteger()
             if (newTotal > cap.amount.toBigInteger()) {
@@ -409,5 +416,4 @@ class PaywalledRTCClient(
             Log.e(TAG, "sendDC failed", e)
         }
     }
-
 }

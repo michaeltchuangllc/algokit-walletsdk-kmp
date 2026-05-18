@@ -11,8 +11,8 @@ import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.railmpp.internal.BouncyCastleProviderSetup
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import org.bouncycastle.crypto.digests.SHA512tDigest
 import java.math.BigInteger
@@ -805,5 +805,4 @@ class EscrowSessionVaultManagerClient(
         }
         return response.body()?.txId
     }
-
 }

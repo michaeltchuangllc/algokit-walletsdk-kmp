@@ -11,8 +11,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -24,7 +24,6 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
 ) {
-
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
         val viewerAddress: String,
@@ -42,9 +41,10 @@ internal class LiquidStreamBlockConsumptionManager(
      * Single managed scope.
      * Prevents leaked coroutines from anonymous CoroutineScope().
      */
-    private val scope = CoroutineScope(
-        SupervisorJob() + Dispatchers.IO,
-    )
+    private val scope =
+        CoroutineScope(
+            SupervisorJob() + Dispatchers.IO,
+        )
 
     private val settlementMutex = Mutex()
     private val settlementJobLock = Any()
@@ -53,17 +53,17 @@ internal class LiquidStreamBlockConsumptionManager(
     private var settlementJob: Job? = null
 
     private val blocksConsumed = AtomicInteger(0)
+
     @Volatile
     private var currentSessionId: String? = null
 
     fun start(sessionId: String) {
-
         Log.e(
             tag,
             "[SESSION_VAULT_BLOCK_LOOP_START_REQUEST] " +
-                    "session=$sessionId " +
-                    "active=${blockDrivenConsumptionJob?.isActive == true} " +
-                    "currentSession=$currentSessionId",
+                "session=$sessionId " +
+                "active=${blockDrivenConsumptionJob?.isActive == true} " +
+                "currentSession=$currentSessionId",
         )
 
         if (
@@ -73,7 +73,7 @@ internal class LiquidStreamBlockConsumptionManager(
             Log.e(
                 tag,
                 "[SESSION_VAULT_BLOCK_LOOP_ALREADY_RUNNING] " +
-                        "session=$sessionId blocks=${blocksConsumed.get()}",
+                    "session=$sessionId blocks=${blocksConsumed.get()}",
             )
             return
         }
@@ -85,7 +85,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 Log.e(
                     tag,
                     "[SESSION_VAULT_BLOCK_LOOP_START_SKIP] " +
-                            "reason=viewModel_null session=$sessionId",
+                        "reason=viewModel_null session=$sessionId",
                 )
                 return
             }
@@ -100,7 +100,6 @@ internal class LiquidStreamBlockConsumptionManager(
 
         blockDrivenConsumptionJob =
             scope.launch {
-
                 Log.e(
                     tag,
                     "[SESSION_VAULT_BLOCK_LOOP_JOB_STARTED] session=$sessionId",
@@ -119,7 +118,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         Log.e(
                             tag,
                             "[SESSION_VAULT_BLOCK_BASELINE_SET] " +
-                                    "baseline=$blockNumber",
+                                "baseline=$blockNumber",
                         )
                         return@collect
                     }
@@ -131,7 +130,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         Log.e(
                             tag,
                             "[SESSION_VAULT_BLOCK_WAITING_FOR_CLAIM_SNAPSHOT] " +
-                                    "session=$sessionId block=$blockNumber",
+                                "session=$sessionId block=$blockNumber",
                         )
                         return@collect
                     }
@@ -141,8 +140,8 @@ internal class LiquidStreamBlockConsumptionManager(
                         Log.e(
                             tag,
                             "[SESSION_VAULT_BLOCK_WAITING_FOR_SESSION_VOUCHER] " +
-                                    "session=$sessionId " +
-                                    "snapshotSession=${claimSnapshot.sessionId}",
+                                "session=$sessionId " +
+                                "snapshotSession=${claimSnapshot.sessionId}",
                         )
                         return@collect
                     }
@@ -158,7 +157,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     Log.e(
                         tag,
                         "[SESSION_VAULT_BLOCK_ADVANCED] " +
-                                "from=$previous to=$blockNumber count=$advanced",
+                            "from=$previous to=$blockNumber count=$advanced",
                     )
 
                     /**
@@ -166,7 +165,6 @@ internal class LiquidStreamBlockConsumptionManager(
                      * Financial operations must complete in order.
                      */
                     repeat(advanced) {
-
                         /**
                          * Session may have been stopped while suspended.
                          */
@@ -174,7 +172,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             Log.w(
                                 tag,
                                 "[SESSION_VAULT_BLOCK_ABORT] " +
-                                        "session_changed current=$currentSessionId",
+                                    "session_changed current=$currentSessionId",
                             )
                             return@collect
                         }
@@ -188,12 +186,11 @@ internal class LiquidStreamBlockConsumptionManager(
     }
 
     fun stop() {
-
         Log.e(
             tag,
             "[SESSION_VAULT_BLOCK_LOOP_STOP] " +
-                    "session=$currentSessionId " +
-                    "active=${blockDrivenConsumptionJob?.isActive == true}",
+                "session=$currentSessionId " +
+                "active=${blockDrivenConsumptionJob?.isActive == true}",
         )
 
         blockDrivenConsumptionJob?.cancel()
@@ -213,7 +210,6 @@ internal class LiquidStreamBlockConsumptionManager(
     }
 
     private suspend fun consumeBlockSequentially() {
-
         val sessionId = currentSessionId
         val creatorAddress = getActiveCreatorAddress()
         val viewModel = getViewModel()
@@ -280,12 +276,10 @@ internal class LiquidStreamBlockConsumptionManager(
         val progressBarBalanceMicroUsdc =
             progressSnapshot?.progressBalanceMicroUsdc ?: 0L
 
-
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = remainingVaultBalance,
             progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
         )
-
     }
 
     private suspend fun startSettlement(
@@ -295,17 +289,15 @@ internal class LiquidStreamBlockConsumptionManager(
         used: Long,
         localBlocksConsumed: Int,
     ) {
-
         Log.e(
             tag,
             "[SESSION_VAULT_CLAIM_ATTEMPT] " +
-                    "session=$sessionId " +
-                    "blocks=$localBlocksConsumed",
+                "session=$sessionId " +
+                "blocks=$localBlocksConsumed",
         )
 
         val claimSnapshot =
             getCreatorVoucherClaimSnapshot() ?: run {
-
                 Log.e(
                     tag,
                     "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing",
@@ -315,22 +307,20 @@ internal class LiquidStreamBlockConsumptionManager(
             }
 
         if (claimSnapshot.sessionId != sessionId) {
-
             Log.e(
                 tag,
                 "[SESSION_VAULT_CLAIM_SKIP] " +
-                        "reason=session_mismatch",
+                    "reason=session_mismatch",
             )
 
             return
         }
 
         if (claimSnapshot.viewerAddress != viewerAddress) {
-
             Log.e(
                 tag,
                 "[SESSION_VAULT_CLAIM_SKIP] " +
-                        "reason=viewer_mismatch",
+                    "reason=viewer_mismatch",
             )
 
             return
@@ -394,16 +384,16 @@ internal class LiquidStreamBlockConsumptionManager(
                         Log.e(
                             tag,
                             "[SESSION_VAULT_CLAIM_SKIP] " +
-                                    "reason=viewer_update_pending " +
-                                    "signedTotal=$signedTotalAmount " +
-                                    "onChainLatest=$refreshedLatest",
+                                "reason=viewer_update_pending " +
+                                "signedTotal=$signedTotalAmount " +
+                                "onChainLatest=$refreshedLatest",
                         )
                     }
 
                     Log.e(
                         tag,
                         "[SESSION_VAULT_CLAIM_SKIP] " +
-                                "reason=nothing_to_settle",
+                            "reason=nothing_to_settle",
                     )
 
                     Result.success("nothing_to_settle")
@@ -433,17 +423,15 @@ internal class LiquidStreamBlockConsumptionManager(
                 Log.e(
                     tag,
                     "[SESSION_VAULT_CLAIM_OK] " +
-                            "txId=$txId " +
-                            "blocks=$localBlocksConsumed " +
-                            "used=$used",
+                        "txId=$txId " +
+                        "blocks=$localBlocksConsumed " +
+                        "used=$used",
                 )
-            }
-            .onFailure {
-
+            }.onFailure {
                 Log.e(
                     tag,
                     "[SESSION_VAULT_CLAIM_ERR] " +
-                            "blocks=$localBlocksConsumed",
+                        "blocks=$localBlocksConsumed",
                     it,
                 )
             }

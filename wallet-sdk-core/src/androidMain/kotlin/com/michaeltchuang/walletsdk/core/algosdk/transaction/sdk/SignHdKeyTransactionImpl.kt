@@ -11,7 +11,6 @@ import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
 import foundation.algorand.xhdwalletapi.XHDWalletAPIBase.Companion.getBIP44PathFromContext
 import java.nio.charset.StandardCharsets
 
-
 internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
     override fun signTransaction(
         transactionByteArray: ByteArray,

@@ -15,12 +15,15 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
  * ```
  */
 sealed class PaymentResult<out T> {
-
     /** The operation completed successfully. [value] is the returned data (e.g. a transaction ID). */
-    data class Success<T>(val value: T) : PaymentResult<T>()
+    data class Success<T>(
+        val value: T,
+    ) : PaymentResult<T>()
 
     /** The operation failed. [error] carries the typed [PaymentError] with a user-friendly message. */
-    data class Failure(val error: PaymentError) : PaymentResult<Nothing>()
+    data class Failure(
+        val error: PaymentError,
+    ) : PaymentResult<Nothing>()
 
     // ─── Convenience ──────────────────────────────────────────────────────────
 
@@ -55,13 +58,13 @@ sealed class PaymentResult<out T> {
      * Transforms a [Success] value using [transform].
      * A [Failure] passes through unchanged.
      */
-    fun <R> map(transform: (T) -> R): PaymentResult<R> = when (this) {
-        is Success -> Success(transform(value))
-        is Failure -> this
-    }
+    fun <R> map(transform: (T) -> R): PaymentResult<R> =
+        when (this) {
+            is Success -> Success(transform(value))
+            is Failure -> this
+        }
 
     companion object {
-
         /** Wraps a Kotlin [Result] into a [PaymentResult], parsing any exception via [PaymentError.from]. */
         fun <T> from(result: Result<T>): PaymentResult<T> =
             result.fold(
