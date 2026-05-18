@@ -116,7 +116,7 @@ timeline
             : ✅ Liquid Stream - Implement new Figma viewer/host screens
             : ✅ Liquid Stream - Implement new Figma app modals
             : ✅ Transaction - Upgrade to escrow smart contract manager for non-PQ account micro-billing (Android)
-            : 🔄 Transaction - Upgrade to escrow smart contract manager for PQ account micro-billing (Android)
+            : ✅ Transaction - Upgrade to escrow smart contract manager for PQ account micro-billing (Android)
             : 🔄 GitOps - Fix crypto dependencies for new 16KB Android requirement
             : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
             
