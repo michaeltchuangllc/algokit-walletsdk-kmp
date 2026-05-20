@@ -230,7 +230,7 @@
     <string name="date">Date</string>
     <string name="copy">Copy</string>
     <string name="developer_settings">Developer Settings</string>
-    <string name="payment_test">Payment Test</string>
+    <string name="escrow_session_vault_debug_tool">Escrow Session Vault Debug Tool</string>
     <string name="localization_settings">Language</string>
     <string name="currency">Currency</string>
     <string name="algorand_dispenser">Algorand Dispenser</string>

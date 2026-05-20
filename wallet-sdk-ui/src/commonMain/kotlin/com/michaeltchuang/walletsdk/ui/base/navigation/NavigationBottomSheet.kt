@@ -55,7 +55,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
-import com.michaeltchuang.walletsdk.ui.settings.screens.PaymentTestScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.EscrowSessionVaultDebugToolScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AddAssetScreen
@@ -722,7 +722,7 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(route = AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) {
-                    PaymentTestScreen(navController)
+                    EscrowSessionVaultDebugToolScreen(navController)
                 }
             }
         }
