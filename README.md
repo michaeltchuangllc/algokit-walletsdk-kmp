@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.4")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.4")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.6")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.6")
 }
 ```
 
@@ -117,12 +117,12 @@ timeline
             : ✅ Liquid Stream - Implement new Figma app modals
             : ✅ Transaction - Upgrade to escrow smart contract manager for account micro-billing (Android)
             : ✅ GitOps - Fix crypto dependencies for new 16KB Android requirement
-            : 🔄 Account Details - Send USDC in account detail (between accounts)
+            : ✅ Account Details - Send USDC in account detail (between accounts)
             
     section Future 🔮
-     2026Q3  : Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
+     2026Q3  : 🔄 Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
              : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
-             : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
+             : Onboarding - Integrate new algokit-core rustFFI library (iOS/Android)
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
              : TBD

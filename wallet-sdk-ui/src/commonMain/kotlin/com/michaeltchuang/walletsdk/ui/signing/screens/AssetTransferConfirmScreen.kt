@@ -657,7 +657,10 @@ fun AssetTransferAddNoteTextField(
 }
 
 @Composable
-private fun SetAssetLogo(assetLogoUrl: String, assetId: Long) {
+private fun SetAssetLogo(
+    assetLogoUrl: String,
+    assetId: Long,
+) {
     Box(modifier = Modifier.padding(end = 5.dp), contentAlignment = Alignment.Center) {
         if (assetLogoUrl.isBlank() && assetId == USDC_TESTNET_ID) {
             Icon(

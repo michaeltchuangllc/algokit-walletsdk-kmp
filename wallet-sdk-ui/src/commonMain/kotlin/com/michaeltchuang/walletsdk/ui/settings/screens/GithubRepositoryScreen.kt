@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.settings.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.discover
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.github_repository
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,9 +19,7 @@ import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewScreen
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 
 @Composable
-fun DiscoverScreen(
-    navController: NavController,
-) {
+fun GithubRepoScreen(navController: NavController) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.SpaceEvenly,
@@ -32,7 +30,7 @@ fun DiscoverScreen(
     ) {
         AlgoKitTopBar(
             modifier = Modifier.padding(horizontal = 16.dp),
-            title = localizedStringResource(Res.string.discover),
+            title = localizedStringResource(Res.string.github_repository),
             onClick = { navController.popBackStack() },
         )
         AlgoKitWebViewScreen(

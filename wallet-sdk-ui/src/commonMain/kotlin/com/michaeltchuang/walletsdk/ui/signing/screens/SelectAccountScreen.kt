@@ -44,7 +44,6 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -98,7 +97,7 @@ fun SelectAccountScreen(
                             }
                         }
                     } else {
-                        // Normal flow - go to send algo screen to enter amount
+                        // Normal flow - go to send asset screen to enter amount
 
                         if (receiverAddress.isEmpty()) {
                             navController.navigate(
@@ -108,9 +107,9 @@ fun SelectAccountScreen(
                             )
                         } else {
                             navController.navigate(
-                                AlgoKitScreens.SEND_ALGO_SCREEN.name +
-                                    "?senderAddress=${event.senderAddress}" +
-                                    "&receiverAddress=${event.receiverAddress}" +
+                                AlgoKitScreens.SEND_ASSET_SCREEN.name +
+                                    "?sender=${event.senderAddress}" +
+                                    "&receiver=${event.receiverAddress}" +
                                     "&assetId=${event.assetId}" +
                                     "&amount=${event.amount}" +
                                     "&note=$encodedNote",
@@ -138,7 +137,6 @@ fun SelectAccountScreen(
     )
 }
 
-@Preview
 @Composable
 fun ScreenContent(
     viewState: SelectAccountViewModel.AccountsState,

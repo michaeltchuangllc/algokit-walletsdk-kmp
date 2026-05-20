@@ -3,11 +3,11 @@ package com.michaeltchuang.walletsdk.ui.signing.screens
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAlgoViewModel
+import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAssetViewModel
 import org.junit.Test
 import java.util.Locale
 
-class SendAlgoScreenshotTest(
+class SendAssetScreenshotTest(
     locale: Locale,
     darkTheme: Boolean,
 ) : BaseScreenshotTest(locale, darkTheme) {
@@ -17,7 +17,7 @@ class SendAlgoScreenshotTest(
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "10.5",
                         usdValue = "$20.85",
                         balance = "25.0 ALGO",
@@ -38,12 +38,12 @@ class SendAlgoScreenshotTest(
     }
 
     @Test
-    fun testSendAlgoScreenEmpty() {
+    fun testSendAssetScreenEmpty() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "",
                         usdValue = "$0.00",
                         balance = "25.0 ALGO",
@@ -60,16 +60,16 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_Empty")
+        takeScreenshot("SendAsset_Empty")
     }
 
     @Test
-    fun testSendAlgoScreenWithAmount() {
+    fun testSendAssetScreenWithAmount() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "10.5",
                         usdValue = "$20.85",
                         balance = "25.0 ALGO",
@@ -86,16 +86,16 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_WithAmount")
+        takeScreenshot("SendAsset_WithAmount")
     }
 
     @Test
-    fun testSendAlgoScreenWithMaxAmount() {
+    fun testSendAssetScreenWithMaxAmount() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "24.999",
                         usdValue = "$49.75",
                         balance = "25.0 ALGO",
@@ -112,16 +112,16 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_MaxAmount")
+        takeScreenshot("SendAsset_MaxAmount")
     }
 
     @Test
-    fun testSendAlgoScreenWithNote() {
+    fun testSendAssetScreenWithNote() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "5.25",
                         usdValue = "$10.44",
                         balance = "25.0 ALGO",
@@ -138,16 +138,16 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_WithNote")
+        takeScreenshot("SendAsset_WithNote")
     }
 
     @Test
-    fun testSendAlgoScreenLargeAmount() {
+    fun testSendAssetScreenLargeAmount() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "1000000.123456",
                         usdValue = "$1,987,654.32",
                         balance = "1500000.0 ALGO",
@@ -164,16 +164,16 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_LargeAmount")
+        takeScreenshot("SendAsset_LargeAmount")
     }
 
     @Test
-    fun testSendAlgoScreenWithoutUSD() {
+    fun testSendAssetScreenWithoutUSD() {
         setTestContent {
             ScreenContent(
                 senderAddress = "AXNQ4ZE7GWQJ4HBQZ7PMJLVBQCXQJ4ZJZQM6HWQZ7PMJLVBQCXQJ4ZJZQM6H",
                 viewState =
-                    SendAlgoViewModel.ViewState.Content(
+                    SendAssetViewModel.ViewState.Content(
                         amount = "15.75",
                         usdValue = "$31.31",
                         balance = "50.0 ALGO",
@@ -190,6 +190,6 @@ class SendAlgoScreenshotTest(
             )
         }
 
-        takeScreenshot("SendAlgo_WithoutUSD")
+        takeScreenshot("SendAsset_WithoutUSD")
     }
 }
