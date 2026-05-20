@@ -213,7 +213,7 @@ private fun MainnetUnsupportedBroadcastScreen() {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = "Paid streaming is currently only supported on Algorand TestNet.",
+                text = "Liquid Stream is currently only supported on Algorand Testnet",
                 style = MaterialTheme.typography.bodyLarge,
                 color = AlgoKitTheme.colors.textGray,
                 textAlign = TextAlign.Center,
@@ -222,7 +222,7 @@ private fun MainnetUnsupportedBroadcastScreen() {
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = "Please switch your wallet network from MainNet to TestNet before starting a broadcast.",
+                text = "Please switch your wallet network from Mainnet to Testnet before starting a broadcast",
                 style = MaterialTheme.typography.bodyMedium,
                 color = AlgoKitTheme.colors.textGray,
                 textAlign = TextAlign.Center,
