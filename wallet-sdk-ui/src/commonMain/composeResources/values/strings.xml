@@ -1640,5 +1640,7 @@
     <string name="close_popup">Close popup</string>
     <string name="asa_balance">ASA Balance</string>
 
+    <string name="github_repo">GitHub Repo</string>
+
 
 </resources>

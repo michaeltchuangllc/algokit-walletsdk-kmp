@@ -1641,4 +1641,6 @@
     <string name="provider">प्रदाता</string>
     <string name="close_popup">पॉपअप बंद करें</string>
     <string name="asa_balance">एएसए बैलेंस</string>
+
+    <string name="github_repo">GitHub Repo</string>
 </resources>

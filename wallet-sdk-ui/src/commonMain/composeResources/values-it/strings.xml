@@ -1504,4 +1504,6 @@
     <string name="provider">Fornitore</string>
     <string name="close_popup">Chiudi popup</string>
     <string name="asa_balance">Saldo ASA</string>
+
+    <string name="github_repo">GitHub Repo</string>
 </resources>

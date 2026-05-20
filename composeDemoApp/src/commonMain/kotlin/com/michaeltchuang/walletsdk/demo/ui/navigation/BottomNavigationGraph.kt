@@ -10,7 +10,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import com.michaeltchuang.walletsdk.demo.ui.screens.AccountListScreen
 import com.michaeltchuang.walletsdk.demo.ui.screens.BroadcastScreen
-import com.michaeltchuang.walletsdk.demo.ui.screens.DiscoverScreen
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackBarLayout
 import com.michaeltchuang.walletsdk.demo.ui.widgets.snackbar.SnackbarViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
@@ -45,16 +44,6 @@ fun NavGraphBuilder.getBottomNavigationGraph(
             streamHostUiModeState = streamHostUiModeState,
             miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
             miniPlayerOnCloseActionState = miniPlayerOnCloseActionState,
-        )
-        SnackBarLayout(sharedViewModel, snackbarHostState)
-    }
-    composable<Discover> {
-        val backStackEntry = remember(it) { navController.getBackStackEntry<Discover>() }
-        val sharedViewModel: SnackbarViewModel = koinViewModel(viewModelStoreOwner = backStackEntry)
-        DiscoverScreen(
-            tag = backStackEntry.toRoute<Discover>().details.name,
-            navController = navController,
-            snackbarViewModel = sharedViewModel,
         )
         SnackBarLayout(sharedViewModel, snackbarHostState)
     }

@@ -51,6 +51,7 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.DiscoverScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
@@ -111,6 +112,7 @@ enum class AlgoKitScreens {
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
     DEVELOPER_TEST_SCREEN,
+    DISCOVER_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -730,6 +732,9 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(route = AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) {
                     EscrowSessionVaultDebugToolScreen(navController)
+                }
+                composable(route = AlgoKitScreens.DISCOVER_SCREEN.name) {
+                    DiscoverScreen(navController)
                 }
             }
         }
