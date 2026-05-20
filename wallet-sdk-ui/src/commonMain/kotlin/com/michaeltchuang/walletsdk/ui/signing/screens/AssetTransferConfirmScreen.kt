@@ -11,6 +11,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.confirm_transfer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.done
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.enter_your_note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.fee
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.to
@@ -26,7 +27,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
@@ -60,6 +60,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
 import com.michaeltchuang.walletsdk.core.foundation.utils.toAlgoCurrency
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
@@ -398,6 +399,7 @@ fun AssetTransferContentItems(
                 assetLogoUrl = assetLogoUrl,
                 assetBalance = assetBalance,
                 assetName = assetName,
+                assetId = assetId,
             )
         }
         AssetTransferDivider()
@@ -420,6 +422,7 @@ fun AssetTransferASABalanceRow(
     assetLogoUrl: String,
     assetBalance: String?,
     assetName: String,
+    assetId: Long,
 ) {
     Row(
         modifier = Modifier.padding(vertical = 16.dp),
@@ -432,15 +435,7 @@ fun AssetTransferASABalanceRow(
             style = typography.body.regular.sansMedium,
         )
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (assetLogoUrl.isNotEmpty()) {
-                AsyncImage(
-                    model = assetLogoUrl,
-                    contentDescription = "Asset Logo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.size(24.dp),
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-            }
+            SetAssetLogo(assetLogoUrl, assetId)
             Text(
                 text = assetBalance?.let { "${it.formatAmount()} $assetName" } ?: "Not Opted In",
                 fontSize = 16.sp,
@@ -462,23 +457,20 @@ fun AssetTransferAmountLabeledText(
     val displayAssetName = if (assetId != -7L && assetName.isNotEmpty()) assetName else "ALGO"
     val amountValue = if (assetId != -7L) value else value.toAlgoCurrency()
 
-    Row(modifier = Modifier.padding(vertical = 16.dp)) {
+    Row(
+        modifier = Modifier.padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
             modifier = Modifier.fillMaxWidth(.25f),
             text = label,
             color = AlgoKitTheme.colors.textGray,
             style = typography.body.regular.sansMedium,
         )
-        if (assetId != -7L && assetLogoUrl.isNotEmpty()) {
-            AsyncImage(
-                model = assetLogoUrl,
-                contentDescription = "Asset Logo",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.size(24.dp),
-            )
+        if (assetId != -7L) {
+            SetAssetLogo(assetLogoUrl, assetId)
         }
         Text(
-            modifier = Modifier.padding(horizontal = 8.dp),
             text = "$amountValue $displayAssetName",
             fontSize = 18.sp,
             color = AlgoKitTheme.colors.textMain,
@@ -661,6 +653,29 @@ fun AssetTransferAddNoteTextField(
             thickness = 1.dp,
             color = Color.Gray,
         )
+    }
+}
+
+@Composable
+private fun SetAssetLogo(
+    assetLogoUrl: String,
+    assetId: Long,
+) {
+    Box(modifier = Modifier.padding(end = 5.dp), contentAlignment = Alignment.Center) {
+        if (assetLogoUrl.isBlank() && assetId == USDC_TESTNET_ID) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_usdc),
+                contentDescription = "USDC",
+                modifier = Modifier.size(16.dp),
+            )
+        } else {
+            AsyncImage(
+                model = assetLogoUrl,
+                contentDescription = "Asset Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(24.dp),
+            )
+        }
     }
 }
 

@@ -5,7 +5,7 @@ import com.michaeltchuang.walletsdk.ui.signing.viewmodels.AssetTransferConfirmVi
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.KeyRegConfirmViewModel
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectReceiverViewModel
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAlgoViewModel
+import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAssetViewModel
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.TransactionSuccessViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -56,7 +56,8 @@ internal val signingModules =
             }
 
             viewModel {
-                SendAlgoViewModel(
+                SendAssetViewModel(
+                    get(),
                     get(),
                     get(),
                     get(),

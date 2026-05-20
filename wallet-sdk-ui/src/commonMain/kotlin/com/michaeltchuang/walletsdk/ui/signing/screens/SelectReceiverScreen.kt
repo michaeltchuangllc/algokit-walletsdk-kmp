@@ -80,6 +80,7 @@ fun SelectReceiverScreen(
     amount: String,
     note: String,
     senderAddress: String,
+    assetId: Long = -7L,
 ) {
     val viewModel: SelectReceiverViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
@@ -99,7 +100,7 @@ fun SelectReceiverScreen(
             when (event) {
                 is SelectReceiverViewModel.ViewEvent.NavigateToAssetTransfer -> {
                     navController.navigate(
-                        "${AlgoKitScreens.ASSET_TRANSFER_SCREEN.name}?sender=${event.senderAddress}&receiver=${event.receiverAddress}&amount=$amount&note=$note",
+                        "${AlgoKitScreens.ASSET_TRANSFER_SCREEN.name}?sender=${event.senderAddress}&receiver=${event.receiverAddress}&assetId=$assetId&amount=$amount&note=$note",
                     )
                 }
             }
@@ -470,6 +471,7 @@ fun PreviewSelectReceiverScreen() {
             amount = "1.000 ALGO",
             note = "",
             senderAddress = "HVTAJEVD6WVPY53MUZGPRJ446WW5C3SUSKNSQ3UCZH2R4XWQZPXE72MQ",
+            assetId = -7L,
         )
     }
 }

@@ -4,6 +4,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.app_preferences
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.get_help
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.github_repository
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_feedback
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_localization
@@ -137,6 +138,13 @@ fun SettingsScreen(navController: NavController) {
             localizedStringResource(Res.string.terms_and_services),
             WalletSdkConstants.TERMS_AND_SERVICES_URL,
         )
+        SettingsItem(
+            Res.drawable.ic_text_document,
+            localizedStringResource(Res.string.github_repository),
+        ) {
+            navController.navigate(AlgoKitScreens.GITHUB_REPO_SCREEN.name)
+        }
+
         SettingsItem(
             Res.drawable.ic_code,
             localizedStringResource(Res.string.developer_settings),

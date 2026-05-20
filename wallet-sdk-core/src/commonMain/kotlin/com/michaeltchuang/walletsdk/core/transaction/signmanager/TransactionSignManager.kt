@@ -36,7 +36,8 @@ import com.michaeltchuang.walletsdk.core.utils.mapToNotNullableListOrNull
 import com.michaeltchuang.walletsdk.core.utils.minBalancePerAssetAsBigInteger
 import com.michaeltchuang.walletsdk.utils.LifecycleScopedCoroutineOwner
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 @Suppress("LongParameterList")
@@ -50,7 +51,13 @@ open class TransactionSignManager(
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
 ) : LifecycleScopedCoroutineOwner() {
-    val transactionManagerResultStateFlow = MutableStateFlow<TransactionManagerResult?>(null)
+    private val _transactionManagerResultStateFlow =
+        MutableSharedFlow<TransactionManagerResult>(
+            replay = 0,
+            extraBufferCapacity = 16,
+        )
+    val transactionManagerResultStateFlow: SharedFlow<TransactionManagerResult> =
+        _transactionManagerResultStateFlow
 
     private var transactionParams: TransactionParams? = null
     var transactionDataList: List<TransactionSignData>? = null
@@ -497,7 +504,7 @@ open class TransactionSignManager(
     }
 
     private fun postResult(transactionManagerResult: TransactionManagerResult) {
-        transactionManagerResultStateFlow.value = transactionManagerResult
+        _transactionManagerResultStateFlow.tryEmit(transactionManagerResult)
     }
 
     /*
@@ -528,7 +535,6 @@ open class TransactionSignManager(
 
     override fun stopAllResources() {
         //  ledgerBleSearchManager.stop()
-        transactionManagerResultStateFlow.value = null
         transactionDataList = null
         signHelper.clearCachedData()
         if (isCurrentScopeInitialized()) {

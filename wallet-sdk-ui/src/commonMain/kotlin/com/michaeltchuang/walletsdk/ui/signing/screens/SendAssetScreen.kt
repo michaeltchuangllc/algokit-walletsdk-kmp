@@ -8,10 +8,11 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.enter_your_note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_round
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_asa_trusted
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_delete
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.max
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.next
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_algo
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_asset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -59,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.utils.toAlgoAmount
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -69,18 +71,19 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShapeSmall
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
-import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAlgoViewModel
+import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SendAssetViewModel
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun SendAlgoScreen(
+fun SendAssetScreen(
     navController: NavController,
     senderAddress: String = "",
+    assetId: Long = -7L,
 ) {
-    val viewModel: SendAlgoViewModel = koinViewModel()
+    val viewModel: SendAssetViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsState()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
     val noteText = remember { mutableStateOf("") }
@@ -88,24 +91,25 @@ fun SendAlgoScreen(
     LaunchedEffect(events.value) {
         events.value?.let { event ->
             when (event) {
-                is SendAlgoViewModel.ViewEvent.NavigateNext -> {
+                is SendAssetViewModel.ViewEvent.NavigateNext -> {
                     navController.navigate(
-                        "${AlgoKitScreens.SELECT_RECEIVER_SCREEN.name}?sender=$senderAddress&amount=${event.amount}&note=${noteText.value}",
+                        "${AlgoKitScreens.SELECT_RECEIVER_SCREEN.name}?sender=$senderAddress&amount=${event.amount}&note=${noteText.value}&assetId=$assetId",
                     )
                 }
             }
         }
     }
 
-    LaunchedEffect(senderAddress) {
+    LaunchedEffect(senderAddress, assetId) {
         if (senderAddress.isNotEmpty()) {
-            viewModel.fetchAccountBalance(senderAddress)
+            viewModel.fetchAccountBalance(senderAddress, assetId)
         }
     }
 
     ScreenContent(
         senderAddress = senderAddress,
         viewState = viewState,
+        assetId = assetId,
         noteText = noteText,
         onAmountChange = { digit -> viewModel.onDigitPressed(digit) },
         onDeletePressed = { viewModel.onDeletePressed() },
@@ -120,7 +124,8 @@ fun SendAlgoScreen(
 @Composable
 fun ScreenContent(
     senderAddress: String,
-    viewState: SendAlgoViewModel.ViewState,
+    viewState: SendAssetViewModel.ViewState,
+    assetId: Long = -7L,
     noteText: MutableState<String>,
     onAmountChange: (String) -> Unit = {},
     onDeletePressed: () -> Unit = {},
@@ -138,7 +143,7 @@ fun ScreenContent(
     ) {
         Column {
             // Top Bar
-            SendAlgoTopBar(
+            SendAssetTopBar(
                 senderAddress = senderAddress,
                 onBackClick = onBackClick,
                 onInfoClick = onInfoClick,
@@ -146,7 +151,7 @@ fun ScreenContent(
 
             // Content
             when (viewState) {
-                is SendAlgoViewModel.ViewState.Loading -> {
+                is SendAssetViewModel.ViewState.Loading -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -155,9 +160,10 @@ fun ScreenContent(
                     }
                 }
 
-                is SendAlgoViewModel.ViewState.Content -> {
-                    SendAlgoContent(
+                is SendAssetViewModel.ViewState.Content -> {
+                    SendAssetContent(
                         state = viewState,
+                        assetId = assetId,
                         noteText = noteText,
                         onAmountChange = onAmountChange,
                         onDeletePressed = onDeletePressed,
@@ -166,7 +172,7 @@ fun ScreenContent(
                     )
                 }
 
-                is SendAlgoViewModel.ViewState.Error -> {
+                is SendAssetViewModel.ViewState.Error -> {
                     Box(
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center,
@@ -175,9 +181,10 @@ fun ScreenContent(
                     }
                 }
 
-                is SendAlgoViewModel.ViewState.MinimumBalanceAlert -> {
-                    SendAlgoContent(
+                is SendAssetViewModel.ViewState.MinimumBalanceAlert -> {
+                    SendAssetContent(
                         state = viewState.toContent(),
+                        assetId = assetId,
                         noteText = noteText,
                         onAmountChange = onAmountChange,
                         onDeletePressed = onDeletePressed,
@@ -203,7 +210,7 @@ fun ScreenContent(
 }
 
 @Composable
-private fun SendAlgoTopBar(
+private fun SendAssetTopBar(
     senderAddress: String,
     onBackClick: () -> Unit,
     onInfoClick: () -> Unit,
@@ -227,7 +234,7 @@ private fun SendAlgoTopBar(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Text(
-                text = localizedStringResource(Res.string.send_algo),
+                text = localizedStringResource(Res.string.send_asset),
                 style = typography.body.regular.sansMedium,
                 color = AlgoKitTheme.colors.textMain,
             )
@@ -262,8 +269,9 @@ private fun SendAlgoTopBar(
 }
 
 @Composable
-private fun SendAlgoContent(
-    state: SendAlgoViewModel.ViewState.Content,
+private fun SendAssetContent(
+    state: SendAssetViewModel.ViewState.Content,
+    assetId: Long,
     noteText: MutableState<String>,
     onAmountChange: (String) -> Unit,
     onDeletePressed: () -> Unit,
@@ -300,8 +308,7 @@ private fun SendAlgoContent(
 
         // Asset Selection
         AssetSelectionCard(
-            assetName = "Algo",
-            assetSymbol = "ALGO",
+            assetId = assetId,
             balance = state.balance,
             usdValue = state.usdValue,
             showUSDAmount = state.showUSDAmount,
@@ -398,7 +405,7 @@ private fun AmountDisplaySection(
 
         if (isAddNoteEnabled) {
             Spacer(modifier = Modifier.height(16.dp))
-            SendAlgoAddNoteTextField(
+            SendAssetAddNoteTextField(
                 noteText.value,
                 onValueChange = {
                     noteText.value = it
@@ -495,12 +502,16 @@ private fun KeypadButton(
 
 @Composable
 private fun AssetSelectionCard(
-    assetName: String,
-    assetSymbol: String,
+    assetId: Long,
     balance: String?,
     usdValue: String?,
     showUSDAmount: Boolean,
 ) {
+    val isUsdc = assetId == AssetConstants.USDC_TESTNET_ID || assetId == AssetConstants.USDC_MAINNET_ID
+    val assetName = if (isUsdc) "USDC" else "Algo"
+    val assetSymbol = if (isUsdc) "USDC" else "ALGO"
+    val assetIcon = if (isUsdc) Res.drawable.ic_usdc else Res.drawable.ic_algo_round
+    val assetIconBackgroundColor = if (isUsdc) Color.Transparent else AlgoKitTheme.colors.algoIconBg
     Row(
         modifier =
             Modifier
@@ -516,11 +527,11 @@ private fun AssetSelectionCard(
                     Modifier
                         .size(40.dp)
                         .clip(CircleShape)
-                        .background(AlgoKitTheme.colors.algoIconBg),
+                        .background(assetIconBackgroundColor),
                 contentAlignment = Alignment.Center,
             ) {
                 AlgoKitIcon(
-                    painter = painterResource(Res.drawable.ic_algo_round),
+                    painter = painterResource(assetIcon),
                     contentDescription = "Asset Icon",
                     modifier = Modifier,
                 )
@@ -569,7 +580,7 @@ private fun AssetSelectionCard(
 }
 
 @Composable
-fun SendAlgoAddNoteTextField(
+fun SendAssetAddNoteTextField(
     value: String,
     onValueChange: (String) -> Unit,
     onClearClick: () -> Unit,
@@ -631,7 +642,7 @@ fun SendAlgoAddNoteTextField(
 
 @Preview
 @Composable
-fun PreviewSendAlgoScreen() {
+fun PreviewSendAssetScreen() {
     AlgoKitTheme {
         Box(
             modifier =
@@ -641,15 +652,16 @@ fun PreviewSendAlgoScreen() {
         ) {
             Column {
                 // Top Bar Preview
-                SendAlgoTopBar(
+                SendAssetTopBar(
                     senderAddress = "QQVR...ZIXU",
                     onBackClick = { },
                     onInfoClick = { },
                 )
 
                 // Content Preview with mock state
-                SendAlgoContent(
-                    state = MockSendAlgoViewState(),
+                SendAssetContent(
+                    state = MockSendAssetViewState(),
+                    assetId = -7L,
                     noteText = mutableStateOf(""),
                     onAmountChange = { },
                     onDeletePressed = { },
@@ -662,8 +674,8 @@ fun PreviewSendAlgoScreen() {
 }
 
 @Composable
-private fun MockSendAlgoViewState(): SendAlgoViewModel.ViewState.Content =
-    SendAlgoViewModel.ViewState.Content(
+private fun MockSendAssetViewState(): SendAssetViewModel.ViewState.Content =
+    SendAssetViewModel.ViewState.Content(
         amount = "176238.12345678",
         usdValue = "$1.76",
         balance = "10.00",

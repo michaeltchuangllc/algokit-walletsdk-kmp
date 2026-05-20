@@ -51,11 +51,12 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.EscrowSessionVaultDebugToolScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.GithubRepoScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
-import com.michaeltchuang.walletsdk.ui.settings.screens.EscrowSessionVaultDebugToolScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AddAssetScreen
@@ -63,7 +64,7 @@ import com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScree
 import com.michaeltchuang.walletsdk.ui.signing.screens.ConfirmTransactionRequestScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreen
-import com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreen
+import com.michaeltchuang.walletsdk.ui.signing.screens.SendAssetScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreen
 import kotlinx.coroutines.async
@@ -101,7 +102,7 @@ enum class AlgoKitScreens {
     FALCON24_WALLET_SELECTION_SCREEN,
     ASSET_TRANSFER_SCREEN,
     SELECT_ACCOUNT_SCREEN,
-    SEND_ALGO_SCREEN,
+    SEND_ASSET_SCREEN,
     SELECT_RECEIVER_SCREEN,
     TRANSACTING_TIPS_SCREEN,
     ADDRESS_NAMING_SCREEN,
@@ -111,6 +112,7 @@ enum class AlgoKitScreens {
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
     DEVELOPER_TEST_SCREEN,
+    GITHUB_REPO_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -531,7 +533,9 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SEND_ALGO_SCREEN.name + "?sender={sender}&receiver={receiver}&amount={amount}&note={note}",
+                    route =
+                        AlgoKitScreens.SEND_ASSET_SCREEN.name +
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -543,6 +547,11 @@ fun NavigationBottomSheetNavHost(
                                 type = NavType.StringType
                                 nullable = false
                                 defaultValue = ""
+                            },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
                             },
                             navArgument("amount") {
                                 type = NavType.StringType
@@ -557,14 +566,16 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val sender = backStackEntry.arguments?.getString("sender") ?: ""
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
 
-                    SendAlgoScreen(
+                    SendAssetScreen(
                         navController = navController,
                         senderAddress = sender,
+                        assetId = assetId,
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}",
+                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}&assetId={assetId}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -582,16 +593,23 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = ""
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                         ),
                 ) { backStackEntry ->
                     val sender = backStackEntry.arguments?.getString("sender") ?: ""
                     val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
                     val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
                     SelectReceiverScreen(
                         navController = navController,
                         amount = amount,
                         note = note,
                         senderAddress = sender,
+                        assetId = assetId,
                     )
                 }
                 composable(route = AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) {
@@ -723,6 +741,9 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(route = AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) {
                     EscrowSessionVaultDebugToolScreen(navController)
+                }
+                composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
+                    GithubRepoScreen(navController)
                 }
             }
         }

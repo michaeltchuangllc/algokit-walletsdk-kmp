@@ -5,26 +5,33 @@ import androidx.lifecycle.viewModelScope
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.toBigInteger
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import kotlinx.coroutines.launch
 
-class SendAlgoViewModel(
+private const val MICRO_ASSET_DIVISOR = 1_000_000.0
+
+class SendAssetViewModel(
     private val getAccountAlgoBalance: GetAccountAlgoBalance,
+    private val getAccountASABalance: GetAccountASABalance,
     private val getAccountMinimumBalance: GetAccountMinimumBalance,
     private val getTransactionFeeForAccount: GetTransactionFeeForAccount,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
-    StateViewModel<SendAlgoViewModel.ViewState> by stateDelegate,
-    EventViewModel<SendAlgoViewModel.ViewEvent> by eventDelegate {
-    private var accountBalance: BigInteger = BigInteger.ZERO
+    StateViewModel<SendAssetViewModel.ViewState> by stateDelegate,
+    EventViewModel<SendAssetViewModel.ViewEvent> by eventDelegate {
+    private var algoBalance: BigInteger = BigInteger.ZERO
+    private var assetBalance: BigInteger = BigInteger.ZERO
     private var senderAddress: String = ""
+    private var assetId: Long = ALGO_ID
     private val algoUsdPrice: Double = 0.199 // Mock price, should come from a price service
     private val maxDecimalPlaces = 6 // Algorand supports 6 decimal places (microAlgos)
 
@@ -33,12 +40,21 @@ class SendAlgoViewModel(
         updateContentState()
     }
 
-    fun fetchAccountBalance(senderAddress: String) {
+    fun fetchAccountBalance(
+        senderAddress: String,
+        assetId: Long,
+    ) {
         viewModelScope.launch {
             try {
-                val balance = getAccountAlgoBalance(senderAddress) ?: BigInteger.ZERO
-                accountBalance = balance
-                this@SendAlgoViewModel.senderAddress = senderAddress
+                this@SendAssetViewModel.senderAddress = senderAddress
+                this@SendAssetViewModel.assetId = assetId
+                algoBalance = getAccountAlgoBalance(senderAddress) ?: BigInteger.ZERO
+                assetBalance =
+                    if (assetId == ALGO_ID) {
+                        algoBalance
+                    } else {
+                        getAccountASABalance(senderAddress, assetId) ?: BigInteger.ZERO
+                    }
                 updateContentState()
             } catch (e: Exception) {
                 stateDelegate.updateState { ViewState.Error("Failed to fetch account balance: ${e.message}") }
@@ -55,9 +71,9 @@ class SendAlgoViewModel(
                 else -> ""
             }
 
-        val balanceInAlgos = accountBalance.toString().toDouble() / 1_000_000.0
-        val balanceFormatted = balanceInAlgos.toString().take(6)
-        val balanceUsdValue = "$${(balanceInAlgos * algoUsdPrice).toString().take(6)}"
+        val balanceInStandardUnits = assetBalance.toStandardUnitDouble()
+        val balanceFormatted = balanceInStandardUnits.toFormattedAmount()
+        val balanceUsdValue = "$${(balanceInStandardUnits * algoUsdPrice).toString().take(6)}"
 
         val amountUsdValue =
             if (currentAmount.isNotEmpty() && currentAmount != "0") {
@@ -113,29 +129,25 @@ class SendAlgoViewModel(
     fun onMaxPressed() {
         viewModelScope.launch {
             try {
-                // Get the minimum balance
-                val minimumBalance = getAccountMinimumBalance(senderAddress) ?: 100000L
-
-                // Get the appropriate fee based on account type
-                val transactionFee = getTransactionFeeForAccount(senderAddress)
-
-                // Calculate max sendable: balance - fee - minimum balance
-                // This is the actual amount that will be sent to the recipient
                 val maxSendable =
-                    accountBalance - transactionFee.feeInMicroAlgos.toBigInteger() - minimumBalance.toBigInteger()
+                    if (assetId == ALGO_ID) {
+                        val minimumBalance = getAccountMinimumBalance(senderAddress) ?: 100000L
+                        val transactionFee = getTransactionFeeForAccount(senderAddress)
 
-                if (maxSendable > BigInteger.ZERO) {
-                    val maxInAlgos = maxSendable.toString().toDouble() / 1_000_000.0
-                    val maxFormatted =
-                        maxInAlgos
-                            .toString()
-                            .take(8)
-                            .trimEnd('0')
-                            .trimEnd('.')
-                    updateAmountAndRefresh(maxFormatted)
-                } else {
-                    updateAmountAndRefresh("0")
-                }
+                        // ALGO max must reserve gas fees and minimum balance.
+                        algoBalance - transactionFee.feeInMicroAlgos.toBigInteger() - minimumBalance.toBigInteger()
+                    } else {
+                        // ASA/USDC max is the full asset holding; ALGO is only needed separately for gas.
+                        assetBalance
+                    }
+
+                updateAmountAndRefresh(
+                    if (maxSendable > BigInteger.ZERO) {
+                        maxSendable.toStandardUnitDouble().toFormattedAmount()
+                    } else {
+                        "0"
+                    },
+                )
             } catch (e: Exception) {
                 // Fallback to 0 if anything goes wrong
                 updateAmountAndRefresh("0")
@@ -151,7 +163,7 @@ class SendAlgoViewModel(
                 // Get the appropriate fee based on account type
                 val transactionFee = getTransactionFeeForAccount(senderAddress)
 
-                if (accountBalance < transactionFee.feeInMicroAlgos.toBigInteger()) {
+                if (algoBalance < transactionFee.feeInMicroAlgos.toBigInteger()) {
                     stateDelegate.updateState {
                         ViewState.MinimumBalanceAlert(
                             message = "You need at least ${transactionFee.feeInAlgos} ALGO for gas fees",
@@ -200,6 +212,14 @@ class SendAlgoViewModel(
             false
         }
     }
+
+    private fun BigInteger.toStandardUnitDouble(): Double = toString().toDouble() / MICRO_ASSET_DIVISOR
+
+    private fun Double.toFormattedAmount(): String =
+        toString()
+            .take(8)
+            .trimEnd('0')
+            .trimEnd('.')
 
     private fun updateAmountAndRefresh(newAmount: String) {
         val currentState = stateDelegate.state.value

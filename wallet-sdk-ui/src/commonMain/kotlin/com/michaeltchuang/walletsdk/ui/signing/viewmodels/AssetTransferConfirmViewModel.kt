@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionSigner
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -53,6 +54,7 @@ class AssetTransferConfirmViewModel(
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
     private var isAssetValid: Boolean = true
+    private var isSendingTransaction: Boolean = false
 
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
@@ -60,11 +62,13 @@ class AssetTransferConfirmViewModel(
             transactionSignManager.transactionManagerResultStateFlow.collect {
                 when (it) {
                     is TransactionManagerResult.Error.GlobalWarningError.Api -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("API error occurred"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.Error.GlobalWarningError.Defined -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(
                             ViewEvent.ShowError(
                                 it.error,
@@ -74,16 +78,19 @@ class AssetTransferConfirmViewModel(
                     }
 
                     is TransactionManagerResult.Error.GlobalWarningError.MinBalanceError -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Insufficient balance for minimum requirements"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.LedgerOperationCanceled -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Ledger operation cancelled"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.LedgerScanFailed -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Ledger scan failed"))
                         restoreContentState()
                     }
@@ -97,8 +104,6 @@ class AssetTransferConfirmViewModel(
                         println(it.signedTransactionDetail.toString())
                         sendSignedTransaction(it.signedTransactionDetail)
                     }
-
-                    null -> {}
                 }
             }
         }
@@ -299,44 +304,65 @@ class AssetTransferConfirmViewModel(
 
         val amountInMicroAlgos = amountBigInteger
 
-        // Determine if this is a max transaction by comparing amount with balance
-        val isMaxTransaction = amountInMicroAlgos == senderAlgoAmount
+        val isAlgoTransfer = assetId == ALGO_ID
+        val senderAssetAmount =
+            if (isAlgoTransfer) {
+                senderAlgoAmount
+            } else {
+                try {
+                    getAccountASABalance(senderAddress, assetId) ?: run {
+                        eventDelegate.sendEvent(ViewEvent.ShowError("Unable to fetch sender asset balance"))
+                        restoreContentState()
+                        return null
+                    }
+                } catch (e: Exception) {
+                    eventDelegate.sendEvent(ViewEvent.ShowError("Error fetching asset balance: ${e.message}"))
+                    restoreContentState()
+                    return null
+                }
+            }
+
+        // Determine if this is a max transaction by comparing amount with balance. Only ALGO max needs special signing behavior.
+        val isMaxTransaction = isAlgoTransfer && amountInMicroAlgos == senderAlgoAmount
 
         // Calculate fee based on account type (minimum 0.001 ALGO, 0.004 for Falcon24)
         val feeInAlgos = BigDecimal.parseString(currentFee)
         val fee = (feeInAlgos * BigDecimal.fromInt(1000000)).toBigInteger()
 
-        // Validate balance based on whether this is a max transaction
-        if (isMaxTransaction) {
-            // For max transactions, ensure sender has enough for fee + minimum balance
-            val requiredForMax = fee + minimumBalance.toBigInteger()
-            if (senderAlgoAmount < requiredForMax) {
-                val requiredInAlgos =
-                    BigDecimal.parseString(requiredForMax.toString()) / BigDecimal.fromInt(1000000)
-                eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        "Insufficient balance. You need at least ${requiredInAlgos.toStringExpanded()} ALGO for fee and minimum balance.",
-                    ),
-                )
-                restoreContentState()
-                return null
+        // Validate transfer amount against the asset being sent.
+        if (amountInMicroAlgos > senderAssetAmount) {
+            val availableToSend = BigDecimal.parseString(senderAssetAmount.toString()) / BigDecimal.fromInt(1000000)
+            val assetDisplayName =
+                if (isAlgoTransfer) {
+                    "ALGO"
+                } else {
+                    assetName.ifBlank { "ASA" }
+                }
+            eventDelegate.sendEvent(
+                ViewEvent.ShowError(
+                    "Insufficient balance. Available to send: ${availableToSend.toStringExpanded()} $assetDisplayName",
+                ),
+            )
+            restoreContentState()
+            return null
+        }
+
+        // Validate ALGO balance for network fee and minimum balance.
+        val requiredAlgoBalance =
+            if (isAlgoTransfer && !isMaxTransaction) {
+                amountInMicroAlgos + fee + minimumBalance.toBigInteger()
+            } else {
+                fee + minimumBalance.toBigInteger()
             }
-        } else {
-            // For non-max transactions, ensure sender has enough for amount + fee + minimum balance
-            val totalRequired = amountInMicroAlgos + fee + minimumBalance.toBigInteger()
-            if (senderAlgoAmount < totalRequired) {
-                val availableInMicroAlgos = (senderAlgoAmount - minimumBalance.toBigInteger() - fee)
-                val availableInMicroAlgosBigDecimal =
-                    BigDecimal.parseString(availableInMicroAlgos.toString())
-                val availableToSend = availableInMicroAlgosBigDecimal / BigDecimal.fromInt(1000000)
-                eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        "Insufficient balance. Available to send: ${availableToSend.toStringExpanded()} ALGO",
-                    ),
-                )
-                restoreContentState()
-                return null
-            }
+        if (senderAlgoAmount < requiredAlgoBalance) {
+            val requiredInAlgos = BigDecimal.parseString(requiredAlgoBalance.toString()) / BigDecimal.fromInt(1000000)
+            eventDelegate.sendEvent(
+                ViewEvent.ShowError(
+                    "Insufficient balance. You need at least ${requiredInAlgos.toStringExpanded()} ALGO for fee and minimum balance.",
+                ),
+            )
+            restoreContentState()
+            return null
         }
 
         return TransactionSignData.Send(
@@ -363,6 +389,7 @@ class AssetTransferConfirmViewModel(
     }
 
     fun reset() {
+        isSendingTransaction = false
         senderAddress = ""
         receiverAddress = ""
         assetId = -7L
@@ -378,9 +405,12 @@ class AssetTransferConfirmViewModel(
     }
 
     fun sendTransaction() {
+        if (isSendingTransaction) return
         viewModelScope.launch {
+            isSendingTransaction = true
             val transactionData = createSendTransactionData()
             if (transactionData == null) {
+                isSendingTransaction = false
                 return@launch
             }
             stateDelegate.updateState { ViewState.Confirming }
@@ -398,10 +428,12 @@ class AssetTransferConfirmViewModel(
                 .collectLatest {
                     it.useSuspended(
                         onSuccess = { transactionId ->
+                            isSendingTransaction = false
                             eventDelegate.sendEvent(ViewEvent.TransactionSuccess(transactionId))
                             println("SendSignedTransaction onSuccess: $transactionId")
                         },
                         onFailed = { error ->
+                            isSendingTransaction = false
                             val errorMsg = error.exception?.message ?: "Transaction failed"
                             println("sendSignedTransaction Failed: $errorMsg")
                             // Check for duplicate transaction in ledger

@@ -935,7 +935,7 @@
     <string name="this_is_the_fee_charged">Questa è la commissione addebitata dall\'exchange decentralizzato. Viene detratta automaticamente dall\'importo che invii e considerata nell\'importo minimo ricevuto. Non sarà un costo aggiuntivo.</string>
     <string name="we_encountered_an_unexpected">Abbiamo riscontrato un errore inatteso, riprova più tardi.</string>
     <string name="algo_balance_is_too_low">Il saldo di Algo è troppo basso. Il saldo minimo dovrebbe essere <annotation replacement="algo_icon">ALGO_ICON_PLACEHOLDER</annotation> <annotation replacement="min_balance">MIN_BALANCE_PLACEHOLDER</annotation></string>
-    <string name="discover">Scopri</string>
+    <string name="github_repository">Repository GitHub</string>
     <string name="search_for_any_asa_by">Cerca qualsiasi ASA per nome o ID</string>
     <string name="we_are_not_able_to_find">Non riusciamo a trovare questo asset. Riprova più tardi.</string>
     <string name="no_internet_connection">Nessuna Connessione Internet</string>
@@ -1484,7 +1484,9 @@
     <string name="error_invalid_algorand_address">Indirizzo Algorand non valido</string>
     <string name="error_failed_to_validate_watch_account">Impossibile convalidare l\'account di osservazione</string>
 
-    <string name="send_funds_to_another_account">Invia fondi a un altro account</string>
+    <string name="send_funds_to_another_account">Invia ALGO a un altro account</string>
+    <string name="send_usdc_to_another_account">Invia USDC a un altro account</string>
+    <string name="opt_into_usdc">Aderisci a USDC</string>
     <string name="dispenser_add_algo_to_your_account">Dispenser - Aggiungi ALGO al tuo account</string>
     <string name="dispenser_add_sol_to_your_account">Dispenser - Aggiungi SOL al tuo account</string>
     <string name="dispenser_add_usdc_to_your_account">Dispenser - Aggiungi USDC al tuo account</string>
