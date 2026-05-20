@@ -90,7 +90,7 @@ fun SendAlgoScreen(
             when (event) {
                 is SendAlgoViewModel.ViewEvent.NavigateNext -> {
                     navController.navigate(
-                        "${AlgoKitScreens.SELECT_RECEIVER_SCREEN.name}?sender=$senderAddress&amount=${event.amount}&note=${noteText.value}",
+                        "${AlgoKitScreens.SELECT_RECEIVER_SCREEN.name}?sender=$senderAddress&amount=${event.amount}&note=${noteText.value}&assetId=-7",
                     )
                 }
             }

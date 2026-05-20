@@ -17,8 +17,10 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.opt_into_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.rename_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_usdc_to_another_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
@@ -56,6 +58,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailWebviewItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
@@ -243,6 +246,32 @@ internal fun ScreenContent(
                         }
                     }
 
+                    if (!state.isNoAuthAccount && !state.isSolanaAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        val usdcAssetId = if (state.isTestNet) AssetConstants.USDC_TESTNET_ID else AssetConstants.USDC_MAINNET_ID
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_usdc,
+                            isRemoveAccount = false,
+                            title =
+                                if (state.isUsdcOptedIn) {
+                                    localizedStringResource(Res.string.send_usdc_to_another_account)
+                                } else {
+                                    localizedStringResource(Res.string.opt_into_usdc)
+                                },
+                        ) {
+                            if (state.isUsdcOptedIn) {
+                                navController.navigate(
+                                    "${AlgoKitScreens.SELECT_RECEIVER_SCREEN.name}?sender=$address&amount=1000000&note=&assetId=$usdcAssetId",
+                                )
+                            } else {
+                                navController.navigate(
+                                    "${AlgoKitScreens.ADD_ASSET_SCREEN.name}?assetId=$usdcAssetId&accountAddress=$address",
+                                )
+                            }
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     if (!state.isSolanaAccount) {
@@ -341,6 +370,7 @@ fun SettingsScreenPreview() {
                     explorerBaseUrl = "https://testnet.algoexplorer.io",
                     isNoAuthAccount = false,
                     isSolanaAccount = false,
+                    isUsdcOptedIn = true,
                 ),
             onDeleteAccount = {},
             showSnackBar = {},

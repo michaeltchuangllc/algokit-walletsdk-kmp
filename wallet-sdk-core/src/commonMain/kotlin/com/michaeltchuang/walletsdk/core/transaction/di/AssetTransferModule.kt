@@ -6,8 +6,8 @@ import org.koin.dsl.module
 
 val assetTransferModule =
     module {
-        single { TransactionSignSigningHelper() }
-        single {
+        factory { TransactionSignSigningHelper() }
+        factory {
             TransactionSignManager(
                 get(),
                 get(),

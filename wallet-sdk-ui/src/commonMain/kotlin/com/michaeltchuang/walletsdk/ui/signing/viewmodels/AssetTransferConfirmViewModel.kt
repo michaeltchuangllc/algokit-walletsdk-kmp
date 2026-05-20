@@ -53,6 +53,7 @@ class AssetTransferConfirmViewModel(
     private var transferNote: String = ""
     private var currentFee: String = "0.001"
     private var isAssetValid: Boolean = true
+    private var isSendingTransaction: Boolean = false
 
     init {
         stateDelegate.setDefaultState(ViewState.Loading)
@@ -60,11 +61,13 @@ class AssetTransferConfirmViewModel(
             transactionSignManager.transactionManagerResultStateFlow.collect {
                 when (it) {
                     is TransactionManagerResult.Error.GlobalWarningError.Api -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("API error occurred"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.Error.GlobalWarningError.Defined -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(
                             ViewEvent.ShowError(
                                 it.error,
@@ -74,16 +77,19 @@ class AssetTransferConfirmViewModel(
                     }
 
                     is TransactionManagerResult.Error.GlobalWarningError.MinBalanceError -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Insufficient balance for minimum requirements"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.LedgerOperationCanceled -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Ledger operation cancelled"))
                         restoreContentState()
                     }
 
                     is TransactionManagerResult.LedgerScanFailed -> {
+                        isSendingTransaction = false
                         eventDelegate.sendEvent(ViewEvent.ShowError("Ledger scan failed"))
                         restoreContentState()
                     }
@@ -97,8 +103,6 @@ class AssetTransferConfirmViewModel(
                         println(it.signedTransactionDetail.toString())
                         sendSignedTransaction(it.signedTransactionDetail)
                     }
-
-                    null -> {}
                 }
             }
         }
@@ -363,6 +367,7 @@ class AssetTransferConfirmViewModel(
     }
 
     fun reset() {
+        isSendingTransaction = false
         senderAddress = ""
         receiverAddress = ""
         assetId = -7L
@@ -378,9 +383,12 @@ class AssetTransferConfirmViewModel(
     }
 
     fun sendTransaction() {
+        if (isSendingTransaction) return
         viewModelScope.launch {
+            isSendingTransaction = true
             val transactionData = createSendTransactionData()
             if (transactionData == null) {
+                isSendingTransaction = false
                 return@launch
             }
             stateDelegate.updateState { ViewState.Confirming }
@@ -398,10 +406,12 @@ class AssetTransferConfirmViewModel(
                 .collectLatest {
                     it.useSuspended(
                         onSuccess = { transactionId ->
+                            isSendingTransaction = false
                             eventDelegate.sendEvent(ViewEvent.TransactionSuccess(transactionId))
                             println("SendSignedTransaction onSuccess: $transactionId")
                         },
                         onFailed = { error ->
+                            isSendingTransaction = false
                             val errorMsg = error.exception?.message ?: "Transaction failed"
                             println("sendSignedTransaction Failed: $errorMsg")
                             // Check for duplicate transaction in ledger

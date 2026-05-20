@@ -1485,6 +1485,8 @@
     <string name="error_failed_to_validate_watch_account">Impossibile convalidare l\'account di osservazione</string>
 
     <string name="send_funds_to_another_account">Invia fondi a un altro account</string>
+    <string name="send_usdc_to_another_account">Invia USDC a un altro account</string>
+    <string name="opt_into_usdc">Aderisci a USDC</string>
     <string name="dispenser_add_algo_to_your_account">Dispenser - Aggiungi ALGO al tuo account</string>
     <string name="dispenser_add_sol_to_your_account">Dispenser - Aggiungi SOL al tuo account</string>
     <string name="dispenser_add_usdc_to_your_account">Dispenser - Aggiungi USDC al tuo account</string>

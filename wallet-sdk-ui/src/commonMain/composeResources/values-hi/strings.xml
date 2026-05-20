@@ -1614,6 +1614,8 @@
     <string name="account_type_seedvault">खाता SeedVault</string>
 
     <string name="send_funds_to_another_account">किसी अन्य खाते में धन भेजें</string>
+    <string name="send_usdc_to_another_account">किसी अन्य खाते में USDC भेजें</string>
+    <string name="opt_into_usdc">USDC में ऑप्ट-इन करें</string>
     <string name="dispenser_add_algo_to_your_account">डिस्पेंसर - अपने खाते में ALGO जोड़ें</string>
     <string name="dispenser_add_sol_to_your_account">डिस्पेंसर - अपने खाते में SOL जोड़ें</string>
     <string name="dispenser_add_usdc_to_your_account">डिस्पेंसर - अपने खाते में USDC जोड़ें</string>

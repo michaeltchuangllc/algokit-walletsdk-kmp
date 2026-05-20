@@ -564,7 +564,7 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}",
+                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}&assetId={assetId}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -582,16 +582,23 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = ""
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                         ),
                 ) { backStackEntry ->
                     val sender = backStackEntry.arguments?.getString("sender") ?: ""
                     val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
                     val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
                     SelectReceiverScreen(
                         navController = navController,
                         amount = amount,
                         note = note,
                         senderAddress = sender,
+                        assetId = assetId,
                     )
                 }
                 composable(route = AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) {

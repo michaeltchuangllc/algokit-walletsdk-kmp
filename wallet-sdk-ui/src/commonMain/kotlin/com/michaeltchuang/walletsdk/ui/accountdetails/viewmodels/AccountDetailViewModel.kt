@@ -3,8 +3,10 @@ package com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -18,6 +20,7 @@ class AccountDetailViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val getLocalAccount: GetLocalAccount,
+    private val getAccountASABalance: GetAccountASABalance,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -44,6 +47,13 @@ class AccountDetailViewModel(
                 val isSolanaAccount = localAccount is LocalAccount.SeedVault
 
                 getCurrentNetworkUseCase().collect { network ->
+                    val usdcAssetId =
+                        if (network == AlgorandNetwork.MAINNET) {
+                            AssetConstants.USDC_MAINNET_ID
+                        } else {
+                            AssetConstants.USDC_TESTNET_ID
+                        }
+                    val isUsdcOptedIn = getAccountASABalance(address, usdcAssetId) != null
                     val explorerBaseUrl = getExplorerBaseUrl()
                     stateDelegate.updateState {
                         ViewState.Content(
@@ -52,6 +62,7 @@ class AccountDetailViewModel(
                             explorerBaseUrl = explorerBaseUrl,
                             isNoAuthAccount = isNoAuthAccount,
                             isSolanaAccount = isSolanaAccount,
+                            isUsdcOptedIn = isUsdcOptedIn,
                         )
                     }
                 }
@@ -89,6 +100,7 @@ class AccountDetailViewModel(
             val explorerBaseUrl: String,
             val isNoAuthAccount: Boolean = false,
             val isSolanaAccount: Boolean = false,
+            val isUsdcOptedIn: Boolean = false,
         ) : ViewState
     }
 
