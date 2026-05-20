@@ -21,6 +21,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,7 +47,7 @@ import org.koin.compose.viewmodel.koinViewModel
  * 3. Settle the latest voucher – transferring earned funds to the creator.
  */
 @Composable
-fun PaymentTestScreen(navController: NavController) {
+fun EscrowSessionVaultDebugToolScreen(navController: NavController) {
     val viewModel: PaymentTestViewModel = koinViewModel()
 
     val viewerAddress by viewModel.viewerAddress.collectAsStateWithLifecycle()
@@ -55,6 +56,19 @@ fun PaymentTestScreen(navController: NavController) {
     val remainingBalance by viewModel.remainingBalance.collectAsStateWithLifecycle()
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val textFieldColors =
+        OutlinedTextFieldDefaults.colors(
+            focusedTextColor = AlgoKitTheme.colors.textMain,
+            unfocusedTextColor = AlgoKitTheme.colors.textMain,
+            disabledTextColor = AlgoKitTheme.colors.textGray,
+            focusedLabelColor = AlgoKitTheme.colors.textMain,
+            unfocusedLabelColor = AlgoKitTheme.colors.textGray,
+            disabledLabelColor = AlgoKitTheme.colors.textGray,
+            focusedPlaceholderColor = AlgoKitTheme.colors.textGray,
+            unfocusedPlaceholderColor = AlgoKitTheme.colors.textGray,
+            disabledPlaceholderColor = AlgoKitTheme.colors.textGray,
+            cursorColor = AlgoKitTheme.colors.textMain,
+        )
 
     Column(
         modifier =
@@ -100,6 +114,7 @@ fun PaymentTestScreen(navController: NavController) {
                     imeAction = ImeAction.Next,
                 ),
             enabled = !isLoading,
+            colors = textFieldColors,
         )
 
         OutlinedTextField(
@@ -115,6 +130,7 @@ fun PaymentTestScreen(navController: NavController) {
                     imeAction = ImeAction.Next,
                 ),
             enabled = !isLoading,
+            colors = textFieldColors,
         )
 
         OutlinedTextField(
@@ -130,6 +146,7 @@ fun PaymentTestScreen(navController: NavController) {
                     imeAction = ImeAction.Done,
                 ),
             enabled = !isLoading,
+            colors = textFieldColors,
         )
 
         HorizontalDivider()

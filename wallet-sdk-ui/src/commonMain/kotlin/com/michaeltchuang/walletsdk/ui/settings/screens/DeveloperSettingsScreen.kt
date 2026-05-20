@@ -4,10 +4,11 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_algo25_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_hd_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_session_vault_debug_tool
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_node
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_session_vault_inspect
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.node_settings
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.payment_test
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -105,8 +106,8 @@ internal fun ScreenContent(
         }
 
         SettingsItem(
-            Res.drawable.ic_wallet,
-            localizedStringResource(Res.string.payment_test),
+            Res.drawable.ic_session_vault_inspect,
+            localizedStringResource(Res.string.escrow_session_vault_debug_tool),
         ) {
             onNavigateToDeveloperTestScreen()
         }
