@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 70;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -100,7 +100,7 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		BAC161E72F296DE40050270D /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		BAC161E72F296DE40050270D /* Exceptions for "AutofillCredentialExtension" folder in "iosApp" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				AppGroupHelper.swift,
@@ -123,14 +123,14 @@
 			);
 			target = A93A953629CC810C00F8E227 /* iosApp */;
 		};
-		C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		C2F9B4212F2483D600E5B9C2 /* Exceptions for "AuthenticationService" folder in "AuthenticationService" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = C2F9B4142F2483D600E5B9C2 /* AuthenticationService */;
 		};
-		C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		C2F9B4232F2489A100E5B9C2 /* Exceptions for "AutofillCredentialExtension" folder in "AutofillCredentialExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -140,8 +140,23 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (BAC161E72F296DE40050270D /* PBXFileSystemSynchronizedBuildFileExceptionSet */, C2F9B4232F2489A100E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AutofillCredentialExtension; sourceTree = "<group>"; };
-		C2F9B4172F2483D600E5B9C2 /* AuthenticationService */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (C2F9B4212F2483D600E5B9C2 /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = AuthenticationService; sourceTree = "<group>"; };
+		C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BAC161E72F296DE40050270D /* Exceptions for "AutofillCredentialExtension" folder in "iosApp" target */,
+				C2F9B4232F2489A100E5B9C2 /* Exceptions for "AutofillCredentialExtension" folder in "AutofillCredentialExtension" target */,
+			);
+			path = AutofillCredentialExtension;
+			sourceTree = "<group>";
+		};
+		C2F9B4172F2483D600E5B9C2 /* AuthenticationService */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C2F9B4212F2483D600E5B9C2 /* Exceptions for "AuthenticationService" folder in "AuthenticationService" target */,
+			);
+			path = AuthenticationService;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -266,6 +281,16 @@
 				C2F9B41F2F2483D600E5B9C2 /* PBXTargetDependency */,
 			);
 			name = iosApp;
+			packageProductDependencies = (
+				BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */,
+				BAC162392F2974D20050270D /* SocketIO */,
+				BA1017E22F25E99000A6DC27 /* SwiftCBOR */,
+				BAC162822F29772F0050270D /* WebRTC */,
+				BA1BD23F2E86CBA2005CAA71 /* ed25519swift */,
+				BAC1623B2F2974E40050270D /* Base32 */,
+				BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */,
+				BAC1623F2F2974EB0050270D /* deterministicP256-swift */,
+			);
 			productName = iosApp;
 			productReference = A93A953729CC810C00F8E227 /* WalletSDK Demo.app */;
 			productType = "com.apple.product-type.application";
@@ -344,7 +369,6 @@
 				};
 			};
 			buildConfigurationList = A93A953229CC810C00F8E227 /* Build configuration list for PBXProject "iosApp" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -362,6 +386,7 @@
 				C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */,
 				C291B1E32F292F0500AA5CA6 /* XCRemoteSwiftPackageReference "WebRTC" */,
 			);
+			preferredProjectObjectVersion = 77;
 			productRefGroup = A93A953829CC810C00F8E227 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -598,7 +623,7 @@
 				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 32;
+				CURRENT_PROJECT_VERSION = 33;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 8W2L568H7X;
@@ -618,7 +643,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.202602.4;
+				MARKETING_VERSION = 3.202602.7;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo;
 				PRODUCT_NAME = "WalletSDK Demo";
@@ -642,7 +667,7 @@
 				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 32;
+				CURRENT_PROJECT_VERSION = 33;
 				DEVELOPMENT_ASSET_PATHS = "\"iosApp/Preview Content\"";
 				DEVELOPMENT_TEAM = 8W2L568H7X;
 				ENABLE_PREVIEWS = NO;
@@ -662,7 +687,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 3.202602.4;
+				MARKETING_VERSION = 3.202602.7;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo;
 				PRODUCT_NAME = "WalletSDK Demo";
