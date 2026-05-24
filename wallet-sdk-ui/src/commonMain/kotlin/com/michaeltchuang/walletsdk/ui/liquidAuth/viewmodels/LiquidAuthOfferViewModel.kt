@@ -46,11 +46,6 @@ class LiquidAuthOfferViewModel(
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
-    init {
-        stateDelegate.setDefaultState(OfferState.Idle)
-        observeCurrentNetwork()
-    }
-
     // ICE Connection type for UI quality indicators and billing (x402)
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     val connectionType: StateFlow<IceConnectionType> = _connectionType
@@ -94,6 +89,11 @@ class LiquidAuthOfferViewModel(
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
         const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
+    }
+
+    init {
+        stateDelegate.setDefaultState(OfferState.Idle)
+        observeCurrentNetwork()
     }
 
     /**

@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -34,8 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -162,6 +161,19 @@ fun LiquidAuthMiniPlayerOverlay(
                         },
             ) {
                 miniPlayerCameraPreviewState.value?.invoke()
+                IconButton(
+                    onClick = { streamHostUiModeState.value = StreamHostUiMode.Expanded },
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Expand mini player",
+                        tint = Color.White,
+                    )
+                }
                 IconButton(
                     onClick = {
                         streamHostUiModeState.value = StreamHostUiMode.Hidden
@@ -432,9 +444,6 @@ fun LiquidAuthOfferScreen(
     }
 
     LiquidAuthOfferScreenContent(
-        showTopBar = showTopBar,
-        title = title,
-        onBackPressed = onBackPressed,
         headerContent = headerContent,
         state = state,
         cameraPreview = cameraPreview,
@@ -463,9 +472,6 @@ fun LiquidAuthOfferScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiquidAuthOfferScreenContent(
-    showTopBar: Boolean,
-    title: @Composable () -> Unit,
-    onBackPressed: (() -> Unit)?,
     headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
     cameraPreview: @Composable (() -> Unit)?,
@@ -489,91 +495,72 @@ fun LiquidAuthOfferScreenContent(
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
 ) {
-    Scaffold(
-        topBar = {
-            if (showTopBar) {
-                TopAppBar(
-                    title = title,
-                    colors =
-                        TopAppBarDefaults.topAppBarColors(
-                            containerColor = AlgoKitTheme.colors.background,
-                            titleContentColor = AlgoKitTheme.colors.textMain,
-                        ),
-                    navigationIcon = {
-                        onBackPressed?.let {
-                            // Could add back button here
-                        }
-                    },
+
+    Column(
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(AlgoKitTheme.colors.background)
+                .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
+    ) {
+        Spacer(modifier = Modifier.height(1.dp))
+        headerContent?.invoke()
+
+        // Connection Status Card
+        ConnectionStatusCard(
+            state = state,
+            paymentCurrencyLabel = paymentCurrencyLabel,
+        )
+
+        // Main Content Area - changes based on state
+        val currentState = state
+        when (currentState) {
+            is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
+                if (!requiresCreatorAsaOptIn) {
+                    QRCodeSection(
+                        liquidAuthUrl = currentState.liquidAuthUrl,
+                        requestId = currentState.requestId,
+                        onRegenerate = onRegenerate,
+                    )
+                } else if (isCheckingCreatorAsaBalance) {
+                    LoadingSection()
+                } else if (!creatorAsaBalance.isNullOrEmpty()) {
+                    QRCodeSection(
+                        liquidAuthUrl = currentState.liquidAuthUrl,
+                        requestId = currentState.requestId,
+                        onRegenerate = onRegenerate,
+                    )
+                } else {
+                    NotOptedInSection()
+                }
+            }
+
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+            is LiquidAuthOfferViewModel.OfferState.Connected,
+                -> {
+                // Stream host UI is controlled below so it dismisses only on stop.
+                if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                    streamHostUiMode.value = StreamHostUiMode.Expanded
+                }
+            }
+
+            is LiquidAuthOfferViewModel.OfferState.Error -> {
+                ErrorSection(
+                    message = currentState.message,
+                    onRetry = onRetry,
                 )
             }
-        },
-    ) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(AlgoKitTheme.colors.background)
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState()),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
-        ) {
-            headerContent?.invoke()
 
-            // Connection Status Card
-            ConnectionStatusCard(
-                state = state,
-                paymentCurrencyLabel = paymentCurrencyLabel,
-            )
-
-            // Main Content Area - changes based on state
-            val currentState = state
-            when (currentState) {
-                is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
-                    if (!requiresCreatorAsaOptIn) {
-                        QRCodeSection(
-                            liquidAuthUrl = currentState.liquidAuthUrl,
-                            requestId = currentState.requestId,
-                            onRegenerate = onRegenerate,
-                        )
-                    } else if (isCheckingCreatorAsaBalance) {
-                        LoadingSection()
-                    } else if (!creatorAsaBalance.isNullOrEmpty()) {
-                        QRCodeSection(
-                            liquidAuthUrl = currentState.liquidAuthUrl,
-                            requestId = currentState.requestId,
-                            onRegenerate = onRegenerate,
-                        )
-                    } else {
-                        NotOptedInSection()
-                    }
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.Streaming,
-                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
-                is LiquidAuthOfferViewModel.OfferState.Connected,
-                -> {
-                    // Stream host UI is controlled below so it dismisses only on stop.
-                    if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
-                        streamHostUiMode.value = StreamHostUiMode.Expanded
-                    }
-                }
-
-                is LiquidAuthOfferViewModel.OfferState.Error -> {
-                    ErrorSection(
-                        message = currentState.message,
-                        onRetry = onRetry,
-                    )
-                }
-
-                else -> {
-                    // Idle or Loading
-                    LoadingSection()
-                }
+            else -> {
+                // Idle or Loading
+                LoadingSection()
             }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
+
+        Spacer(modifier = Modifier.height(32.dp))
     }
 
     if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
@@ -1452,9 +1439,6 @@ private fun ConnectionTypeIndicator(
 private fun LiquidAuthOfferWaitingForConnectionPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.WaitingForConnection(
                     requestId = "abc123-request-id",
@@ -1526,9 +1510,6 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
 private fun LiquidAuthOfferStreamingRelayPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.Streaming(
                     requestId = "stream-relay-req",
@@ -1557,9 +1538,6 @@ private fun LiquidAuthOfferStreamingRelayPreview() {
 private fun LiquidAuthOfferConnectedFundedPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.Connected(
                     requestId = "connected-funded-req",
@@ -1587,9 +1565,6 @@ private fun LiquidAuthOfferConnectedFundedPreview() {
 private fun LiquidAuthOfferConnectedDepletedPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.Connected(
                     requestId = "connected-depleted-req",
@@ -1617,9 +1592,6 @@ private fun LiquidAuthOfferConnectedDepletedPreview() {
 private fun LiquidAuthOfferWaitingForPaymentPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.WaitingForPayment(
                     requestId = "payment-wait-req",
@@ -1666,9 +1638,6 @@ private fun LiquidAuthOfferWaitingForPaymentPreview() {
 private fun LiquidAuthOfferErrorPreview() {
     AlgoKitTheme {
         LiquidAuthOfferScreenContent(
-            showTopBar = true,
-            title = { Text("Liquid Auth") },
-            onBackPressed = {},
             state =
                 LiquidAuthOfferViewModel.OfferState.Error(
                     message = "Failed to generate offer. Please check your network and try again.",

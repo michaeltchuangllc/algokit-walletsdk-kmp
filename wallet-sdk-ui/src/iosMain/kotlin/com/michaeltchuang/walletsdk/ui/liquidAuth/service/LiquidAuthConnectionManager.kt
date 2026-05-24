@@ -18,6 +18,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
         // iOS uses a different architecture - see iosDemoApp
+        viewModel.onClientConnected("QWERTYUIOP")
         println("IOSLiquidAuthConnectionManager: iOS uses different architecture")
     }
 
