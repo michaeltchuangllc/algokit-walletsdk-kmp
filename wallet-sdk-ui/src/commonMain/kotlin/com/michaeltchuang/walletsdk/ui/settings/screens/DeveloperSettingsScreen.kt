@@ -49,6 +49,7 @@ fun DeveloperSettingsScreen(
 
                 is DeveloperSettingsViewModel.ViewEvent.Error -> {
                     Log.d(TAG, it.message)
+                    onClick(it.message)
                 }
             }
         }
@@ -57,9 +58,6 @@ fun DeveloperSettingsScreen(
     ScreenContent(
         navController = navController,
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
-        onNavigateToNodeSettings = { navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name) },
-        onNavigateToHDWalletSelection = { navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name) },
-        onNavigateToDeveloperTestScreen = { navController.navigate(AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) },
     )
 }
 
@@ -67,9 +65,6 @@ fun DeveloperSettingsScreen(
 internal fun ScreenContent(
     navController: NavController,
     onCreateAlgoAccount: () -> Unit = {},
-    onNavigateToNodeSettings: () -> Unit = {},
-    onNavigateToHDWalletSelection: () -> Unit = {},
-    onNavigateToDeveloperTestScreen: () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -88,7 +83,7 @@ internal fun ScreenContent(
             Res.drawable.ic_node,
             localizedStringResource(Res.string.node_settings),
         ) {
-            onNavigateToNodeSettings()
+            navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name)
         }
 
         SettingsItem(
@@ -102,14 +97,14 @@ internal fun ScreenContent(
             Res.drawable.ic_wallet,
             localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
-            onNavigateToHDWalletSelection()
+            navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name)
         }
 
         SettingsItem(
             Res.drawable.ic_session_vault_inspect,
             localizedStringResource(Res.string.escrow_session_vault_debug_tool),
         ) {
-            onNavigateToDeveloperTestScreen()
+            navController.navigate(AlgoKitScreens.DEVELOPER_TEST_SCREEN.name)
         }
     }
 }
