@@ -48,6 +48,7 @@ import androidx.navigation.compose.rememberNavController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.BuildInfo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -138,13 +139,11 @@ fun SettingsScreen(navController: NavController) {
             localizedStringResource(Res.string.terms_and_services),
             WalletSdkConstants.TERMS_AND_SERVICES_URL,
         )
-        SettingsItem(
+        SettingsWebviewItem(
             Res.drawable.ic_text_document,
             localizedStringResource(Res.string.github_repository),
-        ) {
-            navController.navigate(AlgoKitScreens.GITHUB_REPO_SCREEN.name)
-        }
-
+            REPO_URL,
+        )
         SettingsItem(
             Res.drawable.ic_code,
             localizedStringResource(Res.string.developer_settings),
