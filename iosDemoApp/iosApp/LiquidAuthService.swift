@@ -67,6 +67,11 @@ public class LiquidAuthService {
     private var onSuccess: (() -> Void)?
     private var onError: ((Error) -> Void)?
     private var onConnected: (() -> Void)?  // Called when connection established
+
+    /// Optional handler that receives every raw data-channel message string.
+    /// Set this from the streaming viewer layer to forward video frames and
+    /// payment messages to `IOSLiquidStreamViewerConnectionManager.notifyMessageReceived`.
+    public var messageForwardingHandler: ((String) -> Void)?
     
     // MARK: - Initialization
     
@@ -738,8 +743,22 @@ public class LiquidAuthService {
             onMessage: { [weak self] message in
                 guard let self = self else { return }
                 NSLog("💬 Received message: \(message)")
-               // self.handleMessage(message)
-                self.showConfirmationDialog(message: message)
+
+                // ── Forward every message to the streaming viewer manager (if active) ──
+                // This lets IOSLiquidStreamViewerConnectionManager decode video frames and
+                // payment requests without needing its own WebRTC connection.
+                self.messageForwardingHandler?(message)
+
+                // Only show a confirmation dialog for CBOR-encoded transaction signing requests.
+                // JSON messages (pings, video frames, credential handshakes, etc.)
+                // are handled silently so the dialog does not spam for every message.
+                if Data(base64Encoded: message) != nil {
+                    // Looks like a Base64/CBOR payload → could be a signing request
+                    self.showConfirmationDialog(message: message)
+                } else {
+                    // Plain JSON message (ping, liquid:video:frame, etc.) → handle directly
+                    self.handleMessage(message)
+                }
             },
             onStateChange: { [weak self] state in
                 guard let self = self else { return }
@@ -1178,9 +1197,21 @@ public class LiquidAuthService {
         dataChannel = nil
     }
     
+    // Guard flag: prevents stacking multiple "Confirmation Required" dialogs.
+    // Only one transaction-signing confirmation can be pending at a time.
+    private var isShowingConfirmation = false
+
     private func showConfirmationDialog(message: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+
+            // ── Deduplication guard ──────────────────────────────────────────
+            // Without this, rapid messages cause a new UIAlertController to be
+            // presented on top of the previous one, producing an infinite stack.
+            guard !self.isShowingConfirmation else {
+                NSLog("⚠️ Confirmation dialog already showing — dropping duplicate request")
+                return
+            }
 
             guard let topVC = UIApplication.shared
                 .connectedScenes
@@ -1194,24 +1225,34 @@ public class LiquidAuthService {
                 return
             }
 
+            // Guard against presenting on an already-presenting VC
+            // (topMostViewController can return an alert that is mid-presentation)
+            guard topVC.presentedViewController == nil else {
+                NSLog("⚠️ Top VC is already presenting — skipping confirmation dialog")
+                return
+            }
+
             let alert = UIAlertController(
                 title: "Confirmation Required",
                 message: "A request has been received. Do you want to sign the dApp-generated transactions?",
                 preferredStyle: .alert
             )
 
-            let confirmAction = UIAlertAction(title: "Confirm", style: .default) { _ in
+            let confirmAction = UIAlertAction(title: "Confirm", style: .default) { [weak self] _ in
+                self?.isShowingConfirmation = false
                 NSLog("✅ User confirmed message handling")
-                self.handleMessage(message)
+                self?.handleMessage(message)
             }
 
-            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+                self?.isShowingConfirmation = false
                 NSLog("❌ User cancelled message handling")
             }
 
             alert.addAction(cancelAction)
             alert.addAction(confirmAction)
 
+            self.isShowingConfirmation = true
             topVC.present(alert, animated: true)
         }
     }

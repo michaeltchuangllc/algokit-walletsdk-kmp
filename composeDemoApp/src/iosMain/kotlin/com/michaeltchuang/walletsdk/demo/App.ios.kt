@@ -1,8 +1,28 @@
 package com.michaeltchuang.walletsdk.demo
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.ComposeUIViewController
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import org.koin.core.Koin
@@ -505,14 +525,116 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
     }
 }
 
-/**
- * Set the handler for iOS Liquid Auth.
- * This bridges the wallet-sdk-ui module to Swift.
- * Call this from Swift during app initialization.
- *
- * @param handler Callback that receives (origin, requestId, address)
- */
 fun setIosLiquidAuthHandler(handler: (String, String, String) -> Unit) {
     com.michaeltchuang.walletsdk.ui.liquidAuth.iosLiquidAuthHandler = handler
     platform.Foundation.NSLog("✅ iOS Liquid Auth handler registered")
+}
+
+fun forwardMessageToActiveViewer(message: String) {
+    activeIOSViewerConnectionManager?.notifyMessageReceived(message)
+}
+
+var iosStreamingCleanupHandler: (() -> Unit)? = null
+
+var iosViewerMinimizeHandler: (() -> Unit)? = null
+
+var isBroadcastChannelOpen: Boolean = false
+var broadcastConnectionTypeString: String = "unknown"
+
+fun registerBroadcastHandlers(
+    startHandler: (String, String) -> Unit,
+    stopHandler: () -> Unit,
+    sendMessageHandler: (String) -> Unit,
+) {
+    iosBroadcastStartHandler = startHandler
+    iosBroadcastStopHandler = stopHandler
+    iosBroadcastSendMessageHandler = sendMessageHandler
+    // is-connected and connection-type are driven by Kotlin vars to avoid
+    // () -> Boolean / () -> String interop complications on the Swift side.
+    iosBroadcastIsConnectedHandler = { isBroadcastChannelOpen }
+    iosBroadcastDetectConnectionTypeHandler = { broadcastConnectionTypeString }
+    println("📡 iOS broadcast handlers registered")
+}
+
+fun notifyBroadcastClientConnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.notifyClientConnected(requestId)
+}
+
+fun notifyBroadcastClientDisconnected() {
+    activeIOSBroadcastConnectionManager?.notifyClientDisconnected()
+}
+
+fun notifyBroadcastMessageReceived(message: String) {
+    activeIOSBroadcastConnectionManager?.notifyMessageReceived(message)
+}
+
+fun getBroadcastCaptureSession(): Any? =
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosBroadcastCaptureSession
+
+fun notifyBroadcastFrameReady(data: Any?, width: Int, height: Int) {
+    val nsData = data as? platform.Foundation.NSData ?: return
+    com.michaeltchuang.walletsdk.ui.liquidStream.components
+        .iosOnBroadcastFrameReady?.invoke(nsData, width, height)
+}
+
+fun registerBroadcastFrameCapture(
+    startCapture: () -> Unit,
+    stopCapture: () -> Unit,
+) {
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosStartBroadcastFrameCapture = startCapture
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosStopBroadcastFrameCapture = stopCapture
+    println("📷 iOS broadcast frame capture handlers registered")
+}
+
+fun LiquidStreamViewerViewController(
+    viewerAddress: String = "",
+    originUrl: String = "",
+    networkLabel: String = "TESTNET",
+): platform.UIKit.UIViewController {
+    return ComposeUIViewController {
+        val viewerManager =
+            androidx.compose.runtime.remember { IOSLiquidStreamViewerConnectionManager() }
+        val frame by viewerManager.latestVideoFrame.collectAsStateWithLifecycle()
+        val connType by viewerManager.connectionType.collectAsStateWithLifecycle()
+        val sessionId by viewerManager.sessionId.collectAsStateWithLifecycle()
+        val remainingBalance by viewerManager.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
+
+        LaunchedEffect(viewerManager) {
+            activeIOSViewerConnectionManager = viewerManager
+            viewerManager.notifyConnected()
+        }
+
+        DisposableEffect(viewerManager) {
+            onDispose {
+                viewerManager.disconnect()
+                if (activeIOSViewerConnectionManager === viewerManager) {
+                    activeIOSViewerConnectionManager = null
+                }
+                iosStreamingCleanupHandler?.invoke()
+            }
+        }
+
+        AlgoKitTheme {
+            LiquidStreamViewerScreen(
+                sessionId = sessionId,
+                connectionType = connType,
+                cameraPreview = {
+                    val currentFrame = frame
+                    if (currentFrame != null) {
+                        VideoFrameDisplay(
+                            frameData = currentFrame.data,
+                            aspectRatio = currentFrame.width.toFloat() / currentFrame.height.toFloat(),
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                    }
+                },
+                viewerAddress = viewerAddress.ifBlank { "-" },
+                originUrl = originUrl.ifBlank { "-" },
+                networkLabel = networkLabel,
+                remainingBalanceUsdc = remainingBalance / 1_000_000.0,
+                onMinimize = { iosViewerMinimizeHandler?.invoke() },
+            )
+        }
+    }
 }

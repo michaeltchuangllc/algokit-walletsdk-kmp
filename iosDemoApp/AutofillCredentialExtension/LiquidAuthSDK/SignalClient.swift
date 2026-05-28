@@ -99,6 +99,9 @@ public class SignalClient {
                     },
                     onStateChange: { state in
                         Logger.debug("SignalClient: Data channel state changed: \(state ?? "unknown")")
+                        // Forward state to the outer onStateChange so callers (e.g. iosApp.swift)
+                        // can react to open/closed on the *responder* (type "offer") path too.
+                        onStateChange(state)
                         if state == "open" {
                             Logger.info("✅ SignalClient: Open and ready: \(dataChannel.label)")
                             Logger
@@ -132,6 +135,8 @@ public class SignalClient {
                                 "\(ObjectIdentifier(dataChannel)) label: \(dataChannel.label)"
                         )
                     onDataChannelOpen(dataChannel)
+                    // Also notify the outer caller that the channel is open.
+                    onStateChange("open")
                 }
             },
             onIceCandidate: { [weak self] candidate in
@@ -189,14 +194,27 @@ public class SignalClient {
             Logger.info("Offer (responder): Waiting for remote offer")
             send(event: "link", data: ["requestId": requestId])
 
-            // Listen for the offer-description event (only for responder)
+            // Listen for the offer-description event (only for responder).
+            // Handles two wire formats:
+            //   • dict  – { "sdp": "...", "type": "offer" }  (browser / dApp)
+            //   • string – raw SDP string                    (iOS wallet peer)
             socket.off("offer-description")
             socket.on("offer-description") { [weak self] data, _ in
-                guard let self, let eventData = data.first as? [String: Any],
-                      let sdp = eventData["sdp"] as? String,
-                      let type = sdpType(from: eventData["type"] as? String) else { return }
-                Logger.info("Offer (responder): Received SDP type: \(type) : \(sdp)")
-                let sessionDescription = RTCSessionDescription(type: type, sdp: sdp)
+                guard let self else { return }
+                let sessionDescription: RTCSessionDescription
+                if let eventData = data.first as? [String: Any],
+                   let sdp = eventData["sdp"] as? String,
+                   let sdpType = sdpType(from: eventData["type"] as? String) {
+                    Logger.info("Offer (responder): Received SDP (dict) type: \(sdpType) : \(sdp.prefix(80))")
+                    sessionDescription = RTCSessionDescription(type: sdpType, sdp: sdp)
+                } else if let rawSdp = data.first as? String, !rawSdp.isEmpty {
+                    // iOS wallet sends the raw SDP string with no dict wrapper
+                    Logger.info("Offer (responder): Received SDP (string) : \(rawSdp.prefix(80))")
+                    sessionDescription = RTCSessionDescription(type: .offer, sdp: rawSdp)
+                } else {
+                    Logger.error("Offer (responder): unrecognised offer-description payload: \(data)")
+                    return
+                }
 
                 peerClient?.setRemoteDescription(sessionDescription, completion: { error in
                     if let error {

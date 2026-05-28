@@ -17,6 +17,7 @@
 		BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* composeDemoApp.framework */; };
 		BAC161E42F296BFE0050270D /* LiquidAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E22F296BFE0050270D /* LiquidAuthService.swift */; };
 		BAC161E52F296BFE0050270D /* LiquidAuthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */; };
+		BBFC00022F296BFE0050270D /* BroadcastFrameCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */; };
 		BAC1623A2F2974D20050270D /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162392F2974D20050270D /* SocketIO */; };
 		BAC1623C2F2974E40050270D /* Base32 in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623B2F2974E40050270D /* Base32 */; };
 		BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623F2F2974EB0050270D /* deterministicP256-swift */; };
@@ -91,6 +92,7 @@
 		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
 		BAC161E22F296BFE0050270D /* LiquidAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthService.swift; sourceTree = "<group>"; };
 		BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthViewController.swift; sourceTree = "<group>"; };
+		BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastFrameCapture.swift; sourceTree = "<group>"; };
 		BAC1630C2F2C3BE10050270D /* algokit_transact.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = algokit_transact.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoKitTransact/Frameworks/algokit_transact.xcframework"; sourceTree = "<group>"; };
 		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
 		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -232,6 +234,7 @@
 			children = (
 				BAC161E22F296BFE0050270D /* LiquidAuthService.swift */,
 				BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */,
+				BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */,
 				C2F9B4102F24819E00E5B9C2 /* iosApp.entitlements */,
 				BA0473392CF53E5E004A8EBF /* Info.plist */,
 				A93A953A29CC810C00F8E227 /* iosApp.swift */,
@@ -464,6 +467,7 @@
 				A93A953B29CC810C00F8E227 /* iosApp.swift in Sources */,
 				BAC161E42F296BFE0050270D /* LiquidAuthService.swift in Sources */,
 				BAC161E52F296BFE0050270D /* LiquidAuthViewController.swift in Sources */,
+				BBFC00022F296BFE0050270D /* BroadcastFrameCapture.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

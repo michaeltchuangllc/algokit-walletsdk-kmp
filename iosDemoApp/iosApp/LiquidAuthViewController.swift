@@ -42,6 +42,19 @@ public class LiquidAuthViewController: UIViewController {
 
     private var onCompletion: (() -> Void)?
 
+    /// Called **after** the auth VC has fully dismissed, when the WebRTC data channel
+    /// is open and the credential has been accepted.
+    ///
+    /// The `LiquidAuthService` ownership has already been transferred out of this VC
+    /// (so `viewWillDisappear` won't disconnect it). The caller is responsible for:
+    /// - keeping the service alive (store it in AppDelegate or similar)
+    /// - wiring `service.messageForwardingHandler` to deliver frames to the viewer
+    /// - calling `service.disconnect()` when the viewer session ends
+    public var onStreamingConnected: ((_ origin: String,
+                                       _ requestId: String,
+                                       _ algoAddress: String,
+                                       _ service: LiquidAuthService) -> Void)?
+
     // MARK: - Initialization
 
     public init(
@@ -248,12 +261,67 @@ public class LiquidAuthViewController: UIViewController {
         iconView.image = UIImage(systemName: "checkmark.seal.fill")
         iconView.tintColor = .systemGreen
 
-        statusLabel.text = """
-        Connected successfully
+        // If an onStreamingConnected handler was provided (streaming viewer flow),
+        // show a brief "Starting stream…" message then hand off to the viewer.
+        if onStreamingConnected != nil {
+            statusLabel.text = "Connected!\n\nStarting video stream…"
+            statusLabel.textColor = .systemGreen
 
-        Waiting to sign transaction requests…
-        """
-        statusLabel.textColor = .systemGreen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                guard let self = self else { return }
+
+                let capturedCallback  = self.onStreamingConnected
+                let capturedOrigin    = self.origin
+                let capturedRequestId = self.requestId
+                let capturedAddress   = self.algoAddress
+
+                // ── Step 1: Transfer the service BEFORE dismiss ──────────────────────────
+                // `viewWillDisappear` calls `liquidAuthService?.disconnect()`.
+                // `takeLiquidAuthService()` sets `liquidAuthService = nil` so that call
+                // becomes a no-op — the WebRTC data channel stays alive.
+                // We capture `service` in the completion closure so AppDelegate can own it.
+                let service = self.takeLiquidAuthService()
+
+                // ── Step 2: Dismiss THEN present viewer from root ────────────────────────
+                // If we presented viewerVC while self was still on-screen, UIKit would make
+                // viewerVC a child of self.  When self dismissed it would cascade-dismiss
+                // viewerVC too (~10 ms flash then gone).
+                // Firing the callback in the completion block guarantees self is fully gone
+                // before viewerVC is presented, so it lives on the root independently.
+                self.dismiss(animated: true) {
+                    guard let service = service else { return }
+                    capturedCallback?(capturedOrigin, capturedRequestId, capturedAddress, service)
+                }
+            }
+        } else {
+            // Signing/auth-only flow — remain open waiting for transaction requests.
+            statusLabel.text = "Connected successfully\n\nWaiting to sign transaction requests…"
+            statusLabel.textColor = .systemGreen
+        }
+    }
+
+    // MARK: - Message Forwarding
+
+    /// Route all incoming data-channel messages to an external handler.
+    /// Call this to pipe video frames / payment messages to
+    /// `IOSLiquidStreamViewerConnectionManager.notifyMessageReceived`.
+    public func setMessageForwardingHandler(_ handler: @escaping (String) -> Void) {
+        liquidAuthService?.messageForwardingHandler = handler
+    }
+
+    /// Transfer ownership of the underlying `LiquidAuthService` to the caller.
+    ///
+    /// After this call:
+    /// - `self.liquidAuthService` is `nil`
+    /// - `viewWillDisappear` will **not** disconnect the channel (nothing to disconnect)
+    /// - The caller owns the service and is responsible for calling `disconnect()` when done
+    ///
+    /// Use this before dismissing the VC when handing off to the streaming viewer so that
+    /// the open WebRTC data channel keeps running after the auth sheet disappears.
+    public func takeLiquidAuthService() -> LiquidAuthService? {
+        let service = liquidAuthService
+        liquidAuthService = nil   // prevents viewWillDisappear from disconnecting
+        return service
     }
 
     private func handleSuccess() {

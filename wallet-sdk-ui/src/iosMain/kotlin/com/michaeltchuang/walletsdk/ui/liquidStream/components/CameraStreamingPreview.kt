@@ -7,9 +7,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.SideEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.UIKitView
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.readBytes
 import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVCaptureDeviceDiscoverySession
 import platform.AVFoundation.AVCaptureDeviceInput
@@ -29,15 +30,24 @@ import platform.AVFoundation.AVCaptureVideoPreviewLayer
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.CoreGraphics.CGRectMake
+import platform.Foundation.NSData
+import platform.Foundation.NSUUID
+import platform.Foundation.NSDate
+import platform.Foundation.date
+import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIView
-import platform.darwin.dispatch_async
-import platform.darwin.dispatch_get_main_queue
-import platform.darwin.dispatch_get_global_queue
 import platform.darwin.DISPATCH_QUEUE_PRIORITY_DEFAULT
+import platform.darwin.dispatch_async
+import platform.darwin.dispatch_get_global_queue
+import platform.darwin.dispatch_get_main_queue
 
-/**
- * iOS actual implementation of camera streaming preview.
- */
+var iosBroadcastCaptureSession: AVCaptureSession? = null
+
+@Suppress("unused")
+var iosOnBroadcastFrameReady: ((data: NSData, width: Int, height: Int) -> Unit)? = null
+var iosStartBroadcastFrameCapture: (() -> Unit)? = null
+var iosStopBroadcastFrameCapture: (() -> Unit)? = null
+
 @OptIn(ExperimentalForeignApi::class)
 actual fun createCameraStreamingPreview(
     connectionManager: LiquidAuthConnectionManager?,
@@ -67,6 +77,37 @@ private fun IOSCameraPreviewContent(
     val canSwitchCamera = remember { hasCamera(AVCaptureDevicePositionBack) && hasCamera(AVCaptureDevicePositionFront) }
     var hasActiveInput by remember { mutableStateOf(false) }
 
+    DisposableEffect(session) {
+        iosBroadcastCaptureSession = session
+        onDispose {
+            if (iosBroadcastCaptureSession === session) {
+                iosBroadcastCaptureSession = null
+            }
+        }
+    }
+
+    DisposableEffect(connectionManager) {
+        iosOnBroadcastFrameReady = frameCallback@{ data, w, h ->
+            if (connectionManager?.isConnected() != true) return@frameCallback
+            val length = data.length.toInt()
+            if (length == 0) return@frameCallback
+            val bytes = data.bytes?.readBytes(length) ?: return@frameCallback
+            connectionManager.sendVideoFrame(
+                frameId = NSUUID().UUIDString,
+                timestamp = (NSDate.date().timeIntervalSince1970 * 1000.0).toLong(),
+                frameData = bytes,
+                width = w,
+                height = h,
+                format = "jpeg",
+            )
+        }
+        iosStartBroadcastFrameCapture?.invoke()
+        onDispose {
+            iosStopBroadcastFrameCapture?.invoke()
+            iosOnBroadcastFrameReady = null
+        }
+    }
+
     DisposableEffect(cameraPosition) {
         dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u)) {
             val configured = configureSessionInput(session, cameraPosition)
@@ -77,17 +118,13 @@ private fun IOSCameraPreviewContent(
                 session.startRunning()
             }
         }
-        onDispose {
-            // Keep session alive during lens switch; stop on final dispose below.
-        }
+        onDispose {}
     }
 
     DisposableEffect(session) {
         onDispose {
             dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u)) {
-                if (session.running) {
-                    session.stopRunning()
-                }
+                if (session.running) session.stopRunning()
             }
         }
     }
@@ -106,9 +143,7 @@ private fun IOSCameraPreviewContent(
     }
 
     DisposableEffect(controller) {
-        onDispose {
-            controller?.onRotateCamera = null
-        }
+        onDispose { controller?.onRotateCamera = null }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -118,16 +153,10 @@ private fun IOSCameraPreviewContent(
         )
         if (!hasActiveInput) {
             Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color.Black),
+                modifier = Modifier.fillMaxSize().background(Color.Black),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "Unable to start camera",
-                    color = Color.White,
-                )
+                Text(text = "Unable to start camera", color = Color.White)
             }
         }
     }
