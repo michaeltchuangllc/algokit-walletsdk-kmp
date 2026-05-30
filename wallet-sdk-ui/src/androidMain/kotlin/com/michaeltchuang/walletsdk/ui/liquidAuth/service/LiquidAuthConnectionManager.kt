@@ -27,6 +27,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
@@ -1028,7 +1029,7 @@ class AndroidLiquidAuthConnectionManager(
                 else -> ByteArray(0)
             }
 
-        return object : MppWalletSigner {
+        return object : AndroidMppWalletSigner {
             override val address: String = creatorAddress
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L

@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
+import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.TESTNET_ALGOD_URL
@@ -874,7 +875,7 @@ class PaymentTestViewModel(
                 else -> ByteArray(0)
             }
 
-        return object : MppWalletSigner {
+        return object : AndroidMppWalletSigner {
             override val address: String = creatorAddress
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L

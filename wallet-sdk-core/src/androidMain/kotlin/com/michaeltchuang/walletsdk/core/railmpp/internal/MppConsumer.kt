@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import android.util.Base64
 import android.util.Log
+import com.algorand.algosdk.util.Encoder
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.michaeltchuang.walletsdk.core.railmpp.DEFAULT_ALGOD_URLS
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
@@ -116,7 +117,7 @@ internal class MppConsumer(
             if (useFeePayer && i == 0) {
                 paymentGroupB64.add(TxnBuilder.encodeTxnBase64(t))
             } else {
-                val signedBytes = config.signer.signTransaction(t)
+                val signedBytes = config.signer.signTransactionBytes(Encoder.encodeToMsgPack(t))
                 paymentGroupB64.add(TxnBuilder.encodeSignedTxnBase64(signedBytes))
             }
         }

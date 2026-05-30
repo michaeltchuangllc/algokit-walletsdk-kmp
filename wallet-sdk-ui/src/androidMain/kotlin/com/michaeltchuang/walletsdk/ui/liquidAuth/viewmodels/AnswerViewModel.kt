@@ -48,6 +48,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepos
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
@@ -862,7 +863,7 @@ class AnswerViewModel(
 
         val authorizedSignerPublicKey = getAccountPublicKey(address)
 
-        return object : MppWalletSigner {
+        return object : AndroidMppWalletSigner {
             override val address: String = address
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
