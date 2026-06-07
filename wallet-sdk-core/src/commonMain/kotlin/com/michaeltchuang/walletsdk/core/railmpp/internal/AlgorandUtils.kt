@@ -39,3 +39,41 @@ internal fun encodeUint64(value: Long): ByteArray {
     for (i in 7 downTo 0) { bytes[i] = (v and 0xFF).toByte(); v = v ushr 8 }
     return bytes
 }
+
+/** Encodes a byte array to Algorand's base32 (no padding). */
+internal fun encodeBase32(bytes: ByteArray): String {
+    val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    val sb = StringBuilder()
+    var buffer = 0
+    var bitsInBuffer = 0
+    for (b in bytes) {
+        buffer = (buffer shl 8) or (b.toInt() and 0xFF)
+        bitsInBuffer += 8
+        while (bitsInBuffer >= 5) {
+            bitsInBuffer -= 5
+            sb.append(alphabet[(buffer ushr bitsInBuffer) and 0x1F])
+        }
+    }
+    if (bitsInBuffer > 0) {
+        sb.append(alphabet[(buffer shl (5 - bitsInBuffer)) and 0x1F])
+    }
+    return sb.toString()
+}
+
+/** Encodes a 32-byte public key to an Algorand base32 address (with checksum). */
+internal fun encodeAlgorandAddress(publicKey: ByteArray): String {
+    require(publicKey.size == ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH) {
+        "Public key must be $ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH bytes"
+    }
+    val checksum = sha256(publicKey).takeLast(ALGORAND_ADDRESS_CHECKSUM_LENGTH).toByteArray()
+    return encodeBase32(publicKey + checksum)
+}
+
+/**
+ * Derives the Algorand application address from an app ID.
+ * Formula: sha512_256("appID" || encode_uint64(appId))
+ */
+internal fun appIdToAlgorandAddress(appId: Long): String {
+    val hash = sha512_256("appID".encodeToByteArray() + encodeUint64(appId))
+    return encodeAlgorandAddress(hash)
+}

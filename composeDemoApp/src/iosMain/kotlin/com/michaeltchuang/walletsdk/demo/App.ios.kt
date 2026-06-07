@@ -6,6 +6,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.window.ComposeUIViewController
@@ -20,11 +24,18 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessag
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
+import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDepositHandler
+import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
+import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import org.koin.compose.koinInject
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.context.loadKoinModules
 import org.koin.mp.KoinPlatform
@@ -534,6 +545,16 @@ fun forwardMessageToActiveViewer(message: String) {
     activeIOSViewerConnectionManager?.notifyMessageReceived(message)
 }
 
+/**
+ * Swift-callable wrapper that sets [iosViewerSendMessageHandler] from the
+ * `wallet-sdk-ui` module.  Called from `LiquidAuthService.swift` when the
+ * WebRTC data channel opens so that Kotlin's `sendViewerHello()` path can
+ * deliver messages back to the host via the live connection.
+ */
+fun setViewerSendMessageHandler(handler: (String) -> Unit) {
+    iosViewerSendMessageHandler = handler
+}
+
 var iosStreamingCleanupHandler: (() -> Unit)? = null
 
 var iosViewerMinimizeHandler: (() -> Unit)? = null
@@ -593,15 +614,59 @@ fun LiquidStreamViewerViewController(
 ): platform.UIKit.UIViewController {
     return ComposeUIViewController {
         val viewerManager =
-            androidx.compose.runtime.remember { IOSLiquidStreamViewerConnectionManager() }
+            remember { IOSLiquidStreamViewerConnectionManager() }
+        val paymentOrchestrator: IosViewerPaymentOrchestrator = koinInject()
         val frame by viewerManager.latestVideoFrame.collectAsStateWithLifecycle()
         val connType by viewerManager.connectionType.collectAsStateWithLifecycle()
         val sessionId by viewerManager.sessionId.collectAsStateWithLifecycle()
         val remainingBalance by viewerManager.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
+        val progressBalance by viewerManager.progressBalanceMicroUsdc.collectAsStateWithLifecycle()
+        val pendingConsent by viewerManager.pendingMppConsent.collectAsStateWithLifecycle()
+        val isPaymentProcessing by viewerManager.isPaymentProcessing.collectAsStateWithLifecycle()
+
+        var showPaymentDialog by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
 
         LaunchedEffect(viewerManager) {
             activeIOSViewerConnectionManager = viewerManager
+            // Provide public key retrieval so the hello message can include the Ed25519 key.
+            iosViewerPublicKeyProvider = { addr -> getPublicKeyForAlgorandWallet(addr) }
+
+            // ── CRITICAL: Set the viewer address BEFORE notifyConnected() so
+            //   sendViewerHello() can include it and handlePaymentRequest() can use it.
+            //   startBalancePollingSafe may return early if host is unknown, but
+            //   setViewerAddress always persists the address regardless. ──────────
+            if (viewerAddress.isNotBlank()) {
+                viewerManager.setViewerAddress(viewerAddress)
+                viewerManager.startBalancePollingSafe(viewerAddress, viewerManager.hostAddress.value)
+            }
+
+            // Wire the real deposit handler: performs on-chain deposit + sends voucher to host.
+            iosViewerDepositHandler = { viewerAddr, hostAddr, depositMicroUsdc, callback ->
+                paymentOrchestrator.depositAndSendVoucher(
+                    viewerAddress = viewerAddr,
+                    hostAddress = hostAddr,
+                    sessionId = viewerManager.sessionId.value,
+                    depositMicroUsdc = depositMicroUsdc,
+                    sendMessageFn = { msg -> viewerManager.sendMessage(msg) },
+                    onResult = callback,
+                )
+            }
+
+            platform.Foundation.NSLog(
+                "👤 LiquidStreamViewer init: viewerAddress='$viewerAddress' " +
+                    "origin='$originUrl' _viewerAddress='${viewerManager.viewerAddress.value}'",
+            )
+
+            // Now it is safe to send the hello message — _viewerAddress is populated.
             viewerManager.notifyConnected()
+        }
+
+        // Show consent dialog when a payment request arrives.
+        LaunchedEffect(pendingConsent) {
+            if (pendingConsent != null) {
+                showPaymentDialog = true
+            }
         }
 
         DisposableEffect(viewerManager) {
@@ -615,26 +680,63 @@ fun LiquidStreamViewerViewController(
         }
 
         AlgoKitTheme {
-            LiquidStreamViewerScreen(
-                sessionId = sessionId,
-                connectionType = connType,
-                cameraPreview = {
-                    val currentFrame = frame
-                    if (currentFrame != null) {
-                        VideoFrameDisplay(
-                            frameData = currentFrame.data,
-                            aspectRatio = currentFrame.width.toFloat() / currentFrame.height.toFloat(),
-                        )
-                    } else {
-                        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
-                    }
-                },
-                viewerAddress = viewerAddress.ifBlank { "-" },
-                originUrl = originUrl.ifBlank { "-" },
-                networkLabel = networkLabel,
-                remainingBalanceUsdc = remainingBalance / 1_000_000.0,
-                onMinimize = { iosViewerMinimizeHandler?.invoke() },
-            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                LiquidStreamViewerScreen(
+                    sessionId = sessionId,
+                    connectionType = connType,
+                    cameraPreview = {
+                        val currentFrame = frame
+                        if (currentFrame != null) {
+                            VideoFrameDisplay(
+                                frameData = currentFrame.data,
+                                aspectRatio = currentFrame.width.toFloat() / currentFrame.height.toFloat(),
+                            )
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                        }
+                    },
+                    viewerAddress = viewerAddress.ifBlank { "-" },
+                    originUrl = originUrl.ifBlank { "-" },
+                    networkLabel = networkLabel,
+                    remainingBalanceUsdc = remainingBalance / 1_000_000.0,
+                    progressBalanceUsdc = progressBalance / 1_000_000.0,
+                    onMinimize = { iosViewerMinimizeHandler?.invoke() },
+                    onTopUpConfirm = { enteredAmountUsdc ->
+                        // User initiated a top-up from the viewer top-up sheet.
+                        scope.launch {
+                            viewerManager.approveMppConsent(enteredAmountUsdc)
+                        }
+                    },
+                )
+
+                // MPP consent / deposit dialog — shown when the host requests payment.
+                val consent = pendingConsent
+                if (showPaymentDialog && consent != null) {
+                    val defaultTopUpUsdc = 1.0
+                    val amountText = defaultTopUpUsdc.toString()
+                    LiquidAuthSessionVaultModal(
+                        initialAmount = amountText,
+                        quickAmounts = listOf(amountText, "8.0"),
+                        currencyLabel = "USDC",
+                        isProcessing = isPaymentProcessing,
+                        isDismissible = false,
+                        onDismiss = {
+                            if (!isPaymentProcessing) {
+                                viewerManager.rejectMppConsent()
+                                showPaymentDialog = false
+                            }
+                        },
+                        onTopUpAndStream = { enteredAmount ->
+                            if (!isPaymentProcessing) {
+                                scope.launch {
+                                    viewerManager.approveMppConsent(enteredAmount)
+                                    showPaymentDialog = false
+                                }
+                            }
+                        },
+                    )
+                }
+            }
         }
     }
 }

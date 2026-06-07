@@ -293,6 +293,13 @@ class PaywalledRTCServer(
 
     private fun handleDataChannelMessage(msgStr: String) {
         try {
+            // Guard against plain-text keepalive strings (e.g. "ping") that are not JSON
+            val trimmed = msgStr.trim()
+            if (!trimmed.startsWith("{")) {
+                Log.d(TAG, "[DC_PLAIN_MESSAGE_IGNORED] session=$sessionId message=$trimmed")
+                return
+            }
+
             val msg = JSONObject(msgStr)
             val msgType = msg.getString("type")
             Log.e(TAG, "[DC_MESSAGE_RECEIVED] session=$sessionId type=$msgType bytes=${msgStr.length}")

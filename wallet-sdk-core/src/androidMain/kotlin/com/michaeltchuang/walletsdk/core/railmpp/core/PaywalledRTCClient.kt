@@ -183,6 +183,13 @@ class PaywalledRTCClient(
 
     private fun handleDataChannelMessage(msgStr: String) {
         try {
+            // Guard against plain-text keepalive strings (e.g. "ping") that are not JSON
+            val trimmed = msgStr.trim()
+            if (!trimmed.startsWith("{")) {
+                Log.d(TAG, "[DC_PLAIN_MESSAGE_IGNORED] message=$trimmed")
+                return
+            }
+
             val msg = JSONObject(msgStr)
             when (msg.getString("type")) {
                 DCMessageType.SEGMENT_REQUEST -> {

@@ -32,6 +32,18 @@ expect fun signFalcon24Transaction(
     privateKey: ByteArray,
 ): ByteArray?
 
+/**
+ * Signs a group of Falcon24 transactions as a bundle.
+ * Transactions should NOT have group IDs pre-assigned — the underlying SDK will assign group IDs
+ * and prepend the necessary dummy transactions to satisfy the AVM LogicSig verification budget.
+ * Returns the full list of signed transaction msgpack bytes (including any added dummies).
+ */
+expect fun signFalcon24GroupBundle(
+    txnsByteArrays: List<ByteArray>,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): List<ByteArray>
+
 expect fun signHdKeyArbitraryData(
     data: ByteArray,
     seed: ByteArray,

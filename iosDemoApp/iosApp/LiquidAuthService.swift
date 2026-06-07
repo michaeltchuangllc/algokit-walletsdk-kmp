@@ -766,6 +766,20 @@ public class LiquidAuthService {
                 
                 if state == "open" {
                     NSLog("✅ Data channel is OPEN, sending credential")
+                    
+                    // ── Wire the Kotlin viewer manager's send handler ──────────────────
+                    // The Kotlin-side IOSLiquidStreamViewerConnectionManager.sendMessage()
+                    // routes through iosViewerSendMessageHandler.  We set it here (data
+                    // channel open) so that notifyConnected() → sendViewerHello() reliably
+                    // delivers the liquid:viewer:hello via this connection.
+                    // We call the App_iosKt wrapper (composeDemoApp scope) rather than
+                    // accessing the wallet-sdk-ui Kt class directly to avoid module-prefix
+                    // ambiguity in the ObjC bridge.
+                    App_iosKt.setViewerSendMessageHandler { [weak self] message in
+                        self?.signalService?.sendMessage(message)
+                    }
+                    NSLog("✅ iosViewerSendMessageHandler wired to signalService.sendMessage")
+                    
                     self.sendCredentialMessage(credential: credential)
                 } else if state == "connecting" {
                     NSLog("⏳ Data channel is CONNECTING...")
@@ -780,12 +794,34 @@ public class LiquidAuthService {
         NSLog("   (This may take 10-30 seconds)")
     }
     
+    /// Sends a `liquid:viewer:hello` message to the host so the Android
+    /// `LiquidAuthConnectionManager.tryCaptureViewerAddressFromMessage` can record the
+    /// viewer's wallet address (and authorised-signer public key) before it calls
+    /// `sendPaymentRequest()`.  Without this message `viewer=null` is logged and the
+    /// session-vault funded-skip optimisation is skipped for the first segment.
+    private func sendViewerHelloMessage() {
+        let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)
+        let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
+            ? ",\"viewerPublicKey\":\"\(publicKeyBase64!)\""
+            : ""
+        let helloJson = "{\"reference\":\"liquid:viewer:hello\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
+        signalService?.sendMessage(helloJson)
+        NSLog("👋 [VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
+    }
+
     private func sendCredentialMessage(credential: Any) {
         NSLog("📤 Sending credential message as JSON")
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
-        
-        // Send credential handshake as JSON (matches Android implementation)
+
+        // ── 1. Send liquid:viewer:hello FIRST ─────────────────────────────────
+        // Android's host (LiquidAuthConnectionManager.tryCaptureViewerAddressFromMessage)
+        // uses this message to capture the viewer's wallet address and authorised-signer
+        // public key BEFORE the payment flow starts.  Without it `viewer=null` is logged
+        // and the session-vault funded-skip optimisation is disabled for the first segment.
+        sendViewerHelloMessage()
+
+        // ── 2. Send the credential handshake ─────────────────────────────────
         // Note: Transaction responses use CBOR, but credential handshake uses JSON
         let credentialMessage: [String: Any] = [
             "type": "credential",

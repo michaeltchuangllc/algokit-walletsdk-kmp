@@ -1,6 +1,9 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
+import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
@@ -25,6 +28,9 @@ var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
 private const val TAG = "IOSLiquidAuthCM"
 private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
 
+/** Polling interval for the host-side on-chain balance during paid streaming (ms). */
+private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
+
 class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
@@ -33,6 +39,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     private var viewModel: LiquidAuthOfferViewModel? = null
     private var activeRequestId: String? = null
     private var connectionTypePollingJob: Job? = null
+    private var blockConsumptionJob: Job? = null
 
     private var activeViewerAddressForVault: String? = null
     private var activeViewerAuthorizedSignerKey: ByteArray? = null
@@ -40,6 +47,11 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     private var activePaymentRecipient: String? = null
     private var activePaymentAmount: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
+
+    private val getRemainingBalanceUseCase = GetRemainingSessionVaultBalanceUseCase(
+        IosSessionVaultBalanceRepository(),
+    )
+    private val scope = CoroutineScope(Dispatchers.Default)
 
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -135,23 +147,112 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     override fun isConnected(): Boolean = iosBroadcastIsConnectedHandler?.invoke() ?: false
 
+    /**
+     * Serialize the payment request as a JSON message and send it to the viewer via the
+     * data channel.  The viewer's [IOSLiquidStreamViewerConnectionManager] will receive it
+     * and show a consent/deposit dialog.
+     *
+     * Unlike Android (which waits for [onPaymentSettled] from [LiquidStreamCreator]),
+     * the iOS host has no PaywalledRTCServer, so we:
+     *  1. Start streaming immediately (the balance card enforces gating once funds are tracked)
+     *  2. Start the on-chain balance polling loop immediately (same as Android line 307/317)
+     */
     override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         println(
-            "$TAG: sendPaymentRequest — X402 not available on iOS, bypassing payment. " +
-                "network=${paymentRequest.network} amount=${paymentRequest.amount}",
+            "$TAG: 💰 sendPaymentRequest — session=${paymentRequest.id} " +
+                "amount=${paymentRequest.amount} payTo=${paymentRequest.payTo}",
         )
+
+        // Lock in payment session fields (do not overwrite if already set).
         activePaymentSessionId = activePaymentSessionId ?: paymentRequest.id
         activePaymentRecipient = paymentRequest.payTo
         activePaymentAmount = paymentRequest.amount
+
+        // Build and send the JSON payment request to the viewer (iOS viewers and any
+        // viewer listening on the main data channel will receive it).
+        val json = buildPaymentRequestJson(paymentRequest)
+        println("$TAG: 📤 sending payment request to viewer (${json.length} chars)")
+        sendMessage(json)
+
+        // Transition the host to streaming state immediately.
+        // (On Android this happens via LiquidStreamCreator.onPaymentSettled; on iOS we have
+        // no PaywalledRTCServer so we start optimistically and track balance on-chain.)
         viewModel?.startVideoStreaming()
+
+        // Start on-chain balance polling now — mirrors Android host's line 307.
+        // If the viewer has a pre-existing deposit the balance will show on the first tick;
+        // if not it shows 0.0 USDC (accurate) rather than N/A (null).
+        startBlockConsumption(activePaymentSessionId ?: paymentRequest.id)
     }
 
+    /**
+     * Start polling the on-chain session-vault balance for the active viewer.
+     * Calls [LiquidAuthOfferViewModel.consumeBlock] on each poll tick so the host
+     * UI reflects the live remaining balance.
+     */
     override fun startBlockConsumption(sessionId: String) {
-        println("$TAG: startBlockConsumption — not available on iOS (session=$sessionId)")
+        if (blockConsumptionJob?.isActive == true) {
+            println("$TAG: startBlockConsumption — already running (session=$sessionId)")
+            return
+        }
+        val targetSession = activePaymentSessionId ?: sessionId
+        println("$TAG: 🔄 startBlockConsumption session=$targetSession")
+
+        var hostTick = 0
+        blockConsumptionJob = scope.launch {
+            while (isActive) {
+                hostTick++
+                val viewerAddr = activeViewerAddressForVault
+                val hostAddr = activePaymentRecipient
+
+                val signerKey = activeViewerAuthorizedSignerKey
+                if (!viewerAddr.isNullOrBlank() && !hostAddr.isNullOrBlank() && signerKey != null) {
+                    runCatching {
+                        val remaining = getRemainingBalanceUseCase(
+                            GetRemainingSessionVaultBalanceUseCase.Params(
+                                viewerAddress = viewerAddr,
+                                hostAddress = hostAddr,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                authorizedSignerPublicKey = signerKey,
+                            ),
+                        ).getOrDefault(0L)
+
+                        println(
+                            "$TAG: 💰 HOST_BALANCE_TICK #$hostTick → ${remaining / 1_000_000.0} USDC " +
+                                "viewer=$viewerAddr host=$hostAddr session=$activePaymentSessionId",
+                        )
+                        viewModel?.consumeBlock(
+                            onChainRemainingMicroUsdc = remaining,
+                            progressBarBalanceMicroUsdc = remaining,
+                        )
+                    }.onFailure { e ->
+                        println("$TAG: ❌ HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
+                    }
+                } else {
+                    // ── Log clearly which prerequisite is still missing ────────────────
+                    // The authorizedSignerPublicKey is REQUIRED for correct channelId
+                    // derivation.  Without it the wrong vault would be queried.
+                    val missingWhat = when {
+                        viewerAddr.isNullOrBlank() -> "viewer-hello-message"
+                        signerKey == null -> "viewer-signer-key (viewerPublicKey from hello)"
+                        else -> "host-address"
+                    }
+                    println(
+                        "$TAG: ⏳ HOST_BALANCE_WAITING tick=$hostTick — " +
+                            "viewer='$viewerAddr' host='$hostAddr' signerKey=${signerKey != null} " +
+                            "session='$activePaymentSessionId' NEED: $missingWhat",
+                    )
+                }
+
+                delay(HOST_BALANCE_POLL_INTERVAL_MS)
+            }
+        }
     }
 
     override fun stopBlockConsumption() {
-        println("$TAG: stopBlockConsumption — no-op on iOS")
+        println("$TAG: ⏹ stopBlockConsumption")
+        blockConsumptionJob?.cancel()
+        blockConsumptionJob = null
     }
 
     @Suppress("unused")
@@ -171,7 +272,12 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     @Suppress("unused")
     fun notifyMessageReceived(message: String) {
-        println("$TAG: 📨 notifyMessageReceived len=${message.length} preview=${message.take(120)}")
+        val ref = message.jsonOptString("reference") ?: "(no-ref)"
+        println(
+            "$TAG: 📩 HOST_MSG_RECV ref=$ref len=${message.length} " +
+                "viewer='$activeViewerAddressForVault' host='$activePaymentRecipient' " +
+                "session='$activePaymentSessionId' preview=${message.take(160)}",
+        )
         tryCaptureViewerAddressFromMessage(message)
         val requestId = activeRequestId
         if (requestId != null && isConnected()) {
@@ -189,25 +295,61 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         }
     }
 
+    // ── Private helpers ────────────────────────────────────────────────────────
+
+    /** Builds the `liquid:payment:request` JSON that the viewer expects. */
+    private fun buildPaymentRequestJson(req: PaymentRequest): String {
+        val meta = req.meta
+        val metaJson = if (meta != null) {
+            ""","meta":{"gatingMode":"${meta.gatingMode}","enforcement":"${meta.enforcement}","segmentDuration":${meta.segmentDuration}}"""
+        } else {
+            ""
+        }
+        return """{"reference":"liquid:payment:request","id":"${req.id}","amount":"${req.amount}","asset":"${req.asset}","network":"${req.network}","payTo":"${req.payTo}","ttl":${req.ttl},"nonce":"${req.nonce}"$metaJson}"""
+    }
+
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
         runCatching {
             val voucherRef = msg.jsonOptString("reference") ?: return@runCatching
 
             if (voucherRef == "liquid:viewer:hello") {
                 val helloViewer = msg.jsonOptString("viewer")
+
+                // ── Always record the viewer address, even if the public key is absent ───
+                if (!helloViewer.isNullOrBlank() && helloViewer != activeViewerAddressForVault) {
+                    activeViewerAddressForVault = helloViewer
+                    println("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
+                }
+
+                // ── Capture the authorized-signer public key ───────────────────────────
+                // The key is REQUIRED for correct channelId derivation in the session vault.
+                // Without it, getRemainingBalance would use the wrong channelId and return 0.
                 val helloPublicKeyBase64 = msg.jsonOptString("viewerPublicKey")
-                if (helloPublicKeyBase64 != null) {
-                    val signerKey = decodeBase64OrNull(helloPublicKeyBase64)
-                    if (signerKey != null) {
-                        if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
-                            activeViewerAddressForVault = helloViewer
-                            println("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
-                        }
-                        activeViewerAuthorizedSignerKey = signerKey
-                        println(
-                            "$TAG: [VIEWER_HELLO_KEY] viewer=$helloViewer " +
-                                "keyLen=${signerKey.size} session=$activePaymentSessionId",
-                        )
+                val signerKey = if (helloPublicKeyBase64 != null) decodeBase64OrNull(helloPublicKeyBase64) else null
+                if (signerKey != null) {
+                    activeViewerAuthorizedSignerKey = signerKey
+                    println(
+                        "$TAG: [VIEWER_HELLO_KEY] viewer=$helloViewer " +
+                            "keyLen=${signerKey.size} session=$activePaymentSessionId",
+                    )
+                } else {
+                    println(
+                        "$TAG: ⚠️ [VIEWER_HELLO_NO_KEY] viewer=$helloViewer — " +
+                            "viewerPublicKey absent or invalid. Balance polling will wait until " +
+                            "a hello with key OR a payment voucher arrives.",
+                    )
+                }
+
+                // ── Start balance polling only when BOTH address AND key are ready ─────
+                // The polling loop passes authorizedSignerPublicKey directly to the channel-id
+                // derivation. If the key is wrong or missing the vault won't be found on-chain.
+                if (!helloViewer.isNullOrBlank() && activeViewerAuthorizedSignerKey != null) {
+                    val sessionForPoll = activePaymentSessionId ?: ""
+                    if (blockConsumptionJob?.isActive != true) {
+                        println("$TAG: 🔄 [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
+                        startBlockConsumption(sessionForPoll)
+                    } else {
+                        println("$TAG: 🔄 [VIEWER_HELLO] polling already running — viewer=$helloViewer key updated")
                     }
                 }
             }
@@ -250,11 +392,32 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                                     signatureBase64 = signature,
                                     totalAmountClaimedMicroUsdc = claimedAmount,
                                 )
+                            // Capture viewer address from voucher (authoritative).
+                            if (voucherViewer != activeViewerAddressForVault) {
+                                activeViewerAddressForVault = voucherViewer
+                                println("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
+                            }
+                            // ── Capture authorized signer key from voucher ─────────────────
+                            // The voucher always carries viewerPublicKey.  If the hello arrived
+                            // without a key (e.g. viewer's getPublicKeyForAlgorandWallet returned
+                            // null), the signer key will be null at this point.  Setting it here
+                            // means the NEXT balance-poll tick will use the correct channelId.
+                            if (activeViewerAuthorizedSignerKey == null) {
+                                val voucherSignerKey = decodeBase64OrNull(voucherViewerPublicKey)
+                                if (voucherSignerKey != null) {
+                                    activeViewerAuthorizedSignerKey = voucherSignerKey
+                                    println(
+                                        "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=$voucherViewer " +
+                                            "keyLen=${voucherSignerKey.size}",
+                                    )
+                                }
+                            }
                             println(
                                 "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
                                     "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount " +
-                                    "viewer=$voucherViewer",
+                                    "viewer=$voucherViewer signerKeySet=${activeViewerAuthorizedSignerKey != null}",
                             )
+                            // Trigger / ensure block consumption is running.
                             startBlockConsumption(voucherSessionId)
                         }
                     }
@@ -318,7 +481,15 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeBase64OrNull(value: String): ByteArray? =
         runCatching {
-            val normalised = value.replace('-', '+').replace('_', '/').trimEnd('=')
+            // Unescape JSON-encoded forward slashes (\/ → /) BEFORE base64 decoding.
+            // jsonOptString() uses a regex extractor that does not unescape JSON sequences,
+            // so a Falcon24/HD key encoded with base64 standard alphabet (containing '/')
+            // arrives here with literal '\/' pairs that are invalid base64 characters.
+            val normalised = value
+                .replace("\\/", "/")
+                .replace('-', '+')
+                .replace('_', '/')
+                .trimEnd('=')
             val padded = normalised + "=".repeat((4 - normalised.length % 4) % 4)
             Base64.decode(padded)
         }.getOrNull()
