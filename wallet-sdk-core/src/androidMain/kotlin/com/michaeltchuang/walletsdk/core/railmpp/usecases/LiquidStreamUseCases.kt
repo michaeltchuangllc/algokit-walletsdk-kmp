@@ -5,9 +5,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
+import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
+import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
-import org.webrtc.DataChannel
-import org.webrtc.RtpSender
 
 /**
  * Starts the creator payment stream on the existing RTC data channel.
@@ -15,8 +15,8 @@ import org.webrtc.RtpSender
 class StartLiquidStreamCreatorUseCase {
     operator fun invoke(
         rtcServer: PaywalledRTCServer,
-        dataChannel: DataChannel,
-        rtpSenders: List<RtpSender>,
+        dataChannel: RtcDataChannel,
+        rtpSenders: List<RtcRtpSender>,
     ) {
         rtcServer.listen(dataChannel, rtpSenders)
     }
@@ -40,7 +40,7 @@ class StopLiquidStreamCreatorUseCase {
 class StartLiquidStreamViewerUseCase {
     operator fun invoke(
         rtcClient: PaywalledRTCClient,
-        dataChannel: DataChannel,
+        dataChannel: RtcDataChannel,
     ) {
         rtcClient.connect(dataChannel)
     }

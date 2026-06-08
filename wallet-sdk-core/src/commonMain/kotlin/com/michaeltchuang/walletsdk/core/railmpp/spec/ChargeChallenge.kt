@@ -1,34 +1,27 @@
 package com.michaeltchuang.walletsdk.core.railmpp.spec
 
-import org.json.JSONObject
-import xyz.goplausible.webrtcpaymentsdk.railmpp.spec.Base64Url
-import java.security.MessageDigest
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
+import com.michaeltchuang.walletsdk.core.railmpp.internal.constantTimeEquals
+import com.michaeltchuang.walletsdk.core.railmpp.internal.hmacSha256
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 
-/**
- * In-memory representation of an MPP charge challenge.
- *
- * Mirrors the wire format of mppx's `Challenge` so the Kotlin provider can
- * interoperate with web-side consumers (and vice versa).
- */
+/** In-memory MPP charge challenge mirroring mppx's wire `Challenge`. */
 internal data class ChargeChallenge(
     val id: String,
     val realm: String,
     val method: String,
     val intent: String,
-    /** The full request object — see [ChargeRequest] for the well-known shape. */
-    val request: JSONObject,
+    /** Full request object — see [ChargeRequest] for the well-known shape. */
+    val request: JsonObject,
     val expires: String? = null,
     val description: String? = null,
     val digest: String? = null,
-    /** Pass-through opaque map; preserved on both sides for free. */
-    val opaque: JSONObject? = null,
+    /** Pass-through opaque map, preserved on both sides. */
+    val opaque: JsonObject? = null,
 )
 
-/**
- * Convenience accessor for the algorand charge fields under `request.methodDetails`.
- */
+/** Algorand charge fields under `request.methodDetails`. */
 internal data class ChargeRequest(
     val amount: String,
     val currency: String,
@@ -45,9 +38,7 @@ internal data class ChargeRequest(
     val suggestedParams: SuggestedParams?,
 )
 
-/**
- * Solana-specific charge request fields parsed from `request.methodDetails`.
- */
+/** Solana charge fields parsed from `request.methodDetails`. */
 internal data class SolanaChargeRequest(
     val amount: String,
     val currency: String,
@@ -69,12 +60,9 @@ internal data class SuggestedParams(
 
 internal object ChargeChallengeCodec {
     /**
-     * Compute the HMAC-SHA256 challenge ID over the canonical challenge fields,
-     * matching mppx's `computeId` exactly:
-     *
+     * HMAC-SHA256 challenge id over canonical fields, matching mppx's `computeId`:
      *   input = realm | method | intent | JCS(request) | expires | digest | opaque
-     *
-     * Optional fields are empty strings when absent. Output: base64url-no-pad.
+     * Missing optional fields are empty strings. Output: base64url-no-pad.
      */
     fun computeId(
         challenge: ChargeChallenge,
@@ -93,23 +81,21 @@ internal object ChargeChallengeCodec {
                 opaqueSerialized,
             ).joinToString(separator = "|")
 
-        val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secretKey.toByteArray(Charsets.UTF_8), "HmacSHA256"))
-        val digest = mac.doFinal(input.toByteArray(Charsets.UTF_8))
+        val digest = hmacSha256(secretKey.encodeToByteArray(), input.encodeToByteArray())
         return Base64Url.encode(digest)
     }
 
-    /** Constant-time challenge ID verification. */
+    /** Constant-time challenge id verification. */
     fun verifyId(
         challenge: ChargeChallenge,
         secretKey: String,
     ): Boolean {
-        val expected = computeId(challenge, secretKey).toByteArray(Charsets.UTF_8)
-        val actual = challenge.id.toByteArray(Charsets.UTF_8)
-        return MessageDigest.isEqual(expected, actual)
+        val expected = computeId(challenge, secretKey).encodeToByteArray()
+        val actual = challenge.id.encodeToByteArray()
+        return constantTimeEquals(expected, actual)
     }
 
-    /** Build the WWW-Authenticate header string for the challenge. */
+    /** Build the WWW-Authenticate header for the challenge. */
     fun toAuthHeader(challenge: ChargeChallenge): String {
         val params = LinkedHashMap<String, String>()
         params["id"] = challenge.id
@@ -149,62 +135,53 @@ internal object ChargeChallengeCodec {
 }
 
 internal object ChargeRequestCodec {
-    /** Serialize a request JSONObject to base64url(JCS). */
-    fun serialize(request: JSONObject): String {
-        val canonical = JcsJson.canonicalize(request)
-        return Base64Url.encode(canonical)
-    }
+    /** Serialize a request object to base64url(JCS). */
+    fun serialize(request: JsonObject): String = Base64Url.encode(JcsJson.canonicalize(request))
 
     /** Decode base64url + parse JSON for a `request` auth-param value. */
-    fun deserialize(encoded: String): JSONObject {
-        val json = Base64Url.decodeToString(encoded)
-        return JSONObject(json)
-    }
+    fun deserialize(encoded: String): JsonObject = Json.parseToJsonElement(Base64Url.decodeToString(encoded)).jsonObject
 
-    /**
-     * Pull out the well-known algorand-specific fields from a challenge's
-     * request object. Use only on consumer side after parsing the challenge.
-     */
-    fun parseAlgorandRequest(request: JSONObject): ChargeRequest {
-        val md = request.optJSONObject("methodDetails") ?: JSONObject()
-        val sp = md.optJSONObject("suggestedParams")
+    /** Pull well-known Algorand fields from a challenge request (consumer side). */
+    fun parseAlgorandRequest(request: JsonObject): ChargeRequest {
+        val md = request.optObject("methodDetails") ?: JsonObject(emptyMap())
+        val sp = md.optObject("suggestedParams")
         return ChargeRequest(
-            amount = request.getString("amount"),
-            currency = request.getString("currency"),
-            recipient = request.getString("recipient"),
-            description = request.optString("description").ifBlank { null },
-            externalId = request.optString("externalId").ifBlank { null },
-            network = md.optString("network").ifBlank { null },
-            asaId = md.optString("asaId").ifBlank { null },
-            challengeReference = md.getString("challengeReference"),
+            amount = request.reqString("amount"),
+            currency = request.reqString("currency"),
+            recipient = request.reqString("recipient"),
+            description = request.optString("description"),
+            externalId = request.optString("externalId"),
+            network = md.optString("network"),
+            asaId = md.optString("asaId"),
+            challengeReference = md.reqString("challengeReference"),
             // lease is REQUIRED per spec (SHA-256 of challengeReference)
-            lease = md.getString("lease"),
+            lease = md.reqString("lease"),
             feePayer = md.optBoolean("feePayer", false),
-            feePayerKey = md.optString("feePayerKey").ifBlank { null },
+            feePayerKey = md.optString("feePayerKey"),
             suggestedParams =
                 sp?.let {
                     SuggestedParams(
-                        firstValid = it.getLong("firstValid"),
-                        lastValid = it.getLong("lastValid"),
-                        genesisHash = it.getString("genesisHash"),
-                        genesisId = it.getString("genesisId"),
-                        fee = it.getLong("fee"),
-                        minFee = it.getLong("minFee"),
+                        firstValid = it.reqLong("firstValid"),
+                        lastValid = it.reqLong("lastValid"),
+                        genesisHash = it.reqString("genesisHash"),
+                        genesisId = it.reqString("genesisId"),
+                        fee = it.reqLong("fee"),
+                        minFee = it.reqLong("minFee"),
                     )
                 },
         )
     }
 
-    fun parseSolanaRequest(request: JSONObject): SolanaChargeRequest {
-        val md = request.optJSONObject("methodDetails") ?: JSONObject()
+    fun parseSolanaRequest(request: JsonObject): SolanaChargeRequest {
+        val md = request.optObject("methodDetails") ?: JsonObject(emptyMap())
         return SolanaChargeRequest(
-            amount = request.getString("amount"),
-            currency = request.getString("currency"),
-            recipient = request.getString("recipient"),
-            description = request.optString("description").ifBlank { null },
-            externalId = request.optString("externalId").ifBlank { null },
-            network = md.optString("network").ifBlank { null },
-            mint = md.optString("mint").ifBlank { null },
+            amount = request.reqString("amount"),
+            currency = request.reqString("currency"),
+            recipient = request.reqString("recipient"),
+            description = request.optString("description"),
+            externalId = request.optString("externalId"),
+            network = md.optString("network"),
+            mint = md.optString("mint"),
         )
     }
 }

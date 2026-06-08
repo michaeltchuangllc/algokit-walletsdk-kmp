@@ -1,8 +1,5 @@
 package com.michaeltchuang.walletsdk.core.railmpp
 
-import com.algorand.algosdk.transaction.SignedTransaction
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRail
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRailRequestParams
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentReceipt
@@ -10,23 +7,27 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.RailPayment
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppConsumer
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppProvider
+import com.michaeltchuang.walletsdk.core.railmpp.internal.mppDecodeTxn
+import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.spec.AuthParams
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
-import org.json.JSONObject
-import xyz.goplausible.webrtcpaymentsdk.railmpp.spec.Base64Std
-import java.util.UUID
-import kotlin.collections.get
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
- * MPP "charge" payment rail for Algorand — Kotlin port.
+ * MPP "charge" payment rail for Algorand — wire-compatible with
+ * `@goplausible/webrtc-payment-rail-mpp` (TS), so a Kotlin provider can serve a
+ * web consumer and vice versa.
  *
- * Wire-compatible with `@goplausible/webrtc-payment-rail-mpp` (TS): a Kotlin
- * provider can serve a web consumer and vice versa.
- *
- * One instance can act as either provider or consumer (or both, when used
- * by the dispatching layer in the demo). Pass [MppServerConfig] to enable
- * provider mode and [MppClientConfig] to enable consumer mode.
+ * One instance acts as provider ([MppServerConfig]), consumer ([MppClientConfig]),
+ * or both. Payloads use kotlinx [JsonObject] so the rail works on Android and iOS.
  */
 class MppPaymentRail(
     private val serverConfig: MppServerConfig? = null,
@@ -46,13 +47,14 @@ class MppPaymentRail(
     private val consumer: MppConsumer? = clientConfig?.let { MppConsumer(it) }
 
     /** Provider-side: issue a fresh challenge and embed it in PaymentRequest.railPayload. */
+    @OptIn(ExperimentalUuidApi::class)
     override suspend fun createPaymentRequest(params: PaymentRailRequestParams): PaymentRequest {
         val provider =
-            provider ?: error(
-                "MppPaymentRail: provider mode requires MppServerConfig in the constructor",
-            )
-        if (params.payTo != provider.serverConfig.recipient) {
-            error("MppPaymentRail: payTo (${params.payTo}) does not match recipient (${provider.serverConfig.recipient})")
+            provider ?: error("MppPaymentRail: provider mode requires MppServerConfig in the constructor")
+        val serverConfig =
+            serverConfig ?: error("MppPaymentRail: provider mode requires MppServerConfig in the constructor")
+        if (params.payTo != serverConfig.recipient) {
+            error("MppPaymentRail: payTo (${params.payTo}) does not match recipient (${serverConfig.recipient})")
         }
 
         val isSolana = params.network.startsWith("solana:", ignoreCase = true)
@@ -84,16 +86,16 @@ class MppPaymentRail(
 
         val challengeId = issued.challenge.id
         val railPayload =
-            JSONObject().apply {
+            buildJsonObject {
                 put("protocol", "mpp")
                 put("version", 0)
                 put("challengeId", challengeId)
                 put("wwwAuthenticate", issued.wwwAuthenticate)
-                put("issuedAt", System.currentTimeMillis())
+                put("issuedAt", mppNowMs())
             }
 
         return PaymentRequest(
-            id = UUID.randomUUID().toString(),
+            id = Uuid.random().toString(),
             sessionId = params.sessionId,
             segmentIndex = params.segmentIndex,
             amount = params.amount,
@@ -110,28 +112,25 @@ class MppPaymentRail(
     /** Consumer-side: parse the challenge, build + sign txn group, return a credential. */
     override suspend fun createRailPayment(request: PaymentRequest): RailPayment {
         val consumer =
-            consumer ?: error(
-                "MppPaymentRail: consumer mode requires MppClientConfig in the constructor",
-            )
+            consumer ?: error("MppPaymentRail: consumer mode requires MppClientConfig in the constructor")
         val payload =
-            request.railPayload as? JSONObject
-                ?: error("MppPaymentRail: PaymentRequest.railPayload must be a JSONObject")
+            request.railPayload as? JsonObject
+                ?: error("MppPaymentRail: PaymentRequest.railPayload must be a JsonObject")
         val wwwAuth =
-            payload
-                .optString("wwwAuthenticate")
-                .ifBlank { error("MppPaymentRail: railPayload missing 'wwwAuthenticate'") }
+            payload["wwwAuthenticate"]
+                ?.jsonPrimitive
+                ?.contentOrNull
+                ?.takeIf { it.isNotBlank() }
+                ?: error("MppPaymentRail: railPayload missing 'wwwAuthenticate'")
 
         val challenge = ChargeChallengeCodec.fromAuthHeader(wwwAuth)
         val credential = consumer.createCredential(challenge)
 
-        // Wrap the credential as the paymentPayload. Mirror the TS rail's wire
-        // format: { credential: "Payment ..." } so the same provider verifies both.
-        val paymentPayload =
-            JSONObject().apply {
-                put("credential", credential)
-            }
+        // Mirror the TS rail's wire format: { credential: "Payment ..." } so the
+        // same provider verifies both.
+        val paymentPayload = buildJsonObject { put("credential", credential) }
         val paymentRequirements =
-            JSONObject().apply {
+            buildJsonObject {
                 put("scheme", "charge")
                 put("network", request.network)
                 put("amount", request.amount)
@@ -154,20 +153,14 @@ class MppPaymentRail(
         request: PaymentRequest,
     ): PaymentReceipt {
         val provider =
-            provider ?: error(
-                "MppPaymentRail: provider mode requires MppServerConfig in the constructor",
-            )
+            provider ?: error("MppPaymentRail: provider mode requires MppServerConfig in the constructor")
         if (railPayment.nonce != request.nonce) {
             error("Nonce mismatch")
         }
 
         val credentialString = extractCredential(railPayment.paymentPayload)
         val authHeader =
-            if (AuthParams.hasPaymentPrefix(credentialString)) {
-                credentialString
-            } else {
-                "Payment $credentialString"
-            }
+            if (AuthParams.hasPaymentPrefix(credentialString)) credentialString else "Payment $credentialString"
 
         val receipt = provider.verifyAndBroadcast(authHeader)
 
@@ -179,35 +172,26 @@ class MppPaymentRail(
             asset = request.asset,
             payTo = request.payTo,
             payFrom = extractPayerAddress(authHeader),
-            feePayer =
-                provider.serverConfig.feePayer
-                    ?.address
-                    ?.toString(),
+            feePayer = serverConfig?.feePayer?.address,
             facilitator = null,
             network = request.network,
-            timestamp = System.currentTimeMillis(),
+            timestamp = mppNowMs(),
         )
     }
 
     private fun extractCredential(payload: Any?): String {
         if (payload is String) return payload
-        if (payload is JSONObject) {
-            val s = payload.optString("credential")
-            if (s.isNotBlank()) return s
-        }
-        // Cross-language objects from the TS rail arrive as Map<String, *> after
-        // the core SDK's JSON.parse — handle that shape too.
-        if (payload is Map<*, *>) {
-            val s = payload["credential"]?.toString()
+        if (payload is JsonObject) {
+            val s = payload["credential"]?.jsonPrimitive?.contentOrNull
             if (!s.isNullOrBlank()) return s
         }
         error("MppPaymentRail: railPayment.paymentPayload missing 'credential' field")
     }
 
-    private fun extractPayerAddress(authHeader: String): String {
-        return runCatching {
+    private fun extractPayerAddress(authHeader: String): String =
+        runCatching {
             val credential = ChargeCredentialCodec.fromAuthHeader(authHeader)
-            val paymentGroup = credential.payload.paymentGroup ?: return ""
+            val paymentGroup = credential.payload.paymentGroup ?: return@runCatching ""
             val paymentIndex = credential.payload.paymentIndex
 
             val candidateIndexes =
@@ -218,29 +202,10 @@ class MppPaymentRail(
 
             for (index in candidateIndexes) {
                 val txnBytes = Base64Std.decode(paymentGroup[index])
-
-                // Signed first, fallback to unsigned for fee-payer style flows.
-                val signed =
-                    runCatching {
-                        Encoder.decodeFromMsgPack(txnBytes, SignedTransaction::class.java)
-                    }.getOrNull()
-                val sender =
-                    if (signed?.tx != null) {
-                        signed.tx.sender.toString()
-                    } else {
-                        val unsigned = Encoder.decodeFromMsgPack(txnBytes, Transaction::class.java)
-                        unsigned.sender.toString()
-                    }
-                if (sender.isNotBlank()) return sender
+                // isFeePayerSlot = true tolerates both signed and unsigned (fee-payer) txns.
+                val sender = mppDecodeTxn(txnBytes, isFeePayerSlot = true).sender
+                if (!sender.isNullOrBlank()) return@runCatching sender
             }
-
             ""
         }.getOrDefault("")
-    }
-
-    /** Internal accessor for the provider — used by extractCredential bridging. */
-    internal val MppProvider.serverConfig: MppServerConfig
-        get() =
-            this@MppPaymentRail.serverConfig
-                ?: error("MppPaymentRail: provider mode invoked without MppServerConfig")
 }

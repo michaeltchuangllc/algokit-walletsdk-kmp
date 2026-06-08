@@ -1,7 +1,5 @@
 package com.michaeltchuang.walletsdk.core.railmpp.spec
 
-import kotlin.text.iterator
-
 /**
  * Parser/serializer for HTTP `WWW-Authenticate: Payment <params>` and
  * `Authorization: Payment <token>` headers per RFC 9110 §11.6.1.

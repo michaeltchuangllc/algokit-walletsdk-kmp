@@ -243,7 +243,6 @@ class AndroidLiquidAuthConnectionManager(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        peerConnection = peerConnection,
                         dataChannel = paymentChannel,
                         rtpSenders = emptyList(),
                         mppServerConfig =

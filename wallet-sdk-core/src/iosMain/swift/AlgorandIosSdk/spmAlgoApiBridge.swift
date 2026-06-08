@@ -1502,4 +1502,76 @@ import CommonCrypto
         guard let data = data else { return "" }
         return String(data: data, encoding: .utf8) ?? ""
     }
+
+    // MARK: - MPP Charge Helpers
+
+    /// Decodes an unsigned transaction, sets its [leaseBase64] (32-byte lease), re-encodes it,
+    /// and returns the result as base64. Used by the consumer charge flow where a lease is required.
+    public func setTxnLease(txnBase64: String, leaseBase64: String) -> String {
+        guard let txnData = Data(base64Encoded: txnBase64),
+              let leaseData = Data(base64Encoded: leaseBase64) else {
+            NSLog("❌ setTxnLease: decode failed")
+            return ""
+        }
+        do {
+            var txn = try decodeTransaction(encodedTx: txnData)
+            txn.lease = leaseData
+            let encoded = try encodeTransaction(transaction: txn)
+            return encoded.base64EncodedString()
+        } catch {
+            NSLog("❌ setTxnLease error: \(error.localizedDescription)")
+            return ""
+        }
+    }
+
+    /// Decodes a signed (or unsigned, when [allowUnsigned]) charge transaction and returns a JSON
+    /// object with the fields the provider needs to verify it. Returns "" on failure.
+    public func decodeChargeTxnJson(txnBase64: String, allowUnsigned: Bool) -> String {
+        guard let bytes = Data(base64Encoded: txnBase64) else { return "" }
+
+        var isSigned = false
+        let txn: Transaction
+        do {
+            let signed = try decodeSignedTransaction(encodedSignedTransaction: bytes)
+            txn = signed.transaction
+            isSigned = true
+        } catch {
+            if !allowUnsigned { return "" }
+            do {
+                txn = try decodeTransaction(encodedTx: bytes)
+            } catch {
+                return ""
+            }
+        }
+
+        var dict: [String: Any] = [:]
+        switch txn.transactionType {
+        case .payment: dict["type"] = "pay"
+        case .assetTransfer: dict["type"] = "axfer"
+        default: dict["type"] = "other"
+        }
+        dict["sender"] = txn.sender
+        dict["signed"] = isSigned
+        if let lease = txn.lease { dict["leaseB64"] = lease.base64EncodedString() }
+        if let group = txn.group { dict["groupB64"] = group.base64EncodedString() }
+        dict["hasRekeyTo"] = (txn.rekeyTo?.isEmpty == false)
+        if let p = txn.payment {
+            dict["receiver"] = p.receiver
+            dict["amount"] = String(p.amount)
+            dict["hasCloseRemainderTo"] = (p.closeRemainderTo?.isEmpty == false)
+        }
+        if let a = txn.assetTransfer {
+            dict["assetReceiver"] = a.receiver
+            dict["assetAmount"] = String(a.amount)
+            dict["xferAsset"] = String(a.assetId)
+            dict["hasAssetCloseTo"] = (a.closeRemainderTo?.isEmpty == false)
+        }
+        if let txId = try? getTransactionId(transaction: txn) {
+            dict["txId"] = txId
+        }
+
+        guard let jsonData = try? JSONSerialization.data(withJSONObject: dict),
+              let jsonStr = String(data: jsonData, encoding: .utf8) else { return "" }
+        return jsonStr
+    }
 }

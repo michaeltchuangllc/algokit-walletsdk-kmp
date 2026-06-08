@@ -73,12 +73,10 @@ class SetupMppPaymentViewerUseCase(
                     Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_signal_service")
                     return
                 }
-        val peerConnection =
-            service.peerConnection
-                ?: run {
-                    Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
-                    return
-                }
+        if (service.peerConnection == null) {
+            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
+            return
+        }
         val accountAddress =
             params.viewerAddress?.takeIf { it.isNotBlank() }
                 ?: run {
@@ -134,7 +132,6 @@ class SetupMppPaymentViewerUseCase(
                 )
                 liquidStreamViewer =
                     LiquidStreamViewer(
-                        peerConnection = peerConnection,
                         dataChannel = paymentChannel,
                         mppClientConfig =
                             MppClientConfig(
