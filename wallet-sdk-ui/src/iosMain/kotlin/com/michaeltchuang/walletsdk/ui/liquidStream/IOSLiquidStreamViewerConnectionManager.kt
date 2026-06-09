@@ -31,6 +31,9 @@ var activeIOSViewerConnectionManager: IOSLiquidStreamViewerConnectionManager? = 
 var iosViewerStartHandler: ((origin: String, requestId: String) -> Unit)? = null
 var iosViewerStopHandler: (() -> Unit)? = null
 var iosViewerSendMessageHandler: ((message: String) -> Unit)? = null
+
+var iosViewerPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
+
 var iosViewerIsConnectedHandler: (() -> Boolean)? = null
 var iosViewerDetectConnectionTypeHandler: (() -> String)? = null
 
@@ -151,15 +154,10 @@ class IOSLiquidStreamViewerConnectionManager {
     // Android host path consent continuation (MPP direct payment — no deposit needed).
     private var paymentConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
+    private var viewerAuthorizedSignerPublicKey: ByteArray? = null
+
     // ── IOSLiquidStreamViewer integration (both Android and iOS hosts) ────────
 
-    /**
-     * Bundles `MppPaymentRail` + `PaywalledRTCClient` + `IOSRtcDataChannel` into one object.
-     * Handles the full `segment:request` → `segment:payment` protocol for ANY host running
-     * `PaywalledRTCServer` — whether Android or iOS.
-     *
-     * Set via [setupPaymentRail]; null until the caller provides an [MppClientConfig].
-     */
     private var streamViewer: IOSLiquidStreamViewer? = null
 
     private var activeOrigin: String? = null
@@ -210,6 +208,7 @@ class IOSLiquidStreamViewerConnectionManager {
         pendingConsentContinuation = null
         paymentConsentContinuation?.cancel()
         paymentConsentContinuation = null
+        viewerAuthorizedSignerPublicKey = null
         // Clean up IOSLiquidStreamViewer (terminates PaywalledRTCClient + IOSRtcDataChannel).
         streamViewer?.terminate()
         streamViewer = null
@@ -274,22 +273,21 @@ class IOSLiquidStreamViewerConnectionManager {
 
     // ── IOSLiquidStreamViewer setup (Android + iOS hosts) ────────────────────
 
-    /**
-     * Creates an [IOSLiquidStreamViewer] for any host that speaks the `PaywalledRTCServer`
-     * DC protocol (`segment:request` / `segment:payment`).
-     *
-     * Call this from `AnswerScreenOverlay` once the viewer's `MppWalletSigner` is available.
-     * Works for both:
-     *  - **Android hosts** (always use `PaywalledRTCServer`)
-     *  - **iOS hosts** when `iosBroadcastUsePaywalledRTCServer` is `true`
-     *
-     * [IOSLiquidStreamViewer] bundles `MppPaymentRail` + `PaywalledRTCClient` +
-     * `IOSRtcDataChannel` — a single object mirroring Android's `LiquidStreamViewer`.
-     * If the connection is already CONNECTED the viewer is opened immediately so it is
-     * ready to handle the first `segment:request`.
-     */
-    fun setupPaymentRail(mppClientConfig: MppClientConfig) {
+    var onReceiptVoucherNeeded: (suspend (
+        sessionId: String,
+        viewerAddress: String,
+        hostAddress: String,
+        totalAmountClaimedMicroUsdc: Long,
+        segmentDebitMicroUsdc: Long,
+        remainingMicroUsdc: Long,
+        sendMessageFn: (String) -> Unit,
+    ) -> Unit)? = null
+
+    fun setupPaymentRail(mppClientConfig: MppClientConfig, authorizedSignerPublicKey: ByteArray? = null) {
         streamViewer?.terminate()
+        if (authorizedSignerPublicKey != null) {
+            viewerAuthorizedSignerPublicKey = authorizedSignerPublicKey
+        }
 
         val consentHandler = object : ConsentHandler {
             override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
@@ -303,7 +301,8 @@ class IOSLiquidStreamViewerConnectionManager {
                                 viewerAddress = viewer,
                                 hostAddress = host,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = null,
+                                // Use the cached signer key so the channel ID matches deposits.
+                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
                             ),
                         ).getOrDefault(0L)
                     }.getOrDefault(0L)
@@ -333,6 +332,42 @@ class IOSLiquidStreamViewerConnectionManager {
             consentHandler = consentHandler,
             clientConfig = ClientConfig(autoPaySegments = false),
         )
+
+        // ── Voucher sending on each accepted segment ──────────────────────────
+        // Mirror the Android viewer: after every segment:accepted receipt, generate
+        // a signed liquid:payment:voucher and send it to the host so the host's
+        // LiquidStreamBlockConsumptionManager can settle on-chain.
+        var segmentClaimedMicroUsdc = 0L
+        viewer.onPaymentAccepted = { receipt ->
+            scope.launch {
+                val voucherHandler = onReceiptVoucherNeeded ?: run {
+                    println("$TAG: ⚠️ VOUCHER_SKIP — onReceiptVoucherNeeded not set (wire it in AnswerScreenOverlay)")
+                    return@launch
+                }
+                val viewerAddr = _viewerAddress.value
+                val hostAddr = _hostAddress.value
+                if (viewerAddr.isBlank() || hostAddr.isBlank()) {
+                    println("$TAG: ⚠️ VOUCHER_SKIP — viewer='$viewerAddr' host='$hostAddr' not yet known")
+                    return@launch
+                }
+                val debit = receipt.amount.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
+                segmentClaimedMicroUsdc = (segmentClaimedMicroUsdc + debit).coerceAtLeast(1L)
+                println(
+                    "$TAG: VOUCHER_TRIGGER session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                        "debit=$debit cumulative=$segmentClaimedMicroUsdc viewer=$viewerAddr host=$hostAddr",
+                )
+                voucherHandler(
+                    receipt.sessionId,
+                    viewerAddr,
+                    hostAddr,
+                    segmentClaimedMicroUsdc,
+                    debit,
+                    _remainingBalanceMicroUsdc.value,
+                    ::sendMessage,
+                )
+            }
+        }
+
         streamViewer = viewer
         viewer.start()
 
@@ -396,17 +431,6 @@ class IOSLiquidStreamViewerConnectionManager {
 
     // ── MPP Consent API (called from Compose UI) ──────────────────────────────
 
-    /**
-     * Called by the Compose UI when the user approves the payment consent dialog.
-     * [enteredAmountUsdc] is the user-entered top-up amount in whole USDC (e.g. "1.0").
-     *
-     * Behaviour differs by host type:
-     * - **`PaywalledRTCServer` hosts** (Android, or iOS with `iosBroadcastUsePaywalledRTCServer = true`):
-     *   uses `segment:request` / `segment:payment`. No session-vault deposit needed — `IOSLiquidStreamViewer`
-     *   sends a proper `segment:payment` MPP credential directly. The approval is forwarded immediately.
-     * - **Legacy iOS host** (`liquid:payment:request`): performs a session-vault deposit on-chain then
-     *   completes the consent deferred so the stream starts.
-     */
     @Suppress("unused")
     fun approveMppConsent(enteredAmountUsdc: String) {
         val entered = enteredAmountUsdc.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
@@ -537,15 +561,6 @@ class IOSLiquidStreamViewerConnectionManager {
         sendMessage(hello)
     }
 
-    /**
-     * Routes an incoming DC message to the appropriate handler.
-     *
-     * Message format disambiguation:
-     * - `"reference"` key → legacy iOS host format (`liquid:payment:request`): session-vault path.
-     * - `"type"` key      → `PaywalledRTCServer` protocol (Android hosts, or iOS hosts with
-     *                       `iosBroadcastUsePaywalledRTCServer = true`): routed to
-     *                       `IOSLiquidStreamViewer` → `PaywalledRTCClient`.
-     */
     private fun handleMessage(message: String) {
         when (val reference = message.jsonOptString("reference")) {
             "liquid:video:frame" -> handleVideoFrame(message)
@@ -637,14 +652,6 @@ class IOSLiquidStreamViewerConnectionManager {
         }
     }
 
-    /**
-     * Handles an iOS-format (`liquid:payment:request`) payment request from the host.
-     *
-     * iOS hosts use the session-vault model: the viewer deposits USDC to an on-chain contract,
-     * then the host checks the balance rather than waiting for a DC payment response.
-     * This path therefore shows a consent/deposit dialog and does NOT send a `segment:payment`
-     * back over the DataChannel (unlike the paywalled host path handled by `IOSLiquidStreamViewer`).
-     */
     private fun handlePaymentRequest(message: String) {
         runCatching {
             val sessionId = message.jsonOptString("id") ?: run {
@@ -685,7 +692,7 @@ class IOSLiquidStreamViewerConnectionManager {
                                 viewerAddress = viewer,
                                 hostAddress = host,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = null,
+                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
                             ),
                         ).getOrDefault(0L)
                     }.getOrDefault(0L)
@@ -777,7 +784,9 @@ class IOSLiquidStreamViewerConnectionManager {
                                 viewerAddress = viewerAddress,
                                 hostAddress = hostAddress,
                                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = null,
+                                // Use the cached signer key so the channel ID matches the one
+                                // used when the session vault was opened / topped up.
+                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
                             ),
                         ).getOrDefault(0L)
                         _remainingBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)

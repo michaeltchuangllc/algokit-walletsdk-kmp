@@ -37,36 +37,11 @@ var iosBroadcastStopHandler: (() -> Unit)? = null
  */
 var iosBroadcastSendMessageHandler: ((message: String) -> Unit)? = null
 
-/**
- * Sends a message on the DEDICATED "x402-payment-channel" DataChannel.
- * Used ONLY by `IOSLiquidStreamCreator` / `PaywalledRTCServer` for payment messages
- * (`segment:request`, `segment:accepted`, etc.).
- *
- * Set by Swift in `iosApp.swift` AFTER the payment DC is successfully created
- * (i.e. after the general DC opens and `createAdditionalDataChannel` succeeds).
- *
- * Falls back to [iosBroadcastSendMessageHandler] when null — this allows the
- * setup to work even before the payment DC is created (though messages may go
- * to the wrong channel if fallback is used, so Swift must set this promptly).
- */
 var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
 
-/**
- * Called by Kotlin when a new (higher-claimed) `liquid:payment:voucher` snapshot is captured
- * from the Android viewer. Swift should implement this to call `MppPayments.claimVoucherFromViewer`
- * using the HOST's wallet signer, which updates `lastSettled` in the session vault.
- *
- * Parameters:
- *   sessionId            — payment session ID
- *   viewerAddress        — Android viewer's Algorand address
- *   hostAddress          — iOS host's Algorand address
- *   claimedMicroUsdc     — total amount claimed (cumulative) in microUSDC
- *   signatureBase64      — Ed25519 signature over the voucher bytes (Base64-encoded)
- *   viewerPublicKeyBase64— viewer's authorized signer public key (Base64-encoded)
- */
 var iosBroadcastClaimVoucherHandler: ((
     sessionId: String,
     viewerAddress: String,
@@ -76,21 +51,9 @@ var iosBroadcastClaimVoucherHandler: ((
     viewerPublicKeyBase64: String,
 ) -> Unit)? = null
 
-/**
- * HMAC secret used by `PaywalledRTCServer` (inside `IOSLiquidStreamCreator`) when issuing MPP challenges.
- * Override from Swift before establishing a connection:
- * ```swift
- * LiquidAuthConnectionManagerKt.iosBroadcastMppSecretKey = "your-per-deployment-secret"
- * ```
- * For production, use a per-deployment secret stored in the keychain.
- */
+
 var iosBroadcastMppSecretKey: String = "ios-host-mpp-secret"
 
-/**
- * When `true` (default), the iOS host uses `IOSLiquidStreamCreator` / `PaywalledRTCServer` and sends
- * `{"type":"segment:request",...}` — the same wire format as Android.
- * Set to `false` to fall back to the legacy `{"reference":"liquid:payment:request",...}` format.
- */
 var iosBroadcastUsePaywalledRTCServer: Boolean = true
 
 private const val TAG = "IOSLiquidAuthCM"
@@ -123,21 +86,8 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     // ── IOSLiquidStreamCreator (host payment channel) ─────────────────────────
 
-    /**
-     * Non-null while a host payment session is active.
-     * `IOSLiquidStreamCreator` bundles `MppPaymentRail` + `PaywalledRTCServer` +
-     * `IOSRtcDataChannel` + `IOSRtcRtpSender` into a single object.
-     */
     private var streamCreator: IOSLiquidStreamCreator? = null
 
-    /**
-     * Frame-level gate controlled by `PaywalledRTCServer` segment boundaries.
-     * `true` while the segment payment is pending — `sendVideoFrame` drops all frames.
-     * `false` once payment is verified and the stream is resumed.
-     *
-     * This replaces `IOSRtcRtpSender.iosBroadcastGateVideoHandler` for the frame-based
-     * demo app which sends JPEG data over the DataChannel instead of an RTCVideoTrack.
-     */
     private var isVideoGated = false
 
     /** Stored gating config for the current server session (used to rebuild [ServerConfig] on viewer-hello). */
@@ -239,17 +189,6 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     override fun isConnected(): Boolean = iosBroadcastIsConnectedHandler?.invoke() ?: false
 
-    /**
-     * Starts an `IOSLiquidStreamCreator` session (when `iosBroadcastUsePaywalledRTCServer` is true)
-     * or falls back to the legacy `liquid:payment:request` format.
-     *
-     * With `IOSLiquidStreamCreator` the iOS host follows the same wire protocol as Android:
-     *  1. Server sends `{"type":"segment:request",...}` → viewer must reply with `{"type":"segment:payment",...}`
-     *  2. Server verifies the on-chain payment → calls `onPaymentSettled` → `startVideoStreaming()`
-     *
-     * Swift must set `iosBroadcastGateVideoHandler` on IOSRtcRtpSender so the server can
-     * gate/ungate the host's video track during segment transitions.
-     */
     override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         println(
             "$TAG: 💰 sendPaymentRequest — session=${paymentRequest.id} " +
@@ -275,13 +214,6 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         }
     }
 
-    /**
-     * Creates an [IOSLiquidStreamCreator] and starts the paywalled host session.
-     *
-     * `IOSLiquidStreamCreator` bundles `MppPaymentRail` + `PaywalledRTCServer` +
-     * `IOSRtcDataChannel` + `IOSRtcRtpSender` — a single object that mirrors
-     * Android's `LiquidStreamCreator`.  This replaces the previous manual inline construction.
-     */
     private fun startPaywalledRTCServer(paymentRequest: PaymentRequest) {
         if (streamCreator != null) {
             println("$TAG: IOSLiquidStreamCreator already active — skipping duplicate")

@@ -30,8 +30,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -46,8 +44,8 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
@@ -62,7 +60,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.Encoder
 import foundation.algorand.provider.Message
@@ -71,8 +68,6 @@ import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -90,12 +85,12 @@ class AnswerViewModel(
     private val passkeyRepository: PasskeyRepository,
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     private val getAccountMnemonic: GetAccountMnemonic,
-    private val getAlgo25SecretKey: GetAlgo25SecretKey,
+    getAlgo25SecretKey: GetAlgo25SecretKey,
     private val timeProvider: TimeProvider,
-    private val getFalcon24SecretKey: GetFalcon24SecretKey,
-    private val getLocalAccount: GetLocalAccount,
-    private val getLocalAccounts: GetLocalAccounts,
-    private val getSeed: GetHdSeed,
+    getFalcon24SecretKey: GetFalcon24SecretKey,
+    getLocalAccount: GetLocalAccount,
+    getLocalAccounts: GetLocalAccounts,
+    getSeed: GetHdSeed,
     private val processBiometricTransactionSigningUseCase: ProcessBiometricTransactionSigningUseCase,
     private val registerPasskeyUseCase: RegisterPasskeyUseCase,
     private val prepareAuthenticationUseCase: PrepareAuthenticationUseCase,
@@ -106,13 +101,22 @@ class AnswerViewModel(
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val logAppSignatureUseCase: LogAppSignatureUseCase,
     private val providerHttpClientUseCase: ProvideHttpClientUseCase,
-    private val getAccountAlgoBalance: GetAccountAlgoBalance,
-    private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
+    getAccountAlgoBalance: GetAccountAlgoBalance,
+    getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
-) : LiquidAuthViewerStateHolder(),
+) : CommonAnswerViewModel(
+    getCurrentBlockUseCase = getCurrentBlockUseCase,
+    getAccountAlgoBalance = getAccountAlgoBalance,
+    getLocalAccount = getLocalAccount,
+    getLocalAccounts = getLocalAccounts,
+    getAlgo25SecretKey = getAlgo25SecretKey,
+    getFalcon24SecretKey = getFalcon24SecretKey,
+    getSeed = getSeed,
+),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
+
     companion object {
         private const val TAG = "AnswerViewModel"
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
@@ -121,29 +125,31 @@ class AnswerViewModel(
 
     // State
     override val viewEvent: Flow<ViewEvent> get() = eventDelegate.viewEvent
+
     val userAgent: String by lazy {
         val applicationId = "com.michaeltchuang.walletsdk.demo"
         val versionName = "1.0"
         "$applicationId/$versionName (Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
     }
+
     private val uuidGenerator = Generators.timeBasedEpochRandomGenerator()
     private val providerId = uuidGenerator.generate().toString()
     private var currentAccountType: String = "algorand"
-    private val encoder =
-        Encoder()
+    private val encoder = Encoder()
+
     var currentChallenge: ByteArray? = null
     var showConfirmationDialog = MutableStateFlow(false)
+
     private val _pendingSignTransactionsParams = MutableStateFlow<SignTransactionsParams?>(null)
-    val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> =
-        _pendingSignTransactionsParams
+    val pendingSignTransactionsParams: StateFlow<SignTransactionsParams?> = _pendingSignTransactionsParams
+
     private val _pendingSignMessage = MutableStateFlow<Message?>(null)
     val pendingSignMessage: StateFlow<Message?> = _pendingSignMessage
+
     private var signalServiceConnection: ServiceConnection? = null
-    private val _signalService =
-        MutableStateFlow<SignalService?>(
-            null,
-        )
+    private val _signalService = MutableStateFlow<SignalService?>(null)
     val signalService = _signalService
+
     private var attestationApiResponse: String? = null
 
     /**
@@ -194,19 +200,6 @@ class AnswerViewModel(
         _signalService.value = null
     }
 
-    // --- Balance/AVM operations ---
-    fun fetchAccountBalance() {
-        viewModelScope.launch {
-            try {
-                val balance = getAccountAlgoBalance(accountAddress.value)
-                setAccountBalance(balance.toString())
-                println("Fetched account balance: ${balance?.toString() ?: "0"}")
-            } catch (e: Exception) {
-                println("Exception fetching account balance: ${e.message}")
-            }
-        }
-    }
-
     // --- Credential Management ---
     suspend fun saveCredential(
         account: String,
@@ -229,20 +222,12 @@ class AnswerViewModel(
     suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
         val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
         if (credentialId != null) {
-            Napier.d(
-                tag = TAG,
-                message = "Deleting credential: $credentialId for address: $accountAddress",
-            )
+            Napier.d(tag = TAG, message = "Deleting credential: $credentialId for address: $accountAddress")
             passkeyRepository.removePasskeyByCredentialId(credentialId)
         } else {
-            Napier.w(
-                tag = TAG,
-                message = "No credential found to delete for address: $accountAddress",
-            )
+            Napier.w(tag = TAG, message = "No credential found to delete for address: $accountAddress")
         }
     }
-
-    suspend fun getAvailableAccountAddresses(): List<String> = getLocalAccounts().map { it.address }.distinct()
 
     fun getCredentialMessage(
         account: String,
@@ -270,125 +255,6 @@ class AnswerViewModel(
             onFailed = { _, _ -> return@use null },
         )
         return mnemonicValue
-    }
-
-    suspend fun signFido2Challenge(
-        challenge: ByteArray,
-        address: String,
-    ): ByteArray? {
-        println("DEBUG: signFido2Challenge called for address: $address")
-        val localAccount =
-            getLocalAccount(address) ?: run {
-                println("DEBUG: getLocalAccount returned null for $address")
-                return null
-            }
-        println("DEBUG: localAccount type: ${localAccount::class.simpleName}")
-        return when (localAccount) {
-            is LocalAccount.Algo25 -> {
-                println("DEBUG: Algo25 account, calling getAlgo25SecretKey")
-                val secretKey =
-                    getAlgo25SecretKey(address) ?: run {
-                        println("DEBUG: getAlgo25SecretKey returned null")
-                        return null
-                    }
-                println("DEBUG: Got secretKey with size: ${secretKey.size}")
-                val result = signAlgo25ArbitraryData(challenge, secretKey)
-                println("DEBUG: signAlgo25ArbitraryData returned: ${result != null}")
-                result
-            }
-
-            is LocalAccount.HdKey -> {
-                val seed = getSeed(localAccount.seedId) ?: return null
-                signHdKeyData(
-                    challenge,
-                    seed,
-                    localAccount.account,
-                    localAccount.change,
-                    localAccount.keyIndex,
-                )
-            }
-
-            is LocalAccount.Falcon24 -> {
-                val privateKey = getFalcon24SecretKey(address) ?: return null
-                if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
-                    println("DEBUG: signFido2Challenge skipped — empty input for Falcon24 signing")
-                    return null
-                }
-                try {
-                    signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
-                } catch (t: Throwable) {
-                    println("DEBUG: signFalcon24ArbitraryData threw: ${t.message}")
-                    null
-                }
-            }
-
-            is LocalAccount.SeedVault -> {
-                // Seed Vault keys are non-exportable; signing requires Seed Vault signing API flow.
-                println("DEBUG: SeedVault account detected; FIDO2 challenge signing not yet implemented for SeedVault")
-                null
-            }
-
-            else -> null
-        }
-    }
-
-    suspend fun getFee(): String {
-        val localAccount = getLocalAccount(this@AnswerViewModel.accountAddress.value)
-        return when (localAccount) {
-            is LocalAccount.Falcon24 -> "0.004"
-            else -> "0.001"
-        }
-    }
-
-    suspend fun isSeedVaultAccount(address: String): Boolean = getLocalAccount(address) is LocalAccount.SeedVault
-
-    suspend fun getAccountTypeForFido2(address: String): String {
-        val localAccount = getLocalAccount(address)
-        return when (localAccount) {
-            is LocalAccount.Falcon24 -> "falcon-1024"
-            is LocalAccount.SeedVault -> "solana"
-            else -> "algorand"
-        }
-    }
-
-    suspend fun resolveLocalAccount(address: String): LocalAccount? = getLocalAccount(address)
-
-    suspend fun resolveAlgo25SecretKey(address: String): ByteArray? = getAlgo25SecretKey(address)
-
-    suspend fun resolveFalcon24SecretKey(address: String): ByteArray? = getFalcon24SecretKey(address)
-
-    suspend fun resolveSeed(seedId: Int): ByteArray? = getSeed(seedId)
-
-    suspend fun getAccountPublicKey(address: String): ByteArray {
-        val localAccount = getLocalAccount(address)
-        return when (localAccount) {
-            is LocalAccount.Falcon24 -> localAccount.publicKey
-            is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Algo25 -> {
-                // Get secret key and extract public key (last 32 bytes of 64-byte expanded key)
-                val secretKey = getAlgo25SecretKey(address)
-                if (secretKey != null && secretKey.size == 64) {
-                    secretKey.copyOfRange(32, 64) // Last 32 bytes are the public key
-                } else {
-                    ByteArray(0)
-                }
-            }
-
-            is LocalAccount.SeedVault -> {
-                val decoded = decodeBase58(localAccount.publicKey)
-                if (decoded == null || decoded.size != 32) {
-                    Napier.e(
-                        tag = TAG,
-                        message = "Invalid SeedVault public key format for address=${localAccount.address}, decodedLength=${decoded?.size}",
-                    )
-                    ByteArray(0)
-                } else {
-                    decoded
-                }
-            }
-
-            else -> ByteArray(0)
-        }
     }
 
     // --- AVM & DataChannel Message Logic ---
@@ -420,17 +286,11 @@ class AnswerViewModel(
                     "liquid:payment:voucher",
                     "liquid:payment:depleted",
                     -> {
-                        Napier.d(
-                            tag = TAG,
-                            message = "💳 Liquid payment JSON message detected: $reference",
-                        )
+                        Napier.d(tag = TAG, message = "💳 Liquid payment JSON message: $reference")
                     }
 
                     else -> {
-                        Napier.w(
-                            tag = TAG,
-                            message = "⚠️ Unknown JSON message reference: $reference",
-                        )
+                        Napier.w(tag = TAG, message = "⚠️ Unknown JSON message reference: $reference")
                     }
                 }
                 return
@@ -441,7 +301,6 @@ class AnswerViewModel(
                     .withPadding(Base64.PaddingOption.ABSENT)
                     .decode(msgStr)
 
-            // Log first bytes to verify incoming CBOR encoding type
             if (cborBytes.isNotEmpty()) {
                 val firstBytes = cborBytes.take(10).joinToString(" ") { "0x%02X".format(it) }
                 Napier.d(tag = TAG, message = "Incoming CBOR first bytes: $firstBytes")
@@ -449,11 +308,7 @@ class AnswerViewModel(
                     tag = TAG,
                     message =
                         "Incoming CBOR encoding: " +
-                            if (cborBytes[0].toInt() and 0x1F == 0x1F) {
-                                "INDEFINITE-LENGTH"
-                            } else {
-                                "DEFINITE-LENGTH"
-                            },
+                            if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH" else "DEFINITE-LENGTH",
                 )
             }
 
@@ -468,17 +323,10 @@ class AnswerViewModel(
                     viewModelScope.launch {
                         val params =
                             encoder.decode<SignTransactionsParams>(
-                                encoder.encode(
-                                    request.params,
-                                    EncoderType.NONE,
-                                ),
+                                encoder.encode(request.params, EncoderType.NONE),
                                 EncoderType.NONE,
                             )
-                        Napier.d(
-                            tag = TAG,
-                            message = "Decoded ${params.txns.size} transaction(s) from request",
-                        )
-                        Napier.d(tag = TAG, message = "Provider ID: ${params.providerId}")
+                        Napier.d(tag = TAG, message = "Decoded ${params.txns.size} transaction(s)")
                         _pendingSignTransactionsParams.value = params
                         _pendingSignMessage.value = message
                         showConfirmationDialog.value = true
@@ -487,17 +335,12 @@ class AnswerViewModel(
                 }
 
                 "liquid:video:frame" -> {
-                    Napier.d(tag = TAG, message = "🎥 Video frame message detected (CBOR encoded)")
-                    // Some peers may send ARC-style video-frame references via CBOR envelope.
-                    // Fall back to JSON parser using original payload so viewer still renders frames.
+                    Napier.d(tag = TAG, message = "🎥 Video frame message (CBOR encoded)")
                     handleVideoFrameMessage(msgStr, onVideoFrame)
                 }
 
                 else -> {
-                    Napier.w(
-                        tag = TAG,
-                        message = "⚠️ Unknown request reference: ${request.reference}",
-                    )
+                    Napier.w(tag = TAG, message = "⚠️ Unknown request reference: ${request.reference}")
                 }
             }
         } catch (e: Throwable) {
@@ -506,9 +349,6 @@ class AnswerViewModel(
         }
     }
 
-    /**
-     * Handle video frame messages from broadcaster
-     */
     private fun handleVideoFrameMessage(
         msgStr: String,
         onVideoFrame: ((VideoFrameData) -> Unit)?,
@@ -516,11 +356,7 @@ class AnswerViewModel(
         try {
             val json = JSONObject(msgStr)
             val dataBase64 = json.getString("data")
-            val frameData =
-                java.util.Base64
-                    .getDecoder()
-                    .decode(dataBase64)
-
+            val frameData = java.util.Base64.getDecoder().decode(dataBase64)
             val videoFrame =
                 VideoFrameData(
                     id = json.getString("id"),
@@ -530,25 +366,15 @@ class AnswerViewModel(
                     height = json.getInt("height"),
                     format = json.optString("format", "jpeg"),
                 )
-
-            Napier.d(
-                tag = TAG,
-                message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes",
-            )
+            Napier.d(tag = TAG, message = "🎥 Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
             onVideoFrame?.invoke(videoFrame)
         } catch (e: Exception) {
             Napier.e(tag = TAG, message = "❌ Failed to decode video frame: $e")
         }
     }
 
-    private val _currentBlockNumber = MutableStateFlow<Long?>(null)
-    val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
-    private var blockNumberPollingJob: Job? = null
-
-    /**
-     * Encode ResponseMessage to CBOR bytes
-     */
-    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray = encoder.encode(responseMessage, EncoderType.CBOR)
+    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray =
+        encoder.encode(responseMessage, EncoderType.CBOR)
 
     fun handleMessage(message: Message): Any {
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
@@ -556,10 +382,7 @@ class AnswerViewModel(
             "arc0027:sign_transactions:request" -> {
                 val params =
                     encoder.decode<SignTransactionsParams>(
-                        encoder.encode(
-                            decoded.params,
-                            EncoderType.NONE,
-                        ),
+                        encoder.encode(decoded.params, EncoderType.NONE),
                         EncoderType.NONE,
                     )
                 val result = runBlocking { processSignTransactions(params) }
@@ -591,7 +414,6 @@ class AnswerViewModel(
 
     fun consumeViewerRuntimeStateForUi() {
         // Keep runtime state in ViewModel so UI can be detached from activity recreation.
-        // This method exists as an explicit phase-2 handoff marker for callers.
     }
 
     suspend fun topUpViewerSessionVault(
@@ -613,10 +435,7 @@ class AnswerViewModel(
                         additionalDepositMicroUsdc = depositMicroUsdc,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                     ).getOrThrow()
-            Log.e(
-                TAG,
-                "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress amountMicroUsdc=$depositMicroUsdc txId=$txId",
-            )
+            Log.e(TAG, "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress txId=$txId")
 
             val onChainRemaining =
                 getRemainingSessionVaultBalanceUseCase(
@@ -629,14 +448,9 @@ class AnswerViewModel(
                 ).getOrThrow()
 
             setViewerSessionVaultBalance(onChainRemaining)
-
             onChainRemaining
         }.onFailure { throwable ->
-            Log.e(
-                TAG,
-                "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress amountMicroUsdc=$depositMicroUsdc",
-                throwable,
-            )
+            Log.e(TAG, "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress", throwable)
         }
     }
 
@@ -664,9 +478,7 @@ class AnswerViewModel(
                                 Log.e(TAG, "Missing Algo25 key for $address")
                                 return ByteArray(0)
                             }
-                            val txnBytes =
-                                com.algorand.algosdk.util.Encoder
-                                    .encodeToMsgPack(txn)
+                            val txnBytes = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn)
                             val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
                             if (signature == null) {
                                 Log.e(TAG, "Algo25 arbitrary signing failed for $address")
@@ -684,10 +496,7 @@ class AnswerViewModel(
                                 return ByteArray(0)
                             }
                             signHdKeyTransaction(
-                                transactionByteArray =
-                                    com.algorand.algosdk.util.Encoder.encodeToMsgPack(
-                                        txn,
-                                    ),
+                                transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn),
                                 seed = seed,
                                 account = localAccount.account,
                                 change = localAccount.change,
@@ -712,10 +521,7 @@ class AnswerViewModel(
                         }
 
                         else -> {
-                            Log.e(
-                                TAG,
-                                "Unsupported account for MPP wallet signing: ${localAccount::class.simpleName}",
-                            )
+                            Log.e(TAG, "Unsupported account for MPP wallet signing: ${localAccount::class.simpleName}")
                             ByteArray(0)
                         }
                     }
@@ -757,11 +563,7 @@ class AnswerViewModel(
         privateKey: ByteArray,
     ): ByteArray {
         val signed =
-            signFalconTxnGroupFromBundle(
-                txns = listOf(txn),
-                publicKey = publicKey,
-                privateKey = privateKey,
-            )
+            signFalconTxnGroupFromBundle(txns = listOf(txn), publicKey = publicKey, privateKey = privateKey)
         return signed.firstOrNull() ?: run {
             Log.e(TAG, "Falcon bundle returned no signed txn")
             ByteArray(0)
@@ -779,21 +581,12 @@ class AnswerViewModel(
 
         val candidates =
             listOf(trimmed, addPadding(trimmed))
-                .flatMap { value ->
-                    listOf(value, value.replace('+', '-').replace('/', '_'))
-                }.distinct()
+                .flatMap { value -> listOf(value, value.replace('+', '-').replace('/', '_')) }
+                .distinct()
 
         candidates.forEach { candidate ->
-            runCatching {
-                java.util.Base64
-                    .getDecoder()
-                    .decode(candidate)
-            }.getOrNull()?.let { return it }
-            runCatching {
-                java.util.Base64
-                    .getUrlDecoder()
-                    .decode(candidate)
-            }.getOrNull()?.let { return it }
+            runCatching { java.util.Base64.getDecoder().decode(candidate) }.getOrNull()?.let { return it }
+            runCatching { java.util.Base64.getUrlDecoder().decode(candidate) }.getOrNull()?.let { return it }
             runCatching { Base64.UrlSafe.withPadding(Base64.PaddingOption.PRESENT).decode(candidate) }.getOrNull()?.let { return it }
         }
         return null
@@ -835,32 +628,15 @@ class AnswerViewModel(
             return emptyList()
         }
 
-        Log.e(
-            TAG,
-            "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
-        )
+        Log.e(TAG, "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}")
 
-        // Dispatch the entire BytesArray construction + Go call onto the dedicated
-        // GoMobile OS thread.  Go's GC write-barrier requires pointer-containing types
-        // (like BytesArray.v [][]byte) to be at 8-byte-aligned addresses.  Thread-pool
-        // threads may call Go from a context not yet initialised by the Go runtime,
-        // triggering "fatal error: bulkBarrierPreWrite: unaligned arguments".
-        // A single persistent OS thread ensures consistent, properly-aligned execution.
         return withContext(GoMobileDispatcher.dispatcher) {
-            val expectedTxns =
-                txns.map {
-                    com.algorand.algosdk.util.Encoder
-                        .encodeToMsgPack(it)
-                }
+            val expectedTxns = txns.map { com.algorand.algosdk.util.Encoder.encodeToMsgPack(it) }
             val expectedTxIds = txns.map { it.txID() }
             val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
             val resultCsv =
                 try {
-                    Sdk.signFalconBundle(
-                        txnList,
-                        publicKey.copyOf(),
-                        privateKey.copyOf(),
-                    )
+                    Sdk.signFalconBundle(txnList, publicKey.copyOf(), privateKey.copyOf())
                 } catch (t: Throwable) {
                     Log.e(TAG, "[FALCON_BUNDLE_SIGN_FAILED] error=${t.message}", t)
                     return@withContext emptyList()
@@ -876,48 +652,26 @@ class AnswerViewModel(
                 rawSigned
                     .mapNotNull { signedBytes ->
                         runCatching {
-                            val signed =
-                                com.algorand.algosdk.util.Encoder
-                                    .decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                            val signed = com.algorand.algosdk.util.Encoder.decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
                             val signedTxn = signed.tx ?: return@runCatching null
                             Triple(signedTxn.txID(), signedTxn, signedBytes)
                         }.getOrNull()
                     }
 
             val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-            val decodedFirstGroup =
-                decodedSigned
-                    .firstOrNull()
-                    ?.second
-                    ?.group
-                    ?.toString()
-            val decodedAllGrouped =
-                decodedSigned.all {
-                    it.second.group != null &&
-                        it.second.group
-                            .toString()
-                            .isNotBlank()
-                }
+            val decodedFirstGroup = decodedSigned.firstOrNull()?.second?.group?.toString()
+            val decodedAllGrouped = decodedSigned.all { it.second.group != null && it.second.group.toString().isNotBlank() }
 
             Log.e(
                 TAG,
-                "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
+                "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} " +
+                    "expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup " +
+                    "decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
             )
 
-            // Go signer behavior: if incoming txns have no group ID, it may inject dummies and return expanded group.
-            // In that mode we must return the full signed set for broadcast, not only the requested subset.
-            if (txns.firstOrNull()?.group == null ||
-                txns
-                    .firstOrNull()
-                    ?.group
-                    .toString()
-                    .isBlank()
-            ) {
+            if (txns.firstOrNull()?.group == null || txns.firstOrNull()?.group.toString().isBlank()) {
                 if (rawSigned.size > txns.size) {
-                    Log.e(
-                        TAG,
-                        "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
-                    )
+                    Log.e(TAG, "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}")
                     return@withContext rawSigned
                 }
             }
@@ -938,47 +692,15 @@ class AnswerViewModel(
                     if (semanticMatchIndex >= 0) {
                         out += remaining.removeAt(semanticMatchIndex).third
                     } else {
-                        Log.e(
-                            TAG,
-                            "Falcon bundle missing signed txn for grouped request txId=$expectedTxId",
-                        )
+                        Log.e(TAG, "Falcon bundle missing signed txn for grouped request txId=$expectedTxId")
                         return@withContext emptyList()
                     }
                 }
             }
 
-            Log.e(
-                TAG,
-                "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
-            )
+            Log.e(TAG, "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}")
             out
         }
-    }
-
-    fun startRealtimeBlockNumberUpdates() {
-        if (blockNumberPollingJob?.isActive == true) return
-        blockNumberPollingJob =
-            viewModelScope.launch {
-                while (true) {
-                    getCurrentBlockUseCase().collect { result ->
-                        when (result) {
-                            is DataResource.Success -> {
-                                _currentBlockNumber.value = result.data
-                            }
-
-                            is DataResource.Error,
-                            is DataResource.Loading,
-                            -> Unit
-                        }
-                    }
-                    delay(1000)
-                }
-            }
-    }
-
-    fun stopRealtimeBlockNumberUpdates() {
-        blockNumberPollingJob?.cancel()
-        blockNumberPollingJob = null
     }
 
     fun setupMppPaymentViewer(
@@ -1040,22 +762,15 @@ class AnswerViewModel(
         ) {
             is ProcessBiometricTransactionSigningUseCase.Result.Success -> {
                 eventDelegate.sendEvent(
-                    ViewEvent.TransactionSigned(
-                        result.resultMessage,
-                        result.signResult,
-                    ),
+                    ViewEvent.TransactionSigned(result.resultMessage, result.signResult),
                 )
             }
 
             is ProcessBiometricTransactionSigningUseCase.Result.Cancelled ->
-                eventDelegate.sendEvent(
-                    ViewEvent.ShowToast(result.reason),
-                )
+                eventDelegate.sendEvent(ViewEvent.ShowToast(result.reason))
 
             is ProcessBiometricTransactionSigningUseCase.Result.Error ->
-                eventDelegate.sendEvent(
-                    ViewEvent.ShowError(result.message),
-                )
+                eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
         }
     }
 
@@ -1074,15 +789,9 @@ class AnswerViewModel(
                 onSessionUpdate = onSessionUpdate,
             )
         when (result) {
-            is RegisterPasskeyUseCase.Result.Success -> { // NOOP: navigation handled by caller
-            }
-
+            is RegisterPasskeyUseCase.Result.Success -> { /* NOOP: navigation handled by caller */ }
             is RegisterPasskeyUseCase.Result.Error ->
-                eventDelegate.sendEvent(
-                    ViewEvent.ShowError(
-                        result.message,
-                    ),
-                )
+                eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
         }
         return result
     }
@@ -1104,19 +813,12 @@ class AnswerViewModel(
                 is RegisterPasskeyUseCase.Result.Success -> {
                     setAttestationApiResponse(result.attestationApiResponse)
                     eventDelegate.sendEvent(
-                        ViewEvent.RegistrationSuccess(
-                            result.pubKeyCredentialCreationOptions,
-                            accountAddress,
-                        ),
+                        ViewEvent.RegistrationSuccess(result.pubKeyCredentialCreationOptions, accountAddress),
                     )
                 }
 
                 is RegisterPasskeyUseCase.Result.Error ->
-                    eventDelegate.sendEvent(
-                        ViewEvent.ShowError(
-                            result.message,
-                        ),
-                    )
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
             }
         }
     }
@@ -1126,17 +828,14 @@ class AnswerViewModel(
         credentialId: String,
         onSessionUpdate: (String?) -> Unit = {},
         onCredentialNotFound: () -> Unit = {},
-    ): PrepareAuthenticationUseCase.Result {
-        val result =
-            prepareAuthenticationUseCase(
-                authMessage = authMessage,
-                credentialId = credentialId,
-                viewModel = this,
-                onSessionUpdate = onSessionUpdate,
-                onCredentialNotFound = onCredentialNotFound,
-            )
-        return result
-    }
+    ): PrepareAuthenticationUseCase.Result =
+        prepareAuthenticationUseCase(
+            authMessage = authMessage,
+            credentialId = credentialId,
+            viewModel = this,
+            onSessionUpdate = onSessionUpdate,
+            onCredentialNotFound = onCredentialNotFound,
+        )
 
     fun authenticate(
         authMessage: AuthMessage,
@@ -1155,25 +854,16 @@ class AnswerViewModel(
             when (result) {
                 is PrepareAuthenticationUseCase.Result.Success -> {
                     eventDelegate.sendEvent(
-                        ViewEvent.AuthenticationSuccess(
-                            result.publicKeyCredentialRequestOptions,
-                            credentialId,
-                        ),
+                        ViewEvent.AuthenticationSuccess(result.publicKeyCredentialRequestOptions, credentialId),
                     )
                     setPasskeyLastUsedTime(credentialId, timeProvider.getCurrentTimeMillis())
                 }
 
                 is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
-                    eventDelegate.sendEvent(
-                        ViewEvent.ShowError(result.message),
-                    )
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
 
                 is PrepareAuthenticationUseCase.Result.Error ->
-                    eventDelegate.sendEvent(
-                        ViewEvent.ShowError(
-                            result.message,
-                        ),
-                    )
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
             }
         }
     }
@@ -1197,16 +887,10 @@ class AnswerViewModel(
                 }
 
                 is HandleAssertionResultUseCase.Result.Cancelled ->
-                    eventDelegate.sendEvent(
-                        ViewEvent.ShowToast(result.message),
-                    )
+                    eventDelegate.sendEvent(ViewEvent.ShowToast(result.message))
 
                 is HandleAssertionResultUseCase.Result.Error ->
-                    eventDelegate.sendEvent(
-                        ViewEvent.ShowError(
-                            result.message,
-                        ),
-                    )
+                    eventDelegate.sendEvent(ViewEvent.ShowError(result.message))
             }
         }
     }
@@ -1220,11 +904,7 @@ class AnswerViewModel(
                 val apiResponse = getAttestationApiResponse()
                 if (accountAddress != null && apiResponse != null) {
                     viewModelScope.launch {
-                        saveCredential(
-                            account = accountAddress,
-                            credential = result.credential,
-                            response = apiResponse,
-                        )
+                        saveCredential(account = accountAddress, credential = result.credential, response = apiResponse)
                         eventDelegate.sendEvent(ViewEvent.AttestationSuccess(result.credential))
                     }
                 } else {
@@ -1237,18 +917,10 @@ class AnswerViewModel(
             }
 
             is HandleAttestationResultUseCase.Result.Cancelled ->
-                viewModelScope.launch {
-                    eventDelegate.sendEvent(
-                        ViewEvent.AttestationCancelled,
-                    )
-                }
+                viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationCancelled) }
 
             is HandleAttestationResultUseCase.Result.Error ->
-                viewModelScope.launch {
-                    eventDelegate.sendEvent(
-                        ViewEvent.AttestationError(result.message),
-                    )
-                }
+                viewModelScope.launch { eventDelegate.sendEvent(ViewEvent.AttestationError(result.message)) }
         }
     }
 

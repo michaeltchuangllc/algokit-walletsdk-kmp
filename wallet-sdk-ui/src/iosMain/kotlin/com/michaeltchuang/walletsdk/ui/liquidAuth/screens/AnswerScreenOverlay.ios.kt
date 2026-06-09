@@ -17,12 +17,19 @@ import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerStateHolder
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.CommonAnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
@@ -42,19 +49,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
-/**
- * iOS implementation of the Liquid Auth viewer overlay.
- *
- * Mirrors the Android [AnswerScreenOverlay] / `AnswerScreen` flow: it renders the
- * [LiquidStreamViewerScreen] (plus the MPP consent/deposit modal and a draggable mini player)
- * directly in Compose at the root of the UI, surviving bottom-sheet dismissal and navigation
- * changes.
- *
- * The actual WebRTC connection is established natively (via `LiquidAuthService.swift`) when
- * [com.michaeltchuang.walletsdk.ui.liquidAuth.connectLiquidAuth] notifies the registered
- * `iosLiquidAuthHandler`; this overlay binds to that connection through
- * [IOSLiquidStreamViewerConnectionManager].
- */
+
 @OptIn(ExperimentalEncodingApi::class)
 @Composable
 actual fun AnswerScreenOverlay() {
@@ -67,23 +62,45 @@ actual fun AnswerScreenOverlay() {
     val paymentOrchestrator: IosViewerPaymentOrchestrator = koinInject()
     val scope = rememberCoroutineScope()
 
-    // Shared, cross-platform state layer (same `LiquidAuthViewerStateHolder` that Android's
-    // `AnswerViewModel` extends). Scoped to a per-overlay ViewModelStore so its stream-timeout
-    // monitor is cancelled when the overlay is dismissed.
+    // Inject use cases from Koin so the shared CommonAnswerViewModel can be constructed.
+    val getCurrentBlockUseCase: GetCurrentBlockUseCase = koinInject()
+    val getAccountAlgoBalance: GetAccountAlgoBalance = koinInject()
+    val getLocalAccount: GetLocalAccount = koinInject()
+    val getLocalAccounts: GetLocalAccounts = koinInject()
+    val getAlgo25SecretKey: GetAlgo25SecretKey = koinInject()
+    val getFalcon24SecretKey: GetFalcon24SecretKey = koinInject()
+    val getSeed: GetHdSeed = koinInject()
+
+    // Scoped to a per-overlay ViewModelStore so its stream-timeout monitor and block-number
+    // polling are cancelled when the overlay is dismissed.
     val viewModelStoreOwner =
         remember {
             object : ViewModelStoreOwner {
                 override val viewModelStore = ViewModelStore()
             }
         }
-    val stateHolder: IosLiquidAuthViewerStateHolder =
-        viewModel(viewModelStoreOwner) { IosLiquidAuthViewerStateHolder() }
+
+    // CommonAnswerViewModel — shared with Android — provides currentBlockNumber, balance,
+    // FIDO-2 signing helpers, and the stream-timeout mechanism.
+    val stateHolder: CommonAnswerViewModel =
+        viewModel(viewModelStoreOwner) {
+            CommonAnswerViewModel(
+                getCurrentBlockUseCase = getCurrentBlockUseCase,
+                getAccountAlgoBalance = getAccountAlgoBalance,
+                getLocalAccount = getLocalAccount,
+                getLocalAccounts = getLocalAccounts,
+                getAlgo25SecretKey = getAlgo25SecretKey,
+                getFalcon24SecretKey = getFalcon24SecretKey,
+                getSeed = getSeed,
+            )
+        }
 
     // Video frames + session-vault progress are read from the shared holder; connection-specific
     // state (consent flow, ICE type, session id) stays on the iOS connection manager.
     val frame by stateHolder.videoFrame.collectAsStateWithLifecycle()
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
     val connType by viewerManager.connectionType.collectAsStateWithLifecycle()
     val sessionId by viewerManager.sessionId.collectAsStateWithLifecycle()
     val pendingConsent by viewerManager.pendingMppConsent.collectAsStateWithLifecycle()
@@ -102,6 +119,14 @@ actual fun AnswerScreenOverlay() {
         stateHolder.onTimeout = { dismissOverlay(viewerManager) }
         if (address.isNotBlank()) {
             stateHolder.setAccountAddress(address)
+        }
+
+        // Start block-number polling so iOS shows the same live block counter as Android.
+        stateHolder.startRealtimeBlockNumberUpdates()
+
+        // Fetch account balance for the viewer address.
+        if (address.isNotBlank()) {
+            stateHolder.fetchAccountBalance()
         }
 
         // Provide the Ed25519 public key so the viewer hello message can carry it, enabling
@@ -126,9 +151,7 @@ actual fun AnswerScreenOverlay() {
         }
 
         // Set up the MPP payment rail so the iOS viewer uses PaywalledRTCClient for ALL
-        // PaywalledRTCServer hosts — both Android and iOS hosts with iosBroadcastUsePaywalledRTCServer=true.
-        // The rail is created with the viewer's wallet signer so that createRailPayment() can
-        // sign the per-segment MPP credential and send segment:payment back to the host.
+        // PaywalledRTCServer hosts.
         if (address.isNotBlank()) {
             runCatching {
                 val signer = runBlocking { paymentOrchestrator.buildWalletSigner(address) }
@@ -137,8 +160,24 @@ actual fun AnswerScreenOverlay() {
                         network = MppNetworks.ALGORAND_TESTNET,
                         signer = signer,
                     )
-                    viewerManager.setupPaymentRail(mppClientConfig)
-                    NSLog("$TAG:  IOSLiquidStreamViewer MPP payment rail configured for viewer=$address")
+                    viewerManager.setupPaymentRail(mppClientConfig, signer.authorizedSignerPublicKey)
+
+                    // Wire the voucher-send callback so that each segment:accepted receipt
+                    // generates a signed liquid:payment:voucher sent to the host.
+                    // This mirrors the Android viewer's SetupMppPaymentViewerUseCase.onPaymentReceipt.
+                    viewerManager.onReceiptVoucherNeeded = { sessionId, viewerAddr, hostAddr, claimedMicroUsdc, debitMicroUsdc, remaining, send ->
+                        paymentOrchestrator.sendVoucherForReceipt(
+                            signer = signer,
+                            viewerAddress = viewerAddr,
+                            hostAddress = hostAddr,
+                            sessionId = sessionId,
+                            totalAmountClaimedMicroUsdc = claimedMicroUsdc,
+                            segmentDebitMicroUsdc = debitMicroUsdc,
+                            remainingMicroUsdc = remaining,
+                            sendMessageFn = send,
+                        )
+                    }
+                    NSLog("$TAG: IOSLiquidStreamViewer MPP payment rail configured for viewer=$address")
                 } else {
                     NSLog("$TAG: Could not build wallet signer for $address — PaywalledRTCClient rail not set")
                 }
@@ -227,12 +266,13 @@ actual fun AnswerScreenOverlay() {
             dismissOverlay(viewerManager)
         }
         onDispose {
+            stateHolder.stopRealtimeBlockNumberUpdates()
             viewerManager.disconnect()
             if (activeIOSViewerConnectionManager === viewerManager) {
                 activeIOSViewerConnectionManager = null
             }
             ConnectionStatusState.onDisconnect = null
-            // Cancels the holder's viewModelScope (stream-timeout monitor).
+            // Cancels the holder's viewModelScope (stream-timeout monitor + block polling).
             viewModelStoreOwner.viewModelStore.clear()
         }
     }
@@ -260,6 +300,7 @@ actual fun AnswerScreenOverlay() {
                     originUrl = origin.ifBlank { "-" },
                     remainingBalanceUsdc = remainingBalance / 1_000_000.0,
                     progressBalanceUsdc = progressBalance / 1_000_000.0,
+                    currentBlockNumber = currentBlockNumber,
                     onMinimize = {
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized
@@ -308,18 +349,6 @@ actual fun AnswerScreenOverlay() {
                 )
             }
         }
-    }
-}
-
-/**
- * iOS [LiquidAuthViewerStateHolder] that routes the shared stream-timeout to the overlay so the
- * underlying connection is torn down when no video frames arrive (parity with Android).
- */
-private class IosLiquidAuthViewerStateHolder : LiquidAuthViewerStateHolder() {
-    var onTimeout: (() -> Unit)? = null
-
-    override fun onStreamTimeout(reason: String) {
-        onTimeout?.invoke()
     }
 }
 

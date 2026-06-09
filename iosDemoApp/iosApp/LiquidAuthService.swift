@@ -733,7 +733,20 @@ public class LiquidAuthService {
         ]
         
         NSLog("🔗 Initiating peer connection...")
-        
+
+        // ── Viewer-side payment DC hook ────────────────────────────────────────
+        // When Android is the HOST it creates a separate "x402-payment-channel" DataChannel
+        // (symmetrical to what iOS hosts do for Android viewers).  SignalService will call
+        // this closure once that DC becomes open, wiring iosViewerPaymentDCSendMessageHandler
+        // so that segment:payment messages are delivered on the correct channel.
+        signalService.onPaymentDataChannelReady = { [weak self] _ in
+            guard let self else { return }
+            App_iosKt.setViewerPaymentSendMessageHandler { [weak self] message in
+                self?.signalService?.sendPaymentMessage(message)
+            }
+            NSLog("✅ iosViewerPaymentDCSendMessageHandler wired → x402-payment-channel")
+        }
+
         // Connect to peer using SignalService
         signalService.connectToPeer(
             requestId: self.requestId,  // ✅ Explicitly use self.requestId
@@ -742,7 +755,6 @@ public class LiquidAuthService {
             iceServers: iceServers,
             onMessage: { [weak self] message in
                 guard let self = self else { return }
-                NSLog("💬 Received message: \(message)")
 
                 // ── Forward every message to the streaming viewer manager (if active) ──
                 // This lets IOSLiquidStreamViewerConnectionManager decode video frames and
@@ -852,9 +864,6 @@ public class LiquidAuthService {
     }
     
     private func handleMessage(_ message: String) {
-        NSLog("🔍 Handling message: \(message)")
-        NSLog("   Message length: \(message.count)")
-        
         // Messages come in as Base64-encoded CBOR (matching Android)
         // And we respond with Base64-encoded CBOR (matching Android)
         
@@ -1229,6 +1238,8 @@ public class LiquidAuthService {
     
     public func disconnect() {
         NSLog("🔌 Disconnecting Liquid Auth")
+        // Clear payment DC handler so IOSLiquidStreamViewer falls back to main DC (or nil).
+        App_iosKt.setViewerPaymentSendMessageHandler(handler: nil)
         signalService?.disconnect()
         dataChannel = nil
     }

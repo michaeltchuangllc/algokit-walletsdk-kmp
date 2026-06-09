@@ -29,6 +29,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDepositHandler
+import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerStopHandler
@@ -560,6 +561,12 @@ fun forwardMessageToActiveViewer(message: String) {
  * `wallet-sdk-ui` module.  Called from `LiquidAuthService.swift` when the
  * WebRTC data channel opens so that Kotlin's `sendViewerHello()` path can
  * deliver messages back to the host via the live connection.
+ *
+ * If the [activeIOSViewerConnectionManager] is already in the CONNECTED state when this
+ * is called, the `liquid:viewer:hello` message is re-sent immediately.  This handles
+ * the common race where [IOSLiquidStreamViewerConnectionManager.notifyConnected] fires
+ * from the Compose overlay BEFORE the DataChannel is open (and the first hello attempt
+ * silently dropped because the handler was still null).
  */
 fun setViewerSendMessageHandler(handler: (String) -> Unit) {
     iosViewerSendMessageHandler = handler
@@ -575,6 +582,25 @@ fun setViewerSendMessageHandler(handler: (String) -> Unit) {
  */
 fun setViewerStopHandler(handler: () -> Unit) {
     iosViewerStopHandler = handler
+}
+
+/**
+ * Swift-callable wrapper that sets [iosViewerPaymentDCSendMessageHandler].
+ *
+ * Called from `LiquidAuthService.swift` once the `x402-payment-channel` DataChannel created
+ * by an **Android host** becomes available.  This mirrors [setIosBroadcastPaymentSendHandler]
+ * on the host side — both ensure that `segment:payment` / `segment:request` messages travel on
+ * the dedicated payment DC rather than the main "liquid" DC.
+ *
+ * Pass `null` to clear the handler (e.g. on disconnect) so the fallback to
+ * [iosViewerSendMessageHandler] (main DC) is re-enabled for legacy iOS hosts.
+ *
+ * @param handler lambda that sends a text message on the `x402-payment-channel` DataChannel,
+ *                or `null` to revert to the main-DC fallback.
+ */
+fun setViewerPaymentSendMessageHandler(handler: ((String) -> Unit)?) {
+    iosViewerPaymentDCSendMessageHandler = handler
+    println("[ViewerHandlers] iosViewerPaymentDCSendMessageHandler ${if (handler != null) "set (payment DC ready)" else "cleared"}")
 }
 
 var iosStreamingCleanupHandler: (() -> Unit)? = null

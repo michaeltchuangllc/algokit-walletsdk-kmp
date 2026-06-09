@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -15,19 +16,8 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-/**
- * iOS service that handles the complete viewer deposit flow:
- *
- * 1. Builds a [MppWalletSigner] from the local iOS keychain account.
- * 2. Opens (or tops up) the session vault on Algorand Testnet.
- * 3. Sets the authorized signer for the session.
- * 4. Fetches the updated on-chain remaining balance.
- * 5. Builds and signs a `liquid:payment:voucher` message and forwards it to the host
- *    via [sendMessageFn] so the Android host can settle the voucher on-chain.
- *
- * Registered in the iOS Koin graph via [UiPlatformModule.ios.kt].
- */
 class IosViewerPaymentOrchestrator(
     private val getLocalAccount: GetLocalAccount,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
@@ -42,18 +32,6 @@ class IosViewerPaymentOrchestrator(
 
     // ── Public entry point ────────────────────────────────────────────────────
 
-    /**
-     * Performs the full deposit + voucher flow for the iOS viewer.
-     *
-     * Called from the `iosViewerDepositHandler` set in [App.ios.kt].
-     *
-     * @param viewerAddress Algorand address of the viewer.
-     * @param hostAddress Algorand address of the creator / host.
-     * @param sessionId The active payment session id (from `liquid:payment:request`).
-     * @param depositMicroUsdc Amount to deposit in micro-USDC (1 USDC = 1_000_000).
-     * @param sendMessageFn Callback to send a message to the host via the main data channel.
-     * @param onResult Called with the new on-chain remaining balance, or null on failure.
-     */
     fun depositAndSendVoucher(
         viewerAddress: String,
         hostAddress: String,
@@ -162,6 +140,7 @@ class IosViewerPaymentOrchestrator(
                     hostAddress = hostAddress,
                     sessionId = sessionId,
                     totalAmountClaimedMicroUsdc = depositMicroUsdc,
+                    segmentDebitMicroUsdc = depositMicroUsdc, // deposit voucher: full amount is the debit
                     remainingMicroUsdc = remaining,
                     sendMessageFn = sendMessageFn,
                 )
@@ -176,12 +155,33 @@ class IosViewerPaymentOrchestrator(
 
     // ── Voucher helper ────────────────────────────────────────────────────────
 
+    suspend fun sendVoucherForReceipt(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        hostAddress: String,
+        sessionId: String,
+        totalAmountClaimedMicroUsdc: Long,
+        segmentDebitMicroUsdc: Long,
+        remainingMicroUsdc: Long,
+        sendMessageFn: (String) -> Unit,
+    ) = trySendVoucher(
+        signer = signer,
+        viewerAddress = viewerAddress,
+        hostAddress = hostAddress,
+        sessionId = sessionId,
+        totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+        segmentDebitMicroUsdc = segmentDebitMicroUsdc,
+        remainingMicroUsdc = remainingMicroUsdc,
+        sendMessageFn = sendMessageFn,
+    )
+
     private suspend fun trySendVoucher(
         signer: MppWalletSigner,
         viewerAddress: String,
         hostAddress: String,
         sessionId: String,
         totalAmountClaimedMicroUsdc: Long,
+        segmentDebitMicroUsdc: Long,
         remainingMicroUsdc: Long,
         sendMessageFn: (String) -> Unit,
     ) {
@@ -191,11 +191,32 @@ class IosViewerPaymentOrchestrator(
                 return
             }
 
+            val preUpdateLatestVoucher = runCatching {
+                MppPayments.getSessionDynamicDataFromVault(
+                    viewerAddress = viewerAddress,
+                    hostAddress = hostAddress,
+                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    authorizedSignerPublicKey = pubKey,
+                )?.latestVoucherAmount ?: 0L
+            }.getOrDefault(0L)
+
+            val localBase = (totalAmountClaimedMicroUsdc - segmentDebitMicroUsdc).coerceAtLeast(0L)
+            val voucherBase = maxOf(localBase, preUpdateLatestVoucher)
+            val effectiveClaimedMicroUsdc = (voucherBase + segmentDebitMicroUsdc).coerceAtLeast(1L)
+
+            Napier.d(
+                "[VIEWER_VOUCHER_AMOUNT_CALC] session=$sessionId " +
+                    "localCumulative=$totalAmountClaimedMicroUsdc debit=$segmentDebitMicroUsdc " +
+                    "preOnChainLatest=$preUpdateLatestVoucher voucherBase=$voucherBase " +
+                    "effectiveClaimed=$effectiveClaimedMicroUsdc",
+                tag = TAG,
+            )
+
             val claimMessage = MppPayments.buildClaimMessage(
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                 viewerAddress = viewerAddress,
                 hostAddress = hostAddress,
-                totalAmountClaimedMicroUsdc = totalAmountClaimedMicroUsdc,
+                totalAmountClaimedMicroUsdc = effectiveClaimedMicroUsdc,
                 authorizedSignerPublicKey = pubKey,
             )
 
@@ -206,14 +227,66 @@ class IosViewerPaymentOrchestrator(
 
             val signatureBase64 = MppPayments.serializeVoucherSignature(signature)
 
-            // Encode public key to base64 for the JSON field.
-            val pubKeyBase64 = runCatching {
-                kotlinx.io.bytestring.ByteString(pubKey)
-                    .let { _ ->
-                        @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
-                        kotlin.io.encoding.Base64.encode(pubKey)
+            val updateResult = runCatching {
+                MppPayments.updateVoucherOnChain(
+                    signer = signer,
+                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    viewerAddress = viewerAddress,
+                    hostAddress = hostAddress,
+                    totalAmountUsedMicroUsdc = effectiveClaimedMicroUsdc,
+                    signature = signature,
+                    authorizedSignerPublicKey = pubKey,
+                )
+            }.getOrElse { Result.failure(it) }
+
+            val updateTxId = updateResult
+                .onSuccess { txId ->
+                    Napier.d(
+                        "[VIEWER_UPDATE_VOUCHER_OK] session=$sessionId txId=$txId " +
+                            "effectiveClaimed=$effectiveClaimedMicroUsdc viewer=$viewerAddress host=$hostAddress",
+                        tag = TAG,
+                    )
+                }.onFailure { err ->
+                    val errText = err.message.orEmpty()
+                    val isDuplicate = errText.contains("pc=622", ignoreCase = true) &&
+                        (errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                            errText.contains("Voucher not increasing", ignoreCase = true))
+                    if (isDuplicate) {
+                        Napier.d(
+                            "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] session=$sessionId " +
+                                "effectiveClaimed=$effectiveClaimedMicroUsdc reason=already_recorded_onchain",
+                            tag = TAG,
+                        )
+                    } else {
+                        Napier.e(
+                            "[VIEWER_UPDATE_VOUCHER_ERR] session=$sessionId " +
+                                "effectiveClaimed=$effectiveClaimedMicroUsdc viewer=$viewerAddress host=$hostAddress",
+                            err,
+                            tag = TAG,
+                        )
                     }
-            }.getOrDefault("")
+                }.getOrNull()
+
+            if (updateTxId != null) {
+                val confirmed = withContext(Dispatchers.Default) {
+                    MppPayments.awaitTransactionConfirmation(
+                        txId = updateTxId,
+                        algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                    )
+                }
+                if (confirmed) {
+                    Napier.d(
+                        "[VIEWER_UPDATE_VOUCHER_CONFIRMED] session=$sessionId txId=$updateTxId",
+                        tag = TAG,
+                    )
+                } else {
+                    Napier.w(
+                        "[VIEWER_UPDATE_VOUCHER_UNCONFIRMED] session=$sessionId txId=$updateTxId " +
+                            "sending DC voucher anyway (host may retry on next block)",
+                        tag = TAG,
+                    )
+                }
+            }
 
             val voucherJson = MppPayments.createVoucherJson(
                 sessionId = sessionId,
@@ -221,14 +294,14 @@ class IosViewerPaymentOrchestrator(
                 viewerPublicKey = pubKey,
                 creatorAddress = hostAddress,
                 blocksConsumed = 1,
-                totalAmountUsed = totalAmountClaimedMicroUsdc,
+                totalAmountUsed = effectiveClaimedMicroUsdc,
                 remainingMicroUsdc = remainingMicroUsdc,
                 signatureBase64 = signatureBase64,
             )
 
             Napier.d(
                 "[VIEWER_VOUCHER_SEND] session=$sessionId viewer=$viewerAddress " +
-                    "claimed=$totalAmountClaimedMicroUsdc sig=${signatureBase64.take(16)}...",
+                    "effectiveClaimed=$effectiveClaimedMicroUsdc sig=${signatureBase64.take(16)}...",
                 tag = TAG,
             )
             sendMessageFn(voucherJson)
@@ -337,6 +410,34 @@ class IosViewerPaymentOrchestrator(
                 } catch (t: Throwable) {
                     Napier.e("signTransactionBytes failed for $address: ${t.message}", t, tag = TAG)
                     ByteArray(0)
+                }
+            }
+
+            override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> {
+                if (localAccount !is LocalAccount.Falcon24 || txnsMsgpack.size <= 1) {
+                    return super.signTransactionsBytes(txnsMsgpack)
+                }
+                return try {
+                    val secretKey = getFalcon24SecretKey(address)
+                    if (secretKey == null) {
+                        Napier.e("[VIEWER_FALCON_BUNDLE] missing key for $address", tag = TAG)
+                        return txnsMsgpack.map { ByteArray(0) }
+                    }
+                    val result = signFalcon24GroupBundle(
+                        txnsByteArrays = txnsMsgpack,
+                        publicKey = localAccount.publicKey,
+                        privateKey = secretKey,
+                    )
+                    if (result.isEmpty()) {
+                        Napier.e("[VIEWER_FALCON_BUNDLE] bundle returned empty for $address", tag = TAG)
+                        txnsMsgpack.map { ByteArray(0) }
+                    } else {
+                        Napier.d("[VIEWER_FALCON_BUNDLE] signed ${result.size} txns (includes dummies)", tag = TAG)
+                        result
+                    }
+                } catch (t: Throwable) {
+                    Napier.e("[VIEWER_FALCON_BUNDLE] failed for $address: ${t.message}", t, tag = TAG)
+                    txnsMsgpack.map { ByteArray(0) }
                 }
             }
         }

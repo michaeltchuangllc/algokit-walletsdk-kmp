@@ -4,22 +4,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelObserver
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelState
 
-/**
- * Bridges an iOS native WebRTC DataChannel (handled in Swift) to the platform-agnostic
- * [RtcDataChannel] interface consumed by both `PaywalledRTCClient` (viewer) and
- * `PaywalledRTCServer` (host).
- *
- * The [sendMessageProvider] lambda is evaluated on every [send] call, allowing the same class
- * to be used for two distinct channels:
- *  - **Viewer DC** – provide `{ iosViewerSendMessageHandler }`
- *  - **Host DC**   – provide `{ iosBroadcastSendMessageHandler }`
- *
- * Message routing:
- *  - **Outbound** (`send`): invokes [sendMessageProvider] to forward JSON bytes to Swift.
- *  - **Inbound** (`notifyMessage`): called from Kotlin when a DC message arrives from the peer.
- *  - **Lifecycle** (`notifyOpen`, `notifyClosed`): called when the Swift WebRTC connection
- *    transitions state.
- */
 class IOSRtcDataChannel(
     private val sendMessageProvider: () -> ((message: String) -> Unit)? = { iosViewerSendMessageHandler },
 ) : RtcDataChannel {

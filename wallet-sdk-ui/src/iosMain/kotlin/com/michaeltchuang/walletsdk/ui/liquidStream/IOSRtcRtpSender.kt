@@ -2,22 +2,6 @@ package com.michaeltchuang.walletsdk.ui.liquidStream
 
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
 
-/**
- * iOS implementation of [RtcRtpSender].
- *
- * `PaywalledRTCServer` calls `setTrackEnabled` to gate (pause) or ungate (resume) the host
- * video track based on payment verification.
- *
- * Swift must set [iosBroadcastGateVideoHandler] to receive these callbacks and act on the
- * underlying `RTCVideoTrack.isEnabled` property.
- *
- * Usage from Swift:
- * ```swift
- * IOSRtcRtpSenderKt.iosBroadcastGateVideoHandler = { enabled in
- *     self.localVideoTrack?.isEnabled = enabled
- * }
- * ```
- */
 var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
 
 class IOSRtcRtpSender : RtcRtpSender {

@@ -172,12 +172,6 @@ class PaywalledRTCClient(
 
             val msg = Json.parseToJsonElement(msgStr).jsonObject
 
-            // ── iOS host format: {"reference":"liquid:payment:request",...} ─────────────
-            // iOS hosts emit reference-keyed envelopes without the type / payload / meta
-            // fields required by paymentRequestFromJson(). We normalise them here using
-            // LiquidDcMessages so the same handlePaymentRequest() code path handles both
-            // formats.  railPayload is intentionally left null — the ConsentHandler /
-            // PaymentRail on the iOS side must handle this gracefully (e.g. session vault).
             if (msg["reference"]?.jsonPrimitive?.content == LiquidDcMessages.REF_PAYMENT_REQUEST) {
                 val env = LiquidDcMessages.parsePaymentRequest(msgStr)
                 if (env != null) {

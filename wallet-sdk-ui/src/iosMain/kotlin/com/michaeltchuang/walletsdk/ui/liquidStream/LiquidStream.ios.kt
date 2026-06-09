@@ -21,62 +21,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVau
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 
-/*
- * iOS convenience wrappers for the paywalled RTC streaming payment channel.
- *
- * These mirror the Android `LiquidStreamCreator` / `LiquidStreamViewer` from
- * `wallet-sdk-core/androidMain` but use iOS-native transport adapters
- * ([IOSRtcDataChannel], [IOSRtcRtpSender]) instead of the Android WebRTC SDK types.
- *
- * ┌────────────────────────────────────────────────────────────────────────────┐
- * │  iOS Host (broadcaster)           │  iOS Viewer                           │
- * │  IOSLiquidStreamCreator           │  IOSLiquidStreamViewer                │
- * │  ─────────────────────            │  ─────────────────────                │
- * │  MppPaymentRail (server)          │  MppPaymentRail (client)              │
- * │  PaywalledRTCServer               │  PaywalledRTCClient                   │
- * │  IOSRtcDataChannel                │  IOSRtcDataChannel                    │
- * │    ← iosBroadcastSendMessageHandler│   ← iosViewerSendMessageHandler      │
- * │  IOSRtcRtpSender                  │                                       │
- * │    ← iosBroadcastGateVideoHandler │                                       │
- * └────────────────────────────────────────────────────────────────────────────┘
- *
- * Wire protocol (same as Android — no format divergence):
- *   Host → Viewer : {"type":"segment:request",...}
- *   Viewer → Host : {"type":"segment:payment",...}
- */
 
 // ─── Creator (Host / Server side) ────────────────────────────────────────────
-
-/**
- * iOS provider-side convenience wrapper for a paywalled RTC stream using [MppPaymentRail].
- *
- * Mirrors Android's `LiquidStreamCreator` — combines [PaywalledRTCServer], [MppPaymentRail],
- * [IOSRtcDataChannel] (host DC), and [IOSRtcRtpSender] (track gating) into a single object.
- *
- * ## Swift usage
- * ```swift
- * // 1. Set handlers so PaywalledRTCServer can gate the video track and send DC messages.
- * IOSRtcRtpSenderKt.iosBroadcastGateVideoHandler = { [weak self] enabled in
- *     self?.localVideoTrack?.isEnabled = enabled
- * }
- * LiquidAuthConnectionManagerKt.iosBroadcastSendMessageHandler = { [weak self] msg in
- *     self?.dataChannel?.sendData(RTCDataBuffer(data: msg.data(using: .utf8)!, isBinary: false))
- * }
- *
- * // 2. Create and start the server.
- * let creator = IOSLiquidStreamCreator(
- *     mppServerConfig: MppServerConfig(recipient: hostAddress, secretKey: "your-secret"),
- *     serverConfig: ServerConfig(gating: gatingConfig)
- * )
- * creator.onPaymentSettled = { receipt in startStreamingVideo() }
- * creator.start()
- *
- * // 3. Forward DataChannel lifecycle from the RTCDataChannelDelegate:
- * creator.notifyViewerConnected()        // dataChannel(_:didChangeState:) → .open
- * creator.notifyMessageReceived(msg)     // dataChannel(_:didReceiveMessageWith:)
- * creator.notifyViewerDisconnected()     // dataChannel(_:didChangeState:) → .closed
- * ```
- */
 @Suppress("unused")
 class IOSLiquidStreamCreator(
     mppServerConfig: MppServerConfig,
@@ -219,34 +165,6 @@ class IOSLiquidStreamCreator(
 }
 
 // ─── Viewer (Consumer / Client side) ─────────────────────────────────────────
-
-/**
- * iOS consumer-side convenience wrapper for a paywalled RTC stream using [MppPaymentRail].
- *
- * Mirrors Android's `LiquidStreamViewer` — combines [PaywalledRTCClient], [MppPaymentRail],
- * and [IOSRtcDataChannel] (viewer DC) into a single object.
- *
- * ## Swift usage
- * ```swift
- * // 1. Set the send handler so PaywalledRTCClient can write to the data channel.
- * IOSLiquidStreamViewerConnectionManagerKt.iosViewerSendMessageHandler = { [weak self] msg in
- *     self?.dataChannel?.sendData(RTCDataBuffer(data: msg.data(using: .utf8)!, isBinary: false))
- * }
- *
- * // 2. Create and start the client.
- * let viewer = IOSLiquidStreamViewer(
- *     mppClientConfig: MppClientConfig(signer: walletSigner),
- *     consentHandler: myConsentHandler
- * )
- * viewer.onPaymentAccepted = { receipt in print("Payment accepted: \(receipt.sessionId)") }
- * viewer.start()
- *
- * // 3. Forward DataChannel lifecycle from the RTCDataChannelDelegate:
- * viewer.notifyHostConnected()            // dataChannel(_:didChangeState:) → .open
- * viewer.notifyMessageReceived(msg)       // dataChannel(_:didReceiveMessageWith:)
- * viewer.notifyHostDisconnected()         // dataChannel(_:didChangeState:) → .closed
- * ```
- */
 @Suppress("unused")
 class IOSLiquidStreamViewer(
     mppClientConfig: MppClientConfig,
@@ -260,10 +178,11 @@ class IOSLiquidStreamViewer(
 
     /**
      * iOS DataChannel bridge for the VIEWER side.
-     * Outbound messages are forwarded to [iosViewerSendMessageHandler].
      */
     val dcChannel: IOSRtcDataChannel =
-        IOSRtcDataChannel(sendMessageProvider = { iosViewerSendMessageHandler })
+        IOSRtcDataChannel(sendMessageProvider = {
+            iosViewerPaymentDCSendMessageHandler ?: iosViewerSendMessageHandler
+        })
 
     /** The underlying `PaywalledRTCClient` — access for advanced configuration. */
     val rtcClient: PaywalledRTCClient =

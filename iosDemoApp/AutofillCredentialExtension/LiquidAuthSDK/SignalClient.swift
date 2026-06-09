@@ -90,25 +90,51 @@ public class SignalClient {
             signalService: service,
             onDataChannel: { [weak self] dataChannel in
                 Logger.debug("SignalClient: onDataChannel called with: \(dataChannel.label)")
+                let isPaymentChannel = dataChannel.label == "x402-payment-channel"
+
+                // ── Payment DC (created by Android host) ─────────────────────────────
+                // Use a stripped-down delegate: forward messages but NEVER overwrite
+                // service.dataChannel (signalService: nil) and NEVER propagate state
+                // changes upward (would retrigger sendCredentialMessage in the host path).
+                if isPaymentChannel {
+                    Logger.info("SignalClient: 💳 payment DC '\(dataChannel.label)' received — setting up isolated delegate")
+                    let paymentDelegate = DataChannelDelegate(
+                        signalService: nil,   // ← prevents service.dataChannel overwrite
+                        onMessage: { message in
+                            Logger.debug("💬 SignalClient [payment DC]: \(message.prefix(80))")
+                            onMessage(message)  // forward to messageForwardingHandler
+                        },
+                        onStateChange: { state in
+                            Logger.debug("SignalClient [payment DC]: state=\(state ?? "nil")")
+                            if state == "open" {
+                                // Route through onDataChannelOpen which checks the label
+                                // and saves to SignalService.paymentDataChannel.
+                                onDataChannelOpen(dataChannel)
+                            }
+                            // Do NOT call outer onStateChange — that would retrigger
+                            // sendCredentialMessage and re-set iosViewerSendMessageHandler.
+                        }
+                    )
+                    dataChannel.delegate = paymentDelegate
+                    self?.dataChannelDelegates[dataChannel] = paymentDelegate
+                    if dataChannel.readyState == .open {
+                        onDataChannelOpen(dataChannel)
+                    }
+                    return
+                }
+
+                // ── Main "liquid" DC (or any other remote-created DC) ────────────────
                 Logger.debug("Received data channel from remote peer: \(dataChannel.label)")
                 let delegate = DataChannelDelegate(
                     signalService: self?.service,
                     onMessage: { message in
-                        Logger.info("💬 SignalClient: Received message: \(message)")
                         onMessage(message)
                     },
                     onStateChange: { state in
                         Logger.debug("SignalClient: Data channel state changed: \(state ?? "unknown")")
-                        // Forward state to the outer onStateChange so callers (e.g. iosApp.swift)
-                        // can react to open/closed on the *responder* (type "offer") path too.
                         onStateChange(state)
                         if state == "open" {
                             Logger.info("✅ SignalClient: Open and ready: \(dataChannel.label)")
-                            Logger
-                                .debug(
-                                    "SignalService: Setting dataChannel to " +
-                                        "\(ObjectIdentifier(dataChannel)) label: \(dataChannel.label)"
-                                )
                             onDataChannelOpen(dataChannel)
                         }
                     },
@@ -129,13 +155,7 @@ public class SignalClient {
 
                 if dataChannel.readyState == .open {
                     Logger.info("✅ SignalClient: Open and ready (immediate): \(dataChannel.label)")
-                    Logger
-                        .debug(
-                            "SignalService: Setting dataChannel to " +
-                                "\(ObjectIdentifier(dataChannel)) label: \(dataChannel.label)"
-                        )
                     onDataChannelOpen(dataChannel)
-                    // Also notify the outer caller that the channel is open.
                     onStateChange("open")
                 }
             },
@@ -167,11 +187,28 @@ public class SignalClient {
                 return nil
             }
 
+            // ── Wrap onStateChange so that when the self-created "liquid" DC opens
+            // we also call onDataChannelOpen.  This is crucial because
+            // SignalService.dataChannel is only set from onDataChannelOpen, and
+            // sendMessage() silently queues (and never flushes) when dataChannel is nil.
+            // For type="answer" the DC is created here (not via the remote onDataChannel
+            // callback), so without this wrapper SignalService.dataChannel stays nil and
+            // sendViewerHelloMessage() / sendCredentialMessage() never actually send. ──
+            var createdDataChannel: RTCDataChannel?
+            let wrappedOnStateChange: (String?) -> Void = { [weak self] state in
+                if state == "open", let dc = createdDataChannel {
+                    Logger.info("Answer (initiator): self-created 'liquid' DC open — calling onDataChannelOpen to set SignalService.dataChannel")
+                    onDataChannelOpen(dc)
+                }
+                onStateChange(state)
+            }
+
             let dataChannel = peerClient.createDataChannel(
                 label: "liquid",
                 onMessage: onMessage,
-                onStateChange: onStateChange
+                onStateChange: wrappedOnStateChange
             )
+            createdDataChannel = dataChannel
 
             peerClient.createOffer { offer in
                 guard let offer else {

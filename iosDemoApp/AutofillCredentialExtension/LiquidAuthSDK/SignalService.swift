@@ -32,6 +32,18 @@ public class SignalService {
     private var signalClient: SignalClient?
     private var peerClient: PeerApi?
     var dataChannel: RTCDataChannel?
+
+    // MARK: - Viewer-side payment DataChannel
+    // When Android is the HOST it creates a separate "x402-payment-channel" DC (just like
+    // iOS hosts do for Android viewers).  We keep it separate from `dataChannel` so that
+    // `sendMessage` / keep-alive always use the main "liquid" DC while payment messages
+    // are routed through `sendPaymentMessage` → this property.
+    var paymentDataChannel: RTCDataChannel?
+
+    /// Called once when the remote peer's "x402-payment-channel" DataChannel becomes open.
+    /// Set from `LiquidAuthService` to wire up `App_iosKt.setViewerPaymentSendMessageHandler`.
+    var onPaymentDataChannelReady: ((RTCDataChannel) -> Void)?
+
     private var peerConnection: RTCPeerConnection?
     private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
 
@@ -70,6 +82,8 @@ public class SignalService {
         signalClient = nil
         peerClient = nil
         dataChannel = nil
+        paymentDataChannel = nil
+        onPaymentDataChannelReady = nil
         peerConnection = nil
         delegate?.signalService(self, didReceiveStatusUpdate: "Signal Service", message: "Service stopped.")
     }
@@ -77,6 +91,8 @@ public class SignalService {
     /// Disconnects from the signaling service
     func disconnect() {
         stopKeepAlive()
+        paymentDataChannel = nil
+        onPaymentDataChannelReady = nil
         signalClient?.disconnectSocket()
         delegate?.signalService(
             self,
@@ -127,13 +143,26 @@ public class SignalService {
                 type: type,
                 iceServers: iceServers,
                 onDataChannelOpen: { [weak self] dataChannel in
+                    guard let self else { return }
                     Logger.debug("SignalService: onDataChannelOpen called with: \(dataChannel.label)")
-                    self?.dataChannel = dataChannel
+
+                    // ── Payment DC (created by Android host) ─────────────────────────
+                    // Keep it separate so the main "liquid" DC reference and keep-alive
+                    // timer are never overwritten.
+                    if dataChannel.label == "x402-payment-channel" {
+                        Logger.info("SignalService: 💳 payment DC '\(dataChannel.label)' open — wiring viewer payment handler")
+                        self.paymentDataChannel = dataChannel
+                        self.onPaymentDataChannelReady?(dataChannel)
+                        return
+                    }
+
+                    // ── Main "liquid" DC ─────────────────────────────────────────────
+                    self.dataChannel = dataChannel
                     Logger.debug("Data channel is open and ready: \(dataChannel.label)")
                     if dataChannel.readyState == .open {
-                        self?.flushMessageQueue()
+                        self.flushMessageQueue()
                         // Start continuous keep-alive mechanism
-                        self?.startKeepAlive()
+                        self.startKeepAlive()
                     }
                 },
                 onMessage: { message in
@@ -178,6 +207,22 @@ public class SignalService {
         } else {
             Logger.error("sendMessage: Data channel is not available. Queuing message.")
             messageQueue.append(message)
+        }
+    }
+
+    /// Sends a message on the dedicated "x402-payment-channel" DataChannel.
+    ///
+    /// Used by the Kotlin viewer side (`iosViewerPaymentDCSendMessageHandler`) to deliver
+    /// `segment:payment` responses on the correct channel when Android is the host.
+    /// Falls back silently (no queue) — payment messages are only meaningful while the
+    /// payment DC is open.
+    public func sendPaymentMessage(_ message: String) {
+        if let paymentDataChannel, paymentDataChannel.readyState == .open {
+            Logger.debug("SignalService: Sending on payment DC (id=\(paymentDataChannel.channelId)): \(message.prefix(80))")
+            let buffer = RTCDataBuffer(data: message.data(using: .utf8)!, isBinary: false)
+            paymentDataChannel.sendData(buffer)
+        } else {
+            Logger.error("sendPaymentMessage: payment DC not available (label=\(paymentDataChannel?.label ?? "nil") state=\(paymentDataChannel?.readyState.description ?? "nil"))")
         }
     }
 

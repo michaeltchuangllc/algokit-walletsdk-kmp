@@ -14,12 +14,6 @@ import kotlinx.coroutines.launch
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-/**
- * Video frame data class for the streamed camera feed.
- *
- * Shared across Android and iOS so the viewer overlay/screen can render frames
- * regardless of which platform decoded them.
- */
 data class VideoFrameData(
     val id: String,
     val timestamp: Long,
@@ -55,19 +49,6 @@ data class VideoFrameData(
     }
 }
 
-/**
- * Cross-platform base that owns the genuinely platform-agnostic state of the Liquid Auth
- * viewer flow:
- *
- * - video frame state + the stream-activity / timeout monitor,
- * - session / error / balance / account-address flows,
- * - the MPP consent UI bridge (request / approve / reject) and viewer session-vault progress,
- * - a dependency-free Base58 decoder.
- *
- * Platform-specific concerns (FIDO2/passkeys, notifications, the bound SignalService, gomobile
- * signing, activity-result launchers) remain in the platform subclasses. Android's
- * `AnswerViewModel` extends this; iOS plumbing can consume the same state.
- */
 open class LiquidAuthViewerStateHolder : ViewModel() {
     companion object {
         private const val TAG = "LiquidAuthViewerState"
@@ -241,10 +222,6 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
             _lastFrameTimestamp.value = now
             hasReceivedAtLeastOneFrame = true
             hasTimedOutCurrentStream = false
-            Napier.d(
-                tag = TAG,
-                message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now",
-            )
         }
     }
 
