@@ -33,15 +33,8 @@ public class SignalService {
     private var peerClient: PeerApi?
     var dataChannel: RTCDataChannel?
 
-    // MARK: - Viewer-side payment DataChannel
-    // When Android is the HOST it creates a separate "x402-payment-channel" DC (just like
-    // iOS hosts do for Android viewers).  We keep it separate from `dataChannel` so that
-    // `sendMessage` / keep-alive always use the main "liquid" DC while payment messages
-    // are routed through `sendPaymentMessage` → this property.
     var paymentDataChannel: RTCDataChannel?
 
-    /// Called once when the remote peer's "x402-payment-channel" DataChannel becomes open.
-    /// Set from `LiquidAuthService` to wire up `App_iosKt.setViewerPaymentSendMessageHandler`.
     var onPaymentDataChannelReady: ((RTCDataChannel) -> Void)?
 
     private var peerConnection: RTCPeerConnection?

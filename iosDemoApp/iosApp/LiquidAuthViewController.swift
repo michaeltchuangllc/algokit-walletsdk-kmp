@@ -251,19 +251,8 @@ public class LiquidAuthViewController: UIViewController {
                 let capturedRequestId = self.requestId
                 let capturedAddress   = self.algoAddress
 
-                // ── Step 1: Transfer the service BEFORE dismiss ──────────────────────────
-                // `viewWillDisappear` calls `liquidAuthService?.disconnect()`.
-                // `takeLiquidAuthService()` sets `liquidAuthService = nil` so that call
-                // becomes a no-op — the WebRTC data channel stays alive.
-                // We capture `service` in the completion closure so AppDelegate can own it.
                 let service = self.takeLiquidAuthService()
 
-                // ── Step 2: Dismiss THEN present viewer from root ────────────────────────
-                // If we presented viewerVC while self was still on-screen, UIKit would make
-                // viewerVC a child of self.  When self dismissed it would cascade-dismiss
-                // viewerVC too (~10 ms flash then gone).
-                // Firing the callback in the completion block guarantees self is fully gone
-                // before viewerVC is presented, so it lives on the root independently.
                 self.dismiss(animated: true) {
                     guard let service = service else { return }
                     capturedCallback?(capturedOrigin, capturedRequestId, capturedAddress, service)

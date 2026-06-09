@@ -6,26 +6,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/**
- * Shared, cross-platform DataChannel message protocol.
- *
- * Android and iOS each have their own native WebRTC *transport* (Kotlin `RtcDataChannel`
- * on Android, native Swift on iOS), but the *wire protocol* is the same logical thing on
- * both. Historically each side invented its own payment-request envelope:
- *
- *  - **iOS host** (`LiquidAuthConnectionManager`): a `reference`-based envelope
- *    `{"reference":"liquid:payment:request","id":..,"amount":..,"payTo":..,"meta":{..}}`
- *  - **Android host** (`PaywalledRTCServer`): a `type`-based envelope
- *    `{"type":"segment:request","sessionId":..,"segmentIndex":..,"payload":{..}}`
- *
- * Because the two formats differed, an Android viewer could not understand an iOS host
- * (and vice-versa) without bespoke, duplicated parsing on each platform.
- *
- * This object is the single shared codec both platforms call to **normalise either
- * envelope into one canonical [PaymentRequestEnvelope]** and to **rebuild** the canonical
- * `liquid:payment:request` envelope. It is intentionally backward-compatible: it reads
- * both legacy formats so already-deployed peers keep working.
- */
 object LiquidDcMessages {
     // ── reference-based envelopes (iOS host + Liquid Auth) ──────────────────────
     const val REF_PAYMENT_REQUEST = "liquid:payment:request"
@@ -46,12 +26,6 @@ object LiquidDcMessages {
             isLenient = true
         }
 
-    /**
-     * Canonical, platform-neutral payment request parsed from either wire envelope.
-     *
-     * [sessionId]/[segmentIndex] are only present for the Android `segment:request`
-     * envelope; iOS hosts (single request, no per-segment protocol) leave them null.
-     */
     data class PaymentRequestEnvelope(
         val id: String,
         val amount: String,
@@ -78,13 +52,6 @@ object LiquidDcMessages {
             obj.str("type") == DCMessageType.SEGMENT_REQUEST
     }
 
-    /**
-     * Normalises a payment request from EITHER:
-     *  - iOS host:     `{"reference":"liquid:payment:request","id":..,"amount":..,"payTo":..,"meta":{..}}`
-     *  - Android host: `{"type":"segment:request","sessionId":..,"segmentIndex":..,"payload":{..}}`
-     *
-     * Returns null if [raw] is not a payment request.
-     */
     fun parsePaymentRequest(raw: String): PaymentRequestEnvelope? {
         val obj = parseObjectOrNull(raw) ?: return null
 

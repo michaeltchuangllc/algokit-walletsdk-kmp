@@ -5,13 +5,6 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
-/**
- * In-memory nonce store for replay protection.
- * Nonces expire after the given TTL.
- *
- * Thread-safety is provided by a coroutine [Mutex] rather than a
- * `ConcurrentHashMap` so the store works across all Kotlin Multiplatform targets.
- */
 class InMemoryNonceStore : NonceStore {
     private val store = mutableMapOf<String, Long>()
     private val mutex = Mutex()

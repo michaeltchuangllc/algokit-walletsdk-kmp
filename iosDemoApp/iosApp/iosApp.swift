@@ -7,9 +7,6 @@ import WebRTC
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
-    /// Keeps the LiquidAuthService alive after LiquidAuthViewController is dismissed
-    /// so the open WebRTC data channel continues forwarding video frames to the viewer.
-    /// Set to nil when the viewer screen is dismissed.
     private var activeStreamingService: LiquidAuthService?
 
     func application(
@@ -48,9 +45,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func registerLiquidAuthCallback() {
         NSLog("📱 Registering Liquid Auth callback for iOS")
 
-        // ── Viewer cleanup ─────────────────────────────────────────────────────
-        // Called by the Compose viewer's DisposableEffect when the viewer screen is dismissed.
-        // Disconnect + release the service that was transferred from the auth VC.
         App_iosKt.iosStreamingCleanupHandler = { [weak self] in
             NSLog("🧹 Streaming viewer dismissed — disconnecting LiquidAuthService")
             self?.activeStreamingService?.disconnect()

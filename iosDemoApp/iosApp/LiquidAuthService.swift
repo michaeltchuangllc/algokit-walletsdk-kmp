@@ -68,9 +68,6 @@ public class LiquidAuthService {
     private var onError: ((Error) -> Void)?
     private var onConnected: (() -> Void)?  // Called when connection established
 
-    /// Optional handler that receives every raw data-channel message string.
-    /// Set this from the streaming viewer layer to forward video frames and
-    /// payment messages to `IOSLiquidStreamViewerConnectionManager.notifyMessageReceived`.
     public var messageForwardingHandler: ((String) -> Void)?
     
     // MARK: - Initialization
@@ -1216,9 +1213,6 @@ public class LiquidAuthService {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
 
-            // ── Deduplication guard ──────────────────────────────────────────
-            // Without this, rapid messages cause a new UIAlertController to be
-            // presented on top of the previous one, producing an infinite stack.
             guard !self.isShowingConfirmation else {
                 NSLog("⚠️ Confirmation dialog already showing — dropping duplicate request")
                 return
