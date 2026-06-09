@@ -1,9 +1,13 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
+import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
@@ -31,7 +35,7 @@ var iosViewerIsConnectedHandler: (() -> Boolean)? = null
 var iosViewerDetectConnectionTypeHandler: (() -> String)? = null
 
 /**
- * Called by Kotlin to retrieve the base64-encoded Ed25519 public key for [viewerAddress].
+ * Called by Kotlin to retrieve the base64-encoded Ed25519 public key for the viewer's address.
  * Swift must set this before the viewer connects so the hello message can be sent.
  */
 var iosViewerPublicKeyProvider: ((viewerAddress: String) -> String?)? = null
@@ -39,8 +43,8 @@ var iosViewerPublicKeyProvider: ((viewerAddress: String) -> String?)? = null
 /**
  * Called by Swift when the viewer wants to deposit into the session vault.
  *
- * Swift must call this with the signed MppWalletSigner available, perform the deposit, and
- * then call the [callback] with the resulting on-chain remaining balance in micro-USDC (or
+ * Swift must call this with the signed `MppWalletSigner` available, perform the deposit, and
+ * then invoke the callback with the resulting on-chain remaining balance in micro-USDC (or
  * null on failure).
  */
 var iosViewerDepositHandler: ((
@@ -141,7 +145,22 @@ class IOSLiquidStreamViewerConnectionManager {
     /** True while a deposit transaction is in-flight. */
     val isPaymentProcessing: StateFlow<Boolean> = _isPaymentProcessing
 
+    // iOS host path consent continuation (session vault deposit).
     private var pendingConsentContinuation: CompletableDeferred<ConsentApproval>? = null
+
+    // Android host path consent continuation (MPP direct payment — no deposit needed).
+    private var paymentConsentContinuation: CompletableDeferred<ConsentApproval>? = null
+
+    // ── IOSLiquidStreamViewer integration (both Android and iOS hosts) ────────
+
+    /**
+     * Bundles `MppPaymentRail` + `PaywalledRTCClient` + `IOSRtcDataChannel` into one object.
+     * Handles the full `segment:request` → `segment:payment` protocol for ANY host running
+     * `PaywalledRTCServer` — whether Android or iOS.
+     *
+     * Set via [setupPaymentRail]; null until the caller provides an [MppClientConfig].
+     */
+    private var streamViewer: IOSLiquidStreamViewer? = null
 
     private var activeOrigin: String? = null
     private var activeRequestId: String? = null
@@ -155,6 +174,8 @@ class IOSLiquidStreamViewerConnectionManager {
 
     @Suppress("unused")
     private var viewerAuthorizedSignerKey: ByteArray? = null
+
+    // ── Connection lifecycle ─────────────────────────────────────────────────
 
     fun connect(origin: String, requestId: String, viewerAddress: String = "") {
         val handler = iosViewerStartHandler
@@ -187,6 +208,11 @@ class IOSLiquidStreamViewerConnectionManager {
         _pendingMppConsent.value = null
         pendingConsentContinuation?.cancel()
         pendingConsentContinuation = null
+        paymentConsentContinuation?.cancel()
+        paymentConsentContinuation = null
+        // Clean up IOSLiquidStreamViewer (terminates PaywalledRTCClient + IOSRtcDataChannel).
+        streamViewer?.terminate()
+        streamViewer = null
     }
 
     @Suppress("unused")
@@ -209,6 +235,8 @@ class IOSLiquidStreamViewerConnectionManager {
         sendViewerHello()
         // Start balance polling if we already know viewer + host addresses
         maybeStartBalancePolling()
+        // Open the DC bridge so IOSLiquidStreamViewer / PaywalledRTCClient starts listening.
+        streamViewer?.notifyHostConnected()
     }
 
     @Suppress("unused")
@@ -218,17 +246,20 @@ class IOSLiquidStreamViewerConnectionManager {
         stopBalancePolling()
         _connectionState.value = ConnectionState.DISCONNECTED
         _latestVideoFrame.value = null
+        streamViewer?.notifyHostDisconnected()
     }
 
     @Suppress("unused")
     fun notifyMessageReceived(message: String) {
-        // Log EVERY incoming message so we can see if payment requests arrive at all.
+        // Skip logging for high-frequency video-frame messages to avoid log spam.
         val ref = message.jsonOptString("reference") ?: "(no-ref)"
-        println(
-            "$TAG: 📩 MSG_RECV ref=$ref len=${message.length} " +
-                "viewer='${_viewerAddress.value}' host='${_hostAddress.value}' " +
-                "preview=${message.take(160)}",
-        )
+        if (ref != "liquid:video:frame") {
+            println(
+                "$TAG: 📩 MSG_RECV ref=$ref len=${message.length} " +
+                    "viewer='${_viewerAddress.value}' host='${_hostAddress.value}' " +
+                    "preview=${message.take(160)}",
+            )
+        }
         handleMessage(message)
     }
 
@@ -239,6 +270,78 @@ class IOSLiquidStreamViewerConnectionManager {
             _connectionType.value = type
             println("$TAG: 🌐 connection type → ${type.displayName()}")
         }
+    }
+
+    // ── IOSLiquidStreamViewer setup (Android + iOS hosts) ────────────────────
+
+    /**
+     * Creates an [IOSLiquidStreamViewer] for any host that speaks the `PaywalledRTCServer`
+     * DC protocol (`segment:request` / `segment:payment`).
+     *
+     * Call this from `AnswerScreenOverlay` once the viewer's `MppWalletSigner` is available.
+     * Works for both:
+     *  - **Android hosts** (always use `PaywalledRTCServer`)
+     *  - **iOS hosts** when `iosBroadcastUsePaywalledRTCServer` is `true`
+     *
+     * [IOSLiquidStreamViewer] bundles `MppPaymentRail` + `PaywalledRTCClient` +
+     * `IOSRtcDataChannel` — a single object mirroring Android's `LiquidStreamViewer`.
+     * If the connection is already CONNECTED the viewer is opened immediately so it is
+     * ready to handle the first `segment:request`.
+     */
+    fun setupPaymentRail(mppClientConfig: MppClientConfig) {
+        streamViewer?.terminate()
+
+        val consentHandler = object : ConsentHandler {
+            override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
+                // Check existing on-chain balance: if funded, skip dialog.
+                val viewer = _viewerAddress.value
+                val host = _hostAddress.value
+                if (viewer.isNotBlank() && host.isNotBlank()) {
+                    val existing = runCatching {
+                        getRemainingBalanceUseCase(
+                            GetRemainingSessionVaultBalanceUseCase.Params(
+                                viewerAddress = viewer,
+                                hostAddress = host,
+                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                authorizedSignerPublicKey = null,
+                            ),
+                        ).getOrDefault(0L)
+                    }.getOrDefault(0L)
+                    if (existing > 0L) {
+                        println("$TAG: 💰 existing vault balance=$existing — skipping consent dialog")
+                        return ConsentApproval(
+                            approved = true,
+                            autoPaySegments = true,
+                            budgetCap = BudgetCap(
+                                amount = existing.toString(),
+                                asset = USDC_TESTNET_ID.toString(),
+                            ),
+                        )
+                    }
+                }
+                // No existing balance — show consent dialog and await user decision.
+                val deferred = CompletableDeferred<ConsentApproval>()
+                paymentConsentContinuation = deferred
+                _pendingMppConsent.value = terms
+                println("$TAG: 🎭 payment consent dialog shown amount=${terms.amount} payTo=${terms.payTo}")
+                return deferred.await()
+            }
+        }
+
+        val viewer = IOSLiquidStreamViewer(
+            mppClientConfig = mppClientConfig,
+            consentHandler = consentHandler,
+            clientConfig = ClientConfig(autoPaySegments = false),
+        )
+        streamViewer = viewer
+        viewer.start()
+
+        // If already connected (setup called after notifyConnected), open the DC now.
+        if (_connectionState.value == ConnectionState.CONNECTED) {
+            viewer.notifyHostConnected()
+        }
+
+        println("$TAG: ✅ IOSLiquidStreamViewer set up (works for both Android and iOS PaywalledRTCServer hosts)")
     }
 
     // ── Balance helpers ───────────────────────────────────────────────────────
@@ -296,18 +399,50 @@ class IOSLiquidStreamViewerConnectionManager {
     /**
      * Called by the Compose UI when the user approves the payment consent dialog.
      * [enteredAmountUsdc] is the user-entered top-up amount in whole USDC (e.g. "1.0").
+     *
+     * Behaviour differs by host type:
+     * - **`PaywalledRTCServer` hosts** (Android, or iOS with `iosBroadcastUsePaywalledRTCServer = true`):
+     *   uses `segment:request` / `segment:payment`. No session-vault deposit needed — `IOSLiquidStreamViewer`
+     *   sends a proper `segment:payment` MPP credential directly. The approval is forwarded immediately.
+     * - **Legacy iOS host** (`liquid:payment:request`): performs a session-vault deposit on-chain then
+     *   completes the consent deferred so the stream starts.
      */
     @Suppress("unused")
     fun approveMppConsent(enteredAmountUsdc: String) {
         val entered = enteredAmountUsdc.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
         val microUsdc = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
 
+        // ── PaywalledRTCServer path (Android or iOS host) ──────────────────────
+        val androidDeferred = paymentConsentContinuation
+        if (androidDeferred != null) {
+            println("$TAG: ✅ PaywalledRTCServer consent approved (MPP payment handles the charge)")
+            val terms = _pendingMppConsent.value
+            val perSegmentMicro = terms?.amount?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
+            val maxSegments = (microUsdc / perSegmentMicro).toInt().coerceAtLeast(1)
+            paymentConsentContinuation = null
+            _pendingMppConsent.value = null
+            _isPaymentProcessing.value = false
+            androidDeferred.complete(
+                ConsentApproval(
+                    approved = true,
+                    autoPaySegments = true,
+                    budgetCap = BudgetCap(
+                        amount = microUsdc.toString(),
+                        asset = USDC_TESTNET_ID.toString(),
+                    ),
+                    maxAutoPaySegments = maxSegments,
+                ),
+            )
+            return
+        }
+
+        // ── iOS host path (session vault deposit) ─────────────────────────────
         val terms = _pendingMppConsent.value
         val perSegmentMicro = terms?.amount?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
         val maxSegments = (microUsdc / perSegmentMicro).toInt().coerceAtLeast(1)
 
         _isPaymentProcessing.value = true
-        println("$TAG: 💳 user approved consent — depositMicroUsdc=$microUsdc")
+        println("$TAG: 💳 user approved iOS-host consent — depositMicroUsdc=$microUsdc")
 
         val viewerAddr = _viewerAddress.value
         val hostAddr = _hostAddress.value
@@ -365,11 +500,13 @@ class IOSLiquidStreamViewerConnectionManager {
     @Suppress("unused")
     fun rejectMppConsent() {
         println("$TAG: ❌ user rejected consent")
-        pendingConsentContinuation?.complete(
-            ConsentApproval(approved = false, autoPaySegments = false),
-        )
-        _pendingMppConsent.value = null
+        val rejection = ConsentApproval(approved = false, autoPaySegments = false)
+        // Cancel both possible pending continuations.
+        paymentConsentContinuation?.complete(rejection)
+        paymentConsentContinuation = null
+        pendingConsentContinuation?.complete(rejection)
         pendingConsentContinuation = null
+        _pendingMppConsent.value = null
         _isPaymentProcessing.value = false
     }
 
@@ -400,12 +537,22 @@ class IOSLiquidStreamViewerConnectionManager {
         sendMessage(hello)
     }
 
+    /**
+     * Routes an incoming DC message to the appropriate handler.
+     *
+     * Message format disambiguation:
+     * - `"reference"` key → legacy iOS host format (`liquid:payment:request`): session-vault path.
+     * - `"type"` key      → `PaywalledRTCServer` protocol (Android hosts, or iOS hosts with
+     *                       `iosBroadcastUsePaywalledRTCServer = true`): routed to
+     *                       `IOSLiquidStreamViewer` → `PaywalledRTCClient`.
+     */
     private fun handleMessage(message: String) {
         when (val reference = message.jsonOptString("reference")) {
             "liquid:video:frame" -> handleVideoFrame(message)
             "liquid:payment:request" -> {
-                // iOS host format (IOSLiquidAuthConnectionManager)
-                println("$TAG: 💳 PAYMENT_REQUEST_RECEIVED viewer='${_viewerAddress.value}' host='${_hostAddress.value}'")
+                // Legacy iOS host format (pre-PaywalledRTCServer).
+                // Kept for backward compatibility with iOS hosts that haven't migrated yet.
+                println("$TAG: 💳 PAYMENT_REQUEST_RECEIVED (legacy iOS host) viewer='${_viewerAddress.value}' host='${_hostAddress.value}'")
                 handlePaymentRequest(message)
             }
             "ping" -> {
@@ -413,18 +560,28 @@ class IOSLiquidStreamViewerConnectionManager {
                 sendMessage("""{"reference":"pong"}""")
             }
             null -> {
-                // No "reference" field — check for Android PaywalledRTCServer messages
-                // which use a "type" field instead.
+                // No "reference" field — this is a PaywalledRTCServer message (Android or iOS host).
                 val msgType = message.jsonOptString("type")
                 when (msgType) {
-                    "segment:request" -> {
-                        // Android host format (PaywalledRTCServer)
-                        println("$TAG: 💳 SEGMENT_REQUEST_RECEIVED (Android host) viewer='${_viewerAddress.value}' host='${_hostAddress.value}'")
-                        handleAndroidSegmentRequest(message)
-                    }
-                    "session:terminate" -> {
-                        println("$TAG: 🛑 SESSION_TERMINATE received from Android host")
-                        // No action needed — viewer just stops
+                    DCMessageType.SEGMENT_REQUEST,
+                    DCMessageType.SEGMENT_ACCEPTED,
+                    DCMessageType.SEGMENT_REJECTED,
+                    DCMessageType.SESSION_TERMINATE,
+                    -> {
+                        // PaywalledRTCServer format — route through IOSLiquidStreamViewer.
+                        // Works for both Android hosts and iOS hosts with PaywalledRTCServer enabled.
+                        if (msgType == DCMessageType.SEGMENT_REQUEST) {
+                            // Capture host address from payTo inside payload if not yet known.
+                            extractAndSetHostAddressFromSegmentRequest(message)
+                        }
+                        val viewer = streamViewer
+                        if (viewer != null) {
+                            println("$TAG: 📨 PAYWALLED_DC_MSG type=$msgType → IOSLiquidStreamViewer")
+                            viewer.notifyMessageReceived(message)
+                        } else {
+                            // IOSLiquidStreamViewer not yet set up — setupPaymentRail() not called yet.
+                            println("$TAG: ⚠️ PAYWALLED_DC_MSG type=$msgType — IOSLiquidStreamViewer not set up yet, dropping message")
+                        }
                     }
                     else -> println("$TAG: 📨 MSG_NO_REF type=$msgType preview=${message.take(120)}")
                 }
@@ -434,61 +591,21 @@ class IOSLiquidStreamViewerConnectionManager {
     }
 
     /**
-     * Handles a `segment:request` message sent by Android's [PaywalledRTCServer].
-     *
-     * Android hosts use `{"type":"segment:request","sessionId":...,"payload":{...}}` whereas
-     * iOS hosts use `{"reference":"liquid:payment:request",...}`.  This method normalises the
-     * Android envelope so the existing [handlePaymentRequest] path can handle it.
+     * Extracts `payTo` from a `segment:request` message (which lives inside the `payload`
+     * object) and stores it as the host address so balance polling can start.
      */
-    private fun handleAndroidSegmentRequest(message: String) {
-        runCatching {
-            val sessionId = message.jsonOptString("sessionId") ?: ""
-            val payTo = message.jsonOptString("payTo") ?: run {
-                // payTo lives inside the nested payload object — do a simple extract
-                val payloadStart = message.indexOf("\"payload\"")
-                if (payloadStart >= 0) {
-                    val sub = message.substring(payloadStart)
-                    sub.jsonOptString("payTo") ?: ""
-                } else ""
-            }
-            val amount = run {
-                val payloadStart = message.indexOf("\"payload\"")
-                if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("amount") ?: "" else ""
-            }
-            val asset = run {
-                val payloadStart = message.indexOf("\"payload\"")
-                if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("asset") ?: "" else ""
-            }
-            val nonce = run {
-                val payloadStart = message.indexOf("\"payload\"")
-                if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("nonce") ?: "" else ""
-            }
-
-            // Capture host address from payTo if not already set
-            if (payTo.isNotBlank() && _hostAddress.value != payTo) {
-                _hostAddress.value = payTo
-                println("$TAG: 💳 SEGMENT_REQUEST_HOST_SET host=$payTo")
-                maybeStartBalancePolling()
-            }
-            if (sessionId.isNotBlank() && _sessionId.value != sessionId) _sessionId.value = sessionId
-
-            // Build a normalised `liquid:payment:request`-style string so the existing
-            // handlePaymentRequest() code path handles consent + deposit as usual.
-            val normalized = buildString {
-                append("""{"reference":"liquid:payment:request"""")
-                append(""","id":"$sessionId"""")
-                append(""","amount":"$amount"""")
-                append(""","asset":"$asset"""")
-                append(""","nonce":"$nonce"""")
-                append(""","payTo":"$payTo"""")
-                append(""","network":"algorand-testnet"""")
-                append("}")
-            }
-            println("$TAG: 💳 SEGMENT_REQUEST_NORMALISED preview=${normalized.take(160)}")
-            handlePaymentRequest(normalized)
-        }.onFailure { e ->
-            println("$TAG: ❌ handleAndroidSegmentRequest error: $e")
+    private fun extractAndSetHostAddressFromSegmentRequest(message: String) {
+        val sessionId = message.jsonOptString("sessionId") ?: ""
+        val payTo = message.jsonOptString("payTo") ?: run {
+            val payloadStart = message.indexOf("\"payload\"")
+            if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("payTo") ?: "" else ""
         }
+        if (payTo.isNotBlank() && _hostAddress.value != payTo) {
+            _hostAddress.value = payTo
+            println("$TAG: 💳 SEGMENT_REQUEST_HOST_SET host=$payTo")
+            maybeStartBalancePolling()
+        }
+        if (sessionId.isNotBlank() && _sessionId.value != sessionId) _sessionId.value = sessionId
     }
 
     @OptIn(ExperimentalEncodingApi::class)
@@ -512,27 +629,26 @@ class IOSLiquidStreamViewerConnectionManager {
                 if (sid.isNotBlank() && _sessionId.value != sid) _sessionId.value = sid
             }
 
-            val frameBytes = decodeBase64OrNull(base64Data) ?: run {
-                println("$TAG: ⚠️ base64 decode failed id=$id")
-                return@runCatching
-            }
+            val frameBytes = decodeBase64OrNull(base64Data) ?: return@runCatching
 
             _latestVideoFrame.value = VideoFrame(id, timestamp, frameBytes, width, height, format)
         }.onFailure { e ->
-            println("$TAG: ❌ handleVideoFrame error: $e")
+            println("$TAG: handleVideoFrame error: $e")
         }
     }
 
     /**
-     * Handles an X402 payment request from the host.
+     * Handles an iOS-format (`liquid:payment:request`) payment request from the host.
      *
-     * On iOS there is no native WebRTC DataChannel LiquidStreamViewer, so we expose the
-     * consent decision to the Compose UI via [pendingMppConsent] and await the user's choice.
+     * iOS hosts use the session-vault model: the viewer deposits USDC to an on-chain contract,
+     * then the host checks the balance rather than waiting for a DC payment response.
+     * This path therefore shows a consent/deposit dialog and does NOT send a `segment:payment`
+     * back over the DataChannel (unlike the paywalled host path handled by `IOSLiquidStreamViewer`).
      */
     private fun handlePaymentRequest(message: String) {
         runCatching {
             val sessionId = message.jsonOptString("id") ?: run {
-                println("$TAG: ⚠️ PAYMENT_REQUEST_NO_ID — missing 'id' field, raw=${message.take(200)}")
+                println("$TAG: PAYMENT_REQUEST_NO_ID — missing 'id' field, raw=${message.take(200)}")
                 return@runCatching
             }
             val amount = message.jsonOptString("amount") ?: ""

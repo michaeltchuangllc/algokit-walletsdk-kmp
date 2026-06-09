@@ -20,6 +20,7 @@ import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
@@ -30,12 +31,21 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSession
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDepositHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerStopHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import org.koin.compose.koinInject
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastClaimVoucherHandler
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.koin.core.Koin
 import org.koin.core.context.loadKoinModules
 import org.koin.mp.KoinPlatform
@@ -555,12 +565,172 @@ fun setViewerSendMessageHandler(handler: (String) -> Unit) {
     iosViewerSendMessageHandler = handler
 }
 
+/**
+ * Swift-callable wrapper that sets [iosViewerStopHandler].
+ *
+ * Invoked by [IOSLiquidStreamViewerConnectionManager.disconnect] (i.e. when the Compose
+ * `AnswerScreenOverlay` is dismissed). Since the viewer UI is now rendered by the overlay —
+ * not by a natively presented `LiquidStreamViewerViewController` — this is the hook Swift uses
+ * to tear down the still-open WebRTC `LiquidAuthService`.
+ */
+fun setViewerStopHandler(handler: () -> Unit) {
+    iosViewerStopHandler = handler
+}
+
 var iosStreamingCleanupHandler: (() -> Unit)? = null
 
 var iosViewerMinimizeHandler: (() -> Unit)? = null
 
 var isBroadcastChannelOpen: Boolean = false
 var broadcastConnectionTypeString: String = "unknown"
+
+/**
+ * Swift-callable wrapper that sets [iosBroadcastPaymentDCSendMessageHandler] —
+ * the dedicated "x402-payment-channel" DataChannel send path used by
+ * `IOSLiquidStreamCreator` / `PaywalledRTCServer` for payment messages only.
+ *
+ * This does NOT affect [iosBroadcastSendMessageHandler], which remains the
+ * general "liquid" DC used for video frames, keep-alive pings, and other messages.
+ *
+ * Call this BEFORE [notifyBroadcastClientConnected] so `PaywalledRTCServer` can
+ * send `segment:request` on the correct DC the moment it starts.
+ *
+ * @param handler lambda that sends a text message on the payment DataChannel.
+ */
+fun setIosBroadcastPaymentSendHandler(handler: (String) -> Unit) {
+    iosBroadcastPaymentDCSendMessageHandler = handler
+    println("[BroadcastHandlers] iosBroadcastPaymentDCSendMessageHandler set (payment DC ready)")
+}
+
+/** Coroutine scope used by on-chain host settlement calls. Lives as long as the app. */
+private val broadcastSettlementScope = CoroutineScope(Dispatchers.Default)
+
+/**
+ * Builds an [MppWalletSigner] for the iOS HOST account (broadcaster).
+ * Mirror of [IosViewerPaymentOrchestrator.buildWalletSigner] but for the host side.
+ */
+private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
+    val localAccount = getLocalAccount(hostAddress) ?: run {
+        Napier.e("[HOST_SIGNER_BUILD_SKIP] reason=account_not_found host=$hostAddress")
+        return null
+    }
+    if (localAccount is LocalAccount.SeedVault) return null
+
+    val authorizedSignerPublicKey: ByteArray = when (localAccount) {
+        is LocalAccount.HdKey -> localAccount.publicKey
+        is LocalAccount.Falcon24 -> localAccount.publicKey
+        is LocalAccount.Algo25 -> {
+            val secretKey = runCatching {
+                val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                runBlocking { repo.getSecretKey(hostAddress) }
+            }.getOrNull()
+            if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(32, 64) else ByteArray(0)
+        }
+        else -> ByteArray(0)
+    }
+
+    val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
+
+    return object : MppWalletSigner {
+        override val address: String = hostAddress
+        override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
+        override val signerType: Long = signerType
+
+        override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray {
+            return try {
+                when (localAccount) {
+                    is LocalAccount.Algo25 -> {
+                        val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
+                            KoinPlatform.getKoin().get()
+                        val secretKey = repo.getSecretKey(hostAddress) ?: return ByteArray(0)
+                        com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction(
+                            secretKey = secretKey,
+                            transactionByteArray = txnMsgpack,
+                        ) ?: ByteArray(0)
+                    }
+                    is LocalAccount.HdKey -> {
+                        val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
+                            KoinPlatform.getKoin().get()
+                        val seed = hdSeedRepo.getSeed(localAccount.seedId) ?: return ByteArray(0)
+                        com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
+                            transactionByteArray = txnMsgpack,
+                            seed = seed,
+                            account = localAccount.account,
+                            change = localAccount.change,
+                            key = localAccount.keyIndex,
+                        ) ?: ByteArray(0)
+                    }
+                    is LocalAccount.Falcon24 -> {
+                        val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
+                            KoinPlatform.getKoin().get()
+                        val privateKey = falcon24Repo.getSecretKey(hostAddress) ?: return ByteArray(0)
+                        com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction(
+                            transactionByteArray = txnMsgpack,
+                            publicKey = localAccount.publicKey,
+                            privateKey = privateKey,
+                        ) ?: ByteArray(0)
+                    }
+                    else -> ByteArray(0)
+                }
+            } catch (t: Throwable) {
+                Napier.e("[HOST_SIGN_TXN_ERR] host=$hostAddress: ${t.message}", t)
+                ByteArray(0)
+            }
+        }
+    }
+}
+
+/**
+ * On-chain settlement for the iOS HOST side.
+ *
+ * Called from [iosBroadcastClaimVoucherHandler] whenever the Android viewer sends a new
+ * `liquid:payment:voucher`. Calls [MppPayments.settleLatestVoucher] — the same on-chain call
+ * that Android's `LiquidStreamBlockConsumptionManager` makes.
+ *
+ * @param hostAddress    iOS host's Algorand address (payer in the `settle` txn).
+ * @param viewerAddress  Android viewer's Algorand address.
+ * @param viewerSignerKeyBase64 Viewer's authorized signer public key (Base64).
+ */
+@OptIn(ExperimentalEncodingApi::class)
+suspend fun settleHostVoucherOnChain(
+    hostAddress: String,
+    viewerAddress: String,
+    viewerSignerKeyBase64: String,
+) {
+    Napier.d("[HOST_SETTLE_START] host=$hostAddress viewer=$viewerAddress")
+    val signer = buildHostMppWalletSigner(hostAddress)
+    if (signer == null) {
+        Napier.e("[HOST_SETTLE_SKIP] reason=no_host_signer host=$hostAddress")
+        return
+    }
+    val viewerSignerKey = runCatching { Base64.decode(viewerSignerKeyBase64) }.getOrNull()
+    val signerKey = viewerSignerKey ?: signer.authorizedSignerPublicKey
+
+    try {
+        val result = MppPayments.settleLatestVoucher(
+            signer = signer,
+            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+            viewerAddress = viewerAddress,
+            hostAddress = hostAddress,
+            authorizedSignerPublicKey = signerKey,
+        )
+        result
+            .onSuccess { txId ->
+                Napier.d("[HOST_SETTLE_OK] txId=$txId host=$hostAddress viewer=$viewerAddress")
+            }
+            .onFailure { e ->
+                val msg = e.message.orEmpty()
+                if (msg.contains("pc=", ignoreCase = true)) {
+                    Napier.d("[HOST_SETTLE_SKIP_NOOP] host=$hostAddress viewer=$viewerAddress reason=$msg")
+                } else {
+                    Napier.e("[HOST_SETTLE_ERR] host=$hostAddress viewer=$viewerAddress", e)
+                }
+            }
+    } catch (t: Throwable) {
+        Napier.e("[HOST_SETTLE_EXCEPTION] host=$hostAddress viewer=$viewerAddress", t)
+    }
+}
 
 fun registerBroadcastHandlers(
     startHandler: (String, String) -> Unit,
@@ -574,7 +744,20 @@ fun registerBroadcastHandlers(
     // () -> Boolean / () -> String interop complications on the Swift side.
     iosBroadcastIsConnectedHandler = { isBroadcastChannelOpen }
     iosBroadcastDetectConnectionTypeHandler = { broadcastConnectionTypeString }
-    println("📡 iOS broadcast handlers registered")
+
+    // Wire the on-chain host settlement: when Android viewer sends a new voucher,
+    // call settleLatestVoucher() on Algorand so lastSettled is updated.
+    iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64 ->
+        broadcastSettlementScope.launch {
+            Napier.d("[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress")
+            settleHostVoucherOnChain(
+                hostAddress = hostAddress,
+                viewerAddress = viewerAddress,
+                viewerSignerKeyBase64 = viewerPublicKeyBase64,
+            )
+        }
+    }
+    println("iOS broadcast handlers registered")
 }
 
 fun notifyBroadcastClientConnected(requestId: String) {

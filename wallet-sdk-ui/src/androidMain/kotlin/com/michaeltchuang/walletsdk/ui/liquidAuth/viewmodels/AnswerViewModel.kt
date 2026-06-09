@@ -13,7 +13,6 @@ import androidx.biometric.R
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.algorand.algosdk.sdk.BytesArray
 import com.algorand.algosdk.sdk.Sdk
@@ -50,8 +49,6 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastU
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -65,7 +62,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.utils.DataResource
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.Encoder
@@ -75,7 +71,6 @@ import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -86,7 +81,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.json.JSONObject
-import java.math.BigInteger
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.roundToLong
@@ -117,43 +111,12 @@ class AnswerViewModel(
     private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
-) : ViewModel(),
+) : LiquidAuthViewerStateHolder(),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
         private const val TAG = "AnswerViewModel"
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
-        private const val STREAM_TIMEOUT_MS = 10000L // 10 seconds without frames = stream ended
-        private const val BASE58_ALPHABET =
-            "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
-
-        private fun decodeBase58(input: String): ByteArray? {
-            if (input.isEmpty()) return ByteArray(0)
-
-            var value = BigInteger.ZERO
-            val radix = BigInteger.valueOf(58L)
-
-            for (char in input) {
-                val index = BASE58_ALPHABET.indexOf(char)
-                if (index < 0) return null
-                value = value.multiply(radix).add(BigInteger.valueOf(index.toLong()))
-            }
-
-            val raw =
-                value.toByteArray().let { bytes ->
-                    if (bytes.isNotEmpty() && bytes[0] == 0.toByte()) {
-                        bytes.copyOfRange(
-                            1,
-                            bytes.size,
-                        )
-                    } else {
-                        bytes
-                    }
-                }
-
-            val leadingZeroCount = input.takeWhile { it == '1' }.length
-            return ByteArray(leadingZeroCount) + raw
-        }
     }
 
     // State
@@ -163,20 +126,8 @@ class AnswerViewModel(
         val versionName = "1.0"
         "$applicationId/$versionName (Android ${Build.VERSION.RELEASE}; ${Build.MODEL}; ${Build.BRAND})"
     }
-    private val _session = MutableStateFlow(SESSION_LOGGED_OUT)
-    val session: StateFlow<String> = _session
-    private val _authMessage = MutableStateFlow<AuthMessage?>(null)
-    val authMessage: StateFlow<AuthMessage?> = _authMessage
-    private val _accountBalance: MutableStateFlow<String?> = MutableStateFlow(null)
-    val accountBalance: StateFlow<String?> = _accountBalance
-    private val _count = MutableStateFlow(0)
-    val count: StateFlow<Int> = _count
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error
     private val uuidGenerator = Generators.timeBasedEpochRandomGenerator()
     private val providerId = uuidGenerator.generate().toString()
-    private val _accountAddress = MutableStateFlow("")
-    val accountAddress: StateFlow<String> = _accountAddress
     private var currentAccountType: String = "algorand"
     private val encoder =
         Encoder()
@@ -195,78 +146,21 @@ class AnswerViewModel(
     val signalService = _signalService
     private var attestationApiResponse: String? = null
 
-    // Video streaming state
-    private val _videoFrame = MutableStateFlow<VideoFrameData?>(null)
-    val videoFrame: StateFlow<VideoFrameData?> = _videoFrame
-    private val _lastFrameTimestamp = MutableStateFlow<Long>(0)
-    val lastFrameTimestamp: StateFlow<Long> = _lastFrameTimestamp
-    private val _isStreamActive = MutableStateFlow(false)
-    val isStreamActive: StateFlow<Boolean> = _isStreamActive
-
-    @Volatile
-    private var hasReceivedAtLeastOneFrame = false
-
-    @Volatile
-    private var hasTimedOutCurrentStream = false
-
-    init {
-        // Monitor stream activity
+    /**
+     * Android-specific stream-timeout teardown. The shared base already clears the frame and
+     * resets session state; here we stop the bound SignalService and notify the UI.
+     */
+    override fun onStreamTimeout(reason: String) {
+        _signalService.value?.stop()
         viewModelScope.launch {
-            while (true) {
-                val lastFrame = _lastFrameTimestamp.value
-                val currentlyActive =
-                    if (lastFrame == 0L) {
-                        false
-                    } else {
-                        (System.currentTimeMillis() - lastFrame) < STREAM_TIMEOUT_MS
-                    }
-                _isStreamActive.value = currentlyActive
-
-                val shouldTimeoutDisconnect =
-                    hasReceivedAtLeastOneFrame &&
-                        !currentlyActive &&
-                        !hasTimedOutCurrentStream
-
-                Napier.d(
-                    tag = TAG,
-                    message =
-                        "Stream monitor - lastFrame=$lastFrame, currentlyActive=$currentlyActive, " +
-                            "hasReceivedAtLeastOneFrame=$hasReceivedAtLeastOneFrame, " +
-                            "hasTimedOutCurrentStream=$hasTimedOutCurrentStream, " +
-                            "shouldTimeout=$shouldTimeoutDisconnect",
-                )
-
-                if (shouldTimeoutDisconnect) {
-                    Napier.w(tag = TAG, message = "Stream timeout triggered - disconnecting")
-                    hasTimedOutCurrentStream = true
-                    clearVideoFrame()
-                    _session.value = SESSION_LOGGED_OUT
-                    _authMessage.value = null
-                    _signalService.value?.stop()
-                    val reason =
-                        "Stream disconnected because no video frames were received for a few seconds. " +
-                            "Please reconnect to continue watching."
-                    _error.value = reason
-                    eventDelegate.sendEvent(ViewEvent.ShowToast(reason))
-                    eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
-                }
-
-                delay(500) // Check every 500ms
-            }
+            eventDelegate.sendEvent(ViewEvent.ShowToast(reason))
+            eventDelegate.sendEvent(ViewEvent.StreamDisconnected(reason))
         }
     }
 
     // --- Public Setters and Helpers ---
-    fun setSession(cookie: String?) {
-        if (cookie !== null) _session.value = cookie
-    }
-
-    fun setMessage(authMessage: AuthMessage?) {
-        _authMessage.value = authMessage
-    }
-
-    fun setAccountAddress(address: String) {
-        _accountAddress.value = address
+    override fun setAccountAddress(address: String) {
+        super.setAccountAddress(address)
         viewModelScope.launch {
             currentAccountType =
                 when (getLocalAccount(address)) {
@@ -274,50 +168,6 @@ class AnswerViewModel(
                     else -> "algorand"
                 }
         }
-    }
-
-    fun setCount(i: Int) {
-        _count.value = i
-    }
-
-    fun setError(errorMessage: String?) {
-        _error.value = errorMessage
-    }
-
-    fun clearError() {
-        _error.value = null
-    }
-
-    fun setVideoFrame(frame: VideoFrameData?) {
-        _videoFrame.value = frame
-        if (frame != null) {
-            val now = System.currentTimeMillis()
-            _lastFrameTimestamp.value = now
-            hasReceivedAtLeastOneFrame = true
-            hasTimedOutCurrentStream = false
-            Napier.d(
-                tag = TAG,
-                message = "Frame received: ${frame.width}x${frame.height}, timestamp=$now",
-            )
-        }
-    }
-
-    /**
-     * Check if video stream is still active (received frame within timeout)
-     */
-    fun isStreamActive(): Boolean {
-        val lastFrame = _lastFrameTimestamp.value
-        if (lastFrame == 0L) return false
-        return (System.currentTimeMillis() - lastFrame) < STREAM_TIMEOUT_MS
-    }
-
-    /**
-     * Clear video frame when stream ends or client disconnects
-     */
-    fun clearVideoFrame() {
-        _videoFrame.value = null
-        _lastFrameTimestamp.value = 0
-        hasReceivedAtLeastOneFrame = false
     }
 
     fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
@@ -348,8 +198,8 @@ class AnswerViewModel(
     fun fetchAccountBalance() {
         viewModelScope.launch {
             try {
-                val balance = getAccountAlgoBalance(_accountAddress.value)
-                _accountBalance.value = balance.toString()
+                val balance = getAccountAlgoBalance(accountAddress.value)
+                setAccountBalance(balance.toString())
                 println("Fetched account balance: ${balance?.toString() ?: "0"}")
             } catch (e: Exception) {
                 println("Exception fetching account balance: ${e.message}")
@@ -691,20 +541,9 @@ class AnswerViewModel(
         }
     }
 
-    // MPP consent request bridge for UI-driven approval dialog
-    private val _pendingMppConsent = MutableStateFlow<ConsentTerms?>(null)
-    val pendingMppConsent: StateFlow<ConsentTerms?> = _pendingMppConsent
-
-    private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
-    val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
-    private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
-    val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
     private val _currentBlockNumber = MutableStateFlow<Long?>(null)
     val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
     private var blockNumberPollingJob: Job? = null
-
-    @Volatile
-    private var pendingMppConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
     /**
      * Encode ResponseMessage to CBOR bytes
@@ -741,7 +580,7 @@ class AnswerViewModel(
         processSignTransactionsUseCase(
             params = params,
             providerId = providerId,
-            accountAddress = _accountAddress.value,
+            accountAddress = accountAddress.value,
         )
 
     fun clearPendingSignRequest() {
@@ -753,58 +592,6 @@ class AnswerViewModel(
     fun consumeViewerRuntimeStateForUi() {
         // Keep runtime state in ViewModel so UI can be detached from activity recreation.
         // This method exists as an explicit phase-2 handoff marker for callers.
-    }
-
-    suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
-        Log.e(
-            TAG,
-            "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
-        )
-        val deferred = CompletableDeferred<ConsentApproval>()
-        pendingMppConsentContinuation = deferred
-        _pendingMppConsent.value = terms
-        return try {
-            val approval = deferred.await()
-            Log.e(TAG, "[VIEWER_MPP_CONSENT_RESOLVED] approved=${approval.approved}")
-            approval
-        } finally {
-            pendingMppConsentContinuation = null
-            _pendingMppConsent.value = null
-        }
-    }
-
-    fun approveMppConsent(approval: ConsentApproval) {
-        // Do not seed viewer balance from consent budget; source of truth is on-chain vault read.
-        if (approval.approved) {
-            _viewerSessionVaultMicroUsdc.value = 0L
-            _viewerProgressBalanceMicroUsdc.value = 0L
-        }
-        pendingMppConsentContinuation?.complete(approval)
-    }
-
-    fun setViewerSessionVaultProgress(
-        remainingBalanceMicroUsdc: Long,
-        progressBalanceMicroUsdc: Long,
-    ) {
-        _viewerSessionVaultMicroUsdc.value = remainingBalanceMicroUsdc.coerceAtLeast(0L)
-        _viewerProgressBalanceMicroUsdc.value = progressBalanceMicroUsdc.coerceAtLeast(0L)
-    }
-
-    fun setViewerSessionVaultBalance(balanceMicroUsdc: Long) {
-        setViewerSessionVaultProgress(
-            remainingBalanceMicroUsdc = balanceMicroUsdc,
-            progressBalanceMicroUsdc = balanceMicroUsdc,
-        )
-    }
-
-    fun rejectMppConsent() {
-        Log.e(TAG, "[VIEWER_MPP_CONSENT_REJECTED]")
-        pendingMppConsentContinuation?.complete(
-            ConsentApproval(
-                approved = false,
-                autoPaySegments = false,
-            ),
-        )
     }
 
     suspend fun topUpViewerSessionVault(
@@ -1536,43 +1323,5 @@ class AnswerViewModel(
         data class StreamDisconnected(
             val reason: String,
         ) : ViewEvent
-    }
-
-    /**
-     * Video frame data class for streaming camera feed
-     */
-    data class VideoFrameData(
-        val id: String,
-        val timestamp: Long,
-        val data: ByteArray,
-        val width: Int,
-        val height: Int,
-        val format: String = "jpeg",
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as VideoFrameData
-
-            if (id != other.id) return false
-            if (timestamp != other.timestamp) return false
-            if (!data.contentEquals(other.data)) return false
-            if (width != other.width) return false
-            if (height != other.height) return false
-            if (format != other.format) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = id.hashCode()
-            result = 31 * result + timestamp.hashCode()
-            result = 31 * result + data.contentHashCode()
-            result = 31 * result + width
-            result = 31 * result + height
-            result = 31 * result + format.hashCode()
-            return result
-        }
     }
 }

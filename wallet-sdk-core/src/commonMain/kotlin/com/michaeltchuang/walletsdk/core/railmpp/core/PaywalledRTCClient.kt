@@ -18,6 +18,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * PaywalledRTCClient — consumer-side payment-channel orchestration.
@@ -169,6 +171,51 @@ class PaywalledRTCClient(
             }
 
             val msg = Json.parseToJsonElement(msgStr).jsonObject
+
+            // ── iOS host format: {"reference":"liquid:payment:request",...} ─────────────
+            // iOS hosts emit reference-keyed envelopes without the type / payload / meta
+            // fields required by paymentRequestFromJson(). We normalise them here using
+            // LiquidDcMessages so the same handlePaymentRequest() code path handles both
+            // formats.  railPayload is intentionally left null — the ConsentHandler /
+            // PaymentRail on the iOS side must handle this gracefully (e.g. session vault).
+            if (msg["reference"]?.jsonPrimitive?.content == LiquidDcMessages.REF_PAYMENT_REQUEST) {
+                val env = LiquidDcMessages.parsePaymentRequest(msgStr)
+                if (env != null) {
+                    @OptIn(ExperimentalUuidApi::class)
+                    val request = PaymentRequest(
+                        id = env.id,
+                        sessionId = env.sessionId ?: env.id,
+                        segmentIndex = env.segmentIndex ?: 0,
+                        amount = env.amount,
+                        asset = env.asset,
+                        network = env.network,
+                        payTo = env.payTo,
+                        ttl = 30,
+                        nonce = env.nonce.ifBlank { Uuid.random().toString() },
+                        meta = PaymentRequestMeta(
+                            gatingMode = if (env.gatingMode != null) {
+                                GatingMode.fromString(env.gatingMode)
+                            } else {
+                                GatingMode.PARTIAL_TIME
+                            },
+                            enforcement = EnforcementMode.TRACK,
+                            segmentDuration = env.segmentDuration,
+                        ),
+                        railPayload = null,
+                    )
+                    Napier.d(
+                        "[VIEWER_IOS_PAYMENT_REQUEST_RECEIVED] session=${request.sessionId} " +
+                            "segment=${request.segmentIndex} nonce=${request.nonce} " +
+                            "amount=${request.amount} asset=${request.asset} payTo=${request.payTo}",
+                        tag = TAG,
+                    )
+                    scope.launch { handlePaymentRequest(request) }
+                } else {
+                    Napier.w("[VIEWER_IOS_PAYMENT_REQUEST_PARSE_FAILED] raw=${msgStr.take(200)}", tag = TAG)
+                }
+                return
+            }
+
             when (msg["type"]?.jsonPrimitive?.content) {
                 DCMessageType.SEGMENT_REQUEST -> {
                     val payload = msg["payload"]!!.jsonObject

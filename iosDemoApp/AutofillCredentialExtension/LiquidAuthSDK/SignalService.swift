@@ -174,7 +174,7 @@ public class SignalService {
                 )
             let buffer = RTCDataBuffer(data: message.data(using: .utf8)!, isBinary: false)
             dataChannel.sendData(buffer)
-            Logger.info("Message sent: \(message)")
+
         } else {
             Logger.error("sendMessage: Data channel is not available. Queuing message.")
             messageQueue.append(message)
@@ -221,5 +221,48 @@ public class SignalService {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
         Logger.debug("Keep-alive timer stopped")
+    }
+
+    // MARK: - Additional DataChannels
+
+    /// Creates a secondary DataChannel on the existing peer connection.
+    ///
+    /// The iOS host (offerer) calls this after the primary "liquid" DC opens to
+    /// create the "x402-payment-channel" DC that Android viewers expect.  WebRTC
+    /// automatically negotiates the new channel with the remote peer via the
+    /// established SCTP association — no extra signalling required.
+    ///
+    /// - Parameters:
+    ///   - label: The DataChannel label (e.g. "x402-payment-channel").
+    ///   - onMessage: Called for every text message received on this channel.
+    ///   - onStateChange: Called when the channel's ready-state changes.
+    /// - Returns: The created `RTCDataChannel`, or `nil` if the peer connection
+    ///   is not yet available.
+    public func createAdditionalDataChannel(
+        label: String,
+        onMessage: @escaping (String) -> Void,
+        onStateChange: @escaping (String?) -> Void
+    ) -> RTCDataChannel? {
+        guard let peerConnection = peerConnection else {
+            Logger.error("createAdditionalDataChannel: peerConnection is nil — call connectToPeer first")
+            return nil
+        }
+        let config = RTCDataChannelConfiguration()
+        config.isNegotiated = false
+        guard let dc = peerConnection.dataChannel(forLabel: label, configuration: config) else {
+            Logger.error("createAdditionalDataChannel: failed to create DC with label '\(label)'")
+            return nil
+        }
+        // Pass signalService: nil so the delegate does NOT overwrite self.dataChannel
+        // (which should always point to the primary "liquid" DC).
+        let delegate = DataChannelDelegate(
+            signalService: nil,
+            onMessage: onMessage,
+            onStateChange: onStateChange
+        )
+        dc.delegate = delegate
+        dataChannelDelegates[dc] = delegate
+        Logger.info("createAdditionalDataChannel: created '\(label)' (id=\(dc.channelId))")
+        return dc
     }
 }

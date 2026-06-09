@@ -1,10 +1,16 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamCreator
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
 import kotlinx.coroutines.CoroutineScope
@@ -18,12 +24,74 @@ import kotlinx.coroutines.launch
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
+// ── Swift-bridged global handlers ─────────────────────────────────────────────
+
 var activeIOSBroadcastConnectionManager: IOSLiquidAuthConnectionManager? = null
 var iosBroadcastStartHandler: ((origin: String, requestId: String) -> Unit)? = null
 var iosBroadcastStopHandler: (() -> Unit)? = null
+
+/**
+ * Sends a message on the GENERAL "liquid" DataChannel.
+ * Used for: video frames, keep-alive pings, session-level messages.
+ * Set once in Swift via `registerBroadcastHandlers`.
+ */
 var iosBroadcastSendMessageHandler: ((message: String) -> Unit)? = null
+
+/**
+ * Sends a message on the DEDICATED "x402-payment-channel" DataChannel.
+ * Used ONLY by `IOSLiquidStreamCreator` / `PaywalledRTCServer` for payment messages
+ * (`segment:request`, `segment:accepted`, etc.).
+ *
+ * Set by Swift in `iosApp.swift` AFTER the payment DC is successfully created
+ * (i.e. after the general DC opens and `createAdditionalDataChannel` succeeds).
+ *
+ * Falls back to [iosBroadcastSendMessageHandler] when null — this allows the
+ * setup to work even before the payment DC is created (though messages may go
+ * to the wrong channel if fallback is used, so Swift must set this promptly).
+ */
+var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
+
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
+
+/**
+ * Called by Kotlin when a new (higher-claimed) `liquid:payment:voucher` snapshot is captured
+ * from the Android viewer. Swift should implement this to call `MppPayments.claimVoucherFromViewer`
+ * using the HOST's wallet signer, which updates `lastSettled` in the session vault.
+ *
+ * Parameters:
+ *   sessionId            — payment session ID
+ *   viewerAddress        — Android viewer's Algorand address
+ *   hostAddress          — iOS host's Algorand address
+ *   claimedMicroUsdc     — total amount claimed (cumulative) in microUSDC
+ *   signatureBase64      — Ed25519 signature over the voucher bytes (Base64-encoded)
+ *   viewerPublicKeyBase64— viewer's authorized signer public key (Base64-encoded)
+ */
+var iosBroadcastClaimVoucherHandler: ((
+    sessionId: String,
+    viewerAddress: String,
+    hostAddress: String,
+    claimedMicroUsdc: Long,
+    signatureBase64: String,
+    viewerPublicKeyBase64: String,
+) -> Unit)? = null
+
+/**
+ * HMAC secret used by `PaywalledRTCServer` (inside `IOSLiquidStreamCreator`) when issuing MPP challenges.
+ * Override from Swift before establishing a connection:
+ * ```swift
+ * LiquidAuthConnectionManagerKt.iosBroadcastMppSecretKey = "your-per-deployment-secret"
+ * ```
+ * For production, use a per-deployment secret stored in the keychain.
+ */
+var iosBroadcastMppSecretKey: String = "ios-host-mpp-secret"
+
+/**
+ * When `true` (default), the iOS host uses `IOSLiquidStreamCreator` / `PaywalledRTCServer` and sends
+ * `{"type":"segment:request",...}` — the same wire format as Android.
+ * Set to `false` to fall back to the legacy `{"reference":"liquid:payment:request",...}` format.
+ */
+var iosBroadcastUsePaywalledRTCServer: Boolean = true
 
 private const val TAG = "IOSLiquidAuthCM"
 private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
@@ -53,6 +121,28 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     )
     private val scope = CoroutineScope(Dispatchers.Default)
 
+    // ── IOSLiquidStreamCreator (host payment channel) ─────────────────────────
+
+    /**
+     * Non-null while a host payment session is active.
+     * `IOSLiquidStreamCreator` bundles `MppPaymentRail` + `PaywalledRTCServer` +
+     * `IOSRtcDataChannel` + `IOSRtcRtpSender` into a single object.
+     */
+    private var streamCreator: IOSLiquidStreamCreator? = null
+
+    /**
+     * Frame-level gate controlled by `PaywalledRTCServer` segment boundaries.
+     * `true` while the segment payment is pending — `sendVideoFrame` drops all frames.
+     * `false` once payment is verified and the stream is resumed.
+     *
+     * This replaces `IOSRtcRtpSender.iosBroadcastGateVideoHandler` for the frame-based
+     * demo app which sends JPEG data over the DataChannel instead of an RTCVideoTrack.
+     */
+    private var isVideoGated = false
+
+    /** Stored gating config for the current server session (used to rebuild [ServerConfig] on viewer-hello). */
+    private var activeGatingConfig: GatingConfig? = null
+
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
         val viewerAddress: String,
@@ -73,11 +163,11 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     ) {
         val handler = iosBroadcastStartHandler
         if (handler == null) {
-            println("$TAG: ⚠️ iosBroadcastStartHandler not set!")
+            println("$TAG: iosBroadcastStartHandler not set!")
             return
         }
         if (viewModel == null) {
-            println("$TAG: ❌ viewModel is null — call initialize() first")
+            println("$TAG: viewModel is null — call initialize() first")
             return
         }
         if (isConnected() && activeRequestId == requestId) {
@@ -85,7 +175,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             return
         }
         if (activeRequestId != null && activeRequestId != requestId) {
-            println("$TAG: 🔁 requestId changed ($activeRequestId → $requestId), restarting")
+            println("$TAG: requestId changed ($activeRequestId -> $requestId), restarting")
             stopListening()
         }
         println("$TAG: startListening() origin=$origin requestId=$requestId")
@@ -98,6 +188,9 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         stopConnectionTypePolling()
         stopBlockConsumption()
         iosBroadcastStopHandler?.invoke()
+        streamCreator?.terminate("stopListening")
+        streamCreator = null
+        activeGatingConfig = null
         activeRequestId = null
         activeViewerAddressForVault = null
         activeViewerAuthorizedSignerKey = null
@@ -138,24 +231,24 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             val sessionJsonField = if (sessionId.isNotBlank()) ""","sessionId":"$sessionId"""" else ""
             val jsonMessage =
                 """{"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height$hostJsonField$sessionJsonField}"""
-            println("$TAG: 🎥 sendVideoFrame ${width}x$height (${frameData.size} bytes)")
             sendMessage(jsonMessage)
         } catch (e: Exception) {
-            println("$TAG: ❌ sendVideoFrame failed: $e")
+            println("$TAG: sendVideoFrame failed: $e")
         }
     }
 
     override fun isConnected(): Boolean = iosBroadcastIsConnectedHandler?.invoke() ?: false
 
     /**
-     * Serialize the payment request as a JSON message and send it to the viewer via the
-     * data channel.  The viewer's [IOSLiquidStreamViewerConnectionManager] will receive it
-     * and show a consent/deposit dialog.
+     * Starts an `IOSLiquidStreamCreator` session (when `iosBroadcastUsePaywalledRTCServer` is true)
+     * or falls back to the legacy `liquid:payment:request` format.
      *
-     * Unlike Android (which waits for [onPaymentSettled] from [LiquidStreamCreator]),
-     * the iOS host has no PaywalledRTCServer, so we:
-     *  1. Start streaming immediately (the balance card enforces gating once funds are tracked)
-     *  2. Start the on-chain balance polling loop immediately (same as Android line 307/317)
+     * With `IOSLiquidStreamCreator` the iOS host follows the same wire protocol as Android:
+     *  1. Server sends `{"type":"segment:request",...}` → viewer must reply with `{"type":"segment:payment",...}`
+     *  2. Server verifies the on-chain payment → calls `onPaymentSettled` → `startVideoStreaming()`
+     *
+     * Swift must set `iosBroadcastGateVideoHandler` on IOSRtcRtpSender so the server can
+     * gate/ungate the host's video track during segment transitions.
      */
     override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         println(
@@ -163,26 +256,114 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 "amount=${paymentRequest.amount} payTo=${paymentRequest.payTo}",
         )
 
-        // Lock in payment session fields (do not overwrite if already set).
-        activePaymentSessionId = activePaymentSessionId ?: paymentRequest.id
+        // Don't pre-seed activePaymentSessionId from paymentRequest.id here —
+        // when using PaywalledRTCServer, the actual session ID comes from creator.sessionId
+        // (set after creator.start()). For the legacy path we keep it from paymentRequest.id.
         activePaymentRecipient = paymentRequest.payTo
         activePaymentAmount = paymentRequest.amount
 
-        // Build and send the JSON payment request to the viewer (iOS viewers and any
-        // viewer listening on the main data channel will receive it).
-        val json = buildPaymentRequestJson(paymentRequest)
-        println("$TAG: 📤 sending payment request to viewer (${json.length} chars)")
-        sendMessage(json)
+        if (iosBroadcastUsePaywalledRTCServer) {
+            startPaywalledRTCServer(paymentRequest)
+        } else {
+            // ── Legacy path (iOS-only format) ─────────────────────────────────
+            activePaymentSessionId = activePaymentSessionId ?: paymentRequest.id
+            val json = buildPaymentRequestJson(paymentRequest)
+            println("$TAG: sending legacy payment request (${json.length} chars)")
+            sendMessage(json)
+            viewModel?.startVideoStreaming()
+            startBlockConsumption(activePaymentSessionId ?: paymentRequest.id)
+        }
+    }
 
-        // Transition the host to streaming state immediately.
-        // (On Android this happens via LiquidStreamCreator.onPaymentSettled; on iOS we have
-        // no PaywalledRTCServer so we start optimistically and track balance on-chain.)
-        viewModel?.startVideoStreaming()
+    /**
+     * Creates an [IOSLiquidStreamCreator] and starts the paywalled host session.
+     *
+     * `IOSLiquidStreamCreator` bundles `MppPaymentRail` + `PaywalledRTCServer` +
+     * `IOSRtcDataChannel` + `IOSRtcRtpSender` — a single object that mirrors
+     * Android's `LiquidStreamCreator`.  This replaces the previous manual inline construction.
+     */
+    private fun startPaywalledRTCServer(paymentRequest: PaymentRequest) {
+        if (streamCreator != null) {
+            println("$TAG: IOSLiquidStreamCreator already active — skipping duplicate")
+            return
+        }
 
-        // Start on-chain balance polling now — mirrors Android host's line 307.
-        // If the viewer has a pre-existing deposit the balance will show on the first tick;
-        // if not it shows 0.0 USDC (accurate) rather than N/A (null).
-        startBlockConsumption(activePaymentSessionId ?: paymentRequest.id)
+        val networkString = when {
+            paymentRequest.network.contains("testnet", ignoreCase = true) -> MppNetworks.ALGORAND_TESTNET
+            paymentRequest.network.contains("mainnet", ignoreCase = true) -> MppNetworks.ALGORAND_MAINNET
+            else -> MppNetworks.ALGORAND_TESTNET
+        }
+
+        val mppServerConfig = MppServerConfig(
+            network = networkString,
+            recipient = paymentRequest.payTo,
+            secretKey = iosBroadcastMppSecretKey,
+        )
+
+        val gatingConfig = GatingConfig(
+            mode = paymentRequest.meta.gatingMode,
+            amount = paymentRequest.amount,
+            asset = paymentRequest.asset,
+            network = paymentRequest.network,
+            payTo = paymentRequest.payTo,
+            segmentDuration = paymentRequest.meta.segmentDuration,
+        )
+
+        val serverConfig = ServerConfig(
+            sessionId = paymentRequest.sessionId,
+            gating = gatingConfig,
+            enforcement = paymentRequest.meta.enforcement,
+            viewerAddress = activeViewerAddressForVault,
+            viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
+            skipPaymentRequestWhenSessionFunded = true,
+        )
+
+        activeGatingConfig = gatingConfig
+
+        val creator = IOSLiquidStreamCreator(
+            mppServerConfig = mppServerConfig,
+            serverConfig = serverConfig,
+        )
+
+        creator.onSessionStarted = { sid ->
+            println("$TAG: [Creator] onSessionStarted session=$sid")
+        }
+        creator.onPaymentRequested = { req ->
+            println("$TAG: [Creator] onPaymentRequested segment=${req.segmentIndex} amount=${req.amount}")
+        }
+        creator.onPaymentSettled = { receipt ->
+            println("$TAG: [Creator] onPaymentSettled session=${receipt.sessionId} segment=${receipt.segmentIndex}")
+            // Sync activePaymentSessionId to the PaywalledRTCServer's actual session.
+            activePaymentSessionId = receipt.sessionId
+            viewModel?.startVideoStreaming()
+            startBlockConsumption(receipt.sessionId)
+        }
+        creator.onPaymentRejected = { reason ->
+            println("$TAG: [Creator] onPaymentRejected reason=$reason")
+        }
+        creator.onSegmentStarted = { idx -> println("$TAG: [Creator] onSegmentStarted idx=$idx") }
+        creator.onSegmentGated = { idx ->
+            isVideoGated = true
+            println("$TAG: [Creator] onSegmentGated idx=$idx — frame sending paused")
+        }
+        creator.onSegmentResumed = { idx ->
+            isVideoGated = false
+            println("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
+        }
+        creator.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
+        creator.onError = { err -> println("$TAG: [Creator] error: $err") }
+
+        streamCreator = creator
+        println("$TAG: IOSLiquidStreamCreator created — calling start()")
+        creator.start()
+        // Sync activePaymentSessionId to the PaywalledRTCServer's session ID right away.
+        activePaymentSessionId = creator.sessionId
+        println("$TAG: Creator session=${creator.sessionId} (synced to activePaymentSessionId)")
+
+        // If DC is already open (viewer connected before sendPaymentRequest), open immediately.
+        if (isConnected()) {
+            creator.notifyViewerConnected()
+        }
     }
 
     /**
@@ -196,7 +377,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             return
         }
         val targetSession = activePaymentSessionId ?: sessionId
-        println("$TAG: 🔄 startBlockConsumption session=$targetSession")
+        println("$TAG: startBlockConsumption session=$targetSession")
 
         var hostTick = 0
         blockConsumptionJob = scope.launch {
@@ -204,8 +385,8 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 hostTick++
                 val viewerAddr = activeViewerAddressForVault
                 val hostAddr = activePaymentRecipient
-
                 val signerKey = activeViewerAuthorizedSignerKey
+
                 if (!viewerAddr.isNullOrBlank() && !hostAddr.isNullOrBlank() && signerKey != null) {
                     runCatching {
                         val remaining = getRemainingBalanceUseCase(
@@ -218,7 +399,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                         ).getOrDefault(0L)
 
                         println(
-                            "$TAG: 💰 HOST_BALANCE_TICK #$hostTick → ${remaining / 1_000_000.0} USDC " +
+                            "$TAG: HOST_BALANCE_TICK #$hostTick -> ${remaining / 1_000_000.0} USDC " +
                                 "viewer=$viewerAddr host=$hostAddr session=$activePaymentSessionId",
                         )
                         viewModel?.consumeBlock(
@@ -226,21 +407,18 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                             progressBarBalanceMicroUsdc = remaining,
                         )
                     }.onFailure { e ->
-                        println("$TAG: ❌ HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
+                        println("$TAG: HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
                     }
                 } else {
-                    // ── Log clearly which prerequisite is still missing ────────────────
-                    // The authorizedSignerPublicKey is REQUIRED for correct channelId
-                    // derivation.  Without it the wrong vault would be queried.
                     val missingWhat = when {
                         viewerAddr.isNullOrBlank() -> "viewer-hello-message"
-                        signerKey == null -> "viewer-signer-key (viewerPublicKey from hello)"
+                        signerKey == null -> "viewer-signer-key"
                         else -> "host-address"
                     }
                     println(
-                        "$TAG: ⏳ HOST_BALANCE_WAITING tick=$hostTick — " +
+                        "$TAG: HOST_BALANCE_WAITING tick=$hostTick — " +
                             "viewer='$viewerAddr' host='$hostAddr' signerKey=${signerKey != null} " +
-                            "session='$activePaymentSessionId' NEED: $missingWhat",
+                            "NEED: $missingWhat",
                     )
                 }
 
@@ -250,16 +428,18 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     }
 
     override fun stopBlockConsumption() {
-        println("$TAG: ⏹ stopBlockConsumption")
+        println("$TAG: stopBlockConsumption")
         blockConsumptionJob?.cancel()
         blockConsumptionJob = null
     }
 
     @Suppress("unused")
     fun notifyClientConnected(requestId: String) {
-        println("$TAG: ✅ notifyClientConnected requestId=$requestId")
+        println("$TAG: notifyClientConnected requestId=$requestId")
         viewModel?.onClientConnected(requestId)
         startConnectionTypePolling()
+        // Open the host DC so IOSLiquidStreamCreator (if already started) begins the handshake.
+        streamCreator?.notifyViewerConnected()
     }
 
     @Suppress("unused")
@@ -267,21 +447,40 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("$TAG: notifyClientDisconnected")
         stopConnectionTypePolling()
         stopBlockConsumption()
+        streamCreator?.notifyViewerDisconnected()
+        streamCreator = null
         viewModel?.onClientDisconnected()
     }
 
     @Suppress("unused")
     fun notifyMessageReceived(message: String) {
         val ref = message.jsonOptString("reference") ?: "(no-ref)"
+        val msgType = message.jsonOptString("type")
         println(
-            "$TAG: 📩 HOST_MSG_RECV ref=$ref len=${message.length} " +
+            "$TAG: HOST_MSG_RECV ref=$ref type=$msgType len=${message.length} " +
                 "viewer='$activeViewerAddressForVault' host='$activePaymentRecipient' " +
                 "session='$activePaymentSessionId' preview=${message.take(160)}",
         )
+
+        // Always capture viewer address / signer key for balance polling.
         tryCaptureViewerAddressFromMessage(message)
-        val requestId = activeRequestId
-        if (requestId != null && isConnected()) {
-            viewModel?.onClientConnected(requestId)
+
+        // Route `"type"`-keyed messages (PaywalledRTCClient protocol) to IOSLiquidStreamCreator.
+        if (msgType != null && streamCreator != null) {
+            println("$TAG: routing type-keyed DC msg to IOSLiquidStreamCreator (type=$msgType)")
+            streamCreator?.notifyMessageReceived(message)
+            return
+        }
+
+        // Only call onClientConnected for connection-establishment messages, NOT for protocol
+        // messages that have a `reference` field (like liquid:payment:voucher, liquid:viewer:hello).
+        // Calling it for every voucher causes repeated spurious ViewModel callbacks.
+        val hasReference = message.jsonOptString("reference") != null
+        if (!hasReference) {
+            val requestId = activeRequestId
+            if (requestId != null && isConnected()) {
+                viewModel?.onClientConnected(requestId)
+            }
         }
     }
 
@@ -290,21 +489,18 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         val type = parseConnectionType(typeString)
         if (_connectionType.value != type) {
             _connectionType.value = type
-            println("$TAG: 🌐 connection type → ${type.displayName()}")
+            println("$TAG: connection type -> ${type.displayName()}")
             viewModel?.onConnectionTypeChanged(type)
         }
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
-    /** Builds the `liquid:payment:request` JSON that the viewer expects. */
+    /** Builds the legacy `liquid:payment:request` JSON (used when [iosBroadcastUsePaywalledRTCServer] is false). */
     private fun buildPaymentRequestJson(req: PaymentRequest): String {
         val meta = req.meta
-        val metaJson = if (meta != null) {
+        val metaJson =
             ""","meta":{"gatingMode":"${meta.gatingMode}","enforcement":"${meta.enforcement}","segmentDuration":${meta.segmentDuration}}"""
-        } else {
-            ""
-        }
         return """{"reference":"liquid:payment:request","id":"${req.id}","amount":"${req.amount}","asset":"${req.asset}","network":"${req.network}","payTo":"${req.payTo}","ttl":${req.ttl},"nonce":"${req.nonce}"$metaJson}"""
     }
 
@@ -315,15 +511,11 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             if (voucherRef == "liquid:viewer:hello") {
                 val helloViewer = msg.jsonOptString("viewer")
 
-                // ── Always record the viewer address, even if the public key is absent ───
                 if (!helloViewer.isNullOrBlank() && helloViewer != activeViewerAddressForVault) {
                     activeViewerAddressForVault = helloViewer
                     println("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
                 }
 
-                // ── Capture the authorized-signer public key ───────────────────────────
-                // The key is REQUIRED for correct channelId derivation in the session vault.
-                // Without it, getRemainingBalance would use the wrong channelId and return 0.
                 val helloPublicKeyBase64 = msg.jsonOptString("viewerPublicKey")
                 val signerKey = if (helloPublicKeyBase64 != null) decodeBase64OrNull(helloPublicKeyBase64) else null
                 if (signerKey != null) {
@@ -332,24 +524,35 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                         "$TAG: [VIEWER_HELLO_KEY] viewer=$helloViewer " +
                             "keyLen=${signerKey.size} session=$activePaymentSessionId",
                     )
+                    // Update the server's config with the viewer's key so skipPaymentRequestWhenSessionFunded works.
+                    val currentGating = activeGatingConfig ?: GatingConfig(
+                        mode = GatingMode.PARTIAL_TIME,
+                        amount = activePaymentAmount ?: "0",
+                        asset = "USDC",
+                        network = MppNetworks.ALGORAND_TESTNET,
+                        payTo = activePaymentRecipient ?: "",
+                    )
+                    streamCreator?.updateConfig(
+                        ServerConfig(
+                            sessionId = activePaymentSessionId,
+                            gating = currentGating,
+                            viewerAddress = helloViewer,
+                            viewerAuthorizedSignerPublicKey = signerKey,
+                            skipPaymentRequestWhenSessionFunded = true,
+                        ),
+                    )
                 } else {
                     println(
-                        "$TAG: ⚠️ [VIEWER_HELLO_NO_KEY] viewer=$helloViewer — " +
-                            "viewerPublicKey absent or invalid. Balance polling will wait until " +
-                            "a hello with key OR a payment voucher arrives.",
+                        "$TAG: [VIEWER_HELLO_NO_KEY] viewer=$helloViewer — " +
+                            "viewerPublicKey absent. Balance polling will wait.",
                     )
                 }
 
-                // ── Start balance polling only when BOTH address AND key are ready ─────
-                // The polling loop passes authorizedSignerPublicKey directly to the channel-id
-                // derivation. If the key is wrong or missing the vault won't be found on-chain.
                 if (!helloViewer.isNullOrBlank() && activeViewerAuthorizedSignerKey != null) {
                     val sessionForPoll = activePaymentSessionId ?: ""
                     if (blockConsumptionJob?.isActive != true) {
-                        println("$TAG: 🔄 [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
+                        println("$TAG: [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
                         startBlockConsumption(sessionForPoll)
-                    } else {
-                        println("$TAG: 🔄 [VIEWER_HELLO] polling already running — viewer=$helloViewer key updated")
                     }
                 }
             }
@@ -392,16 +595,10 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                                     signatureBase64 = signature,
                                     totalAmountClaimedMicroUsdc = claimedAmount,
                                 )
-                            // Capture viewer address from voucher (authoritative).
                             if (voucherViewer != activeViewerAddressForVault) {
                                 activeViewerAddressForVault = voucherViewer
                                 println("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
                             }
-                            // ── Capture authorized signer key from voucher ─────────────────
-                            // The voucher always carries viewerPublicKey.  If the hello arrived
-                            // without a key (e.g. viewer's getPublicKeyForAlgorandWallet returned
-                            // null), the signer key will be null at this point.  Setting it here
-                            // means the NEXT balance-poll tick will use the correct channelId.
                             if (activeViewerAuthorizedSignerKey == null) {
                                 val voucherSignerKey = decodeBase64OrNull(voucherViewerPublicKey)
                                 if (voucherSignerKey != null) {
@@ -414,11 +611,40 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                             }
                             println(
                                 "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
-                                    "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount " +
-                                    "viewer=$voucherViewer signerKeySet=${activeViewerAuthorizedSignerKey != null}",
+                                    "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
                             )
-                            // Trigger / ensure block consumption is running.
                             startBlockConsumption(voucherSessionId)
+
+                            // Trigger on-chain settlement (update lastSettled in session vault).
+                            // Swift must set iosBroadcastClaimVoucherHandler to call
+                            // MppPayments.claimVoucherFromViewer() with the host wallet signer.
+                            val hostAddr = activePaymentRecipient
+                            val claimHandler = iosBroadcastClaimVoucherHandler
+                            if (hostAddr != null && claimHandler != null) {
+                                println(
+                                    "$TAG: [VOUCHER_CLAIM_TRIGGER] session=$voucherSessionId " +
+                                        "viewer=$voucherViewer host=$hostAddr claimed=$claimedAmount",
+                                )
+                                scope.launch {
+                                    runCatching {
+                                        claimHandler(
+                                            voucherSessionId,
+                                            voucherViewer,
+                                            hostAddr,
+                                            claimedAmount,
+                                            signature,
+                                            voucherViewerPublicKey,
+                                        )
+                                    }.onFailure { e ->
+                                        println("$TAG: [VOUCHER_CLAIM_ERROR] $e")
+                                    }
+                                }
+                            } else {
+                                println(
+                                    "$TAG: [VOUCHER_CLAIM_SKIP] hostAddr=$hostAddr " +
+                                        "handler=${claimHandler != null} — set iosBroadcastClaimVoucherHandler",
+                                )
+                            }
                         }
                     }
                 }
@@ -427,15 +653,15 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             val candidate = msg.jsonOptString("address")
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
-                println("$TAG: 🔑 viewer address captured from message: $candidate")
+                println("$TAG: viewer address captured from message: $candidate")
             }
         }.onFailure { e ->
-            println("$TAG: ⚠️ tryCaptureViewerAddressFromMessage error: $e")
+            println("$TAG: tryCaptureViewerAddressFromMessage error: $e")
         }
     }
 
     private fun startConnectionTypePolling() {
-        println("$TAG: 🔄 starting connection-type polling")
+        println("$TAG: starting connection-type polling")
         connectionTypePollingJob?.cancel()
         connectionTypePollingJob =
             CoroutineScope(Dispatchers.Default).launch {
@@ -481,10 +707,6 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeBase64OrNull(value: String): ByteArray? =
         runCatching {
-            // Unescape JSON-encoded forward slashes (\/ → /) BEFORE base64 decoding.
-            // jsonOptString() uses a regex extractor that does not unescape JSON sequences,
-            // so a Falcon24/HD key encoded with base64 standard alphabet (containing '/')
-            // arrives here with literal '\/' pairs that are invalid base64 characters.
             val normalised = value
                 .replace("\\/", "/")
                 .replace('-', '+')

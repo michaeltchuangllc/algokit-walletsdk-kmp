@@ -57,6 +57,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self?.activeStreamingService = nil
         }
 
+        // ── Viewer overlay teardown ────────────────────────────────────────────
+        // The viewer UI is rendered by the Compose `AnswerScreenOverlay` (not a natively
+        // presented view controller), so its dismissal flows through
+        // `IOSLiquidStreamViewerConnectionManager.disconnect()` → `iosViewerStopHandler`.
+        // Release the WebRTC service here so the channel is torn down with the overlay.
+        App_iosKt.setViewerStopHandler { [weak self] in
+            NSLog("🧹 Viewer overlay closed — disconnecting LiquidAuthService")
+            self?.activeStreamingService?.disconnect()
+            self?.activeStreamingService = nil
+        }
+
         // ── Broadcast (creator/host) bridge handlers ───────────────────────────
         // Called by IOSLiquidAuthConnectionManager when the broadcast QR screen
         // opens and startListening() is triggered from the KMP ViewModel.
@@ -81,9 +92,34 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                             NSLog("📡 Broadcast data-channel state: \(state ?? "nil")")
                             switch state {
                             case "open":
+                                // 1. Create the "x402-payment-channel" DC on the same peerConnection
+                                //    BEFORE notifying Kotlin, so the send handler is ready when
+                                //    PaywalledRTCServer fires its first segment:request.
+                                if let paymentDC = SignalService.shared.createAdditionalDataChannel(
+                                    label: "x402-payment-channel",
+                                    onMessage: { message in
+                                        // Payment DC messages (segment:payment, etc.) go to Kotlin
+                                        App_iosKt.notifyBroadcastMessageReceived(message: message)
+                                    },
+                                    onStateChange: { dcState in
+                                        NSLog("Payment DC state: \(dcState ?? "nil")")
+                                    }
+                                ) {
+                                    // 2. Override the Kotlin send handler to use the payment DC
+                                    //    (PaywalledRTCServer sends segment:request on it).
+                                    App_iosKt.setIosBroadcastPaymentSendHandler { message in
+                                        if let data = message.data(using: .utf8) {
+                                            paymentDC.sendData(RTCDataBuffer(data: data, isBinary: false))
+                                        }
+                                    }
+                                    NSLog("Payment DC created: x402-payment-channel (id=\(paymentDC.channelId))")
+                                } else {
+                                    NSLog("Warning: failed to create x402-payment-channel DC")
+                                }
+                                // 3. Now notify Kotlin — PaywalledRTCServer can start immediately.
                                 App_iosKt.isBroadcastChannelOpen = true
                                 App_iosKt.notifyBroadcastClientConnected(requestId: requestId)
-                                NSLog("✅ Broadcast: viewer connected (requestId=\(requestId))")
+                                NSLog("Broadcast: viewer connected (requestId=\(requestId))")
                             case "closed", "failed":
                                 App_iosKt.isBroadcastChannelOpen = false
                                 App_iosKt.notifyBroadcastClientDisconnected()
@@ -199,38 +235,20 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // dismiss was called, so the WebRTC channel is still alive.
         authVC.onStreamingConnected = { [weak self] connOrigin, connRequestId, connAlgoAddress, service in
             guard let self = self else { return }
-            NSLog("🎥 Auth VC dismissed — presenting viewer screen")
+            NSLog("🎥 Auth VC dismissed — Compose overlay renders the viewer")
 
-            // Own the service so it is not ARC-released.
-            // Wire message forwarding: LiquidAuthService → IOSLiquidStreamViewerConnectionManager
+            // Own the service so it is not ARC-released, keeping the WebRTC channel alive.
+            // Wire message forwarding: LiquidAuthService → IOSLiquidStreamViewerConnectionManager.
+            //
+            // IMPORTANT: The viewer UI is now rendered by the Compose `AnswerScreenOverlay`
+            // (driven by `AnswerScreenState`, mirroring Android). We must NOT present
+            // `LiquidStreamViewerViewController` here — doing so would display a second,
+            // duplicate viewer screen on top of the overlay.
             self.activeStreamingService = service
             service.messageForwardingHandler = { message in
                 App_iosKt.forwardMessageToActiveViewer(message: message)
             }
-            NSLog("🔌 Service owned by AppDelegate — channel alive")
-
-            // Create the KMP Compose viewer screen wrapped in a UIViewController.
-            // Auth VC is fully gone now so findTopViewController() returns the root VC
-            // and viewerVC lives independently (no cascade-dismiss risk).
-            let viewerVC = App_iosKt.LiquidStreamViewerViewController(
-                viewerAddress: connAlgoAddress,
-                originUrl: connOrigin,
-                networkLabel: "TESTNET"
-            )
-            viewerVC.modalPresentationStyle = .fullScreen
-
-            // Register the minimize/close handler so the Compose "minimize" button
-            // can dismiss the UIViewController from the Kotlin side.
-            App_iosKt.iosViewerMinimizeHandler = { [weak viewerVC] in
-                DispatchQueue.main.async {
-                    viewerVC?.dismiss(animated: true)
-                }
-            }
-
-            let presenter = self.findTopViewController(from: self.window?.rootViewController ?? UIViewController())
-            presenter.present(viewerVC, animated: true) {
-                NSLog("✅ LiquidStreamViewerScreen presented")
-            }
+            NSLog("🔌 Service owned by AppDelegate — channel alive; overlay drives the UI")
         }
         
         topViewController.present(authVC, animated: true)
