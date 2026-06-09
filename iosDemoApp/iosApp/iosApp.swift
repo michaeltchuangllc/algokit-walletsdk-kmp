@@ -57,23 +57,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self?.activeStreamingService = nil
         }
 
-        // ── Viewer overlay teardown ────────────────────────────────────────────
-        // The viewer UI is rendered by the Compose `AnswerScreenOverlay` (not a natively
-        // presented view controller), so its dismissal flows through
-        // `IOSLiquidStreamViewerConnectionManager.disconnect()` → `iosViewerStopHandler`.
-        // Release the WebRTC service here so the channel is torn down with the overlay.
         App_iosKt.setViewerStopHandler { [weak self] in
             NSLog("🧹 Viewer overlay closed — disconnecting LiquidAuthService")
             self?.activeStreamingService?.disconnect()
             self?.activeStreamingService = nil
         }
 
-        // ── Broadcast (creator/host) bridge handlers ───────────────────────────
-        // Called by IOSLiquidAuthConnectionManager when the broadcast QR screen
-        // opens and startListening() is triggered from the KMP ViewModel.
-        //
-        // The "offer" side uses SignalService.shared (same singleton as the
-        // viewer/answer side — safe because creator & viewer are different devices).
         App_iosKt.registerBroadcastHandlers(
             startHandler: { origin, requestId in
                 DispatchQueue.main.async {
@@ -145,9 +134,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         )
         NSLog("✅ Broadcast handlers registered")
 
-        // ── Broadcast frame capture bridge ────────────────────────────────────
-        // BroadcastFrameCapture.shared uses the AVCaptureSession that the Kotlin
-        // camera composable creates, so preview and capture share one pipeline.
         App_iosKt.registerBroadcastFrameCapture(
             startCapture: {
                 DispatchQueue.main.async {
@@ -188,12 +174,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
     
     /// Present the Liquid Auth flow.
-    ///
-    /// After the WebRTC channel opens and the credential is accepted the auth sheet
-    /// auto-dismisses and the full-screen streaming viewer is presented. Video frames
-    /// arriving on the still-open channel are forwarded via
-    /// `LiquidAuthService.messageForwardingHandler` →
-    /// `IOSLiquidStreamViewerConnectionManager.notifyMessageReceived`.
     private func presentLiquidAuthFlow(origin: String, requestId: String, algoAddress: String) {
         NSLog("🌉 Presenting Liquid Auth flow")
         NSLog("   📥 Received parameters:")
@@ -223,27 +203,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             sheet.detents = [.medium()]
             sheet.prefersGrabberVisible = true
         }
-        
-        // ── Streaming viewer transition ────────────────────────────────────────
-        // When the data channel opens and the credential is accepted, the auth VC
-        // fires onStreamingConnected, then dismisses itself.  We then:
-        //   1. Forward all subsequent channel messages to the Kotlin viewer manager
-        //   2. Present the KMP Compose LiquidStreamViewerScreen full-screen
-        // ── Streaming viewer transition ────────────────────────────────────────
-        // Fires AFTER the auth sheet has fully dismissed (in its dismiss completion
-        // block).  The service has already been transferred out of the auth VC before
-        // dismiss was called, so the WebRTC channel is still alive.
+
         authVC.onStreamingConnected = { [weak self] connOrigin, connRequestId, connAlgoAddress, service in
             guard let self = self else { return }
             NSLog("🎥 Auth VC dismissed — Compose overlay renders the viewer")
-
-            // Own the service so it is not ARC-released, keeping the WebRTC channel alive.
-            // Wire message forwarding: LiquidAuthService → IOSLiquidStreamViewerConnectionManager.
-            //
-            // IMPORTANT: The viewer UI is now rendered by the Compose `AnswerScreenOverlay`
-            // (driven by `AnswerScreenState`, mirroring Android). We must NOT present
-            // `LiquidStreamViewerViewController` here — doing so would display a second,
-            // duplicate viewer screen on top of the overlay.
             self.activeStreamingService = service
             service.messageForwardingHandler = { message in
                 App_iosKt.forwardMessageToActiveViewer(message: message)

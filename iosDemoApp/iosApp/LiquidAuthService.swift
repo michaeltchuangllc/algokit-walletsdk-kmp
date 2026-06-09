@@ -734,11 +734,6 @@ public class LiquidAuthService {
         
         NSLog("🔗 Initiating peer connection...")
 
-        // ── Viewer-side payment DC hook ────────────────────────────────────────
-        // When Android is the HOST it creates a separate "x402-payment-channel" DataChannel
-        // (symmetrical to what iOS hosts do for Android viewers).  SignalService will call
-        // this closure once that DC becomes open, wiring iosViewerPaymentDCSendMessageHandler
-        // so that segment:payment messages are delivered on the correct channel.
         signalService.onPaymentDataChannelReady = { [weak self] _ in
             guard let self else { return }
             App_iosKt.setViewerPaymentSendMessageHandler { [weak self] message in
@@ -756,14 +751,8 @@ public class LiquidAuthService {
             onMessage: { [weak self] message in
                 guard let self = self else { return }
 
-                // ── Forward every message to the streaming viewer manager (if active) ──
-                // This lets IOSLiquidStreamViewerConnectionManager decode video frames and
-                // payment requests without needing its own WebRTC connection.
                 self.messageForwardingHandler?(message)
 
-                // Only show a confirmation dialog for CBOR-encoded transaction signing requests.
-                // JSON messages (pings, video frames, credential handshakes, etc.)
-                // are handled silently so the dialog does not spam for every message.
                 if Data(base64Encoded: message) != nil {
                     // Looks like a Base64/CBOR payload → could be a signing request
                     self.showConfirmationDialog(message: message)
@@ -777,26 +766,18 @@ public class LiquidAuthService {
                 NSLog("📡 Data channel state change: \(state ?? "unknown")")
                 
                 if state == "open" {
-                    NSLog("✅ Data channel is OPEN, sending credential")
-                    
-                    // ── Wire the Kotlin viewer manager's send handler ──────────────────
-                    // The Kotlin-side IOSLiquidStreamViewerConnectionManager.sendMessage()
-                    // routes through iosViewerSendMessageHandler.  We set it here (data
-                    // channel open) so that notifyConnected() → sendViewerHello() reliably
-                    // delivers the liquid:viewer:hello via this connection.
-                    // We call the App_iosKt wrapper (composeDemoApp scope) rather than
-                    // accessing the wallet-sdk-ui Kt class directly to avoid module-prefix
-                    // ambiguity in the ObjC bridge.
+                    NSLog("Data channel is OPEN, sending credential")
+
                     App_iosKt.setViewerSendMessageHandler { [weak self] message in
                         self?.signalService?.sendMessage(message)
                     }
-                    NSLog("✅ iosViewerSendMessageHandler wired to signalService.sendMessage")
+                    NSLog("iosViewerSendMessageHandler wired to signalService.sendMessage")
                     
                     self.sendCredentialMessage(credential: credential)
                 } else if state == "connecting" {
-                    NSLog("⏳ Data channel is CONNECTING...")
+                    NSLog("Data channel is CONNECTING...")
                 } else if state == "closed" || state == "failed" {
-                    NSLog("❌ Data channel FAILED/CLOSED: \(state ?? "unknown")")
+                    NSLog("Data channel FAILED/CLOSED: \(state ?? "unknown")")
                     self.onError?(NSError(domain: "Data channel failed", code: -1))
                 }
             }
@@ -805,12 +786,8 @@ public class LiquidAuthService {
         NSLog("⏳ Waiting for WebRTC connection to establish...")
         NSLog("   (This may take 10-30 seconds)")
     }
-    
-    /// Sends a `liquid:viewer:hello` message to the host so the Android
-    /// `LiquidAuthConnectionManager.tryCaptureViewerAddressFromMessage` can record the
-    /// viewer's wallet address (and authorised-signer public key) before it calls
-    /// `sendPaymentRequest()`.  Without this message `viewer=null` is logged and the
-    /// session-vault funded-skip optimisation is skipped for the first segment.
+
+
     private func sendViewerHelloMessage() {
         let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)
         let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
@@ -818,7 +795,7 @@ public class LiquidAuthService {
             : ""
         let helloJson = "{\"reference\":\"liquid:viewer:hello\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
         signalService?.sendMessage(helloJson)
-        NSLog("👋 [VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
+        NSLog("[VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
     }
 
     private func sendCredentialMessage(credential: Any) {
@@ -826,58 +803,45 @@ public class LiquidAuthService {
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
 
-        // ── 1. Send liquid:viewer:hello FIRST ─────────────────────────────────
-        // Android's host (LiquidAuthConnectionManager.tryCaptureViewerAddressFromMessage)
-        // uses this message to capture the viewer's wallet address and authorised-signer
-        // public key BEFORE the payment flow starts.  Without it `viewer=null` is logged
-        // and the session-vault funded-skip optimisation is disabled for the first segment.
         sendViewerHelloMessage()
 
         // ── 2. Send the credential handshake ─────────────────────────────────
         // Note: Transaction responses use CBOR, but credential handshake uses JSON
         let credentialMessage: [String: Any] = [
             "type": "credential",
-            "address": self.algoAddress,  // ✅ Explicitly use self.algoAddress
-            "requestId": self.requestId,  // ✅ Explicitly use self.requestId
+            "address": self.algoAddress,  // Explicitly use self.algoAddress
+            "requestId": self.requestId,  // Explicitly use self.requestId
             "provider": "WalletSDK-iOS"
         ]
         
         if let jsonData = try? JSONSerialization.data(withJSONObject: credentialMessage),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             signalService?.sendMessage(jsonString)
-            NSLog("✅ Credential handshake sent as JSON")
-            NSLog("   Full message: \(jsonString)")
-            NSLog("✅ RequestId in message: '\(self.requestId)'")
-            NSLog("⏳ Connection remains open, waiting for messages from server...")
+            NSLog("Credential handshake sent as JSON")
+            NSLog("Full message: \(jsonString)")
+            NSLog("RequestId in message: '\(self.requestId)'")
+            NSLog("Connection remains open, waiting for messages from server...")
             
             // Notify UI that we're connected and waiting
             DispatchQueue.main.async { [weak self] in
                 self?.onConnected?()
             }
-            
-            // Don't call onSuccess() yet - keep connection open to receive transaction requests
-            // The connection will be closed when:
-            // 1. User dismisses the view manually
-            // 2. An error occurs
-            // 3. Server closes the connection
         }
     }
     
     private func handleMessage(_ message: String) {
-        // Messages come in as Base64-encoded CBOR (matching Android)
-        // And we respond with Base64-encoded CBOR (matching Android)
-        
+
         do {
             // Try to decode as Base64 CBOR first (for transaction requests from provider-sdk)
             if let messageData = Data(base64Encoded: message) {
-                NSLog("📦 Decoding Base64-encoded CBOR message")
+                NSLog("Decoding Base64-encoded CBOR message")
                 try handleCBORMessage(messageData)
             } else {
                 // Fallback to JSON for simple messages (ping/pong)
                 try handleJSONMessage(message)
             }
         } catch {
-            NSLog("❌ Error handling message: \(error)")
+            NSLog("Error handling message: \(error)")
         }
     }
     
@@ -926,12 +890,12 @@ public class LiquidAuthService {
         // Handle different message types
         switch reference {
         case "arc0027:sign_transactions:request":
-            NSLog("📝 Transaction signing request received")
+            NSLog("Transaction signing request received")
             
             // Extract params from CBOR message
             guard let paramsValue = messageMap[.utf8String("params")],
                   case let .map(paramsMap) = paramsValue else {
-                NSLog("❌ Failed to extract params from CBOR message")
+                NSLog("Failed to extract params from CBOR message")
                 sendTransactionErrorResponse(requestId: requestId ?? "unknown")
                 return
             }
@@ -945,7 +909,7 @@ public class LiquidAuthService {
             }
             
         default:
-            NSLog("⚠️ Unknown CBOR message reference: \(reference ?? "nil")")
+            NSLog("Unknown CBOR message reference: \(reference ?? "nil")")
         }
     }
     
@@ -953,7 +917,7 @@ public class LiquidAuthService {
         guard let messageData = message.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
               let type = json["type"] as? String else {
-            NSLog("⚠️ Unable to parse JSON message")
+            NSLog("Unable to parse JSON message")
             return
         }
         
@@ -964,7 +928,7 @@ public class LiquidAuthService {
             signalService?.sendMessage("{\"type\":\"pong\"}")
             
         default:
-            NSLog("⚠️ Unknown JSON message type: \(type)")
+            NSLog("Unknown JSON message type: \(type)")
         }
     }
     
@@ -1003,7 +967,7 @@ public class LiquidAuthService {
         
         for (index, txnCBOR) in txnsArray.enumerated() {
             guard case let .map(txnMap) = txnCBOR else {
-                NSLog("❌ Transaction \(index) is not a map")
+                NSLog("Transaction \(index) is not a map")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }
@@ -1029,30 +993,30 @@ public class LiquidAuthService {
                     // Try base64url first, then fall back to standard base64
                     if let data = txnBase64url.base64urlToData() {
                         txnData = data
-                        NSLog("📄 Transaction \(index): base64url string format")
+                        NSLog("Transaction \(index): base64url string format")
                     } else if let data = Data(base64Encoded: txnBase64url) {
                         txnData = data
-                        NSLog("📄 Transaction \(index): standard base64 string format")
+                        NSLog("Transaction \(index): standard base64 string format")
                     } else {
-                        NSLog("❌ Failed to decode base64/base64url string")
+                        NSLog("Failed to decode base64/base64url string")
                         NSLog("   String (first 50 chars): \(txnBase64url.prefix(50))...")
                     }
                 case let .byteString(txnBytes):
                     // Raw bytes
                     txnData = Data(txnBytes)
-                    NSLog("📄 Transaction \(index): raw bytes format")
+                    NSLog("Transaction \(index): raw bytes format")
                 default:
-                    NSLog("❌ Transaction \(index) has unexpected value type: \(txnValue)")
+                    NSLog("Transaction \(index) has unexpected value type: \(txnValue)")
                 }
             }
             
             guard let txnData = txnData else {
-                NSLog("❌ Failed to extract transaction \(index) bytes")
+                NSLog("Failed to extract transaction \(index) bytes")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }
             
-            NSLog("📄 Transaction \(index): \(txnData.count) bytes")
+            NSLog("Transaction \(index): \(txnData.count) bytes")
             
             // Sign the transaction using KMP transaction signing function
             let txnKotlin = txnData.toKotlinByteArray()
@@ -1061,7 +1025,7 @@ public class LiquidAuthService {
                 address: self.algoAddress,
                 txnBytes: txnKotlin
             ) else {
-                NSLog("❌ Failed to sign transaction \(index)")
+                NSLog("Failed to sign transaction \(index)")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }

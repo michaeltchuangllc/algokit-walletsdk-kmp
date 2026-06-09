@@ -793,9 +793,6 @@ import CommonCrypto
         return Data(digest).base64EncodedString()
     }
 
-    /// Computes SHA-512/256 over [dataBase64] and returns the digest (32 bytes) as base64.
-    /// SHA-512/256 reuses the SHA-512 compression function with NIST-specified IVs (FIPS 180-4 §5.3.6.2).
-    /// CC_SHA512_256 is macOS-only; we replicate it using CC_SHA512_CTX + CC_SHA512_Update/Final.
     public func sha512256WithDataBase64(_ dataBase64: String) -> String {
         guard let data = Data(base64Encoded: dataBase64) else { return "" }
         let hash = sha512_256Raw(data)
@@ -871,9 +868,6 @@ import CommonCrypto
 
     // MARK: - Algorand Transaction Builders
 
-    /// Builds an unsigned Application NoOp transaction (msgpack bytes).
-    /// [appArgsBase64] are the ABI-encoded arguments as base64 strings.
-    /// [boxRefAppIds] and [boxRefNamesBase64] are paired arrays for box references.
     public func buildAppCallTxn(
         senderAddress: String,
         appId: Int64,
@@ -909,14 +903,6 @@ import CommonCrypto
         let boxRefs = AlgoSdkAppBoxRefArray()
         for i in 0..<min(boxRefAppIds.count, boxRefNamesBase64.count) {
             if let nameData = Data(base64Encoded: boxRefNamesBase64[i]) {
-                // The Go SDK's MakeApplicationNoOpTx expects the *raw app ID* here (not a
-                // pre-computed index) and converts it internally: appID == currentApp → index 0,
-                // appID in foreignApps → its 1-based index. This mirrors Android exactly, which
-                // passes AppBoxReference(appId, name) and lets the Java SDK do the conversion.
-                //
-                // IMPORTANT: do NOT pre-map this to 0. The Go SDK special-cases
-                // `appID == currentApp` but does NOT special-case `appID == 0`, so passing 0
-                // produces an unresolvable box reference → "invalid Box reference" at eval time.
                 let boxRefAppId: Int64 = boxRefAppIds[i]
                 do {
                     try boxRefs.append(boxRefAppId, boxName: nameData)
@@ -947,17 +933,6 @@ import CommonCrypto
             return Data()
         }
 
-        // ── CRITICAL WORKAROUND ──────────────────────────────────────────────────────
-        // The gomobile binding for AlgoSdkAppBoxRefArray.append(boxName:) does NOT deep-copy
-        // the NSData bytes into the Go AppBoxReference. By the time MakeApplicationNoOpTx
-        // serializes the transaction, the box-ref `n` (name) field contains uninitialized
-        // memory / stale heap pointers instead of the bytes we passed. The encoded structure
-        // is otherwise perfect (array count, i=0 index, and bin8 length prefixes are all
-        // correct) — ONLY the name *content* is garbage.
-        //
-        // We fix this by overwriting the garbage name bytes in-place with the correct names.
-        // Since the bin8 length prefixes already match our names exactly (32 / 33 bytes),
-        // this is a safe byte-for-byte replacement that preserves the canonical key order.
         let correctNames: [Data] = (0..<min(boxRefAppIds.count, boxRefNamesBase64.count)).compactMap {
             Data(base64Encoded: boxRefNamesBase64[$0])
         }
@@ -968,13 +943,6 @@ import CommonCrypto
         return txnData
     }
 
-    /// Overwrites the box-reference `name` (`n`) byte ranges in an encoded transaction with
-    /// the correct names, working around the gomobile box-name corruption bug (see caller).
-    ///
-    /// The SDK-produced msgpack already has the correct structure and bin8 length prefixes,
-    /// so we walk the `apbx` array, locate each name's byte range, and replace its content
-    /// with `correctNames[i]` (which is guaranteed to be the same length). No bytes are
-    /// inserted or removed, so canonical key ordering and all other fields are untouched.
     private static func patchBoxRefNames(in data: Data, correctNames: [Data]) -> Data {
         let apbxMarker = Data([0xa4, 0x61, 0x70, 0x62, 0x78])
         guard let r = data.range(of: apbxMarker) else { return data }
@@ -1039,8 +1007,7 @@ import CommonCrypto
         return Data(bytes)
     }
 
-    /// Computes the Algorand application address from an application ID.
-    /// The address is sha512_256("appID" || bigEndian(appId)), then base32+checksum encoded.
+
     private func applicationAddress(appId: Int64) -> String {
         let prefix = "appID".data(using: .utf8)!
         var bigEndian = UInt64(bitPattern: appId).bigEndian
@@ -1089,26 +1056,11 @@ import CommonCrypto
         return txnData
     }
 
-    /// Returns the Algorand address of the always-approve LogicSig program (TEAL v2: int 1).
-    /// Dummy padding transactions use this as their sender so they can be signed with a
-    /// 5-byte always-true escrow LogicSig, keeping their contribution to the LogicSig pool
-    /// budget near-zero (5 bytes each vs ~3035 bytes for a Falcon LogicSig).
     public func getAlwaysTrueAddress() -> String {
-        // TEAL v2: version(0x02) intcblock([1]) intc_0 — evaluates to 1 (approve)
-        // Logs confirm this returns the canonical LogicSig escrow address that the node
-        // derives from the embedded program (the dummy was "authorized by" exactly this
-        // address), so the binding is correct here.
         let program = Data([0x02, 0x20, 0x01, 0x01, 0x22])
         return AlgoSdkAddressFromProgram(program)
     }
 
-    /// Builds a minimal self-payment transaction (0 µAlgo, same sender/receiver).
-    /// Used to create dummy padding transactions that expand the AVM LogicSig opcode budget
-    /// pool (each transaction in a group contributes 700 opcodes to the pool).
-    ///
-    /// [noteBase64] is optional note data (base64 encoded). Android-style Falcon dummy
-    /// transactions pass a single-byte index as the note to trigger the Falcon verifier's
-    /// dummy fast-path, which produces minimal LogicSig args and stays within the pool budget.
     public func buildPaymentTxn(
         senderAddress: String,
         receiverAddress: String,
@@ -1148,25 +1100,6 @@ import CommonCrypto
         return txnData
     }
 
-    /// Signs a group of Falcon transactions as a bundle, mirroring the working Android path.
-    ///
-    /// The real (ungrouped) transactions — typically [axfer, appCall] — are handed directly to
-    /// `AlgoSdkSignFalconBundle`. Per the SDK contract, when the input has NO group ID the SDK:
-    ///   1. Adds its own budget "dummy" transactions (with minimal LogicSigs) so the AVM
-    ///      LogicSig opcode/byte pool (1000 bytes × txn count) is large enough for the
-    ///      ~3 KB Falcon LogicSigs on the real transactions.
-    ///   2. Assigns a single group ID across all of them.
-    ///   3. Signs everything and returns a CSV of base64 signed transactions.
-    ///
-    /// This is the same mechanism Android relies on (`Sdk.signFalconBundle`), so the SDK owns
-    /// dummy creation/authorization — we no longer build a separate always-true escrow (which
-    /// is a globally-shared, hijackable/rekeyable account on public networks).
-    ///
-    /// Box references (apbx) survive: the unsigned appCall already carries correct, patched box
-    /// names (see `patchBoxRefNames`), and the SDK's decode → group → re-encode round-trips the
-    /// `apbx` field intact.
-    ///
-    /// Returns base64-encoded signed transactions (real txns + SDK-added dummies).
     public func signFalconGroupBundle(
         txnsBase64: [String],
         publicKeyBase64: String,
@@ -1220,11 +1153,6 @@ import CommonCrypto
         return allSigned
     }
 
-    /// Diagnostic: decode the `snd` (sender) field from a transaction msgpack and log
-    /// it as a base32 Algorand address. The `snd` field is encoded as
-    ///   fixstr(3) 0xa3 's' 'n' 'd'  bin8(32) 0xc4 0x20 <32 raw public-key bytes>.
-    /// Works for both unsigned txns and `{lsig|sig, txn}`-wrapped signed txns (it searches
-    /// for the marker anywhere in the bytes).
     private static func logSender(in data: Data, label: String) {
         // marker: "snd" key = 0xa3 0x73 0x6e 0x64, value = bin8(32) = 0xc4 0x20
         let sndMarker = Data([0xa3, 0x73, 0x6e, 0x64, 0xc4, 0x20])
@@ -1243,10 +1171,6 @@ import CommonCrypto
         NSLog("   🧭 %@: sender=%@", label, shortAddr)
     }
 
-    /// Diagnostic: parse the `apbx` (box references) field from a signed/unsigned
-    /// transaction msgpack and log each box reference's encoded foreign-app index (`i`)
-    /// and name (`n`). In Algorand's encoding, `i` is OMITTED when it is 0 (the calling
-    /// app), so a 1-key box-ref map means index 0, a 2-key map means a non-zero index.
     private static func logBoxRefs(in data: Data) {
         // Find the "apbx" key marker: fixstr(4) 0xa4 'a' 'p' 'b' 'x'
         let apbxMarker = Data([0xa4, 0x61, 0x70, 0x62, 0x78])
@@ -1333,20 +1257,6 @@ import CommonCrypto
         }
     }
 
-    /// Manually constructs a signed transaction for the always-true escrow LogicSig,
-    /// bypassing the Go SDK entirely.
-    ///
-    /// The always-true TEAL v2 program [0x02, 0x20, 0x01, 0x01, 0x22] always evaluates to 1.
-    /// For an escrow LogicSig, NO cryptographic signature is needed — the program itself
-    /// is the authorization. The sender address must equal AlgoSdkAddressFromProgram(program).
-    ///
-    /// Produces canonical Algorand msgpack (keys sorted alphabetically):
-    ///   fixmap(2) {
-    ///     "lsig": fixmap(1) { "l": bin8(5) [0x02,0x20,0x01,0x01,0x22] }
-    ///     "txn":  <unsigned_transaction_msgpack>  // preserves group ID and all fields
-    ///   }
-    ///
-    /// Pool contribution: 5 bytes (just the program) vs ~3037 for Falcon.
     private func makeAlwaysTrueSignedTxn(unsignedTxnData: Data) -> Data {
         // TEAL v2: version(0x02) intcblock([1]) intc_0 — evaluates to 1 (approve)
         let program: [UInt8] = [0x02, 0x20, 0x01, 0x01, 0x22]
@@ -1397,10 +1307,6 @@ import CommonCrypto
         return result
     }
 
-    /// Attaches an Ed25519 signature to an unsigned transaction msgpack.
-    /// [signatureBase64] is the raw 64-byte Ed25519 signature (base64 encoded).
-    /// [txnBase64] is the unsigned transaction msgpack (base64 encoded).
-    /// Returns base64-encoded signed transaction msgpack.
     public func attachSignatureToTxn(signatureBase64: String, txnBase64: String) -> String {
         guard let sigData = Data(base64Encoded: signatureBase64),
               let txnData = Data(base64Encoded: txnBase64) else {
@@ -1432,9 +1338,6 @@ import CommonCrypto
         return (resultData, statusCode)
     }
 
-    /// Synchronously fetches a box from Algod.
-    /// [boxNameBase64] is the box name as base64.
-    /// Returns the full JSON response string, or empty on error.
     public func syncGetAlgodBox(algodUrl: String, appId: Int64, boxNameBase64: String) -> String {
         // boxNameBase64 is STANDARD base64 (may contain '+', '/', '='). These are reserved in a
         // URL query string ('+' decodes to space), so percent-encode them before building the URL.
@@ -1457,8 +1360,6 @@ import CommonCrypto
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    /// Synchronously fetches transaction parameters from Algod.
-    /// Returns the full JSON response string, or empty on error.
     public func syncGetTxParams(algodUrl: String) -> String {
         let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/transactions/params"
         guard let url = URL(string: urlStr) else { return "" }
@@ -1469,8 +1370,6 @@ import CommonCrypto
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    /// Synchronously broadcasts signed transactions to Algod.
-    /// Returns the txId string on success, or empty on error.
     public func syncBroadcastTxns(algodUrl: String, signedTxnsBase64: String) -> String {
         let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/transactions"
         guard let url = URL(string: urlStr),
@@ -1491,8 +1390,6 @@ import CommonCrypto
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    /// Synchronously polls a pending transaction from Algod.
-    /// Returns the full JSON response string.
     public func syncGetPendingTxn(algodUrl: String, txId: String) -> String {
         let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/transactions/pending/\(txId)"
         guard let url = URL(string: urlStr) else { return "" }
@@ -1505,8 +1402,6 @@ import CommonCrypto
 
     // MARK: - MPP Charge Helpers
 
-    /// Decodes an unsigned transaction, sets its [leaseBase64] (32-byte lease), re-encodes it,
-    /// and returns the result as base64. Used by the consumer charge flow where a lease is required.
     public func setTxnLease(txnBase64: String, leaseBase64: String) -> String {
         guard let txnData = Data(base64Encoded: txnBase64),
               let leaseData = Data(base64Encoded: leaseBase64) else {
@@ -1524,8 +1419,6 @@ import CommonCrypto
         }
     }
 
-    /// Decodes a signed (or unsigned, when [allowUnsigned]) charge transaction and returns a JSON
-    /// object with the fields the provider needs to verify it. Returns "" on failure.
     public func decodeChargeTxnJson(txnBase64: String, allowUnsigned: Bool) -> String {
         guard let bytes = Data(base64Encoded: txnBase64) else { return "" }
 

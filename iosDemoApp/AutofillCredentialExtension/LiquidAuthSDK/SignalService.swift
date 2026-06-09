@@ -108,14 +108,6 @@ public class SignalService {
     }
 
     /// Connects to a peer using WebRTC signaling
-    ///
-    /// - Parameters:
-    ///   - requestId: Unique identifier for the peer connection
-    ///   - type: Connection type ("offer" or "answer")
-    ///   - origin: Origin domain for the connection
-    ///   - iceServers: ICE servers for NAT traversal
-    ///   - onMessage: Callback for received messages
-    ///   - onStateChange: Callback for connection state changes
     public func connectToPeer(
         requestId: String,
         type: String,
@@ -211,11 +203,6 @@ public class SignalService {
     }
 
     /// Sends a message on the dedicated "x402-payment-channel" DataChannel.
-    ///
-    /// Used by the Kotlin viewer side (`iosViewerPaymentDCSendMessageHandler`) to deliver
-    /// `segment:payment` responses on the correct channel when Android is the host.
-    /// Falls back silently (no queue) — payment messages are only meaningful while the
-    /// payment DC is open.
     public func sendPaymentMessage(_ message: String) {
         if let paymentDataChannel, paymentDataChannel.readyState == .open {
             Logger.debug("SignalService: Sending on payment DC (id=\(paymentDataChannel.channelId)): \(message.prefix(80))")
@@ -271,18 +258,6 @@ public class SignalService {
     // MARK: - Additional DataChannels
 
     /// Creates a secondary DataChannel on the existing peer connection.
-    ///
-    /// The iOS host (offerer) calls this after the primary "liquid" DC opens to
-    /// create the "x402-payment-channel" DC that Android viewers expect.  WebRTC
-    /// automatically negotiates the new channel with the remote peer via the
-    /// established SCTP association — no extra signalling required.
-    ///
-    /// - Parameters:
-    ///   - label: The DataChannel label (e.g. "x402-payment-channel").
-    ///   - onMessage: Called for every text message received on this channel.
-    ///   - onStateChange: Called when the channel's ready-state changes.
-    /// - Returns: The created `RTCDataChannel`, or `nil` if the peer connection
-    ///   is not yet available.
     public func createAdditionalDataChannel(
         label: String,
         onMessage: @escaping (String) -> Void,

@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 Algorand Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import CoreImage
 import Foundation
 import SocketIO
@@ -187,13 +171,6 @@ public class SignalClient {
                 return nil
             }
 
-            // ── Wrap onStateChange so that when the self-created "liquid" DC opens
-            // we also call onDataChannelOpen.  This is crucial because
-            // SignalService.dataChannel is only set from onDataChannelOpen, and
-            // sendMessage() silently queues (and never flushes) when dataChannel is nil.
-            // For type="answer" the DC is created here (not via the remote onDataChannel
-            // callback), so without this wrapper SignalService.dataChannel stays nil and
-            // sendViewerHelloMessage() / sendCredentialMessage() never actually send. ──
             var createdDataChannel: RTCDataChannel?
             let wrappedOnStateChange: (String?) -> Void = { [weak self] state in
                 if state == "open", let dc = createdDataChannel {
@@ -231,10 +208,6 @@ public class SignalClient {
             Logger.info("Offer (responder): Waiting for remote offer")
             send(event: "link", data: ["requestId": requestId])
 
-            // Listen for the offer-description event (only for responder).
-            // Handles two wire formats:
-            //   • dict  – { "sdp": "...", "type": "offer" }  (browser / dApp)
-            //   • string – raw SDP string                    (iOS wallet peer)
             socket.off("offer-description")
             socket.on("offer-description") { [weak self] data, _ in
                 guard let self else { return }
