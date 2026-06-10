@@ -23,7 +23,7 @@ import { falconVerify, sha512_256 } from '@algorandfoundation/algorand-typescrip
  * Set via environment variable: TMPL_USDC_ASSET_ID
  */
 const USDC_ASSET_ID = TemplateVar<uint64>('USDC_ASSET_ID')
-const CLOSE_GRACE_PERIOD_SECONDS: uint64 = 900
+const CLOSE_GRACE_PERIOD_SECONDS: uint64 = 888 // ~15 minutes
 
 /**
  * ChannelInfo: source of truth for a single payment channel.
@@ -154,7 +154,8 @@ export class EscrowSessionVaultManager extends Contract {
   }
 
   /**
-   * Payee settles voucher funds, with support for partial settlement.
+   * Payee settles signed voucher funds, with support for partial settlement.
+   * Also advances latestVoucherAmount when the submitted signed voucher is newer.
    */
   settle(channelId: bytes, cumulativeAmount: uint64, signature: bytes): void {
     const channel = this.getChannel(channelId)
@@ -164,7 +165,7 @@ export class EscrowSessionVaultManager extends Contract {
 
     assert(Txn.sender === data.payee, 'Only payee can settle')
     assert(cumulativeAmount > data.lastSettled, 'Nothing new to settle')
-    assert(cumulativeAmount <= data.latestVoucherAmount, 'Settle exceeds latest voucher')
+    assert(cumulativeAmount <= data.totalDeposit, 'Voucher exceeds deposit')
 
     this.verifySettleSignature(channelId, cumulativeAmount, signature)
 
@@ -177,6 +178,9 @@ export class EscrowSessionVaultManager extends Contract {
     }).submit()
 
     data.lastSettled = cumulativeAmount
+    if (cumulativeAmount > data.latestVoucherAmount) {
+      data.latestVoucherAmount = cumulativeAmount
+    }
     channel.value = clone(data)
   }
 
@@ -205,8 +209,8 @@ export class EscrowSessionVaultManager extends Contract {
   }
 
   /**
-   * Payee closes channel after all voucher obligations are settled.
-   * Refunds remainder to payer.
+   * Payee closes channel.
+   * Honors the latest on-chain voucher before refunding the payer.
    */
   close(channelId: bytes): void {
     const channel = this.getChannel(channelId)
@@ -215,18 +219,8 @@ export class EscrowSessionVaultManager extends Contract {
     const data = clone(channel.value)
 
     assert(Txn.sender === data.payee, 'Only payee can close')
-    assert(data.latestVoucherAmount === data.lastSettled, 'Unclaimed voucher funds remain')
 
-    const payerRefund: uint64 = data.totalDeposit - data.lastSettled
-    if (payerRefund > 0) {
-      itxn.assetTransfer({
-        xferAsset: Asset(USDC_ASSET_ID),
-        assetReceiver: data.payer,
-        assetAmount: payerRefund,
-      }).submit()
-    }
-
-    channel.delete()
+    this.finalizeChannel(channelId, data)
   }
 
   /**
@@ -245,6 +239,7 @@ export class EscrowSessionVaultManager extends Contract {
 
   /**
    * Payer withdraws remaining funds after grace period expires.
+   * Honors the latest on-chain voucher before refunding the payer.
    */
   withdraw(channelId: bytes): void {
     const channel = this.getChannel(channelId)
@@ -258,17 +253,7 @@ export class EscrowSessionVaultManager extends Contract {
       'Close grace period not elapsed',
     )
 
-    const remainingBalance: uint64 = data.totalDeposit - data.lastSettled
-
-    if (remainingBalance > 0) {
-      itxn.assetTransfer({
-        xferAsset: Asset(USDC_ASSET_ID),
-        assetReceiver: data.payer,
-        assetAmount: remainingBalance,
-      }).submit()
-    }
-
-    channel.delete()
+    this.finalizeChannel(channelId, data)
   }
 
   /**
@@ -377,6 +362,28 @@ export class EscrowSessionVaultManager extends Contract {
     data.totalDeposit += cumulativeAmount.assetAmount
     // Per spec: top-up cancels pending close request.
     data.closeRequestedAt = 0
+  }
+
+  private finalizeChannel(channelId: bytes, data: ChannelInfo): void {
+    const payeePayout: uint64 = data.latestVoucherAmount - data.lastSettled
+    if (payeePayout > 0) {
+      itxn.assetTransfer({
+        xferAsset: Asset(USDC_ASSET_ID),
+        assetReceiver: data.payee,
+        assetAmount: payeePayout,
+      }).submit()
+    }
+
+    const payerRefund: uint64 = data.totalDeposit - data.latestVoucherAmount
+    if (payerRefund > 0) {
+      itxn.assetTransfer({
+        xferAsset: Asset(USDC_ASSET_ID),
+        assetReceiver: data.payer,
+        assetAmount: payerRefund,
+      }).submit()
+    }
+
+    this.channels(channelId).delete()
   }
 
   private setAuthorizedSignerPublicKeyIfProvided(
