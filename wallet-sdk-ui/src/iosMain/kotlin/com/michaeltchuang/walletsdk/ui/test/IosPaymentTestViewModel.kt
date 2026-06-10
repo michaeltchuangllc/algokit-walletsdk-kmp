@@ -44,7 +44,6 @@ class IosPaymentTestViewModel(
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getHdSeed: GetHdSeed,
 ) : ViewModel() {
-
     companion object {
         private const val TAG = "IosPaymentTestViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
@@ -52,14 +51,16 @@ class IosPaymentTestViewModel(
 
     // ── Input fields ──────────────────────────────────────────────────────────
 
-    private val _viewerAddress = MutableStateFlow(
-        "2MFPDQMIMIYS6CCIRMNWB6IACQL6VCFRZE7STJBP4W5Q3FLHUJHIVP3FLY",
-    )
+    private val _viewerAddress =
+        MutableStateFlow(
+            "2MFPDQMIMIYS6CCIRMNWB6IACQL6VCFRZE7STJBP4W5Q3FLHUJHIVP3FLY",
+        )
     val viewerAddress: StateFlow<String> = _viewerAddress.asStateFlow()
 
-    private val _creatorAddress = MutableStateFlow(
-        "EBRI466FDKE2LKEPUDAYTIRZZ7LLKT7YMZ7TG37II6CCOAJK44SKXY7EHI",
-    )
+    private val _creatorAddress =
+        MutableStateFlow(
+            "EBRI466FDKE2LKEPUDAYTIRZZ7LLKT7YMZ7TG37II6CCOAJK44SKXY7EHI",
+        )
     val creatorAddress: StateFlow<String> = _creatorAddress.asStateFlow()
 
     /** Amount expressed in whole USDC (e.g. "1.0") */
@@ -110,14 +111,15 @@ class IosPaymentTestViewModel(
             try {
                 val signer = buildWalletSigner(viewer)
                 if (signer != null) {
-                    val result = withContext(Dispatchers.Default) {
-                        MppPayments.openSessionAndDeposit(
-                            signer = signer,
-                            viewerAddress = viewer,
-                            creatorAddress = creator,
-                            depositAmountMicroUsdc = depositMicroUsdc,
-                        )
-                    }
+                    val result =
+                        withContext(Dispatchers.Default) {
+                            MppPayments.openSessionAndDeposit(
+                                signer = signer,
+                                viewerAddress = viewer,
+                                creatorAddress = creator,
+                                depositAmountMicroUsdc = depositMicroUsdc,
+                            )
+                        }
                     result
                         .onSuccess { txId ->
                             _statusMessage.value =
@@ -153,15 +155,16 @@ class IosPaymentTestViewModel(
             _statusMessage.value = "Fetching Session Vault balance…"
             try {
                 val signer = buildWalletSigner(viewer)
-                val remaining = withContext(Dispatchers.Default) {
-                    MppPayments.getRemainingBalanceFromSessionVault(
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        algodUrl = null,
-                        authorizedSignerPublicKey = signer?.authorizedSignerPublicKey,
-                    )
-                }
+                val remaining =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.getRemainingBalanceFromSessionVault(
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            algodUrl = null,
+                            authorizedSignerPublicKey = signer?.authorizedSignerPublicKey,
+                        )
+                    }
                 _remainingBalance.value = remaining
                 val usdc = remaining / MICRO_USDC_MULTIPLIER.toDouble()
                 _statusMessage.value = "✅ Remaining balance: $usdc USDC\n($remaining microUSDC)"
@@ -193,12 +196,13 @@ class IosPaymentTestViewModel(
             try {
                 val viewerSigner = buildWalletSigner(viewer)
                 if (viewerSigner != null) {
-                    val settleMessage = MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                    )
+                    val settleMessage =
+                        MppPayments.settleMessage(
+                            signer = viewerSigner,
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            cumulativeAmountMicroUsdc = depositMicroUsdc,
+                        )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     withContext(Dispatchers.Default) {
@@ -246,23 +250,25 @@ class IosPaymentTestViewModel(
             try {
                 val viewerSigner = buildWalletSigner(viewer)
                 if (viewerSigner != null) {
-                    val settleMessage = MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                    )
-                    val signature = viewerSigner.signMessage(settleMessage)
-
-                    val result = withContext(Dispatchers.Default) {
-                        MppPayments.verifySettleSignature(
+                    val settleMessage =
+                        MppPayments.settleMessage(
                             signer = viewerSigner,
                             viewerAddress = viewer,
                             hostAddress = creator,
                             cumulativeAmountMicroUsdc = depositMicroUsdc,
-                            signature = signature,
                         )
-                    }
+                    val signature = viewerSigner.signMessage(settleMessage)
+
+                    val result =
+                        withContext(Dispatchers.Default) {
+                            MppPayments.verifySettleSignature(
+                                signer = viewerSigner,
+                                viewerAddress = viewer,
+                                hostAddress = creator,
+                                cumulativeAmountMicroUsdc = depositMicroUsdc,
+                                signature = signature,
+                            )
+                        }
                     result
                         .onSuccess {
                             _statusMessage.value = "✅ Signature verified!"
@@ -299,23 +305,25 @@ class IosPaymentTestViewModel(
             try {
                 _statusMessage.value = "Preparing settlement..."
 
-                val viewerSigner = buildWalletSigner(viewer) ?: run {
-                    showError("SETTLE_NO_VIEWER_SIGNER", RuntimeException("Signer not found for $viewer"))
-                    return@launch
-                }
+                val viewerSigner =
+                    buildWalletSigner(viewer) ?: run {
+                        showError("SETTLE_NO_VIEWER_SIGNER", RuntimeException("Signer not found for $viewer"))
+                        return@launch
+                    }
 
                 // STEP 1: LOAD SESSION SNAPSHOT
-                val snapshot = withContext(Dispatchers.Default) {
-                    MppPayments.getSessionProgressSnapshotFromVault(
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
-                    )
-                } ?: run {
-                    showError("SETTLE_NO_SNAPSHOT", RuntimeException("Session not found for viewer=$viewer creator=$creator"))
-                    return@launch
-                }
+                val snapshot =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.getSessionProgressSnapshotFromVault(
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                        )
+                    } ?: run {
+                        showError("SETTLE_NO_SNAPSHOT", RuntimeException("Session not found for viewer=$viewer creator=$creator"))
+                        return@launch
+                    }
 
                 val totalDeposit = snapshot.totalDepositMicroUsdc
                 val lastSettled = snapshot.lastSettledMicroUsdc
@@ -335,7 +343,7 @@ class IosPaymentTestViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ Voucher amount exceeds deposit." +
-                            "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     return@launch
                 }
 
@@ -345,12 +353,13 @@ class IosPaymentTestViewModel(
                 }
 
                 // STEP 4: BUILD SETTLE MESSAGE
-                val settleMessage = MppPayments.settleMessage(
-                    signer = viewerSigner,
-                    viewerAddress = viewer,
-                    hostAddress = creator,
-                    cumulativeAmountMicroUsdc = newCumulative,
-                )
+                val settleMessage =
+                    MppPayments.settleMessage(
+                        signer = viewerSigner,
+                        viewerAddress = viewer,
+                        hostAddress = creator,
+                        cumulativeAmountMicroUsdc = newCumulative,
+                    )
 
                 // STEP 5: SIGN MESSAGE
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -358,38 +367,41 @@ class IosPaymentTestViewModel(
 
                 // STEP 6: RECORD VOUCHER ON-CHAIN
                 _statusMessage.value = "Recording voucher on-chain…"
-                val updateTxId = withContext(Dispatchers.Default) {
-                    MppPayments.updateVoucherOnChain(
-                        signer = viewerSigner,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        totalAmountUsedMicroUsdc = newCumulative,
-                        signature = viewerSignature,
-                    )
-                }.getOrElse { err ->
-                    showError("UPDATE_VOUCHER_ERR", err)
-                    return@launch
-                }
+                val updateTxId =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.updateVoucherOnChain(
+                            signer = viewerSigner,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            totalAmountUsedMicroUsdc = newCumulative,
+                            signature = viewerSignature,
+                        )
+                    }.getOrElse { err ->
+                        showError("UPDATE_VOUCHER_ERR", err)
+                        return@launch
+                    }
                 Napier.d("[UPDATE_VOUCHER_OK] txId=$updateTxId", tag = TAG)
 
                 // STEP 7: SETTLE
-                val creatorSigner = buildWalletSigner(creator) ?: run {
-                    showError("SETTLE_NO_CREATOR_SIGNER", RuntimeException("Signer not found for $creator"))
-                    return@launch
-                }
+                val creatorSigner =
+                    buildWalletSigner(creator) ?: run {
+                        showError("SETTLE_NO_CREATOR_SIGNER", RuntimeException("Signer not found for $creator"))
+                        return@launch
+                    }
 
                 _statusMessage.value = "Settling to creator…"
-                val settleResult = withContext(Dispatchers.Default) {
-                    MppPayments.settleLatestVoucher(
-                        signer = creatorSigner,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
-                        authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
-                        algodUrl = TESTNET_ALGOD_URL,
-                    )
-                }
+                val settleResult =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.settleLatestVoucher(
+                            signer = creatorSigner,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            viewerAddress = viewer,
+                            hostAddress = creator,
+                            authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                            algodUrl = TESTNET_ALGOD_URL,
+                        )
+                    }
 
                 settleResult
                     .onSuccess { txId ->
@@ -409,7 +421,10 @@ class IosPaymentTestViewModel(
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private fun showError(logTag: String, cause: Throwable?) {
+    private fun showError(
+        logTag: String,
+        cause: Throwable?,
+    ) {
         val message = cause?.message ?: "Unknown error"
         _statusMessage.value = "❌ $message"
         Napier.e("[$logTag] $message", cause, tag = TAG)
@@ -423,19 +438,20 @@ class IosPaymentTestViewModel(
         val localAccount = getLocalAccount(address) ?: return null
         if (localAccount is LocalAccount.SeedVault) return null
 
-        val authorizedSignerPublicKey: ByteArray = when (localAccount) {
-            is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Falcon24 -> localAccount.publicKey
-            is LocalAccount.Algo25 -> {
-                val secretKey = getAlgo25SecretKey(address)
-                if (secretKey != null && secretKey.size == 64) {
-                    secretKey.copyOfRange(32, 64)
-                } else {
-                    ByteArray(0)
+        val authorizedSignerPublicKey: ByteArray =
+            when (localAccount) {
+                is LocalAccount.HdKey -> localAccount.publicKey
+                is LocalAccount.Falcon24 -> localAccount.publicKey
+                is LocalAccount.Algo25 -> {
+                    val secretKey = getAlgo25SecretKey(address)
+                    if (secretKey != null && secretKey.size == 64) {
+                        secretKey.copyOfRange(32, 64)
+                    } else {
+                        ByteArray(0)
+                    }
                 }
+                else -> ByteArray(0)
             }
-            else -> ByteArray(0)
-        }
 
         val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
@@ -518,11 +534,12 @@ class IosPaymentTestViewModel(
                         Napier.e("Missing Falcon24 key for group bundle signing: $address", tag = TAG)
                         return txnsMsgpack.map { ByteArray(0) }
                     }
-                    val result = signFalcon24GroupBundle(
-                        txnsByteArrays = txnsMsgpack,
-                        publicKey = localAccount.publicKey,
-                        privateKey = secretKey,
-                    )
+                    val result =
+                        signFalcon24GroupBundle(
+                            txnsByteArrays = txnsMsgpack,
+                            publicKey = localAccount.publicKey,
+                            privateKey = secretKey,
+                        )
                     if (result.isEmpty()) {
                         Napier.e("Falcon24 group bundle returned empty for $address", tag = TAG)
                         txnsMsgpack.map { ByteArray(0) }

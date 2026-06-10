@@ -42,15 +42,16 @@ var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
 
-var iosBroadcastClaimVoucherHandler: ((
-    sessionId: String,
-    viewerAddress: String,
-    hostAddress: String,
-    claimedMicroUsdc: Long,
-    signatureBase64: String,
-    viewerPublicKeyBase64: String,
-) -> Unit)? = null
-
+var iosBroadcastClaimVoucherHandler: (
+    (
+        sessionId: String,
+        viewerAddress: String,
+        hostAddress: String,
+        claimedMicroUsdc: Long,
+        signatureBase64: String,
+        viewerPublicKeyBase64: String,
+    ) -> Unit
+)? = null
 
 var iosBroadcastMppSecretKey: String = "ios-host-mpp-secret"
 
@@ -63,7 +64,6 @@ private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
 private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
 
 class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
-
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     override val connectionType: StateFlow<IceConnectionType> = _connectionType
 
@@ -79,9 +79,10 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     private var activePaymentAmount: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
-    private val getRemainingBalanceUseCase = GetRemainingSessionVaultBalanceUseCase(
-        IosSessionVaultBalanceRepository(),
-    )
+    private val getRemainingBalanceUseCase =
+        GetRemainingSessionVaultBalanceUseCase(
+            IosSessionVaultBalanceRepository(),
+        )
     private val scope = CoroutineScope(Dispatchers.Default)
 
     // ── IOSLiquidStreamCreator (host payment channel) ─────────────────────────
@@ -220,42 +221,47 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             return
         }
 
-        val networkString = when {
-            paymentRequest.network.contains("testnet", ignoreCase = true) -> MppNetworks.ALGORAND_TESTNET
-            paymentRequest.network.contains("mainnet", ignoreCase = true) -> MppNetworks.ALGORAND_MAINNET
-            else -> MppNetworks.ALGORAND_TESTNET
-        }
+        val networkString =
+            when {
+                paymentRequest.network.contains("testnet", ignoreCase = true) -> MppNetworks.ALGORAND_TESTNET
+                paymentRequest.network.contains("mainnet", ignoreCase = true) -> MppNetworks.ALGORAND_MAINNET
+                else -> MppNetworks.ALGORAND_TESTNET
+            }
 
-        val mppServerConfig = MppServerConfig(
-            network = networkString,
-            recipient = paymentRequest.payTo,
-            secretKey = iosBroadcastMppSecretKey,
-        )
+        val mppServerConfig =
+            MppServerConfig(
+                network = networkString,
+                recipient = paymentRequest.payTo,
+                secretKey = iosBroadcastMppSecretKey,
+            )
 
-        val gatingConfig = GatingConfig(
-            mode = paymentRequest.meta.gatingMode,
-            amount = paymentRequest.amount,
-            asset = paymentRequest.asset,
-            network = paymentRequest.network,
-            payTo = paymentRequest.payTo,
-            segmentDuration = paymentRequest.meta.segmentDuration,
-        )
+        val gatingConfig =
+            GatingConfig(
+                mode = paymentRequest.meta.gatingMode,
+                amount = paymentRequest.amount,
+                asset = paymentRequest.asset,
+                network = paymentRequest.network,
+                payTo = paymentRequest.payTo,
+                segmentDuration = paymentRequest.meta.segmentDuration,
+            )
 
-        val serverConfig = ServerConfig(
-            sessionId = paymentRequest.sessionId,
-            gating = gatingConfig,
-            enforcement = paymentRequest.meta.enforcement,
-            viewerAddress = activeViewerAddressForVault,
-            viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
-            skipPaymentRequestWhenSessionFunded = true,
-        )
+        val serverConfig =
+            ServerConfig(
+                sessionId = paymentRequest.sessionId,
+                gating = gatingConfig,
+                enforcement = paymentRequest.meta.enforcement,
+                viewerAddress = activeViewerAddressForVault,
+                viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
+                skipPaymentRequestWhenSessionFunded = true,
+            )
 
         activeGatingConfig = gatingConfig
 
-        val creator = IOSLiquidStreamCreator(
-            mppServerConfig = mppServerConfig,
-            serverConfig = serverConfig,
-        )
+        val creator =
+            IOSLiquidStreamCreator(
+                mppServerConfig = mppServerConfig,
+                serverConfig = serverConfig,
+            )
 
         creator.onSessionStarted = { sid ->
             println("$TAG: [Creator] onSessionStarted session=$sid")
@@ -312,51 +318,54 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("$TAG: startBlockConsumption session=$targetSession")
 
         var hostTick = 0
-        blockConsumptionJob = scope.launch {
-            while (isActive) {
-                hostTick++
-                val viewerAddr = activeViewerAddressForVault
-                val hostAddr = activePaymentRecipient
-                val signerKey = activeViewerAuthorizedSignerKey
+        blockConsumptionJob =
+            scope.launch {
+                while (isActive) {
+                    hostTick++
+                    val viewerAddr = activeViewerAddressForVault
+                    val hostAddr = activePaymentRecipient
+                    val signerKey = activeViewerAuthorizedSignerKey
 
-                if (!viewerAddr.isNullOrBlank() && !hostAddr.isNullOrBlank() && signerKey != null) {
-                    runCatching {
-                        val remaining = getRemainingBalanceUseCase(
-                            GetRemainingSessionVaultBalanceUseCase.Params(
-                                viewerAddress = viewerAddr,
-                                hostAddress = hostAddr,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = signerKey,
-                            ),
-                        ).getOrDefault(0L)
+                    if (!viewerAddr.isNullOrBlank() && !hostAddr.isNullOrBlank() && signerKey != null) {
+                        runCatching {
+                            val remaining =
+                                getRemainingBalanceUseCase(
+                                    GetRemainingSessionVaultBalanceUseCase.Params(
+                                        viewerAddress = viewerAddr,
+                                        hostAddress = hostAddr,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        authorizedSignerPublicKey = signerKey,
+                                    ),
+                                ).getOrDefault(0L)
 
+                            println(
+                                "$TAG: HOST_BALANCE_TICK #$hostTick -> ${remaining / 1_000_000.0} USDC " +
+                                    "viewer=$viewerAddr host=$hostAddr session=$activePaymentSessionId",
+                            )
+                            viewModel?.consumeBlock(
+                                onChainRemainingMicroUsdc = remaining,
+                                progressBarBalanceMicroUsdc = remaining,
+                            )
+                        }.onFailure { e ->
+                            println("$TAG: HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
+                        }
+                    } else {
+                        val missingWhat =
+                            when {
+                                viewerAddr.isNullOrBlank() -> "viewer-hello-message"
+                                signerKey == null -> "viewer-signer-key"
+                                else -> "host-address"
+                            }
                         println(
-                            "$TAG: HOST_BALANCE_TICK #$hostTick -> ${remaining / 1_000_000.0} USDC " +
-                                "viewer=$viewerAddr host=$hostAddr session=$activePaymentSessionId",
+                            "$TAG: HOST_BALANCE_WAITING tick=$hostTick — " +
+                                "viewer='$viewerAddr' host='$hostAddr' signerKey=${signerKey != null} " +
+                                "NEED: $missingWhat",
                         )
-                        viewModel?.consumeBlock(
-                            onChainRemainingMicroUsdc = remaining,
-                            progressBarBalanceMicroUsdc = remaining,
-                        )
-                    }.onFailure { e ->
-                        println("$TAG: HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
                     }
-                } else {
-                    val missingWhat = when {
-                        viewerAddr.isNullOrBlank() -> "viewer-hello-message"
-                        signerKey == null -> "viewer-signer-key"
-                        else -> "host-address"
-                    }
-                    println(
-                        "$TAG: HOST_BALANCE_WAITING tick=$hostTick — " +
-                            "viewer='$viewerAddr' host='$hostAddr' signerKey=${signerKey != null} " +
-                            "NEED: $missingWhat",
-                    )
-                }
 
-                delay(HOST_BALANCE_POLL_INTERVAL_MS)
+                    delay(HOST_BALANCE_POLL_INTERVAL_MS)
+                }
             }
-        }
     }
 
     override fun stopBlockConsumption() {
@@ -433,7 +442,11 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         val meta = req.meta
         val metaJson =
             ""","meta":{"gatingMode":"${meta.gatingMode}","enforcement":"${meta.enforcement}","segmentDuration":${meta.segmentDuration}}"""
-        return """{"reference":"liquid:payment:request","id":"${req.id}","amount":"${req.amount}","asset":"${req.asset}","network":"${req.network}","payTo":"${req.payTo}","ttl":${req.ttl},"nonce":"${req.nonce}"$metaJson}"""
+        return buildString {
+            append("""{"reference":"liquid:payment:request","id":"${req.id}","amount":"${req.amount}""")
+            append(""","asset":"${req.asset}","network":"${req.network}","payTo":"${req.payTo}""")
+            append(""","ttl":${req.ttl},"nonce":"${req.nonce}"$metaJson}""")
+        }
     }
 
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
@@ -457,13 +470,14 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                             "keyLen=${signerKey.size} session=$activePaymentSessionId",
                     )
                     // Update the server's config with the viewer's key so skipPaymentRequestWhenSessionFunded works.
-                    val currentGating = activeGatingConfig ?: GatingConfig(
-                        mode = GatingMode.PARTIAL_TIME,
-                        amount = activePaymentAmount ?: "0",
-                        asset = "USDC",
-                        network = MppNetworks.ALGORAND_TESTNET,
-                        payTo = activePaymentRecipient ?: "",
-                    )
+                    val currentGating =
+                        activeGatingConfig ?: GatingConfig(
+                            mode = GatingMode.PARTIAL_TIME,
+                            amount = activePaymentAmount ?: "0",
+                            asset = "USDC",
+                            network = MppNetworks.ALGORAND_TESTNET,
+                            payTo = activePaymentRecipient ?: "",
+                        )
                     streamCreator?.updateConfig(
                         ServerConfig(
                             sessionId = activePaymentSessionId,
@@ -496,8 +510,11 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 val voucherViewer = msg.jsonOptString("viewer")
                 val voucherViewerPublicKey = msg.jsonOptString("viewerPublicKey")
 
-                if (signature == null || claimedAmount == null || voucherSessionId == null ||
-                    voucherViewer == null || voucherViewerPublicKey == null
+                if (signature == null ||
+                    claimedAmount == null ||
+                    voucherSessionId == null ||
+                    voucherViewer == null ||
+                    voucherViewerPublicKey == null
                 ) {
                     println(
                         "$TAG: [VOUCHER_SKIP] reason=invalid_payload " +
@@ -639,15 +656,15 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeBase64OrNull(value: String): ByteArray? =
         runCatching {
-            val normalised = value
-                .replace("\\/", "/")
-                .replace('-', '+')
-                .replace('_', '/')
-                .trimEnd('=')
+            val normalised =
+                value
+                    .replace("\\/", "/")
+                    .replace('-', '+')
+                    .replace('_', '/')
+                    .trimEnd('=')
             val padded = normalised + "=".repeat((4 - normalised.length % 4) % 4)
             Base64.decode(padded)
         }.getOrNull()
 }
 
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager =
-    IOSLiquidAuthConnectionManager()
+actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager = IOSLiquidAuthConnectionManager()

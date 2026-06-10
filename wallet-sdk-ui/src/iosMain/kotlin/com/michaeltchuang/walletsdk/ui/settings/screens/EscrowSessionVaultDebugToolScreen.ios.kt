@@ -59,25 +59,27 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
     val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
 
-    val textFieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = AlgoKitTheme.colors.textMain,
-        unfocusedTextColor = AlgoKitTheme.colors.textMain,
-        disabledTextColor = AlgoKitTheme.colors.textGray,
-        focusedLabelColor = AlgoKitTheme.colors.textMain,
-        unfocusedLabelColor = AlgoKitTheme.colors.textGray,
-        disabledLabelColor = AlgoKitTheme.colors.textGray,
-        focusedPlaceholderColor = AlgoKitTheme.colors.textGray,
-        unfocusedPlaceholderColor = AlgoKitTheme.colors.textGray,
-        disabledPlaceholderColor = AlgoKitTheme.colors.textGray,
-        cursorColor = AlgoKitTheme.colors.textMain,
-    )
+    val textFieldColors =
+        OutlinedTextFieldDefaults.colors(
+            focusedTextColor = AlgoKitTheme.colors.textMain,
+            unfocusedTextColor = AlgoKitTheme.colors.textMain,
+            disabledTextColor = AlgoKitTheme.colors.textGray,
+            focusedLabelColor = AlgoKitTheme.colors.textMain,
+            unfocusedLabelColor = AlgoKitTheme.colors.textGray,
+            disabledLabelColor = AlgoKitTheme.colors.textGray,
+            focusedPlaceholderColor = AlgoKitTheme.colors.textGray,
+            unfocusedPlaceholderColor = AlgoKitTheme.colors.textGray,
+            disabledPlaceholderColor = AlgoKitTheme.colors.textGray,
+            cursorColor = AlgoKitTheme.colors.textMain,
+        )
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(AlgoKitTheme.colors.background)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
+        modifier =
+            Modifier
+                .fillMaxSize()
+                .background(AlgoKitTheme.colors.background)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         // ── Title ─────────────────────────────────────────────────────────────
@@ -112,10 +114,11 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
             placeholder = { Text("Algorand address of the viewer (payer)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Ascii,
-                imeAction = ImeAction.Next,
-            ),
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Next,
+                ),
             enabled = !isLoading,
             colors = textFieldColors,
         )
@@ -127,10 +130,11 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
             placeholder = { Text("Algorand address of the creator (payee)") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Ascii,
-                imeAction = ImeAction.Next,
-            ),
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Ascii,
+                    imeAction = ImeAction.Next,
+                ),
             enabled = !isLoading,
             colors = textFieldColors,
         )
@@ -142,10 +146,11 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
             placeholder = { Text("e.g. 1.0") },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            keyboardOptions = KeyboardOptions(
-                keyboardType = KeyboardType.Decimal,
-                imeAction = ImeAction.Done,
-            ),
+            keyboardOptions =
+                KeyboardOptions(
+                    keyboardType = KeyboardType.Decimal,
+                    imeAction = ImeAction.Done,
+                ),
             enabled = !isLoading,
             colors = textFieldColors,
         )
@@ -222,9 +227,10 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
         remainingBalance?.let { balance ->
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                ),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    ),
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
@@ -250,11 +256,12 @@ actual fun EscrowSessionVaultDebugToolScreen(navController: Any) {
         statusMessage?.let { message ->
             val isSuccess = message.startsWith("✅")
             val isError = message.startsWith("❌")
-            val containerColor = when {
-                isSuccess -> MaterialTheme.colorScheme.primaryContainer
-                isError -> MaterialTheme.colorScheme.errorContainer
-                else -> MaterialTheme.colorScheme.surfaceVariant
-            }
+            val containerColor =
+                when {
+                    isSuccess -> MaterialTheme.colorScheme.primaryContainer
+                    isError -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.surfaceVariant
+                }
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = containerColor),

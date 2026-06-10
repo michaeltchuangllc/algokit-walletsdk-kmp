@@ -47,71 +47,78 @@ class EscrowSessionVaultManagerClient(
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         signerType: Long = signer.signerType,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        val channelId = deriveChannelId(signer.address, payeeAddress, authorizedSignerPublicKey)
-        submitAssetTransferAndAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            algodUrl = algodUrl,
-            appCallArgs = listOf(
-                ABI_OPEN,
-                decodeAlgorandAddressPublicKey(payeeAddress),
-                encodeArc4DynamicBytes(defaultSalt),
-                encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
-                encodeArc4DynamicBytes(authorizedSignerPublicKey),
-            ),
-            boxKeys = listOf(
-                Pair(appId, channelId),
-                Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-            ),
-            appCallForeignAssets = listOf(usdcAssetId),
-            depositAmountMicroUsdc = depositMicroUsdc,
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            val channelId = deriveChannelId(signer.address, payeeAddress, authorizedSignerPublicKey)
+            submitAssetTransferAndAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                algodUrl = algodUrl,
+                appCallArgs =
+                    listOf(
+                        ABI_OPEN,
+                        decodeAlgorandAddressPublicKey(payeeAddress),
+                        encodeArc4DynamicBytes(defaultSalt),
+                        encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
+                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
+                appCallForeignAssets = listOf(usdcAssetId),
+                depositAmountMicroUsdc = depositMicroUsdc,
+            )
+        }
 
     suspend fun topUp(
         signer: MppWalletSigner,
         channelId: ByteArray,
         additionalDepositMicroUsdc: Long,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAssetTransferAndAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            algodUrl = algodUrl,
-            appCallArgs = listOf(ABI_TOP_UP, encodeArc4DynamicBytes(channelId)),
-            boxKeys = listOf(Pair(appId, channelId)),
-            appCallForeignAssets = emptyList(),
-            depositAmountMicroUsdc = additionalDepositMicroUsdc,
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAssetTransferAndAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                algodUrl = algodUrl,
+                appCallArgs = listOf(ABI_TOP_UP, encodeArc4DynamicBytes(channelId)),
+                boxKeys = listOf(Pair(appId, channelId)),
+                appCallForeignAssets = emptyList(),
+                depositAmountMicroUsdc = additionalDepositMicroUsdc,
+            )
+        }
 
     suspend fun setAuthorizedSignerPublicKey(
         signer: MppWalletSigner,
         channelId: ByteArray,
         authorizedSignerPublicKey: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(
-                ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY,
-                encodeArc4DynamicBytes(channelId),
-                encodeArc4DynamicBytes(authorizedSignerPublicKey),
-            ),
-            boxKeys = listOf(
-                Pair(appId, channelId),
-                Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-            ),
-            foreignAssets = emptyList(),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            )
+        }
 
     suspend fun updateVoucher(
         signer: MppWalletSigner,
@@ -119,26 +126,29 @@ class EscrowSessionVaultManagerClient(
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(
-                ABI_UPDATE_VOUCHER,
-                encodeArc4DynamicBytes(channelId),
-                encodeUint64(cumulativeAmountMicroUsdc),
-                encodeArc4DynamicBytes(signature),
-            ),
-            boxKeys = listOf(
-                Pair(appId, channelId),
-                Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-            ),
-            foreignAssets = emptyList(),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_UPDATE_VOUCHER,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            )
+        }
 
     suspend fun settle(
         signer: MppWalletSigner,
@@ -146,127 +156,136 @@ class EscrowSessionVaultManagerClient(
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(
-                ABI_SETTLE,
-                encodeArc4DynamicBytes(channelId),
-                encodeUint64(cumulativeAmountMicroUsdc),
-                encodeArc4DynamicBytes(signature),
-            ),
-            boxKeys = listOf(
-                Pair(appId, channelId),
-                Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-            ),
-            foreignAssets = listOf(usdcAssetId),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_SETTLE,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = listOf(usdcAssetId),
+            )
+        }
 
     suspend fun settleLatest(
         signer: MppWalletSigner,
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_SETTLE_LATEST, encodeArc4DynamicBytes(channelId)),
-            boxKeys = listOf(Pair(appId, channelId)),
-            foreignAssets = listOf(usdcAssetId),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_SETTLE_LATEST, encodeArc4DynamicBytes(channelId)),
+                boxKeys = listOf(Pair(appId, channelId)),
+                foreignAssets = listOf(usdcAssetId),
+            )
+        }
 
     suspend fun close(
         signer: MppWalletSigner,
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
-            boxKeys = listOf(Pair(appId, channelId)),
-            foreignAssets = listOf(usdcAssetId),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
+                boxKeys = listOf(Pair(appId, channelId)),
+                foreignAssets = listOf(usdcAssetId),
+            )
+        }
 
     suspend fun requestClose(
         signer: MppWalletSigner,
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_REQUEST_CLOSE, encodeArc4DynamicBytes(channelId)),
-            boxKeys = listOf(Pair(appId, channelId)),
-            foreignAssets = emptyList(),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_REQUEST_CLOSE, encodeArc4DynamicBytes(channelId)),
+                boxKeys = listOf(Pair(appId, channelId)),
+                foreignAssets = emptyList(),
+            )
+        }
 
     suspend fun withdraw(
         signer: MppWalletSigner,
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
-            boxKeys = listOf(Pair(appId, channelId)),
-            foreignAssets = listOf(usdcAssetId),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
+                boxKeys = listOf(Pair(appId, channelId)),
+                foreignAssets = listOf(usdcAssetId),
+            )
+        }
 
     suspend fun fundMbrPool(
         signer: MppWalletSigner,
         receiverAddress: String,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_FUND_MBR_POOL, decodeAlgorandAddressPublicKey(receiverAddress)),
-            boxKeys = emptyList(),
-            foreignAssets = emptyList(),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_FUND_MBR_POOL, decodeAlgorandAddressPublicKey(receiverAddress)),
+                boxKeys = emptyList(),
+                foreignAssets = emptyList(),
+            )
+        }
 
     suspend fun optInUsdc(
         signer: MppWalletSigner,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(ABI_OPT_IN_USDC),
-            boxKeys = emptyList(),
-            foreignAssets = listOf(usdcAssetId),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args = listOf(ABI_OPT_IN_USDC),
+                boxKeys = emptyList(),
+                foreignAssets = listOf(usdcAssetId),
+            )
+        }
 
     suspend fun verifySettleSignatureOnChain(
         signer: MppWalletSigner,
@@ -274,26 +293,29 @@ class EscrowSessionVaultManagerClient(
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = runCatching {
-        submitAppCallInternal(
-            signer = signer,
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = defaultSalt,
-            algodUrl = algodUrl,
-            args = listOf(
-                ABI_VERIFY_SETTLE_SIGNATURE,
-                encodeArc4DynamicBytes(channelId),
-                encodeUint64(cumulativeAmountMicroUsdc),
-                encodeArc4DynamicBytes(signature),
-            ),
-            boxKeys = listOf(
-                Pair(appId, channelId),
-                Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-            ),
-            foreignAssets = emptyList(),
-        )
-    }
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_VERIFY_SETTLE_SIGNATURE,
+                        encodeArc4DynamicBytes(channelId),
+                        encodeUint64(cumulativeAmountMicroUsdc),
+                        encodeArc4DynamicBytes(signature),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            )
+        }
 
     suspend fun verifySettleSignature(
         signer: MppWalletSigner,
@@ -303,9 +325,16 @@ class EscrowSessionVaultManagerClient(
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> = verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
 
-    data class SessionStaticData(val startRound: Long, val startTimestamp: Long)
+    data class SessionStaticData(
+        val startRound: Long,
+        val startTimestamp: Long,
+    )
 
-    data class SessionDynamicData(val totalDeposit: Long, val lastSettled: Long, val latestVoucherAmount: Long)
+    data class SessionDynamicData(
+        val totalDeposit: Long,
+        val lastSettled: Long,
+        val latestVoucherAmount: Long,
+    )
 
     private data class SessionInfoOffsets(
         val totalDepositOffset: Int,
@@ -316,26 +345,28 @@ class EscrowSessionVaultManagerClient(
     fun getSessionStaticData(
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<SessionStaticData> = runCatching {
-        val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
-        SessionStaticData(
-            startRound = decodeUint64BigEndian(bytes, 90),
-            startTimestamp = decodeUint64BigEndian(bytes, 98),
-        )
-    }
+    ): Result<SessionStaticData> =
+        runCatching {
+            val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
+            SessionStaticData(
+                startRound = decodeUint64BigEndian(bytes, 90),
+                startTimestamp = decodeUint64BigEndian(bytes, 98),
+            )
+        }
 
     fun getSessionDynamicData(
         channelId: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<SessionDynamicData> = runCatching {
-        val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
-        val offsets = decodeSessionInfoOffsets(bytes)
-        SessionDynamicData(
-            totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset),
-            lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset),
-            latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset),
-        )
-    }
+    ): Result<SessionDynamicData> =
+        runCatching {
+            val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
+            val offsets = decodeSessionInfoOffsets(bytes)
+            SessionDynamicData(
+                totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset),
+                lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset),
+                latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset),
+            )
+        }
 
     fun computeChannelId(
         payerAddress: String,
@@ -357,11 +388,15 @@ class EscrowSessionVaultManagerClient(
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
 
-    fun settleMessage(channelId: ByteArray, cumulativeAmountMicroUsdc: Long): ByteArray =
-        buildSettleMessage(channelId, cumulativeAmountMicroUsdc)
+    fun settleMessage(
+        channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+    ): ByteArray = buildSettleMessage(channelId, cumulativeAmountMicroUsdc)
 
-    fun buildSettleMessage(channelId: ByteArray, cumulativeAmountMicroUsdc: Long): ByteArray =
-        encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
+    fun buildSettleMessage(
+        channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+    ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -381,7 +416,10 @@ class EscrowSessionVaultManagerClient(
         error("Invalid session box payload (markerAt64=$markerAt64 size=${bytes.size})")
     }
 
-    private fun isPlausibleSessionLayout(bytes: ByteArray, offsets: SessionInfoOffsets): Boolean {
+    private fun isPlausibleSessionLayout(
+        bytes: ByteArray,
+        offsets: SessionInfoOffsets,
+    ): Boolean {
         if (offsets.latestVoucherAmountOffset + 8 > bytes.size) return false
         return runCatching {
             val total = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
@@ -391,7 +429,10 @@ class EscrowSessionVaultManagerClient(
         }.getOrDefault(false)
     }
 
-    private fun decodeUint64BigEndian(bytes: ByteArray, offset: Int): Long {
+    private fun decodeUint64BigEndian(
+        bytes: ByteArray,
+        offset: Int,
+    ): Long {
         var out = 0L
         for (i in 0 until 8) out = (out shl 8) or (bytes[offset + i].toLong() and 0xFF)
         return out

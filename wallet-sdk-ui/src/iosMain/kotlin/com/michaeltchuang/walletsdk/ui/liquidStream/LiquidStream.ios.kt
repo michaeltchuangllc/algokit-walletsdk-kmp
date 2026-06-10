@@ -9,10 +9,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.InMemoryNonceStore
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.RailPayment
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.SpendSummary
@@ -20,7 +20,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVault
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
-
 
 // ─── Creator (Host / Server side) ────────────────────────────────────────────
 @Suppress("unused")
@@ -68,47 +67,65 @@ class IOSLiquidStreamCreator(
     /** Called when the session starts. Set before [start]. */
     var onSessionStarted: ((sessionId: String) -> Unit)?
         get() = rtcServer.onSessionStarted
-        set(v) { rtcServer.onSessionStarted = v }
+        set(v) {
+            rtcServer.onSessionStarted = v
+        }
 
     /** Called when the server has sent a `segment:request` to the viewer. */
     var onPaymentRequested: ((PaymentRequest) -> Unit)?
         get() = rtcServer.onPaymentRequested
-        set(v) { rtcServer.onPaymentRequested = v }
+        set(v) {
+            rtcServer.onPaymentRequested = v
+        }
 
     /** Called when the viewer's `segment:payment` has been verified on-chain. */
     var onPaymentSettled: ((PaymentReceipt) -> Unit)?
         get() = rtcServer.onPaymentSettled
-        set(v) { rtcServer.onPaymentSettled = v }
+        set(v) {
+            rtcServer.onPaymentSettled = v
+        }
 
     /** Called when the viewer's payment is rejected (bad signature, wrong amount, etc.). */
     var onPaymentRejected: ((reason: String) -> Unit)?
         get() = rtcServer.onPaymentRejected
-        set(v) { rtcServer.onPaymentRejected = v }
+        set(v) {
+            rtcServer.onPaymentRejected = v
+        }
 
     /** Called at the start of each new segment. */
     var onSegmentStarted: ((segmentIndex: Int) -> Unit)?
         get() = rtcServer.onSegmentStarted
-        set(v) { rtcServer.onSegmentStarted = v }
+        set(v) {
+            rtcServer.onSegmentStarted = v
+        }
 
     /** Called when the stream is gated pending payment for the new segment. */
     var onSegmentGated: ((segmentIndex: Int) -> Unit)?
         get() = rtcServer.onSegmentGated
-        set(v) { rtcServer.onSegmentGated = v }
+        set(v) {
+            rtcServer.onSegmentGated = v
+        }
 
     /** Called when the stream is resumed after a successful payment. */
     var onSegmentResumed: ((segmentIndex: Int) -> Unit)?
         get() = rtcServer.onSegmentResumed
-        set(v) { rtcServer.onSegmentResumed = v }
+        set(v) {
+            rtcServer.onSegmentResumed = v
+        }
 
     /** Called when the session ends (viewer disconnected or [terminate] called). */
     var onSessionTerminated: ((sessionId: String) -> Unit)?
         get() = rtcServer.onSessionTerminated
-        set(v) { rtcServer.onSessionTerminated = v }
+        set(v) {
+            rtcServer.onSessionTerminated = v
+        }
 
     /** Called on internal errors. */
     var onError: ((Throwable) -> Unit)?
         get() = rtcServer.onError
-        set(v) { rtcServer.onError = v }
+        set(v) {
+            rtcServer.onError = v
+        }
 
     // ── Public API ────────────────────────────────────────────────────────────
 
@@ -197,67 +214,93 @@ class IOSLiquidStreamViewer(
     /** Called when the host sends a `segment:request`. */
     var onPaymentRequested: ((PaymentRequest) -> Unit)?
         get() = rtcClient.onPaymentRequested
-        set(v) { rtcClient.onPaymentRequested = v }
+        set(v) {
+            rtcClient.onPaymentRequested = v
+        }
 
     /** Called when the viewer has submitted the signed MPP credential (`segment:payment`). */
     var onPaymentSubmitted: ((RailPayment) -> Unit)?
         get() = rtcClient.onPaymentSubmitted
-        set(v) { rtcClient.onPaymentSubmitted = v }
+        set(v) {
+            rtcClient.onPaymentSubmitted = v
+        }
 
     /** Called when the host acknowledges the payment (receipt received). */
     var onPaymentAccepted: ((PaymentReceipt) -> Unit)?
         get() = rtcClient.onPaymentReceipt
-        set(v) { rtcClient.onPaymentReceipt = v }
+        set(v) {
+            rtcClient.onPaymentReceipt = v
+        }
 
     /** Called when consent is requested by the payment framework before the first segment. */
     var onConsentRequested: ((ConsentTerms) -> Unit)?
         get() = rtcClient.onConsentRequested
-        set(v) { rtcClient.onConsentRequested = v }
+        set(v) {
+            rtcClient.onConsentRequested = v
+        }
 
     /** Called when the user approves the consent dialog. */
     var onConsentApproved: ((ConsentApproval) -> Unit)?
         get() = rtcClient.onConsentApproved
-        set(v) { rtcClient.onConsentApproved = v }
+        set(v) {
+            rtcClient.onConsentApproved = v
+        }
 
     /** Called when the user denies the consent dialog. */
     var onConsentDenied: (() -> Unit)?
         get() = rtcClient.onConsentDenied
-        set(v) { rtcClient.onConsentDenied = v }
+        set(v) {
+            rtcClient.onConsentDenied = v
+        }
 
     /** Called when the DataChannel transitions to open. */
     var onDataChannelOpen: (() -> Unit)?
         get() = rtcClient.onDataChannelOpen
-        set(v) { rtcClient.onDataChannelOpen = v }
+        set(v) {
+            rtcClient.onDataChannelOpen = v
+        }
 
     /** Called when the stream starts (first segment approved). */
     var onStreamStarted: (() -> Unit)?
         get() = rtcClient.onStreamStarted
-        set(v) { rtcClient.onStreamStarted = v }
+        set(v) {
+            rtcClient.onStreamStarted = v
+        }
 
     /** Called when the stream is gated (budget exceeded or segment boundary). */
     var onStreamGated: ((reason: String) -> Unit)?
         get() = rtcClient.onStreamGated
-        set(v) { rtcClient.onStreamGated = v }
+        set(v) {
+            rtcClient.onStreamGated = v
+        }
 
     /** Called when the stream resumes after gating. */
     var onStreamResumed: (() -> Unit)?
         get() = rtcClient.onStreamResumed
-        set(v) { rtcClient.onStreamResumed = v }
+        set(v) {
+            rtcClient.onStreamResumed = v
+        }
 
     /** Called when the viewer's budget cap is exceeded. */
     var onBudgetExceeded: ((SpendSummary) -> Unit)?
         get() = rtcClient.onBudgetExceeded
-        set(v) { rtcClient.onBudgetExceeded = v }
+        set(v) {
+            rtcClient.onBudgetExceeded = v
+        }
 
     /** Called when the session terminates. */
     var onSessionTerminated: (() -> Unit)?
         get() = rtcClient.onSessionTerminated
-        set(v) { rtcClient.onSessionTerminated = v }
+        set(v) {
+            rtcClient.onSessionTerminated = v
+        }
 
     /** Called on internal errors. */
     var onError: ((Throwable) -> Unit)?
         get() = rtcClient.onError
-        set(v) { rtcClient.onError = v }
+        set(v) {
+            rtcClient.onError = v
+        }
 
     // ── Public API ────────────────────────────────────────────────────────────
 

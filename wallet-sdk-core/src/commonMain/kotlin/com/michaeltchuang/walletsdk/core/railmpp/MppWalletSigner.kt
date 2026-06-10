@@ -16,8 +16,7 @@ interface MppWalletSigner {
     suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray
 
     /** Signs a group of msgpack-encoded transactions in-order. */
-    suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> =
-        txnsMsgpack.map { signTransactionBytes(it) }
+    suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> = txnsMsgpack.map { signTransactionBytes(it) }
 
     suspend fun createSolanaSignedTransaction(
         recipientAddress: String,

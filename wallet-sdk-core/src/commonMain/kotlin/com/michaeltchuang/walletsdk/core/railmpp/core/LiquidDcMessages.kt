@@ -75,6 +75,7 @@ object LiquidDcMessages {
             obj.str("type") == DCMessageType.SEGMENT_REQUEST -> {
                 val payload = obj["payload"] as? JsonObject
                 val meta = payload?.get("meta") as? JsonObject
+
                 // Prefer payload fields, fall back to the top-level envelope.
                 fun field(key: String): String? = payload?.str(key) ?: obj.str(key)
                 PaymentRequestEnvelope(
@@ -130,6 +131,5 @@ object LiquidDcMessages {
 
     private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
-    private fun JsonObject.intOrNull(key: String): Int? =
-        this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+    private fun JsonObject.intOrNull(key: String): Int? = this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
 }

@@ -50,29 +50,32 @@ var iosViewerPublicKeyProvider: ((viewerAddress: String) -> String?)? = null
  * then invoke the callback with the resulting on-chain remaining balance in micro-USDC (or
  * null on failure).
  */
-var iosViewerDepositHandler: ((
-    viewerAddress: String,
-    hostAddress: String,
-    depositMicroUsdc: Long,
-    callback: (remainingMicroUsdc: Long?) -> Unit,
-) -> Unit)? = null
+var iosViewerDepositHandler: (
+    (
+        viewerAddress: String,
+        hostAddress: String,
+        depositMicroUsdc: Long,
+        callback: (remainingMicroUsdc: Long?) -> Unit,
+    ) -> Unit
+)? = null
 
 /**
  * Called by Swift to retrieve the current on-chain remaining balance for the viewer's session
  * vault.  The callback receives the balance in micro-USDC or null on failure.
  */
-var iosViewerFetchBalanceHandler: ((
-    viewerAddress: String,
-    hostAddress: String,
-    callback: (remainingMicroUsdc: Long?) -> Unit,
-) -> Unit)? = null
+var iosViewerFetchBalanceHandler: (
+    (
+        viewerAddress: String,
+        hostAddress: String,
+        callback: (remainingMicroUsdc: Long?) -> Unit,
+    ) -> Unit
+)? = null
 
 private const val TAG = "IOSLiquidStreamViewerCM"
 private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
 private const val BALANCE_POLL_INTERVAL_MS = 5_000L
 
 class IOSLiquidStreamViewerConnectionManager {
-
     data class VideoFrame(
         val id: String,
         val timestamp: Long,
@@ -106,34 +109,42 @@ class IOSLiquidStreamViewerConnectionManager {
     enum class ConnectionState { IDLE, CONNECTING, CONNECTED, DISCONNECTED }
 
     private val _connectionState = MutableStateFlow(ConnectionState.IDLE)
+
     @Suppress("unused")
     val connectionState: StateFlow<ConnectionState> = _connectionState
 
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
+
     @Suppress("unused")
     val connectionType: StateFlow<IceConnectionType> = _connectionType
 
     private val _latestVideoFrame = MutableStateFlow<VideoFrame?>(null)
+
     @Suppress("unused")
     val latestVideoFrame: StateFlow<VideoFrame?> = _latestVideoFrame
 
     private val _sessionId = MutableStateFlow("")
+
     @Suppress("unused")
     val sessionId: StateFlow<String> = _sessionId
 
     private val _viewerAddress = MutableStateFlow("")
+
     @Suppress("unused")
     val viewerAddress: StateFlow<String> = _viewerAddress
 
     private val _hostAddress = MutableStateFlow("")
+
     @Suppress("unused")
     val hostAddress: StateFlow<String> = _hostAddress
 
     private val _remainingBalanceMicroUsdc = MutableStateFlow(0L)
+
     @Suppress("unused")
     val remainingBalanceMicroUsdc: StateFlow<Long> = _remainingBalanceMicroUsdc
 
     private val _progressBalanceMicroUsdc = MutableStateFlow(0L)
+
     @Suppress("unused")
     val progressBalanceMicroUsdc: StateFlow<Long> = _progressBalanceMicroUsdc
 
@@ -166,16 +177,21 @@ class IOSLiquidStreamViewerConnectionManager {
     private var balancePollingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default)
 
-    private val getRemainingBalanceUseCase = GetRemainingSessionVaultBalanceUseCase(
-        IosSessionVaultBalanceRepository(),
-    )
+    private val getRemainingBalanceUseCase =
+        GetRemainingSessionVaultBalanceUseCase(
+            IosSessionVaultBalanceRepository(),
+        )
 
     @Suppress("unused")
     private var viewerAuthorizedSignerKey: ByteArray? = null
 
     // ── Connection lifecycle ─────────────────────────────────────────────────
 
-    fun connect(origin: String, requestId: String, viewerAddress: String = "") {
+    fun connect(
+        origin: String,
+        requestId: String,
+        viewerAddress: String = "",
+    ) {
         val handler = iosViewerStartHandler
         if (handler == null) {
             println("$TAG: ⚠️ iosViewerStartHandler not set")
@@ -218,10 +234,11 @@ class IOSLiquidStreamViewerConnectionManager {
     fun isConnected(): Boolean = iosViewerIsConnectedHandler?.invoke() ?: false
 
     fun sendMessage(message: String) {
-        val handler = iosViewerSendMessageHandler ?: run {
-            println("$TAG: sendMessage skipped — handler not set")
-            return
-        }
+        val handler =
+            iosViewerSendMessageHandler ?: run {
+                println("$TAG: sendMessage skipped — handler not set")
+                return
+            }
         handler(message)
     }
 
@@ -273,65 +290,74 @@ class IOSLiquidStreamViewerConnectionManager {
 
     // ── IOSLiquidStreamViewer setup (Android + iOS hosts) ────────────────────
 
-    var onReceiptVoucherNeeded: (suspend (
-        sessionId: String,
-        viewerAddress: String,
-        hostAddress: String,
-        totalAmountClaimedMicroUsdc: Long,
-        segmentDebitMicroUsdc: Long,
-        remainingMicroUsdc: Long,
-        sendMessageFn: (String) -> Unit,
-    ) -> Unit)? = null
+    var onReceiptVoucherNeeded: (
+        suspend (
+            sessionId: String,
+            viewerAddress: String,
+            hostAddress: String,
+            totalAmountClaimedMicroUsdc: Long,
+            segmentDebitMicroUsdc: Long,
+            remainingMicroUsdc: Long,
+            sendMessageFn: (String) -> Unit,
+        ) -> Unit
+    )? = null
 
-    fun setupPaymentRail(mppClientConfig: MppClientConfig, authorizedSignerPublicKey: ByteArray? = null) {
+    fun setupPaymentRail(
+        mppClientConfig: MppClientConfig,
+        authorizedSignerPublicKey: ByteArray? = null,
+    ) {
         streamViewer?.terminate()
         if (authorizedSignerPublicKey != null) {
             viewerAuthorizedSignerPublicKey = authorizedSignerPublicKey
         }
 
-        val consentHandler = object : ConsentHandler {
-            override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
-                // Check existing on-chain balance: if funded, skip dialog.
-                val viewer = _viewerAddress.value
-                val host = _hostAddress.value
-                if (viewer.isNotBlank() && host.isNotBlank()) {
-                    val existing = runCatching {
-                        getRemainingBalanceUseCase(
-                            GetRemainingSessionVaultBalanceUseCase.Params(
-                                viewerAddress = viewer,
-                                hostAddress = host,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                // Use the cached signer key so the channel ID matches deposits.
-                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
-                            ),
-                        ).getOrDefault(0L)
-                    }.getOrDefault(0L)
-                    if (existing > 0L) {
-                        println("$TAG: 💰 existing vault balance=$existing — skipping consent dialog")
-                        return ConsentApproval(
-                            approved = true,
-                            autoPaySegments = true,
-                            budgetCap = BudgetCap(
-                                amount = existing.toString(),
-                                asset = USDC_TESTNET_ID.toString(),
-                            ),
-                        )
+        val consentHandler =
+            object : ConsentHandler {
+                override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
+                    // Check existing on-chain balance: if funded, skip dialog.
+                    val viewer = _viewerAddress.value
+                    val host = _hostAddress.value
+                    if (viewer.isNotBlank() && host.isNotBlank()) {
+                        val existing =
+                            runCatching {
+                                getRemainingBalanceUseCase(
+                                    GetRemainingSessionVaultBalanceUseCase.Params(
+                                        viewerAddress = viewer,
+                                        hostAddress = host,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        // Use the cached signer key so the channel ID matches deposits.
+                                        authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
+                                    ),
+                                ).getOrDefault(0L)
+                            }.getOrDefault(0L)
+                        if (existing > 0L) {
+                            println("$TAG: 💰 existing vault balance=$existing — skipping consent dialog")
+                            return ConsentApproval(
+                                approved = true,
+                                autoPaySegments = true,
+                                budgetCap =
+                                    BudgetCap(
+                                        amount = existing.toString(),
+                                        asset = USDC_TESTNET_ID.toString(),
+                                    ),
+                            )
+                        }
                     }
+                    // No existing balance — show consent dialog and await user decision.
+                    val deferred = CompletableDeferred<ConsentApproval>()
+                    paymentConsentContinuation = deferred
+                    _pendingMppConsent.value = terms
+                    println("$TAG: 🎭 payment consent dialog shown amount=${terms.amount} payTo=${terms.payTo}")
+                    return deferred.await()
                 }
-                // No existing balance — show consent dialog and await user decision.
-                val deferred = CompletableDeferred<ConsentApproval>()
-                paymentConsentContinuation = deferred
-                _pendingMppConsent.value = terms
-                println("$TAG: 🎭 payment consent dialog shown amount=${terms.amount} payTo=${terms.payTo}")
-                return deferred.await()
             }
-        }
 
-        val viewer = IOSLiquidStreamViewer(
-            mppClientConfig = mppClientConfig,
-            consentHandler = consentHandler,
-            clientConfig = ClientConfig(autoPaySegments = false),
-        )
+        val viewer =
+            IOSLiquidStreamViewer(
+                mppClientConfig = mppClientConfig,
+                consentHandler = consentHandler,
+                clientConfig = ClientConfig(autoPaySegments = false),
+            )
 
         // ── Voucher sending on each accepted segment ──────────────────────────
         // Mirror the Android viewer: after every segment:accepted receipt, generate
@@ -340,10 +366,11 @@ class IOSLiquidStreamViewerConnectionManager {
         var segmentClaimedMicroUsdc = 0L
         viewer.onPaymentAccepted = { receipt ->
             scope.launch {
-                val voucherHandler = onReceiptVoucherNeeded ?: run {
-                    println("$TAG: ⚠️ VOUCHER_SKIP — onReceiptVoucherNeeded not set (wire it in AnswerScreenOverlay)")
-                    return@launch
-                }
+                val voucherHandler =
+                    onReceiptVoucherNeeded ?: run {
+                        println("$TAG: ⚠️ VOUCHER_SKIP — onReceiptVoucherNeeded not set (wire it in AnswerScreenOverlay)")
+                        return@launch
+                    }
                 val viewerAddr = _viewerAddress.value
                 val hostAddr = _hostAddress.value
                 if (viewerAddr.isBlank() || hostAddr.isBlank()) {
@@ -411,7 +438,10 @@ class IOSLiquidStreamViewerConnectionManager {
      * so that [sendViewerHello] (called from [notifyConnected]) can include the correct address.
      */
     @Suppress("unused")
-    fun startBalancePollingSafe(viewerAddress: String, hostAddress: String) {
+    fun startBalancePollingSafe(
+        viewerAddress: String,
+        hostAddress: String,
+    ) {
         // Always persist the viewer address so sendViewerHello works at connect time.
         if (viewerAddress.isNotBlank()) _viewerAddress.value = viewerAddress
         // Persist host address too if known.
@@ -450,10 +480,11 @@ class IOSLiquidStreamViewerConnectionManager {
                 ConsentApproval(
                     approved = true,
                     autoPaySegments = true,
-                    budgetCap = BudgetCap(
-                        amount = microUsdc.toString(),
-                        asset = USDC_TESTNET_ID.toString(),
-                    ),
+                    budgetCap =
+                        BudgetCap(
+                            amount = microUsdc.toString(),
+                            asset = USDC_TESTNET_ID.toString(),
+                        ),
                     maxAutoPaySegments = maxSegments,
                 ),
             )
@@ -487,10 +518,11 @@ class IOSLiquidStreamViewerConnectionManager {
                     ConsentApproval(
                         approved = true,
                         autoPaySegments = true,
-                        budgetCap = BudgetCap(
-                            amount = microUsdc.toString(),
-                            asset = USDC_TESTNET_ID.toString(),
-                        ),
+                        budgetCap =
+                            BudgetCap(
+                                amount = microUsdc.toString(),
+                                asset = USDC_TESTNET_ID.toString(),
+                            ),
                         maxAutoPaySegments = maxSegments,
                     ),
                 )
@@ -506,10 +538,11 @@ class IOSLiquidStreamViewerConnectionManager {
                 ConsentApproval(
                     approved = true,
                     autoPaySegments = true,
-                    budgetCap = BudgetCap(
-                        amount = microUsdc.toString(),
-                        asset = USDC_TESTNET_ID.toString(),
-                    ),
+                    budgetCap =
+                        BudgetCap(
+                            amount = microUsdc.toString(),
+                            asset = USDC_TESTNET_ID.toString(),
+                        ),
                     maxAutoPaySegments = maxSegments,
                 ),
             )
@@ -611,10 +644,11 @@ class IOSLiquidStreamViewerConnectionManager {
      */
     private fun extractAndSetHostAddressFromSegmentRequest(message: String) {
         val sessionId = message.jsonOptString("sessionId") ?: ""
-        val payTo = message.jsonOptString("payTo") ?: run {
-            val payloadStart = message.indexOf("\"payload\"")
-            if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("payTo") ?: "" else ""
-        }
+        val payTo =
+            message.jsonOptString("payTo") ?: run {
+                val payloadStart = message.indexOf("\"payload\"")
+                if (payloadStart >= 0) message.substring(payloadStart).jsonOptString("payTo") ?: "" else ""
+            }
         if (payTo.isNotBlank() && _hostAddress.value != payTo) {
             _hostAddress.value = payTo
             println("$TAG: 💳 SEGMENT_REQUEST_HOST_SET host=$payTo")
@@ -654,10 +688,11 @@ class IOSLiquidStreamViewerConnectionManager {
 
     private fun handlePaymentRequest(message: String) {
         runCatching {
-            val sessionId = message.jsonOptString("id") ?: run {
-                println("$TAG: PAYMENT_REQUEST_NO_ID — missing 'id' field, raw=${message.take(200)}")
-                return@runCatching
-            }
+            val sessionId =
+                message.jsonOptString("id") ?: run {
+                    println("$TAG: PAYMENT_REQUEST_NO_ID — missing 'id' field, raw=${message.take(200)}")
+                    return@runCatching
+                }
             val amount = message.jsonOptString("amount") ?: ""
             val payTo = message.jsonOptString("payTo") ?: ""
             val asset = message.jsonOptString("asset") ?: USDC_TESTNET_ID.toString()
@@ -686,16 +721,17 @@ class IOSLiquidStreamViewerConnectionManager {
 
             if (viewer.isNotBlank() && host.isNotBlank()) {
                 scope.launch {
-                    val existing = runCatching {
-                        getRemainingBalanceUseCase(
-                            GetRemainingSessionVaultBalanceUseCase.Params(
-                                viewerAddress = viewer,
-                                hostAddress = host,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
-                            ),
-                        ).getOrDefault(0L)
-                    }.getOrDefault(0L)
+                    val existing =
+                        runCatching {
+                            getRemainingBalanceUseCase(
+                                GetRemainingSessionVaultBalanceUseCase.Params(
+                                    viewerAddress = viewer,
+                                    hostAddress = host,
+                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
+                                ),
+                            ).getOrDefault(0L)
+                        }.getOrDefault(0L)
 
                     if (existing > 0L) {
                         println(
@@ -708,10 +744,11 @@ class IOSLiquidStreamViewerConnectionManager {
                             ConsentApproval(
                                 approved = true,
                                 autoPaySegments = true,
-                                budgetCap = BudgetCap(
-                                    amount = existing.toString(),
-                                    asset = USDC_TESTNET_ID.toString(),
-                                ),
+                                budgetCap =
+                                    BudgetCap(
+                                        amount = existing.toString(),
+                                        asset = USDC_TESTNET_ID.toString(),
+                                    ),
                             ),
                         )
                         return@launch
@@ -720,7 +757,23 @@ class IOSLiquidStreamViewerConnectionManager {
                     // No existing balance — show the consent/deposit dialog.
                     val deferred = CompletableDeferred<ConsentApproval>()
                     pendingConsentContinuation = deferred
-                    _pendingMppConsent.value = ConsentTerms(
+                    _pendingMppConsent.value =
+                        ConsentTerms(
+                            gatingMode = GatingMode.PARTIAL_TIME,
+                            amount = amount.ifBlank { "1000000" },
+                            asset = asset,
+                            network = "algorand-testnet",
+                            payTo = payTo,
+                            segmentDuration = 3,
+                        )
+                    println("$TAG: 🎭 consent dialog shown for session=$sessionId")
+                }
+            } else {
+                // Addresses not known yet — show generic consent dialog.
+                val deferred = CompletableDeferred<ConsentApproval>()
+                pendingConsentContinuation = deferred
+                _pendingMppConsent.value =
+                    ConsentTerms(
                         gatingMode = GatingMode.PARTIAL_TIME,
                         amount = amount.ifBlank { "1000000" },
                         asset = asset,
@@ -728,20 +781,6 @@ class IOSLiquidStreamViewerConnectionManager {
                         payTo = payTo,
                         segmentDuration = 3,
                     )
-                    println("$TAG: 🎭 consent dialog shown for session=$sessionId")
-                }
-            } else {
-                // Addresses not known yet — show generic consent dialog.
-                val deferred = CompletableDeferred<ConsentApproval>()
-                pendingConsentContinuation = deferred
-                _pendingMppConsent.value = ConsentTerms(
-                    gatingMode = GatingMode.PARTIAL_TIME,
-                    amount = amount.ifBlank { "1000000" },
-                    asset = asset,
-                    network = "algorand-testnet",
-                    payTo = payTo,
-                    segmentDuration = 3,
-                )
             }
         }.onFailure { e ->
             println("$TAG: ❌ handlePaymentRequest error: $e")
@@ -749,60 +788,65 @@ class IOSLiquidStreamViewerConnectionManager {
     }
 
     /** Starts the on-chain balance polling loop (stops any existing loop first). */
-    private fun startBalancePolling(viewerAddress: String, hostAddress: String) {
+    private fun startBalancePolling(
+        viewerAddress: String,
+        hostAddress: String,
+    ) {
         if (viewerAddress.isBlank() || hostAddress.isBlank()) return
         stopBalancePolling()
         println("$TAG: ⏱ startBalancePolling viewer=$viewerAddress host=$hostAddress")
         println("$TAG: ⏱ BALANCE_POLL_START viewer=$viewerAddress host=$hostAddress")
-        balancePollingJob = scope.launch {
-            var tickCount = 0
-            while (isActive) {
-                tickCount++
-                runCatching {
-                    // Try native Swift handler first (faster, no extra algod call).
-                    val fetchHandler = iosViewerFetchBalanceHandler
-                    if (fetchHandler != null) {
-                        fetchHandler(viewerAddress, hostAddress) { remaining ->
-                            if (remaining != null) {
-                                _remainingBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
-                                if (remaining > _progressBalanceMicroUsdc.value) {
-                                    _progressBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
+        balancePollingJob =
+            scope.launch {
+                var tickCount = 0
+                while (isActive) {
+                    tickCount++
+                    runCatching {
+                        // Try native Swift handler first (faster, no extra algod call).
+                        val fetchHandler = iosViewerFetchBalanceHandler
+                        if (fetchHandler != null) {
+                            fetchHandler(viewerAddress, hostAddress) { remaining ->
+                                if (remaining != null) {
+                                    _remainingBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
+                                    if (remaining > _progressBalanceMicroUsdc.value) {
+                                        _progressBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
+                                    }
+                                    println(
+                                        "$TAG: 🔄 BALANCE_POLL_TICK #$tickCount (swift) → " +
+                                            "${remaining / 1_000_000.0} USDC viewer=$viewerAddress",
+                                    )
+                                } else {
+                                    println("$TAG: ⚠️ BALANCE_POLL_TICK #$tickCount swift returned null")
                                 }
-                                println(
-                                    "$TAG: 🔄 BALANCE_POLL_TICK #$tickCount (swift) → " +
-                                        "${remaining / 1_000_000.0} USDC viewer=$viewerAddress",
-                                )
-                            } else {
-                                println("$TAG: ⚠️ BALANCE_POLL_TICK #$tickCount swift returned null")
                             }
+                        } else {
+                            // Fall back to the Kotlin-native use case.
+                            println("$TAG: 🔄 BALANCE_POLL_TICK #$tickCount (use-case) viewer=$viewerAddress host=$hostAddress")
+                            val remaining =
+                                getRemainingBalanceUseCase(
+                                    GetRemainingSessionVaultBalanceUseCase.Params(
+                                        viewerAddress = viewerAddress,
+                                        hostAddress = hostAddress,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        // Use the cached signer key so the channel ID matches the one
+                                        // used when the session vault was opened / topped up.
+                                        authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
+                                    ),
+                                ).getOrDefault(0L)
+                            _remainingBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
+                            if (remaining > _progressBalanceMicroUsdc.value) {
+                                _progressBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
+                            }
+                            println(
+                                "$TAG: 🔄 BALANCE_POLL_TICK #$tickCount result → ${remaining / 1_000_000.0} USDC",
+                            )
                         }
-                    } else {
-                        // Fall back to the Kotlin-native use case.
-                        println("$TAG: 🔄 BALANCE_POLL_TICK #$tickCount (use-case) viewer=$viewerAddress host=$hostAddress")
-                        val remaining = getRemainingBalanceUseCase(
-                            GetRemainingSessionVaultBalanceUseCase.Params(
-                                viewerAddress = viewerAddress,
-                                hostAddress = hostAddress,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                // Use the cached signer key so the channel ID matches the one
-                                // used when the session vault was opened / topped up.
-                                authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
-                            ),
-                        ).getOrDefault(0L)
-                        _remainingBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
-                        if (remaining > _progressBalanceMicroUsdc.value) {
-                            _progressBalanceMicroUsdc.value = remaining.coerceAtLeast(0L)
-                        }
-                        println(
-                            "$TAG: 🔄 BALANCE_POLL_TICK #$tickCount result → ${remaining / 1_000_000.0} USDC",
-                        )
+                    }.onFailure { e ->
+                        println("$TAG: ❌ BALANCE_POLL_ERR tick=$tickCount: $e")
                     }
-                }.onFailure { e ->
-                    println("$TAG: ❌ BALANCE_POLL_ERR tick=$tickCount: $e")
+                    delay(BALANCE_POLL_INTERVAL_MS)
                 }
-                delay(BALANCE_POLL_INTERVAL_MS)
             }
-        }
     }
 
     private fun stopBalancePolling() {
@@ -821,12 +865,13 @@ class IOSLiquidStreamViewerConnectionManager {
 
     private fun startConnectionTypePolling() {
         connectionTypePollingJob?.cancel()
-        connectionTypePollingJob = CoroutineScope(Dispatchers.Default).launch {
-            while (isActive) {
-                iosViewerDetectConnectionTypeHandler?.let { notifyConnectionTypeChanged(it()) }
-                delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
+        connectionTypePollingJob =
+            CoroutineScope(Dispatchers.Default).launch {
+                while (isActive) {
+                    iosViewerDetectConnectionTypeHandler?.let { notifyConnectionTypeChanged(it()) }
+                    delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
+                }
             }
-        }
     }
 
     private fun stopConnectionTypePolling() {
@@ -845,13 +890,25 @@ class IOSLiquidStreamViewerConnectionManager {
         }
 
     private fun String.jsonOptString(key: String): String? =
-        Regex(""""$key"\s*:\s*"([^"]*)"""").find(this)?.groupValues?.getOrNull(1)?.takeIf { it.isNotEmpty() }
+        Regex(""""$key"\s*:\s*"([^"]*)"""")
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.takeIf { it.isNotEmpty() }
 
     private fun String.jsonOptLong(key: String): Long? =
-        Regex(""""$key"\s*:\s*(-?\d+)""").find(this)?.groupValues?.getOrNull(1)?.toLongOrNull()
+        Regex(""""$key"\s*:\s*(-?\d+)""")
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toLongOrNull()
 
     private fun String.jsonOptInt(key: String): Int? =
-        Regex(""""$key"\s*:\s*(-?\d+)""").find(this)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        Regex(""""$key"\s*:\s*(-?\d+)""")
+            .find(this)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
 
     @OptIn(ExperimentalEncodingApi::class)
     private fun decodeBase64OrNull(value: String): ByteArray? =
@@ -860,11 +917,12 @@ class IOSLiquidStreamViewerConnectionManager {
             // The regex-based jsonOptString does not unescape JSON sequences,
             // so forward slashes in base64 data arrive as '\/' pairs which are
             // invalid base64 characters and would cause decode to return null.
-            val normalised = value
-                .replace("\\/", "/")
-                .replace('-', '+')
-                .replace('_', '/')
-                .trimEnd('=')
+            val normalised =
+                value
+                    .replace("\\/", "/")
+                    .replace('-', '+')
+                    .replace('_', '/')
+                    .trimEnd('=')
             val padded = normalised + "=".repeat((4 - normalised.length % 4) % 4)
             Base64.decode(padded)
         }.getOrNull()

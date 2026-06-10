@@ -211,7 +211,8 @@ private fun AccountSelector(
             onValueChange = {},
             modifier =
                 Modifier
-                    .menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+                    .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    .fillMaxWidth()
                     .padding(horizontal = 16.dp),
             readOnly = true,
             singleLine = true,

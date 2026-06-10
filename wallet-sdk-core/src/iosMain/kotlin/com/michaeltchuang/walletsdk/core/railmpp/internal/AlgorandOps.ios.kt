@@ -31,11 +31,12 @@ internal actual fun getSessionBoxBytesInternal(
     // → wrong box → empty response. Swift percent-encodes this value for the URL query string.
     val boxNameB64 = Base64.encode(channelId)
     // Swift: syncGetAlgodBox(algodUrl:appId:boxNameBase64:) → Kotlin: syncGetAlgodBoxWithAlgodUrl
-    val json = bridge.syncGetAlgodBoxWithAlgodUrl(
-        algodUrl = algodUrl,
-        appId = appId,
-        boxNameBase64 = boxNameB64,
-    )
+    val json =
+        bridge.syncGetAlgodBoxWithAlgodUrl(
+            algodUrl = algodUrl,
+            appId = appId,
+            boxNameBase64 = boxNameB64,
+        )
     if (json.isEmpty()) error("iOS: Box fetch returned empty for appId=$appId")
     val valueB64 = parseJsonString(json, "value") ?: error("iOS: No 'value' in box response")
     return Base64.decode(normalizeBase64(valueB64))
@@ -59,19 +60,20 @@ internal actual suspend fun submitAppCallInternal(
     val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
 
     // Swift: buildAppCallTxn(senderAddress:appId:...) → Kotlin: buildAppCallTxnWithSenderAddress
-    val txnBytes = bridge.buildAppCallTxnWithSenderAddress(
-        senderAddress = signer.address,
-        appId = appId,
-        appArgsBase64 = argsB64,
-        boxRefAppIds = boxRefAppIds,
-        boxRefNamesBase64 = boxRefNamesB64,
-        foreignAssets = foreignAssets,
-        fee = APP_CALL_FEE,
-        firstRound = params.firstRoundValid,
-        lastRound = params.lastRoundValid,
-        genesisHashBase64 = params.genesisHashBase64,
-        genesisID = params.genesisID,
-    )
+    val txnBytes =
+        bridge.buildAppCallTxnWithSenderAddress(
+            senderAddress = signer.address,
+            appId = appId,
+            appArgsBase64 = argsB64,
+            boxRefAppIds = boxRefAppIds,
+            boxRefNamesBase64 = boxRefNamesB64,
+            foreignAssets = foreignAssets,
+            fee = APP_CALL_FEE,
+            firstRound = params.firstRoundValid,
+            lastRound = params.lastRoundValid,
+            genesisHashBase64 = params.genesisHashBase64,
+            genesisID = params.genesisID,
+        )
     if (txnBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
 
     val signedBytes = signer.signTransactionBytes(txnBytes.toKotlinByteArray())
@@ -94,17 +96,18 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     val params = fetchTxParams(algodUrl)
 
     // Swift: buildAssetTransferToAppTxn(senderAddress:...) → Kotlin: buildAssetTransferToAppTxnWithSenderAddress
-    val axferBytes = bridge.buildAssetTransferToAppTxnWithSenderAddress(
-        senderAddress = signer.address,
-        appId = appId,
-        assetId = usdcAssetId,
-        amount = depositAmountMicroUsdc,
-        fee = MIN_TXN_FEE,
-        firstRound = params.firstRoundValid,
-        lastRound = params.lastRoundValid,
-        genesisHashBase64 = params.genesisHashBase64,
-        genesisID = params.genesisID,
-    )
+    val axferBytes =
+        bridge.buildAssetTransferToAppTxnWithSenderAddress(
+            senderAddress = signer.address,
+            appId = appId,
+            assetId = usdcAssetId,
+            amount = depositAmountMicroUsdc,
+            fee = MIN_TXN_FEE,
+            firstRound = params.firstRoundValid,
+            lastRound = params.lastRoundValid,
+            genesisHashBase64 = params.genesisHashBase64,
+            genesisID = params.genesisID,
+        )
     if (axferBytes.length == 0UL) error("iOS: buildAssetTransferToAppTxn returned empty")
 
     val argsB64 = appCallArgs.map { Base64.encode(it) }
@@ -113,19 +116,20 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     Napier.d("[iOS_BOX_KEYS] count=${boxKeys.size} names=${boxRefNamesB64.joinToString { it.take(12) }}", tag = TAG)
 
     // Swift: buildAppCallTxn(senderAddress:...) → Kotlin: buildAppCallTxnWithSenderAddress
-    val appCallBytes = bridge.buildAppCallTxnWithSenderAddress(
-        senderAddress = signer.address,
-        appId = appId,
-        appArgsBase64 = argsB64,
-        boxRefAppIds = boxRefAppIds,
-        boxRefNamesBase64 = boxRefNamesB64,
-        foreignAssets = appCallForeignAssets,
-        fee = APP_CALL_FEE,
-        firstRound = params.firstRoundValid,
-        lastRound = params.lastRoundValid,
-        genesisHashBase64 = params.genesisHashBase64,
-        genesisID = params.genesisID,
-    )
+    val appCallBytes =
+        bridge.buildAppCallTxnWithSenderAddress(
+            senderAddress = signer.address,
+            appId = appId,
+            appArgsBase64 = argsB64,
+            boxRefAppIds = boxRefAppIds,
+            boxRefNamesBase64 = boxRefNamesB64,
+            foreignAssets = appCallForeignAssets,
+            fee = APP_CALL_FEE,
+            firstRound = params.firstRoundValid,
+            lastRound = params.lastRoundValid,
+            genesisHashBase64 = params.genesisHashBase64,
+            genesisID = params.genesisID,
+        )
     if (appCallBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
 
     val axferRawBytes = axferBytes.toKotlinByteArray()
@@ -177,7 +181,11 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
 internal actual fun decodeMsgPackAny(bytes: ByteArray): Any? = null
 
 @OptIn(ExperimentalForeignApi::class)
-internal actual fun awaitConfirmationDetailsInternal(txId: String, algodUrl: String, maxRounds: Int): Pair<Long, Int> {
+internal actual fun awaitConfirmationDetailsInternal(
+    txId: String,
+    algodUrl: String,
+    maxRounds: Int,
+): Pair<Long, Int> {
     var last: Pair<Long, Int> = Pair(0L, 0)
     repeat(maxRounds) {
         // Swift: syncGetPendingTxn(algodUrl:txId:) → Kotlin: syncGetPendingTxnWithAlgodUrl
@@ -193,7 +201,11 @@ internal actual fun awaitConfirmationDetailsInternal(txId: String, algodUrl: Str
     return last
 }
 
-internal actual fun awaitConfirmationInternal(txId: String, algodUrl: String, maxRounds: Int): Boolean {
+internal actual fun awaitConfirmationInternal(
+    txId: String,
+    algodUrl: String,
+    maxRounds: Int,
+): Boolean {
     val (round, _) = awaitConfirmationDetailsInternal(txId, algodUrl, maxRounds)
     return round > 0L
 }
@@ -227,12 +239,16 @@ private fun fetchTxParams(algodUrl: String): AlgodTxParams {
 }
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
-private fun broadcastAndGetTxId(algodUrl: String, signedBase64: String): String {
+private fun broadcastAndGetTxId(
+    algodUrl: String,
+    signedBase64: String,
+): String {
     // Swift: syncBroadcastTxns(algodUrl:signedTxnsBase64:) → Kotlin: syncBroadcastTxnsWithAlgodUrl
-    val responseJson = bridge.syncBroadcastTxnsWithAlgodUrl(
-        algodUrl = algodUrl,
-        signedTxnsBase64 = signedBase64,
-    )
+    val responseJson =
+        bridge.syncBroadcastTxnsWithAlgodUrl(
+            algodUrl = algodUrl,
+            signedTxnsBase64 = signedBase64,
+        )
     if (responseJson.isEmpty()) error("iOS: broadcast returned empty response")
     // Swift propagates non-2xx errors as "BROADCAST_ERROR:<algod json body>"
     if (responseJson.startsWith("BROADCAST_ERROR:")) {
@@ -240,9 +256,10 @@ private fun broadcastAndGetTxId(algodUrl: String, signedBase64: String): String 
         val msg = parseJsonString(body, "message") ?: body.take(200)
         error("iOS: broadcast failed — $msg")
     }
-    val txId = parseJsonString(responseJson, "txId")
-        ?: parseJsonString(responseJson, "txid")
-        ?: error("iOS: no txId in broadcast response: $responseJson")
+    val txId =
+        parseJsonString(responseJson, "txId")
+            ?: parseJsonString(responseJson, "txid")
+            ?: error("iOS: no txId in broadcast response: $responseJson")
     Napier.d("[iOS_BROADCAST_OK] txId=$txId", tag = TAG)
     return txId
 }
@@ -255,18 +272,33 @@ private fun normalizeBase64(s: String): String {
 }
 
 /** Extracts a JSON string value for [key] using simple regex. */
-private fun parseJsonString(json: String, key: String): String? =
+private fun parseJsonString(
+    json: String,
+    key: String,
+): String? =
     Regex(""""$key"\s*:\s*"([^"]*)"()""")
-        .find(json)?.groupValues?.getOrNull(1)?.takeIf { it.isNotEmpty() }
+        .find(json)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.takeIf { it.isNotEmpty() }
         ?: Regex(""""$key"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.getOrNull(1)
 
 /** Extracts a JSON long value for [key]. */
-private fun parseJsonLong(json: String, key: String): Long? =
-    Regex(""""$key"\s*:\s*(-?\d+)""").find(json)?.groupValues?.getOrNull(1)?.toLongOrNull()
+private fun parseJsonLong(
+    json: String,
+    key: String,
+): Long? =
+    Regex(""""$key"\s*:\s*(-?\d+)""")
+        .find(json)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.toLongOrNull()
 
 /** Extracts a JSON int value for [key] (arrays are counted). */
-private fun parseJsonInt(json: String, key: String): Int? =
-    parseJsonLong(json, key)?.toInt()
+private fun parseJsonInt(
+    json: String,
+    key: String,
+): Int? = parseJsonLong(json, key)?.toInt()
 
 /** Extension: converts NSData to KotlinByteArray. */
 @OptIn(ExperimentalForeignApi::class)

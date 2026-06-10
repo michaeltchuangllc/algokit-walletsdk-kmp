@@ -48,18 +48,23 @@ internal actual fun sha512_256(bytes: ByteArray): ByteArray {
  * Kotlin/Native: signEd25519WithSeedWithSeedBase64(seedBase64:messageBase64:)
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
-internal actual fun signEd25519(secretKey: ByteArray, message: ByteArray): ByteArray? {
-    val seedBytes = when (secretKey.size) {
-        64 -> secretKey.copyOfRange(0, 32)
-        32 -> secretKey
-        else -> return null
-    }
+internal actual fun signEd25519(
+    secretKey: ByteArray,
+    message: ByteArray,
+): ByteArray? {
+    val seedBytes =
+        when (secretKey.size) {
+            64 -> secretKey.copyOfRange(0, 32)
+            32 -> secretKey
+            else -> return null
+        }
     val seedBase64 = Base64.encode(seedBytes)
     val messageBase64 = Base64.encode(message)
-    val sigBase64 = bridge.signEd25519WithSeedWithSeedBase64(
-        seedBase64 = seedBase64,
-        messageBase64 = messageBase64,
-    )
+    val sigBase64 =
+        bridge.signEd25519WithSeedWithSeedBase64(
+            seedBase64 = seedBase64,
+            messageBase64 = messageBase64,
+        )
     if (sigBase64.isEmpty()) return null
     return runCatching { Base64.decode(sigBase64) }.getOrNull()
 }
@@ -72,7 +77,11 @@ internal actual fun signEd25519(secretKey: ByteArray, message: ByteArray): ByteA
  * Kotlin/Native: verifyEd25519SignatureWithPublicKeyBase64(publicKeyBase64:messageBase64:signatureBase64:)
  */
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
-internal actual fun verifyEd25519(publicKey: ByteArray, message: ByteArray, signature: ByteArray): Boolean {
+internal actual fun verifyEd25519(
+    publicKey: ByteArray,
+    message: ByteArray,
+    signature: ByteArray,
+): Boolean {
     if (publicKey.size != 32 || signature.size != 64) return false
     val pkBase64 = Base64.encode(publicKey)
     val msgBase64 = Base64.encode(message)
