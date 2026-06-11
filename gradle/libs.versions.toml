@@ -3,6 +3,7 @@ agp = "8.10.0"
 algoGoMobilesdk = "2026.2.6"
 algoSdk = "2.10.1"
 algokit-walletSdk = "3.202602.8"
+algokit-core = "1.0.0-alpha.82"
 algorand-foundation = "0.1.0"
 android-compileSdk = "36"
 android-minSdk = "34"
@@ -35,6 +36,7 @@ desugar = "2.1.5"
 detekt = "1.23.8"
 dP256 = "1.0.2"
 espresso = "3.6.1"
+falcon-sdk = "0.0.11"
 flexbox = "3.0.0"
 googleServicesVersion = "4.4.4"
 gradlePlayPublisher = "3.13.0"
@@ -179,6 +181,10 @@ webview-multiplatform-mobile = { module = "io.github.final-class:webview-multipl
 
 # Wallet SDK - Security / Blockchain / Crypto
 algosdk = { module = "com.algorand:algosdk", version.ref = "algoSdk" }
+algokit-composer = { group = "io.github.algorandecosystem", name = "algokit-composer", version.ref = "algokit-core" }
+algokit-crypto = { group = "io.github.algorandecosystem", name = "algokit-crypto", version.ref = "algokit-core" }
+algokit-transact = { group = "io.github.algorandecosystem", name = "algokit-transact", version.ref = "algokit-core" }
+algorand-falcon = { group = "io.github.algorandecosystem", name = "falcon-signatures-mobile-sdk", version.ref = "falcon-sdk" }
 algorand-go-mobile = { group = "com.michaeltchuang.algokit", name = "algorand-go-mobile-sdk", version.ref = "algoGoMobilesdk" }
 algorand-foundation-crypto = { group = "com.michaeltchuang.algokit", name = "algorand-foundation-crypto", version.ref = "algorand-foundation" }
 algorand-foundation-provider = { group = "com.michaeltchuang.algokit", name = "algorand-foundation-provider", version.ref = "algorand-foundation" }

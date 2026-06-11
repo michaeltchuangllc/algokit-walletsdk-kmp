@@ -63,14 +63,7 @@ kotlin {
                     path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoSDK.xcframework.zip",
                     packageName = "AlgoSDK",
                     exportToKotlin = false,
-                )
-                // AlgoKitTransact as Swift package (for accessing Swift types)
-                localPackage(
-                    path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoKitTransact",
-                    products = {
-                        add("AlgoKitTransact")
-                    },
-                )
+                    )
                 remotePackageVersion(
                     url = uri("https://github.com/Electric-Coin-Company/MnemonicSwift.git"),
                     products = {
@@ -85,12 +78,33 @@ kotlin {
                     },
                     branch = "fix/upgrade_sodium",
                 )
+                remotePackageBranch(
+                    url = uri("https://github.com/algorandecosystem/falcon-signatures-mobile.git"),
+                    products = {
+                        add("FalconMobileSDK")
+                    },
+                    branch = "main",
+                )
+                remotePackageBranch(
+                    url = uri("https://github.com/algorandecosystem/algokit-core-swift.git"),
+                    products = {
+                        add("AlgoKitTransact")
+                        add("AlgoKitCrypto")
+                        add("AlgoKitComposer")
+                        add("AlgoKitUtils")
+                    },
+                    branch = "main",
+                )
             }
         }
     }
 
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.algokit.composer)
+            implementation(libs.algokit.crypto)
+            implementation(libs.algokit.transact)
+
             implementation(libs.algosdk)
             implementation(libs.algorand.go.mobile)
             implementation(libs.androidx.credentials)

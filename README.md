@@ -120,8 +120,9 @@ timeline
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
     section Future 🔮
-     2026Q3  : 🔄 Onboarding - Create and integrate new algokit-core KMP library
+    2026Q3   : 🔄 Onboarding - Create and integrate new algokit-core KMP library
              : Android - Upgrade to AGP9 and KMP 2.4
+             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
              : Onboarding - Add Falcon native account and transaction flow support
