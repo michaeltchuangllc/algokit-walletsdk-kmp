@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.railmpp
+package com.michaeltchuang.walletsdk.core.railmpp.domain.repository
 
 /** Platform-agnostic wallet signer for Algorand/Solana payment rails. */
 interface MppWalletSigner {

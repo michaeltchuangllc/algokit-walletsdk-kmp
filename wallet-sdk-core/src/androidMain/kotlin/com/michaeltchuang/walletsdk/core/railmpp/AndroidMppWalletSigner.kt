@@ -2,9 +2,10 @@ package com.michaeltchuang.walletsdk.core.railmpp
 
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 
 /**
- * Android extension of [MppWalletSigner] for algosdk [Transaction]-based signing.
+ * Android extension of [com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner] for algosdk [Transaction]-based signing.
  * Implement [signTransaction]; the common [signTransactionBytes] bridge is provided automatically.
  */
 interface AndroidMppWalletSigner : MppWalletSigner {

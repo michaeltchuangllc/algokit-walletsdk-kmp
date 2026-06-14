@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp
 
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+
 /**
  * Provider-side configuration. Required when the rail issues challenges and
  * verifies/broadcasts credentials (`createPaymentRequest` + `verifyAndSettle`).

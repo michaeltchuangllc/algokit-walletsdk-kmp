@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import AlgorandIosSdk.spmAlgoApiBridge
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import io.github.aakira.napier.Napier
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf

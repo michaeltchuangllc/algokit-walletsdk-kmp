@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.utils
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationDetailsInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey

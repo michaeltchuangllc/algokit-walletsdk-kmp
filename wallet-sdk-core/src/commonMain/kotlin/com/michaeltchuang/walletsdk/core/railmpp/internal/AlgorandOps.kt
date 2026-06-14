@@ -1,6 +1,6 @@
 package com.michaeltchuang.walletsdk.core.railmpp.internal
 
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 
 /** Fetches raw box bytes for [channelId] from the Algod REST API. */
 internal expect fun getSessionBoxBytesInternal(
