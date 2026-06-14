@@ -69,7 +69,8 @@ internal fun encodeAlgorandAddress(publicKey: ByteArray): String {
     require(publicKey.size == ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH) {
         "Public key must be $ALGORAND_ADDRESS_PUBLIC_KEY_LENGTH bytes"
     }
-    val checksum = sha256(publicKey).takeLast(ALGORAND_ADDRESS_CHECKSUM_LENGTH).toByteArray()
+    // Algorand address checksum is the last 4 bytes of SHA512/256(publicKey), not SHA256.
+    val checksum = sha512_256(publicKey).takeLast(ALGORAND_ADDRESS_CHECKSUM_LENGTH).toByteArray()
     return encodeBase32(publicKey + checksum)
 }
 

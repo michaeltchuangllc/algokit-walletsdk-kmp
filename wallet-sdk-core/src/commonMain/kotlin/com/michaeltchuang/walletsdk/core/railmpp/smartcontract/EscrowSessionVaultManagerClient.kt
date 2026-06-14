@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.smartcontract
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
+import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
@@ -38,6 +39,7 @@ class EscrowSessionVaultManagerClient(
         private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
         private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
         private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
+        var storedChannelId: ByteArray? = null
     }
 
     suspend fun openAndDeposit(
@@ -50,6 +52,7 @@ class EscrowSessionVaultManagerClient(
     ): Result<String> =
         runCatching {
             val channelId = deriveChannelId(signer.address, payeeAddress, authorizedSignerPublicKey)
+            storedChannelId = channelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,
@@ -198,6 +201,7 @@ class EscrowSessionVaultManagerClient(
             )
         }
 
+    // payee/creator side
     suspend fun close(
         signer: MppWalletSigner,
         channelId: ByteArray,
@@ -213,9 +217,11 @@ class EscrowSessionVaultManagerClient(
                 args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
+                foreignAccounts = getChannelParticipants(channelId, algodUrl),
             )
         }
 
+    // viewer side
     suspend fun requestClose(
         signer: MppWalletSigner,
         channelId: ByteArray,
@@ -249,6 +255,7 @@ class EscrowSessionVaultManagerClient(
                 args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
+                foreignAccounts = getChannelParticipants(channelId, algodUrl),
             )
         }
 
@@ -323,7 +330,13 @@ class EscrowSessionVaultManagerClient(
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
+    ): Result<String> = verifySettleSignatureOnChain(
+        signer,
+        channelId,
+        cumulativeAmountMicroUsdc,
+        signature,
+        algodUrl
+    )
 
     data class SessionStaticData(
         val startRound: Long,
@@ -364,7 +377,10 @@ class EscrowSessionVaultManagerClient(
             SessionDynamicData(
                 totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset),
                 lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset),
-                latestVoucherAmount = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset),
+                latestVoucherAmount = decodeUint64BigEndian(
+                    bytes,
+                    offsets.latestVoucherAmountOffset
+                ),
             )
         }
 
@@ -384,9 +400,15 @@ class EscrowSessionVaultManagerClient(
         payeeAddress: String,
         authorizedSignerPublicKey: ByteArray,
         salt: ByteArray = defaultSalt,
-    ): ByteArray = computeChannelId(payerAddress, payeeAddress, computeSignerPubkeyHash(authorizedSignerPublicKey), salt)
+    ): ByteArray = computeChannelId(
+        payerAddress,
+        payeeAddress,
+        computeSignerPubkeyHash(authorizedSignerPublicKey),
+        salt
+    )
 
-    fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
+    fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray =
+        sha512_256(authorizedSigner)
 
     fun settleMessage(
         channelId: ByteArray,
@@ -396,9 +418,21 @@ class EscrowSessionVaultManagerClient(
     fun buildSettleMessage(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
-    ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
+    ): ByteArray =
+        encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
 
     // ── Private helpers ──────────────────────────────────────────────────────
+
+    private fun getChannelParticipants(
+        channelId: ByteArray,
+        algodUrl: String,
+    ): List<String> {
+        val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
+        if (bytes.size < 64) error("Invalid session box payload size=${bytes.size}")
+        val payer = encodeAlgorandAddress(bytes.copyOfRange(0, 32))
+        val payee = encodeAlgorandAddress(bytes.copyOfRange(32, 64))
+        return listOf(payer, payee)
+    }
 
     private fun decodeSessionInfoOffsets(bytes: ByteArray): SessionInfoOffsets {
         if (bytes.size < 98) error("Invalid session box payload size=${bytes.size}")
@@ -408,7 +442,8 @@ class EscrowSessionVaultManagerClient(
         val signerLen = markerAt64
         val totalsOffset = 66 + signerLen
         if (bytes.size >= totalsOffset + 24) {
-            val legacyOffsets = SessionInfoOffsets(totalsOffset, totalsOffset + 8, totalsOffset + 16)
+            val legacyOffsets =
+                SessionInfoOffsets(totalsOffset, totalsOffset + 8, totalsOffset + 16)
             if (isPlausibleSessionLayout(bytes, legacyOffsets)) return legacyOffsets
             return legacyOffsets
         }
@@ -440,6 +475,9 @@ class EscrowSessionVaultManagerClient(
 
     private fun encodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
         require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
-        return byteArrayOf(((bytes.size ushr 8) and 0xFF).toByte(), (bytes.size and 0xFF).toByte()) + bytes
+        return byteArrayOf(
+            ((bytes.size ushr 8) and 0xFF).toByte(),
+            (bytes.size and 0xFF).toByte()
+        ) + bytes
     }
 }

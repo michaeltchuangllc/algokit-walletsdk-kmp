@@ -20,8 +20,9 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometr
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
-import com.michaeltchuang.walletsdk.ui.test.PaymentTestViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
+
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import kotlin.io.encoding.Base64
@@ -69,12 +70,7 @@ val liquidAuthUIModule =
         single { AssertionApiUseCase(get<ProvideHttpClientUseCase>()()) }
 
         viewModel {
-            PaymentTestViewModel(
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
+            EscrowSessionVaultDebugViewModel(
                 get(),
             )
         }

@@ -52,6 +52,7 @@ internal actual suspend fun submitAppCallInternal(
     args: List<ByteArray>,
     boxKeys: List<Pair<Long, ByteArray>>,
     foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
 ): String {
     val params = fetchTxParams(algodUrl)
 
@@ -60,6 +61,9 @@ internal actual suspend fun submitAppCallInternal(
     val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
 
     // Swift: buildAppCallTxn(senderAddress:appId:...) → Kotlin: buildAppCallTxnWithSenderAddress
+    // close()/withdraw() refund the counterparty via inner asset transfers, so the payer/payee
+    // accounts read from the channel box must be referenced here, otherwise the AVM rejects the
+    // inner txn with "unavailable Account".
     val txnBytes =
         bridge.buildAppCallTxnWithSenderAddress(
             senderAddress = signer.address,
@@ -68,6 +72,7 @@ internal actual suspend fun submitAppCallInternal(
             boxRefAppIds = boxRefAppIds,
             boxRefNamesBase64 = boxRefNamesB64,
             foreignAssets = foreignAssets,
+            foreignAccountAddresses = foreignAccounts,
             fee = APP_CALL_FEE,
             firstRound = params.firstRoundValid,
             lastRound = params.lastRoundValid,
@@ -124,6 +129,7 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
             boxRefAppIds = boxRefAppIds,
             boxRefNamesBase64 = boxRefNamesB64,
             foreignAssets = appCallForeignAssets,
+            foreignAccountAddresses = emptyList<String>(),
             fee = APP_CALL_FEE,
             firstRound = params.firstRoundValid,
             lastRound = params.lastRoundValid,

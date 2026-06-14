@@ -875,6 +875,7 @@ import CommonCrypto
         boxRefAppIds: [Int64],
         boxRefNamesBase64: [String],
         foreignAssets: [Int64],
+        foreignAccountAddresses: [String],
         fee: Int64,
         firstRound: Int64,
         lastRound: Int64,
@@ -924,6 +925,9 @@ import CommonCrypto
         // the ObjC header marks them _Nullable. Always pass empty arrays, never nil.
         let foreignAppsArray = AlgoSdkInt64Array()
         let accountsArray = AlgoSdkStringArray()
+        for accountAddress in foreignAccountAddresses {
+            accountsArray.append(accountAddress)
+        }
 
         var error: NSError?
         guard let rawTxnData = AlgoSdkMakeApplicationNoOpTx(

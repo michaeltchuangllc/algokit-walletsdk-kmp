@@ -43,11 +43,12 @@ internal actual suspend fun submitAppCallInternal(
     args: List<ByteArray>,
     boxKeys: List<Pair<Long, ByteArray>>,
     foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
 ): String {
     BouncyCastleProviderSetup.ensure()
     val client = algodClient(algodUrl)
     val params = client.TransactionParams().execute().body()
-    val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets)
+    val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets, foreignAccounts)
 
     val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
     val dummies = if (useFalcon) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
@@ -166,6 +167,7 @@ private fun buildAppCallTxn(
     args: List<ByteArray>,
     boxReferences: List<AppBoxReference>,
     foreignAssets: List<Long>,
+    foreignAccounts: List<String> = emptyList(),
 ): Transaction {
     val builder =
         Transaction
@@ -176,6 +178,7 @@ private fun buildAppCallTxn(
             .args(args)
     if (boxReferences.isNotEmpty()) builder.boxReferences(boxReferences)
     if (foreignAssets.isNotEmpty()) builder.foreignAssets(foreignAssets)
+    if (foreignAccounts.isNotEmpty()) builder.accounts(foreignAccounts.map { Address(it) })
     return builder.build().also { it.fee = BigInteger.valueOf(APP_CALL_FEE) }
 }
 
