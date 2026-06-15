@@ -29,6 +29,7 @@ open class CommonAnswerViewModel(
     protected val getFalcon24SecretKey: GetFalcon24SecretKey,
     protected val getSeed: GetHdSeed,
 ) : LiquidAuthViewerStateHolder() {
+
     companion object {
         private const val TAG = "CommonAnswerViewModel"
     }
@@ -67,7 +68,8 @@ open class CommonAnswerViewModel(
 
     // ── Account helpers ────────────────────────────────────────────────────────
 
-    suspend fun getAvailableAccountAddresses(): List<String> = getLocalAccounts().map { it.address }.distinct()
+    suspend fun getAvailableAccountAddresses(): List<String> =
+        getLocalAccounts().map { it.address }.distinct()
 
     suspend fun resolveLocalAccount(address: String): LocalAccount? = getLocalAccount(address)
 

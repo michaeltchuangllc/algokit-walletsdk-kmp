@@ -25,7 +25,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
-
 class LiquidAuthOfferViewModel(
     private val generateOfferUseCase: GenerateLiquidAuthOfferUseCase,
     private val stateDelegate: StateDelegate<OfferState>,

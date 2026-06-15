@@ -49,6 +49,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
+
 @OptIn(ExperimentalEncodingApi::class)
 @Composable
 actual fun AnswerScreenOverlay() {
@@ -155,29 +156,27 @@ actual fun AnswerScreenOverlay() {
             runCatching {
                 val signer = runBlocking { paymentOrchestrator.buildWalletSigner(address) }
                 if (signer != null) {
-                    val mppClientConfig =
-                        MppClientConfig(
-                            network = MppNetworks.ALGORAND_TESTNET,
-                            signer = signer,
-                        )
+                    val mppClientConfig = MppClientConfig(
+                        network = MppNetworks.ALGORAND_TESTNET,
+                        signer = signer,
+                    )
                     viewerManager.setupPaymentRail(mppClientConfig, signer.authorizedSignerPublicKey)
 
                     // Wire the voucher-send callback so that each segment:accepted receipt
                     // generates a signed liquid:payment:voucher sent to the host.
                     // This mirrors the Android viewer's SetupMppPaymentViewerUseCase.onPaymentReceipt.
-                    viewerManager.onReceiptVoucherNeeded =
-                        { sessionId, viewerAddr, hostAddr, claimedMicroUsdc, debitMicroUsdc, remaining, send ->
-                            paymentOrchestrator.sendVoucherForReceipt(
-                                signer = signer,
-                                viewerAddress = viewerAddr,
-                                hostAddress = hostAddr,
-                                sessionId = sessionId,
-                                totalAmountClaimedMicroUsdc = claimedMicroUsdc,
-                                segmentDebitMicroUsdc = debitMicroUsdc,
-                                remainingMicroUsdc = remaining,
-                                sendMessageFn = send,
-                            )
-                        }
+                    viewerManager.onReceiptVoucherNeeded = { sessionId, viewerAddr, hostAddr, claimedMicroUsdc, debitMicroUsdc, remaining, send ->
+                        paymentOrchestrator.sendVoucherForReceipt(
+                            signer = signer,
+                            viewerAddress = viewerAddr,
+                            hostAddress = hostAddr,
+                            sessionId = sessionId,
+                            totalAmountClaimedMicroUsdc = claimedMicroUsdc,
+                            segmentDebitMicroUsdc = debitMicroUsdc,
+                            remainingMicroUsdc = remaining,
+                            sendMessageFn = send,
+                        )
+                    }
                     NSLog("$TAG: IOSLiquidStreamViewer MPP payment rail configured for viewer=$address")
                 } else {
                     NSLog("$TAG: Could not build wallet signer for $address — PaywalledRTCClient rail not set")

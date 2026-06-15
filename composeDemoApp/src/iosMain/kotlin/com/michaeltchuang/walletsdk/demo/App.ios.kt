@@ -568,28 +568,25 @@ private val broadcastSettlementScope = CoroutineScope(Dispatchers.Default)
  * Mirror of [IosViewerPaymentOrchestrator.buildWalletSigner] but for the host side.
  */
 private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
-    val localAccount =
-        getLocalAccount(hostAddress) ?: run {
-            Napier.e("[HOST_SIGNER_BUILD_SKIP] reason=account_not_found host=$hostAddress")
-            return null
-        }
+    val localAccount = getLocalAccount(hostAddress) ?: run {
+        Napier.e("[HOST_SIGNER_BUILD_SKIP] reason=account_not_found host=$hostAddress")
+        return null
+    }
     if (localAccount is LocalAccount.SeedVault) return null
 
-    val authorizedSignerPublicKey: ByteArray =
-        when (localAccount) {
-            is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Falcon24 -> localAccount.publicKey
-            is LocalAccount.Algo25 -> {
-                val secretKey =
-                    runCatching {
-                        val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
-                            KoinPlatform.getKoin().get()
-                        runBlocking { repo.getSecretKey(hostAddress) }
-                    }.getOrNull()
-                if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(32, 64) else ByteArray(0)
-            }
-            else -> ByteArray(0)
+    val authorizedSignerPublicKey: ByteArray = when (localAccount) {
+        is LocalAccount.HdKey -> localAccount.publicKey
+        is LocalAccount.Falcon24 -> localAccount.publicKey
+        is LocalAccount.Algo25 -> {
+            val secretKey = runCatching {
+                val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                runBlocking { repo.getSecretKey(hostAddress) }
+            }.getOrNull()
+            if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(32, 64) else ByteArray(0)
         }
+        else -> ByteArray(0)
+    }
 
     val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
@@ -658,18 +655,18 @@ suspend fun settleHostVoucherOnChain(
     val signerKey = viewerSignerKey ?: signer.authorizedSignerPublicKey
 
     try {
-        val result =
-            MppPayments.settleLatestVoucher(
-                signer = signer,
-                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
-                authorizedSignerPublicKey = signerKey,
-            )
+        val result = MppPayments.settleLatestVoucher(
+            signer = signer,
+            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+            viewerAddress = viewerAddress,
+            hostAddress = hostAddress,
+            authorizedSignerPublicKey = signerKey,
+        )
         result
             .onSuccess { txId ->
                 Napier.d("[HOST_SETTLE_OK] txId=$txId host=$hostAddress viewer=$viewerAddress")
-            }.onFailure { e ->
+            }
+            .onFailure { e ->
                 val msg = e.message.orEmpty()
                 if (msg.contains("pc=", ignoreCase = true)) {
                     Napier.d("[HOST_SETTLE_SKIP_NOOP] host=$hostAddress viewer=$viewerAddress reason=$msg")
@@ -722,17 +719,13 @@ fun notifyBroadcastMessageReceived(message: String) {
     activeIOSBroadcastConnectionManager?.notifyMessageReceived(message)
 }
 
-fun getBroadcastCaptureSession(): Any? = com.michaeltchuang.walletsdk.ui.liquidStream.components.iosBroadcastCaptureSession
+fun getBroadcastCaptureSession(): Any? =
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosBroadcastCaptureSession
 
-fun notifyBroadcastFrameReady(
-    data: Any?,
-    width: Int,
-    height: Int,
-) {
+fun notifyBroadcastFrameReady(data: Any?, width: Int, height: Int) {
     val nsData = data as? platform.Foundation.NSData ?: return
     com.michaeltchuang.walletsdk.ui.liquidStream.components
-        .iosOnBroadcastFrameReady
-        ?.invoke(nsData, width, height)
+        .iosOnBroadcastFrameReady?.invoke(nsData, width, height)
 }
 
 fun registerBroadcastFrameCapture(
@@ -743,3 +736,4 @@ fun registerBroadcastFrameCapture(
     com.michaeltchuang.walletsdk.ui.liquidStream.components.iosStopBroadcastFrameCapture = stopCapture
     println("📷 iOS broadcast frame capture handlers registered")
 }
+

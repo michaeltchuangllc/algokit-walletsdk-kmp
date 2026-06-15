@@ -83,15 +83,13 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     val client = algodClient(algodUrl)
     val params = client.TransactionParams().execute().body()
 
-    val axferTxn =
-        Transaction
-            .AssetTransferTransactionBuilder()
-            .sender(Address(signer.address))
-            .assetReceiver(Address.forApplication(appId))
-            .assetAmount(depositAmountMicroUsdc)
-            .assetIndex(usdcAssetId)
-            .suggestedParams(params)
-            .build()
+    val axferTxn = Transaction.AssetTransferTransactionBuilder()
+        .sender(Address(signer.address))
+        .assetReceiver(Address.forApplication(appId))
+        .assetAmount(depositAmountMicroUsdc)
+        .assetIndex(usdcAssetId)
+        .suggestedParams(params)
+        .build()
 
     val appCallTxn = buildAppCallTxn(signer, params, appId, appCallArgs, boxKeys.toBoxReferences(), appCallForeignAssets)
 
@@ -113,13 +111,10 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     return broadcast(client, signed) ?: appCallTxn.txID()
 }
 
-internal actual fun decodeMsgPackAny(bytes: ByteArray): Any? = runCatching { Encoder.decodeFromMsgPack(bytes, Any::class.java) }.getOrNull()
+internal actual fun decodeMsgPackAny(bytes: ByteArray): Any? =
+    runCatching { Encoder.decodeFromMsgPack(bytes, Any::class.java) }.getOrNull()
 
-internal actual fun awaitConfirmationDetailsInternal(
-    txId: String,
-    algodUrl: String,
-    maxRounds: Int,
-): Pair<Long, Int> {
+internal actual fun awaitConfirmationDetailsInternal(txId: String, algodUrl: String, maxRounds: Int): Pair<Long, Int> {
     val client = algodClient(algodUrl)
     var last: Pair<Long, Int> = Pair(0L, 0)
     repeat(maxRounds) {
@@ -135,11 +130,7 @@ internal actual fun awaitConfirmationDetailsInternal(
     return last
 }
 
-internal actual fun awaitConfirmationInternal(
-    txId: String,
-    algodUrl: String,
-    maxRounds: Int,
-): Boolean {
+internal actual fun awaitConfirmationInternal(txId: String, algodUrl: String, maxRounds: Int): Boolean {
     val (round, _) = awaitConfirmationDetailsInternal(txId, algodUrl, maxRounds)
     return round > 0L
 }
@@ -151,10 +142,7 @@ internal actual fun awaitConfirmationInternal(
  * Jackson's @JsonInclude(NON_DEFAULT) omitting fee=0 from the dummy msgpack bytes.
  * Falcon signers override signTransactions to bundle-sign the whole group at once.
  */
-private suspend fun signTxnGroup(
-    signer: MppWalletSigner,
-    txns: List<Transaction>,
-): List<ByteArray> =
+private suspend fun signTxnGroup(signer: MppWalletSigner, txns: List<Transaction>): List<ByteArray> =
     when (signer) {
         is AndroidMppWalletSigner -> signer.signTransactions(txns)
         else -> txns.map { signer.signTransactionBytes(Encoder.encodeToMsgPack(it)) }
@@ -169,13 +157,11 @@ private fun buildAppCallTxn(
     foreignAssets: List<Long>,
     foreignAccounts: List<String> = emptyList(),
 ): Transaction {
-    val builder =
-        Transaction
-            .ApplicationCallTransactionBuilder()
-            .sender(signer.address)
-            .suggestedParams(params)
-            .applicationId(appId)
-            .args(args)
+    val builder = Transaction.ApplicationCallTransactionBuilder()
+        .sender(signer.address)
+        .suggestedParams(params)
+        .applicationId(appId)
+        .args(args)
     if (boxReferences.isNotEmpty()) builder.boxReferences(boxReferences)
     if (foreignAssets.isNotEmpty()) builder.foreignAssets(foreignAssets)
     if (foreignAccounts.isNotEmpty()) builder.accounts(foreignAccounts.map { Address(it) })
@@ -188,20 +174,16 @@ private fun buildFalconDummy(
 ): Transaction {
     // getFalconLsigAddress must run on the Go-mobile OS thread.
     val falconLsigAddress = Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
-    val txn =
-        Transaction
-            .PaymentTransactionBuilder()
-            .sender(falconLsigAddress)
-            .receiver(falconLsigAddress)
-            .amount(0)
-            .suggestedParams(params)
-            .note(byteArrayOf(index.toByte()))
-            .build()
+    val txn = Transaction.PaymentTransactionBuilder()
+        .sender(falconLsigAddress).receiver(falconLsigAddress).amount(0)
+        .suggestedParams(params).note(byteArrayOf(index.toByte()))
+        .build()
     txn.fee = BigInteger.ZERO
     return txn
 }
 
-private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }
+private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> =
+    map { (id, key) -> AppBoxReference(id, key) }
 
 private fun algodClient(url: String): AlgodClient {
     val uri = URI(url.removeSuffix("/"))
@@ -210,10 +192,7 @@ private fun algodClient(url: String): AlgodClient {
     return AlgodClient("$scheme://${uri.host}", port, "")
 }
 
-private fun broadcast(
-    client: AlgodClient,
-    signedBlobs: List<ByteArray>,
-): String? {
+private fun broadcast(client: AlgodClient, signedBlobs: List<ByteArray>): String? {
     val concatenated = signedBlobs.fold(ByteArray(0)) { acc, b -> acc + b }
     val resp: Response<PostTransactionsResponse> = client.RawTransaction().rawtxn(concatenated).execute()
     if (!resp.isSuccessful) error("Broadcast failed: ${resp.message() ?: "unknown"}")

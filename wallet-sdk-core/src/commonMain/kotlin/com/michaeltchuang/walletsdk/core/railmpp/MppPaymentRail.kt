@@ -10,7 +10,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.MppProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppDecodeTxn
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.spec.AuthParams
-import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
 import kotlinx.serialization.json.JsonObject
@@ -18,6 +17,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

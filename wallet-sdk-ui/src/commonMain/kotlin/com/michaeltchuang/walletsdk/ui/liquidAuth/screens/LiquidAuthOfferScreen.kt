@@ -495,6 +495,7 @@ fun LiquidAuthOfferScreenContent(
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
 ) {
+
     Column(
         modifier =
             Modifier
@@ -539,7 +540,7 @@ fun LiquidAuthOfferScreenContent(
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
             is LiquidAuthOfferViewModel.OfferState.Connected,
-            -> {
+                -> {
                 // Stream host UI is controlled below so it dismisses only on stop.
                 if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
                     streamHostUiMode.value = StreamHostUiMode.Expanded

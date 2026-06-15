@@ -176,30 +176,27 @@ class PaywalledRTCClient(
                 val env = LiquidDcMessages.parsePaymentRequest(msgStr)
                 if (env != null) {
                     @OptIn(ExperimentalUuidApi::class)
-                    val request =
-                        PaymentRequest(
-                            id = env.id,
-                            sessionId = env.sessionId ?: env.id,
-                            segmentIndex = env.segmentIndex ?: 0,
-                            amount = env.amount,
-                            asset = env.asset,
-                            network = env.network,
-                            payTo = env.payTo,
-                            ttl = 30,
-                            nonce = env.nonce.ifBlank { Uuid.random().toString() },
-                            meta =
-                                PaymentRequestMeta(
-                                    gatingMode =
-                                        if (env.gatingMode != null) {
-                                            GatingMode.fromString(env.gatingMode)
-                                        } else {
-                                            GatingMode.PARTIAL_TIME
-                                        },
-                                    enforcement = EnforcementMode.TRACK,
-                                    segmentDuration = env.segmentDuration,
-                                ),
-                            railPayload = null,
-                        )
+                    val request = PaymentRequest(
+                        id = env.id,
+                        sessionId = env.sessionId ?: env.id,
+                        segmentIndex = env.segmentIndex ?: 0,
+                        amount = env.amount,
+                        asset = env.asset,
+                        network = env.network,
+                        payTo = env.payTo,
+                        ttl = 30,
+                        nonce = env.nonce.ifBlank { Uuid.random().toString() },
+                        meta = PaymentRequestMeta(
+                            gatingMode = if (env.gatingMode != null) {
+                                GatingMode.fromString(env.gatingMode)
+                            } else {
+                                GatingMode.PARTIAL_TIME
+                            },
+                            enforcement = EnforcementMode.TRACK,
+                            segmentDuration = env.segmentDuration,
+                        ),
+                        railPayload = null,
+                    )
                     Napier.d(
                         "[VIEWER_IOS_PAYMENT_REQUEST_RECEIVED] session=${request.sessionId} " +
                             "segment=${request.segmentIndex} nonce=${request.nonce} " +

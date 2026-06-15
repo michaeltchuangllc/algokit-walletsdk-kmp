@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.core.railmpp.internal
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.ALGO_ASSET
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallenge
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredential
@@ -29,6 +28,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi

@@ -19,15 +19,15 @@ actual fun rememberBroadcastPlatformState(): BroadcastPlatformState {
     val viewModel: BroadcastViewModel = koinViewModel()
     val broadcastState by viewModel.state.collectAsStateWithLifecycle()
 
-    val connectionManager = remember { createLiquidAuthConnectionManager(Unit) }
+    val connectionManager = remember() { createLiquidAuthConnectionManager(Unit) }
 
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
     val accountResult by produceState<Pair<Boolean, List<LocalAccount>>>(initialValue = false to emptyList()) {
         value = true to
-            getSupportedLocalAccountsByAppId(
-                appId = AppId.LIQUID_AUTH_STREAM.name,
-                localAccount = getLocalAccountsUseCase(),
-            )
+                getSupportedLocalAccountsByAppId(
+                    appId = AppId.LIQUID_AUTH_STREAM.name,
+                    localAccount = getLocalAccountsUseCase(),
+                )
     }
 
     return BroadcastPlatformState(

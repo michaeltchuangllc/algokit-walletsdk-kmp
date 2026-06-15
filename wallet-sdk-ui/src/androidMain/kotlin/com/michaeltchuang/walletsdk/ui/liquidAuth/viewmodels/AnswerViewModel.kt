@@ -107,15 +107,16 @@ class AnswerViewModel(
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
 ) : CommonAnswerViewModel(
-        getCurrentBlockUseCase = getCurrentBlockUseCase,
-        getAccountAlgoBalance = getAccountAlgoBalance,
-        getLocalAccount = getLocalAccount,
-        getLocalAccounts = getLocalAccounts,
-        getAlgo25SecretKey = getAlgo25SecretKey,
-        getFalcon24SecretKey = getFalcon24SecretKey,
-        getSeed = getSeed,
-    ),
+    getCurrentBlockUseCase = getCurrentBlockUseCase,
+    getAccountAlgoBalance = getAccountAlgoBalance,
+    getLocalAccount = getLocalAccount,
+    getLocalAccounts = getLocalAccounts,
+    getAlgo25SecretKey = getAlgo25SecretKey,
+    getFalcon24SecretKey = getFalcon24SecretKey,
+    getSeed = getSeed,
+),
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
+
     companion object {
         private const val TAG = "AnswerViewModel"
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
@@ -355,10 +356,7 @@ class AnswerViewModel(
         try {
             val json = JSONObject(msgStr)
             val dataBase64 = json.getString("data")
-            val frameData =
-                java.util.Base64
-                    .getDecoder()
-                    .decode(dataBase64)
+            val frameData = java.util.Base64.getDecoder().decode(dataBase64)
             val videoFrame =
                 VideoFrameData(
                     id = json.getString("id"),
@@ -375,7 +373,8 @@ class AnswerViewModel(
         }
     }
 
-    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray = encoder.encode(responseMessage, EncoderType.CBOR)
+    fun encodeResponseMessage(responseMessage: ResponseMessage): ByteArray =
+        encoder.encode(responseMessage, EncoderType.CBOR)
 
     fun handleMessage(message: Message): Any {
         val decoded = encoder.decode<RequestMessage>(message.data, message.encoding)
@@ -479,9 +478,7 @@ class AnswerViewModel(
                                 Log.e(TAG, "Missing Algo25 key for $address")
                                 return ByteArray(0)
                             }
-                            val txnBytes =
-                                com.algorand.algosdk.util.Encoder
-                                    .encodeToMsgPack(txn)
+                            val txnBytes = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn)
                             val signature = signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
                             if (signature == null) {
                                 Log.e(TAG, "Algo25 arbitrary signing failed for $address")
@@ -499,9 +496,7 @@ class AnswerViewModel(
                                 return ByteArray(0)
                             }
                             signHdKeyTransaction(
-                                transactionByteArray =
-                                    com.algorand.algosdk.util.Encoder
-                                        .encodeToMsgPack(txn),
+                                transactionByteArray = com.algorand.algosdk.util.Encoder.encodeToMsgPack(txn),
                                 seed = seed,
                                 account = localAccount.account,
                                 change = localAccount.change,
@@ -590,16 +585,8 @@ class AnswerViewModel(
                 .distinct()
 
         candidates.forEach { candidate ->
-            runCatching {
-                java.util.Base64
-                    .getDecoder()
-                    .decode(candidate)
-            }.getOrNull()?.let { return it }
-            runCatching {
-                java.util.Base64
-                    .getUrlDecoder()
-                    .decode(candidate)
-            }.getOrNull()?.let { return it }
+            runCatching { java.util.Base64.getDecoder().decode(candidate) }.getOrNull()?.let { return it }
+            runCatching { java.util.Base64.getUrlDecoder().decode(candidate) }.getOrNull()?.let { return it }
             runCatching { Base64.UrlSafe.withPadding(Base64.PaddingOption.PRESENT).decode(candidate) }.getOrNull()?.let { return it }
         }
         return null
@@ -644,11 +631,7 @@ class AnswerViewModel(
         Log.e(TAG, "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}")
 
         return withContext(GoMobileDispatcher.dispatcher) {
-            val expectedTxns =
-                txns.map {
-                    com.algorand.algosdk.util.Encoder
-                        .encodeToMsgPack(it)
-                }
+            val expectedTxns = txns.map { com.algorand.algosdk.util.Encoder.encodeToMsgPack(it) }
             val expectedTxIds = txns.map { it.txID() }
             val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
             val resultCsv =
@@ -669,28 +652,15 @@ class AnswerViewModel(
                 rawSigned
                     .mapNotNull { signedBytes ->
                         runCatching {
-                            val signed =
-                                com.algorand.algosdk.util.Encoder
-                                    .decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                            val signed = com.algorand.algosdk.util.Encoder.decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
                             val signedTxn = signed.tx ?: return@runCatching null
                             Triple(signedTxn.txID(), signedTxn, signedBytes)
                         }.getOrNull()
                     }
 
             val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-            val decodedFirstGroup =
-                decodedSigned
-                    .firstOrNull()
-                    ?.second
-                    ?.group
-                    ?.toString()
-            val decodedAllGrouped =
-                decodedSigned.all {
-                    it.second.group != null &&
-                        it.second.group
-                            .toString()
-                            .isNotBlank()
-                }
+            val decodedFirstGroup = decodedSigned.firstOrNull()?.second?.group?.toString()
+            val decodedAllGrouped = decodedSigned.all { it.second.group != null && it.second.group.toString().isNotBlank() }
 
             Log.e(
                 TAG,
@@ -699,13 +669,7 @@ class AnswerViewModel(
                     "decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
             )
 
-            if (txns.firstOrNull()?.group == null ||
-                txns
-                    .firstOrNull()
-                    ?.group
-                    .toString()
-                    .isBlank()
-            ) {
+            if (txns.firstOrNull()?.group == null || txns.firstOrNull()?.group.toString().isBlank()) {
                 if (rawSigned.size > txns.size) {
                     Log.e(TAG, "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}")
                     return@withContext rawSigned

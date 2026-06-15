@@ -17,12 +17,11 @@ internal fun decodeBase32(value: String): ByteArray {
     var bitsLeft = 0
     val bytes = mutableListOf<Byte>()
     value.trim().trimEnd('=').uppercase().forEach { char ->
-        val charValue =
-            when (char) {
-                in 'A'..'Z' -> char - 'A'
-                in '2'..'7' -> char - '2' + 26
-                else -> error("Invalid base32 character: $char")
-            }
+        val charValue = when (char) {
+            in 'A'..'Z' -> char - 'A'
+            in '2'..'7' -> char - '2' + 26
+            else -> error("Invalid base32 character: $char")
+        }
         buffer = (buffer shl 5) or charValue
         bitsLeft += 5
         if (bitsLeft >= 8) {
@@ -37,10 +36,7 @@ internal fun decodeBase32(value: String): ByteArray {
 internal fun encodeUint64(value: Long): ByteArray {
     var v = value
     val bytes = ByteArray(8)
-    for (i in 7 downTo 0) {
-        bytes[i] = (v and 0xFF).toByte()
-        v = v ushr 8
-    }
+    for (i in 7 downTo 0) { bytes[i] = (v and 0xFF).toByte(); v = v ushr 8 }
     return bytes
 }
 

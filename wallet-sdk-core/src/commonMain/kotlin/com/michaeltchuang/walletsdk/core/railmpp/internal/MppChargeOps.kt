@@ -142,36 +142,20 @@ internal fun parseRfc3339Ms(value: String): Long? {
     return epochSec * 1000L
 }
 
-private fun pad(
-    value: Long,
-    width: Int,
-): String = value.toString().padStart(width, '0')
+private fun pad(value: Long, width: Int): String = value.toString().padStart(width, '0')
 
-private fun pad(
-    value: Int,
-    width: Int,
-): String = value.toString().padStart(width, '0')
+private fun pad(value: Int, width: Int): String = value.toString().padStart(width, '0')
 
-private fun floorDiv(
-    a: Long,
-    b: Long,
-): Long {
+private fun floorDiv(a: Long, b: Long): Long {
     var q = a / b
     if (a % b != 0L && ((a xor b) < 0L)) q--
     return q
 }
 
-private fun floorMod(
-    a: Long,
-    b: Long,
-): Long = a - floorDiv(a, b) * b
+private fun floorMod(a: Long, b: Long): Long = a - floorDiv(a, b) * b
 
 /** Days since 1970-01-01 for a civil (y, m, d) date (Howard Hinnant's algorithm). */
-private fun daysFromCivil(
-    year: Long,
-    month: Int,
-    day: Int,
-): Long {
+private fun daysFromCivil(year: Long, month: Int, day: Int): Long {
     val y = if (month <= 2) year - 1 else year
     val era = (if (y >= 0) y else y - 399) / 400
     val yoe = y - era * 400

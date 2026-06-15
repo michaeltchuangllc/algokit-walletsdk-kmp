@@ -207,7 +207,8 @@ internal actual suspend fun mppBroadcastGroup(
 
 private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
-private fun JsonObject.bool(key: String): Boolean? = runCatching { this[key]?.jsonPrimitive?.boolean }.getOrNull()
+private fun JsonObject.bool(key: String): Boolean? =
+    runCatching { this[key]?.jsonPrimitive?.boolean }.getOrNull()
 
 /** Normalises URL-safe base64 to standard base64 with padding. */
 private fun normalizeBase64(s: String): String {
@@ -216,20 +217,11 @@ private fun normalizeBase64(s: String): String {
     return if (pad > 0) standard + "=".repeat(pad) else standard
 }
 
-private fun parseJsonString(
-    json: String,
-    key: String,
-): String? = Regex(""""$key"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.getOrNull(1)
+private fun parseJsonString(json: String, key: String): String? =
+    Regex(""""$key"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.getOrNull(1)
 
-private fun parseJsonLong(
-    json: String,
-    key: String,
-): Long? =
-    Regex(""""$key"\s*:\s*(-?\d+)""")
-        .find(json)
-        ?.groupValues
-        ?.getOrNull(1)
-        ?.toLongOrNull()
+private fun parseJsonLong(json: String, key: String): Long? =
+    Regex(""""$key"\s*:\s*(-?\d+)""").find(json)?.groupValues?.getOrNull(1)?.toLongOrNull()
 
 @OptIn(ExperimentalForeignApi::class)
 private fun NSData.toKotlinByteArray(): ByteArray {

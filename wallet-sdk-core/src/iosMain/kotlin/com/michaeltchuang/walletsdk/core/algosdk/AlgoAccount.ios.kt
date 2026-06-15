@@ -199,12 +199,11 @@ actual fun signFalcon24GroupBundle(
         val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u)
         val txnsBase64 = txnsByteArrays.map { it.toNSData().base64EncodedStringWithOptions(0u) }
 
-        val signedB64List =
-            bridge.signFalconGroupBundleWithTxnsBase64(
-                txnsBase64 = txnsBase64,
-                publicKeyBase64 = publicKeyBase64,
-                privateKeyBase64 = privateKeyBase64,
-            )
+        val signedB64List = bridge.signFalconGroupBundleWithTxnsBase64(
+            txnsBase64 = txnsBase64,
+            publicKeyBase64 = publicKeyBase64,
+            privateKeyBase64 = privateKeyBase64,
+        )
 
         signedB64List.mapNotNull { b64Item: Any? ->
             val b64 = b64Item?.toString() ?: return@mapNotNull null
@@ -215,9 +214,7 @@ actual fun signFalcon24GroupBundle(
                 val pad = (4 - standard.length % 4) % 4
                 val padded = if (pad > 0) standard + "=".repeat(pad) else standard
                 Base64.decode(padded)
-            } catch (ignored: Exception) {
-                null
-            }
+            } catch (ignored: Exception) { null }
         }
     } catch (e: Exception) {
         println("Falcon24 group bundle signing failed: ${e.message}")
