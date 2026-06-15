@@ -330,13 +330,14 @@ class EscrowSessionVaultManagerClient(
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         algodUrl: String = defaultAlgodUrl,
-    ): Result<String> = verifySettleSignatureOnChain(
-        signer,
-        channelId,
-        cumulativeAmountMicroUsdc,
-        signature,
-        algodUrl
-    )
+    ): Result<String> =
+        verifySettleSignatureOnChain(
+            signer,
+            channelId,
+            cumulativeAmountMicroUsdc,
+            signature,
+            algodUrl,
+        )
 
     data class SessionStaticData(
         val startRound: Long,
@@ -377,10 +378,11 @@ class EscrowSessionVaultManagerClient(
             SessionDynamicData(
                 totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset),
                 lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset),
-                latestVoucherAmount = decodeUint64BigEndian(
-                    bytes,
-                    offsets.latestVoucherAmountOffset
-                ),
+                latestVoucherAmount =
+                    decodeUint64BigEndian(
+                        bytes,
+                        offsets.latestVoucherAmountOffset,
+                    ),
             )
         }
 
@@ -400,15 +402,15 @@ class EscrowSessionVaultManagerClient(
         payeeAddress: String,
         authorizedSignerPublicKey: ByteArray,
         salt: ByteArray = defaultSalt,
-    ): ByteArray = computeChannelId(
-        payerAddress,
-        payeeAddress,
-        computeSignerPubkeyHash(authorizedSignerPublicKey),
-        salt
-    )
+    ): ByteArray =
+        computeChannelId(
+            payerAddress,
+            payeeAddress,
+            computeSignerPubkeyHash(authorizedSignerPublicKey),
+            salt,
+        )
 
-    fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray =
-        sha512_256(authorizedSigner)
+    fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
 
     fun settleMessage(
         channelId: ByteArray,
@@ -418,8 +420,7 @@ class EscrowSessionVaultManagerClient(
     fun buildSettleMessage(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
-    ): ByteArray =
-        encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
+    ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(cumulativeAmountMicroUsdc) + "settle".encodeToByteArray()
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
@@ -477,7 +478,7 @@ class EscrowSessionVaultManagerClient(
         require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
         return byteArrayOf(
             ((bytes.size ushr 8) and 0xFF).toByte(),
-            (bytes.size and 0xFF).toByte()
+            (bytes.size and 0xFF).toByte(),
         ) + bytes
     }
 }

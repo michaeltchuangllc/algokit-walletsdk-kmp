@@ -29,7 +29,6 @@ open class CommonAnswerViewModel(
     protected val getFalcon24SecretKey: GetFalcon24SecretKey,
     protected val getSeed: GetHdSeed,
 ) : LiquidAuthViewerStateHolder() {
-
     companion object {
         private const val TAG = "CommonAnswerViewModel"
     }
@@ -67,20 +66,6 @@ open class CommonAnswerViewModel(
     }
 
     // ── Account helpers ────────────────────────────────────────────────────────
-
-    suspend fun getAvailableAccountAddresses(): List<String> =
-        getLocalAccounts().map { it.address }.distinct()
-
-    suspend fun resolveLocalAccount(address: String): LocalAccount? = getLocalAccount(address)
-
-    suspend fun resolveAlgo25SecretKey(address: String): ByteArray? = getAlgo25SecretKey(address)
-
-    suspend fun resolveFalcon24SecretKey(address: String): ByteArray? = getFalcon24SecretKey(address)
-
-    suspend fun resolveSeed(seedId: Int): ByteArray? = getSeed(seedId)
-
-    suspend fun isSeedVaultAccount(address: String): Boolean = getLocalAccount(address) is LocalAccount.SeedVault
-
     suspend fun getFee(): String {
         val localAccount = getLocalAccount(accountAddress.value)
         return when (localAccount) {

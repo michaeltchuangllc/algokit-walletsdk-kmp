@@ -14,8 +14,6 @@ object LiquidDcMessages {
     const val REF_PAYMENT_BALANCE = "liquid:payment:balance"
     const val REF_PAYMENT_VOUCHER = "liquid:payment:voucher"
     const val REF_PAYMENT_DEPLETED = "liquid:payment:depleted"
-    const val REF_PING = "ping"
-    const val REF_PONG = "pong"
 
     /** Default Algorand network used when the wire message omits an explicit `network`. */
     const val DEFAULT_NETWORK = "algorand-testnet"
@@ -75,6 +73,7 @@ object LiquidDcMessages {
             obj.str("type") == DCMessageType.SEGMENT_REQUEST -> {
                 val payload = obj["payload"] as? JsonObject
                 val meta = payload?.get("meta") as? JsonObject
+
                 // Prefer payload fields, fall back to the top-level envelope.
                 fun field(key: String): String? = payload?.str(key) ?: obj.str(key)
                 PaymentRequestEnvelope(
@@ -130,6 +129,5 @@ object LiquidDcMessages {
 
     private fun JsonObject.str(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull
 
-    private fun JsonObject.intOrNull(key: String): Int? =
-        this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
+    private fun JsonObject.intOrNull(key: String): Int? = this[key]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
 }

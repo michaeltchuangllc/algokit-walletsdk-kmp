@@ -70,9 +70,10 @@ actual fun signFalcon24GroupBundle(
     txnsByteArrays: List<ByteArray>,
     publicKey: ByteArray,
     privateKey: ByteArray,
-): List<ByteArray> = txnsByteArrays.mapNotNull { txn ->
-    signFalcon24Transaction(txn, publicKey, privateKey)
-}
+): List<ByteArray> =
+    txnsByteArrays.mapNotNull { txn ->
+        signFalcon24Transaction(txn, publicKey, privateKey)
+    }
 
 actual fun signFalcon24Transaction(
     transactionByteArray: ByteArray,

@@ -100,10 +100,10 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     protected open fun currentTimeMillis(): Long = Clock.System.now().toEpochMilliseconds()
 
     // --- Session / generic state ---------------------------------------------------------------
-    protected val _session = MutableStateFlow(SESSION_LOGGED_OUT)
+    private val _session = MutableStateFlow(SESSION_LOGGED_OUT)
     val session: StateFlow<String> = _session
 
-    protected val _authMessage = MutableStateFlow<AuthMessage?>(null)
+    private val _authMessage = MutableStateFlow<AuthMessage?>(null)
     val authMessage: StateFlow<AuthMessage?> = _authMessage
 
     private val _accountBalance = MutableStateFlow<String?>(null)
@@ -112,7 +112,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val _count = MutableStateFlow(0)
     val count: StateFlow<Int> = _count
 
-    protected val _error = MutableStateFlow<String?>(null)
+    private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
     private val _accountAddress = MutableStateFlow("")
@@ -243,8 +243,9 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
         Napier.d(
             tag = TAG,
-            message = "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} " +
-                "network=${terms.network} gating=${terms.gatingMode}",
+            message =
+                "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} " +
+                    "network=${terms.network} gating=${terms.gatingMode}",
         )
         val deferred = CompletableDeferred<ConsentApproval>()
         pendingMppConsentContinuation = deferred

@@ -22,7 +22,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymen
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
-
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
 import kotlin.io.encoding.Base64

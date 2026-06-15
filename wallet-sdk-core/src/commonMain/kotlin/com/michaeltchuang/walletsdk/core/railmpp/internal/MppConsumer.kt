@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.MppProgressEvent
+import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallenge
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredential
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
@@ -10,7 +11,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequestCodec
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 
 /**
  * Consumer-side flow for the algorand charge intent:

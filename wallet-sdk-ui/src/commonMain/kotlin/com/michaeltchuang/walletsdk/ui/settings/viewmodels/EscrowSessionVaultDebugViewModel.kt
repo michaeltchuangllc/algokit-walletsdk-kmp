@@ -142,7 +142,6 @@ class EscrowSessionVaultDebugViewModel(
     }
 
     fun updateVoucher() {
-
         val viewer = _viewerAddress.value.trim()
         val creator = _creatorAddress.value.trim()
         val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
@@ -162,7 +161,7 @@ class EscrowSessionVaultDebugViewModel(
                     mppWalletSignerUseCase(viewer) ?: run {
                         showError(
                             PaymentError.SignerNotFound(viewer),
-                            "UPDATE_VOUCHER_NO_VIEWER_SIGNER"
+                            "UPDATE_VOUCHER_NO_VIEWER_SIGNER",
                         )
                         return@launch
                     }
@@ -196,7 +195,7 @@ class EscrowSessionVaultDebugViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     return@launch
                 }
 
@@ -216,21 +215,21 @@ class EscrowSessionVaultDebugViewModel(
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
                 Napier.d("[SIGNATURE_CREATED] sigLen=${viewerSignature.size}", tag = TAG)
 
-                    withContext(Dispatchers.Default) {
-                        MppPayments.updateVoucherOnChain(
-                            signer = viewerSigner,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            totalAmountUsedMicroUsdc = newCumulative,
-                            signature = viewerSignature,
-                        )
-                    }.onSuccess { txId ->
-                        Napier.d("[UPDATE_VOUCHER_OK] txId=$txId", tag = TAG)
-                        _statusMessage.value = "✅ Voucher updated!\nTxId: $txId"
-                    }.onFailure { err ->
-                        showError(PaymentError.Companion.from(err), "UPDATE_VOUCHER_ERR", err)
-                    }
+                withContext(Dispatchers.Default) {
+                    MppPayments.updateVoucherOnChain(
+                        signer = viewerSigner,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        viewerAddress = viewer,
+                        hostAddress = creator,
+                        totalAmountUsedMicroUsdc = newCumulative,
+                        signature = viewerSignature,
+                    )
+                }.onSuccess { txId ->
+                    Napier.d("[UPDATE_VOUCHER_OK] txId=$txId", tag = TAG)
+                    _statusMessage.value = "✅ Voucher updated!\nTxId: $txId"
+                }.onFailure { err ->
+                    showError(PaymentError.Companion.from(err), "UPDATE_VOUCHER_ERR", err)
+                }
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "UPDATE_VOUCHER_EXCEPTION", e)
             } finally {
@@ -344,7 +343,7 @@ class EscrowSessionVaultDebugViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     return@launch
                 }
 
@@ -428,10 +427,11 @@ class EscrowSessionVaultDebugViewModel(
                         return@launch
                     }
 
-                val channelId = EscrowSessionVaultManagerClient.storedChannelId ?: run {
-                    showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
-                    return@launch
-                }
+                val channelId =
+                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
+                        return@launch
+                    }
 
                 val result =
                     withContext(Dispatchers.Default) {
@@ -471,15 +471,16 @@ class EscrowSessionVaultDebugViewModel(
                     mppWalletSignerUseCase(viewer) ?: run {
                         showError(
                             PaymentError.SignerNotFound(viewer),
-                            "REQUEST_CLOSE_NO_VIEWER_SIGNER"
+                            "REQUEST_CLOSE_NO_VIEWER_SIGNER",
                         )
                         return@launch
                     }
 
-                val channelId = EscrowSessionVaultManagerClient.storedChannelId ?: run {
-                    showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
-                    return@launch
-                }
+                val channelId =
+                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
+                        return@launch
+                    }
 
                 val result =
                     withContext(Dispatchers.Default) {
@@ -520,15 +521,16 @@ class EscrowSessionVaultDebugViewModel(
                     mppWalletSignerUseCase(viewer) ?: run {
                         showError(
                             PaymentError.SignerNotFound(viewer),
-                            "REQUEST_WITHDRAW_NO_VIEWER_SIGNER"
+                            "REQUEST_WITHDRAW_NO_VIEWER_SIGNER",
                         )
                         return@launch
                     }
 
-                val channelId = EscrowSessionVaultManagerClient.storedChannelId ?: run {
-                    showError(PaymentError.ChannelNotFound, "REQUEST_WITHDRAW_NO_CHANNEL_ID")
-                    return@launch
-                }
+                val channelId =
+                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "REQUEST_WITHDRAW_NO_CHANNEL_ID")
+                        return@launch
+                    }
 
                 val result =
                     withContext(Dispatchers.Default) {
@@ -553,10 +555,10 @@ class EscrowSessionVaultDebugViewModel(
                         if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
                             _statusMessage.value =
                                 "❌ Withdraw was rejected by the contract.\n\n" +
-                                    "Withdraw is the viewer's forced-close path. Make sure you:\n" +
-                                    "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
-                                    "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
-                                    "Then try 'Request Withdraw' again."
+                                "Withdraw is the viewer's forced-close path. Make sure you:\n" +
+                                "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
+                                "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
+                                "Then try 'Request Withdraw' again."
                             Napier.e(
                                 "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
                                 err,
@@ -573,7 +575,6 @@ class EscrowSessionVaultDebugViewModel(
             }
         }
     }
-    
 
     private fun showError(
         error: PaymentError,
@@ -584,8 +585,7 @@ class EscrowSessionVaultDebugViewModel(
         Napier.e(
             "[$logTag] ${error::class.simpleName}",
             cause ?: Throwable(error.userMessage),
-            tag = TAG
+            tag = TAG,
         )
     }
-
 }

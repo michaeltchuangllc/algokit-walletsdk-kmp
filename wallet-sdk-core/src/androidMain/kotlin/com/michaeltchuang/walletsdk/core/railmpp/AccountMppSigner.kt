@@ -11,6 +11,5 @@ class AccountMppSigner(
     override val address: String get() = account.address.toString()
     override val authorizedSignerPublicKey: ByteArray get() = account.address.getBytes()
 
-    override suspend fun signTransaction(txn: Transaction): ByteArray =
-        Encoder.encodeToMsgPack(account.signTransaction(txn))
+    override suspend fun signTransaction(txn: Transaction): ByteArray = Encoder.encodeToMsgPack(account.signTransaction(txn))
 }
