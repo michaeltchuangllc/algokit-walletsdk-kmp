@@ -60,6 +60,21 @@ actual fun signHdKeyTransaction(
     )
 }
 
+/**
+ * Signs a group of Falcon24 transactions as a bundle on Android.
+ * On Android, the grouped transaction approach uses explicit dummy transactions in
+ * [submitAssetTransferAndAppCallInternal]; this function signs each transaction individually
+ * (group IDs are already assigned by the caller).
+ */
+actual fun signFalcon24GroupBundle(
+    txnsByteArrays: List<ByteArray>,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): List<ByteArray> =
+    txnsByteArrays.mapNotNull { txn ->
+        signFalcon24Transaction(txn, publicKey, privateKey)
+    }
+
 actual fun signFalcon24Transaction(
     transactionByteArray: ByteArray,
     publicKey: ByteArray,

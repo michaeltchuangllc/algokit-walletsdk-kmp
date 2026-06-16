@@ -24,15 +24,16 @@ import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
@@ -242,7 +243,6 @@ class AndroidLiquidAuthConnectionManager(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        peerConnection = peerConnection,
                         dataChannel = paymentChannel,
                         rtpSenders = emptyList(),
                         mppServerConfig =
@@ -1028,7 +1028,7 @@ class AndroidLiquidAuthConnectionManager(
                 else -> ByteArray(0)
             }
 
-        return object : MppWalletSigner {
+        return object : AndroidMppWalletSigner {
             override val address: String = creatorAddress
             override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
             override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L

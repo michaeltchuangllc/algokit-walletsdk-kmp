@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel

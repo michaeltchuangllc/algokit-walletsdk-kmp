@@ -26,16 +26,6 @@ import kotlinx.coroutines.launch
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/**
- * ViewModel for Liquid Auth Offer flow with WebRTC video streaming support
- *
- * This generates QR codes for dApps to scan, detects when they connect via WebRTC,
- * and supports streaming video back to the connected client.
- *
- * X402 Payment Model:
- * - Free streaming: No payment required
- * - Paid streaming: 1 ALGO deposit, 0.1 ALGO per block watched
- */
 class LiquidAuthOfferViewModel(
     private val generateOfferUseCase: GenerateLiquidAuthOfferUseCase,
     private val stateDelegate: StateDelegate<OfferState>,
@@ -46,11 +36,6 @@ class LiquidAuthOfferViewModel(
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
-    init {
-        stateDelegate.setDefaultState(OfferState.Idle)
-        observeCurrentNetwork()
-    }
-
     // ICE Connection type for UI quality indicators and billing (x402)
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     val connectionType: StateFlow<IceConnectionType> = _connectionType
@@ -94,6 +79,11 @@ class LiquidAuthOfferViewModel(
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
         const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
+    }
+
+    init {
+        stateDelegate.setDefaultState(OfferState.Idle)
+        observeCurrentNetwork()
     }
 
     /**

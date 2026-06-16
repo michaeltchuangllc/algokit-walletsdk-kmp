@@ -32,6 +32,11 @@ public class SignalService {
     private var signalClient: SignalClient?
     private var peerClient: PeerApi?
     var dataChannel: RTCDataChannel?
+
+    var paymentDataChannel: RTCDataChannel?
+
+    var onPaymentDataChannelReady: ((RTCDataChannel) -> Void)?
+
     private var peerConnection: RTCPeerConnection?
     private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
 
@@ -70,6 +75,8 @@ public class SignalService {
         signalClient = nil
         peerClient = nil
         dataChannel = nil
+        paymentDataChannel = nil
+        onPaymentDataChannelReady = nil
         peerConnection = nil
         delegate?.signalService(self, didReceiveStatusUpdate: "Signal Service", message: "Service stopped.")
     }
@@ -77,6 +84,8 @@ public class SignalService {
     /// Disconnects from the signaling service
     func disconnect() {
         stopKeepAlive()
+        paymentDataChannel = nil
+        onPaymentDataChannelReady = nil
         signalClient?.disconnectSocket()
         delegate?.signalService(
             self,
@@ -92,14 +101,6 @@ public class SignalService {
     }
 
     /// Connects to a peer using WebRTC signaling
-    ///
-    /// - Parameters:
-    ///   - requestId: Unique identifier for the peer connection
-    ///   - type: Connection type ("offer" or "answer")
-    ///   - origin: Origin domain for the connection
-    ///   - iceServers: ICE servers for NAT traversal
-    ///   - onMessage: Callback for received messages
-    ///   - onStateChange: Callback for connection state changes
     public func connectToPeer(
         requestId: String,
         type: String,
@@ -127,13 +128,26 @@ public class SignalService {
                 type: type,
                 iceServers: iceServers,
                 onDataChannelOpen: { [weak self] dataChannel in
+                    guard let self else { return }
                     Logger.debug("SignalService: onDataChannelOpen called with: \(dataChannel.label)")
-                    self?.dataChannel = dataChannel
+
+                    // ── Payment DC (created by Android host) ─────────────────────────
+                    // Keep it separate so the main "liquid" DC reference and keep-alive
+                    // timer are never overwritten.
+                    if dataChannel.label == "x402-payment-channel" {
+                        Logger.info("SignalService: 💳 payment DC '\(dataChannel.label)' open — wiring viewer payment handler")
+                        self.paymentDataChannel = dataChannel
+                        self.onPaymentDataChannelReady?(dataChannel)
+                        return
+                    }
+
+                    // ── Main "liquid" DC ─────────────────────────────────────────────
+                    self.dataChannel = dataChannel
                     Logger.debug("Data channel is open and ready: \(dataChannel.label)")
                     if dataChannel.readyState == .open {
-                        self?.flushMessageQueue()
+                        self.flushMessageQueue()
                         // Start continuous keep-alive mechanism
-                        self?.startKeepAlive()
+                        self.startKeepAlive()
                     }
                 },
                 onMessage: { message in
@@ -174,10 +188,21 @@ public class SignalService {
                 )
             let buffer = RTCDataBuffer(data: message.data(using: .utf8)!, isBinary: false)
             dataChannel.sendData(buffer)
-            Logger.info("Message sent: \(message)")
+
         } else {
             Logger.error("sendMessage: Data channel is not available. Queuing message.")
             messageQueue.append(message)
+        }
+    }
+
+    /// Sends a message on the dedicated "x402-payment-channel" DataChannel.
+    public func sendPaymentMessage(_ message: String) {
+        if let paymentDataChannel, paymentDataChannel.readyState == .open {
+            Logger.debug("SignalService: Sending on payment DC (id=\(paymentDataChannel.channelId)): \(message.prefix(80))")
+            let buffer = RTCDataBuffer(data: message.data(using: .utf8)!, isBinary: false)
+            paymentDataChannel.sendData(buffer)
+        } else {
+            Logger.error("sendPaymentMessage: payment DC not available (label=\(paymentDataChannel?.label ?? "nil") state=\(paymentDataChannel?.readyState.description ?? "nil"))")
         }
     }
 
@@ -221,5 +246,36 @@ public class SignalService {
         keepAliveTimer?.invalidate()
         keepAliveTimer = nil
         Logger.debug("Keep-alive timer stopped")
+    }
+
+    // MARK: - Additional DataChannels
+
+    /// Creates a secondary DataChannel on the existing peer connection.
+    public func createAdditionalDataChannel(
+        label: String,
+        onMessage: @escaping (String) -> Void,
+        onStateChange: @escaping (String?) -> Void
+    ) -> RTCDataChannel? {
+        guard let peerConnection = peerConnection else {
+            Logger.error("createAdditionalDataChannel: peerConnection is nil — call connectToPeer first")
+            return nil
+        }
+        let config = RTCDataChannelConfiguration()
+        config.isNegotiated = false
+        guard let dc = peerConnection.dataChannel(forLabel: label, configuration: config) else {
+            Logger.error("createAdditionalDataChannel: failed to create DC with label '\(label)'")
+            return nil
+        }
+        // Pass signalService: nil so the delegate does NOT overwrite self.dataChannel
+        // (which should always point to the primary "liquid" DC).
+        let delegate = DataChannelDelegate(
+            signalService: nil,
+            onMessage: onMessage,
+            onStateChange: onStateChange
+        )
+        dc.delegate = delegate
+        dataChannelDelegates[dc] = delegate
+        Logger.info("createAdditionalDataChannel: created '\(label)' (id=\(dc.channelId))")
+        return dc
     }
 }

@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 Algorand Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import CoreImage
 import Foundation
 import SocketIO
@@ -90,22 +74,51 @@ public class SignalClient {
             signalService: service,
             onDataChannel: { [weak self] dataChannel in
                 Logger.debug("SignalClient: onDataChannel called with: \(dataChannel.label)")
+                let isPaymentChannel = dataChannel.label == "x402-payment-channel"
+
+                // ── Payment DC (created by Android host) ─────────────────────────────
+                // Use a stripped-down delegate: forward messages but NEVER overwrite
+                // service.dataChannel (signalService: nil) and NEVER propagate state
+                // changes upward (would retrigger sendCredentialMessage in the host path).
+                if isPaymentChannel {
+                    Logger.info("SignalClient: 💳 payment DC '\(dataChannel.label)' received — setting up isolated delegate")
+                    let paymentDelegate = DataChannelDelegate(
+                        signalService: nil,   // ← prevents service.dataChannel overwrite
+                        onMessage: { message in
+                            Logger.debug("💬 SignalClient [payment DC]: \(message.prefix(80))")
+                            onMessage(message)  // forward to messageForwardingHandler
+                        },
+                        onStateChange: { state in
+                            Logger.debug("SignalClient [payment DC]: state=\(state ?? "nil")")
+                            if state == "open" {
+                                // Route through onDataChannelOpen which checks the label
+                                // and saves to SignalService.paymentDataChannel.
+                                onDataChannelOpen(dataChannel)
+                            }
+                            // Do NOT call outer onStateChange — that would retrigger
+                            // sendCredentialMessage and re-set iosViewerSendMessageHandler.
+                        }
+                    )
+                    dataChannel.delegate = paymentDelegate
+                    self?.dataChannelDelegates[dataChannel] = paymentDelegate
+                    if dataChannel.readyState == .open {
+                        onDataChannelOpen(dataChannel)
+                    }
+                    return
+                }
+
+                // ── Main "liquid" DC (or any other remote-created DC) ────────────────
                 Logger.debug("Received data channel from remote peer: \(dataChannel.label)")
                 let delegate = DataChannelDelegate(
                     signalService: self?.service,
                     onMessage: { message in
-                        Logger.info("💬 SignalClient: Received message: \(message)")
                         onMessage(message)
                     },
                     onStateChange: { state in
                         Logger.debug("SignalClient: Data channel state changed: \(state ?? "unknown")")
+                        onStateChange(state)
                         if state == "open" {
                             Logger.info("✅ SignalClient: Open and ready: \(dataChannel.label)")
-                            Logger
-                                .debug(
-                                    "SignalService: Setting dataChannel to " +
-                                        "\(ObjectIdentifier(dataChannel)) label: \(dataChannel.label)"
-                                )
                             onDataChannelOpen(dataChannel)
                         }
                     },
@@ -126,12 +139,8 @@ public class SignalClient {
 
                 if dataChannel.readyState == .open {
                     Logger.info("✅ SignalClient: Open and ready (immediate): \(dataChannel.label)")
-                    Logger
-                        .debug(
-                            "SignalService: Setting dataChannel to " +
-                                "\(ObjectIdentifier(dataChannel)) label: \(dataChannel.label)"
-                        )
                     onDataChannelOpen(dataChannel)
+                    onStateChange("open")
                 }
             },
             onIceCandidate: { [weak self] candidate in
@@ -162,11 +171,21 @@ public class SignalClient {
                 return nil
             }
 
+            var createdDataChannel: RTCDataChannel?
+            let wrappedOnStateChange: (String?) -> Void = { [weak self] state in
+                if state == "open", let dc = createdDataChannel {
+                    Logger.info("Answer (initiator): self-created 'liquid' DC open — calling onDataChannelOpen to set SignalService.dataChannel")
+                    onDataChannelOpen(dc)
+                }
+                onStateChange(state)
+            }
+
             let dataChannel = peerClient.createDataChannel(
                 label: "liquid",
                 onMessage: onMessage,
-                onStateChange: onStateChange
+                onStateChange: wrappedOnStateChange
             )
+            createdDataChannel = dataChannel
 
             peerClient.createOffer { offer in
                 guard let offer else {
@@ -189,14 +208,23 @@ public class SignalClient {
             Logger.info("Offer (responder): Waiting for remote offer")
             send(event: "link", data: ["requestId": requestId])
 
-            // Listen for the offer-description event (only for responder)
             socket.off("offer-description")
             socket.on("offer-description") { [weak self] data, _ in
-                guard let self, let eventData = data.first as? [String: Any],
-                      let sdp = eventData["sdp"] as? String,
-                      let type = sdpType(from: eventData["type"] as? String) else { return }
-                Logger.info("Offer (responder): Received SDP type: \(type) : \(sdp)")
-                let sessionDescription = RTCSessionDescription(type: type, sdp: sdp)
+                guard let self else { return }
+                let sessionDescription: RTCSessionDescription
+                if let eventData = data.first as? [String: Any],
+                   let sdp = eventData["sdp"] as? String,
+                   let sdpType = sdpType(from: eventData["type"] as? String) {
+                    Logger.info("Offer (responder): Received SDP (dict) type: \(sdpType) : \(sdp.prefix(80))")
+                    sessionDescription = RTCSessionDescription(type: sdpType, sdp: sdp)
+                } else if let rawSdp = data.first as? String, !rawSdp.isEmpty {
+                    // iOS wallet sends the raw SDP string with no dict wrapper
+                    Logger.info("Offer (responder): Received SDP (string) : \(rawSdp.prefix(80))")
+                    sessionDescription = RTCSessionDescription(type: .offer, sdp: rawSdp)
+                } else {
+                    Logger.error("Offer (responder): unrecognised offer-description payload: \(data)")
+                    return
+                }
 
                 peerClient?.setRemoteDescription(sessionDescription, completion: { error in
                     if let error {

@@ -67,6 +67,8 @@ public class LiquidAuthService {
     private var onSuccess: (() -> Void)?
     private var onError: ((Error) -> Void)?
     private var onConnected: (() -> Void)?  // Called when connection established
+
+    public var messageForwardingHandler: ((String) -> Void)?
     
     // MARK: - Initialization
     
@@ -728,7 +730,15 @@ public class LiquidAuthService {
         ]
         
         NSLog("🔗 Initiating peer connection...")
-        
+
+        signalService.onPaymentDataChannelReady = { [weak self] _ in
+            guard let self else { return }
+            App_iosKt.setViewerPaymentSendMessageHandler { [weak self] message in
+                self?.signalService?.sendPaymentMessage(message)
+            }
+            NSLog("✅ iosViewerPaymentDCSendMessageHandler wired → x402-payment-channel")
+        }
+
         // Connect to peer using SignalService
         signalService.connectToPeer(
             requestId: self.requestId,  // ✅ Explicitly use self.requestId
@@ -737,21 +747,34 @@ public class LiquidAuthService {
             iceServers: iceServers,
             onMessage: { [weak self] message in
                 guard let self = self else { return }
-                NSLog("💬 Received message: \(message)")
-               // self.handleMessage(message)
-                self.showConfirmationDialog(message: message)
+
+                self.messageForwardingHandler?(message)
+
+                if Data(base64Encoded: message) != nil {
+                    // Looks like a Base64/CBOR payload → could be a signing request
+                    self.showConfirmationDialog(message: message)
+                } else {
+                    // Plain JSON message (ping, liquid:video:frame, etc.) → handle directly
+                    self.handleMessage(message)
+                }
             },
             onStateChange: { [weak self] state in
                 guard let self = self else { return }
                 NSLog("📡 Data channel state change: \(state ?? "unknown")")
                 
                 if state == "open" {
-                    NSLog("✅ Data channel is OPEN, sending credential")
+                    NSLog("Data channel is OPEN, sending credential")
+
+                    App_iosKt.setViewerSendMessageHandler { [weak self] message in
+                        self?.signalService?.sendMessage(message)
+                    }
+                    NSLog("iosViewerSendMessageHandler wired to signalService.sendMessage")
+                    
                     self.sendCredentialMessage(credential: credential)
                 } else if state == "connecting" {
-                    NSLog("⏳ Data channel is CONNECTING...")
+                    NSLog("Data channel is CONNECTING...")
                 } else if state == "closed" || state == "failed" {
-                    NSLog("❌ Data channel FAILED/CLOSED: \(state ?? "unknown")")
+                    NSLog("Data channel FAILED/CLOSED: \(state ?? "unknown")")
                     self.onError?(NSError(domain: "Data channel failed", code: -1))
                 }
             }
@@ -760,60 +783,62 @@ public class LiquidAuthService {
         NSLog("⏳ Waiting for WebRTC connection to establish...")
         NSLog("   (This may take 10-30 seconds)")
     }
-    
+
+
+    private func sendViewerHelloMessage() {
+        let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)
+        let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
+            ? ",\"viewerPublicKey\":\"\(publicKeyBase64!)\""
+            : ""
+        let helloJson = "{\"reference\":\"liquid:viewer:hello\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
+        signalService?.sendMessage(helloJson)
+        NSLog("[VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
+    }
+
     private func sendCredentialMessage(credential: Any) {
         NSLog("📤 Sending credential message as JSON")
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
-        
-        // Send credential handshake as JSON (matches Android implementation)
+
+        sendViewerHelloMessage()
+
+        // ── 2. Send the credential handshake ─────────────────────────────────
         // Note: Transaction responses use CBOR, but credential handshake uses JSON
         let credentialMessage: [String: Any] = [
             "type": "credential",
-            "address": self.algoAddress,  // ✅ Explicitly use self.algoAddress
-            "requestId": self.requestId,  // ✅ Explicitly use self.requestId
+            "address": self.algoAddress,  // Explicitly use self.algoAddress
+            "requestId": self.requestId,  // Explicitly use self.requestId
             "provider": "WalletSDK-iOS"
         ]
         
         if let jsonData = try? JSONSerialization.data(withJSONObject: credentialMessage),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             signalService?.sendMessage(jsonString)
-            NSLog("✅ Credential handshake sent as JSON")
-            NSLog("   Full message: \(jsonString)")
-            NSLog("✅ RequestId in message: '\(self.requestId)'")
-            NSLog("⏳ Connection remains open, waiting for messages from server...")
+            NSLog("Credential handshake sent as JSON")
+            NSLog("Full message: \(jsonString)")
+            NSLog("RequestId in message: '\(self.requestId)'")
+            NSLog("Connection remains open, waiting for messages from server...")
             
             // Notify UI that we're connected and waiting
             DispatchQueue.main.async { [weak self] in
                 self?.onConnected?()
             }
-            
-            // Don't call onSuccess() yet - keep connection open to receive transaction requests
-            // The connection will be closed when:
-            // 1. User dismisses the view manually
-            // 2. An error occurs
-            // 3. Server closes the connection
         }
     }
     
     private func handleMessage(_ message: String) {
-        NSLog("🔍 Handling message: \(message)")
-        NSLog("   Message length: \(message.count)")
-        
-        // Messages come in as Base64-encoded CBOR (matching Android)
-        // And we respond with Base64-encoded CBOR (matching Android)
-        
+
         do {
             // Try to decode as Base64 CBOR first (for transaction requests from provider-sdk)
             if let messageData = Data(base64Encoded: message) {
-                NSLog("📦 Decoding Base64-encoded CBOR message")
+                NSLog("Decoding Base64-encoded CBOR message")
                 try handleCBORMessage(messageData)
             } else {
                 // Fallback to JSON for simple messages (ping/pong)
                 try handleJSONMessage(message)
             }
         } catch {
-            NSLog("❌ Error handling message: \(error)")
+            NSLog("Error handling message: \(error)")
         }
     }
     
@@ -862,12 +887,12 @@ public class LiquidAuthService {
         // Handle different message types
         switch reference {
         case "arc0027:sign_transactions:request":
-            NSLog("📝 Transaction signing request received")
+            NSLog("Transaction signing request received")
             
             // Extract params from CBOR message
             guard let paramsValue = messageMap[.utf8String("params")],
                   case let .map(paramsMap) = paramsValue else {
-                NSLog("❌ Failed to extract params from CBOR message")
+                NSLog("Failed to extract params from CBOR message")
                 sendTransactionErrorResponse(requestId: requestId ?? "unknown")
                 return
             }
@@ -881,7 +906,7 @@ public class LiquidAuthService {
             }
             
         default:
-            NSLog("⚠️ Unknown CBOR message reference: \(reference ?? "nil")")
+            NSLog("Unknown CBOR message reference: \(reference ?? "nil")")
         }
     }
     
@@ -889,7 +914,7 @@ public class LiquidAuthService {
         guard let messageData = message.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: messageData) as? [String: Any],
               let type = json["type"] as? String else {
-            NSLog("⚠️ Unable to parse JSON message")
+            NSLog("Unable to parse JSON message")
             return
         }
         
@@ -900,7 +925,7 @@ public class LiquidAuthService {
             signalService?.sendMessage("{\"type\":\"pong\"}")
             
         default:
-            NSLog("⚠️ Unknown JSON message type: \(type)")
+            NSLog("Unknown JSON message type: \(type)")
         }
     }
     
@@ -939,7 +964,7 @@ public class LiquidAuthService {
         
         for (index, txnCBOR) in txnsArray.enumerated() {
             guard case let .map(txnMap) = txnCBOR else {
-                NSLog("❌ Transaction \(index) is not a map")
+                NSLog("Transaction \(index) is not a map")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }
@@ -965,30 +990,30 @@ public class LiquidAuthService {
                     // Try base64url first, then fall back to standard base64
                     if let data = txnBase64url.base64urlToData() {
                         txnData = data
-                        NSLog("📄 Transaction \(index): base64url string format")
+                        NSLog("Transaction \(index): base64url string format")
                     } else if let data = Data(base64Encoded: txnBase64url) {
                         txnData = data
-                        NSLog("📄 Transaction \(index): standard base64 string format")
+                        NSLog("Transaction \(index): standard base64 string format")
                     } else {
-                        NSLog("❌ Failed to decode base64/base64url string")
+                        NSLog("Failed to decode base64/base64url string")
                         NSLog("   String (first 50 chars): \(txnBase64url.prefix(50))...")
                     }
                 case let .byteString(txnBytes):
                     // Raw bytes
                     txnData = Data(txnBytes)
-                    NSLog("📄 Transaction \(index): raw bytes format")
+                    NSLog("Transaction \(index): raw bytes format")
                 default:
-                    NSLog("❌ Transaction \(index) has unexpected value type: \(txnValue)")
+                    NSLog("Transaction \(index) has unexpected value type: \(txnValue)")
                 }
             }
             
             guard let txnData = txnData else {
-                NSLog("❌ Failed to extract transaction \(index) bytes")
+                NSLog("Failed to extract transaction \(index) bytes")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }
             
-            NSLog("📄 Transaction \(index): \(txnData.count) bytes")
+            NSLog("Transaction \(index): \(txnData.count) bytes")
             
             // Sign the transaction using KMP transaction signing function
             let txnKotlin = txnData.toKotlinByteArray()
@@ -997,7 +1022,7 @@ public class LiquidAuthService {
                 address: self.algoAddress,
                 txnBytes: txnKotlin
             ) else {
-                NSLog("❌ Failed to sign transaction \(index)")
+                NSLog("Failed to sign transaction \(index)")
                 sendTransactionErrorResponse(requestId: requestId)
                 return
             }
@@ -1174,13 +1199,24 @@ public class LiquidAuthService {
     
     public func disconnect() {
         NSLog("🔌 Disconnecting Liquid Auth")
+        // Clear payment DC handler so IOSLiquidStreamViewer falls back to main DC (or nil).
+        App_iosKt.setViewerPaymentSendMessageHandler(handler: nil)
         signalService?.disconnect()
         dataChannel = nil
     }
     
+    // Guard flag: prevents stacking multiple "Confirmation Required" dialogs.
+    // Only one transaction-signing confirmation can be pending at a time.
+    private var isShowingConfirmation = false
+
     private func showConfirmationDialog(message: String) {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
+
+            guard !self.isShowingConfirmation else {
+                NSLog("⚠️ Confirmation dialog already showing — dropping duplicate request")
+                return
+            }
 
             guard let topVC = UIApplication.shared
                 .connectedScenes
@@ -1194,24 +1230,34 @@ public class LiquidAuthService {
                 return
             }
 
+            // Guard against presenting on an already-presenting VC
+            // (topMostViewController can return an alert that is mid-presentation)
+            guard topVC.presentedViewController == nil else {
+                NSLog("⚠️ Top VC is already presenting — skipping confirmation dialog")
+                return
+            }
+
             let alert = UIAlertController(
                 title: "Confirmation Required",
                 message: "A request has been received. Do you want to sign the dApp-generated transactions?",
                 preferredStyle: .alert
             )
 
-            let confirmAction = UIAlertAction(title: "Confirm", style: .default) { _ in
+            let confirmAction = UIAlertAction(title: "Confirm", style: .default) { [weak self] _ in
+                self?.isShowingConfirmation = false
                 NSLog("✅ User confirmed message handling")
-                self.handleMessage(message)
+                self?.handleMessage(message)
             }
 
-            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in
+            let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+                self?.isShowingConfirmation = false
                 NSLog("❌ User cancelled message handling")
             }
 
             alert.addAction(cancelAction)
             alert.addAction(confirmAction)
 
+            self.isShowingConfirmation = true
             topVC.present(alert, animated: true)
         }
     }

@@ -7,7 +7,6 @@ import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TEST
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
-import com.michaeltchuang.walletsdk.core.railmpp.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
@@ -16,7 +15,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
-import com.michaeltchuang.walletsdk.core.railmpp.usecases.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecases.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.CoroutineScope
@@ -73,12 +73,10 @@ class SetupMppPaymentViewerUseCase(
                     Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_signal_service")
                     return
                 }
-        val peerConnection =
-            service.peerConnection
-                ?: run {
-                    Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
-                    return
-                }
+        if (service.peerConnection == null) {
+            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
+            return
+        }
         val accountAddress =
             params.viewerAddress?.takeIf { it.isNotBlank() }
                 ?: run {
@@ -134,7 +132,6 @@ class SetupMppPaymentViewerUseCase(
                 )
                 liquidStreamViewer =
                     LiquidStreamViewer(
-                        peerConnection = peerConnection,
                         dataChannel = paymentChannel,
                         mppClientConfig =
                             MppClientConfig(

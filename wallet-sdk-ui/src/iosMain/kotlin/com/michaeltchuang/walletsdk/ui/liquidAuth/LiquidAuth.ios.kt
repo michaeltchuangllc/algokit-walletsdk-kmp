@@ -1,11 +1,17 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import platform.Foundation.NSLog
 
 /**
  * Global handler for iOS Liquid Auth.
  * This should be set by the iOS app during initialization.
+ *
+ * The handler is responsible for establishing the native WebRTC connection (via
+ * `LiquidAuthService.swift`). The viewer UI itself is rendered in Compose by
+ * [com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreenOverlay], driven by
+ * [AnswerScreenState] — mirroring the Android implementation.
  */
 var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? =
     null
@@ -28,7 +34,15 @@ actual fun connectLiquidAuth(
         NSLog("   Expected URL format: liquid://host/?requestId=...")
     }
 
-    // Call the registered handler
+    // Drive the Compose overlay exactly like Android does (see LiquidAuth.android.kt).
+    AnswerScreenState.accountAddress = accountAddress
+    AnswerScreenState.origin = authMessage.origin
+    AnswerScreenState.requestId = authMessage.requestId
+    AnswerScreenState.isVisible = true
+
+    // Notify the native handler so Swift (LiquidAuthService) can establish the WebRTC
+    // connection. The handler should no longer present its own UI — the Compose
+    // AnswerScreenOverlay now renders the viewer screen.
     val handler = iosLiquidAuthHandler
     if (handler != null) {
         NSLog("✅ Calling iOS handler with:")

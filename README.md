@@ -98,7 +98,7 @@ timeline
             : ✅ Onboarding - ECC Passkeys & Testnet Liquid Auth (Android)
 
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
+            : ✅ Transaction - Integrate new algokit-transact rustFFI library (iOS)
             : ✅ Android - Wallet SDK as a background service integration
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
@@ -113,18 +113,19 @@ timeline
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
             : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
             : ✅ Design - Create app design system in Figma project
-            : ✅ Liquid Stream - Implement new Figma viewer/host screens
-            : ✅ Liquid Stream - Implement new Figma app modals
+            : ✅ Liquid Stream - Implement new Figma viewer/host screens and app modals
             : ✅ Transaction - Upgrade to escrow smart contract manager for account micro-billing (Android)
             : ✅ GitOps - Fix crypto dependencies for new 16KB Android requirement
             : ✅ Account Details - Send USDC in account detail (between accounts)
+            : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
     section Future 🔮
-     2026Q3  : 🔄 Onboarding - Add Liquid Stream Integration for iOS<>iOS Connections
-             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
-             : Onboarding - Integrate new algokit-core rustFFI library (iOS/Android)
+     2026Q3  : 🔄 Onboarding - Create and integrate new algokit-core KMP library
+             : Android - Upgrade to AGP9 and KMP 2.4
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
+             : Onboarding - Add Falcon native account and transaction flow support
+             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
              : TBD
     Backlog
             : Onboarding - Rekey flow

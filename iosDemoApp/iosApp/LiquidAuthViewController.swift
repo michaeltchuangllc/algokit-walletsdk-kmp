@@ -1,19 +1,3 @@
-/*
- * Copyright 2025 Algorand Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 import AuthenticationServices
 import Foundation
 import UIKit
@@ -41,6 +25,11 @@ public class LiquidAuthViewController: UIViewController {
     private var algoAddressLabel: UILabel!
 
     private var onCompletion: (() -> Void)?
+
+    public var onStreamingConnected: ((_ origin: String,
+                                       _ requestId: String,
+                                       _ algoAddress: String,
+                                       _ service: LiquidAuthService) -> Void)?
 
     // MARK: - Initialization
 
@@ -248,12 +237,44 @@ public class LiquidAuthViewController: UIViewController {
         iconView.image = UIImage(systemName: "checkmark.seal.fill")
         iconView.tintColor = .systemGreen
 
-        statusLabel.text = """
-        Connected successfully
+        // If an onStreamingConnected handler was provided (streaming viewer flow),
+        // show a brief "Starting stream…" message then hand off to the viewer.
+        if onStreamingConnected != nil {
+            statusLabel.text = "Connected!\n\nStarting video stream…"
+            statusLabel.textColor = .systemGreen
 
-        Waiting to sign transaction requests…
-        """
-        statusLabel.textColor = .systemGreen
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+                guard let self = self else { return }
+
+                let capturedCallback  = self.onStreamingConnected
+                let capturedOrigin    = self.origin
+                let capturedRequestId = self.requestId
+                let capturedAddress   = self.algoAddress
+
+                let service = self.takeLiquidAuthService()
+
+                self.dismiss(animated: true) {
+                    guard let service = service else { return }
+                    capturedCallback?(capturedOrigin, capturedRequestId, capturedAddress, service)
+                }
+            }
+        } else {
+            // Signing/auth-only flow — remain open waiting for transaction requests.
+            statusLabel.text = "Connected successfully\n\nWaiting to sign transaction requests…"
+            statusLabel.textColor = .systemGreen
+        }
+    }
+
+    // MARK: - Message Forwarding
+
+    public func setMessageForwardingHandler(_ handler: @escaping (String) -> Void) {
+        liquidAuthService?.messageForwardingHandler = handler
+    }
+
+    public func takeLiquidAuthService() -> LiquidAuthService? {
+        let service = liquidAuthService
+        liquidAuthService = nil   // prevents viewWillDisappear from disconnecting
+        return service
     }
 
     private func handleSuccess() {

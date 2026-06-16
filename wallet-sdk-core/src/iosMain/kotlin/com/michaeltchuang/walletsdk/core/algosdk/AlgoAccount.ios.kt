@@ -139,8 +139,6 @@ actual fun signHdKeyTransaction(
                 keyIndex = key.toLong(),
             )
 
-        val derivedAddress = bridge.generateAddressFromPublicKeyWithPublicKey(derivedPublicKey)
-
         val transactionData = transactionByteArray.toNSData()
 
         val signedData =
@@ -188,6 +186,42 @@ actual fun signFalcon24Transaction(
         null
     }
 
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+actual fun signFalcon24GroupBundle(
+    txnsByteArrays: List<ByteArray>,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): List<ByteArray> =
+    try {
+        val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u)
+        val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u)
+        val txnsBase64 = txnsByteArrays.map { it.toNSData().base64EncodedStringWithOptions(0u) }
+
+        val signedB64List =
+            bridge.signFalconGroupBundleWithTxnsBase64(
+                txnsBase64 = txnsBase64,
+                publicKeyBase64 = publicKeyBase64,
+                privateKeyBase64 = privateKeyBase64,
+            )
+
+        signedB64List.mapNotNull { b64Item: Any? ->
+            val b64 = b64Item?.toString() ?: return@mapNotNull null
+            if (b64.isEmpty()) return@mapNotNull null
+            try {
+                // Normalise URL-safe base64 → standard base64 with padding before decoding.
+                val standard = b64.replace('-', '+').replace('_', '/')
+                val pad = (4 - standard.length % 4) % 4
+                val padded = if (pad > 0) standard + "=".repeat(pad) else standard
+                Base64.decode(padded)
+            } catch (ignored: Exception) {
+                null
+            }
+        }
+    } catch (e: Exception) {
+        println("Falcon24 group bundle signing failed: ${e.message}")
+        emptyList<ByteArray>()
+    }
+
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
 actual fun signAlgo25Transaction(
     secretKey: ByteArray,
@@ -222,7 +256,6 @@ actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArra
             ?.toULong() ?: payload.txnParams.fee.toULong()
     val flatFeeEnabled = payload.flatFee != null
 
-    val addressString = payload.senderAddress
 
     val encodedTx =
         bridge.createOfflineKeyRegTransactionWithSenderAddress(
