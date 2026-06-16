@@ -31,7 +31,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.CommonAnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
-import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.IosLiquidStreamViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
@@ -58,7 +58,7 @@ actual fun AnswerScreenOverlay() {
     val address = AnswerScreenState.accountAddress
     val origin = AnswerScreenState.origin
 
-    val viewerManager = remember { IOSLiquidStreamViewerConnectionManager() }
+    val viewerManager = remember { IosLiquidStreamViewerConnectionManager() }
     val paymentOrchestrator: IosViewerPaymentOrchestrator = koinInject()
     val scope = rememberCoroutineScope()
 
@@ -355,7 +355,7 @@ actual fun AnswerScreenOverlay() {
 /**
  * Tears down the active viewer connection and hides the overlay + connection-status bar.
  */
-private fun dismissOverlay(viewerManager: IOSLiquidStreamViewerConnectionManager) {
+private fun dismissOverlay(viewerManager: IosLiquidStreamViewerConnectionManager) {
     viewerManager.disconnect()
     if (activeIOSViewerConnectionManager === viewerManager) {
         activeIOSViewerConnectionManager = null

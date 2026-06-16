@@ -41,8 +41,8 @@ class IOSLiquidStreamCreator(
      * Video frames are sent separately via [iosBroadcastSendMessageHandler] and
      * are NOT routed through this channel.
      */
-    val dcChannel: IOSRtcDataChannel =
-        IOSRtcDataChannel(sendMessageProvider = {
+    val dcChannel: IosRtcDataChannel =
+        IosRtcDataChannel(sendMessageProvider = {
             iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
         })
 
@@ -116,11 +116,11 @@ class IOSLiquidStreamCreator(
     val sessionId: String get() = rtcServer.sessionId
 
     /**
-     * Starts the paywalled server: registers [IOSRtcRtpSender] for track gating and begins
+     * Starts the paywalled server: registers [IosRtcRtpSender] for track gating and begins
      * listening on [dcChannel].  Call this once before [notifyViewerConnected].
      */
     fun start() {
-        rtcServer.listen(dcChannel, listOf(IOSRtcRtpSender()))
+        rtcServer.listen(dcChannel, listOf(IosRtcRtpSender()))
     }
 
     /**
@@ -179,8 +179,8 @@ class IOSLiquidStreamViewer(
     /**
      * iOS DataChannel bridge for the VIEWER side.
      */
-    val dcChannel: IOSRtcDataChannel =
-        IOSRtcDataChannel(sendMessageProvider = {
+    val dcChannel: IosRtcDataChannel =
+        IosRtcDataChannel(sendMessageProvider = {
             iosViewerPaymentDCSendMessageHandler ?: iosViewerSendMessageHandler
         })
 

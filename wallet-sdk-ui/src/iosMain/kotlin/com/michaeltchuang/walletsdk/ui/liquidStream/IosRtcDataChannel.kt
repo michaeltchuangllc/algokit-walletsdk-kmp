@@ -4,7 +4,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelObserver
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelState
 
-class IOSRtcDataChannel(
+class IosRtcDataChannel(
     private val sendMessageProvider: () -> ((message: String) -> Unit)? = { iosViewerSendMessageHandler },
 ) : RtcDataChannel {
 

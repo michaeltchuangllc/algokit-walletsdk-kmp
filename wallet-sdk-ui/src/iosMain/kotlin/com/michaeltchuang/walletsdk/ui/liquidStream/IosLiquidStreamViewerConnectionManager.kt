@@ -27,7 +27,7 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.roundToLong
 
-var activeIOSViewerConnectionManager: IOSLiquidStreamViewerConnectionManager? = null
+var activeIOSViewerConnectionManager: IosLiquidStreamViewerConnectionManager? = null
 var iosViewerStartHandler: ((origin: String, requestId: String) -> Unit)? = null
 var iosViewerStopHandler: (() -> Unit)? = null
 var iosViewerSendMessageHandler: ((message: String) -> Unit)? = null
@@ -71,7 +71,7 @@ private const val TAG = "IOSLiquidStreamViewerCM"
 private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
 private const val BALANCE_POLL_INTERVAL_MS = 5_000L
 
-class IOSLiquidStreamViewerConnectionManager {
+class IosLiquidStreamViewerConnectionManager {
 
     data class VideoFrame(
         val id: String,

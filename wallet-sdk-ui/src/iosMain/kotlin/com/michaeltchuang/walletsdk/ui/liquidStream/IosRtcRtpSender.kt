@@ -4,7 +4,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
 
 var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
 
-class IOSRtcRtpSender : RtcRtpSender {
+class IosRtcRtpSender : RtcRtpSender {
     override fun setTrackEnabled(enabled: Boolean) {
         val handler = iosBroadcastGateVideoHandler
         if (handler != null) {

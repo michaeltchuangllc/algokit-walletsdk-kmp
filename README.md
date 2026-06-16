@@ -98,7 +98,7 @@ timeline
             : ✅ Onboarding - ECC Passkeys & Testnet Liquid Auth (Android)
 
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
+            : ✅ Transaction - Integrate new algokit-transact rustFFI library (iOS)
             : ✅ Android - Wallet SDK as a background service integration
             : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
             : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
@@ -120,7 +120,8 @@ timeline
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
     section Future 🔮
-     2026Q3  : 🔄 Onboarding - Integrate new algokit-core rustFFI library (iOS/Android)
+     2026Q3  : 🔄 Onboarding - Create and integrate new algokit-core KMP library
+             : Android - Upgrade to AGP9 and KMP 2.4
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
              : Onboarding - Add Falcon native account and transaction flow support
