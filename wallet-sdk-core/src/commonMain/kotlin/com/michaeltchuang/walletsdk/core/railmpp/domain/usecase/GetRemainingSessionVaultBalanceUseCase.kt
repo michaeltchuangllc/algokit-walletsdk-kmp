@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.railmpp.domain.usecases
+package com.michaeltchuang.walletsdk.core.railmpp.domain.usecase
 
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.SessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants

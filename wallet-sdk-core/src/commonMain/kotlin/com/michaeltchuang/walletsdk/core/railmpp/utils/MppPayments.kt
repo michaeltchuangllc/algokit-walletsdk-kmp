@@ -1,6 +1,9 @@
 package com.michaeltchuang.walletsdk.core.railmpp.utils
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationDetailsInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
@@ -11,10 +14,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.signEd25519
 import com.michaeltchuang.walletsdk.core.railmpp.internal.verifyEd25519
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient.Companion.channelId
 import io.github.aakira.napier.Napier
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -60,24 +61,25 @@ object MppPayments {
         remainingMicroUsdc: Long,
         signatureBase64: String? = null,
     ): String {
-        val viewerPkBase64 = Base64.encode(viewerPublicKey)
 
-        return buildJsonObject {
-            put("reference", "liquid:payment:voucher")
-            put("id", sessionId)
-            put("appId", appId)
-            put("viewer", viewerAddress)
-            put("viewerPublicKey", viewerPkBase64)
-            put("creator", creatorAddress)
-            put("blocksWatched", blocksConsumed)
-            put("costPerBlockMicroUsdc", COST_PER_BLOCK_MICRO_USDC)
-            put("totalAmountClaimedMicroUsdc", totalAmountUsed)
-            put("remainingMicroUsdc", remainingMicroUsdc)
+        val channelId = EscrowSessionVaultManagerClient
+            .channelId
+            ?.let(Base64::encode)
 
-            signatureBase64?.takeIf { it.isNotBlank() }?.let {
-                put("signature", it)
-            }
-        }.toString()
+        return PaymentVoucher(
+            reference = LiquidDcMessages.REF_PAYMENT_VOUCHER,
+            id = sessionId,
+            appId = appId,
+            viewer = viewerAddress,
+            viewerPublicKey = Base64.encode(viewerPublicKey),
+            creator = creatorAddress,
+            blocksWatched = blocksConsumed,
+            costPerBlockMicroUsdc = COST_PER_BLOCK_MICRO_USDC,
+            totalAmountClaimedMicroUsdc = totalAmountUsed,
+            remainingMicroUsdc = remainingMicroUsdc,
+            signature = signatureBase64,
+            channelId = channelId,
+        ).toJson()
     }
 
     fun shouldAttemptVoucherSettlement(blocksConsumed: Int): Boolean =
@@ -102,13 +104,9 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray?,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val channelId =
-            deriveChannelId(
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
-                authorizedSignerPublicKey = authorizedSignerPublicKey ?: decodeAlgorandAddressPublicKey(viewerAddress),
-            )
-        val result = getRemainingBalanceByChannelId(channelId, appId, algodUrl, baseContext)
+        if (channelId==null)
+            return 0L
+        val result = getRemainingBalanceByChannelId(channelId!!, appId, algodUrl, baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
         Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=$appId $baseContext", tag = TAG)
@@ -173,8 +171,8 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = deriveChannelId(signer.address, hostAddress, authorizedSignerPublicKey, usdcAssetId)
-        return contractClient(appId, usdcAssetId, algodUrl).topUp(signer, channelId, additionalDepositMicroUsdc, algodUrl)
+        if (channelId == null) return Result.failure(Exception("channelId is null"))
+        return contractClient(appId, usdcAssetId, algodUrl).topUp(signer, channelId!!, additionalDepositMicroUsdc, algodUrl)
     }
 
     suspend fun setAuthorizedSignerForSession(
@@ -185,11 +183,11 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        if (channelId == null) return Result.failure(Exception("channelId is null"))
         val result =
             contractClient(appId, algodUrl = algodUrl).setAuthorizedSignerPublicKey(
                 signer,
-                channelId,
+                channelId!!,
                 authorizedSignerPublicKey,
                 algodUrl,
             )
@@ -209,7 +207,7 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
         Napier.d(
             "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=$appId viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
@@ -251,7 +249,7 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = decodeAlgorandAddressPublicKey(viewerAddress),
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
         return contractClient(appId, algodUrl = algodUrl).settleLatest(signer, channelId, algodUrl)
     }
 
@@ -265,7 +263,7 @@ object MppPayments {
         signature: ByteArray,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
-        val channelId = contractClient(appId).deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
+        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
         return contractClient(appId, algodUrl = algodUrl).settle(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
     }
 
@@ -277,18 +275,25 @@ object MppPayments {
         signature: ByteArray,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = contractClient().deriveChannelId(viewerAddress, hostAddress, signer.authorizedSignerPublicKey)
+        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
         return contractClient(algodUrl = algodUrl).verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
     }
 
     fun settleMessage(
-        signer: MppWalletSigner,
-        viewerAddress: String,
-        hostAddress: String,
         cumulativeAmountMicroUsdc: Long,
+        channelId: ByteArray
     ): ByteArray {
-        val channelId = contractClient().deriveChannelId(viewerAddress, hostAddress, signer.authorizedSignerPublicKey)
         return contractClient().settleMessage(channelId, cumulativeAmountMicroUsdc)
+    }
+
+    suspend fun closeSessionVault(
+        signer: MppWalletSigner,
+        channelId:ByteArray,
+    ): Result<String> {
+        return contractClient().close(
+            signer = signer,
+            channelId = channelId
+        )
     }
 
     data class SessionDynamicData(
@@ -347,7 +352,7 @@ object MppPayments {
                 ?: listOf(viewerPk, hostPk)
         val channelIdCandidates =
             signerCandidates
-                .map { deriveChannelId(viewerAddress, hostAddress, it, salt = CHANNEL_ID_SALT) }
+                .map {channelId ?: return null }
                 .distinctBy { it.toList() }
 
         channelIdCandidates.forEachIndexed { index, channelId ->
@@ -370,34 +375,12 @@ object MppPayments {
             Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
         }.getOrNull()
 
-    fun deriveChannelId(
-        viewerAddress: String,
-        hostAddress: String,
-        authorizedSignerPublicKey: ByteArray = decodeAlgorandAddressPublicKey(viewerAddress),
-        usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-        salt: ByteArray = CHANNEL_ID_SALT,
-    ): ByteArray =
-        contractClient(usdcAssetId = usdcAssetId).deriveChannelId(
-            payerAddress = viewerAddress,
-            payeeAddress = hostAddress,
-            authorizedSignerPublicKey = authorizedSignerPublicKey,
-            salt = salt,
-        )
-
     fun buildClaimMessage(
         appId: Long,
         channelId: ByteArray,
         totalAmountClaimedMicroUsdc: Long,
     ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) + "settle".encodeToByteArray()
 
-    fun buildClaimMessage(
-        appId: Long,
-        viewerAddress: String,
-        hostAddress: String,
-        totalAmountClaimedMicroUsdc: Long,
-        authorizedSignerPublicKey: ByteArray = decodeAlgorandAddressPublicKey(viewerAddress),
-    ): ByteArray =
-        buildClaimMessage(appId, deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey), totalAmountClaimedMicroUsdc)
 
     @OptIn(ExperimentalEncodingApi::class)
     fun serializeVoucherSignature(signature: ByteArray): String = Base64.encode(signature)
@@ -416,7 +399,7 @@ object MppPayments {
     ): String =
         buildClaimMessageHashHex(
             appId,
-            deriveChannelId(viewerAddress, hostAddress, decodeAlgorandAddressPublicKey(viewerAddress)),
+            channelId!!,
             totalAmountClaimedMicroUsdc,
         )
 
@@ -463,16 +446,13 @@ object MppPayments {
         signer: MppWalletSigner,
         appId: Long,
         viewerAddress: String,
-        hostAddress: String,
         totalAmountClaimedMicroUsdc: Long,
         signature: ByteArray,
-        authorizedSignerPublicKey: ByteArray = decodeAlgorandAddressPublicKey(viewerAddress),
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<VerifyClaimVoucherOnChainResult> =
         runCatching {
-            val channelId = deriveChannelId(viewerAddress, hostAddress, authorizedSignerPublicKey)
             Napier.d("[VERIFY_HELPER_BUILD] appId=$appId viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc", tag = TAG)
-
+            val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
             val txId =
                 contractClient(appId, algodUrl = algodUrl)
                     .verifySettleSignatureOnChain(signer, channelId, totalAmountClaimedMicroUsdc, signature, algodUrl)

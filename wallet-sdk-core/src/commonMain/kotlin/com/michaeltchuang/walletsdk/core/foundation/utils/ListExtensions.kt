@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.utils
+package com.michaeltchuang.walletsdk.core.foundation.utils
 
 inline fun FloatArray.partitionIndexed(predicate: (Int, Float) -> Boolean): Pair<List<Float>, List<Float>> {
     var index = 0

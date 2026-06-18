@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.utils
+package com.michaeltchuang.walletsdk.core.foundation.utils
 
 import com.ionspin.kotlin.bignum.decimal.BigDecimal
 import com.ionspin.kotlin.bignum.integer.BigInteger
@@ -6,7 +6,6 @@ import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 
 const val MIN_FEE = 1000L
 const val DATA_SIZE_FOR_MAX = 270
-const val ROUND_THRESHOLD = 1000L
 
 val minBalancePerAssetAsBigInteger = 100_000L
 

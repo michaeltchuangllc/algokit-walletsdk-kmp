@@ -14,7 +14,7 @@ import com.michaeltchuang.walletsdk.core.network.service.getAccountRekeyAdminAdd
 import com.michaeltchuang.walletsdk.core.transaction.model.KeyRegTransaction
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
-import com.michaeltchuang.walletsdk.core.utils.MIN_FEE
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 
 interface CreateKeyRegTransaction {
     suspend operator fun invoke(txnDetail: KeyRegTransactionDetail): Result<KeyRegTransaction>

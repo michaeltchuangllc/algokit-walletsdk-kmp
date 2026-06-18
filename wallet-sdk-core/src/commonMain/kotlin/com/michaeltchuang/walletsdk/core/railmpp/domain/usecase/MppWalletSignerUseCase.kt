@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.railmpp.domain.usecases
+package com.michaeltchuang.walletsdk.core.railmpp.domain.usecase
 
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey

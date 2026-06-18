@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecases.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamCreator
@@ -377,7 +377,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         stopBlockConsumption()
         streamCreator?.notifyViewerDisconnected()
         streamCreator = null
-        viewModel?.onClientDisconnected()
+        viewModel?.onClientDisconnected(activePaymentRecipient)
     }
 
     @Suppress("unused")

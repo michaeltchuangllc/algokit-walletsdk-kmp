@@ -20,7 +20,7 @@ import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDeta
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.ExternalTransactionSignResult
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.KeyRegTransactionSignManager
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.PendingTransactionRequestManger
-import com.michaeltchuang.walletsdk.core.utils.MIN_FEE
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.collectLatest

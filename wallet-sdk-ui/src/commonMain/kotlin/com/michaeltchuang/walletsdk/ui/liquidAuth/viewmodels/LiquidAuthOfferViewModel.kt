@@ -16,8 +16,15 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
-import com.michaeltchuang.walletsdk.core.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +40,7 @@ class LiquidAuthOfferViewModel(
     private val getAccountASABalance: GetAccountASABalance,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
@@ -75,6 +83,8 @@ class LiquidAuthOfferViewModel(
 
     // Payment consumption monitor job (must be singleton to avoid double-deduction)
     private var blockchainMonitorJob: Job? = null
+
+    private var creatorAddress:String? = null
 
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
@@ -270,7 +280,7 @@ class LiquidAuthOfferViewModel(
     /**
      * Called when client disconnects
      */
-    fun onClientDisconnected() {
+    fun onClientDisconnected(creatorAddress: String?) {
         blockchainMonitorJob?.cancel()
         blockchainMonitorJob = null
         val currentState = state.value
@@ -313,6 +323,7 @@ class LiquidAuthOfferViewModel(
             }
             else -> { /* no-op */ }
         }
+        closeSessionVault(creatorAddress)
     }
 
     /**
@@ -758,6 +769,50 @@ class LiquidAuthOfferViewModel(
                 _creatorAsaBalance.value = null
             } finally {
                 _isCheckingCreatorAsaBalance.value = false
+            }
+        }
+    }
+
+    private fun closeSessionVault(creatorAddress: String?) {
+        if (creatorAddress == null) {
+            Napier.e("Skipping session vault close: creatorAddress is missing")
+            return
+        }
+        val channelId = EscrowSessionVaultManagerClient.channelId
+        if (channelId == null) {
+            Napier.e("Skipping session vault close: channelId is missing")
+            return
+        }
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                Napier.e(
+                    "Closing session vault: creator=$creatorAddress, channelId=$channelId"
+                )
+
+                val signer = mppWalletSignerUseCase(creatorAddress)
+                if (signer == null) {
+                    Napier.e(
+                        "Failed to close session vault: signer not found for $creatorAddress"
+                    )
+                    return@launch
+                }
+
+                MppPayments.closeSessionVault(
+                    signer = signer, channelId = channelId
+                ).onSuccess { txId ->
+                    Napier.e("Session vault closed successfully. txId=$txId")
+                }.onFailure { throwable ->
+                    Napier.e(
+                        "Failed to close session vault. channelId=$channelId, error=${throwable.message}",
+                        throwable
+                    )
+                }
+            } catch (t: Throwable) {
+                Napier.e(
+                    "Unexpected error while closing session vault. channelId=$channelId",
+                    t
+                )
             }
         }
     }

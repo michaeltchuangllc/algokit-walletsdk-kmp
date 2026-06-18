@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
-import com.michaeltchuang.walletsdk.core.utils.AppId
+import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 
 /**
