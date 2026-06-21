@@ -20,8 +20,6 @@ import androidx.compose.ui.graphics.Color
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
@@ -212,22 +210,12 @@ fun AnswerScreen(
                                 showPaymentDialog = false
                                 return@launch
                             }
-                            val voucherMessage =
-                                MppPayments.buildClaimMessage(
-                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                    viewerAddress = accountAddress,
-                                    hostAddress = hostAddress,
-                                    totalAmountClaimedMicroUsdc = micro,
-                                )
-                            val voucherSignature = viewModel.signFido2Challenge(voucherMessage, accountAddress)
-
                             viewModel.approveMppConsent(
                                 ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
                                     budgetCap = BudgetCap(amount = micro.toString(), asset = USDC_TESTNET_ID.toString()),
                                     maxAutoPaySegments = maxSegments,
-                                    voucherSignature = voucherSignature,
                                 ),
                             )
                             showPaymentDialog = false

@@ -31,8 +31,8 @@ import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVMediaTypeVideo
 import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
-import platform.Foundation.NSUUID
 import platform.Foundation.NSDate
+import platform.Foundation.NSUUID
 import platform.Foundation.date
 import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIView

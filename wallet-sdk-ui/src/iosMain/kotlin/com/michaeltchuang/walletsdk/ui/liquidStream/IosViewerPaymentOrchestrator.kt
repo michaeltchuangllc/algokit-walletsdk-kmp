@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
@@ -50,15 +51,15 @@ class IosViewerPaymentOrchestrator(
                 }
 
                 // Check whether a session vault already exists for this pair.
-                val existingBalance = runCatching {
-                    MppPayments.getRemainingBalanceFromSessionVault(
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        algodUrl = null,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                    )
-                }.getOrDefault(0L)
+                val existingBalance =
+                    runCatching {
+                        MppPayments.getRemainingBalanceFromSessionVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = hostAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            algodUrl = null,
+                        )
+                    }.getOrDefault(0L)
 
                 Napier.d(
                     "[VIEWER_DEPOSIT_START] viewer=$viewerAddress host=$hostAddress " +
@@ -66,44 +67,45 @@ class IosViewerPaymentOrchestrator(
                     tag = TAG,
                 )
 
-                val depositResult = if (existingBalance > 0L) {
-                    // Top up an existing session vault.
-                    Napier.d("[VIEWER_DEPOSIT_TOPUP] viewer=$viewerAddress", tag = TAG)
-                    MppPayments.topUpSessionVault(
-                        signer = signer,
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
-                        additionalDepositMicroUsdc = depositMicroUsdc,
-                    )
-                } else {
-                    // Open a new session vault and deposit.
-                    Napier.d("[VIEWER_DEPOSIT_OPEN] viewer=$viewerAddress", tag = TAG)
-                    val openResult = MppPayments.openSessionAndDeposit(
-                        signer = signer,
-                        viewerAddress = viewerAddress,
-                        creatorAddress = hostAddress,
-                        depositAmountMicroUsdc = depositMicroUsdc,
-                    )
-                    if (openResult.isSuccess) {
-                        // Register the authorized signer so the host can verify vouchers.
-                        MppPayments
-                            .setAuthorizedSignerForSession(
+                val depositResult =
+                    if (existingBalance > 0L) {
+                        // Top up an existing session vault.
+                        Napier.d("[VIEWER_DEPOSIT_TOPUP] viewer=$viewerAddress", tag = TAG)
+                        MppPayments.topUpSessionVault(
+                            signer = signer,
+                            additionalDepositMicroUsdc = depositMicroUsdc,
+                        )
+                    } else {
+                        // Open a new session vault and deposit.
+                        Napier.d("[VIEWER_DEPOSIT_OPEN] viewer=$viewerAddress", tag = TAG)
+                        val openResult =
+                            MppPayments.openSessionAndDeposit(
                                 signer = signer,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                 viewerAddress = viewerAddress,
-                                hostAddress = hostAddress,
-                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey
-                                    ?: ByteArray(0),
-                            ).onFailure { e ->
-                                Napier.e(
-                                    "[VIEWER_SET_SIGNER_ERR] viewer=$viewerAddress host=$hostAddress",
-                                    e,
-                                    tag = TAG,
-                                )
-                            }
+                                creatorAddress = hostAddress,
+                                depositAmountMicroUsdc = depositMicroUsdc,
+                            )
+                        if (openResult.isSuccess) {
+                            // Register the authorized signer so the host can verify vouchers.
+                            MppPayments
+                                .setAuthorizedSignerForSession(
+                                    signer = signer,
+                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    viewerAddress = viewerAddress,
+                                    hostAddress = hostAddress,
+                                    authorizedSignerPublicKey =
+                                        signer.authorizedSignerPublicKey
+                                            ?: ByteArray(0),
+                                ).onFailure { e ->
+                                    Napier.e(
+                                        "[VIEWER_SET_SIGNER_ERR] viewer=$viewerAddress host=$hostAddress",
+                                        e,
+                                        tag = TAG,
+                                    )
+                                }
+                        }
+                        openResult
                     }
-                    openResult
-                }
 
                 depositResult.onFailure { e ->
                     Napier.e(
@@ -116,15 +118,15 @@ class IosViewerPaymentOrchestrator(
                 }
 
                 // Fetch the post-deposit on-chain balance.
-                val remaining = runCatching {
-                    MppPayments.getRemainingBalanceFromSessionVault(
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        algodUrl = null,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                    )
-                }.getOrDefault(depositMicroUsdc)
+                val remaining =
+                    runCatching {
+                        MppPayments.getRemainingBalanceFromSessionVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = hostAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            algodUrl = null,
+                        )
+                    }.getOrDefault(depositMicroUsdc)
 
                 Napier.d(
                     "[VIEWER_DEPOSIT_OK] viewer=$viewerAddress host=$hostAddress " +
@@ -186,19 +188,22 @@ class IosViewerPaymentOrchestrator(
         sendMessageFn: (String) -> Unit,
     ) {
         try {
-            val pubKey = signer.authorizedSignerPublicKey ?: run {
-                Napier.w("[VIEWER_VOUCHER_SKIP] reason=no_pub_key viewer=$viewerAddress", tag = TAG)
-                return
-            }
+            val pubKey =
+                signer.authorizedSignerPublicKey ?: run {
+                    Napier.w("[VIEWER_VOUCHER_SKIP] reason=no_pub_key viewer=$viewerAddress", tag = TAG)
+                    return
+                }
 
-            val preUpdateLatestVoucher = runCatching {
-                MppPayments.getSessionDynamicDataFromVault(
-                    viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    authorizedSignerPublicKey = pubKey,
-                )?.latestVoucherAmount ?: 0L
-            }.getOrDefault(0L)
+            val preUpdateLatestVoucher =
+                runCatching {
+                    MppPayments
+                        .getSessionDynamicDataFromVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = hostAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            authorizedSignerPublicKey = pubKey,
+                        )?.latestVoucherAmount ?: 0L
+                }.getOrDefault(0L)
 
             val localBase = (totalAmountClaimedMicroUsdc - segmentDebitMicroUsdc).coerceAtLeast(0L)
             val voucherBase = maxOf(localBase, preUpdateLatestVoucher)
@@ -211,69 +216,80 @@ class IosViewerPaymentOrchestrator(
                     "effectiveClaimed=$effectiveClaimedMicroUsdc",
                 tag = TAG,
             )
-
-            val claimMessage = MppPayments.buildClaimMessage(
-                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
-                totalAmountClaimedMicroUsdc = effectiveClaimedMicroUsdc,
-                authorizedSignerPublicKey = pubKey,
-            )
-
-            val signature = signClaimMessage(claimMessage, signer, viewerAddress) ?: run {
-                Napier.w("[VIEWER_VOUCHER_SKIP] reason=signing_failed viewer=$viewerAddress", tag = TAG)
+            val channelId = EscrowSessionVaultManagerClient.channelId
+            if (channelId == null) {
+                Napier.w("[VIEWER_VOUCHER_SKIP] reason=no_channel_id viewer=$viewerAddress", tag = TAG)
                 return
             }
 
+            val claimMessage =
+                MppPayments.buildClaimMessage(
+                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    totalAmountClaimedMicroUsdc = effectiveClaimedMicroUsdc,
+                    channelId = channelId,
+                )
+
+            val signature =
+                signClaimMessage(claimMessage, signer, viewerAddress) ?: run {
+                    Napier.w("[VIEWER_VOUCHER_SKIP] reason=signing_failed viewer=$viewerAddress", tag = TAG)
+                    return
+                }
+
             val signatureBase64 = MppPayments.serializeVoucherSignature(signature)
 
-            val updateResult = runCatching {
-                MppPayments.updateVoucherOnChain(
-                    signer = signer,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                    viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
-                    totalAmountUsedMicroUsdc = effectiveClaimedMicroUsdc,
-                    signature = signature,
-                    authorizedSignerPublicKey = pubKey,
-                )
-            }.getOrElse { Result.failure(it) }
-
-            val updateTxId = updateResult
-                .onSuccess { txId ->
-                    Napier.d(
-                        "[VIEWER_UPDATE_VOUCHER_OK] session=$sessionId txId=$txId " +
-                            "effectiveClaimed=$effectiveClaimedMicroUsdc viewer=$viewerAddress host=$hostAddress",
-                        tag = TAG,
+            val updateResult =
+                runCatching {
+                    MppPayments.updateVoucherOnChain(
+                        signer = signer,
+                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        viewerAddress = viewerAddress,
+                        hostAddress = hostAddress,
+                        totalAmountUsedMicroUsdc = effectiveClaimedMicroUsdc,
+                        signature = signature,
+                        authorizedSignerPublicKey = pubKey,
                     )
-                }.onFailure { err ->
-                    val errText = err.message.orEmpty()
-                    val isDuplicate = errText.contains("pc=622", ignoreCase = true) &&
-                        (errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                            errText.contains("Voucher not increasing", ignoreCase = true))
-                    if (isDuplicate) {
+                }.getOrElse { Result.failure(it) }
+
+            val updateTxId =
+                updateResult
+                    .onSuccess { txId ->
                         Napier.d(
-                            "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] session=$sessionId " +
-                                "effectiveClaimed=$effectiveClaimedMicroUsdc reason=already_recorded_onchain",
-                            tag = TAG,
-                        )
-                    } else {
-                        Napier.e(
-                            "[VIEWER_UPDATE_VOUCHER_ERR] session=$sessionId " +
+                            "[VIEWER_UPDATE_VOUCHER_OK] session=$sessionId txId=$txId " +
                                 "effectiveClaimed=$effectiveClaimedMicroUsdc viewer=$viewerAddress host=$hostAddress",
-                            err,
                             tag = TAG,
                         )
-                    }
-                }.getOrNull()
+                    }.onFailure { err ->
+                        val errText = err.message.orEmpty()
+                        val isDuplicate =
+                            errText.contains("pc=622", ignoreCase = true) &&
+                                (
+                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
+                                        errText.contains("Voucher not increasing", ignoreCase = true)
+                                )
+                        if (isDuplicate) {
+                            Napier.d(
+                                "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] session=$sessionId " +
+                                    "effectiveClaimed=$effectiveClaimedMicroUsdc reason=already_recorded_onchain",
+                                tag = TAG,
+                            )
+                        } else {
+                            Napier.e(
+                                "[VIEWER_UPDATE_VOUCHER_ERR] session=$sessionId " +
+                                    "effectiveClaimed=$effectiveClaimedMicroUsdc viewer=$viewerAddress host=$hostAddress",
+                                err,
+                                tag = TAG,
+                            )
+                        }
+                    }.getOrNull()
 
             if (updateTxId != null) {
-                val confirmed = withContext(Dispatchers.Default) {
-                    MppPayments.awaitTransactionConfirmation(
-                        txId = updateTxId,
-                        algodUrl = MppPayments.TESTNET_ALGOD_URL,
-                    )
-                }
+                val confirmed =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.awaitTransactionConfirmation(
+                            txId = updateTxId,
+                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                        )
+                    }
                 if (confirmed) {
                     Napier.d(
                         "[VIEWER_UPDATE_VOUCHER_CONFIRMED] session=$sessionId txId=$updateTxId",
@@ -288,16 +304,17 @@ class IosViewerPaymentOrchestrator(
                 }
             }
 
-            val voucherJson = MppPayments.createVoucherJson(
-                sessionId = sessionId,
-                viewerAddress = viewerAddress,
-                viewerPublicKey = pubKey,
-                creatorAddress = hostAddress,
-                blocksConsumed = 1,
-                totalAmountUsed = effectiveClaimedMicroUsdc,
-                remainingMicroUsdc = remainingMicroUsdc,
-                signatureBase64 = signatureBase64,
-            )
+            val voucherJson =
+                MppPayments.createVoucherJson(
+                    sessionId = sessionId,
+                    viewerAddress = viewerAddress,
+                    viewerPublicKey = pubKey,
+                    creatorAddress = hostAddress,
+                    blocksConsumed = 1,
+                    totalAmountUsed = effectiveClaimedMicroUsdc,
+                    remainingMicroUsdc = remainingMicroUsdc,
+                    signatureBase64 = signatureBase64,
+                )
 
             Napier.d(
                 "[VIEWER_VOUCHER_SEND] session=$sessionId viewer=$viewerAddress " +
@@ -356,19 +373,20 @@ class IosViewerPaymentOrchestrator(
         val localAccount = getLocalAccount(address) ?: return null
         if (localAccount is LocalAccount.SeedVault) return null
 
-        val authorizedSignerPublicKey: ByteArray = when (localAccount) {
-            is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Falcon24 -> localAccount.publicKey
-            is LocalAccount.Algo25 -> {
-                val secretKey = getAlgo25SecretKey(address)
-                if (secretKey != null && secretKey.size == 64) {
-                    secretKey.copyOfRange(32, 64)
-                } else {
-                    ByteArray(0)
+        val authorizedSignerPublicKey: ByteArray =
+            when (localAccount) {
+                is LocalAccount.HdKey -> localAccount.publicKey
+                is LocalAccount.Falcon24 -> localAccount.publicKey
+                is LocalAccount.Algo25 -> {
+                    val secretKey = getAlgo25SecretKey(address)
+                    if (secretKey != null && secretKey.size == 64) {
+                        secretKey.copyOfRange(32, 64)
+                    } else {
+                        ByteArray(0)
+                    }
                 }
+                else -> ByteArray(0)
             }
-            else -> ByteArray(0)
-        }
 
         val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
 
@@ -423,11 +441,12 @@ class IosViewerPaymentOrchestrator(
                         Napier.e("[VIEWER_FALCON_BUNDLE] missing key for $address", tag = TAG)
                         return txnsMsgpack.map { ByteArray(0) }
                     }
-                    val result = signFalcon24GroupBundle(
-                        txnsByteArrays = txnsMsgpack,
-                        publicKey = localAccount.publicKey,
-                        privateKey = secretKey,
-                    )
+                    val result =
+                        signFalcon24GroupBundle(
+                            txnsByteArrays = txnsMsgpack,
+                            publicKey = localAccount.publicKey,
+                            privateKey = secretKey,
+                        )
                     if (result.isEmpty()) {
                         Napier.e("[VIEWER_FALCON_BUNDLE] bundle returned empty for $address", tag = TAG)
                         txnsMsgpack.map { ByteArray(0) }

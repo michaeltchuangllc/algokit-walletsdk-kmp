@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.ui.settings.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecases.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.contractClient
@@ -118,7 +118,6 @@ class EscrowSessionVaultDebugViewModel(
             _isLoading.value = true
             _statusMessage.value = "Fetching Session Vault balance…"
             try {
-                val signer = mppWalletSignerUseCase(viewer)
                 val remaining =
                     withContext(Dispatchers.Default) {
                         MppPayments.getRemainingBalanceFromSessionVault(
@@ -126,7 +125,6 @@ class EscrowSessionVaultDebugViewModel(
                             hostAddress = creator,
                             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                             algodUrl = null,
-                            authorizedSignerPublicKey = signer?.authorizedSignerPublicKey,
                         )
                     }
                 _remainingBalance.value = remaining
@@ -203,13 +201,15 @@ class EscrowSessionVaultDebugViewModel(
                     _statusMessage.value = "❌ ${PaymentError.NothingToSettle.userMessage}"
                     return@launch
                 }
-
+                val channelId = EscrowSessionVaultManagerClient.channelId
+                if (channelId == null) {
+                    Napier.e("channelId is null", tag = TAG)
+                    return@launch
+                }
                 val settleMessage =
                     MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
                         cumulativeAmountMicroUsdc = newCumulative,
+                        channelId = channelId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -255,12 +255,15 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val viewerSigner = mppWalletSignerUseCase(viewer)
                 if (viewerSigner != null) {
+                    val channelId = EscrowSessionVaultManagerClient.channelId
+                    if (channelId == null) {
+                        Napier.e("channelId is null", tag = TAG)
+                        return@launch
+                    }
                     val settleMessage =
                         MppPayments.settleMessage(
-                            signer = viewerSigner,
-                            viewerAddress = viewer,
-                            hostAddress = creator,
                             cumulativeAmountMicroUsdc = depositMicroUsdc,
+                            channelId = channelId,
                         )
                     val signature = viewerSigner.signMessage(settleMessage)
 
@@ -352,12 +355,15 @@ class EscrowSessionVaultDebugViewModel(
                     return@launch
                 }
 
+                val channelId = EscrowSessionVaultManagerClient.channelId
+                if (channelId == null) {
+                    Napier.e("channelId is null", tag = TAG)
+                    return@launch
+                }
                 val settleMessage =
                     MppPayments.settleMessage(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        hostAddress = creator,
                         cumulativeAmountMicroUsdc = newCumulative,
+                        channelId = channelId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -428,7 +434,7 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                    EscrowSessionVaultManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
                         return@launch
                     }
@@ -477,7 +483,7 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                    EscrowSessionVaultManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
                         return@launch
                     }
@@ -527,7 +533,7 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.storedChannelId ?: run {
+                    EscrowSessionVaultManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "REQUEST_WITHDRAW_NO_CHANNEL_ID")
                         return@launch
                     }
@@ -546,7 +552,8 @@ class EscrowSessionVaultDebugViewModel(
 
                 result
                     .onSuccess { txId ->
-                        _statusMessage.value = "✅ Requested withdraw from Session Vault\n\nTxId:\n$txId"
+                        _statusMessage.value =
+                            "✅ Requested withdraw from Session Vault\n\nTxId:\n$txId"
                         Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
                         val parsed = PaymentError.Companion.from(err)

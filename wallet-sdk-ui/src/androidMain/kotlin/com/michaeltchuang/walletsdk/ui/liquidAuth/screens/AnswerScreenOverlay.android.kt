@@ -27,7 +27,7 @@ import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.google.android.gms.fido.fido2.Fido2ApiClient
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
-import com.michaeltchuang.walletsdk.core.utils.AppId
+import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AuthMessageStorage
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig

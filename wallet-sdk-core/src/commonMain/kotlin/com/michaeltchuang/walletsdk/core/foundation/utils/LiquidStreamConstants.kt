@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.core.utils
+package com.michaeltchuang.walletsdk.core.foundation.utils
 
 object LiquidStreamConstants {
     const val DEPOSIT_AMOUNT_MICRO_USDC = 1_000_000L

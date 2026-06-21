@@ -39,20 +39,27 @@ class EscrowSessionVaultManagerClient(
         private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
         private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
         private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
-        var storedChannelId: ByteArray? = null
+        var channelId: ByteArray? = null
     }
 
     suspend fun openAndDeposit(
         signer: MppWalletSigner,
         payeeAddress: String,
         depositMicroUsdc: Long,
-        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
-        signerType: Long = signer.signerType,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val channelId = deriveChannelId(signer.address, payeeAddress, authorizedSignerPublicKey)
-            storedChannelId = channelId
+            val payer = decodeAlgorandAddressPublicKey(signer.address)
+            val payee = decodeAlgorandAddressPublicKey(payeeAddress)
+            val deriveChannelId =
+                sha256(
+                    payer + payee + encodeUint64(usdcAssetId) +
+                        defaultSalt +
+                        computeSignerPubkeyHash(
+                            signer.authorizedSignerPublicKey,
+                        ),
+                )
+            channelId = deriveChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,
@@ -63,13 +70,13 @@ class EscrowSessionVaultManagerClient(
                         ABI_OPEN,
                         decodeAlgorandAddressPublicKey(payeeAddress),
                         encodeArc4DynamicBytes(defaultSalt),
-                        encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
-                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                        encodeArc4DynamicBytes(computeSignerPubkeyHash(signer.authorizedSignerPublicKey)),
+                        encodeArc4DynamicBytes(signer.authorizedSignerPublicKey),
                     ),
                 boxKeys =
                     listOf(
-                        Pair(appId, channelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, deriveChannelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + deriveChannelId),
                     ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,
@@ -385,30 +392,6 @@ class EscrowSessionVaultManagerClient(
                     ),
             )
         }
-
-    fun computeChannelId(
-        payerAddress: String,
-        payeeAddress: String,
-        authorizedSigner: ByteArray,
-        salt: ByteArray = defaultSalt,
-    ): ByteArray {
-        val payer = decodeAlgorandAddressPublicKey(payerAddress)
-        val payee = decodeAlgorandAddressPublicKey(payeeAddress)
-        return sha256(payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner)
-    }
-
-    fun deriveChannelId(
-        payerAddress: String,
-        payeeAddress: String,
-        authorizedSignerPublicKey: ByteArray,
-        salt: ByteArray = defaultSalt,
-    ): ByteArray =
-        computeChannelId(
-            payerAddress,
-            payeeAddress,
-            computeSignerPubkeyHash(authorizedSignerPublicKey),
-            salt,
-        )
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
 

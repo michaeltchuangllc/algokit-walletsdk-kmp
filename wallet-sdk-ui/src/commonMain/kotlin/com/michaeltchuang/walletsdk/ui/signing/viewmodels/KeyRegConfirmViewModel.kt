@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 import com.michaeltchuang.walletsdk.core.foundation.utils.Result
 import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.CreateKeyRegTransaction
@@ -20,7 +21,6 @@ import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDeta
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.ExternalTransactionSignResult
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.KeyRegTransactionSignManager
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.PendingTransactionRequestManger
-import com.michaeltchuang.walletsdk.core.utils.MIN_FEE
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.collectLatest

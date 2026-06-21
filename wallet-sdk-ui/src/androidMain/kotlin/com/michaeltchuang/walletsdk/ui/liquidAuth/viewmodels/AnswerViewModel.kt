@@ -45,7 +45,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecases.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
@@ -410,10 +410,6 @@ class AnswerViewModel(
         showConfirmationDialog.value = false
     }
 
-    fun consumeViewerRuntimeStateForUi() {
-        // Keep runtime state in ViewModel so UI can be detached from activity recreation.
-    }
-
     suspend fun topUpViewerSessionVault(
         enteredAmount: String,
         viewerAddress: String,
@@ -428,8 +424,6 @@ class AnswerViewModel(
                 MppPayments
                     .topUpSessionVault(
                         signer = signer,
-                        viewerAddress = viewerAddress,
-                        hostAddress = creatorAddress,
                         additionalDepositMicroUsdc = depositMicroUsdc,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                     ).getOrThrow()

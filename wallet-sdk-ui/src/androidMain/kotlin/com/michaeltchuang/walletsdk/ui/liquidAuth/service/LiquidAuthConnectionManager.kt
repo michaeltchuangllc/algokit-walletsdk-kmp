@@ -15,26 +15,23 @@ import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
-import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
-import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.fromJson
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
@@ -44,6 +41,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsump
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -57,7 +55,7 @@ import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.koin.java.KoinJavaComponent
 import java.math.BigInteger
-import java.util.Base64
+import kotlin.io.encoding.Base64
 
 /**
  * Android implementation of LiquidAuthConnectionManager.
@@ -67,10 +65,7 @@ import java.util.Base64
  */
 class AndroidLiquidAuthConnectionManager(
     private val context: Context,
-    private val getLocalAccount: GetLocalAccount,
-    private val getAlgo25SecretKey: GetAlgo25SecretKey,
-    private val getFalcon24SecretKey: GetFalcon24SecretKey,
-    private val getHdSeed: GetHdSeed,
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : LiquidAuthConnectionManager {
     companion object {
         private const val TAG = "AndroidLiquidAuthCM"
@@ -115,7 +110,7 @@ class AndroidLiquidAuthConnectionManager(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
-            buildCreatorWalletSigner = { creatorAddress -> buildCreatorWalletSigner(creatorAddress) },
+            buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
         )
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
@@ -227,7 +222,7 @@ class AndroidLiquidAuthConnectionManager(
                             ?.takeIf { it.isNotBlank() }
                             ?.let { encoded ->
                                 runCatching {
-                                    Base64.getDecoder().decode(encoded)
+                                    Base64.decode(encoded)
                                 }.getOrNull()
                             }
                             ?: activeViewerAuthorizedSignerKey,
@@ -462,7 +457,7 @@ class AndroidLiquidAuthConnectionManager(
                     Log.d(TAG, "SignalService disconnected")
                     signalService = null
                     isBound = false
-                    viewModel?.onClientDisconnected()
+                    viewModel?.onClientDisconnected(activePaymentRecipient)
                 }
             }
 
@@ -558,7 +553,7 @@ class AndroidLiquidAuthConnectionManager(
                                     Log.d(TAG, "🔌 Data channel closed/disconnecting")
                                     stopConnectionTypePolling()
                                     stopBlockConsumption()
-                                    viewModel?.onClientDisconnected()
+                                    viewModel?.onClientDisconnected(activePaymentRecipient)
                                 }
                             }
                         },
@@ -599,10 +594,11 @@ class AndroidLiquidAuthConnectionManager(
 
             val voucherRef = json.optString("reference", "")
             Log.e(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_SIG] voucherRef=$voucherRef")
-            if (voucherRef == "liquid:viewer:hello") {
-                val helloViewer = json.optString("viewer", "").takeIf { it.isNotBlank() }
+            if (voucherRef == LiquidDcMessages.REF_VIEWER_HELLO) {
+                val json = msg.fromJson<HelloMessage>()
+                val helloViewer = json.viewer.takeIf { it.isNotBlank() }
                 val helloPublicKeyBase64 =
-                    json.optString("viewerPublicKey", "").takeIf { it.isNotBlank() }
+                    json.viewerPublicKey.takeIf { it.isNotBlank() }
                 if (helloPublicKeyBase64 != null) {
                     val signerKey = decodeBase64OrNull(helloPublicKeyBase64)
                     if (signerKey != null) {
@@ -612,8 +608,7 @@ class AndroidLiquidAuthConnectionManager(
                         }
                         activeViewerAuthorizedSignerKey = signerKey
 
-                        Log.e(
-                            TAG,
+                        Napier.e(
                             "[SESSION_VAULT_VIEWER_HELLO_KEY] viewer=$helloViewer keyLen=${signerKey.size} session=$activePaymentSessionId creatorReady=${liquidStreamCreator != null}",
                         )
 
@@ -624,16 +619,21 @@ class AndroidLiquidAuthConnectionManager(
                 }
             }
 
-            if (voucherRef == "liquid:payment:voucher") {
-                val signature = json.optString("signature", "").takeIf { it.isNotBlank() }
+            if (voucherRef == LiquidDcMessages.REF_PAYMENT_VOUCHER) {
+                val json = msg.fromJson<PaymentVoucher>()
+                val channelId = json.channelId
+                channelId?.let {
+                    Napier.e("channelId=$channelId", tag = TAG)
+                    EscrowSessionVaultManagerClient.channelId =
+                        decodeBase64OrNull(channelId)
+                }
+                val signature = json.signature
                 val claimedAmount =
-                    json
-                        .optLong("totalAmountClaimedMicroUsdc", -1L)
-                        .takeIf { it >= 0L }
-                val voucherSessionId = json.optString("id", "").takeIf { it.isNotBlank() }
-                val voucherViewer = json.optString("viewer", "").takeIf { it.isNotBlank() }
+                    json.totalAmountClaimedMicroUsdc.takeIf { it >= 0L }
+                val voucherSessionId = json.id.takeIf { it.isNotBlank() }
+                val voucherViewer = json.viewer.takeIf { it.isNotBlank() }
                 val voucherViewerPublicKey =
-                    json.optString("viewerPublicKey", "").takeIf { it.isNotBlank() }
+                    json.viewerPublicKey.takeIf { it.isNotBlank() }
 
                 if (signature == null ||
                     claimedAmount == null ||
@@ -644,10 +644,7 @@ class AndroidLiquidAuthConnectionManager(
                     Log.e(
                         TAG,
                         "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${
-                            json.optString(
-                                "id",
-                                "",
-                            )
+                            json.id
                         } claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
                     )
                 } else {
@@ -681,7 +678,9 @@ class AndroidLiquidAuthConnectionManager(
                                 "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
                             )
                             startBlockConsumption(voucherSessionId)
-                            blockConsumptionManager.triggerSettlementFromViewerVoucher(voucherSessionId)
+                            blockConsumptionManager.triggerSettlementFromViewerVoucher(
+                                voucherSessionId,
+                            )
                         }
                     }
                 }
@@ -695,7 +694,7 @@ class AndroidLiquidAuthConnectionManager(
         }
     }
 
-    private fun decodeBase64OrNull(value: String): ByteArray? = runCatching { Base64.getDecoder().decode(value) }.getOrNull()
+    private fun decodeBase64OrNull(value: String): ByteArray? = runCatching { Base64.decode(value) }.getOrNull()
 
     private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
         liquidStreamCreator?.updateConfig(
@@ -794,9 +793,7 @@ class AndroidLiquidAuthConnectionManager(
         try {
             // Create JSON video frame message
             val base64Data =
-                Base64
-                    .getEncoder()
-                    .encodeToString(frameData)
+                Base64.encode(frameData)
             val hostAddress = activePaymentRecipient.orEmpty()
             val sessionId = activePaymentSessionId.orEmpty()
             val hostJsonField =
@@ -847,8 +844,8 @@ class AndroidLiquidAuthConnectionManager(
                 }.distinct()
 
         candidates.forEach { candidate ->
-            runCatching { Base64.getDecoder().decode(candidate) }.getOrNull()?.let { return it }
-            runCatching { Base64.getUrlDecoder().decode(candidate) }.getOrNull()?.let { return it }
+            runCatching { Base64.decode(candidate) }.getOrNull()?.let { return it }
+            runCatching { Base64.decode(candidate) }.getOrNull()?.let { return it }
         }
         return null
     }
@@ -897,7 +894,10 @@ class AndroidLiquidAuthConnectionManager(
     ): List<ByteArray> {
         if (txns.isEmpty()) return emptyList()
         if (publicKey.isEmpty() || privateKey.isEmpty()) {
-            Log.e(TAG, "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}")
+            Log.e(
+                TAG,
+                "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}",
+            )
             return emptyList()
         }
 
@@ -933,7 +933,10 @@ class AndroidLiquidAuthConnectionManager(
                     .mapNotNull { signedBytes ->
                         runCatching {
                             val signed =
-                                Encoder.decodeFromMsgPack(signedBytes, SignedTransaction::class.java)
+                                Encoder.decodeFromMsgPack(
+                                    signedBytes,
+                                    SignedTransaction::class.java,
+                                )
                             val signedTxn = signed.tx ?: return@runCatching null
                             Triple(signedTxn.txID(), signedTxn, signedBytes)
                         }.getOrNull()
@@ -991,7 +994,10 @@ class AndroidLiquidAuthConnectionManager(
                     if (semanticMatchIndex >= 0) {
                         out += remaining.removeAt(semanticMatchIndex).third
                     } else {
-                        Log.e(TAG, "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId")
+                        Log.e(
+                            TAG,
+                            "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId",
+                        )
                         return@withContext emptyList()
                     }
                 }
@@ -1002,94 +1008,6 @@ class AndroidLiquidAuthConnectionManager(
                 "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
             )
             out
-        }
-    }
-
-    private suspend fun buildCreatorWalletSigner(creatorAddress: String): MppWalletSigner? {
-        val localAccount = getLocalAccount(creatorAddress) ?: return null
-        if (localAccount is LocalAccount.SeedVault) return null
-
-        val authorizedSignerPublicKey =
-            when (localAccount) {
-                is LocalAccount.HdKey -> localAccount.publicKey
-                is LocalAccount.Falcon24 -> localAccount.publicKey
-                is LocalAccount.Algo25 -> {
-                    val secretKey = getAlgo25SecretKey(creatorAddress)
-                    if (secretKey != null && secretKey.size == 64) {
-                        secretKey.copyOfRange(
-                            32,
-                            64,
-                        )
-                    } else {
-                        ByteArray(0)
-                    }
-                }
-
-                else -> ByteArray(0)
-            }
-
-        return object : AndroidMppWalletSigner {
-            override val address: String = creatorAddress
-            override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
-            override val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
-
-            override suspend fun signTransaction(txn: Transaction): ByteArray =
-                when (localAccount) {
-                    is LocalAccount.Algo25 -> {
-                        val secretKey =
-                            getAlgo25SecretKey(creatorAddress)
-                                ?: error("Missing Algo25 key for $creatorAddress")
-                        val txnBytes = Encoder.encodeToMsgPack(txn)
-                        val signature =
-                            signAlgo25ArbitraryData(txn.bytesToSign(), secretKey)
-                                ?: error("Algo25 arbitrary signing failed")
-                        withContext(GoMobileDispatcher.dispatcher) {
-                            Sdk.attachSignature(signature, txnBytes)
-                        }
-                    }
-
-                    is LocalAccount.HdKey -> {
-                        val seed =
-                            getHdSeed(localAccount.seedId)
-                                ?: error("Missing HD seed for $creatorAddress")
-                        signHdKeyTransaction(
-                            transactionByteArray = Encoder.encodeToMsgPack(txn),
-                            seed = seed,
-                            account = localAccount.account,
-                            change = localAccount.change,
-                            key = localAccount.keyIndex,
-                        ) ?: error("HD signing failed")
-                    }
-
-                    is LocalAccount.Falcon24 -> {
-                        val secretKey =
-                            getFalcon24SecretKey(creatorAddress)
-                                ?: error("Missing Falcon24 key for $creatorAddress")
-                        signFalconTxnFromBundle(
-                            txn = txn,
-                            publicKey = localAccount.publicKey,
-                            privateKey = secretKey,
-                        )
-                    }
-
-                    else -> error("Unsupported account for Algorand Session Vault claim signing")
-                }
-
-            override suspend fun signTransactions(txns: List<Transaction>): List<ByteArray> =
-                when (localAccount) {
-                    is LocalAccount.Falcon24 -> {
-                        val secretKey =
-                            getFalcon24SecretKey(creatorAddress)
-                                ?: error("Missing Falcon24 key for $creatorAddress")
-                        signFalconTxnGroupFromBundle(
-                            txns = txns,
-                            publicKey = localAccount.publicKey,
-                            privateKey = secretKey,
-                        )
-                    }
-
-                    else -> super.signTransactions(txns)
-                }
         }
     }
 }
@@ -1104,9 +1022,6 @@ actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthCo
             .getKoin()
     return AndroidLiquidAuthConnectionManager(
         context = context,
-        getLocalAccount = koin.get(clazz = GetLocalAccount::class),
-        getAlgo25SecretKey = koin.get(clazz = GetAlgo25SecretKey::class),
-        getFalcon24SecretKey = koin.get(clazz = GetFalcon24SecretKey::class),
-        getHdSeed = koin.get(clazz = GetHdSeed::class),
+        mppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class),
     )
 }

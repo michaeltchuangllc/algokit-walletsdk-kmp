@@ -1,8 +1,8 @@
 package com.michaeltchuang.walletsdk.core.transaction.model
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
-import com.michaeltchuang.walletsdk.core.utils.MIN_FEE
 
 sealed class TransactionSignData {
     abstract val senderAccountAddress: String
