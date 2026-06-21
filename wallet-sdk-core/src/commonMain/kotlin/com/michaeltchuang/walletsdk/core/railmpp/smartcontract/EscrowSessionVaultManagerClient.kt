@@ -46,12 +46,17 @@ class EscrowSessionVaultManagerClient(
         signer: MppWalletSigner,
         payeeAddress: String,
         depositMicroUsdc: Long,
-        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
-        signerType: Long = signer.signerType,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val deriveChannelId = deriveChannelId(signer.address, payeeAddress, authorizedSignerPublicKey)
+            val payer = decodeAlgorandAddressPublicKey(signer.address)
+            val payee = decodeAlgorandAddressPublicKey(payeeAddress)
+            val deriveChannelId = sha256(
+                payer + payee + encodeUint64(usdcAssetId) +
+                        defaultSalt + computeSignerPubkeyHash(
+                    signer.authorizedSignerPublicKey
+                )
+            )
             channelId = deriveChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
@@ -63,8 +68,8 @@ class EscrowSessionVaultManagerClient(
                         ABI_OPEN,
                         decodeAlgorandAddressPublicKey(payeeAddress),
                         encodeArc4DynamicBytes(defaultSalt),
-                        encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
-                        encodeArc4DynamicBytes(authorizedSignerPublicKey),
+                        encodeArc4DynamicBytes(computeSignerPubkeyHash(signer.authorizedSignerPublicKey)),
+                        encodeArc4DynamicBytes(signer.authorizedSignerPublicKey),
                     ),
                 boxKeys =
                     listOf(
@@ -385,30 +390,6 @@ class EscrowSessionVaultManagerClient(
                     ),
             )
         }
-
-    fun computeChannelId(
-        payerAddress: String,
-        payeeAddress: String,
-        authorizedSigner: ByteArray,
-        salt: ByteArray = defaultSalt,
-    ): ByteArray {
-        val payer = decodeAlgorandAddressPublicKey(payerAddress)
-        val payee = decodeAlgorandAddressPublicKey(payeeAddress)
-        return sha256(payer + payee + encodeUint64(usdcAssetId) + salt + authorizedSigner)
-    }
-
-    fun deriveChannelId(
-        payerAddress: String,
-        payeeAddress: String,
-        authorizedSignerPublicKey: ByteArray,
-        salt: ByteArray = defaultSalt,
-    ): ByteArray =
-        computeChannelId(
-            payerAddress,
-            payeeAddress,
-            computeSignerPubkeyHash(authorizedSignerPublicKey),
-            salt,
-        )
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
 

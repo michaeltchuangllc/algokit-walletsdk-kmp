@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
@@ -56,7 +57,6 @@ class IosViewerPaymentOrchestrator(
                         hostAddress = hostAddress,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                         algodUrl = null,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     )
                 }.getOrDefault(0L)
 
@@ -71,8 +71,6 @@ class IosViewerPaymentOrchestrator(
                     Napier.d("[VIEWER_DEPOSIT_TOPUP] viewer=$viewerAddress", tag = TAG)
                     MppPayments.topUpSessionVault(
                         signer = signer,
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
                         additionalDepositMicroUsdc = depositMicroUsdc,
                     )
                 } else {
@@ -121,8 +119,7 @@ class IosViewerPaymentOrchestrator(
                         viewerAddress = viewerAddress,
                         hostAddress = hostAddress,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                        algodUrl = null,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        algodUrl = null
                     )
                 }.getOrDefault(depositMicroUsdc)
 
@@ -211,13 +208,16 @@ class IosViewerPaymentOrchestrator(
                     "effectiveClaimed=$effectiveClaimedMicroUsdc",
                 tag = TAG,
             )
+            val channelId = EscrowSessionVaultManagerClient.channelId
+            if (channelId == null) {
+                Napier.w("[VIEWER_VOUCHER_SKIP] reason=no_channel_id viewer=$viewerAddress", tag = TAG)
+                return
+            }
 
             val claimMessage = MppPayments.buildClaimMessage(
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
                 totalAmountClaimedMicroUsdc = effectiveClaimedMicroUsdc,
-                authorizedSignerPublicKey = pubKey,
+                channelId = channelId
             )
 
             val signature = signClaimMessage(claimMessage, signer, viewerAddress) ?: run {

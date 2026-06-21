@@ -62,8 +62,7 @@ object MppPayments {
         signatureBase64: String? = null,
     ): String {
 
-        val channelId = EscrowSessionVaultManagerClient
-            .channelId
+        val channelId = channelId
             ?.let(Base64::encode)
 
         return PaymentVoucher(
@@ -101,7 +100,6 @@ object MppPayments {
         hostAddress: String,
         appId: Long,
         algodUrl: String?,
-        authorizedSignerPublicKey: ByteArray?,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
         if (channelId==null)
@@ -155,20 +153,15 @@ object MppPayments {
             signer = signer,
             payeeAddress = creatorAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
-            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-            signerType = signer.signerType,
             algodUrl = algodUrl,
         )
     }
 
     suspend fun topUpSessionVault(
         signer: MppWalletSigner,
-        viewerAddress: String,
-        hostAddress: String,
         additionalDepositMicroUsdc: Long,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
         if (channelId == null) return Result.failure(Exception("channelId is null"))

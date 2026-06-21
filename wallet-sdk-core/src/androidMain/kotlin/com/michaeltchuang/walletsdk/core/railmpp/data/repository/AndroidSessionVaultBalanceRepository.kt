@@ -10,8 +10,7 @@ class AndroidSessionVaultBalanceRepository : SessionVaultBalanceRepository {
                 viewerAddress = params.viewerAddress,
                 hostAddress = params.hostAddress,
                 appId = params.appId,
-                algodUrl = params.algodUrl,
-                authorizedSignerPublicKey = params.authorizedSignerPublicKey,
+                algodUrl = params.algodUrl
             )
         }
 }

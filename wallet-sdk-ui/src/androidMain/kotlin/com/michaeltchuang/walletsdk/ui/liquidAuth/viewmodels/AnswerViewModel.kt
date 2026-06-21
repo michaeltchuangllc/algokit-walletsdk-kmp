@@ -410,10 +410,6 @@ class AnswerViewModel(
         showConfirmationDialog.value = false
     }
 
-    fun consumeViewerRuntimeStateForUi() {
-        // Keep runtime state in ViewModel so UI can be detached from activity recreation.
-    }
-
     suspend fun topUpViewerSessionVault(
         enteredAmount: String,
         viewerAddress: String,
@@ -428,8 +424,6 @@ class AnswerViewModel(
                 MppPayments
                     .topUpSessionVault(
                         signer = signer,
-                        viewerAddress = viewerAddress,
-                        hostAddress = creatorAddress,
                         additionalDepositMicroUsdc = depositMicroUsdc,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                     ).getOrThrow()

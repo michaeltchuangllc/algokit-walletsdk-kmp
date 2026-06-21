@@ -655,8 +655,6 @@ class SetupMppPaymentViewerUseCase(
                                         MppPayments
                                             .topUpSessionVault(
                                                 signer = signer,
-                                                viewerAddress = viewerAddress,
-                                                hostAddress = sessionVaultHostAddress,
                                                 additionalDepositMicroUsdc = depositMicroUsdc,
                                             ).onSuccess { txId ->
                                                 Log.e(

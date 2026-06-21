@@ -118,7 +118,6 @@ class EscrowSessionVaultDebugViewModel(
             _isLoading.value = true
             _statusMessage.value = "Fetching Session Vault balance…"
             try {
-                val signer = mppWalletSignerUseCase(viewer)
                 val remaining =
                     withContext(Dispatchers.Default) {
                         MppPayments.getRemainingBalanceFromSessionVault(
@@ -126,7 +125,6 @@ class EscrowSessionVaultDebugViewModel(
                             hostAddress = creator,
                             appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                             algodUrl = null,
-                            authorizedSignerPublicKey = signer?.authorizedSignerPublicKey,
                         )
                     }
                 _remainingBalance.value = remaining
