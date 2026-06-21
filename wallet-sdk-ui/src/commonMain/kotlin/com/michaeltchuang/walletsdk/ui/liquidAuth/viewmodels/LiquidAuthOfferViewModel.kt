@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
@@ -16,7 +17,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
-import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -40,7 +40,7 @@ class LiquidAuthOfferViewModel(
     private val getAccountASABalance: GetAccountASABalance,
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
-    private val mppWalletSignerUseCase: MppWalletSignerUseCase
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
@@ -84,7 +84,7 @@ class LiquidAuthOfferViewModel(
     // Payment consumption monitor job (must be singleton to avoid double-deduction)
     private var blockchainMonitorJob: Job? = null
 
-    private var creatorAddress:String? = null
+    private var creatorAddress: String? = null
 
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
@@ -787,31 +787,33 @@ class LiquidAuthOfferViewModel(
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 Napier.e(
-                    "Closing session vault: creator=$creatorAddress, channelId=$channelId"
+                    "Closing session vault: creator=$creatorAddress, channelId=$channelId",
                 )
 
                 val signer = mppWalletSignerUseCase(creatorAddress)
                 if (signer == null) {
                     Napier.e(
-                        "Failed to close session vault: signer not found for $creatorAddress"
+                        "Failed to close session vault: signer not found for $creatorAddress",
                     )
                     return@launch
                 }
 
-                MppPayments.closeSessionVault(
-                    signer = signer, channelId = channelId
-                ).onSuccess { txId ->
-                    Napier.e("Session vault closed successfully. txId=$txId")
-                }.onFailure { throwable ->
-                    Napier.e(
-                        "Failed to close session vault. channelId=$channelId, error=${throwable.message}",
-                        throwable
-                    )
-                }
+                MppPayments
+                    .closeSessionVault(
+                        signer = signer,
+                        channelId = channelId,
+                    ).onSuccess { txId ->
+                        Napier.e("Session vault closed successfully. txId=$txId")
+                    }.onFailure { throwable ->
+                        Napier.e(
+                            "Failed to close session vault. channelId=$channelId, error=${throwable.message}",
+                            throwable,
+                        )
+                    }
             } catch (t: Throwable) {
                 Napier.e(
                     "Unexpected error while closing session vault. channelId=$channelId",
-                    t
+                    t,
                 )
             }
         }

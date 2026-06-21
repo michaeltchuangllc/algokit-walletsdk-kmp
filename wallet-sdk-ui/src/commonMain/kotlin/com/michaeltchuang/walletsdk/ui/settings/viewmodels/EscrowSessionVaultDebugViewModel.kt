@@ -193,7 +193,7 @@ class EscrowSessionVaultDebugViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     return@launch
                 }
 
@@ -202,14 +202,14 @@ class EscrowSessionVaultDebugViewModel(
                     return@launch
                 }
                 val channelId = EscrowSessionVaultManagerClient.channelId
-                if (channelId == null){
+                if (channelId == null) {
                     Napier.e("channelId is null", tag = TAG)
                     return@launch
                 }
                 val settleMessage =
                     MppPayments.settleMessage(
                         cumulativeAmountMicroUsdc = newCumulative,
-                        channelId = channelId
+                        channelId = channelId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -256,14 +256,14 @@ class EscrowSessionVaultDebugViewModel(
                 val viewerSigner = mppWalletSignerUseCase(viewer)
                 if (viewerSigner != null) {
                     val channelId = EscrowSessionVaultManagerClient.channelId
-                    if (channelId == null){
+                    if (channelId == null) {
                         Napier.e("channelId is null", tag = TAG)
                         return@launch
                     }
                     val settleMessage =
                         MppPayments.settleMessage(
                             cumulativeAmountMicroUsdc = depositMicroUsdc,
-                            channelId = channelId
+                            channelId = channelId,
                         )
                     val signature = viewerSigner.signMessage(settleMessage)
 
@@ -346,7 +346,7 @@ class EscrowSessionVaultDebugViewModel(
                     val requestedUsdc = newCumulative / 1_000_000.0
                     _statusMessage.value =
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                                "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
                     return@launch
                 }
 
@@ -356,14 +356,14 @@ class EscrowSessionVaultDebugViewModel(
                 }
 
                 val channelId = EscrowSessionVaultManagerClient.channelId
-                if (channelId == null){
+                if (channelId == null) {
                     Napier.e("channelId is null", tag = TAG)
                     return@launch
                 }
                 val settleMessage =
                     MppPayments.settleMessage(
                         cumulativeAmountMicroUsdc = newCumulative,
-                        channelId = channelId
+                        channelId = channelId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -562,10 +562,10 @@ class EscrowSessionVaultDebugViewModel(
                         if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
                             _statusMessage.value =
                                 "❌ Withdraw was rejected by the contract.\n\n" +
-                                        "Withdraw is the viewer's forced-close path. Make sure you:\n" +
-                                        "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
-                                        "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
-                                        "Then try 'Request Withdraw' again."
+                                "Withdraw is the viewer's forced-close path. Make sure you:\n" +
+                                "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
+                                "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
+                                "Then try 'Request Withdraw' again."
                             Napier.e(
                                 "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
                                 err,

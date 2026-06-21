@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase
 
-import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
 import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

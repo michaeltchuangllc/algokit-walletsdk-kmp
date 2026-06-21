@@ -6,5 +6,5 @@ import kotlinx.serialization.Serializable
 data class HelloMessage(
     val reference: String,
     val viewer: String,
-    val viewerPublicKey: String
+    val viewerPublicKey: String,
 )

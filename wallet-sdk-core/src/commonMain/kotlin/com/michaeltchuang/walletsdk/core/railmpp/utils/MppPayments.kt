@@ -61,9 +61,9 @@ object MppPayments {
         remainingMicroUsdc: Long,
         signatureBase64: String? = null,
     ): String {
-
-        val channelId = channelId
-            ?.let(Base64::encode)
+        val channelId =
+            channelId
+                ?.let(Base64::encode)
 
         return PaymentVoucher(
             reference = LiquidDcMessages.REF_PAYMENT_VOUCHER,
@@ -102,8 +102,9 @@ object MppPayments {
         algodUrl: String?,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        if (channelId==null)
+        if (channelId == null) {
             return 0L
+        }
         val result = getRemainingBalanceByChannelId(channelId!!, appId, algodUrl, baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
@@ -200,7 +201,7 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
+        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
         Napier.d(
             "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=$appId viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
@@ -242,7 +243,7 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray = decodeAlgorandAddressPublicKey(viewerAddress),
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
+        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         return contractClient(appId, algodUrl = algodUrl).settleLatest(signer, channelId, algodUrl)
     }
 
@@ -256,7 +257,7 @@ object MppPayments {
         signature: ByteArray,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
-        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
+        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         return contractClient(appId, algodUrl = algodUrl).settle(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
     }
 
@@ -268,26 +269,23 @@ object MppPayments {
         signature: ByteArray,
         algodUrl: String = TESTNET_ALGOD_URL,
     ): Result<String> {
-        val channelId = channelId?: return Result.failure(Exception("channelId is null"))
+        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         return contractClient(algodUrl = algodUrl).verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
     }
 
     fun settleMessage(
         cumulativeAmountMicroUsdc: Long,
-        channelId: ByteArray
-    ): ByteArray {
-        return contractClient().settleMessage(channelId, cumulativeAmountMicroUsdc)
-    }
+        channelId: ByteArray,
+    ): ByteArray = contractClient().settleMessage(channelId, cumulativeAmountMicroUsdc)
 
     suspend fun closeSessionVault(
         signer: MppWalletSigner,
-        channelId:ByteArray,
-    ): Result<String> {
-        return contractClient().close(
+        channelId: ByteArray,
+    ): Result<String> =
+        contractClient().close(
             signer = signer,
-            channelId = channelId
+            channelId = channelId,
         )
-    }
 
     data class SessionDynamicData(
         val totalDeposit: Long,
@@ -345,7 +343,7 @@ object MppPayments {
                 ?: listOf(viewerPk, hostPk)
         val channelIdCandidates =
             signerCandidates
-                .map {channelId ?: return null }
+                .map { channelId ?: return null }
                 .distinctBy { it.toList() }
 
         channelIdCandidates.forEachIndexed { index, channelId ->
@@ -373,7 +371,6 @@ object MppPayments {
         channelId: ByteArray,
         totalAmountClaimedMicroUsdc: Long,
     ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) + "settle".encodeToByteArray()
-
 
     @OptIn(ExperimentalEncodingApi::class)
     fun serializeVoucherSignature(signature: ByteArray): String = Base64.encode(signature)

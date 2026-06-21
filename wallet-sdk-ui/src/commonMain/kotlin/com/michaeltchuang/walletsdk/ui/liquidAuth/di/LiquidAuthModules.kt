@@ -27,7 +27,7 @@ internal val liquidAuthModules =
                     getAccountASABalance = get(),
                     getCurrentBlockUseCase = get<GetCurrentBlockUseCase>(),
                     getCurrentNetworkUseCase = get<GetCurrentNetworkUseCase>(),
-                    mppWalletSignerUseCase = get()
+                    mppWalletSignerUseCase = get(),
                 )
             }
         },

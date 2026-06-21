@@ -210,14 +210,6 @@ fun AnswerScreen(
                                 showPaymentDialog = false
                                 return@launch
                             }
-                        /*    val voucherMessage =
-                                MppPayments.buildClaimMessage(
-                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                    totalAmountClaimedMicroUsdc = micro,
-                                    channelId = EscrowSessionVaultManagerClient.channelId ?: return@launch
-                                )*/
-                          //  val voucherSignature = viewModel.signFido2Challenge(voucherMessage, accountAddress)
-
                             viewModel.approveMppConsent(
                                 ConsentApproval(
                                     approved = true,

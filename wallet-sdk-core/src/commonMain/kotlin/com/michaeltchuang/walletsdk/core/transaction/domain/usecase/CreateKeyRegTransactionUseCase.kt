@@ -5,6 +5,7 @@ import com.ionspin.kotlin.bignum.integer.toBigInteger
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.deeplink.model.KeyRegTransactionDetail
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 import com.michaeltchuang.walletsdk.core.foundation.utils.Result
 import com.michaeltchuang.walletsdk.core.foundation.utils.Result.Error
 import com.michaeltchuang.walletsdk.core.foundation.utils.Result.Success
@@ -14,7 +15,6 @@ import com.michaeltchuang.walletsdk.core.network.service.getAccountRekeyAdminAdd
 import com.michaeltchuang.walletsdk.core.transaction.model.KeyRegTransaction
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
-import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
 
 interface CreateKeyRegTransaction {
     suspend operator fun invoke(txnDetail: KeyRegTransactionDetail): Result<KeyRegTransaction>

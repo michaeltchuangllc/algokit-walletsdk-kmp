@@ -65,7 +65,7 @@ import kotlin.io.encoding.Base64
  */
 class AndroidLiquidAuthConnectionManager(
     private val context: Context,
-    private val mppWalletSignerUseCase: MppWalletSignerUseCase
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : LiquidAuthConnectionManager {
     companion object {
         private const val TAG = "AndroidLiquidAuthCM"
@@ -232,7 +232,7 @@ class AndroidLiquidAuthConnectionManager(
             val current = liquidStreamCreator
             val shouldRecreate =
                 current == null ||
-                        activePaymentRecipient != recipient
+                    activePaymentRecipient != recipient
 
             if (shouldRecreate) {
                 current?.terminate("replaced")
@@ -320,10 +320,10 @@ class AndroidLiquidAuthConnectionManager(
         val n = network.lowercase()
         return when {
             network == MppNetworks.SOLANA_MAINNET ||
-                    n.contains(
-                        "solana",
-                    ) &&
-                    (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
+                n.contains(
+                    "solana",
+                ) &&
+                (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
 
             network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
             network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
@@ -411,8 +411,8 @@ class AndroidLiquidAuthConnectionManager(
             Log.w(
                 TAG,
                 "⛔ Active viewer session detected (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
-                        "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
-                        "Skipping broadcast start to avoid disconnecting viewer.",
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping broadcast start to avoid disconnecting viewer.",
             )
             return
         }
@@ -679,7 +679,7 @@ class AndroidLiquidAuthConnectionManager(
                             )
                             startBlockConsumption(voucherSessionId)
                             blockConsumptionManager.triggerSettlementFromViewerVoucher(
-                                voucherSessionId
+                                voucherSessionId,
                             )
                         }
                     }
@@ -694,8 +694,7 @@ class AndroidLiquidAuthConnectionManager(
         }
     }
 
-    private fun decodeBase64OrNull(value: String): ByteArray? =
-        runCatching { Base64.decode(value) }.getOrNull()
+    private fun decodeBase64OrNull(value: String): ByteArray? = runCatching { Base64.decode(value) }.getOrNull()
 
     private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
         liquidStreamCreator?.updateConfig(
@@ -750,8 +749,8 @@ class AndroidLiquidAuthConnectionManager(
             Log.w(
                 TAG,
                 "⏸️ Viewer session still active (AnswerScreenState.isVisible=${AnswerScreenState.isVisible}, " +
-                        "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
-                        "Skipping signalService.stop() to preserve viewer connection.",
+                    "ConnectionStatusState.isVisible=${ConnectionStatusState.isVisible}). " +
+                    "Skipping signalService.stop() to preserve viewer connection.",
             )
         }
 
@@ -861,27 +860,27 @@ class AndroidLiquidAuthConnectionManager(
         return when (expected.type?.toString()) {
             "pay" -> {
                 expected.receiver?.toString() == actual.receiver?.toString() &&
-                        (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
+                    (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
             }
 
             "axfer" -> {
                 expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                        (expected.assetAmount ?: BigInteger.ZERO) == (
+                    (expected.assetAmount ?: BigInteger.ZERO) == (
                         actual.assetAmount
                             ?: BigInteger.ZERO
-                        ) &&
-                        expected.assetIndex.toLong() == actual.assetIndex.toLong()
+                    ) &&
+                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
             }
 
             "appl" -> {
                 expected.applicationId.toLong() == actual.applicationId.toLong() &&
-                        (
-                                expected.applicationArgs
-                                    ?: emptyList<ByteArray>()
-                                ) == (
+                    (
+                        expected.applicationArgs
+                            ?: emptyList<ByteArray>()
+                    ) == (
                         actual.applicationArgs
                             ?: emptyList<ByteArray>()
-                        )
+                    )
             }
 
             else -> true
@@ -897,7 +896,7 @@ class AndroidLiquidAuthConnectionManager(
         if (publicKey.isEmpty() || privateKey.isEmpty()) {
             Log.e(
                 TAG,
-                "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}"
+                "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}",
             )
             return emptyList()
         }
@@ -936,7 +935,7 @@ class AndroidLiquidAuthConnectionManager(
                             val signed =
                                 Encoder.decodeFromMsgPack(
                                     signedBytes,
-                                    SignedTransaction::class.java
+                                    SignedTransaction::class.java,
                                 )
                             val signedTxn = signed.tx ?: return@runCatching null
                             Triple(signedTxn.txID(), signedTxn, signedBytes)
@@ -953,9 +952,9 @@ class AndroidLiquidAuthConnectionManager(
             val decodedAllGrouped =
                 decodedSigned.all {
                     it.second.group != null &&
-                            it.second.group
-                                .toString()
-                                .isNotBlank()
+                        it.second.group
+                            .toString()
+                            .isNotBlank()
                 }
 
             Log.e(
@@ -997,7 +996,7 @@ class AndroidLiquidAuthConnectionManager(
                     } else {
                         Log.e(
                             TAG,
-                            "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId"
+                            "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId",
                         )
                         return@withContext emptyList()
                     }

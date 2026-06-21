@@ -51,12 +51,14 @@ class EscrowSessionVaultManagerClient(
         runCatching {
             val payer = decodeAlgorandAddressPublicKey(signer.address)
             val payee = decodeAlgorandAddressPublicKey(payeeAddress)
-            val deriveChannelId = sha256(
-                payer + payee + encodeUint64(usdcAssetId) +
-                        defaultSalt + computeSignerPubkeyHash(
-                    signer.authorizedSignerPublicKey
+            val deriveChannelId =
+                sha256(
+                    payer + payee + encodeUint64(usdcAssetId) +
+                        defaultSalt +
+                        computeSignerPubkeyHash(
+                            signer.authorizedSignerPublicKey,
+                        ),
                 )
-            )
             channelId = deriveChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,

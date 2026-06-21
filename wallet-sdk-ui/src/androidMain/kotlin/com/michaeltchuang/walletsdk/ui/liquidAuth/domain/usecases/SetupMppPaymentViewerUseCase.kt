@@ -274,20 +274,21 @@ class SetupMppPaymentViewerUseCase(
                         // Send the viewer's authorized signer public key to the creator the
                         // moment the DataChannel opens — BEFORE any segment:request arrives.
                         viewer.rtcClient.onDataChannelOpen = {
-
-                            val pubKeyBytes = signer.authorizedSignerPublicKey
-                                .let(Base64::encode)
-                            val helloMsg = HelloMessage(
-                                reference = LiquidDcMessages.REF_VIEWER_HELLO,
-                                viewer= viewerAddress,
-                                viewerPublicKey = pubKeyBytes,
-                            )
+                            val pubKeyBytes =
+                                signer.authorizedSignerPublicKey
+                                    .let(Base64::encode)
+                            val helloMsg =
+                                HelloMessage(
+                                    reference = LiquidDcMessages.REF_VIEWER_HELLO,
+                                    viewer = viewerAddress,
+                                    viewerPublicKey = pubKeyBytes,
+                                )
 
                             service.send(helloMsg.toJson())
 
                             Log.d(
                                 TAG,
-                                "[VIEWER_HELLO_SENT] viewer=$viewerAddress pubKeyLen=${pubKeyBytes.length}"
+                                "[VIEWER_HELLO_SENT] viewer=$viewerAddress pubKeyLen=${pubKeyBytes.length}",
                             )
                         }
 

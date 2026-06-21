@@ -256,7 +256,6 @@ actual fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArra
             ?.toULong() ?: payload.txnParams.fee.toULong()
     val flatFeeEnabled = payload.flatFee != null
 
-
     val encodedTx =
         bridge.createOfflineKeyRegTransactionWithSenderAddress(
             senderAddress = payload.senderAddress,
