@@ -1,6 +1,15 @@
 {
-  "originHash" : "b735e2922a45c29b5f34198069f8d9868b189145302393cfcba86d3189ec98a0",
+  "originHash" : "e462c59672f9f49f142d1974cf684d2903476259dfa6c9ebe0b1482f7fa90d50",
   "pins" : [
+    {
+      "identity" : "algokit-core-swift",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/algorandecosystem/algokit-core-swift",
+      "state" : {
+        "branch" : "main",
+        "revision" : "e035fdcc0da78f4965a1954ff3f08dd46d1544a9"
+      }
+    },
     {
       "identity" : "algorand-devrel-xhd-wallet-api-swift",
       "kind" : "remoteSourceControl",
@@ -53,6 +62,15 @@
       "state" : {
         "revision" : "1e821f5516049f5b83aca8cb3b982910cf8c028c",
         "version" : "1.2.8"
+      }
+    },
+    {
+      "identity" : "falcon-signatures-mobile",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/algorandecosystem/falcon-signatures-mobile",
+      "state" : {
+        "branch" : "main",
+        "revision" : "a224ec0cfc1c64225f5e05acaff496233f98ebf7"
       }
     },
     {
