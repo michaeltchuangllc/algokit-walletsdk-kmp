@@ -21,6 +21,7 @@ private const val APP_CALL_FEE = 12_000L
 private const val DUMMIES_PER_REAL_TXN = 3
 private const val MIN_TXN_FEE = 1_000L
 private const val SIGNER_TYPE_FALCON = 1L
+private val ABI_RETURN_PREFIX = byteArrayOf(0x15, 0x1f, 0x7c, 0x75)
 
 internal actual fun getSessionBoxBytesInternal(
     appId: Long,
@@ -45,27 +46,39 @@ internal actual suspend fun submitAppCallInternal(
     foreignAssets: List<Long>,
     foreignAccounts: List<String>,
 ): String {
-    BouncyCastleProviderSetup.ensure()
-    val client = algodClient(algodUrl)
-    val params = client.TransactionParams().execute().body()
-    val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets, foreignAccounts)
+    val (_, txId) = submitAppCallInternalWithClientTxnId(
+        signer = signer,
+        appId = appId,
+        algodUrl = algodUrl,
+        args = args,
+        boxKeys = boxKeys,
+        foreignAssets = foreignAssets,
+        foreignAccounts = foreignAccounts,
+    )
+    return txId
+}
 
-    val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
-    val dummies = if (useFalcon) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
-    if (dummies.isNotEmpty()) {
-        appCallTxn.fee = BigInteger.valueOf((appCallTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
-    }
-
-    val txns = dummies + appCallTxn
-    TxGroup.assignGroupID(*txns.toTypedArray())
-    Log.d(TAG, "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
-
-    // Pass Transaction objects directly to avoid Jackson NON_DEFAULT omitting fee=0 on dummies.
-    val signed = signTxnGroup(signer, txns)
-    require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
-        "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
-    }
-    return broadcast(client, signed) ?: appCallTxn.txID()
+internal actual suspend fun submitAppCallForBytesReturnInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    defaultSalt: ByteArray,
+    algodUrl: String,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+    foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
+): ByteArray {
+    val (client, txId) = submitAppCallInternalWithClientTxnId(
+        signer = signer,
+        appId = appId,
+        algodUrl = algodUrl,
+        args = args,
+        boxKeys = boxKeys,
+        foreignAssets = foreignAssets,
+        foreignAccounts = foreignAccounts,
+    )
+    return awaitArc4ByteArrayReturn(client, txId)
 }
 
 internal actual suspend fun submitAssetTransferAndAppCallInternal(
@@ -151,6 +164,61 @@ internal actual fun awaitConfirmationInternal(
  * Jackson's @JsonInclude(NON_DEFAULT) omitting fee=0 from the dummy msgpack bytes.
  * Falcon signers override signTransactions to bundle-sign the whole group at once.
  */
+private suspend fun submitAppCallInternalWithClientTxnId(
+    signer: MppWalletSigner,
+    appId: Long,
+    algodUrl: String,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+    foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
+): Pair<AlgodClient, String> {
+    BouncyCastleProviderSetup.ensure()
+    val client = algodClient(algodUrl)
+    val params = client.TransactionParams().execute().body()
+    val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets, foreignAccounts)
+
+    val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
+    val dummies = if (useFalcon) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
+    if (dummies.isNotEmpty()) {
+        appCallTxn.fee = BigInteger.valueOf((appCallTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
+    }
+
+    val txns = dummies + appCallTxn
+    TxGroup.assignGroupID(*txns.toTypedArray())
+    Log.d(TAG, "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
+
+    // Pass Transaction objects directly to avoid Jackson NON_DEFAULT omitting fee=0 on dummies.
+    val signed = signTxnGroup(signer, txns)
+    require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
+        "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
+    }
+    val txId = broadcast(client, signed) ?: appCallTxn.txID()
+    return Pair(client, txId)
+}
+
+private fun awaitArc4ByteArrayReturn(
+    client: AlgodClient,
+    txId: String,
+    maxRounds: Int = 10,
+): ByteArray {
+    repeat(maxRounds) {
+        val resp = client.PendingTransactionInformation(txId).execute()
+        if (resp.isSuccessful) {
+            val body = resp.body()
+            val round = body?.confirmedRound ?: 0L
+            if (round > 0L) {
+                val logs = body?.logs.orEmpty()
+                val returnLog = logs.lastOrNull { it.size >= ABI_RETURN_PREFIX.size && it.copyOfRange(0, ABI_RETURN_PREFIX.size).contentEquals(ABI_RETURN_PREFIX) }
+                    ?: error("No ABI return log for app call $txId")
+                return decodeArc4DynamicBytes(returnLog.copyOfRange(ABI_RETURN_PREFIX.size, returnLog.size))
+            }
+        }
+        Thread.sleep(700)
+    }
+    error("App call $txId was not confirmed before timeout")
+}
+
 private suspend fun signTxnGroup(
     signer: MppWalletSigner,
     txns: List<Transaction>,
@@ -202,6 +270,13 @@ private fun buildFalconDummy(
 }
 
 private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }
+
+private fun decodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
+    require(bytes.size >= 2) { "ARC-4 byte[] return is missing length header" }
+    val length = ((bytes[0].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+    require(bytes.size >= 2 + length) { "ARC-4 byte[] return length mismatch" }
+    return bytes.copyOfRange(2, 2 + length)
+}
 
 private fun algodClient(url: String): AlgodClient {
     val uri = URI(url.removeSuffix("/"))

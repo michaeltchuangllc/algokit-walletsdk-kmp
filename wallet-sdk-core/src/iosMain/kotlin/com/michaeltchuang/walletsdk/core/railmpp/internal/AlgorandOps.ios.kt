@@ -14,6 +14,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 private const val TAG = "AlgorandOps.ios"
 private const val APP_CALL_FEE = 12_000L
 private const val MIN_TXN_FEE = 1_000L
+private val ABI_RETURN_PREFIX = byteArrayOf(0x15, 0x1f, 0x7c, 0x75)
 
 @OptIn(ExperimentalForeignApi::class)
 private val bridge by lazy { spmAlgoApiBridge() }
@@ -53,37 +54,40 @@ internal actual suspend fun submitAppCallInternal(
     boxKeys: List<Pair<Long, ByteArray>>,
     foreignAssets: List<Long>,
     foreignAccounts: List<String>,
-): String {
-    val params = fetchTxParams(algodUrl)
+): String =
+    submitAppCallInternalTxnId(
+        signer = signer,
+        appId = appId,
+        algodUrl = algodUrl,
+        args = args,
+        boxKeys = boxKeys,
+        foreignAssets = foreignAssets,
+        foreignAccounts = foreignAccounts,
+    )
 
-    val argsB64 = args.map { Base64.encode(it) }
-    val boxRefAppIds = boxKeys.map { it.first }
-    val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
-
-    // Swift: buildAppCallTxn(senderAddress:appId:...) → Kotlin: buildAppCallTxnWithSenderAddress
-    // close()/withdraw() refund the counterparty via inner asset transfers, so the payer/payee
-    // accounts read from the channel box must be referenced here, otherwise the AVM rejects the
-    // inner txn with "unavailable Account".
-    val txnBytes =
-        bridge.buildAppCallTxnWithSenderAddress(
-            senderAddress = signer.address,
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+internal actual suspend fun submitAppCallForBytesReturnInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    defaultSalt: ByteArray,
+    algodUrl: String,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+    foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
+): ByteArray {
+    val txId =
+        submitAppCallInternalTxnId(
+            signer = signer,
             appId = appId,
-            appArgsBase64 = argsB64,
-            boxRefAppIds = boxRefAppIds,
-            boxRefNamesBase64 = boxRefNamesB64,
+            algodUrl = algodUrl,
+            args = args,
+            boxKeys = boxKeys,
             foreignAssets = foreignAssets,
-            foreignAccountAddresses = foreignAccounts,
-            fee = APP_CALL_FEE,
-            firstRound = params.firstRoundValid,
-            lastRound = params.lastRoundValid,
-            genesisHashBase64 = params.genesisHashBase64,
-            genesisID = params.genesisID,
+            foreignAccounts = foreignAccounts,
         )
-    if (txnBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
-
-    val signedBytes = signer.signTransactionBytes(txnBytes.toKotlinByteArray())
-    val signedB64 = Base64.encode(signedBytes)
-    return broadcastAndGetTxId(algodUrl, signedB64)
+    return awaitArc4ByteArrayReturn(txId, algodUrl)
 }
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
@@ -218,6 +222,48 @@ internal actual fun awaitConfirmationInternal(
 
 // ── Private helpers ─────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+private suspend fun submitAppCallInternalTxnId(
+    signer: MppWalletSigner,
+    appId: Long,
+    algodUrl: String,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+    foreignAssets: List<Long>,
+    foreignAccounts: List<String>,
+): String {
+    val params = fetchTxParams(algodUrl)
+
+    val argsB64 = args.map { Base64.encode(it) }
+    val boxRefAppIds = boxKeys.map { it.first }
+    val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
+
+    // Swift: buildAppCallTxn(senderAddress:appId:...) → Kotlin: buildAppCallTxnWithSenderAddress
+    // close()/withdraw() refund the counterparty via inner asset transfers, so the payer/payee
+    // accounts read from the channel box must be referenced here, otherwise the AVM rejects the
+    // inner txn with "unavailable Account".
+    val txnBytes =
+        bridge.buildAppCallTxnWithSenderAddress(
+            senderAddress = signer.address,
+            appId = appId,
+            appArgsBase64 = argsB64,
+            boxRefAppIds = boxRefAppIds,
+            boxRefNamesBase64 = boxRefNamesB64,
+            foreignAssets = foreignAssets,
+            foreignAccountAddresses = foreignAccounts,
+            fee = APP_CALL_FEE,
+            firstRound = params.firstRoundValid,
+            lastRound = params.lastRoundValid,
+            genesisHashBase64 = params.genesisHashBase64,
+            genesisID = params.genesisID,
+        )
+    if (txnBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
+
+    val signedBytes = signer.signTransactionBytes(txnBytes.toKotlinByteArray())
+    val signedB64 = Base64.encode(signedBytes)
+    return broadcastAndGetTxId(algodUrl, signedB64)
+}
+
 private data class AlgodTxParams(
     val firstRoundValid: Long,
     val lastRoundValid: Long,
@@ -270,6 +316,36 @@ private fun broadcastAndGetTxId(
     return txId
 }
 
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+private fun awaitArc4ByteArrayReturn(
+    txId: String,
+    algodUrl: String,
+    maxRounds: Int = 10,
+): ByteArray {
+    repeat(maxRounds) {
+        val json = bridge.syncGetPendingTxnWithAlgodUrl(algodUrl = algodUrl, txId = txId)
+        if (json.isNotEmpty()) {
+            val confirmedRound = parseJsonLong(json, "confirmed-round") ?: 0L
+            if (confirmedRound > 0L) {
+                val returnLog = parseJsonStringArray(json, "logs")
+                    .map { Base64.decode(normalizeBase64(it)) }
+                    .lastOrNull { it.size >= ABI_RETURN_PREFIX.size && it.copyOfRange(0, ABI_RETURN_PREFIX.size).contentEquals(ABI_RETURN_PREFIX) }
+                    ?: error("iOS: no ABI return log for app call $txId")
+                return decodeArc4DynamicBytes(returnLog.copyOfRange(ABI_RETURN_PREFIX.size, returnLog.size))
+            }
+        }
+        NSThread.sleepForTimeInterval(0.7)
+    }
+    error("iOS: app call $txId was not confirmed before timeout")
+}
+
+private fun decodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
+    require(bytes.size >= 2) { "ARC-4 byte[] return is missing length header" }
+    val length = ((bytes[0].toInt() and 0xFF) shl 8) or (bytes[1].toInt() and 0xFF)
+    require(bytes.size >= 2 + length) { "ARC-4 byte[] return length mismatch" }
+    return bytes.copyOfRange(2, 2 + length)
+}
+
 /** Normalises URL-safe base64 to standard base64 with padding. */
 private fun normalizeBase64(s: String): String {
     val standard = s.replace('-', '+').replace('_', '/')
@@ -282,12 +358,19 @@ private fun parseJsonString(
     json: String,
     key: String,
 ): String? =
-    Regex(""""$key"\s*:\s*"([^"]*)"()""")
+    Regex(""""$key"\s*:\s*"([^"]*)""")
         .find(json)
         ?.groupValues
         ?.getOrNull(1)
         ?.takeIf { it.isNotEmpty() }
-        ?: Regex(""""$key"\s*:\s*"([^"]+)"""").find(json)?.groupValues?.getOrNull(1)
+
+private fun parseJsonStringArray(
+    json: String,
+    key: String,
+): List<String> {
+    val body = Regex(""""$key"\s*:\s*\[(.*?)]""", RegexOption.DOT_MATCHES_ALL).find(json)?.groupValues?.getOrNull(1) ?: return emptyList()
+    return Regex(""""([^"\\]*(?:\\.[^"\\]*)*)"""").findAll(body).map { it.groupValues[1] }.toList()
+}
 
 /** Extracts a JSON long value for [key]. */
 private fun parseJsonLong(

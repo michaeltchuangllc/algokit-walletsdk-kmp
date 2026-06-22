@@ -6,8 +6,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressP
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInternal
-import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
+import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallForBytesReturnInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
@@ -39,6 +39,7 @@ class EscrowSessionVaultManagerClient(
         private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
         private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
         private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
+        private val ABI_DERIVE_CHANNEL_ID = byteArrayOf(0x2b, 0xf6.toByte(), 0x09, 0xe0.toByte())
         var channelId: ByteArray? = null
     }
 
@@ -46,16 +47,20 @@ class EscrowSessionVaultManagerClient(
         signer: MppWalletSigner,
         payeeAddress: String,
         depositMicroUsdc: Long,
+        channelId: ByteArray? = null,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val deriveChannelId =
-                deriveChannelId(
-                    payerAddress = signer.address,
-                    payeeAddress = payeeAddress,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                )
-            channelId = deriveChannelId
+            val derivedChannelId =
+                channelId
+                    ?: deriveChannelId(
+                        signer = signer,
+                        payerAddress = signer.address,
+                        payeeAddress = payeeAddress,
+                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        algodUrl = algodUrl,
+                    ).getOrThrow()
+            EscrowSessionVaultManagerClient.channelId = derivedChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,
@@ -71,8 +76,8 @@ class EscrowSessionVaultManagerClient(
                     ),
                 boxKeys =
                     listOf(
-                        Pair(appId, deriveChannelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + deriveChannelId),
+                        Pair(appId, derivedChannelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + derivedChannelId),
                     ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,
@@ -391,18 +396,32 @@ class EscrowSessionVaultManagerClient(
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
 
-    fun deriveChannelId(
+    suspend fun deriveChannelId(
+        signer: MppWalletSigner,
         payerAddress: String,
         payeeAddress: String,
         authorizedSignerPublicKey: ByteArray,
-    ): ByteArray =
-        sha256(
-            decodeAlgorandAddressPublicKey(payerAddress) +
-                decodeAlgorandAddressPublicKey(payeeAddress) +
-                encodeUint64(usdcAssetId) +
-                defaultSalt +
-                computeSignerPubkeyHash(authorizedSignerPublicKey),
-        )
+        algodUrl: String = defaultAlgodUrl,
+    ): Result<ByteArray> =
+        runCatching {
+            submitAppCallForBytesReturnInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                defaultSalt = defaultSalt,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_DERIVE_CHANNEL_ID,
+                        decodeAlgorandAddressPublicKey(payerAddress),
+                        decodeAlgorandAddressPublicKey(payeeAddress),
+                        encodeArc4DynamicBytes(computeSignerPubkeyHash(authorizedSignerPublicKey)),
+                        encodeArc4DynamicBytes(defaultSalt),
+                    ),
+                boxKeys = emptyList(),
+                foreignAssets = emptyList(),
+            )
+        }
 
     fun settleMessage(
         channelId: ByteArray,

@@ -26,6 +26,22 @@ internal expect suspend fun submitAppCallInternal(
 ): String
 
 /**
+ * Builds, signs, broadcasts, waits for confirmation, and decodes an ARC-4 byte[] return value
+ * from an app-call transaction log.
+ */
+internal expect suspend fun submitAppCallForBytesReturnInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    defaultSalt: ByteArray,
+    algodUrl: String,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+    foreignAssets: List<Long>,
+    foreignAccounts: List<String> = emptyList(),
+): ByteArray
+
+/**
  * Builds, signs (via [signer]), and broadcasts an asset-transfer + app-call group.
  * [boxKeys] is a list of (appId, boxKey) pairs for AVM box references.
  */
