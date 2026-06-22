@@ -302,7 +302,7 @@ export class EscrowSessionVaultManager extends Contract {
   }
 
   /**
-   * Read-only helper for clients: deterministic channelId derivation.
+   * Backwards-compatible alias for deterministic channelId derivation.
    * authorizedSigner must be signer pubkey hash (32 bytes).
    */
   computeChannelId(payer: Account, payee: Account, authorizedSigner: bytes, salt: bytes): bytes {
@@ -343,6 +343,16 @@ export class EscrowSessionVaultManager extends Contract {
     assert(signature.length === 64, 'Invalid Ed25519 signature length')
     const signatureIsValid = op.ed25519verifyBare(message, signature, authorizedSigner)
     assert(signatureIsValid, 'Invalid signature')
+  }
+
+  /**
+   * Read-only helper for clients: deterministic channelId derivation.
+   * authorizedSigner must be signer pubkey hash (32 bytes).
+   */
+  deriveChannelId(payer: Account, payee: Account, authorizedSigner: bytes, salt: bytes): bytes {
+    // Algorand channel-id derivation:
+    // sha256(payer || payee || assetId || salt || authorizedSignerHash)
+    return op.sha256(payer.bytes.concat(payee.bytes).concat(op.itob(USDC_ASSET_ID)).concat(salt).concat(authorizedSigner))
   }
 
   // Helper functions
@@ -396,12 +406,6 @@ export class EscrowSessionVaultManager extends Contract {
       const authorizedSignerKey = this.authorizedSignerPublicKey(channelId)
       authorizedSignerKey.value = authorizedSignerPublicKey
     }
-  }
-
-  private deriveChannelId(payer: Account, payee: Account, authorizedSigner: bytes, salt: bytes): bytes {
-    // Algorand channel-id derivation:
-    // sha256(payer || payee || assetId || salt || authorizedSignerHash)
-    return op.sha256(payer.bytes.concat(payee.bytes).concat(op.itob(USDC_ASSET_ID)).concat(salt).concat(authorizedSigner))
   }
 
   private getSettleMessage(channelId: bytes, cumulativeAmount: uint64): bytes {
