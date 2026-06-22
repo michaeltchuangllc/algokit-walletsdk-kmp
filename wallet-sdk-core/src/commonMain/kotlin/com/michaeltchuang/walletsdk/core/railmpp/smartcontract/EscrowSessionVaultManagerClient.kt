@@ -49,15 +49,11 @@ class EscrowSessionVaultManagerClient(
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val payer = decodeAlgorandAddressPublicKey(signer.address)
-            val payee = decodeAlgorandAddressPublicKey(payeeAddress)
             val deriveChannelId =
-                sha256(
-                    payer + payee + encodeUint64(usdcAssetId) +
-                        defaultSalt +
-                        computeSignerPubkeyHash(
-                            signer.authorizedSignerPublicKey,
-                        ),
+                deriveChannelId(
+                    payerAddress = signer.address,
+                    payeeAddress = payeeAddress,
+                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 )
             channelId = deriveChannelId
             submitAssetTransferAndAppCallInternal(
@@ -394,6 +390,19 @@ class EscrowSessionVaultManagerClient(
         }
 
     fun computeSignerPubkeyHash(authorizedSigner: ByteArray): ByteArray = sha512_256(authorizedSigner)
+
+    fun deriveChannelId(
+        payerAddress: String,
+        payeeAddress: String,
+        authorizedSignerPublicKey: ByteArray,
+    ): ByteArray =
+        sha256(
+            decodeAlgorandAddressPublicKey(payerAddress) +
+                decodeAlgorandAddressPublicKey(payeeAddress) +
+                encodeUint64(usdcAssetId) +
+                defaultSalt +
+                computeSignerPubkeyHash(authorizedSignerPublicKey),
+        )
 
     fun settleMessage(
         channelId: ByteArray,
