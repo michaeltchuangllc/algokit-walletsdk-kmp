@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.core.algosdk
 
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.Bip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
-import com.michaeltchuang.walletsdk.core.foundation.utils.SuggestedParams
+import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
 
@@ -76,14 +76,46 @@ expect fun signAlgo25Transaction(
     transactionByteArray: ByteArray,
 ): ByteArray
 
-expect fun getReceiverMinBalanceFee(
-    receiverAlgoAmount: String,
-    receiverMinBalanceAmount: String,
-): Long
-
 expect fun createTransaction(payload: OfflineKeyRegTransactionPayload): ByteArray
 
 expect fun createTransaction(payload: OnlineKeyRegTransactionPayload): ByteArray
+
+data class SuggestedParams(
+    var fee: Long = 0,
+    var genesisID: String = "",
+    var firstRoundValid: Long = 0,
+    var lastRoundValid: Long = 0,
+    var genesisHash: ByteArray = ByteArray(0),
+    var flatFee: Boolean = false,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as SuggestedParams
+
+        if (fee != other.fee) return false
+        if (genesisID != other.genesisID) return false
+        if (firstRoundValid != other.firstRoundValid) return false
+        if (lastRoundValid != other.lastRoundValid) return false
+        if (!genesisHash.contentEquals(other.genesisHash)) return false
+        if (flatFee != other.flatFee) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = fee.hashCode()
+        result = 31 * result + genesisID.hashCode()
+        result = 31 * result + firstRoundValid.hashCode()
+        result = 31 * result + lastRoundValid.hashCode()
+        result = 31 * result + genesisHash.contentHashCode()
+        result = 31 * result + flatFee.hashCode()
+        return result
+    }
+}
+
+expect fun TransactionParams.toSuggestedParams(addGenesisId: Boolean = true): SuggestedParams
 
 expect fun makeAssetTransferTxn(
     senderAddress: String,
@@ -92,6 +124,7 @@ expect fun makeAssetTransferTxn(
     assetId: Long,
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
+    staticFee: Long? = null,
 ): ByteArray
 
 expect fun makePaymentTxn(
@@ -101,12 +134,14 @@ expect fun makePaymentTxn(
     isMax: Boolean,
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
+    staticFee: Long? = null,
 ): ByteArray
 
 expect fun makeAssetAcceptanceTxn(
     publicKey: String,
     assetId: Long,
     suggestedParams: SuggestedParams,
+    staticFee: Long? = null,
 ): ByteArray
 
 expect fun isValidAlgorandAddress(accountAddress: String): Boolean

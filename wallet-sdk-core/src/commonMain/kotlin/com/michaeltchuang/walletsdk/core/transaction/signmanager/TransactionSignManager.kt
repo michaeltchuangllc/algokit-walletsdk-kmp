@@ -4,12 +4,19 @@ import androidx.lifecycle.Lifecycle
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.toBigInteger
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.algosdk.makeAssetAcceptanceTxn
+import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
+import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
+import com.michaeltchuang.walletsdk.core.algosdk.SuggestedParams
+import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
+import com.michaeltchuang.walletsdk.core.algosdk.toSuggestedParams
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
 import com.michaeltchuang.walletsdk.core.foundation.utils.ListQueuingHelper
 import com.michaeltchuang.walletsdk.core.foundation.utils.TransactionSignSigningHelper
@@ -17,14 +24,8 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.clearFromMemory
 import com.michaeltchuang.walletsdk.core.foundation.utils.flatten
 import com.michaeltchuang.walletsdk.core.foundation.utils.getTxFee
 import com.michaeltchuang.walletsdk.core.foundation.utils.isLesserThan
-import com.michaeltchuang.walletsdk.core.foundation.utils.makeAddAssetTx
-import com.michaeltchuang.walletsdk.core.foundation.utils.makeRekeyTx
-import com.michaeltchuang.walletsdk.core.foundation.utils.makeRemoveAssetTx
-import com.michaeltchuang.walletsdk.core.foundation.utils.makeSendAndRemoveAssetTx
-import com.michaeltchuang.walletsdk.core.foundation.utils.makeTx
 import com.michaeltchuang.walletsdk.core.foundation.utils.mapToNotNullableListOrNull
 import com.michaeltchuang.walletsdk.core.foundation.utils.minBalancePerAssetAsBigInteger
-import com.michaeltchuang.walletsdk.core.foundation.utils.signTx
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
@@ -110,7 +111,7 @@ open class TransactionSignManager(
             if (isArc59Transaction) {
                 return@run
             }
-            calculatedFee = transactionParams?.getTxFee(transactionByteArray)
+            calculatedFee = transactionParams?.getTxFee(transactionByteArray, signer)
             if (this is TransactionSignData.Send && projectedFee != calculatedFee) {
                 currentScope.launch { resignCurrentTransaction() }
                 return
@@ -194,7 +195,8 @@ open class TransactionSignManager(
                         setSignFailed(Defined())
                         return
                     }
-                checkAndCacheSignedTransaction(transactionByteArray?.signTx(secretKey))
+                val transactionBytes = transactionByteArray ?: return handleSignError()
+                checkAndCacheSignedTransaction(signAlgo25Transaction(secretKey, transactionBytes))
             }
 
             is TransactionSigner.HdKey -> {
@@ -233,33 +235,6 @@ open class TransactionSignManager(
         setSignFailed(Defined())
     }
 
-    /* private suspend fun TransactionSignData.createArc59SendTransactions(): List<Arc59TransactionData>? {
-         val transactionParams = getTransactionParams(this) ?: return null
-         this@TransactionSignManager.transactionParams = transactionParams
-         val arc59TransactionData = mutableListOf<Arc59TransactionData>()
-         (this as? TransactionSignData.Send)?.let {
-             projectedFee = calculatedFee ?: transactionParams.getTxFee()
-             val transactions = transactionParams.makeArc59Txn(
-                 senderAddress = senderAccountAddress,
-                 receiverAddress = targetUser.publicKey,
-                 transactionAmount = amount,
-                 senderAlgoAmount = senderAlgoAmount,
-                 senderMinBalanceAmount = minimumBalance.toBigInteger(),
-                 receiverAlgoAmount = targetUser.algoBalance ?: BigInteger.ZERO,
-                 receiverMinBalanceAmount = targetUser.minBalance ?: BigInteger.ZERO,
-                 assetId = assetId,
-                 note = if (xnote.isNullOrBlank()) note else xnote
-             )
-
-             for (i in 0 until transactions.length()) {
-                 val txn = transactions.getTxn(i)
-                 val signer = transactions.getSigner(i)
-                 arc59TransactionData.add(Arc59TransactionData(txn, signer))
-             }
-         }
-         return arc59TransactionData
-     }*/
-
     private suspend fun signFalconTransaction(
         transactionByteArray: ByteArray?,
         accountAddress: String,
@@ -290,7 +265,7 @@ open class TransactionSignManager(
         val createdTransactionByteArray =
             when (this) {
                 is TransactionSignData.Send -> {
-                    projectedFee = calculatedFee ?: transactionParams.getTxFee()
+                    projectedFee = calculatedFee ?: transactionParams.getTxFee(signer = signer)
                     // calculate isMax before calculating real amount because while isMax true fee will be deducted.
                     isMax = isTransactionMax(amount, senderAccountAddress, assetId)
                     // TODO: 10.08.2022 Get all those calculations from a single AmountTransactionValidationUseCase
@@ -313,26 +288,38 @@ open class TransactionSignManager(
                         return null
                     }
 
-                    transactionParams.makeTx(
+                    transactionParams.createSendTransaction(
                         senderAddress = senderAccountAddress,
                         receiverAddress = targetUser.publicKey,
                         amount = amount,
                         assetId = assetId,
                         isMax = isMax,
                         note = if (xnote.isNullOrBlank()) note else xnote,
+                        staticFee = projectedFee,
                     )
                 }
 
                 is TransactionSignData.AddAsset -> {
-                    transactionParams.makeAddAssetTx(senderAccountAddress, assetId)
+                    val staticFee = transactionParams.getTxFee(signer = signer)
+                    makeAssetAcceptanceTxn(
+                        publicKey = senderAccountAddress,
+                        assetId = assetId,
+                        suggestedParams = transactionParams.toStaticSuggestedParams(staticFee),
+                        staticFee = staticFee,
+                    )
                 }
 
                 is TransactionSignData.RemoveAsset -> {
                     if (shouldCreateAssetRemoveTransaction(senderAccountAddress, assetId)) {
-                        transactionParams.makeRemoveAssetTx(
+                        val staticFee = transactionParams.getTxFee(signer = signer)
+                        makeAssetTransferTxn(
                             senderAddress = senderAccountAddress,
-                            creatorPublicKey = creatorAddress,
+                            receiverAddress = creatorAddress,
+                            amount = "0",
                             assetId = assetId,
+                            noteInByteArray = null,
+                            suggestedParams = transactionParams.toStaticSuggestedParams(staticFee, addGenesisId = false),
+                            staticFee = staticFee,
                         )
                     } else {
                         null
@@ -340,16 +327,21 @@ open class TransactionSignManager(
                 }
 
                 is TransactionSignData.SendAndRemoveAsset -> {
-                    transactionParams.makeSendAndRemoveAssetTx(
+                    val staticFee = transactionParams.getTxFee(signer = signer)
+                    makeAssetTransferTxn(
                         senderAddress = senderAccountAddress,
                         receiverAddress = targetUser.publicKey,
+                        amount = amount.toString(),
                         assetId = assetId,
-                        amount = amount,
+                        noteInByteArray = null,
+                        suggestedParams = transactionParams.toStaticSuggestedParams(staticFee, addGenesisId = false),
+                        staticFee = staticFee,
                     )
                 }
 
-                is TransactionSignData.Rekey -> {
-                    transactionParams.makeRekeyTx(senderAccountAddress, rekeyAdminAddress)
+                else -> {
+                    // rekey falls into this
+                    null
                 }
             }
 
@@ -389,6 +381,62 @@ open class TransactionSignManager(
               ledgerBleOperationManager.startLedgerOperation(TransactionSignOperation(bluetoothDevice, this))
           }
       }*/
+
+    private fun TransactionParams.createSendTransaction(
+        senderAddress: String,
+        receiverAddress: String,
+        amount: BigInteger,
+        assetId: Long,
+        isMax: Boolean,
+        note: String?,
+        staticFee: Long,
+    ): ByteArray {
+        val noteInByteArray = note?.encodeToByteArray()
+        val suggestedParams = toStaticSuggestedParams(staticFee, addGenesisId = assetId == ALGO_ID)
+
+        return if (assetId == ALGO_ID) {
+            makePaymentTxn(
+                senderAddress = senderAddress,
+                receiverAddress = receiverAddress,
+                amount = amount.toString(),
+                isMax = isMax,
+                noteInByteArray = noteInByteArray,
+                suggestedParams = suggestedParams,
+                staticFee = staticFee,
+            )
+        } else {
+            makeAssetTransferTxn(
+                senderAddress = senderAddress,
+                receiverAddress = receiverAddress,
+                amount = amount.toString(),
+                assetId = assetId,
+                noteInByteArray = noteInByteArray,
+                suggestedParams = suggestedParams,
+                staticFee = staticFee,
+            )
+        }
+    }
+
+    private fun TransactionParams.toStaticSuggestedParams(
+        staticFee: Long,
+        addGenesisId: Boolean = true,
+    ): SuggestedParams =
+        toSuggestedParams(addGenesisId).copy(
+            fee = staticFee,
+            flatFee = true,
+        )
+
+    private fun TransactionParams.getTxFee(
+        signedTxData: ByteArray? = null,
+        signer: TransactionSigner,
+    ): Long {
+        val accountMinimumFee =
+            when (signer) {
+                is TransactionSigner.Falcon24 -> TransactionFee.FALCON24_FEE_MICRO_ALGOS
+                else -> TransactionFee.STANDARD_FEE_MICRO_ALGOS
+            }
+        return getTxFee(signedTxData).coerceAtLeast(accountMinimumFee)
+    }
 
     private fun calculateAmount(
         projectedAmount: BigInteger,

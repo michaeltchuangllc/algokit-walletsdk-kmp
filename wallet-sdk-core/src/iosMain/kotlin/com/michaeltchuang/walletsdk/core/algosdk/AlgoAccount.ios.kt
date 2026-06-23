@@ -11,7 +11,8 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressIndex
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.Bip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
-import com.michaeltchuang.walletsdk.core.foundation.utils.SuggestedParams
+import com.michaeltchuang.walletsdk.core.foundation.utils.getMinimumFee
+import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
 import io.github.aakira.napier.Napier
@@ -28,6 +29,22 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 const val ROUND_THRESHOLD = 1000L
+
+actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): SuggestedParams =
+    SuggestedParams(
+        fee = fee.takeIf { it > 0L } ?: getMinimumFee(),
+        genesisID = if (addGenesisId) genesisId else "",
+        firstRoundValid = lastRound,
+        lastRoundValid = lastRound + ROUND_THRESHOLD,
+        genesisHash =
+            try {
+                genesisHash.decodeBase64Bytes()
+            } catch (e: Exception) {
+                println("Error decoding genesis hash: ${e.message}")
+                ByteArray(0)
+            },
+        flatFee = fee <= 0L,
+    )
 
 @OptIn(ExperimentalForeignApi::class)
 private val bridge = spmAlgoApiBridge()
@@ -405,11 +422,6 @@ private fun getBit39Wallet(entropy: ByteArray): Bip39Wallet =
             )
     }
 
-actual fun getReceiverMinBalanceFee(
-    receiverAlgoAmount: String,
-    receiverMinBalanceAmount: String,
-): Long = Long.MAX_VALUE
-
 @OptIn(ExperimentalForeignApi::class)
 actual fun makeAssetTransferTxn(
     senderAddress: String,
@@ -418,6 +430,7 @@ actual fun makeAssetTransferTxn(
     assetId: Long,
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
+    staticFee: Long?,
 ): ByteArray {
     val noteBase64 = noteInByteArray?.toNSData()?.base64EncodedStringWithOptions(0.toULong())
 
@@ -428,8 +441,8 @@ actual fun makeAssetTransferTxn(
             amount = amount,
             assetId = assetId,
             noteBase64 = noteBase64,
-            fee = suggestedParams.fee,
-            flatFee = suggestedParams.flatFee,
+            fee = staticFee ?: suggestedParams.fee,
+            flatFee = staticFee != null || suggestedParams.flatFee,
             firstRound = suggestedParams.firstRoundValid,
             lastRound = suggestedParams.lastRoundValid,
             genesisHashBase64 =
@@ -455,6 +468,7 @@ actual fun makePaymentTxn(
     isMax: Boolean,
     noteInByteArray: ByteArray?,
     suggestedParams: SuggestedParams,
+    staticFee: Long?,
 ): ByteArray {
     val noteBase64 = noteInByteArray?.toNSData()?.base64EncodedStringWithOptions(0.toULong())
 
@@ -465,8 +479,8 @@ actual fun makePaymentTxn(
             amount = amount,
             isMax = isMax,
             noteBase64 = noteBase64,
-            fee = suggestedParams.fee,
-            flatFee = suggestedParams.flatFee,
+            fee = staticFee ?: suggestedParams.fee,
+            flatFee = staticFee != null || suggestedParams.flatFee,
             firstRound = suggestedParams.firstRoundValid,
             lastRound = suggestedParams.lastRoundValid,
             genesisHashBase64 =
@@ -489,13 +503,14 @@ actual fun makeAssetAcceptanceTxn(
     publicKey: String,
     assetId: Long,
     suggestedParams: SuggestedParams,
+    staticFee: Long?,
 ): ByteArray {
     val encodedTx =
         bridge.makeAssetAcceptanceTxnWithPublicKey(
             publicKey = publicKey,
             assetId = assetId,
-            fee = suggestedParams.fee,
-            flatFee = suggestedParams.flatFee,
+            fee = staticFee ?: suggestedParams.fee,
+            flatFee = staticFee != null || suggestedParams.flatFee,
             firstRound = suggestedParams.firstRoundValid,
             lastRound = suggestedParams.lastRoundValid,
             genesisHashBase64 =
