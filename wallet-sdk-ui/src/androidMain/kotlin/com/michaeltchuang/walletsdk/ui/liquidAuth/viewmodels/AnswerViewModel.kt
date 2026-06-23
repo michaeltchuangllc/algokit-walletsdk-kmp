@@ -11,8 +11,8 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewModelScope
-import com.algorand.algosdk.sdk.BytesArray
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.fasterxml.uuid.Generators

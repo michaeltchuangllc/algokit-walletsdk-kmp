@@ -10,8 +10,8 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.algorand.algosdk.sdk.BytesArray
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder

@@ -1,6 +1,5 @@
 [versions]
 agp = "8.10.0"
-algoGoMobilesdk = "2026.2.6"
 algoSdk = "2.10.1"
 algokit-walletSdk = "3.202602.8"
 algokit-core = "1.0.0-alpha.82"
@@ -185,7 +184,6 @@ algokit-composer = { group = "io.github.algorandecosystem", name = "algokit-comp
 algokit-crypto = { group = "io.github.algorandecosystem", name = "algokit-crypto", version.ref = "algokit-core" }
 algokit-transact = { group = "io.github.algorandecosystem", name = "algokit-transact", version.ref = "algokit-core" }
 algorand-falcon = { group = "io.github.algorandecosystem", name = "falcon-signatures-mobile-sdk", version.ref = "falcon-sdk" }
-algorand-go-mobile = { group = "com.michaeltchuang.algokit", name = "algorand-go-mobile-sdk", version.ref = "algoGoMobilesdk" }
 algorand-foundation-crypto = { group = "com.michaeltchuang.algokit", name = "algorand-foundation-crypto", version.ref = "algorand-foundation" }
 algorand-foundation-provider = { group = "com.michaeltchuang.algokit", name = "algorand-foundation-provider", version.ref = "algorand-foundation" }
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }

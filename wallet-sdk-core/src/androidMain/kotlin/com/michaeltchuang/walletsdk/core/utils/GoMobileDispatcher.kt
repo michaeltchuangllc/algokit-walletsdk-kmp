@@ -6,11 +6,11 @@ import kotlinx.coroutines.runBlocking
 import java.util.concurrent.Executors
 
 /**
- * Dedicated single-OS-thread [CoroutineDispatcher] for all Go-mobile (gomobile) calls.
+ * Dedicated single-OS-thread [CoroutineDispatcher] for Falcon mobile SDK calls.
  *
  * ### Why this is needed
  * Go's GC write-barrier requires that all pointer-containing structs (e.g. `BytesArray.v [][]byte`)
- * live at 8-byte-aligned addresses.  When Go-mobile functions are called from JVM thread-pool
+ * live at 8-byte-aligned addresses.  When Falcon mobile SDK functions are called from JVM thread-pool
  * threads (Dispatchers.IO, Dispatchers.Default), each call may land on a different OS thread
  * whose TLS / heap state was not initialised by the Go runtime, causing:
  *
@@ -20,7 +20,7 @@ import java.util.concurrent.Executors
  * by any Kotlin/Java try-catch.
  *
  * ### The fix
- * A single persistent OS thread is used for every Go-mobile call.  The Go runtime initialises
+ * A single persistent OS thread is used for every Falcon mobile SDK call.  The Go runtime initialises
  * itself on this thread during the first call, after which all subsequent invocations run with
  * a consistent, properly-aligned memory context.
  *
@@ -32,10 +32,10 @@ import java.util.concurrent.Executors
  */
 object GoMobileDispatcher {
     /**
-     * Use this dispatcher (or `runBlocking` with it) when calling any Go-mobile SDK function
-     * that involves pointer-containing types (e.g. [com.algorand.algosdk.sdk.BytesArray]).
-     * This includes all construction and mutation of [com.algorand.algosdk.sdk.BytesArray]
-     * instances as well as every [com.algorand.algosdk.sdk.Sdk] call.
+     * Use this dispatcher (or `runBlocking` with it) when calling any Falcon mobile SDK function
+     * that involves pointer-containing types (e.g. `io.github.algorandecosystem.sdk.BytesArray`).
+     * This includes all construction and mutation of `io.github.algorandecosystem.sdk.BytesArray`
+     * instances as well as every `io.github.algorandecosystem.sdk.Sdk` call.
      */
     val dispatcher: CoroutineDispatcher =
         Executors
@@ -51,7 +51,7 @@ object GoMobileDispatcher {
      * deadlock.  Otherwise the call is dispatched via [runBlocking] so that the current
      * (non-Go-mobile) thread is blocked until [block] completes.
      *
-     * Use this instead of `runBlocking(dispatcher)` at every [com.algorand.algosdk.sdk.Sdk]
+     * Use this instead of `runBlocking(dispatcher)` at every `io.github.algorandecosystem.sdk.Sdk`
      * call-site that is **not** already inside a `withContext(dispatcher)` / `runBlocking(dispatcher)`
      * block so that ALL Go-mobile invocations are serialised to the same OS thread regardless of
      * whether the caller is already on that thread.

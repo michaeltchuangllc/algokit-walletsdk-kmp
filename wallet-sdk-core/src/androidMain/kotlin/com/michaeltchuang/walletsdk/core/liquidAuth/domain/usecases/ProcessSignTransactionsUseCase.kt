@@ -2,8 +2,8 @@
 
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
-import com.algorand.algosdk.sdk.BytesArray
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
