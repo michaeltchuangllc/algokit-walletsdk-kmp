@@ -11,11 +11,15 @@ import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
+import io.github.algorandecosystem.sdk.Sdk
 import java.math.BigInteger
 import java.net.URI
 
 private const val TAG = "AlgorandOps"
 private const val APP_CALL_FEE = 12_000L
+private const val DUMMIES_PER_REAL_TXN = 3
+private const val MIN_TXN_FEE = 1_000L
 private const val SIGNER_TYPE_FALCON = 1L
 
 internal actual fun getSessionBoxBytesInternal(
@@ -47,10 +51,13 @@ internal actual suspend fun submitAppCallInternal(
     val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets, foreignAccounts)
 
     val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
-    val txns = listOf(appCallTxn)
-    if (!useFalcon) {
-        TxGroup.assignGroupID(*txns.toTypedArray())
+    val dummies = if (useFalcon) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
+    if (dummies.isNotEmpty()) {
+        appCallTxn.fee = BigInteger.valueOf((appCallTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
     }
+
+    val txns = dummies + appCallTxn
+    TxGroup.assignGroupID(*txns.toTypedArray())
     Log.d(TAG, "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
 
     val signed = signTxnGroup(signer, txns)
@@ -88,10 +95,13 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     val appCallTxn = buildAppCallTxn(signer, params, appId, appCallArgs, boxKeys.toBoxReferences(), appCallForeignAssets)
 
     val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
-    val txns = listOf(axferTxn, appCallTxn)
-    if (!useFalcon) {
-        TxGroup.assignGroupID(*txns.toTypedArray())
+    val dummies = if (useFalcon) List(2 * DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
+    if (dummies.isNotEmpty()) {
+        axferTxn.fee = BigInteger.valueOf((axferTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
     }
+
+    val txns = dummies + axferTxn + appCallTxn
+    TxGroup.assignGroupID(*txns.toTypedArray())
     Log.d(TAG, "[OPEN_TOPUP_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
 
     val signed = signTxnGroup(signer, txns)
@@ -135,8 +145,9 @@ internal actual fun awaitConfirmationInternal(
 // ── Private helpers ───────────────────────────────────────────────────────────
 
 /**
- * Signs transaction objects directly. Falcon signers bundle-sign ungrouped real transactions
- * and let the Falcon mobile SDK add verification-budget dummies and assign the group.
+ * Signs a transaction group passing [Transaction] objects directly to avoid
+ * Jackson's @JsonInclude(NON_DEFAULT) omitting fee=0 from the dummy msgpack bytes.
+ * Falcon signers override signTransactions to bundle-sign the whole group at once.
  */
 private suspend fun signTxnGroup(
     signer: MppWalletSigner,
@@ -169,6 +180,21 @@ private fun buildAppCallTxn(
     return builder.build().also { it.fee = BigInteger.valueOf(APP_CALL_FEE) }
 }
 
+private fun buildFalconDummy(
+    params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
+    index: Int,
+): Transaction {
+    val falconLsigAddress = Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
+    return Transaction
+        .PaymentTransactionBuilder()
+        .sender(falconLsigAddress)
+        .receiver(falconLsigAddress)
+        .amount(0)
+        .suggestedParams(params)
+        .note(byteArrayOf(index.toByte()))
+        .build()
+        .also { it.fee = BigInteger.ZERO }
+}
 
 private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }
 
