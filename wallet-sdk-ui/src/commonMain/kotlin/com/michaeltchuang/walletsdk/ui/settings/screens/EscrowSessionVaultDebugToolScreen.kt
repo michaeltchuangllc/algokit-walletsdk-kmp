@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -148,70 +149,38 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             color = AlgoKitTheme.colors.textMain,
         )
 
-        Button(
-            onClick = viewModel::addAmountToSessionVault,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add Amount to Session Vault")
-        }
+        val actions = listOf(
+            "Derived ChannelId" to viewModel::derivedChannelId,
+            "Add Amount" to viewModel::addAmountToSessionVault,
+            "Fetch Balance" to viewModel::fetchSessionVaultRemainingBalance,
+            "Update Voucher" to viewModel::updateVoucher,
+            "Verify Voucher" to viewModel::verifyVoucherSignature,
+            "Settle Amount" to viewModel::settleAmount,
+            "Close" to viewModel::closeSessionVault,
+            "Request Close" to viewModel::requestCloseSessionVault,
+            "Request Withdraw" to viewModel::requestWithdraw,
+        )
 
-        Button(
-            onClick = viewModel::fetchSessionVaultRemainingBalance,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Fetch Session Vault Balance")
-        }
+        actions.chunked(2).forEach { rowButtons ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                rowButtons.forEach { (title, action) ->
+                    Button(
+                        onClick = action,
+                        enabled = !isLoading,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(title)
+                    }
+                }
 
-        Button(
-            onClick = viewModel::updateVoucher,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Update Voucher")
+                if (rowButtons.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
-
-        Button(
-            onClick = viewModel::verifyVoucherSignature,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Verify Voucher")
-        }
-
-        Button(
-            onClick = viewModel::settleAmount,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Settle Amount to Creator")
-        }
-
-        Button(
-            onClick = viewModel::closeSessionVault,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Close")
-        }
-
-        Button(
-            onClick = viewModel::requestCloseSessionVault,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Request Close")
-        }
-
-        Button(
-            onClick = viewModel::requestWithdraw,
-            enabled = !isLoading,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Request Withdraw")
-        }
-
         HorizontalDivider()
 
         Text(

@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,13 +27,13 @@ class EscrowSessionVaultDebugViewModel(
 
     private val _viewerAddress =
         MutableStateFlow(
-            "2MFPDQMIMIYS6CCIRMNWB6IACQL6VCFRZE7STJBP4W5Q3FLHUJHIVP3FLY",
+            "SOTKPTASL4ISO2542ZVOPD4SZHCWYRUBX27NDOYHSMODL4SNARNH5C66OA",
         )
     val viewerAddress: StateFlow<String> = _viewerAddress.asStateFlow()
 
     private val _creatorAddress =
         MutableStateFlow(
-            "EBRI466FDKE2LKEPUDAYTIRZZ7LLKT7YMZ7TG37II6CCOAJK44SKXY7EHI",
+            "HDIWBIZUHV7I7DQH5UWNERR345TT636ACKHX2TTRJMK5AKTJGO4N4XUF3I",
         )
     val creatorAddress: StateFlow<String> = _creatorAddress.asStateFlow()
 
@@ -60,6 +61,28 @@ class EscrowSessionVaultDebugViewModel(
         _depositAmountUsdc.value = amount
     }
 
+    fun derivedChannelId () {
+        _isLoading.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            val signer = mppWalletSignerUseCase(_viewerAddress.value.trim())
+            if (signer !=null){
+                val channelId = contractClient().deriveChannelId(
+                    signer =  signer,
+                    payerAddress = _viewerAddress.value.trim(),
+                    payeeAddress = _creatorAddress.value.trim(),
+                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                )
+                channelId.onSuccess {
+                    _statusMessage.value = "Derived channelId: $it."
+                    _isLoading.value = false
+                }.onFailure {
+                    _statusMessage.value = "Failed to derive channelId: $it."
+                    _isLoading.value = false
+                    Napier.e("Failed to derive channelId: $it.", tag = TAG)
+                }
+            }
+        }
+    }
     fun addAmountToSessionVault() {
         val viewer = _viewerAddress.value.trim()
         val creator = _creatorAddress.value.trim()

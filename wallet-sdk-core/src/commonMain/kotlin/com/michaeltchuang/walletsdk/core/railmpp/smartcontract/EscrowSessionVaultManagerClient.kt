@@ -47,20 +47,17 @@ class EscrowSessionVaultManagerClient(
         signer: MppWalletSigner,
         payeeAddress: String,
         depositMicroUsdc: Long,
-        channelId: ByteArray? = null,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val derivedChannelId =
-                channelId
-                    ?: deriveChannelId(
+            val derivedChannelId = deriveChannelId(
                         signer = signer,
                         payerAddress = signer.address,
                         payeeAddress = payeeAddress,
                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                         algodUrl = algodUrl,
                     ).getOrThrow()
-            EscrowSessionVaultManagerClient.channelId = derivedChannelId
+            channelId = derivedChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,
