@@ -30,6 +30,15 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 
 const val ROUND_THRESHOLD = 1000L
 
+@OptIn(ExperimentalForeignApi::class)
+internal actual fun deriveBip39Seed(mnemonic: String): ByteArray = bridge.xhdSeedFromMnemonicWithMnemonic(mnemonic).toByteArray()
+
+@OptIn(ExperimentalForeignApi::class)
+internal actual fun ByteArray.sha256(): ByteArray =
+    bridge.sha256WithDataBase64(
+        this.toNSData().base64EncodedStringWithOptions(0.toULong()),
+    ).fromBase64ToByteArray()
+
 actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): SuggestedParams =
     SuggestedParams(
         fee = fee.takeIf { it > 0L } ?: getMinimumFee(),

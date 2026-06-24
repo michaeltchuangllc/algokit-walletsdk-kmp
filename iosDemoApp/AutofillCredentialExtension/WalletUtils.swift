@@ -20,7 +20,6 @@ import CryptoKit
 import deterministicP256_swift
 import Foundation
 import MnemonicSwift
-import x_hd_wallet_api
 
 public struct WalletInfo {
   public let p256KeyPair: P256.Signing.PrivateKey

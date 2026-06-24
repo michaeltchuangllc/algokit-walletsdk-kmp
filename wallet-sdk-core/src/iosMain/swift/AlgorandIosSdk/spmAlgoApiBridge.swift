@@ -1,5 +1,4 @@
 import Foundation
-import x_hd_wallet_api
 import MnemonicSwift
 import FalconAlgoSDK
 import CryptoKit
@@ -13,27 +12,13 @@ import CommonCrypto
     @_optimize(none)
     public func getHdPublicKeyFromSeed(seedBase64: String, account: Int, change: Int, keyIndex: Int) -> String {
         do {
-            guard let seedData = Data(base64Encoded: seedBase64) else {
-                print("Failed to decode seed")
-                return ""
-            }
-
-            let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
-
-            guard let wallet = XHDWalletAPI(seed: seedHex) else {
-                print("Failed to create wallet")
-                return ""
-            }
-
-            let publicKey = try wallet.keyGen(
-                context: .Address,
-                account: UInt32(account),
-                change: UInt32(change),
-                keyIndex: UInt32(keyIndex),
-                derivationType: .Peikert
+            let derivedAccount = try deriveHdAccount(
+                seedBase64: seedBase64,
+                account: account,
+                change: change,
+                keyIndex: keyIndex
             )
-            return publicKey.base64EncodedString()
-
+            return derivedAccount.publicKey.base64EncodedString()
         } catch {
             print("Failed to generate key: \(error)")
             return ""
@@ -43,38 +28,13 @@ import CommonCrypto
     @_optimize(none)
     public func getHdPrivateKeyFromSeed(seedBase64: String, account: Int, change: Int, keyIndex: Int) -> String {
         do {
-            guard let seedData = Data(base64Encoded: seedBase64) else {
-                print("Failed to decode seed")
-                return ""
-            }
-
-            let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
-
-            guard let wallet = XHDWalletAPI(seed: seedHex) else {
-                print("Failed to create wallet")
-                return ""
-            }
-
-            // Construct BIP44 path as [UInt32] array
-            // For Algorand: m/44'/283'/account'/change/keyIndex
-            // Hardened derivation: add 0x80000000
-            let hardenedOffset: UInt32 = 0x80000000
-            let bip44Path: [UInt32] = [
-                44 + hardenedOffset, // 44' - purpose
-                283 + hardenedOffset, // 283' - Algorand coin type
-                UInt32(account) + hardenedOffset, // account' - hardened
-                UInt32(change), // change - not hardened
-                UInt32(keyIndex)          // keyIndex - not hardened
-            ]
-
-
-            return try wallet.deriveKey(
-                rootKey: wallet.fromSeed(seedData),
-                bip44Path: bip44Path,
-                isPrivate: true,
-                derivationType: BIP32DerivationType.Peikert
-            ).base64EncodedString()
-
+            let derivedAccount = try deriveHdAccount(
+                seedBase64: seedBase64,
+                account: account,
+                change: change,
+                keyIndex: keyIndex
+            )
+            return derivedAccount.extendedPrivateKey.base64EncodedString()
         } catch let error {
             print("Failed to generate private key: \(error)")
             return ""
@@ -90,36 +50,17 @@ import CommonCrypto
         keyIndex: Int
     ) -> Data? {
         do {
-            guard let seedData = Data(base64Encoded: seedBase64) else {
-                print("Failed to decode seed from Base64")
-                return nil
-            }
-
-            let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
-
-            guard let wallet = XHDWalletAPI(seed: seedHex) else {
-                print("Failed to create wallet")
-                return nil
-            }
-
-            let txPrefix = "TX".data(using: .utf8)!
-            let prefixedTransaction = txPrefix + transactionBytes
-
-            let signature = try wallet.sign(
-                context: .Address,
-                account: UInt32(account),
-                change: UInt32(change),
-                keyIndex: UInt32(keyIndex),
-                message: prefixedTransaction,
-                derivationType: .Peikert
+            let derivedAccount = try deriveHdAccount(
+                seedBase64: seedBase64,
+                account: account,
+                change: change,
+                keyIndex: keyIndex
             )
 
-            let publicKey = try wallet.keyGen(
-                context: .Address,
-                account: UInt32(account),
-                change: UInt32(change),
-                keyIndex: UInt32(keyIndex),
-                derivationType: .Peikert
+            let txPrefix = "TX".data(using: .utf8)!
+            let signature = try xhdRawSign(
+                extendedKey: derivedAccount.extendedPrivateKey,
+                msg: txPrefix + transactionBytes
             )
 
             var error: NSError?
@@ -153,31 +94,21 @@ import CommonCrypto
         dataBase64: String
     ) -> String {
         do {
-            guard let seedData = Data(base64Encoded: seedBase64) else {
-                NSLog("❌ Failed to decode seed from Base64")
-                return ""
-            }
+            let derivedAccount = try deriveHdAccount(
+                seedBase64: seedBase64,
+                account: account,
+                change: change,
+                keyIndex: keyIndex
+            )
 
             guard let data = Data(base64Encoded: dataBase64) else {
                 NSLog("❌ Failed to decode data from Base64")
                 return ""
             }
 
-            let seedHex = seedData.map { String(format: "%02x", $0) }.joined()
-
-            guard let wallet = XHDWalletAPI(seed: seedHex) else {
-                NSLog("❌ Failed to create XHDWalletAPI wallet")
-                return ""
-            }
-
-            // Sign the data with Ed25519
-            let signature = try wallet.sign(
-                context: .Address,
-                account: UInt32(account),
-                change: UInt32(change),
-                keyIndex: UInt32(keyIndex),
-                message: data,
-                derivationType: .Peikert
+            let signature = try xhdRawSign(
+                extendedKey: derivedAccount.extendedPrivateKey,
+                msg: data
             )
 
             return signature.base64EncodedString()
@@ -186,6 +117,41 @@ import CommonCrypto
             NSLog("❌ HD arbitrary data signing failed: \(error.localizedDescription)")
             return ""
         }
+    }
+
+    public func xhdSeedFromMnemonic(mnemonic: String) -> Data {
+        do {
+            return try AlgoKitCrypto.xhdSeedFromMnemonic(mnemonic: mnemonic)
+        } catch {
+            print("Failed to derive xHD seed from mnemonic: \(error.localizedDescription)")
+            return Data()
+        }
+    }
+
+    private func deriveHdAccount(seedBase64: String, account: Int, change: Int, keyIndex: Int) throws -> XhdDerivedAccount {
+        guard change == 0 else {
+            throw NSError(
+                domain: "AlgoKitWalletSdk",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "AlgoKit Crypto xHD derivation only supports change index 0. Requested: \(change)"]
+            )
+        }
+
+        guard let seedData = Data(base64Encoded: seedBase64) else {
+            throw NSError(
+                domain: "AlgoKitWalletSdk",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "Failed to decode seed from Base64"]
+            )
+        }
+
+        let rootKey = try xhdRootKeyFromSeed(seed: seedData)
+        return try xhdDerive(
+            rootKey: rootKey,
+            keyContext: .address,
+            account: UInt32(account),
+            keyIndex: UInt32(keyIndex)
+        )
     }
 
     public func getAlgo25SecretKey(mnemonic: String?) -> String {

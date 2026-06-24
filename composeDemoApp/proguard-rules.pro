@@ -113,7 +113,6 @@
 -keepclassmembers class org.bouncycastle.** { *; }
 
 -keep class org.bitcoinj.** { *; }
--keep class fr.acinq.bitcoin.** { *; }
 
 # Keep Tink crypto
 -keep class com.google.crypto.tink.** { *; }

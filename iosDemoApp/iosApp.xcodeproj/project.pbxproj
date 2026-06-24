@@ -11,7 +11,6 @@
 		A93A953F29CC810D00F8E227 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A953E29CC810D00F8E227 /* Assets.xcassets */; };
 		A93A954229CC810D00F8E227 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A93A954129CC810D00F8E227 /* Preview Assets.xcassets */; };
 		BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = BA1017E22F25E99000A6DC27 /* SwiftCBOR */; };
-		BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
 		BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23F2E86CBA2005CAA71 /* ed25519swift */; };
 		BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
 		BA8BABEB2FE355E8008683F7 /* AlgoKitComposer in Frameworks */ = {isa = PBXBuildFile; productRef = BA8BABEA2FE355E8008683F7 /* AlgoKitComposer */; };
@@ -39,7 +38,6 @@
 		C2F9B4162F2483D600E5B9C2 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */; };
 		C2F9B4202F2483D600E5B9C2 /* AuthenticationService.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C2F9B4152F2483D600E5B9C2 /* AuthenticationService.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		C2F9B4252F2489C500E5B9C2 /* MnemonicSwift in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */; };
-		C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */ = {isa = PBXBuildFile; productRef = BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */; };
 		C2F9B52E2F25E12E00E5B9C2 /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */; };
 		C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */ = {isa = PBXBuildFile; productRef = C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */; };
 /* End PBXBuildFile section */
@@ -179,7 +177,6 @@
 				BA8BABEB2FE355E8008683F7 /* AlgoKitComposer in Frameworks */,
 				BA1BD2402E86CBA2005CAA71 /* ed25519swift in Frameworks */,
 				BAC1623C2F2974E40050270D /* Base32 in Frameworks */,
-				BA1BD23D2E86CB06005CAA71 /* x-hd-wallet-api in Frameworks */,
 				BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -191,7 +188,6 @@
 				BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */,
 				C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */,
 				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
-				C2F9B4262F2489C500E5B9C2 /* x-hd-wallet-api in Frameworks */,
 				BA8BABFC2FE35711008683F7 /* AlgoKitUtils in Frameworks */,
 				C291B1E52F292F0500AA5CA6 /* WebRTC in Frameworks */,
 				C2F9B5302F25E13500E5B9C2 /* SwiftCBOR in Frameworks */,
@@ -297,7 +293,6 @@
 				BAC162822F29772F0050270D /* WebRTC */,
 				BA1BD23F2E86CBA2005CAA71 /* ed25519swift */,
 				BAC1623B2F2974E40050270D /* Base32 */,
-				BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */,
 				BAC1623F2F2974EB0050270D /* deterministicP256-swift */,
 				BA8BABEA2FE355E8008683F7 /* AlgoKitComposer */,
 				BA8BABEC2FE355E8008683F7 /* AlgoKitCrypto */,
@@ -328,7 +323,6 @@
 			);
 			name = AutofillCredentialExtension;
 			packageProductDependencies = (
-				BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */,
 				BA1BD2422E86CBB3005CAA71 /* MnemonicSwift */,
 				C2F9B52D2F25E12E00E5B9C2 /* deterministicP256-swift */,
 				C2F9B52F2F25E13500E5B9C2 /* SwiftCBOR */,
@@ -397,7 +391,6 @@
 			packageReferences = (
 				BA1BD23E2E86CBA2005CAA71 /* XCRemoteSwiftPackageReference "ed25519swift" */,
 				BA1BD2412E86CBB3005CAA71 /* XCRemoteSwiftPackageReference "MnemonicSwift" */,
-				BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */,
 				C2F9B47B2F24980A00E5B9C2 /* XCRemoteSwiftPackageReference "Base32" */,
 				C2F9B4822F249C5C00E5B9C2 /* XCRemoteSwiftPackageReference "deterministic-P256-swift" */,
 				C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */,
@@ -915,14 +908,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
-			requirement = {
-				branch = "fix/upgrade_sodium ";
-				kind = branch;
-			};
-		};
 		BA1BD23E2E86CBA2005CAA71 /* XCRemoteSwiftPackageReference "ed25519swift" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/pebble8888/ed25519swift";
@@ -937,14 +922,6 @@
 			requirement = {
 				kind = upToNextMajorVersion;
 				minimumVersion = 2.2.5;
-			};
-		};
-		BA38E79D2E94987500388513 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git";
-			requirement = {
-				branch = fix/upgrade_sodium;
-				kind = branch;
 			};
 		};
 		BA8BABE92FE355E8008683F7 /* XCRemoteSwiftPackageReference "algokit-core-swift" */ = {
@@ -1010,11 +987,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C2F9B4832F249D1D00E5B9C2 /* XCRemoteSwiftPackageReference "SwiftCBOR" */;
 			productName = SwiftCBOR;
-		};
-		BA1BD23C2E86CB06005CAA71 /* x-hd-wallet-api */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = BA1BD23B2E86CB06005CAA71 /* XCRemoteSwiftPackageReference "algorand-devrel-xHD-Wallet-API-swift" */;
-			productName = "x-hd-wallet-api";
 		};
 		BA1BD23F2E86CBA2005CAA71 /* ed25519swift */ = {
 			isa = XCSwiftPackageProductDependency;

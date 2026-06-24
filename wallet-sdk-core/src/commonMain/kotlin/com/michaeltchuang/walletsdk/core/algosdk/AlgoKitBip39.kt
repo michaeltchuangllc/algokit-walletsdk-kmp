@@ -1,16 +1,10 @@
 package com.michaeltchuang.walletsdk.core.algosdk
 
 import com.michaeltchuang.walletsdk.core.algosdk.utils.PassphraseKeywordUtils
-import fr.acinq.bitcoin.MnemonicCode
 import kotlin.random.Random
 
 object AlgoKitBip39 {
-    fun getSeedFromEntropy(entropy: ByteArray): ByteArray {
-        val mnemonic = MnemonicCode.toMnemonics(entropy)
-        val passphrase = ""
-        val seed = MnemonicCode.toSeed(mnemonic, passphrase)
-        return seed
-    }
+    fun getSeedFromEntropy(entropy: ByteArray): ByteArray = deriveBip39Seed(getMnemonicFromEntropy(entropy))
 
     @OptIn(ExperimentalStdlibApi::class)
     fun getEntropyFromMnemonic(mnemonic: String): ByteArray {
@@ -44,7 +38,6 @@ object AlgoKitBip39 {
 
         // Split into entropy and checksum (for 24 words: 256 bits entropy + 8 bits checksum)
         val entropyBits = binaryString.substring(0, 256)
-        val checksumBits = binaryString.substring(256)
 
         // Convert entropy bits to bytes
         val entropyBytes =
@@ -65,15 +58,31 @@ object AlgoKitBip39 {
     }
 
     fun getMnemonicFromEntropy(entropy: ByteArray): String {
-        val mnemonic = MnemonicCode.toMnemonics(entropy)
-        return mnemonic.joinToString(" ")
+        require(entropy.size == 32) { "Expected 32 bytes of entropy, got ${entropy.size}" }
+
+        val entropyBits = entropy.joinToString("") { byte ->
+            byte.toUByte().toString(2).padStart(8, '0')
+        }
+        val checksumBits = entropy.sha256().first().toUByte().toString(2).padStart(8, '0')
+        val mnemonicBits = entropyBits + checksumBits
+
+        return mnemonicBits
+            .chunked(BIP39_WORD_BIT_LENGTH)
+            .map { bits -> PassphraseKeywordUtils.predefinedWords[bits.toInt(2)] }
+            .joinToString(" ")
     }
 
     fun generate24WordMnemonic(): String {
         val entropy = ByteArray(32)
-        Random.Default.nextBytes(entropy)
-        val mnemonic = MnemonicCode.toMnemonics(entropy).joinToString(" ")
+        Random.nextBytes(entropy)
+        val mnemonic = getMnemonicFromEntropy(entropy)
         println("mnemonic: $mnemonic")
         return mnemonic
     }
 }
+
+internal expect fun deriveBip39Seed(mnemonic: String): ByteArray
+
+internal expect fun ByteArray.sha256(): ByteArray
+
+private const val BIP39_WORD_BIT_LENGTH = 11

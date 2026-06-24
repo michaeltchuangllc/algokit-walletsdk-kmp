@@ -24,7 +24,6 @@ import MnemonicSwift
 import SwiftCBOR
 import UIKit
 import WebRTC
-import x_hd_wallet_api
 
 /*
  * ENCODING STRATEGY SUMMARY

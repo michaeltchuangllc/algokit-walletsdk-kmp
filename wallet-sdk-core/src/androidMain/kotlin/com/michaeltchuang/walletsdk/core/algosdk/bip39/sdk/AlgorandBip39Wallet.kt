@@ -14,12 +14,11 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressIndex
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 import com.michaeltchuang.walletsdk.core.encryption.domain.utils.clearFromMemory
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
-import foundation.algorand.xhdwalletapi.Bip32DerivationType
-import foundation.algorand.xhdwalletapi.KeyContext
-import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
-import foundation.algorand.xhdwalletapi.XHDWalletAPIBase.Companion.fromSeed
-import foundation.algorand.xhdwalletapi.XHDWalletAPIBase.Companion.getBIP44PathFromContext
 import org.bouncycastle.jce.provider.BouncyCastleProvider
+import uniffi.algokit_crypto_ffi.XhdDerivedAccount
+import uniffi.algokit_crypto_ffi.XhdKeyContext
+import uniffi.algokit_crypto_ffi.xhdDerive
+import uniffi.algokit_crypto_ffi.xhdRootKeyFromSeed
 import java.security.Security
 
 internal class AlgorandBip39Wallet internal constructor(
@@ -27,7 +26,7 @@ internal class AlgorandBip39Wallet internal constructor(
 ) : Bip39Wallet {
     private val seed: Bip39Seed
     private val mnemonic: Bip39Mnemonic
-    private var walletApi: XHDWalletAPIAndroid?
+    private val rootKey: ByteArray
 
     init {
         Security.removeProvider("BC")
@@ -36,7 +35,7 @@ internal class AlgorandBip39Wallet internal constructor(
         val mnemonicCode = Mnemonics.MnemonicCode(entropy.value)
         seed = Bip39Seed(mnemonicCode.toSeed())
         mnemonic = Bip39Mnemonic(mnemonicCode.words.map { String(it) })
-        walletApi = XHDWalletAPIAndroid(seed.value)
+        rootKey = xhdRootKeyFromSeed(seed.value)
     }
 
     override fun generateAddress(index: HdKeyAddressIndex): HdKeyAddress {
@@ -58,7 +57,7 @@ internal class AlgorandBip39Wallet internal constructor(
         )
     }
 
-    @OptIn(kotlin.ExperimentalStdlibApi::class)
+    @OptIn(ExperimentalStdlibApi::class)
     override fun generateFalcon24Address(mnemonic: String): Falcon24 {
         val algorandKeyInfo = GoMobileDispatcher.runOnGoThread { Sdk.deriveFromMnemonic(mnemonic, "") }
         return Falcon24(
@@ -77,26 +76,24 @@ internal class AlgorandBip39Wallet internal constructor(
     override fun invalidate() {
         entropy.value.clearFromMemory()
         seed.value.clearFromMemory()
-        walletApi = null
+        rootKey.clearFromMemory()
     }
 
     private fun generatePrivateKey(index: HdKeyAddressIndex): ByteArray =
-        walletApi!!.deriveKey(fromSeed(seed.value), getBip44Path(index), isPrivate = true)
-
-    private fun getBip44Path(index: HdKeyAddressIndex): List<UInt> =
-        getBIP44PathFromContext(
-            context = KeyContext.Address,
-            account = index.accountIndex.toUInt(),
-            change = index.changeIndex.toUInt(),
-            keyIndex = index.keyIndex.toUInt(),
-        )
+        deriveAccount(index).extendedPrivateKey
 
     private fun generatePublicKey(index: HdKeyAddressIndex): ByteArray =
-        walletApi!!.keyGen(
-            context = KeyContext.Address,
+        deriveAccount(index).publicKey
+
+    private fun deriveAccount(index: HdKeyAddressIndex): XhdDerivedAccount {
+        require(index.changeIndex == 0) {
+            "AlgoKit Crypto xHD derivation only supports change index 0. Requested: ${index.changeIndex}"
+        }
+        return xhdDerive(
+            rootKey = rootKey,
+            keyContext = XhdKeyContext.ADDRESS,
             account = index.accountIndex.toUInt(),
-            change = index.changeIndex.toUInt(),
             keyIndex = index.keyIndex.toUInt(),
-            derivationType = Bip32DerivationType.Peikert,
         )
+    }
 }

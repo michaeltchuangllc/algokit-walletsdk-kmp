@@ -25,6 +25,7 @@ import uniffi.algokit_composer_ffi.TxnParamsKind
 import uniffi.algokit_composer_ffi.compose
 import uniffi.algokit_crypto_ffi.secretKeyToMnemonic
 import uniffi.algokit_crypto_ffi.seedFromMnemonic
+import uniffi.algokit_crypto_ffi.xhdSeedFromMnemonic
 import uniffi.algokit_crypto_ffi.ed25519PublicKeyFromSeed
 import uniffi.algokit_crypto_ffi.ed25519RawSign
 import uniffi.algokit_crypto_ffi.randomBytes
@@ -36,6 +37,10 @@ import uniffi.algokit_transact_ffi.publicKeyFromAddress
 import java.security.Security
 
 const val ROUND_THRESHOLD = 1000L
+
+internal actual fun deriveBip39Seed(mnemonic: String): ByteArray = xhdSeedFromMnemonic(mnemonic)
+
+internal actual fun ByteArray.sha256(): ByteArray = java.security.MessageDigest.getInstance("SHA-256").digest(this)
 
 actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): SuggestedParams =
     SuggestedParams(
