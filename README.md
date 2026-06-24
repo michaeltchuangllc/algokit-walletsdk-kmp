@@ -120,25 +120,30 @@ timeline
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
     section Future 🔮
-    2026Q3   : 🔄 Onboarding - Create and integrate new algokit-core KMP library
+    2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
+             : 🔄 Onboarding - Create and integrate new algokit-core KMP library
              : Android - Upgrade to AGP9 and KMP 2.4
-             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
-             : Transaction - Upgrade to escrow MPP session standard for micro-billing (Android)
-             : Onboarding - Add Falcon native account and transaction flow support
-             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
+             : Onboarding - Add Falcon25 (non-lsig) wallet account flow
+             : Transaction - Refactor MPP smart contract to support Falcon25
+             : TBD
+    2026Q4   
+             : Liquid Gossip mobile POC
+             : Research - React Native sample app talking to service
+             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
              : TBD
     Backlog
             : Onboarding - Rekey flow
             : Onboarding - Liquid Auth (Rekeyed Accounts)
-            : Research - React Native sample app talking to service
             : Onboarding - PQ Passkeys
             : Onboarding - Ledger flow
             : Account Details - Asset Inbox
-            : Onboarding - Fun app animations
             : Onboarding - Multi-sig flow
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
             : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
+            : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
+
 ```
 
 ## Project structure
