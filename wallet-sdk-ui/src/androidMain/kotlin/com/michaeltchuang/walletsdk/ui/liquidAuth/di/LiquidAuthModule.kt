@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AuthenticateWithBiometricsUseCase
@@ -41,13 +40,6 @@ val liquidAuthUIModule =
         single { SetupMppPaymentViewerUseCase(get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
-            val getMnemonic: suspend (String) -> String? = { algoAddr ->
-                get<GetAccountMnemonic>()
-                    .invoke(algoAddr)
-                    .getDataOrNull()
-                    ?.words
-                    ?.joinToString(" ")
-            }
             val decodeUnsignedTransaction: (String) -> Transaction? = { s ->
                 Encoder.decodeFromMsgPack(
                     Base64.decode(s),
@@ -59,7 +51,6 @@ val liquidAuthUIModule =
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
                 getSeed = get(),
-                getMnemonic = getMnemonic,
                 decodeUnsignedTransaction = decodeUnsignedTransaction,
             )
         }

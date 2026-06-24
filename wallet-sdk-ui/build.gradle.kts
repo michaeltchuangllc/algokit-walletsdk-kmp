@@ -126,7 +126,7 @@ kotlin {
                 implementation(libs.bcprov.jdk18on)
                 implementation(libs.androidx.credentials)
                 implementation(libs.algosdk)
-                implementation(libs.algorand.go.mobile)
+                implementation(libs.algorand.falcon)
 
                 implementation(libs.algorand.foundation.crypto)
                 implementation(libs.algorand.foundation.provider)

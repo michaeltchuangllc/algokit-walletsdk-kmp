@@ -1,4 +1,3 @@
-import org.gradle.kotlin.dsl.implementation
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.dsl.KotlinVersion
@@ -59,11 +58,6 @@ kotlin {
             customPackageSourcePath = "${layout.projectDirectory.asFile.path}/src/iosMain/swift"
             minIos = "16.2"
             dependency {
-                localBinary(
-                    path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoSDK.xcframework.zip",
-                    packageName = "AlgoSDK",
-                    exportToKotlin = false,
-                    )
                 remotePackageVersion(
                     url = uri("https://github.com/Electric-Coin-Company/MnemonicSwift.git"),
                     products = {
@@ -106,7 +100,7 @@ kotlin {
             implementation(libs.algokit.transact)
 
             implementation(libs.algosdk)
-            implementation(libs.algorand.go.mobile)
+            implementation(libs.algorand.falcon)
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)
 

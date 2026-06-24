@@ -3,7 +3,7 @@ package com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk
 import cash.z.ecc.android.bip39.Mnemonics
 import cash.z.ecc.android.bip39.toSeed
 import com.algorand.algosdk.crypto.Address
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Entropy
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Mnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Seed

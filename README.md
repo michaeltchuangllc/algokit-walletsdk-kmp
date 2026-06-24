@@ -40,7 +40,7 @@ graph TD
         Core["AlgoKit-Core Rust SDK"]
         xHD["Algo xHD Kotlin/Swift SDK"]
         JavaSDK["Algo Java SDK"]
-        GoSDK["Algo Go SDK"]
+        GoSDK["Algo Falcon Go SDK"]
     end
 
     App1 <--> wallet

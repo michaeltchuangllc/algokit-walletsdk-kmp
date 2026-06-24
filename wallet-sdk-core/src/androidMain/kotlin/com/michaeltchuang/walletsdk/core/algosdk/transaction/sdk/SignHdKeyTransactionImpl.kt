@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk
 
 import com.algorand.algosdk.crypto.Address
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
@@ -10,6 +10,15 @@ import foundation.algorand.xhdwalletapi.KeyContext
 import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
 import foundation.algorand.xhdwalletapi.XHDWalletAPIBase.Companion.getBIP44PathFromContext
 import java.nio.charset.StandardCharsets
+
+private val TX_PREFIX = "TX".toByteArray(StandardCharsets.UTF_8)
+
+private fun ByteArray.withoutTxPrefix(): ByteArray =
+    if (size >= TX_PREFIX.size && this[0] == TX_PREFIX[0] && this[1] == TX_PREFIX[1]) {
+        copyOfRange(TX_PREFIX.size, size)
+    } else {
+        this
+    }
 
 internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
     override fun signTransaction(
@@ -20,7 +29,8 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
         key: Int,
     ): ByteArray? {
         return try {
-            val tx = Encoder.decodeFromMsgPack(transactionByteArray, Transaction::class.java)
+            val unsignedTxnBytes = transactionByteArray.withoutTxPrefix()
+            val tx = Encoder.decodeFromMsgPack(unsignedTxnBytes, Transaction::class.java)
 
             val xHDWalletAPI = XHDWalletAPIAndroid(seed)
             val (accountIndex, changeIndex, keyIndex) =
@@ -36,7 +46,7 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
                     accountIndex,
                     changeIndex,
                     keyIndex,
-                    rawTransactionBytesToSign(transactionByteArray),
+                    rawTransactionBytesToSign(unsignedTxnBytes),
                 )
 
             val pkAddress =
@@ -54,9 +64,9 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
             // ("bulkBarrierPreWrite: unaligned arguments").
             return GoMobileDispatcher.runOnGoThread {
                 if (tx.sender != pkAddress) {
-                    Sdk.attachSignatureWithSigner(signedTxn, transactionByteArray, pkAddress.toString())
+                    Sdk.attachSignatureWithSigner(signedTxn, unsignedTxnBytes, pkAddress.toString())
                 } else {
-                    Sdk.attachSignature(signedTxn, transactionByteArray)
+                    Sdk.attachSignature(signedTxn, unsignedTxnBytes)
                 }
             }
         } catch (e: Exception) {
@@ -64,10 +74,7 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
         }
     }
 
-    private fun rawTransactionBytesToSign(tx: ByteArray): ByteArray {
-        val txIdPrefix = "TX".toByteArray(StandardCharsets.UTF_8)
-        return txIdPrefix + tx
-    }
+    private fun rawTransactionBytesToSign(tx: ByteArray): ByteArray = TX_PREFIX + tx
 
     override fun signLegacyArbitraryData(
         transactionByteArray: ByteArray,

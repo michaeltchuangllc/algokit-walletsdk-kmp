@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import android.util.Log
 import com.algorand.algosdk.crypto.Address
-import com.algorand.algosdk.sdk.Sdk
 import com.algorand.algosdk.transaction.AppBoxReference
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.transaction.TxGroup
@@ -13,6 +12,7 @@ import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
+import io.github.algorandecosystem.sdk.Sdk
 import java.math.BigInteger
 import java.net.URI
 
@@ -60,7 +60,6 @@ internal actual suspend fun submitAppCallInternal(
     TxGroup.assignGroupID(*txns.toTypedArray())
     Log.d(TAG, "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
 
-    // Pass Transaction objects directly to avoid Jackson NON_DEFAULT omitting fee=0 on dummies.
     val signed = signTxnGroup(signer, txns)
     require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
         "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
@@ -105,7 +104,6 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     TxGroup.assignGroupID(*txns.toTypedArray())
     Log.d(TAG, "[OPEN_TOPUP_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
 
-    // Pass Transaction objects directly to avoid Jackson NON_DEFAULT omitting fee=0 on dummies.
     val signed = signTxnGroup(signer, txns)
     require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
         "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
@@ -186,19 +184,16 @@ private fun buildFalconDummy(
     params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
     index: Int,
 ): Transaction {
-    // getFalconLsigAddress must run on the Go-mobile OS thread.
     val falconLsigAddress = Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
-    val txn =
-        Transaction
-            .PaymentTransactionBuilder()
-            .sender(falconLsigAddress)
-            .receiver(falconLsigAddress)
-            .amount(0)
-            .suggestedParams(params)
-            .note(byteArrayOf(index.toByte()))
-            .build()
-    txn.fee = BigInteger.ZERO
-    return txn
+    return Transaction
+        .PaymentTransactionBuilder()
+        .sender(falconLsigAddress)
+        .receiver(falconLsigAddress)
+        .amount(0)
+        .suggestedParams(params)
+        .note(byteArrayOf(index.toByte()))
+        .build()
+        .also { it.fee = BigInteger.ZERO }
 }
 
 private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }

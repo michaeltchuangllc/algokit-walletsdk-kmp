@@ -2,8 +2,8 @@
 
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
-import com.algorand.algosdk.sdk.BytesArray
-import com.algorand.algosdk.sdk.Sdk
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
@@ -24,7 +24,6 @@ class ProcessSignTransactionsUseCase(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getSeed: GetHdSeed,
-    private val getMnemonic: suspend (String) -> String?,
     private val decodeUnsignedTransaction: (String) -> Transaction?,
 ) {
     suspend operator fun invoke(
@@ -88,7 +87,6 @@ class ProcessSignTransactionsUseCase(
                 throw e
             }
         } else {
-            // --- STANDARD HANDLING FOR ALGO25 / HDKEY (INDIVIDUAL) ---
             params.txns.forEachIndexed { index, txn ->
                 Napier.d(tag = TAG, message = "Signing transaction ${index + 1}/${params.txns.size}")
 

@@ -1,6 +1,6 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk
 
-import com.algorand.algosdk.sdk.Uint64
+import io.github.algorandecosystem.sdk.Uint64
 import java.math.BigInteger
 
 internal object AlgoSdkNumberExtensions {

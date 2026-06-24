@@ -1,8 +1,10 @@
 import Foundation
 import x_hd_wallet_api
 import MnemonicSwift
-import AlgoSDK
+import FalconAlgoSDK
 import CryptoKit
+import AlgoKitCrypto
+import AlgoKitComposer
 import AlgoKitTransact
 import CommonCrypto
 
@@ -121,7 +123,7 @@ import CommonCrypto
             )
 
             var error: NSError?
-            guard let signedTx = AlgoSDK.AlgoSdkAttachSignature(
+            guard let signedTx = AlgoSdkAttachSignature(
                 signature,
                 transactionBytes,
                 &error
@@ -187,40 +189,36 @@ import CommonCrypto
     }
 
     public func getAlgo25SecretKey(mnemonic: String?) -> String {
-        if let mnemonic = mnemonic {
-            var error: NSError?
-            guard let secretKeyData = AlgoSDK.AlgoSdkMnemonicToPrivateKey(mnemonic, &error) else {
-                print("Failed to convert mnemonic to secret key.")
-                return ""
-            }
-            return secretKeyData.base64EncodedString()
-        } else {
-            guard let newSecretKey = AlgoSDK.AlgoSdkGenerateSK() else {
-                print("Failed to generate new secret key.")
-                return ""
-            }
-            return newSecretKey.base64EncodedString()
+        do {
+            let seed = try mnemonic.map { try seedFromMnemonic(mnemonic: $0) } ?? randomBytes(len: 32)
+            let publicKey = try ed25519PublicKeyFromSeed(seed: seed)
+            return (seed + publicKey).base64EncodedString()
+        } catch {
+            print("Failed to generate Algo25 secret key: \(error.localizedDescription)")
+            return ""
         }
     }
 
     public func isValidAlgorandAddress(address: String?) -> Bool {
-        if address != nil {
-            return AlgoSDK.AlgoSdkIsValidAddress(address)
-        } else {
+        guard let address = address, !address.isEmpty else {
+            return false
+        }
+
+        do {
+            _ = try publicKeyFromAddress(address: address)
+            return true
+        } catch {
             return false
         }
     }
 
     public func getAlgo25MnemonicFromSecretKey(secretKey: Data) -> String {
-        var error: NSError?
-        let mnemonic = AlgoSDK.AlgoSdkMnemonicFromPrivateKey(secretKey, &error)
-
-        if let error = error {
-            print("Error generating mnemonic: \(error)")
+        do {
+            return try secretKeyToMnemonic(secretKey: secretKey)
+        } catch {
+            print("Error generating mnemonic: \(error.localizedDescription)")
             return ""
         }
-
-        return mnemonic
     }
 
     public func generateAddressFromPublicKey(publicKey: String) -> String {
@@ -231,7 +229,12 @@ import CommonCrypto
             return ""
         }
 
-        return AlgoSDK.AlgoSdkGenerateAddressFromPublicKey(data, nil)
+        do {
+            return try addressFromPublicKey(publicKey: data)
+        } catch {
+            print("Error generating address from public key: \(error.localizedDescription)")
+            return ""
+        }
     }
 
     public func generateAddressFromSK(secretKey: String) -> String {
@@ -242,7 +245,14 @@ import CommonCrypto
             return ""
         }
 
-        return AlgoSDK.AlgoSdkGenerateAddressFromSK(data, nil)
+        let seed = data.count == 64 ? Data(data.prefix(32)) : data
+        do {
+            let publicKey = try ed25519PublicKeyFromSeed(seed: seed)
+            return try addressFromPublicKey(publicKey: publicKey)
+        } catch {
+            print("Error generating address from secret key: \(error.localizedDescription)")
+            return ""
+        }
     }
 
     public func signAlgo25TransactionWithBase64(skBase64: String, encodedTxBase64: String) -> String {
@@ -270,27 +280,9 @@ import CommonCrypto
             // Step 1: Decode the unsigned transaction using AlgoKitTransact
             let transaction = try decodeTransaction(encodedTx: encodedTxData)
             
-            // Step 2: Sign with CryptoKit (Ed25519)
-            // Extract the 32-byte seed (first half of 64-byte key)
-            let seedData = skData.prefix(32)
-            let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seedData)
-            
-            // Add "TX" prefix to transaction bytes before signing
-            let txPrefix = "TX".data(using: .utf8)!
-            let dataToSign = txPrefix + encodedTxData
-            
-            let signature = try privateKey.signature(for: dataToSign)
-            let signatureData = Data(signature)
-            
-            // Step 3: Create SignedTransaction with AlgoKitTransact
-            let signedTransaction = SignedTransaction(
-                transaction: transaction,
-                signature: signatureData,
-                authAddress: nil,
-                multisignature: nil
-            )
-            
-            // Step 4: Encode to MessagePack using AlgoKitTransact
+            // Step 2: Sign and encode with AlgoKitTransact using the 32-byte seed.
+            let seedData = Data(skData.prefix(32))
+            let signedTransaction = try ed25519SignTransaction(secretKey: seedData, txn: transaction)
             let encodedSignedTx = try encodeSignedTransaction(signedTransaction: signedTransaction)
             
             return encodedSignedTx.base64EncodedString()
@@ -321,15 +313,11 @@ import CommonCrypto
             return ""
         }
 
-        // Use Apple's native CryptoKit Ed25519 implementation (Curve25519.Signing)
-        // Ed25519 secret key format: first 32 bytes = seed, last 32 bytes = public key
-        // CryptoKit expects just the 32-byte seed
-        let seedData = skData.prefix(32)
+        let seedData = Data(skData.prefix(32))
         
         do {
-            let privateKey = try Curve25519.Signing.PrivateKey(rawRepresentation: seedData)
-            let signature = try privateKey.signature(for: data)
-            return Data(signature).base64EncodedString()
+            let signature = try ed25519RawSign(secretKey: seedData, data: data)
+            return signature.base64EncodedString()
         } catch {
             NSLog("Algo25 arbitrary data signing failed: \(error.localizedDescription)")
             return ""
@@ -400,12 +388,12 @@ import CommonCrypto
         }
 
         // Create BytesArray and add the transaction
-        let txnsArray = AlgoSDK.AlgoSdkBytesArray()
+        let txnsArray = AlgoSdkBytesArray()
         txnsArray.append(transactionBytes)
 
         var error: NSError?
         // AlgoSdkSignFalconBundle returns a CSV of base64 signed transactions (non-optional)
-        let csv = AlgoSDK.AlgoSdkSignFalconBundle(
+        let csv = AlgoSdkSignFalconBundle(
             txnsArray,
             publicKeyData,
             privateKeyData,
@@ -458,9 +446,9 @@ import CommonCrypto
             return ""
         }
         
-        // Use AlgoSDK's RawSign function (same as Android's Sdk.rawSign)
+        // Use FalconMobileSDK's RawSign function (same as Android's Sdk.rawSign)
         var error: NSError?
-        guard let signature = AlgoSDK.AlgoSdkRawSign(
+        guard let signature = AlgoSdkRawSign(
             data,
             publicKeyData,
             privateKeyData,
@@ -493,38 +481,38 @@ import CommonCrypto
             return Data()
         }
 
-        let params = AlgoSdkSuggestedParams()
-        params.fee = Int64(truncatingIfNeeded: fee)
-        params.flatFee = flatFee
-        params.firstRoundValid = Int64(truncatingIfNeeded: firstRound)
-        params.lastRoundValid = Int64(truncatingIfNeeded: lastRound)
-        params.genesisHash = genesisHashData
-        params.genesisID = genesisID
-
         let noteData = noteBase64.flatMap { Data(base64Encoded: $0) }
-        var error: NSError?
-        guard let encodedTx = AlgoSDK.AlgoSdkMakeKeyRegTxnWithStateProofKey(
-            senderAddress,
-            noteData,
-            params,
-            "",
-            "",
-            "",
-            nil,
-            nil,
-            nil,
-            false,
-            &error
-        ) else {
-            if let error = error {
-                print("Error creating Offline KeyReg Tx (SDK failed): \(error.localizedDescription)")
-            } else {
-                print("Failed to create Offline KeyReg Tx: unknown SDK error.")
-            }
+
+        do {
+            let encodedTxs = try compose(
+                txnParams: [
+                    TxnParams(
+                        kind: .offlineKeyReg,
+                        offlineKeyReg: OfflineKeyRegParams(
+                            common: CommonTxnParams(
+                                sender: senderAddress,
+                                note: noteData,
+                                staticFee: flatFee ? fee : nil
+                            )
+                        )
+                    )
+                ],
+                composerParams: ComposerParams(
+                    suggestedParams: SuggestedParams(
+                        fee: fee,
+                        flatFee: flatFee,
+                        firstRoundValid: firstRound,
+                        lastRoundValid: lastRound,
+                        genesisHash: genesisHashData,
+                        genesisId: genesisID
+                    )
+                )
+            )
+            return encodedTxs.first ?? Data()
+        } catch {
+            print("Error creating Offline KeyReg Tx (AlgoKitComposer failed): \(error.localizedDescription)")
             return Data()
         }
-
-        return encodedTx
     }
 
     public func createOnlineKeyRegTransaction(
@@ -566,52 +554,51 @@ import CommonCrypto
         let selectionKeyStandard = convertToStandardBase64(selectionKeyBase64)
         let stateProofKeyStandard = convertToStandardBase64(stateProofKeyBase64)
 
-        let params = AlgoSdkSuggestedParams()
-        params.fee = Int64(truncatingIfNeeded: fee)
-        params.flatFee = flatFee
-        params.firstRoundValid = Int64(truncatingIfNeeded: firstRound)
-        params.lastRoundValid = Int64(truncatingIfNeeded: lastRound)
-        params.genesisHash = genesisHashData
-        params.genesisID = genesisID
-
         let noteData = noteBase64.flatMap { Data(base64Encoded: $0) }
 
-        let voteFirstRoundWrapper = AlgoSdkUint64()
-        voteFirstRoundWrapper.upper = Int64(voteFirstRound >> 32)
-        voteFirstRoundWrapper.lower = Int64(voteFirstRound & 0xFFFFFFFF)
-
-        let voteLastRoundWrapper = AlgoSdkUint64()
-        voteLastRoundWrapper.upper = Int64(voteLastRound >> 32)
-        voteLastRoundWrapper.lower = Int64(voteLastRound & 0xFFFFFFFF)
-
-        let voteKeyDilutionWrapper = AlgoSdkUint64()
-        voteKeyDilutionWrapper.upper = Int64(voteKeyDilution >> 32)
-        voteKeyDilutionWrapper.lower = Int64(voteKeyDilution & 0xFFFFFFFF)
-
-        var error: NSError?
-
-        guard let encodedTx = AlgoSDK.AlgoSdkMakeKeyRegTxnWithStateProofKey(
-            senderAddress,
-            noteData,
-            params,
-            voteKeyStandard,
-            selectionKeyStandard,
-            stateProofKeyStandard,
-            voteFirstRoundWrapper,
-            voteLastRoundWrapper,
-            voteKeyDilutionWrapper,
-            false,
-            &error
-        ) else {
-            if let error = error {
-                print("Error creating Online KeyReg Tx (SDK failed): \(error.localizedDescription)")
-            } else {
-                print("Failed to create Online KeyReg Tx: unknown SDK error.")
-            }
+        guard let voteKeyData = Data(base64Encoded: voteKeyStandard),
+              let selectionKeyData = Data(base64Encoded: selectionKeyStandard),
+              let stateProofKeyData = Data(base64Encoded: stateProofKeyStandard) else {
+            print("Error creating Online KeyReg Tx: Failed to decode voting keys.")
             return Data()
         }
 
-        return encodedTx
+        do {
+            let encodedTxs = try compose(
+                txnParams: [
+                    TxnParams(
+                        kind: .onlineKeyReg,
+                        onlineKeyReg: OnlineKeyRegParams(
+                            common: CommonTxnParams(
+                                sender: senderAddress,
+                                note: noteData,
+                                staticFee: flatFee ? fee : nil
+                            ),
+                            voteKey: voteKeyData,
+                            selectionKey: selectionKeyData,
+                            stateProofKey: stateProofKeyData,
+                            voteFirst: voteFirstRound,
+                            voteLast: voteLastRound,
+                            voteKeyDilution: voteKeyDilution
+                        )
+                    )
+                ],
+                composerParams: ComposerParams(
+                    suggestedParams: SuggestedParams(
+                        fee: fee,
+                        flatFee: flatFee,
+                        firstRoundValid: firstRound,
+                        lastRoundValid: lastRound,
+                        genesisHash: genesisHashData,
+                        genesisId: genesisID
+                    )
+                )
+            )
+            return encodedTxs.first ?? Data()
+        } catch {
+            print("Error creating Online KeyReg Tx (AlgoKitComposer failed): \(error.localizedDescription)")
+            return Data()
+        }
     }
 
     public func makePaymentTxn(
@@ -656,7 +643,7 @@ import CommonCrypto
         var error: NSError?
         let closeRemainderTo = isMax ? receiverAddress : ""
 
-        guard let encodedTx = AlgoSDK.AlgoSdkMakePaymentTxn(
+        guard let encodedTx = AlgoSdkMakePaymentTxn(
             senderAddress,
             receiverAddress,
             amountWrapper,
@@ -718,7 +705,7 @@ import CommonCrypto
 
         var error: NSError?
 
-        guard let encodedTx = AlgoSDK.AlgoSdkMakeAssetTransferTxn(
+        guard let encodedTx = AlgoSdkMakeAssetTransferTxn(
             senderAddress,
             receiverAddress,
             "", // closeRemainderTo
@@ -764,7 +751,7 @@ import CommonCrypto
         params.genesisID = genesisID
 
         var error: NSError?
-        guard let encodedTx = AlgoSDK.AlgoSdkMakeAssetAcceptanceTxn(
+        guard let encodedTx = AlgoSdkMakeAssetAcceptanceTxn(
             publicKey,
             nil, // note
             params,

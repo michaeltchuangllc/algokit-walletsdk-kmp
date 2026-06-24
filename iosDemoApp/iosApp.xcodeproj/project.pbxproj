@@ -30,8 +30,6 @@
 		BAC1623C2F2974E40050270D /* Base32 in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623B2F2974E40050270D /* Base32 */; };
 		BAC162402F2974EB0050270D /* deterministicP256-swift in Frameworks */ = {isa = PBXBuildFile; productRef = BAC1623F2F2974EB0050270D /* deterministicP256-swift */; };
 		BAC162832F29772F0050270D /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162822F29772F0050270D /* WebRTC */; };
-		BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; };
-		BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		BBFC00022F296BFE0050270D /* BroadcastFrameCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */; };
 		C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E12F292EC700AA5CA6 /* SocketIO */; };
 		C291B1E52F292F0500AA5CA6 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = C291B1E42F292F0500AA5CA6 /* WebRTC */; };
@@ -70,7 +68,6 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				BADD91542E9B16FC00DC64A1 /* AlgoSDK.xcframework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -99,7 +96,6 @@
 		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
 		BAC161E22F296BFE0050270D /* LiquidAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthService.swift; sourceTree = "<group>"; };
 		BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthViewController.swift; sourceTree = "<group>"; };
-		BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = AlgoSDK.xcframework; path = "../wallet-sdk-core/src/iosMain/xcframeworks/AlgoSDK.xcframework"; sourceTree = SOURCE_ROOT; };
 		BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastFrameCapture.swift; sourceTree = "<group>"; };
 		C2F9B3FD2F2480CD00E5B9C2 /* AutofillCredentialExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AutofillCredentialExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
@@ -175,7 +171,6 @@
 				BA1BD2432E86CBB3005CAA71 /* MnemonicSwift in Frameworks */,
 				BAC1623A2F2974D20050270D /* SocketIO in Frameworks */,
 				BA1017E32F25E99000A6DC27 /* SwiftCBOR in Frameworks */,
-				BADD91532E9B16FC00DC64A1 /* AlgoSDK.xcframework in Frameworks */,
 				BA8BABEF2FE355E8008683F7 /* AlgoKitTransact in Frameworks */,
 				BA8BABF12FE355E8008683F7 /* AlgoKitUtils in Frameworks */,
 				BA8BABED2FE355E8008683F7 /* AlgoKitCrypto in Frameworks */,
@@ -223,7 +218,6 @@
 		A93A952E29CC810C00F8E227 = {
 			isa = PBXGroup;
 			children = (
-				BADD91512E9B16E800DC64A1 /* AlgoSDK.xcframework */,
 				A93A953929CC810C00F8E227 /* iosApp */,
 				C2F9B4002F2480CD00E5B9C2 /* AutofillCredentialExtension */,
 				C2F9B4172F2483D600E5B9C2 /* AuthenticationService */,
