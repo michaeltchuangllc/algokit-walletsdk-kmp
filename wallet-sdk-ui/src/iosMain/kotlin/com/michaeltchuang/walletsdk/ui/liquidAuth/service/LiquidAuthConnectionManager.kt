@@ -450,12 +450,13 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                             "keyLen=${signerKey.size} session=$activePaymentSessionId",
                     )
                     // Update the server's config with the viewer's key so skipPaymentRequestWhenSessionFunded works.
+                    val fallbackNetwork = activeGatingConfig?.network ?: MppNetworks.ALGORAND_TESTNET
                     val currentGating =
                         activeGatingConfig ?: GatingConfig(
                             mode = GatingMode.PARTIAL_TIME,
                             amount = activePaymentAmount ?: "0",
                             asset = "USDC",
-                            network = MppNetworks.ALGORAND_TESTNET,
+                            network = fallbackNetwork,
                             payTo = activePaymentRecipient ?: "",
                         )
                     streamCreator?.updateConfig(

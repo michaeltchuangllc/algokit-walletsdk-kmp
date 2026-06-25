@@ -28,7 +28,10 @@ import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -72,8 +75,15 @@ class LiquidAuthOfferViewModel(
     val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
 
     // Current network label for UI display (TESTNET/MAINNET)
-    private val _currentNetworkLabel = MutableStateFlow("TESTNET")
-    val currentNetworkLabel: StateFlow<String> = _currentNetworkLabel
+    private val _currentNetwork = MutableStateFlow(AlgorandNetwork.TESTNET)
+    val currentNetworkLabel: StateFlow<String> =
+        _currentNetwork
+            .map { network ->
+                when (network) {
+                    AlgorandNetwork.MAINNET -> "MAINNET"
+                    AlgorandNetwork.TESTNET -> "TESTNET"
+                }
+            }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "TESTNET")
 
     // Payment session ID
     private var paymentSessionId: String? = null
@@ -89,6 +99,7 @@ class LiquidAuthOfferViewModel(
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
         const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
+        private const val USDC_ASSET = "USDC"
     }
 
     init {
@@ -181,7 +192,7 @@ class LiquidAuthOfferViewModel(
                 sessionId = getCurrentSessionId() ?: paymentSessionId!!,
                 segmentIndex = 0,
                 amount = COST_PER_BLOCK_MICRO_USDC.toString(),
-                asset = "USDC",
+                asset = USDC_ASSET,
                 network = network,
                 payTo = creatorAddress,
                 ttl = 30,
@@ -419,7 +430,7 @@ class LiquidAuthOfferViewModel(
                 sessionId = getCurrentSessionId() ?: paymentSessionId!!,
                 segmentIndex = 0,
                 amount = COST_PER_BLOCK_MICRO_USDC.toString(),
-                asset = "USDC",
+                asset = USDC_ASSET,
                 network = network,
                 payTo = creatorAddress,
                 ttl = 30,
@@ -714,11 +725,7 @@ class LiquidAuthOfferViewModel(
     private fun observeCurrentNetwork() {
         viewModelScope.launch {
             getCurrentNetworkUseCase().collect { network ->
-                _currentNetworkLabel.value =
-                    when (network) {
-                        AlgorandNetwork.MAINNET -> "MAINNET"
-                        AlgorandNetwork.TESTNET -> "TESTNET"
-                    }
+                _currentNetwork.value = network
             }
         }
     }

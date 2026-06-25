@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
@@ -182,7 +181,7 @@ class SetupMppPaymentViewerUseCase(
                                             budgetCap =
                                                 BudgetCap(
                                                     amount = existingOnChainBalance.toString(),
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 ),
                                         )
                                     }
@@ -612,7 +611,7 @@ class SetupMppPaymentViewerUseCase(
                                             ConsentTerms(
                                                 gatingMode = GatingMode.PARTIAL_TIME,
                                                 amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
-                                                asset = USDC_TESTNET_ID.toString(),
+                                                asset = "USDC",
                                                 network = mppNetwork,
                                                 payTo = sessionVaultHostAddress,
                                                 segmentDuration = 3,
@@ -684,7 +683,7 @@ class SetupMppPaymentViewerUseCase(
                                                 // then tell the server to re-issue the segment request.
                                                 liquidStreamViewer?.rtcClient?.extendBudget(
                                                     additionalMicroUsdc = depositMicroUsdc,
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 )
                                                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(
                                                     sessionId = viewerVoucherSessionId ?: "",
@@ -745,7 +744,7 @@ class SetupMppPaymentViewerUseCase(
                                                 // then tell the server to re-issue the segment request.
                                                 liquidStreamViewer?.rtcClient?.extendBudget(
                                                     additionalMicroUsdc = depositMicroUsdc,
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 )
                                                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(
                                                     sessionId = viewerVoucherSessionId ?: "",
@@ -826,7 +825,7 @@ class SetupMppPaymentViewerUseCase(
                                 )
                                 viewer.rtcClient.extendBudget(
                                     additionalMicroUsdc = 0L,
-                                    asset = USDC_TESTNET_ID.toString(),
+                                    asset = "USDC",
                                 )
                             }
                         }

@@ -81,7 +81,7 @@ internal actual fun mppBuildPaymentTxn(
                 genesisID = params.genesisId,
             )
         } else {
-            val asaIdLong = requireNotNull(normalizedAsaId) { "asaId required for ASA transfer" }.toLong()
+            val asaIdLong = parseMppAsaId(normalizedAsaId, context = "ASA transfer")
             bridge.makeAssetTransferTxnWithSenderAddress(
                 senderAddress = sender,
                 receiverAddress = receiver,

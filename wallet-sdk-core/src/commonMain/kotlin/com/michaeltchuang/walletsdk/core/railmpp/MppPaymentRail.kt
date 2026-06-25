@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.core.railmpp
 
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRail
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRailRequestParams
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentReceipt
@@ -60,7 +61,7 @@ class MppPaymentRail(
         val isSolana = params.network.startsWith("solana:", ignoreCase = true)
 
         val asset = params.asset.trim()
-        val normalizedAsset = if (asset.equals("algo", ignoreCase = true)) ALGO_ASSET else asset
+        val normalizedAsset = normalizeAssetForNetwork(asset, params.network)
         val isAlgo = normalizedAsset.isBlank() || normalizedAsset == ALGO_ASSET
         val currency =
             if (isSolana) {
@@ -178,6 +179,17 @@ class MppPaymentRail(
             timestamp = mppNowMs(),
         )
     }
+
+    private fun normalizeAssetForNetwork(
+        asset: String,
+        network: String,
+    ): String =
+        when {
+            asset.equals("ALGO", ignoreCase = true) -> ALGO_ASSET
+            asset.equals("USDC", ignoreCase = true) ->
+                AssetConstants.usdcIdForNetwork(network).toString()
+            else -> asset
+        }
 
     private fun extractCredential(payload: Any?): String {
         if (payload is String) return payload

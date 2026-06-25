@@ -163,9 +163,6 @@ class LiquidAuthOfferScreenshotTest(
     ) {
         setTestContent {
             LiquidAuthOfferScreenContent(
-                showTopBar = true,
-                title = { Text("Liquid Auth") },
-                onBackPressed = {},
                 state = state,
                 connectionType = connectionType,
                 progressBalanceUsdc = balanceUsdc,
