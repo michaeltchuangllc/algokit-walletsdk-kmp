@@ -248,6 +248,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             IOSLiquidStreamCreator(
                 mppServerConfig = mppServerConfig,
                 serverConfig = serverConfig,
+                getRemainingSessionVaultBalanceUseCase = getRemainingBalanceUseCase,
             )
 
         creator.onSessionStarted = { sid ->
