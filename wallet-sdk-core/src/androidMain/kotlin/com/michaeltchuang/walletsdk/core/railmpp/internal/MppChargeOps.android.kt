@@ -59,7 +59,7 @@ internal actual fun mppBuildPaymentTxn(
                 .apply { if (note != null) note(note) }
                 .build()
         } else {
-            val asaIdLong = requireNotNull(normalizedAsaId) { "asaId required for ASA transfer" }.toLong()
+            val asaIdLong = parseMppAsaId(normalizedAsaId, context = "ASA transfer")
             Transaction
                 .AssetTransferTransactionBuilder()
                 .sender(Address(sender))

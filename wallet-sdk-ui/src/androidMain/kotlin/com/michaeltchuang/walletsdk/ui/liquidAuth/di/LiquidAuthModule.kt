@@ -19,6 +19,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometr
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
@@ -61,7 +63,10 @@ val liquidAuthUIModule =
 
         viewModel {
             EscrowSessionVaultDebugViewModel(
-                get(),
+                stateDelegate = StateDelegate<EscrowSessionVaultDebugViewModel.ViewState>(),
+                eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
+                mppWalletSignerUseCase = get(),
+                getLocalAccounts = get(),
             )
         }
 

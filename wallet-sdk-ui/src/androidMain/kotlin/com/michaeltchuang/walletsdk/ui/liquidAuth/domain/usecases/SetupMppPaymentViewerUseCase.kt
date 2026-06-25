@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
@@ -182,7 +181,7 @@ class SetupMppPaymentViewerUseCase(
                                             budgetCap =
                                                 BudgetCap(
                                                     amount = existingOnChainBalance.toString(),
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 ),
                                         )
                                     }
@@ -432,15 +431,7 @@ class SetupMppPaymentViewerUseCase(
                                             if (updateResult.isFailure) {
                                                 val firstErrText = updateResult.exceptionOrNull()?.message.orEmpty()
                                                 val duplicateVoucherUpdate =
-                                                    (
-                                                        firstErrText.contains("pc=622", ignoreCase = true) ||
-                                                            firstErrText.contains("pc=661", ignoreCase = true)
-                                                    ) &&
-                                                        (
-                                                            firstErrText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                firstErrText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                                firstErrText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
-                                                        )
+                                                    MppPayments.isDuplicateVoucherUpdateError(firstErrText)
                                                 if (!duplicateVoucherUpdate) {
                                                     Log.e(
                                                         TAG,
@@ -496,15 +487,7 @@ class SetupMppPaymentViewerUseCase(
                                                 }.onFailure { err ->
                                                     val errText = err.message.orEmpty()
                                                     val duplicateVoucherUpdate =
-                                                        (
-                                                            errText.contains("pc=622", ignoreCase = true) ||
-                                                                errText.contains("pc=661", ignoreCase = true)
-                                                        ) &&
-                                                            (
-                                                                errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                    errText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                                    errText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
-                                                            )
+                                                        MppPayments.isDuplicateVoucherUpdateError(errText)
                                                     if (duplicateVoucherUpdate) {
                                                         Log.e(
                                                             TAG,
@@ -532,55 +515,54 @@ class SetupMppPaymentViewerUseCase(
                                             val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
                                             val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
                                             val duplicateVoucherUpdate =
-                                                updateResult
-                                                    .exceptionOrNull()
-                                                    ?.message
-                                                    .orEmpty()
-                                                    .let { msg ->
-                                                        msg.contains("pc=622", ignoreCase = true) &&
-                                                            (
-                                                                msg.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                    msg.contains("Voucher not increasing", ignoreCase = true)
-                                                            )
-                                                    }
-                                            val effectiveUpdateOk = updateResult.isSuccess || duplicateVoucherUpdate
+                                                MppPayments.isDuplicateVoucherUpdateError(
+                                                    updateResult.exceptionOrNull()?.message.orEmpty(),
+                                                )
                                             val caughtUp = onChainLatestVoucher >= voucherClaimed
+                                            val effectiveUpdateOk = updateResult.isSuccess || (duplicateVoucherUpdate && caughtUp)
                                             val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
                                             Log.e(
                                                 TAG,
                                                 "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
                                             )
 
-                                            val progressSnapshot =
-                                                safeApiCall("getSessionProgressSnapshot.postUpdate") {
-                                                    MppPayments.getSessionProgressSnapshotFromVault(
+                                            if (effectiveUpdateOk) {
+                                                val progressSnapshot =
+                                                    safeApiCall("getSessionProgressSnapshot.postUpdate") {
+                                                        MppPayments.getSessionProgressSnapshotFromVault(
+                                                            viewerAddress = receiptViewerAddress,
+                                                            hostAddress = sessionVaultHostAddress,
+                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        )
+                                                    }
+                                                val voucherJson =
+                                                    MppPayments.createVoucherJson(
+                                                        sessionId = receipt.sessionId,
                                                         viewerAddress = receiptViewerAddress,
-                                                        hostAddress = sessionVaultHostAddress,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        viewerPublicKey = signer.authorizedSignerPublicKey,
+                                                        creatorAddress = receipt.payTo,
+                                                        blocksConsumed = blocksConsumed,
+                                                        totalAmountUsed = voucherClaimed,
+                                                        remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
+                                                        signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
                                                     )
-                                                }
-                                            val voucherJson =
-                                                MppPayments.createVoucherJson(
-                                                    sessionId = receipt.sessionId,
-                                                    viewerAddress = receiptViewerAddress,
-                                                    viewerPublicKey = signer.authorizedSignerPublicKey,
-                                                    creatorAddress = receipt.payTo,
-                                                    blocksConsumed = blocksConsumed,
-                                                    totalAmountUsed = voucherClaimed,
-                                                    remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
-                                                    signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
+                                                val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
+                                                Log.e(
+                                                    TAG,
+                                                    "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
                                                 )
-                                            val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
-                                            Log.e(
-                                                TAG,
-                                                "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
-                                            )
-                                            Log.e(
-                                                TAG,
-                                                "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
-                                            )
-                                            service.send(voucherJson)
+                                                Log.e(
+                                                    TAG,
+                                                    "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
+                                                )
+                                                service.send(voucherJson)
+                                            } else {
+                                                Log.e(
+                                                    TAG,
+                                                    "[SESSION_VAULT_VOUCHER_SEND_SKIP] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher lagMicroUsdc=$lagMicroUsdc reason=update_not_confirmed",
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -612,7 +594,7 @@ class SetupMppPaymentViewerUseCase(
                                             ConsentTerms(
                                                 gatingMode = GatingMode.PARTIAL_TIME,
                                                 amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
-                                                asset = USDC_TESTNET_ID.toString(),
+                                                asset = "USDC",
                                                 network = mppNetwork,
                                                 payTo = sessionVaultHostAddress,
                                                 segmentDuration = 3,
@@ -684,7 +666,7 @@ class SetupMppPaymentViewerUseCase(
                                                 // then tell the server to re-issue the segment request.
                                                 liquidStreamViewer?.rtcClient?.extendBudget(
                                                     additionalMicroUsdc = depositMicroUsdc,
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 )
                                                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(
                                                     sessionId = viewerVoucherSessionId ?: "",
@@ -745,7 +727,7 @@ class SetupMppPaymentViewerUseCase(
                                                 // then tell the server to re-issue the segment request.
                                                 liquidStreamViewer?.rtcClient?.extendBudget(
                                                     additionalMicroUsdc = depositMicroUsdc,
-                                                    asset = USDC_TESTNET_ID.toString(),
+                                                    asset = "USDC",
                                                 )
                                                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(
                                                     sessionId = viewerVoucherSessionId ?: "",
@@ -826,7 +808,7 @@ class SetupMppPaymentViewerUseCase(
                                 )
                                 viewer.rtcClient.extendBudget(
                                     additionalMicroUsdc = 0L,
-                                    asset = USDC_TESTNET_ID.toString(),
+                                    asset = "USDC",
                                 )
                             }
                         }

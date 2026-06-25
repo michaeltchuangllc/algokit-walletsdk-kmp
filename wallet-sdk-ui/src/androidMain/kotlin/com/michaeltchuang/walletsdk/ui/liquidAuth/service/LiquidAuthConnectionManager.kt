@@ -15,7 +15,6 @@ import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
@@ -86,6 +85,7 @@ class AndroidLiquidAuthConnectionManager(
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
     private var activePaymentAmount: String? = null
+    private var activePaymentNetwork: String? = null
     private var activeViewerAddressForVault: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
@@ -193,7 +193,7 @@ class AndroidLiquidAuthConnectionManager(
                 if (isSolanaNetwork) {
                     if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
                 } else {
-                    USDC_TESTNET_ID.toString()
+                    paymentRequest.asset.takeIf { it.isNotBlank() } ?: "USDC"
                 }
             Log.d(
                 TAG,
@@ -294,6 +294,7 @@ class AndroidLiquidAuthConnectionManager(
                 activePaymentSessionId = resolvedSessionId
                 activePaymentRecipient = recipient
                 activePaymentAmount = amount
+                activePaymentNetwork = network
                 Log.e(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_initialized session=$resolvedSessionId viewer=$activeViewerAddressForVault recipient=$recipient",
@@ -304,6 +305,7 @@ class AndroidLiquidAuthConnectionManager(
                 activePaymentSessionId = resolvedSessionId
                 activePaymentRecipient = recipient
                 activePaymentAmount = amount
+                activePaymentNetwork = network
                 Log.e(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_reused session=$resolvedSessionId viewer=$activeViewerAddressForVault recipient=$recipient",
@@ -706,8 +708,8 @@ class AndroidLiquidAuthConnectionManager(
                         amount =
                             activePaymentAmount
                                 ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
-                        asset = USDC_TESTNET_ID.toString(),
-                        network = MppNetworks.ALGORAND_TESTNET,
+                        asset = "USDC",
+                        network = activePaymentNetwork ?: MppNetworks.ALGORAND_TESTNET,
                         payTo = activePaymentRecipient.orEmpty(),
                         segmentDuration = 3,
                         leadTime = 0,
@@ -729,6 +731,7 @@ class AndroidLiquidAuthConnectionManager(
         activePaymentSessionId = null
         activePaymentRecipient = null
         activePaymentAmount = null
+        activePaymentNetwork = null
         activeViewerAddressForVault = null
         activeCreatorVoucherClaimSnapshot = null
         activeViewerAuthorizedSignerKey = null

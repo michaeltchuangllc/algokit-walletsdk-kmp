@@ -92,6 +92,16 @@ internal fun resolveAlgodUrl(
         ?: DEFAULT_ALGOD_URLS[MppNetworks.ALGORAND_TESTNET]!!
 
 /** Decodes the 32-byte public key from a base32 Algorand address, or null if malformed. */
+internal fun parseMppAsaId(
+    asaId: String?,
+    context: String,
+): Long {
+    val normalizedAsaId = asaId?.trim()
+    require(!normalizedAsaId.isNullOrBlank()) { "asaId required for $context" }
+    return normalizedAsaId.toLongOrNull()
+        ?: throw MppVerifyException("asaId must be a numeric Algorand ASA id for $context, got '$normalizedAsaId'")
+}
+
 internal fun decodeAlgorandAddressBytes(address: String): ByteArray? {
     val cleaned = address.trim().uppercase()
     if (cleaned.length != 58) return null

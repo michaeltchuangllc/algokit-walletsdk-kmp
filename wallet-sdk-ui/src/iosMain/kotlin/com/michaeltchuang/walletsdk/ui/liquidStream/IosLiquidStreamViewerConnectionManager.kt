@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream
 
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
@@ -338,7 +337,7 @@ class IosLiquidStreamViewerConnectionManager {
                                 budgetCap =
                                     BudgetCap(
                                         amount = existing.toString(),
-                                        asset = USDC_TESTNET_ID.toString(),
+                                        asset = "USDC",
                                     ),
                             )
                         }
@@ -483,7 +482,7 @@ class IosLiquidStreamViewerConnectionManager {
                     budgetCap =
                         BudgetCap(
                             amount = microUsdc.toString(),
-                            asset = USDC_TESTNET_ID.toString(),
+                            asset = "USDC",
                         ),
                     maxAutoPaySegments = maxSegments,
                 ),
@@ -521,7 +520,7 @@ class IosLiquidStreamViewerConnectionManager {
                         budgetCap =
                             BudgetCap(
                                 amount = microUsdc.toString(),
-                                asset = USDC_TESTNET_ID.toString(),
+                                asset = "USDC",
                             ),
                         maxAutoPaySegments = maxSegments,
                     ),
@@ -541,7 +540,7 @@ class IosLiquidStreamViewerConnectionManager {
                     budgetCap =
                         BudgetCap(
                             amount = microUsdc.toString(),
-                            asset = USDC_TESTNET_ID.toString(),
+                            asset = "USDC",
                         ),
                     maxAutoPaySegments = maxSegments,
                 ),
@@ -695,7 +694,7 @@ class IosLiquidStreamViewerConnectionManager {
                 }
             val amount = message.jsonOptString("amount") ?: ""
             val payTo = message.jsonOptString("payTo") ?: ""
-            val asset = message.jsonOptString("asset") ?: USDC_TESTNET_ID.toString()
+            val asset = message.jsonOptString("asset") ?: "USDC"
 
             println(
                 "$TAG: 💰 PAYMENT_REQUEST_PARSE session=$sessionId amount=$amount payTo=$payTo " +
@@ -747,7 +746,7 @@ class IosLiquidStreamViewerConnectionManager {
                                 budgetCap =
                                     BudgetCap(
                                         amount = existing.toString(),
-                                        asset = USDC_TESTNET_ID.toString(),
+                                        asset = "USDC",
                                     ),
                             ),
                         )

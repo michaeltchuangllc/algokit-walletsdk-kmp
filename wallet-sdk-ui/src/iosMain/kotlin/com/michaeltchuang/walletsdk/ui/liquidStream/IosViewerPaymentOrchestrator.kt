@@ -134,19 +134,6 @@ class IosViewerPaymentOrchestrator(
                     tag = TAG,
                 )
 
-                // Build and send a voucher to the host so it can settle on-chain and
-                // transition from WaitingForPayment → Streaming state.
-                trySendVoucher(
-                    signer = signer,
-                    viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
-                    sessionId = sessionId,
-                    totalAmountClaimedMicroUsdc = depositMicroUsdc,
-                    segmentDebitMicroUsdc = depositMicroUsdc, // deposit voucher: full amount is the debit
-                    remainingMicroUsdc = remaining,
-                    sendMessageFn = sendMessageFn,
-                )
-
                 onResult(remaining)
             } catch (e: Exception) {
                 Napier.e("[VIEWER_DEPOSIT_EXCEPTION] viewer=$viewerAddress", e, tag = TAG)
@@ -260,12 +247,7 @@ class IosViewerPaymentOrchestrator(
                         )
                     }.onFailure { err ->
                         val errText = err.message.orEmpty()
-                        val isDuplicate =
-                            errText.contains("pc=622", ignoreCase = true) &&
-                                (
-                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                        errText.contains("Voucher not increasing", ignoreCase = true)
-                                )
+                        val isDuplicate = MppPayments.isDuplicateVoucherUpdateError(errText)
                         if (isDuplicate) {
                             Napier.d(
                                 "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] session=$sessionId " +
@@ -282,46 +264,73 @@ class IosViewerPaymentOrchestrator(
                         }
                     }.getOrNull()
 
-            if (updateTxId != null) {
-                val confirmed =
+            val txConfirmed =
+                if (updateTxId != null) {
                     withContext(Dispatchers.Default) {
                         MppPayments.awaitTransactionConfirmation(
                             txId = updateTxId,
                             algodUrl = MppPayments.TESTNET_ALGOD_URL,
                         )
+                    }.also { confirmed ->
+                        if (confirmed) {
+                            Napier.d(
+                                "[VIEWER_UPDATE_VOUCHER_CONFIRMED] session=$sessionId txId=$updateTxId",
+                                tag = TAG,
+                            )
+                        } else {
+                            Napier.w(
+                                "[VIEWER_UPDATE_VOUCHER_UNCONFIRMED] session=$sessionId txId=$updateTxId",
+                                tag = TAG,
+                            )
+                        }
                     }
-                if (confirmed) {
-                    Napier.d(
-                        "[VIEWER_UPDATE_VOUCHER_CONFIRMED] session=$sessionId txId=$updateTxId",
-                        tag = TAG,
-                    )
                 } else {
-                    Napier.w(
-                        "[VIEWER_UPDATE_VOUCHER_UNCONFIRMED] session=$sessionId txId=$updateTxId " +
-                            "sending DC voucher anyway (host may retry on next block)",
-                        tag = TAG,
-                    )
+                    false
                 }
-            }
 
-            val voucherJson =
-                MppPayments.createVoucherJson(
-                    sessionId = sessionId,
-                    viewerAddress = viewerAddress,
-                    viewerPublicKey = pubKey,
-                    creatorAddress = hostAddress,
-                    blocksConsumed = 1,
-                    totalAmountUsed = effectiveClaimedMicroUsdc,
-                    remainingMicroUsdc = remainingMicroUsdc,
-                    signatureBase64 = signatureBase64,
+            val onChainLatestVoucher =
+                runCatching {
+                    MppPayments
+                        .getSessionDynamicDataFromVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = hostAddress,
+                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            authorizedSignerPublicKey = pubKey,
+                        )?.latestVoucherAmount ?: 0L
+                }.getOrDefault(0L)
+            val duplicateVoucherUpdate =
+                MppPayments.isDuplicateVoucherUpdateError(updateResult.exceptionOrNull()?.message.orEmpty())
+            val caughtUp = onChainLatestVoucher >= effectiveClaimedMicroUsdc
+            val effectiveUpdateOk = updateResult.isSuccess || txConfirmed || (duplicateVoucherUpdate && caughtUp)
+
+            if (effectiveUpdateOk) {
+                val voucherJson =
+                    MppPayments.createVoucherJson(
+                        sessionId = sessionId,
+                        viewerAddress = viewerAddress,
+                        viewerPublicKey = pubKey,
+                        creatorAddress = hostAddress,
+                        blocksConsumed = 1,
+                        totalAmountUsed = effectiveClaimedMicroUsdc,
+                        remainingMicroUsdc = remainingMicroUsdc,
+                        signatureBase64 = signatureBase64,
+                    )
+
+                Napier.d(
+                    "[VIEWER_VOUCHER_SEND] session=$sessionId viewer=$viewerAddress " +
+                        "effectiveClaimed=$effectiveClaimedMicroUsdc sig=${signatureBase64.take(16)}...",
+                    tag = TAG,
                 )
-
-            Napier.d(
-                "[VIEWER_VOUCHER_SEND] session=$sessionId viewer=$viewerAddress " +
-                    "effectiveClaimed=$effectiveClaimedMicroUsdc sig=${signatureBase64.take(16)}...",
-                tag = TAG,
-            )
-            sendMessageFn(voucherJson)
+                sendMessageFn(voucherJson)
+            } else {
+                val lagMicroUsdc = (effectiveClaimedMicroUsdc - onChainLatestVoucher).coerceAtLeast(0L)
+                Napier.w(
+                    "[VIEWER_VOUCHER_SEND_SKIP] session=$sessionId viewer=$viewerAddress " +
+                        "effectiveClaimed=$effectiveClaimedMicroUsdc onChainLatestVoucher=$onChainLatestVoucher " +
+                        "lagMicroUsdc=$lagMicroUsdc reason=update_not_confirmed",
+                    tag = TAG,
+                )
+            }
         } catch (e: Exception) {
             Napier.e("[VIEWER_VOUCHER_ERR] viewer=$viewerAddress", e, tag = TAG)
         }

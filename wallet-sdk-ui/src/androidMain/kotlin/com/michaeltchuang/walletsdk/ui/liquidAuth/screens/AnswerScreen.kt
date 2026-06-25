@@ -17,7 +17,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
@@ -214,7 +213,7 @@ fun AnswerScreen(
                                 ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
-                                    budgetCap = BudgetCap(amount = micro.toString(), asset = USDC_TESTNET_ID.toString()),
+                                    budgetCap = BudgetCap(amount = micro.toString(), asset = "USDC"),
                                     maxAutoPaySegments = maxSegments,
                                 ),
                             )

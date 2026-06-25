@@ -115,6 +115,7 @@ class AnswerViewModel(
     EventViewModel<AnswerViewModel.ViewEvent> by eventDelegate {
     companion object {
         private const val TAG = "AnswerViewModel"
+        private const val MIN_CBOR_REQUEST_MESSAGE_BYTES = 8
         const val NOTIFICATION_CHANNEL_ID = "NOTIFICATION_CHANNEL"
         const val SERVICE_NOTIFICATION_ID = 1000
     }
@@ -306,6 +307,14 @@ class AnswerViewModel(
                         "Incoming CBOR encoding: " +
                             if (cborBytes[0].toInt() and 0x1F == 0x1F) "INDEFINITE-LENGTH" else "DEFINITE-LENGTH",
                 )
+            }
+
+            if (cborBytes.size < MIN_CBOR_REQUEST_MESSAGE_BYTES) {
+                Napier.w(
+                    tag = TAG,
+                    message = "Ignoring non-request DataChannel payload: decodedBytes=${cborBytes.size}",
+                )
+                return
             }
 
             val message = Message(cborBytes, EncoderType.CBOR)

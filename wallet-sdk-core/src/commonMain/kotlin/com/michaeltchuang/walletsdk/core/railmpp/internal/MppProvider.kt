@@ -267,8 +267,9 @@ internal class MppProvider(
 
         val isAlgo = req.asaId == null || req.asaId == ALGO_ASSET
         val expectedAmount = BigInteger.parseString(req.amount.trim())
+        val expectedAsaId = if (isAlgo) null else parseMppAsaId(req.asaId, context = "ASA charge verification")
 
-        val resolvedPaymentIndex = resolvePaymentIndex(req, paymentIndex, decoded, isAlgo, expectedAmount)
+        val resolvedPaymentIndex = resolvePaymentIndex(req, paymentIndex, decoded, isAlgo, expectedAsaId, expectedAmount)
         val payment = decoded[resolvedPaymentIndex]
 
         // Lease is REQUIRED per spec — verify SHA-256(challengeReference) matches.
@@ -285,6 +286,7 @@ internal class MppProvider(
         providedPaymentIndex: Int,
         decoded: List<MppDecodedTxn>,
         isAlgo: Boolean,
+        expectedAsaId: Long?,
         expectedAmount: BigInteger,
     ): Int {
         // Validate the recipient address format up front (matches the original byte-decode guard).
@@ -300,7 +302,7 @@ internal class MppProvider(
                 txn.type == MppDecodedTxn.TYPE_ASSET_TRANSFER &&
                     txn.assetReceiver == req.recipient &&
                     BigInteger.fromLong(txn.assetAmount ?: 0L) == expectedAmount &&
-                    (txn.xferAsset ?: 0L) == req.asaId!!.toLong()
+                    (txn.xferAsset ?: 0L) == expectedAsaId
             }
 
         if (matchesCharge(decoded[providedPaymentIndex])) {

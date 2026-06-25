@@ -111,7 +111,7 @@ enum class AlgoKitScreens {
     ADD_ASSET_SCREEN,
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
-    DEVELOPER_TEST_SCREEN,
+    ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
     GITHUB_REPO_SCREEN,
 }
 
@@ -739,7 +739,7 @@ fun NavigationBottomSheetNavHost(
                         onAccountsImported = onFinish,
                     )
                 }
-                composable(route = AlgoKitScreens.DEVELOPER_TEST_SCREEN.name) {
+                composable(route = AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name) {
                     EscrowSessionVaultDebugToolScreen(navController)
                 }
                 composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
