@@ -191,6 +191,20 @@ object MppPayments {
         return result
     }
 
+    fun isDuplicateVoucherUpdateError(message: String): Boolean {
+        val isKnownVoucherIncreaseAssert =
+            message.contains("Voucher not increasing", ignoreCase = true) ||
+                (
+                    message.contains("opcodes=dig 2", ignoreCase = true) &&
+                        message.contains("<; assert", ignoreCase = true)
+                )
+        val isKnownProgramCounter =
+            message.contains("pc=622", ignoreCase = true) ||
+                message.contains("pc=661", ignoreCase = true) ||
+                message.contains("pc=662", ignoreCase = true)
+        return isKnownVoucherIncreaseAssert && (isKnownProgramCounter || message.contains("Voucher not increasing", ignoreCase = true))
+    }
+
     suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
         appId: Long,
@@ -220,9 +234,7 @@ object MppPayments {
             .onSuccess { Napier.d("[VIEWER_UPDATE_VOUCHER_OK] txId=$it channelIdHash=$channelIdHash", tag = TAG) }
             .onFailure { throwable ->
                 val err = throwable.message.orEmpty()
-                val isDuplicate =
-                    err.contains("pc=622", ignoreCase = true) &&
-                        (err.contains("opcodes=dig 2", ignoreCase = true) || err.contains("Voucher not increasing", ignoreCase = true))
+                val isDuplicate = isDuplicateVoucherUpdateError(err)
                 if (isDuplicate) {
                     Napier.e(
                         "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] channelIdHash=$channelIdHash reason=already_recorded_onchain",

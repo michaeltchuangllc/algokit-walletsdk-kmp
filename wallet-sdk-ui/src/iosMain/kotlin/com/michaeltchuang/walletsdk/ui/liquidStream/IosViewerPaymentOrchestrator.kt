@@ -260,12 +260,7 @@ class IosViewerPaymentOrchestrator(
                         )
                     }.onFailure { err ->
                         val errText = err.message.orEmpty()
-                        val isDuplicate =
-                            errText.contains("pc=622", ignoreCase = true) &&
-                                (
-                                    errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                        errText.contains("Voucher not increasing", ignoreCase = true)
-                                )
+                        val isDuplicate = MppPayments.isDuplicateVoucherUpdateError(errText)
                         if (isDuplicate) {
                             Napier.d(
                                 "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] session=$sessionId " +

@@ -431,15 +431,7 @@ class SetupMppPaymentViewerUseCase(
                                             if (updateResult.isFailure) {
                                                 val firstErrText = updateResult.exceptionOrNull()?.message.orEmpty()
                                                 val duplicateVoucherUpdate =
-                                                    (
-                                                        firstErrText.contains("pc=622", ignoreCase = true) ||
-                                                            firstErrText.contains("pc=661", ignoreCase = true)
-                                                    ) &&
-                                                        (
-                                                            firstErrText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                firstErrText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                                firstErrText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
-                                                        )
+                                                    MppPayments.isDuplicateVoucherUpdateError(firstErrText)
                                                 if (!duplicateVoucherUpdate) {
                                                     Log.e(
                                                         TAG,
@@ -495,15 +487,7 @@ class SetupMppPaymentViewerUseCase(
                                                 }.onFailure { err ->
                                                     val errText = err.message.orEmpty()
                                                     val duplicateVoucherUpdate =
-                                                        (
-                                                            errText.contains("pc=622", ignoreCase = true) ||
-                                                                errText.contains("pc=661", ignoreCase = true)
-                                                        ) &&
-                                                            (
-                                                                errText.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                    errText.contains("Voucher not increasing", ignoreCase = true) ||
-                                                                    errText.contains("opcodes=dig 2; <; assert", ignoreCase = true)
-                                                            )
+                                                        MppPayments.isDuplicateVoucherUpdateError(errText)
                                                     if (duplicateVoucherUpdate) {
                                                         Log.e(
                                                             TAG,
@@ -531,19 +515,11 @@ class SetupMppPaymentViewerUseCase(
                                             val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
                                             val onChainLastSettled = onChainDynamicData?.lastSettled ?: 0L
                                             val duplicateVoucherUpdate =
-                                                updateResult
-                                                    .exceptionOrNull()
-                                                    ?.message
-                                                    .orEmpty()
-                                                    .let { msg ->
-                                                        msg.contains("pc=622", ignoreCase = true) &&
-                                                            (
-                                                                msg.contains("opcodes=dig 2", ignoreCase = true) ||
-                                                                    msg.contains("Voucher not increasing", ignoreCase = true)
-                                                            )
-                                                    }
-                                            val effectiveUpdateOk = updateResult.isSuccess || duplicateVoucherUpdate
+                                                MppPayments.isDuplicateVoucherUpdateError(
+                                                    updateResult.exceptionOrNull()?.message.orEmpty(),
+                                                )
                                             val caughtUp = onChainLatestVoucher >= voucherClaimed
+                                            val effectiveUpdateOk = updateResult.isSuccess || (duplicateVoucherUpdate && caughtUp)
                                             val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
                                             Log.e(
                                                 TAG,
