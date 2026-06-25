@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.base.di
 
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.core.module.Module
@@ -11,7 +13,10 @@ actual fun uiPlatformModule(): Module =
     module {
         viewModel {
             EscrowSessionVaultDebugViewModel(
+                stateDelegate = StateDelegate<EscrowSessionVaultDebugViewModel.ViewState>(),
+                eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
                 mppWalletSignerUseCase = get(),
+                getLocalAccounts = get(),
             )
         }
         singleOf(::IosViewerPaymentOrchestrator)

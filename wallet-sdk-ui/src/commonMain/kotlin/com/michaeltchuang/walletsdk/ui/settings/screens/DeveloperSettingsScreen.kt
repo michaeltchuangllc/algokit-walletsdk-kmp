@@ -104,7 +104,7 @@ internal fun ScreenContent(
             Res.drawable.ic_session_vault_inspect,
             localizedStringResource(Res.string.escrow_session_vault_debug_tool),
         ) {
-            navController.navigate(AlgoKitScreens.DEVELOPER_TEST_SCREEN.name)
+            navController.navigate(AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name)
         }
     }
 }

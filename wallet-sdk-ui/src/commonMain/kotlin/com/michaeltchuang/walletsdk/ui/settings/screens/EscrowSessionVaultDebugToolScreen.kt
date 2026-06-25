@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,13 +19,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,12 +49,26 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
     val viewModel: EscrowSessionVaultDebugViewModel = koinViewModel()
-    val viewerAddress by viewModel.viewerAddress.collectAsStateWithLifecycle()
-    val creatorAddress by viewModel.creatorAddress.collectAsStateWithLifecycle()
-    val depositAmount by viewModel.depositAmountUsdc.collectAsStateWithLifecycle()
-    val remainingBalance by viewModel.remainingBalance.collectAsStateWithLifecycle()
-    val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
-    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val viewState by viewModel.state.collectAsStateWithLifecycle()
+    val content = viewState as EscrowSessionVaultDebugViewModel.ViewState.Content
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    val accountAddresses = content.accountAddresses
+    val viewerAddress = content.viewerAddress
+    val creatorAddress = content.creatorAddress
+    val depositAmount = content.depositAmountUsdc
+    val remainingBalance = content.remainingBalance
+    val isLoading = content.isLoading
+    val canRunVaultActions = content.canRunVaultActions
+
+    LaunchedEffect(viewModel) {
+        viewModel.viewEvent.collect { event ->
+            when (event) {
+                is EscrowSessionVaultDebugViewModel.ViewEvent.ShowStatusMessage -> {
+                    statusMessage = event.message
+                }
+            }
+        }
+    }
     val textFieldColors =
         OutlinedTextFieldDefaults.colors(
             focusedTextColor = AlgoKitTheme.colors.textMain,
@@ -91,36 +112,24 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             color = AlgoKitTheme.colors.textMain,
         )
 
-        OutlinedTextField(
-            value = viewerAddress,
-            onValueChange = viewModel::onViewerAddressChanged,
-            label = { Text("Viewer Address") },
-            placeholder = { Text("Algorand address of the viewer (payer)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = KeyboardType.Ascii,
-                    imeAction = ImeAction.Next,
-                ),
+        AddressDropdownField(
+            label = "Viewer Address",
+            placeholder = "Select the viewer (payer)",
+            selectedAddress = viewerAddress,
+            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
             enabled = !isLoading,
             colors = textFieldColors,
+            onAddressSelected = viewModel::onViewerAddressChanged,
         )
 
-        OutlinedTextField(
-            value = creatorAddress,
-            onValueChange = viewModel::onCreatorAddressChanged,
-            label = { Text("Creator Address") },
-            placeholder = { Text("Algorand address of the creator (payee)") },
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            keyboardOptions =
-                KeyboardOptions(
-                    keyboardType = KeyboardType.Ascii,
-                    imeAction = ImeAction.Next,
-                ),
+        AddressDropdownField(
+            label = "Creator Address",
+            placeholder = "Select the creator (payee)",
+            selectedAddress = creatorAddress,
+            accountAddresses = accountAddresses.filterNot { it == viewerAddress },
             enabled = !isLoading,
             colors = textFieldColors,
+            onAddressSelected = viewModel::onCreatorAddressChanged,
         )
 
         OutlinedTextField(
@@ -150,7 +159,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::addAmountToSessionVault,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Add Amount to Session Vault")
@@ -158,7 +167,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::fetchSessionVaultRemainingBalance,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Fetch Session Vault Balance")
@@ -166,7 +175,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::updateVoucher,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Update Voucher")
@@ -174,7 +183,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::verifyVoucherSignature,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Verify Voucher")
@@ -182,7 +191,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::settleAmount,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Settle Amount to Creator")
@@ -190,7 +199,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::closeSessionVault,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Close")
@@ -198,7 +207,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::requestCloseSessionVault,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Request Close")
@@ -206,7 +215,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 
         Button(
             onClick = viewModel::requestWithdraw,
-            enabled = !isLoading,
+            enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Request Withdraw")
@@ -278,5 +287,56 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun AddressDropdownField(
+    label: String,
+    placeholder: String,
+    selectedAddress: String,
+    accountAddresses: List<String>,
+    enabled: Boolean,
+    colors: androidx.compose.material3.TextFieldColors,
+    onAddressSelected: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selectedAddress,
+            onValueChange = {},
+            label = { Text(label) },
+            placeholder = { Text(if (accountAddresses.isEmpty()) "No signable local accounts found" else placeholder) },
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            readOnly = true,
+            enabled = enabled,
+            colors = colors,
+            trailingIcon = {
+                Text(if (expanded) "▲" else "▼")
+            },
+        )
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .clickable(enabled = enabled && accountAddresses.isNotEmpty()) { expanded = true },
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            accountAddresses.forEach { address ->
+                DropdownMenuItem(
+                    text = { Text(address) },
+                    onClick = {
+                        onAddressSelected(address)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }

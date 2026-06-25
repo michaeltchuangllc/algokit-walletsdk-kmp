@@ -2,6 +2,12 @@ package com.michaeltchuang.walletsdk.ui.settings.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -10,70 +16,75 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class EscrowSessionVaultDebugViewModel(
+    private val stateDelegate: StateDelegate<ViewState>,
+    private val eventDelegate: EventDelegate<ViewEvent>,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
-) : ViewModel() {
+    private val getLocalAccounts: GetLocalAccounts,
+) : ViewModel(),
+    StateViewModel<EscrowSessionVaultDebugViewModel.ViewState> by stateDelegate,
+    EventViewModel<EscrowSessionVaultDebugViewModel.ViewEvent> by eventDelegate {
     companion object Companion {
         private const val TAG = "EscrowSessionVaultDebugViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
     }
 
-    private val _viewerAddress =
-        MutableStateFlow(
-            "2MFPDQMIMIYS6CCIRMNWB6IACQL6VCFRZE7STJBP4W5Q3FLHUJHIVP3FLY",
-        )
-    val viewerAddress: StateFlow<String> = _viewerAddress.asStateFlow()
-
-    private val _creatorAddress =
-        MutableStateFlow(
-            "EBRI466FDKE2LKEPUDAYTIRZZ7LLKT7YMZ7TG37II6CCOAJK44SKXY7EHI",
-        )
-    val creatorAddress: StateFlow<String> = _creatorAddress.asStateFlow()
-
-    private val _depositAmountUsdc = MutableStateFlow("0.1")
-    val depositAmountUsdc: StateFlow<String> = _depositAmountUsdc.asStateFlow()
-
-    private val _remainingBalance = MutableStateFlow<Long?>(null)
-    val remainingBalance: StateFlow<Long?> = _remainingBalance.asStateFlow()
-
-    private val _statusMessage = MutableStateFlow<String?>(null)
-    val statusMessage: StateFlow<String?> = _statusMessage.asStateFlow()
-
-    private val _isLoading = MutableStateFlow(false)
-    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+    init {
+        stateDelegate.setDefaultState(ViewState.Content())
+        loadAccountAddresses()
+    }
 
     fun onViewerAddressChanged(address: String) {
-        _viewerAddress.value = address
+        updateContent { it.copy(viewerAddress = address) }
     }
 
     fun onCreatorAddressChanged(address: String) {
-        _creatorAddress.value = address
+        updateContent { it.copy(creatorAddress = address) }
     }
 
     fun onDepositAmountChanged(amount: String) {
-        _depositAmountUsdc.value = amount
+        updateContent { it.copy(depositAmountUsdc = amount) }
+    }
+
+    private fun loadAccountAddresses() {
+        viewModelScope.launch {
+            runCatching {
+                getLocalAccounts()
+                    .filter { it is LocalAccount.HdKey || it is LocalAccount.Algo25 || it is LocalAccount.Falcon24 }
+                    .map { it.address }
+            }.onSuccess { addresses ->
+                updateContent { current ->
+                    current.copy(
+                        accountAddresses = addresses,
+                        viewerAddress = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() },
+                        creatorAddress = current.creatorAddress.ifBlank { addresses.getOrNull(1).orEmpty() },
+                    )
+                }
+                if (addresses.size < 2) {
+                    sendStatus("❌ At least two signable local Algorand accounts are required.")
+                }
+            }.onFailure { err ->
+                Napier.e("[LOAD_ACCOUNTS_ERR]", err, tag = TAG)
+                sendStatus("❌ Failed to load local accounts: ${err.message.orEmpty()}")
+            }
+        }
     }
 
     fun addAmountToSessionVault() {
-        val viewer = _viewerAddress.value.trim()
-        val creator = _creatorAddress.value.trim()
-        val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
-        if (viewer.isBlank() || creator.isBlank()) {
-            _statusMessage.value = "Error: Viewer and Creator addresses are required."
-            return
-        }
+        if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Depositing $amountUsdc USDC to Session Vault…"
+            setLoading(true)
+            sendStatus("Depositing $amountUsdc USDC to Session Vault…")
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
@@ -88,8 +99,7 @@ class EscrowSessionVaultDebugViewModel(
                         }
                     result
                         .onSuccess { txId ->
-                            _statusMessage.value =
-                                "✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId"
+                            sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
                             Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
                         }.onFailure { err ->
                             showError(PaymentError.Companion.from(err), "ADD_TO_VAULT_ERR", err)
@@ -100,23 +110,21 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "ADD_TO_VAULT_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun fetchSessionVaultRemainingBalance() {
-        val viewer = _viewerAddress.value.trim()
-        val creator = _creatorAddress.value.trim()
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
 
-        if (viewer.isBlank() || creator.isBlank()) {
-            _statusMessage.value = "Error: Viewer and Creator addresses are required."
-            return
-        }
+        if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Fetching Session Vault balance…"
+            setLoading(true)
+            sendStatus("Fetching Session Vault balance…")
             try {
                 val remaining =
                     withContext(Dispatchers.Default) {
@@ -127,33 +135,31 @@ class EscrowSessionVaultDebugViewModel(
                             algodUrl = null,
                         )
                     }
-                _remainingBalance.value = remaining
+                updateContent { it.copy(remainingBalance = remaining) }
                 val usdc = remaining / MICRO_USDC_MULTIPLIER.toDouble()
-                _statusMessage.value = "✅ Remaining balance: $usdc USDC\n($remaining microUSDC)"
+                sendStatus("✅ Remaining balance: $usdc USDC\n($remaining microUSDC)")
                 Napier.d("[FETCH_BALANCE_OK] remaining=$remaining", tag = TAG)
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "FETCH_BALANCE_ERR", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun updateVoucher() {
-        val viewer = _viewerAddress.value.trim()
-        val creator = _creatorAddress.value.trim()
-        val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val requestedIncrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
-        if (viewer.isBlank() || creator.isBlank()) {
-            _statusMessage.value = "Error: Viewer and Creator addresses are required."
-            return
-        }
+        if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
-            _isLoading.value = true
+            setLoading(true)
             try {
-                _statusMessage.value = "Preparing voucher update..."
+                sendStatus("Preparing voucher update...")
 
                 val viewerSigner =
                     mppWalletSignerUseCase(viewer) ?: run {
@@ -191,14 +197,15 @@ class EscrowSessionVaultDebugViewModel(
                 if (newCumulative > totalDeposit) {
                     val depositUsdc = totalDeposit / 1_000_000.0
                     val requestedUsdc = newCumulative / 1_000_000.0
-                    _statusMessage.value =
+                    sendStatus(
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                            "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC",
+                    )
                     return@launch
                 }
 
                 if (newCumulative <= lastSettled) {
-                    _statusMessage.value = "❌ ${PaymentError.NothingToSettle.userMessage}"
+                    sendStatus("❌ ${PaymentError.NothingToSettle.userMessage}")
                     return@launch
                 }
                 val channelId = EscrowSessionVaultManagerClient.channelId
@@ -226,32 +233,30 @@ class EscrowSessionVaultDebugViewModel(
                     )
                 }.onSuccess { txId ->
                     Napier.d("[UPDATE_VOUCHER_OK] txId=$txId", tag = TAG)
-                    _statusMessage.value = "✅ Voucher updated!\nTxId: $txId"
+                    sendStatus("✅ Voucher updated!\nTxId: $txId")
                 }.onFailure { err ->
                     showError(PaymentError.Companion.from(err), "UPDATE_VOUCHER_ERR", err)
                 }
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "UPDATE_VOUCHER_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun verifyVoucherSignature() {
-        val viewer = _viewerAddress.value.trim()
-        val creator = _creatorAddress.value.trim()
-        val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
-        if (viewer.isBlank() || creator.isBlank()) {
-            _statusMessage.value = "Error: Viewer and Creator addresses are required."
-            return
-        }
+        if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Verifying voucher signature…"
+            setLoading(true)
+            sendStatus("Verifying voucher signature…")
             try {
                 val viewerSigner = mppWalletSignerUseCase(viewer)
                 if (viewerSigner != null) {
@@ -279,7 +284,7 @@ class EscrowSessionVaultDebugViewModel(
                         }
                     result
                         .onSuccess {
-                            _statusMessage.value = "✅ Signature verified!"
+                            sendStatus("✅ Signature verified!")
                             Napier.d("[VERIFY_SIGNATURE_OK]", tag = TAG)
                         }.onFailure { err ->
                             showError(PaymentError.Companion.from(err), "VERIFY_SIGNATURE_ERR", err)
@@ -290,26 +295,24 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "VERIFY_SIGNATURE_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun settleAmount() {
-        val viewer = _viewerAddress.value.trim()
-        val creator = _creatorAddress.value.trim()
-        val amountUsdc = _depositAmountUsdc.value.trim().toDoubleOrNull() ?: 1.0
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val requestedIncrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
-        if (viewer.isBlank() || creator.isBlank()) {
-            _statusMessage.value = "Error: Viewer and Creator addresses are required."
-            return
-        }
+        if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
-            _isLoading.value = true
+            setLoading(true)
             try {
-                _statusMessage.value = "Preparing settlement..."
+                sendStatus("Preparing settlement...")
 
                 val viewerSigner =
                     mppWalletSignerUseCase(viewer) ?: run {
@@ -344,14 +347,15 @@ class EscrowSessionVaultDebugViewModel(
                 if (newCumulative > totalDeposit) {
                     val depositUsdc = totalDeposit / 1_000_000.0
                     val requestedUsdc = newCumulative / 1_000_000.0
-                    _statusMessage.value =
+                    sendStatus(
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                        "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC"
+                            "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC",
+                    )
                     return@launch
                 }
 
                 if (newCumulative <= lastSettled) {
-                    _statusMessage.value = "❌ ${PaymentError.NothingToSettle.userMessage}"
+                    sendStatus("❌ ${PaymentError.NothingToSettle.userMessage}")
                     return@launch
                 }
 
@@ -369,7 +373,7 @@ class EscrowSessionVaultDebugViewModel(
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
                 Napier.d("[SIGNATURE_CREATED] sigLen=${viewerSignature.size}", tag = TAG)
 
-                _statusMessage.value = "Recording voucher on-chain…"
+                sendStatus("Recording voucher on-chain…")
                 val updateTxId =
                     withContext(Dispatchers.Default) {
                         MppPayments.updateVoucherOnChain(
@@ -392,7 +396,7 @@ class EscrowSessionVaultDebugViewModel(
                         return@launch
                     }
 
-                _statusMessage.value = "Settling to creator…"
+                sendStatus("Settling to creator…")
                 val settleResult =
                     withContext(Dispatchers.Default) {
                         MppPayments.settleLatestVoucher(
@@ -407,7 +411,7 @@ class EscrowSessionVaultDebugViewModel(
 
                 settleResult
                     .onSuccess { txId ->
-                        _statusMessage.value = "✅ Settlement successful\n\nTxId:\n$txId"
+                        sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
                         Napier.d("[SETTLE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
                         showError(PaymentError.Companion.from(err), "SETTLE_ERR", err)
@@ -415,17 +419,17 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "SETTLE_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun closeSessionVault() {
-        val creator = _creatorAddress.value.trim()
+        val creator = contentState().creatorAddress.trim()
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Closing session vault…"
+            setLoading(true)
+            sendStatus("Closing session vault…")
             try {
                 val creatorSigner =
                     mppWalletSignerUseCase(creator) ?: run {
@@ -453,7 +457,7 @@ class EscrowSessionVaultDebugViewModel(
 
                 result
                     .onSuccess { txId ->
-                        _statusMessage.value = "✅ Session vault closed\n\nTxId:\n$txId"
+                        sendStatus("✅ Session vault closed\n\nTxId:\n$txId")
                         Napier.d("[CLOSE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
                         showError(PaymentError.Companion.from(err), "CLOSE_ERR", err)
@@ -461,17 +465,17 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "CLOSE_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun requestCloseSessionVault() {
-        val viewer = _viewerAddress.value.trim()
+        val viewer = contentState().viewerAddress.trim()
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Requesting close of Session Vault…"
+            setLoading(true)
+            sendStatus("Requesting close of Session Vault…")
             try {
                 val viewerSigner =
                     mppWalletSignerUseCase(viewer) ?: run {
@@ -502,8 +506,7 @@ class EscrowSessionVaultDebugViewModel(
 
                 result
                     .onSuccess { txId ->
-                        _statusMessage.value =
-                            "✅ Requested for close of Session Vault\n\nTxId:\n$txId"
+                        sendStatus("✅ Requested for close of Session Vault\n\nTxId:\n$txId")
                         Napier.d("[REQUEST_CLOSE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
                         showError(PaymentError.Companion.from(err), "REQUEST_CLOSE_ERR", err)
@@ -511,17 +514,17 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "REQUEST_CLOSE_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
     }
 
     fun requestWithdraw() {
-        val viewer = _viewerAddress.value.trim()
+        val viewer = contentState().viewerAddress.trim()
 
         viewModelScope.launch {
-            _isLoading.value = true
-            _statusMessage.value = "Requesting withdraw from Session Vault…"
+            setLoading(true)
+            sendStatus("Requesting withdraw from Session Vault…")
             try {
                 val viewerSigner =
                     mppWalletSignerUseCase(viewer) ?: run {
@@ -552,20 +555,18 @@ class EscrowSessionVaultDebugViewModel(
 
                 result
                     .onSuccess { txId ->
-                        _statusMessage.value =
-                            "✅ Requested withdraw from Session Vault\n\nTxId:\n$txId"
+                        sendStatus("✅ Requested withdraw from Session Vault\n\nTxId:\n$txId")
                         Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
                         val parsed = PaymentError.Companion.from(err)
-                        // withdraw() is the payer's forced-close path. It only succeeds once
-                        // `requestClose` has been called AND the 15-minute grace period has
                         if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
-                            _statusMessage.value =
+                            sendStatus(
                                 "❌ Withdraw was rejected by the contract.\n\n" +
-                                "Withdraw is the viewer's forced-close path. Make sure you:\n" +
-                                "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
-                                "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
-                                "Then try 'Request Withdraw' again."
+                                    "Withdraw is the viewer's forced-close path. Make sure you:\n" +
+                                    "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
+                                    "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
+                                    "Then try 'Request Withdraw' again.",
+                            )
                             Napier.e(
                                 "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
                                 err,
@@ -578,9 +579,25 @@ class EscrowSessionVaultDebugViewModel(
             } catch (e: Exception) {
                 showError(PaymentError.Companion.from(e), "REQUEST_WITHDRAW_EXCEPTION", e)
             } finally {
-                _isLoading.value = false
+                setLoading(false)
             }
         }
+    }
+
+    private fun validateViewerAndCreator(content: ViewState.Content): Boolean {
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val errorMessage =
+            when {
+                content.accountAddresses.size < 2 -> "❌ At least two signable local Algorand accounts are required."
+                viewer.isBlank() || creator.isBlank() -> "❌ Viewer and Creator addresses are required."
+                viewer == creator -> "❌ Viewer and Creator addresses must be different accounts."
+                else -> null
+            }
+        if (errorMessage != null) {
+            sendStatus(errorMessage)
+        }
+        return errorMessage == null
     }
 
     private fun showError(
@@ -588,11 +605,49 @@ class EscrowSessionVaultDebugViewModel(
         logTag: String,
         cause: Throwable? = null,
     ) {
-        _statusMessage.value = "❌ ${error.userMessage}"
+        sendStatus("❌ ${error.userMessage}")
         Napier.e(
             "[$logTag] ${error::class.simpleName}",
             cause ?: Throwable(error.userMessage),
             tag = TAG,
         )
+    }
+
+    private fun contentState(): ViewState.Content = state.value as ViewState.Content
+
+    private fun updateContent(block: (ViewState.Content) -> ViewState.Content) {
+        stateDelegate.updateState { current -> block(current as ViewState.Content) }
+    }
+
+    private fun setLoading(isLoading: Boolean) {
+        updateContent { it.copy(isLoading = isLoading) }
+    }
+
+    private fun sendStatus(message: String) {
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage(message))
+    }
+
+    sealed interface ViewState {
+        data class Content(
+            val accountAddresses: List<String> = emptyList(),
+            val viewerAddress: String = "",
+            val creatorAddress: String = "",
+            val depositAmountUsdc: String = "0.1",
+            val remainingBalance: Long? = null,
+            val isLoading: Boolean = false,
+        ) : ViewState {
+            val canRunVaultActions: Boolean
+                get() =
+                    accountAddresses.size >= 2 &&
+                        viewerAddress.isNotBlank() &&
+                        creatorAddress.isNotBlank() &&
+                        viewerAddress != creatorAddress
+        }
+    }
+
+    sealed interface ViewEvent {
+        data class ShowStatusMessage(
+            val message: String,
+        ) : ViewEvent
     }
 }
