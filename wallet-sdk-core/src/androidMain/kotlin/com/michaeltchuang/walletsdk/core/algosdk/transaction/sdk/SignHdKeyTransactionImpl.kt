@@ -5,10 +5,11 @@ import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
-import foundation.algorand.xhdwalletapi.Bip32DerivationType
-import foundation.algorand.xhdwalletapi.KeyContext
-import foundation.algorand.xhdwalletapi.XHDWalletAPIAndroid
-import foundation.algorand.xhdwalletapi.XHDWalletAPIBase.Companion.getBIP44PathFromContext
+import uniffi.algokit_crypto_ffi.XhdDerivedAccount
+import uniffi.algokit_crypto_ffi.XhdKeyContext
+import uniffi.algokit_crypto_ffi.xhdDerive
+import uniffi.algokit_crypto_ffi.xhdRawSign
+import uniffi.algokit_crypto_ffi.xhdRootKeyFromSeed
 import java.nio.charset.StandardCharsets
 
 private val TX_PREFIX = "TX".toByteArray(StandardCharsets.UTF_8)
@@ -32,32 +33,9 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
             val unsignedTxnBytes = transactionByteArray.withoutTxPrefix()
             val tx = Encoder.decodeFromMsgPack(unsignedTxnBytes, Transaction::class.java)
 
-            val xHDWalletAPI = XHDWalletAPIAndroid(seed)
-            val (accountIndex, changeIndex, keyIndex) =
-                listOf(
-                    account.toUInt(),
-                    change.toUInt(),
-                    key.toUInt(),
-                )
-
-            val signedTxn =
-                xHDWalletAPI.signAlgoTransaction(
-                    KeyContext.Address,
-                    accountIndex,
-                    changeIndex,
-                    keyIndex,
-                    rawTransactionBytesToSign(unsignedTxnBytes),
-                )
-
-            val pkAddress =
-                Address(
-                    xHDWalletAPI.keyGen(
-                        KeyContext.Address,
-                        accountIndex,
-                        changeIndex,
-                        keyIndex,
-                    ),
-                )
+            val derivedAccount = deriveAccount(seed, account, change, key)
+            val signedTxn = xhdRawSign(derivedAccount.extendedPrivateKey, rawTransactionBytesToSign(unsignedTxnBytes))
+            val pkAddress = Address(derivedAccount.publicKey)
 
             // attachSignature/attachSignatureWithSigner must run on the dedicated Go-mobile
             // OS thread to prevent concurrent GC races with signFalconBundle
@@ -69,7 +47,7 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
                     Sdk.attachSignature(signedTxn, unsignedTxnBytes)
                 }
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
@@ -86,28 +64,9 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
         return try {
             val prefixedData = prefixData(transactionByteArray)
 
-            val xHDWalletAPI = XHDWalletAPIAndroid(seed)
-            val (accountIndex, changeIndex, keyIndex) =
-                listOf(
-                    account.toUInt(),
-                    change.toUInt(),
-                    key.toUInt(),
-                )
-
-            val stx =
-                xHDWalletAPI.rawSign(
-                    getBIP44PathFromContext(
-                        context = KeyContext.Address,
-                        account = accountIndex,
-                        change = changeIndex,
-                        keyIndex = keyIndex,
-                    ),
-                    prefixedData,
-                    Bip32DerivationType.Peikert,
-                )
-
-            return stx
-        } catch (e: Exception) {
+            val derivedAccount = deriveAccount(seed, account, change, key)
+            return xhdRawSign(derivedAccount.extendedPrivateKey, prefixedData)
+        } catch (_: Exception) {
             null
         }
     }
@@ -115,6 +74,23 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
     private fun prefixData(data: ByteArray): ByteArray {
         val prefix = "MX".toByteArray(Charsets.UTF_8)
         return prefix + data
+    }
+
+    private fun deriveAccount(
+        seed: ByteArray,
+        account: Int,
+        change: Int,
+        key: Int,
+    ): XhdDerivedAccount {
+        require(change == 0) {
+            "AlgoKit Crypto xHD derivation only supports change index 0. Requested: $change"
+        }
+        return xhdDerive(
+            rootKey = xhdRootKeyFromSeed(seed),
+            keyContext = XhdKeyContext.ADDRESS,
+            account = account.toUInt(),
+            keyIndex = key.toUInt(),
+        )
     }
 
     override fun signArbitraryData(
@@ -125,28 +101,9 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
         key: Int,
     ): ByteArray? {
         return try {
-            val xHDWalletAPI = XHDWalletAPIAndroid(seed)
-            val (accountIndex, changeIndex, keyIndex) =
-                listOf(
-                    account.toUInt(),
-                    change.toUInt(),
-                    key.toUInt(),
-                )
-
-            val stx =
-                xHDWalletAPI.rawSign(
-                    getBIP44PathFromContext(
-                        context = KeyContext.Address,
-                        account = accountIndex,
-                        change = changeIndex,
-                        keyIndex = keyIndex,
-                    ),
-                    data, // Sign the raw data without any prefix
-                    Bip32DerivationType.Peikert,
-                )
-
-            return stx
-        } catch (e: Exception) {
+            val derivedAccount = deriveAccount(seed, account, change, key)
+            return xhdRawSign(derivedAccount.extendedPrivateKey, data)
+        } catch (_: Exception) {
             null
         }
     }

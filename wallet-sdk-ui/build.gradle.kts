@@ -71,7 +71,6 @@ kotlin {
                 implementation(compose.material3)
                 implementation(compose.materialIconsExtended)
                 implementation(compose.runtime)
-                implementation(libs.bitcoin.kmp)
                 implementation(libs.coil.compose)
                 implementation(libs.coil.network.ktor)
                 implementation(project.dependencies.platform(libs.koin.bom))

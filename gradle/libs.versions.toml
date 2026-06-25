@@ -15,7 +15,6 @@ bcprovJdk18on = "1.83"
 bignum = "0.3.10"
 biometric = "1.1.0"
 bip39 = "1.0.9"
-bitcoin-kmp = "0.28.1"
 ble = "2.8.0"
 buildConfig = "5.6.5"
 coil = "3.0.4"
@@ -91,7 +90,6 @@ stream-webrtc = "1.3.10"
 uiautomator = "2.3.0"
 uuid-generator = "5.1.0"
 webviewMultiplatform = "1.3.0"
-xhdwalletapi = "1.3.2"
 
 [libraries]
 
@@ -188,14 +186,11 @@ algorand-foundation-crypto = { group = "com.michaeltchuang.algokit", name = "alg
 algorand-foundation-provider = { group = "com.michaeltchuang.algokit", name = "algorand-foundation-provider", version.ref = "algorand-foundation" }
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bcprovJdk18on" }
 bignum = { group = "com.ionspin.kotlin", name ="bignum", version.ref = "bignum" }
-bitcoin-kmp = { module = "fr.acinq.bitcoin:bitcoin-kmp", version.ref = "bitcoin-kmp" }
 khex = { module = "com.github.komputing:khex", version.ref = "khex" }
 kotlin-bip39 = { module = "cash.z.ecc.android:kotlin-bip39", version.ref = "bip39" }
 p256 = { module = "app.perawallet:dP256", version.ref = "dP256" }
 walletsdk-ui = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-ui" , version.ref = "algokit-walletSdk"}
 walletsdk-core = { group = "com.michaeltchuang.algokit.walletsdk", name = "wallet-sdk-core", version.ref = "algokit-walletSdk" }
-xhdwalletapi = { module = "foundation.algorand.xhdwalletapi:xhdwalletapi-android", version.ref = "xhdwalletapi" }
-#xhdwalletapi = { module = "app.perawallet:xhdwalletapi-android", version.ref = "xhdwalletapi" }
 
 # Testing / Utilities
 androidx-core = { module = "androidx.test:core", version.ref = "core" }

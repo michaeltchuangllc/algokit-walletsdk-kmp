@@ -66,13 +66,6 @@ kotlin {
                     version = "2.2.5",
                 )
                 remotePackageBranch(
-                    url = uri("https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git"),
-                    products = {
-                        add("x-hd-wallet-api")
-                    },
-                    branch = "fix/upgrade_sodium",
-                )
-                remotePackageBranch(
                     url = uri("https://github.com/algorandecosystem/falcon-signatures-mobile.git"),
                     products = {
                         add("FalconMobileSDK")
@@ -106,7 +99,6 @@ kotlin {
 
             // toml files don't support aar files yet
             implementation("net.java.dev.jna:jna:5.17.0@aar")
-            implementation(libs.xhdwalletapi)
             implementation(libs.kotlin.bip39)
             implementation(libs.bcprov.jdk18on)
             implementation(libs.androidx.activityCompose)
@@ -150,7 +142,6 @@ kotlin {
             api(libs.napier)
 
             implementation(compose.runtime)
-            implementation(libs.bitcoin.kmp)
             implementation(libs.coil.compose)
             implementation(project.dependencies.platform(libs.koin.bom))
             implementation(libs.koin.core)

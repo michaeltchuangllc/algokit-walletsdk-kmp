@@ -7,7 +7,6 @@ import LocalAuthentication
 import MnemonicSwift
 import SwiftCBOR
 import UIKit
-import x_hd_wallet_api
 
 /**
  * IMPORTANT: AutoFill Credential Extension
