@@ -1,9 +1,11 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -21,8 +23,10 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getViewModel: () -> LiquidAuthOfferViewModel?,
     private val getActiveViewerAddress: () -> String?,
     private val getActiveCreatorAddress: () -> String?,
+    private val getActivePaymentNetwork: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
+    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) {
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -230,6 +234,7 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         val localBlocksConsumed = blocksConsumed.incrementAndGet()
+        val sessionVaultAppId = getSessionVaultConfigUseCase(getActivePaymentNetwork().toAlgorandNetwork()).appId
 
         val viewerAddress =
             getActiveViewerAddress()
@@ -254,7 +259,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         MppPayments.getSessionProgressSnapshotFromVault(
                             viewerAddress = viewerAddress,
                             hostAddress = creatorAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = sessionVaultAppId,
                             authorizedSignerPublicKey = snapshotSignerPublicKey,
                         )
                     }
@@ -343,6 +348,7 @@ internal class LiquidStreamBlockConsumptionManager(
         val signedTotalAmount =
             claimSnapshot.totalAmountClaimedMicroUsdc
                 .coerceAtLeast(0L)
+        val sessionVaultAppId = getSessionVaultConfigUseCase(getActivePaymentNetwork().toAlgorandNetwork()).appId
 
         val settlementResult =
             try {
@@ -362,7 +368,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         MppPayments.getSessionDynamicDataFromVault(
                             viewerAddress = claimSnapshot.viewerAddress,
                             hostAddress = creatorAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = sessionVaultAppId,
                             authorizedSignerPublicKey = signerPublicKey,
                         )
                     }
@@ -405,7 +411,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                     MppPayments
                                         .settleLatestVoucher(
                                             signer = signer,
-                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                            appId = sessionVaultAppId,
                                             viewerAddress = claimSnapshot.viewerAddress,
                                             hostAddress = creatorAddress,
                                             authorizedSignerPublicKey = signerPublicKey,
@@ -429,7 +435,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                     MppPayments.getSessionDynamicDataFromVault(
                                         viewerAddress = claimSnapshot.viewerAddress,
                                         hostAddress = creatorAddress,
-                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        appId = sessionVaultAppId,
                                         authorizedSignerPublicKey = signerPublicKey,
                                     )
                                 }
@@ -476,6 +482,13 @@ internal class LiquidStreamBlockConsumptionManager(
                 )
             }
     }
+
+    private fun String?.toAlgorandNetwork(): AlgorandNetwork =
+        if (this == MppNetworks.ALGORAND_MAINNET || orEmpty().contains("mainnet", ignoreCase = true)) {
+            AlgorandNetwork.MAINNET
+        } else {
+            AlgorandNetwork.TESTNET
+        }
 
     fun triggerSettlementFromViewerVoucher(sessionId: String) {
         val creatorAddress = getActiveCreatorAddress()

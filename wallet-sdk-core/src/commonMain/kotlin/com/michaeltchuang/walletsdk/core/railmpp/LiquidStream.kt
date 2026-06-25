@@ -5,10 +5,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
+import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
+import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
-import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcRtpSender
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.SetLiquidStreamViewerAutoPayUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StartLiquidStreamCreatorUseCase
@@ -17,17 +16,16 @@ import com.michaeltchuang.walletsdk.core.railmpp.usecases.StopLiquidStreamCreato
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StopLiquidStreamViewerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.UpdateLiquidStreamCreatorGatingUseCase
-import org.webrtc.DataChannel
-import org.webrtc.RtpSender
 
 /**
  * Provider-side convenience wrapper for a paywalled RTC stream using [MppPaymentRail].
  */
 class LiquidStreamCreator(
-    private val dataChannel: DataChannel,
-    private val rtpSenders: List<RtpSender>,
+    private val dataChannel: RtcDataChannel,
+    private val rtpSenders: List<RtcRtpSender>,
     mppServerConfig: MppServerConfig,
     serverConfig: ServerConfig,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     private val startUseCase: StartLiquidStreamCreatorUseCase = StartLiquidStreamCreatorUseCase(),
     private val stopUseCase: StopLiquidStreamCreatorUseCase = StopLiquidStreamCreatorUseCase(),
     private val updateConfigUseCase: UpdateLiquidStreamCreatorConfigUseCase = UpdateLiquidStreamCreatorConfigUseCase(),
@@ -38,8 +36,7 @@ class LiquidStreamCreator(
         PaywalledRTCServer(
             paymentRail = paymentRail,
             config = serverConfig,
-            getRemainingSessionVaultBalanceUseCase =
-                GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
+            getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
         )
 
     init {
@@ -52,7 +49,7 @@ class LiquidStreamCreator(
         get() = rtcServer.sessionId
 
     fun start() {
-        startUseCase(rtcServer, WebRtcDataChannel(dataChannel), rtpSenders.map { WebRtcRtpSender(it) })
+        startUseCase(rtcServer, dataChannel, rtpSenders)
     }
 
     fun terminate(reason: String? = null) {
@@ -72,7 +69,7 @@ class LiquidStreamCreator(
  * Consumer-side convenience wrapper for a paywalled RTC stream using [MppPaymentRail].
  */
 class LiquidStreamViewer(
-    private val dataChannel: DataChannel,
+    private val dataChannel: RtcDataChannel,
     mppClientConfig: MppClientConfig,
     consentHandler: ConsentHandler,
     clientConfig: ClientConfig = ClientConfig(),
@@ -89,7 +86,7 @@ class LiquidStreamViewer(
         )
 
     fun start() {
-        startUseCase(rtcClient, WebRtcDataChannel(dataChannel))
+        startUseCase(rtcClient, dataChannel)
     }
 
     fun terminate() {

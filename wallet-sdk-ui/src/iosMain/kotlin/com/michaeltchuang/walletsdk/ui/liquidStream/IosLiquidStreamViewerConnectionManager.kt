@@ -8,7 +8,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
@@ -74,7 +73,9 @@ private const val TAG = "IOSLiquidStreamViewerCM"
 private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
 private const val BALANCE_POLL_INTERVAL_MS = 5_000L
 
-class IosLiquidStreamViewerConnectionManager {
+class IosLiquidStreamViewerConnectionManager(
+    private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+) {
     data class VideoFrame(
         val id: String,
         val timestamp: Long,
@@ -176,10 +177,6 @@ class IosLiquidStreamViewerConnectionManager {
     private var balancePollingJob: Job? = null
     private val scope = CoroutineScope(Dispatchers.Default)
 
-    private val getRemainingBalanceUseCase =
-        GetRemainingSessionVaultBalanceUseCase(
-            IosSessionVaultBalanceRepository(),
-        )
 
     @Suppress("unused")
     private var viewerAuthorizedSignerKey: ByteArray? = null

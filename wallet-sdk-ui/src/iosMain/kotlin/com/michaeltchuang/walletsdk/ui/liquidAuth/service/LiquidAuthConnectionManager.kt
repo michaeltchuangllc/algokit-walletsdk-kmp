@@ -6,7 +6,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
@@ -15,6 +14,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamCreator
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
 import kotlinx.coroutines.CoroutineScope
+import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -79,10 +79,8 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
     private var activePaymentAmount: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
-    private val getRemainingBalanceUseCase =
-        GetRemainingSessionVaultBalanceUseCase(
-            IosSessionVaultBalanceRepository(),
-        )
+    private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
+        getKoin().get()
     private val scope = CoroutineScope(Dispatchers.Default)
 
     // ── IOSLiquidStreamCreator (host payment channel) ─────────────────────────

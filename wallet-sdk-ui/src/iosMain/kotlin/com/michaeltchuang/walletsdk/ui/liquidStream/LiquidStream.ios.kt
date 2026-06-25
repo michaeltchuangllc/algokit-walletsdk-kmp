@@ -16,9 +16,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.RailPayment
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.SpendSummary
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
+import org.koin.mp.KoinPlatform.getKoin
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 
 // ─── Creator (Host / Server side) ────────────────────────────────────────────
@@ -26,6 +26,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessag
 class IOSLiquidStreamCreator(
     mppServerConfig: MppServerConfig,
     serverConfig: ServerConfig,
+    getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase = getKoin().get(),
 ) {
     // ── Core objects ─────────────────────────────────────────────────────────
 
@@ -50,8 +51,7 @@ class IOSLiquidStreamCreator(
         PaywalledRTCServer(
             paymentRail = paymentRail,
             config = serverConfig,
-            getRemainingSessionVaultBalanceUseCase =
-                GetRemainingSessionVaultBalanceUseCase(IosSessionVaultBalanceRepository()),
+            getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
             nonceStore = InMemoryNonceStore(),
         )
 

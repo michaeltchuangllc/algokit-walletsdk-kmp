@@ -57,7 +57,7 @@ actual fun AnswerScreenOverlay() {
     val address = AnswerScreenState.accountAddress
     val origin = AnswerScreenState.origin
 
-    val viewerManager = remember { IosLiquidStreamViewerConnectionManager() }
+    val viewerManager: IosLiquidStreamViewerConnectionManager = koinInject()
     val paymentOrchestrator: IosViewerPaymentOrchestrator = koinInject()
     val scope = rememberCoroutineScope()
 
