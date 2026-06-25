@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.demo
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
@@ -647,7 +648,14 @@ suspend fun settleHostVoucherOnChain(
     hostAddress: String,
     viewerAddress: String,
     viewerSignerKeyBase64: String,
+    channelIdBase64: String?,
 ) {
+    channelIdBase64
+        ?.let { runCatching { Base64.decode(it) }.getOrNull() }
+        ?.let { channelId ->
+            EscrowSessionVaultManagerClient.channelId = channelId
+            Napier.d("[HOST_SETTLE_CHANNEL_ID_CAPTURED] len=${channelId.size}")
+        }
     Napier.d("[HOST_SETTLE_START] host=$hostAddress viewer=$viewerAddress")
     val signer = buildHostMppWalletSigner(hostAddress)
     if (signer == null) {
@@ -697,13 +705,14 @@ fun registerBroadcastHandlers(
 
     // Wire the on-chain host settlement: when Android viewer sends a new voucher,
     // call settleLatestVoucher() on Algorand so lastSettled is updated.
-    iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64 ->
+    iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64, channelIdBase64 ->
         broadcastSettlementScope.launch {
-            Napier.d("[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress")
+            Napier.d("[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}")
             settleHostVoucherOnChain(
                 hostAddress = hostAddress,
                 viewerAddress = viewerAddress,
                 viewerSignerKeyBase64 = viewerPublicKeyBase64,
+                channelIdBase64 = channelIdBase64,
             )
         }
     }

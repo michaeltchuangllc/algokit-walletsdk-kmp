@@ -398,18 +398,58 @@ internal class LiquidStreamBlockConsumptionManager(
 
                     Result.success("nothing_to_settle")
                 } else {
-                    val txId =
-                        withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
-                            MppPayments
-                                .settleLatestVoucher(
-                                    signer = signer,
-                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                    viewerAddress = claimSnapshot.viewerAddress,
-                                    hostAddress = creatorAddress,
-                                    authorizedSignerPublicKey = signerPublicKey,
-                                ).getOrThrow()
+                    val settleResult =
+                        try {
+                            Result.success(
+                                withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
+                                    MppPayments
+                                        .settleLatestVoucher(
+                                            signer = signer,
+                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                            viewerAddress = claimSnapshot.viewerAddress,
+                                            hostAddress = creatorAddress,
+                                            authorizedSignerPublicKey = signerPublicKey,
+                                        ).getOrThrow()
+                                },
+                            )
+                        } catch (ce: CancellationException) {
+                            throw ce
+                        } catch (t: Throwable) {
+                            Result.failure(t)
                         }
-                    Result.success(txId)
+
+                    if (settleResult.isSuccess) {
+                        settleResult
+                    } else {
+                        val err = settleResult.exceptionOrNull()
+                        val nothingToSettleAssert = MppPayments.isNothingToSettleError(err?.message.orEmpty())
+                        val postFailureData =
+                            if (nothingToSettleAssert) {
+                                withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                                    MppPayments.getSessionDynamicDataFromVault(
+                                        viewerAddress = claimSnapshot.viewerAddress,
+                                        hostAddress = creatorAddress,
+                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        authorizedSignerPublicKey = signerPublicKey,
+                                    )
+                                }
+                            } else {
+                                null
+                            }
+                        val postFailureLatest = postFailureData?.latestVoucherAmount ?: 0L
+                        val postFailureSettled = postFailureData?.lastSettled ?: 0L
+                        val nothingLeftToSettle = postFailureLatest <= postFailureSettled
+
+                        if (nothingToSettleAssert && nothingLeftToSettle) {
+                            Log.e(
+                                tag,
+                                "[SESSION_VAULT_CLAIM_SKIP] reason=already_settled latest=$postFailureLatest settled=$postFailureSettled",
+                            )
+                            Result.success("already_settled")
+                        } else {
+                            settleResult
+                        }
+                    }
                 }
             } catch (ce: CancellationException) {
                 throw ce

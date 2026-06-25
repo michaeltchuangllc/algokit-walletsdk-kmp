@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.IosSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamCreator
@@ -50,6 +51,7 @@ var iosBroadcastClaimVoucherHandler: (
         claimedMicroUsdc: Long,
         signatureBase64: String,
         viewerPublicKeyBase64: String,
+        channelIdBase64: String?,
     ) -> Unit
 )? = null
 
@@ -490,6 +492,13 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 val voucherSessionId = msg.jsonOptString("id")
                 val voucherViewer = msg.jsonOptString("viewer")
                 val voucherViewerPublicKey = msg.jsonOptString("viewerPublicKey")
+                val voucherChannelId = msg.jsonOptString("channelId")
+                voucherChannelId
+                    ?.let(::decodeBase64OrNull)
+                    ?.let { decodedChannelId ->
+                        EscrowSessionVaultManagerClient.channelId = decodedChannelId
+                        println("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
+                    }
 
                 if (signature == null ||
                     claimedAmount == null ||
@@ -564,6 +573,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                                             claimedAmount,
                                             signature,
                                             voucherViewerPublicKey,
+                                            voucherChannelId,
                                         )
                                     }.onFailure { e ->
                                         println("$TAG: [VOUCHER_CLAIM_ERROR] $e")

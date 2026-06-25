@@ -526,36 +526,43 @@ class SetupMppPaymentViewerUseCase(
                                                 "[VIEWER_VOUCHER_CATCHUP] session=${receipt.sessionId} viewer=$receiptViewerAddress localClaimedMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher onChainLastSettledMicroUsdc=$onChainLastSettled caughtUp=$caughtUp lagMicroUsdc=$lagMicroUsdc updateOk=$effectiveUpdateOk duplicateSkip=$duplicateVoucherUpdate",
                                             )
 
-                                            val progressSnapshot =
-                                                safeApiCall("getSessionProgressSnapshot.postUpdate") {
-                                                    MppPayments.getSessionProgressSnapshotFromVault(
+                                            if (effectiveUpdateOk) {
+                                                val progressSnapshot =
+                                                    safeApiCall("getSessionProgressSnapshot.postUpdate") {
+                                                        MppPayments.getSessionProgressSnapshotFromVault(
+                                                            viewerAddress = receiptViewerAddress,
+                                                            hostAddress = sessionVaultHostAddress,
+                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        )
+                                                    }
+                                                val voucherJson =
+                                                    MppPayments.createVoucherJson(
+                                                        sessionId = receipt.sessionId,
                                                         viewerAddress = receiptViewerAddress,
-                                                        hostAddress = sessionVaultHostAddress,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                                        viewerPublicKey = signer.authorizedSignerPublicKey,
+                                                        creatorAddress = receipt.payTo,
+                                                        blocksConsumed = blocksConsumed,
+                                                        totalAmountUsed = voucherClaimed,
+                                                        remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
+                                                        signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
                                                     )
-                                                }
-                                            val voucherJson =
-                                                MppPayments.createVoucherJson(
-                                                    sessionId = receipt.sessionId,
-                                                    viewerAddress = receiptViewerAddress,
-                                                    viewerPublicKey = signer.authorizedSignerPublicKey,
-                                                    creatorAddress = receipt.payTo,
-                                                    blocksConsumed = blocksConsumed,
-                                                    totalAmountUsed = voucherClaimed,
-                                                    remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
-                                                    signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
+                                                val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
+                                                Log.e(
+                                                    TAG,
+                                                    "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
                                                 )
-                                            val signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature)
-                                            Log.e(
-                                                TAG,
-                                                "[SESSION_VAULT_VOUCHER_SEND] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$sessionVaultHostAddress sigLen=${voucherSignature.size}",
-                                            )
-                                            Log.e(
-                                                TAG,
-                                                "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
-                                            )
-                                            service.send(voucherJson)
+                                                Log.e(
+                                                    TAG,
+                                                    "🎟️ Viewer generated voucher update: $voucherJson sig=$signatureBase64",
+                                                )
+                                                service.send(voucherJson)
+                                            } else {
+                                                Log.e(
+                                                    TAG,
+                                                    "[SESSION_VAULT_VOUCHER_SEND_SKIP] session=${receipt.sessionId} segment=${receipt.segmentIndex} claimedAmountMicroUsdc=$voucherClaimed onChainLatestVoucherMicroUsdc=$onChainLatestVoucher lagMicroUsdc=$lagMicroUsdc reason=update_not_confirmed",
+                                                )
+                                            }
                                         }
                                     }
                                 }

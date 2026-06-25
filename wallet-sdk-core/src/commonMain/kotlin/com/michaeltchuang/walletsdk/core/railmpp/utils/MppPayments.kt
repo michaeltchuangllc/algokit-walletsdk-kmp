@@ -205,6 +205,14 @@ object MppPayments {
         return isKnownVoucherIncreaseAssert && (isKnownProgramCounter || message.contains("Voucher not increasing", ignoreCase = true))
     }
 
+    fun isNothingToSettleError(message: String): Boolean {
+        val isKnownSettleAssert =
+            message.contains("opcodes=dup2", ignoreCase = true) &&
+                message.contains(">; assert", ignoreCase = true)
+        val isKnownProgramCounter = message.contains("pc=890", ignoreCase = true)
+        return isKnownSettleAssert && isKnownProgramCounter
+    }
+
     suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
         appId: Long,
