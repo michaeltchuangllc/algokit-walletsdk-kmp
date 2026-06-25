@@ -134,19 +134,6 @@ class IosViewerPaymentOrchestrator(
                     tag = TAG,
                 )
 
-                // Build and send a voucher to the host so it can settle on-chain and
-                // transition from WaitingForPayment → Streaming state.
-                trySendVoucher(
-                    signer = signer,
-                    viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
-                    sessionId = sessionId,
-                    totalAmountClaimedMicroUsdc = depositMicroUsdc,
-                    segmentDebitMicroUsdc = depositMicroUsdc, // deposit voucher: full amount is the debit
-                    remainingMicroUsdc = remaining,
-                    sendMessageFn = sendMessageFn,
-                )
-
                 onResult(remaining)
             } catch (e: Exception) {
                 Napier.e("[VIEWER_DEPOSIT_EXCEPTION] viewer=$viewerAddress", e, tag = TAG)
