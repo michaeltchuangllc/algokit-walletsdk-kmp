@@ -39,7 +39,7 @@ val liquidAuthUIModule =
         singleOf(::HandleAssertionResultUseCase)
         singleOf(::PrepareAuthenticationUseCase)
         single { ProcessBiometricTransactionSigningUseCase(get()) }
-        single { SetupMppPaymentViewerUseCase(get()) }
+        single { SetupMppPaymentViewerUseCase(get(), get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
             val decodeUnsignedTransaction: (String) -> Transaction? = { s ->
@@ -67,6 +67,7 @@ val liquidAuthUIModule =
                 eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
                 mppWalletSignerUseCase = get(),
                 getLocalAccounts = get(),
+                getSessionVaultContextUseCase = get(),
             )
         }
 
@@ -95,7 +96,9 @@ val liquidAuthUIModule =
                 getAccountAlgoBalance = get(),
                 getCurrentBlockUseCase = get(),
                 setupMppPaymentViewerUseCase = get(),
+                getCurrentNetworkUseCase = get(),
                 getRemainingSessionVaultBalanceUseCase = get(),
+                getSessionVaultConfigUseCase = get(),
             )
         }
     }

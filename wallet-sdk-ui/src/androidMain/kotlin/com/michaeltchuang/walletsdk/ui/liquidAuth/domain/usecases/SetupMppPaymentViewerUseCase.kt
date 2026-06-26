@@ -4,8 +4,10 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
@@ -14,13 +16,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
+import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.railmpp.utils.toJson
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -36,8 +38,8 @@ import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 
 class SetupMppPaymentViewerUseCase(
-    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
-        GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) {
     companion object {
         private const val TAG = "SetupMppPaymentViewer"
@@ -129,13 +131,16 @@ class SetupMppPaymentViewerUseCase(
                 viewerVoucherCapLoggedSessionId = null
 
                 val mppNetwork = params.resolveMppClientNetwork(viewerAddress)
+                val sessionVaultNetwork = mppNetwork.toAlgorandNetwork()
+                val sessionVaultConfig = getSessionVaultConfigUseCase(sessionVaultNetwork)
+                val sessionVaultAppId = sessionVaultConfig.appId
                 Log.d(
                     TAG,
                     "[VIEWER_MPP_CREATE_VIEWER] viewer=$viewerAddress host=$sessionVaultHostAddress network=$mppNetwork",
                 )
                 liquidStreamViewer =
                     LiquidStreamViewer(
-                        dataChannel = paymentChannel,
+                        dataChannel = WebRtcDataChannel(paymentChannel),
                         mppClientConfig =
                             MppClientConfig(
                                 network = mppNetwork,
@@ -157,7 +162,7 @@ class SetupMppPaymentViewerUseCase(
                                             GetRemainingSessionVaultBalanceUseCase.Params(
                                                 viewerAddress = viewerAddress,
                                                 hostAddress = sessionVaultHostAddress,
-                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                appId = sessionVaultAppId,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             ),
                                         ).getOrDefault(0L)
@@ -172,6 +177,7 @@ class SetupMppPaymentViewerUseCase(
                                             scope = params.scope,
                                             viewerAddress = viewerAddress,
                                             hostAddress = sessionVaultHostAddress,
+                                            sessionVaultAppId = sessionVaultAppId,
                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                         )
@@ -216,13 +222,14 @@ class SetupMppPaymentViewerUseCase(
                                             viewerAddress = viewerAddress,
                                             creatorAddress = sessionVaultHostAddress,
                                             depositAmountMicroUsdc = depositMicroUsdc,
+                                            appId = sessionVaultAppId,
                                         ).onSuccess { txId ->
                                             Log.d(TAG, "✅ Session Vault openSession+deposit txId=$txId")
 
                                             MppPayments
                                                 .setAuthorizedSignerForSession(
                                                     signer = signer,
-                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                    appId = sessionVaultAppId,
                                                     viewerAddress = viewerAddress,
                                                     hostAddress = sessionVaultHostAddress,
                                                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
@@ -244,7 +251,7 @@ class SetupMppPaymentViewerUseCase(
                                                     GetRemainingSessionVaultBalanceUseCase.Params(
                                                         viewerAddress = viewerAddress,
                                                         hostAddress = sessionVaultHostAddress,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        appId = sessionVaultAppId,
                                                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                     ),
                                                 ).getOrDefault(0L)
@@ -257,6 +264,7 @@ class SetupMppPaymentViewerUseCase(
                                                 scope = params.scope,
                                                 viewerAddress = viewerAddress,
                                                 hostAddress = sessionVaultHostAddress,
+                                                sessionVaultAppId = sessionVaultAppId,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                 setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                             )
@@ -327,7 +335,7 @@ class SetupMppPaymentViewerUseCase(
                                             MppPayments.getSessionDynamicDataFromVault(
                                                 viewerAddress = receiptViewerAddress,
                                                 hostAddress = sessionVaultHostAddress,
-                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                appId = sessionVaultAppId,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             )
                                         }
@@ -370,7 +378,7 @@ class SetupMppPaymentViewerUseCase(
                                         runCatching {
                                             val message =
                                                 MppPayments.buildClaimMessage(
-                                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                    appId = sessionVaultAppId,
                                                     totalAmountClaimedMicroUsdc = voucherClaimed,
                                                     channelId = EscrowSessionVaultManagerClient.Companion.channelId ?: return@launch,
                                                 )
@@ -392,7 +400,7 @@ class SetupMppPaymentViewerUseCase(
                                                                 MppPayments
                                                                     .updateVoucherOnChain(
                                                                         signer = signer,
-                                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                                        appId = sessionVaultAppId,
                                                                         viewerAddress = receiptViewerAddress,
                                                                         hostAddress = sessionVaultHostAddress,
                                                                         totalAmountUsedMicroUsdc = voucherClaimed,
@@ -457,7 +465,7 @@ class SetupMppPaymentViewerUseCase(
                                                     MppPayments
                                                         .setAuthorizedSignerForSession(
                                                             signer = signer,
-                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            appId = sessionVaultAppId,
                                                             viewerAddress = receiptViewerAddress,
                                                             hostAddress = sessionVaultHostAddress,
                                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
@@ -508,7 +516,7 @@ class SetupMppPaymentViewerUseCase(
                                                     MppPayments.getSessionDynamicDataFromVault(
                                                         viewerAddress = receiptViewerAddress,
                                                         hostAddress = sessionVaultHostAddress,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        appId = sessionVaultAppId,
                                                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                     )
                                                 }
@@ -532,7 +540,7 @@ class SetupMppPaymentViewerUseCase(
                                                         MppPayments.getSessionProgressSnapshotFromVault(
                                                             viewerAddress = receiptViewerAddress,
                                                             hostAddress = sessionVaultHostAddress,
-                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            appId = sessionVaultAppId,
                                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                         )
                                                     }
@@ -572,7 +580,7 @@ class SetupMppPaymentViewerUseCase(
                                         MppPayments.getSessionProgressSnapshotFromVault(
                                             viewerAddress = receiptViewerAddress,
                                             hostAddress = sessionVaultHostAddress,
-                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                            appId = sessionVaultAppId,
                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                         )
                                     }
@@ -628,7 +636,7 @@ class SetupMppPaymentViewerUseCase(
                                             MppPayments.getSessionDynamicDataFromVault(
                                                 viewerAddress = viewerAddress,
                                                 hostAddress = sessionVaultHostAddress,
-                                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                appId = sessionVaultAppId,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             )
                                         }
@@ -639,6 +647,7 @@ class SetupMppPaymentViewerUseCase(
                                             .topUpSessionVault(
                                                 signer = signer,
                                                 additionalDepositMicroUsdc = depositMicroUsdc,
+                                                appId = sessionVaultAppId,
                                             ).onSuccess { txId ->
                                                 Log.e(
                                                     TAG,
@@ -649,7 +658,7 @@ class SetupMppPaymentViewerUseCase(
                                                         GetRemainingSessionVaultBalanceUseCase.Params(
                                                             viewerAddress = viewerAddress,
                                                             hostAddress = sessionVaultHostAddress,
-                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            appId = sessionVaultAppId,
                                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                         ),
                                                     ).getOrDefault(0L)
@@ -658,6 +667,7 @@ class SetupMppPaymentViewerUseCase(
                                                     scope = params.scope,
                                                     viewerAddress = viewerAddress,
                                                     hostAddress = sessionVaultHostAddress,
+                                                    sessionVaultAppId = sessionVaultAppId,
                                                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                     setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                                 )
@@ -686,6 +696,7 @@ class SetupMppPaymentViewerUseCase(
                                                 viewerAddress = viewerAddress,
                                                 creatorAddress = sessionVaultHostAddress,
                                                 depositAmountMicroUsdc = depositMicroUsdc,
+                                                appId = sessionVaultAppId,
                                             ).onSuccess { txId ->
                                                 Log.e(
                                                     TAG,
@@ -694,7 +705,7 @@ class SetupMppPaymentViewerUseCase(
                                                 MppPayments
                                                     .setAuthorizedSignerForSession(
                                                         signer = signer,
-                                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                        appId = sessionVaultAppId,
                                                         viewerAddress = viewerAddress,
                                                         hostAddress = sessionVaultHostAddress,
                                                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
@@ -710,7 +721,7 @@ class SetupMppPaymentViewerUseCase(
                                                         GetRemainingSessionVaultBalanceUseCase.Params(
                                                             viewerAddress = viewerAddress,
                                                             hostAddress = sessionVaultHostAddress,
-                                                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                                            appId = sessionVaultAppId,
                                                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                         ),
                                                     ).getOrDefault(0L)
@@ -719,6 +730,7 @@ class SetupMppPaymentViewerUseCase(
                                                     scope = params.scope,
                                                     viewerAddress = viewerAddress,
                                                     hostAddress = sessionVaultHostAddress,
+                                                    sessionVaultAppId = sessionVaultAppId,
                                                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                                     setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                                 )
@@ -765,6 +777,7 @@ class SetupMppPaymentViewerUseCase(
         scope: CoroutineScope,
         viewerAddress: String,
         hostAddress: String?,
+        sessionVaultAppId: Long,
         authorizedSignerPublicKey: ByteArray? = null,
         setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
     ) {
@@ -783,7 +796,7 @@ class SetupMppPaymentViewerUseCase(
                             GetRemainingSessionVaultBalanceUseCase.Params(
                                 viewerAddress = viewerAddress,
                                 hostAddress = sessionVaultHostAddress,
-                                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                appId = sessionVaultAppId,
                                 authorizedSignerPublicKey = authorizedSignerPublicKey ?: viewerAuthorizedSignerPublicKey,
                             ),
                         ).getOrThrow()
@@ -875,5 +888,12 @@ class SetupMppPaymentViewerUseCase(
         } catch (t: Throwable) {
             Log.e(TAG, "[VIEWER_API_ERR] api=$apiName", t)
             null
+        }
+
+    private fun String.toAlgorandNetwork(): AlgorandNetwork =
+        if (this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true)) {
+            AlgorandNetwork.MAINNET
+        } else {
+            AlgorandNetwork.TESTNET
         }
 }

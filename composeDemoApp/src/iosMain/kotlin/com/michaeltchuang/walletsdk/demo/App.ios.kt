@@ -662,17 +662,12 @@ suspend fun settleHostVoucherOnChain(
         Napier.e("[HOST_SETTLE_SKIP] reason=no_host_signer host=$hostAddress")
         return
     }
-    val viewerSignerKey = runCatching { Base64.decode(viewerSignerKeyBase64) }.getOrNull()
-    val signerKey = viewerSignerKey ?: signer.authorizedSignerPublicKey
 
     try {
         val result =
             MppPayments.settleLatestVoucher(
                 signer = signer,
                 appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
-                authorizedSignerPublicKey = signerKey,
             )
         result
             .onSuccess { txId ->

@@ -42,24 +42,46 @@ class EscrowSessionVaultManagerClient(
         var channelId: ByteArray? = null
     }
 
+    fun deriveChannelId(
+        payerAddress: String,
+        payeeAddress: String,
+        authorizedSignerPublicKey: ByteArray,
+    ): ByteArray {
+        val payer = decodeAlgorandAddressPublicKey(payerAddress)
+        val payee = decodeAlgorandAddressPublicKey(payeeAddress)
+        return sha256(
+            payer + payee + encodeUint64(usdcAssetId) +
+                defaultSalt +
+                computeSignerPubkeyHash(authorizedSignerPublicKey),
+        )
+    }
+
+    fun initializeChannelId(
+        payerAddress: String,
+        payeeAddress: String,
+        authorizedSignerPublicKey: ByteArray,
+    ): ByteArray =
+        deriveChannelId(payerAddress, payeeAddress, authorizedSignerPublicKey).also { derivedChannelId ->
+            channelId = derivedChannelId
+        }
+
     suspend fun openAndDeposit(
         signer: MppWalletSigner,
+        payerAddress: String = signer.address,
         payeeAddress: String,
         depositMicroUsdc: Long,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val payer = decodeAlgorandAddressPublicKey(signer.address)
-            val payee = decodeAlgorandAddressPublicKey(payeeAddress)
+            require(payerAddress == signer.address) {
+                "payerAddress must match signer.address for session vault deposit"
+            }
             val deriveChannelId =
-                sha256(
-                    payer + payee + encodeUint64(usdcAssetId) +
-                        defaultSalt +
-                        computeSignerPubkeyHash(
-                            signer.authorizedSignerPublicKey,
-                        ),
+                initializeChannelId(
+                    payerAddress = payerAddress,
+                    payeeAddress = payeeAddress,
+                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 )
-            channelId = deriveChannelId
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,

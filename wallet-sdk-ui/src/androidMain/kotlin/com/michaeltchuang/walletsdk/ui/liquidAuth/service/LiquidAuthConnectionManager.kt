@@ -25,8 +25,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -65,6 +68,8 @@ import kotlin.io.encoding.Base64
 class AndroidLiquidAuthConnectionManager(
     private val context: Context,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) : LiquidAuthConnectionManager {
     companion object {
         private const val TAG = "AndroidLiquidAuthCM"
@@ -109,8 +114,10 @@ class AndroidLiquidAuthConnectionManager(
             getViewModel = { viewModel },
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
+            getActivePaymentNetwork = { activePaymentNetwork },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         )
 
     override fun initialize(viewModel: LiquidAuthOfferViewModel) {
@@ -238,7 +245,7 @@ class AndroidLiquidAuthConnectionManager(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        dataChannel = paymentChannel,
+                        dataChannel = WebRtcDataChannel(paymentChannel),
                         rtpSenders = emptyList(),
                         mppServerConfig =
                             MppServerConfig(
@@ -247,6 +254,7 @@ class AndroidLiquidAuthConnectionManager(
                                 secretKey = "liquid-auth-mpp-${activeRequestId ?: paymentRequest.id}",
                             ),
                         serverConfig = serverConfig.copy(sessionId = resolvedSessionId),
+                        getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
                     )
                 creator.rtcServer.onPaymentSettled = { receipt ->
                     receipt.payFrom
@@ -1026,5 +1034,7 @@ actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthCo
     return AndroidLiquidAuthConnectionManager(
         context = context,
         mppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class),
+        getRemainingSessionVaultBalanceUseCase = koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class),
+        getSessionVaultConfigUseCase = koin.get(clazz = GetSessionVaultConfigUseCase::class),
     )
 }

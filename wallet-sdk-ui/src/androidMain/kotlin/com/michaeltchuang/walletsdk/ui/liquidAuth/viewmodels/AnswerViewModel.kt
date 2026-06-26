@@ -36,6 +36,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignat
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
@@ -43,11 +44,10 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.AndroidSessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
@@ -67,6 +67,7 @@ import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -101,8 +102,9 @@ class AnswerViewModel(
     getAccountAlgoBalance: GetAccountAlgoBalance,
     getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
-    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
-        GetRemainingSessionVaultBalanceUseCase(AndroidSessionVaultBalanceRepository()),
+    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) : CommonAnswerViewModel(
         getCurrentBlockUseCase = getCurrentBlockUseCase,
         getAccountAlgoBalance = getAccountAlgoBalance,
@@ -429,12 +431,13 @@ class AnswerViewModel(
         val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
 
         return runCatching {
+            val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             val txId =
                 MppPayments
                     .topUpSessionVault(
                         signer = signer,
                         additionalDepositMicroUsdc = depositMicroUsdc,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        appId = sessionVaultAppId,
                     ).getOrThrow()
             Log.e(TAG, "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress txId=$txId")
 
@@ -443,7 +446,7 @@ class AnswerViewModel(
                     GetRemainingSessionVaultBalanceUseCase.Params(
                         viewerAddress = viewerAddress,
                         hostAddress = creatorAddress,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        appId = sessionVaultAppId,
                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     ),
                 ).getOrThrow()
@@ -762,13 +765,17 @@ class AnswerViewModel(
         viewerAddress: String,
         hostAddress: String? = null,
     ) {
-        setupMppPaymentViewerUseCase.startViewerOnChainRefresh(
-            scope = viewModelScope,
-            viewerAddress = viewerAddress,
-            hostAddress = hostAddress,
-            authorizedSignerPublicKey = null,
-            setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
-        )
+        viewModelScope.launch {
+            val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
+            setupMppPaymentViewerUseCase.startViewerOnChainRefresh(
+                scope = viewModelScope,
+                viewerAddress = viewerAddress,
+                hostAddress = hostAddress,
+                sessionVaultAppId = sessionVaultAppId,
+                authorizedSignerPublicKey = null,
+                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+            )
+        }
     }
 
     fun stopMppPaymentViewer() {
