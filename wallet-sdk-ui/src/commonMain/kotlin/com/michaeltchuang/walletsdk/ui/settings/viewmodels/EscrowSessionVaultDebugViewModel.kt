@@ -8,12 +8,12 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.contractClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,6 +24,7 @@ class EscrowSessionVaultDebugViewModel(
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
     private val getLocalAccounts: GetLocalAccounts,
+    private val getSessionVaultContextUseCase: GetSessionVaultContextUseCase,
 ) : ViewModel(),
     StateViewModel<EscrowSessionVaultDebugViewModel.ViewState> by stateDelegate,
     EventViewModel<EscrowSessionVaultDebugViewModel.ViewEvent> by eventDelegate {
@@ -84,7 +85,12 @@ class EscrowSessionVaultDebugViewModel(
 
         viewModelScope.launch {
             setLoading(true)
-            sendStatus("Depositing $amountUsdc USDC to Session Vault…")
+            val vaultContext = getSessionVaultContextUseCase()
+            sendStatus("Depositing $amountUsdc USDC from viewer to ${vaultContext.networkLabel} Session Vault…")
+            Napier.d(
+                "[ADD_TO_VAULT_CONTEXT] viewer=$viewer creator=$creator appId=${vaultContext.appId} usdcAssetId=${vaultContext.usdcAssetId}",
+                tag = TAG,
+            )
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
@@ -95,6 +101,8 @@ class EscrowSessionVaultDebugViewModel(
                                 viewerAddress = viewer,
                                 creatorAddress = creator,
                                 depositAmountMicroUsdc = depositMicroUsdc,
+                                appId = vaultContext.appId,
+                                usdcAssetId = vaultContext.usdcAssetId,
                             )
                         }
                     result
@@ -128,11 +136,11 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val remaining =
                     withContext(Dispatchers.Default) {
+                        val vaultContext = getSessionVaultContextUseCase()
                         MppPayments.getRemainingBalanceFromSessionVault(
                             viewerAddress = viewer,
                             hostAddress = creator,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = null,
+                            appId = vaultContext.appId,
                         )
                     }
                 updateContent { it.copy(remainingBalance = remaining) }
@@ -170,12 +178,13 @@ class EscrowSessionVaultDebugViewModel(
                         return@launch
                     }
 
+                val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault(
                             viewerAddress = viewer,
                             hostAddress = creator,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = vaultContext.appId,
                             authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
                         )
                     } ?: run {
@@ -217,6 +226,7 @@ class EscrowSessionVaultDebugViewModel(
                     MppPayments.settleMessage(
                         cumulativeAmountMicroUsdc = newCumulative,
                         channelId = channelId,
+                        appId = vaultContext.appId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -225,7 +235,7 @@ class EscrowSessionVaultDebugViewModel(
                 withContext(Dispatchers.Default) {
                     MppPayments.updateVoucherOnChain(
                         signer = viewerSigner,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        appId = vaultContext.appId,
                         viewerAddress = viewer,
                         hostAddress = creator,
                         totalAmountUsedMicroUsdc = newCumulative,
@@ -260,6 +270,7 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val viewerSigner = mppWalletSignerUseCase(viewer)
                 if (viewerSigner != null) {
+                    val vaultContext = getSessionVaultContextUseCase()
                     val channelId = EscrowSessionVaultManagerClient.channelId
                     if (channelId == null) {
                         Napier.e("channelId is null", tag = TAG)
@@ -269,6 +280,7 @@ class EscrowSessionVaultDebugViewModel(
                         MppPayments.settleMessage(
                             cumulativeAmountMicroUsdc = depositMicroUsdc,
                             channelId = channelId,
+                            appId = vaultContext.appId,
                         )
                     val signature = viewerSigner.signMessage(settleMessage)
 
@@ -280,6 +292,7 @@ class EscrowSessionVaultDebugViewModel(
                                 hostAddress = creator,
                                 cumulativeAmountMicroUsdc = depositMicroUsdc,
                                 signature = signature,
+                                appId = vaultContext.appId,
                             )
                         }
                     result
@@ -320,12 +333,13 @@ class EscrowSessionVaultDebugViewModel(
                         return@launch
                     }
 
+                val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault(
                             viewerAddress = viewer,
                             hostAddress = creator,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = vaultContext.appId,
                             authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
                         )
                     } ?: run {
@@ -342,11 +356,9 @@ class EscrowSessionVaultDebugViewModel(
                     tag = TAG,
                 )
 
-                val newCumulative = latestVoucher + requestedIncrementMicroUsdc
-
-                if (newCumulative > totalDeposit) {
+                if (latestVoucher > totalDeposit) {
                     val depositUsdc = totalDeposit / 1_000_000.0
-                    val requestedUsdc = newCumulative / 1_000_000.0
+                    val requestedUsdc = latestVoucher / 1_000_000.0
                     sendStatus(
                         "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
                             "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC",
@@ -354,7 +366,7 @@ class EscrowSessionVaultDebugViewModel(
                     return@launch
                 }
 
-                if (newCumulative <= lastSettled) {
+                if (latestVoucher <= lastSettled) {
                     sendStatus("❌ ${PaymentError.NothingToSettle.userMessage}")
                     return@launch
                 }
@@ -364,31 +376,6 @@ class EscrowSessionVaultDebugViewModel(
                     Napier.e("channelId is null", tag = TAG)
                     return@launch
                 }
-                val settleMessage =
-                    MppPayments.settleMessage(
-                        cumulativeAmountMicroUsdc = newCumulative,
-                        channelId = channelId,
-                    )
-
-                val viewerSignature = viewerSigner.signMessage(settleMessage)
-                Napier.d("[SIGNATURE_CREATED] sigLen=${viewerSignature.size}", tag = TAG)
-
-                sendStatus("Recording voucher on-chain…")
-                val updateTxId =
-                    withContext(Dispatchers.Default) {
-                        MppPayments.updateVoucherOnChain(
-                            signer = viewerSigner,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            totalAmountUsedMicroUsdc = newCumulative,
-                            signature = viewerSignature,
-                        )
-                    }.getOrElse { err ->
-                        showError(PaymentError.Companion.from(err), "UPDATE_VOUCHER_ERR", err)
-                        return@launch
-                    }
-                Napier.d("[UPDATE_VOUCHER_OK] txId=$updateTxId", tag = TAG)
 
                 val creatorSigner =
                     mppWalletSignerUseCase(creator) ?: run {
@@ -401,11 +388,7 @@ class EscrowSessionVaultDebugViewModel(
                     withContext(Dispatchers.Default) {
                         MppPayments.settleLatestVoucher(
                             signer = creatorSigner,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            appId = vaultContext.appId,
                         )
                     }
 
@@ -445,13 +428,15 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
+                        val vaultContext = getSessionVaultContextUseCase()
+                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
                         contractClient(
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            appId = vaultContext.appId,
+                            usdcAssetId = vaultContext.usdcAssetId,
                         ).close(
                             signer = creatorSigner,
                             channelId = channelId,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            algodUrl = algodUrl,
                         )
                     }
 
@@ -494,13 +479,15 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
+                        val vaultContext = getSessionVaultContextUseCase()
+                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
                         contractClient(
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            appId = vaultContext.appId,
+                            usdcAssetId = vaultContext.usdcAssetId,
                         ).requestClose(
                             signer = viewerSigner,
                             channelId = channelId,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            algodUrl = algodUrl,
                         )
                     }
 
@@ -543,13 +530,15 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
+                        val vaultContext = getSessionVaultContextUseCase()
+                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
                         contractClient(
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            appId = vaultContext.appId,
+                            usdcAssetId = vaultContext.usdcAssetId,
                         ).withdraw(
                             signer = viewerSigner,
                             channelId = channelId,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            algodUrl = algodUrl,
                         )
                     }
 
@@ -615,6 +604,7 @@ class EscrowSessionVaultDebugViewModel(
 
     private fun contentState(): ViewState.Content = state.value as ViewState.Content
 
+
     private fun updateContent(block: (ViewState.Content) -> ViewState.Content) {
         stateDelegate.updateState { current -> block(current as ViewState.Content) }
     }
@@ -626,6 +616,7 @@ class EscrowSessionVaultDebugViewModel(
     private fun sendStatus(message: String) {
         eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage(message))
     }
+
 
     sealed interface ViewState {
         data class Content(

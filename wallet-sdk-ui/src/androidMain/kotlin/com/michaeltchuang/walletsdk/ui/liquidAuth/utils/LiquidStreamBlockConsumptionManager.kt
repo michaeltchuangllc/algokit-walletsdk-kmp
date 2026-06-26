@@ -412,9 +412,6 @@ internal class LiquidStreamBlockConsumptionManager(
                                         .settleLatestVoucher(
                                             signer = signer,
                                             appId = sessionVaultAppId,
-                                            viewerAddress = claimSnapshot.viewerAddress,
-                                            hostAddress = creatorAddress,
-                                            authorizedSignerPublicKey = signerPublicKey,
                                         ).getOrThrow()
                                 },
                             )

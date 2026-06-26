@@ -44,12 +44,16 @@ class EscrowSessionVaultManagerClient(
 
     suspend fun openAndDeposit(
         signer: MppWalletSigner,
+        payerAddress: String = signer.address,
         payeeAddress: String,
         depositMicroUsdc: Long,
         algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
-            val payer = decodeAlgorandAddressPublicKey(signer.address)
+            require(payerAddress == signer.address) {
+                "payerAddress must match signer.address for session vault deposit"
+            }
+            val payer = decodeAlgorandAddressPublicKey(payerAddress)
             val payee = decodeAlgorandAddressPublicKey(payeeAddress)
             val deriveChannelId =
                 sha256(

@@ -10,7 +10,6 @@ class SessionVaultBalanceRepositoryImpl : SessionVaultBalanceRepository {
                 viewerAddress = params.viewerAddress,
                 hostAddress = params.hostAddress,
                 appId = params.appId,
-                algodUrl = params.algodUrl,
             )
         }
 }

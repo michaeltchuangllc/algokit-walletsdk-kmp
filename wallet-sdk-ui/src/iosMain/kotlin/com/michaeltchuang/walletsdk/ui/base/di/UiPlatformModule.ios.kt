@@ -18,6 +18,7 @@ actual fun uiPlatformModule(): Module =
                 eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
                 mppWalletSignerUseCase = get(),
                 getLocalAccounts = get(),
+                getSessionVaultContextUseCase = get(),
             )
         }
         factory { IosLiquidStreamViewerConnectionManager(get()) }

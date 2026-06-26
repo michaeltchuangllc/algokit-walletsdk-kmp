@@ -10,9 +10,9 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +24,7 @@ class IosViewerPaymentOrchestrator(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getHdSeed: GetHdSeed,
+    private val getSessionVaultContextUseCase: GetSessionVaultContextUseCase,
 ) {
     companion object {
         private const val TAG = "IosViewerPaymentOrch"
@@ -44,6 +45,7 @@ class IosViewerPaymentOrchestrator(
         scope.launch {
             try {
                 val signer = buildWalletSigner(viewerAddress)
+                val vaultContext = getSessionVaultContextUseCase()
                 if (signer == null) {
                     Napier.e("[VIEWER_DEPOSIT_SKIP] reason=no_signer viewer=$viewerAddress", tag = TAG)
                     onResult(null)
@@ -56,8 +58,7 @@ class IosViewerPaymentOrchestrator(
                         MppPayments.getRemainingBalanceFromSessionVault(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = null,
+                            appId = vaultContext.appId,
                         )
                     }.getOrDefault(0L)
 
@@ -74,6 +75,8 @@ class IosViewerPaymentOrchestrator(
                         MppPayments.topUpSessionVault(
                             signer = signer,
                             additionalDepositMicroUsdc = depositMicroUsdc,
+                            appId = vaultContext.appId,
+                            usdcAssetId = vaultContext.usdcAssetId,
                         )
                     } else {
                         // Open a new session vault and deposit.
@@ -84,18 +87,18 @@ class IosViewerPaymentOrchestrator(
                                 viewerAddress = viewerAddress,
                                 creatorAddress = hostAddress,
                                 depositAmountMicroUsdc = depositMicroUsdc,
+                                appId = vaultContext.appId,
+                                usdcAssetId = vaultContext.usdcAssetId,
                             )
                         if (openResult.isSuccess) {
                             // Register the authorized signer so the host can verify vouchers.
                             MppPayments
                                 .setAuthorizedSignerForSession(
                                     signer = signer,
-                                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                    appId = vaultContext.appId,
                                     viewerAddress = viewerAddress,
                                     hostAddress = hostAddress,
-                                    authorizedSignerPublicKey =
-                                        signer.authorizedSignerPublicKey
-                                            ?: ByteArray(0),
+                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                 ).onFailure { e ->
                                     Napier.e(
                                         "[VIEWER_SET_SIGNER_ERR] viewer=$viewerAddress host=$hostAddress",
@@ -123,8 +126,7 @@ class IosViewerPaymentOrchestrator(
                         MppPayments.getRemainingBalanceFromSessionVault(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                            algodUrl = null,
+                            appId = vaultContext.appId,
                         )
                     }.getOrDefault(depositMicroUsdc)
 
@@ -175,11 +177,8 @@ class IosViewerPaymentOrchestrator(
         sendMessageFn: (String) -> Unit,
     ) {
         try {
-            val pubKey =
-                signer.authorizedSignerPublicKey ?: run {
-                    Napier.w("[VIEWER_VOUCHER_SKIP] reason=no_pub_key viewer=$viewerAddress", tag = TAG)
-                    return
-                }
+            val pubKey = signer.authorizedSignerPublicKey
+            val vaultContext = getSessionVaultContextUseCase()
 
             val preUpdateLatestVoucher =
                 runCatching {
@@ -187,7 +186,7 @@ class IosViewerPaymentOrchestrator(
                         .getSessionDynamicDataFromVault(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = vaultContext.appId,
                             authorizedSignerPublicKey = pubKey,
                         )?.latestVoucherAmount ?: 0L
                 }.getOrDefault(0L)
@@ -211,7 +210,7 @@ class IosViewerPaymentOrchestrator(
 
             val claimMessage =
                 MppPayments.buildClaimMessage(
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    appId = vaultContext.appId,
                     totalAmountClaimedMicroUsdc = effectiveClaimedMicroUsdc,
                     channelId = channelId,
                 )
@@ -228,7 +227,7 @@ class IosViewerPaymentOrchestrator(
                 runCatching {
                     MppPayments.updateVoucherOnChain(
                         signer = signer,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        appId = vaultContext.appId,
                         viewerAddress = viewerAddress,
                         hostAddress = hostAddress,
                         totalAmountUsedMicroUsdc = effectiveClaimedMicroUsdc,
@@ -269,7 +268,7 @@ class IosViewerPaymentOrchestrator(
                     withContext(Dispatchers.Default) {
                         MppPayments.awaitTransactionConfirmation(
                             txId = updateTxId,
-                            algodUrl = MppPayments.TESTNET_ALGOD_URL,
+                            appId = vaultContext.appId,
                         )
                     }.also { confirmed ->
                         if (confirmed) {
@@ -294,7 +293,7 @@ class IosViewerPaymentOrchestrator(
                         .getSessionDynamicDataFromVault(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
-                            appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                            appId = vaultContext.appId,
                             authorizedSignerPublicKey = pubKey,
                         )?.latestVoucherAmount ?: 0L
                 }.getOrDefault(0L)
@@ -314,6 +313,7 @@ class IosViewerPaymentOrchestrator(
                         totalAmountUsed = effectiveClaimedMicroUsdc,
                         remainingMicroUsdc = remainingMicroUsdc,
                         signatureBase64 = signatureBase64,
+                        appId = vaultContext.appId,
                     )
 
                 Napier.d(
@@ -335,6 +335,7 @@ class IosViewerPaymentOrchestrator(
             Napier.e("[VIEWER_VOUCHER_ERR] viewer=$viewerAddress", e, tag = TAG)
         }
     }
+
 
     // ── Signing helpers ───────────────────────────────────────────────────────
 

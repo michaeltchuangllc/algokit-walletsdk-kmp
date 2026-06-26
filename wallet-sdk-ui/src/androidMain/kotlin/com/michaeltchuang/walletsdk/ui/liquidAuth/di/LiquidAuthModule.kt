@@ -67,6 +67,7 @@ val liquidAuthUIModule =
                 eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
                 mppWalletSignerUseCase = get(),
                 getLocalAccounts = get(),
+                getSessionVaultContextUseCase = get(),
             )
         }
 
