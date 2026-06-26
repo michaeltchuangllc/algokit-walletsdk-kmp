@@ -36,7 +36,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDepositHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import kotlinx.coroutines.flow.combine
@@ -160,25 +159,14 @@ actual fun AnswerScreenOverlay() {
                             network = MppNetworks.ALGORAND_TESTNET,
                             signer = signer,
                         )
-                    viewerManager.setupPaymentRail(mppClientConfig, signer.authorizedSignerPublicKey)
-
-                    // Wire the voucher-send callback so that each segment:accepted receipt
-                    // generates a signed liquid:payment:voucher sent to the host.
-                    // This mirrors the Android viewer's SetupMppPaymentViewerUseCase.onPaymentReceipt.
-                    viewerManager.onReceiptVoucherNeeded =
-                        { sessionId, viewerAddr, hostAddr, claimedMicroUsdc, debitMicroUsdc, remaining, send ->
-                            paymentOrchestrator.sendVoucherForReceipt(
-                                signer = signer,
-                                viewerAddress = viewerAddr,
-                                hostAddress = hostAddr,
-                                sessionId = sessionId,
-                                totalAmountClaimedMicroUsdc = claimedMicroUsdc,
-                                segmentDebitMicroUsdc = debitMicroUsdc,
-                                remainingMicroUsdc = remaining,
-                                sendMessageFn = send,
-                            )
-                        }
-                    NSLog("$TAG: IOSLiquidStreamViewer MPP payment rail configured for viewer=$address")
+                    viewerManager.setupPaymentRail(
+                        mppClientConfig = mppClientConfig,
+                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        signFido2Challenge = { challenge, challengeAddress ->
+                            paymentOrchestrator.signClaimMessage(challenge, signer, challengeAddress)
+                        },
+                    )
+                    NSLog("$TAG: MPP payment rail configured for viewer=$address")
                 } else {
                     NSLog("$TAG: Could not build wallet signer for $address — PaywalledRTCClient rail not set")
                 }
@@ -187,17 +175,6 @@ actual fun AnswerScreenOverlay() {
             }
         }
 
-        // Wire the deposit handler: performs the on-chain deposit + sends a voucher to the host.
-        iosViewerDepositHandler = { viewerAddr, hostAddr, depositMicroUsdc, callback ->
-            paymentOrchestrator.depositAndSendVoucher(
-                viewerAddress = viewerAddr,
-                hostAddress = hostAddr,
-                sessionId = viewerManager.sessionId.value,
-                depositMicroUsdc = depositMicroUsdc,
-                sendMessageFn = { msg -> viewerManager.sendMessage(msg) },
-                onResult = callback,
-            )
-        }
 
         NSLog(
             "$TAG: init viewerAddress='$address' origin='$origin' " +

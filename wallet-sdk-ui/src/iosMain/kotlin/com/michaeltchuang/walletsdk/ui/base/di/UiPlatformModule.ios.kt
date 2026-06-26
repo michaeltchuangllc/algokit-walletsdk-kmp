@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosLiquidStreamViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.singleOf
@@ -21,6 +22,7 @@ actual fun uiPlatformModule(): Module =
                 getSessionVaultContextUseCase = get(),
             )
         }
-        factory { IosLiquidStreamViewerConnectionManager(get()) }
+        factory { IosLiquidStreamViewerConnectionManager(get(), get()) }
+        factory { SetupMppPaymentViewerUseCase(get(), get()) }
         singleOf(::IosViewerPaymentOrchestrator)
     }

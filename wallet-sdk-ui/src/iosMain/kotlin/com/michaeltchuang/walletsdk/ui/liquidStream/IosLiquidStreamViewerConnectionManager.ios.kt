@@ -2,9 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidStream
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
@@ -12,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -75,6 +74,7 @@ private const val BALANCE_POLL_INTERVAL_MS = 5_000L
 
 class IosLiquidStreamViewerConnectionManager(
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    private val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
 ) {
     data class VideoFrame(
         val id: String,
@@ -167,9 +167,10 @@ class IosLiquidStreamViewerConnectionManager(
 
     private var viewerAuthorizedSignerPublicKey: ByteArray? = null
 
-    // ── IOSLiquidStreamViewer integration (both Android and iOS hosts) ────────
+    // ── Payment transport bridge (business logic lives in SetupMppPaymentViewerUseCase) ────────
 
-    private var streamViewer: IOSLiquidStreamViewer? = null
+    private var paymentDataChannel: IosRtcDataChannel? = null
+    private var pendingPaymentRailSetup: (() -> Unit)? = null
 
     private var activeOrigin: String? = null
     private var activeRequestId: String? = null
@@ -221,9 +222,10 @@ class IosLiquidStreamViewerConnectionManager(
         paymentConsentContinuation?.cancel()
         paymentConsentContinuation = null
         viewerAuthorizedSignerPublicKey = null
-        // Clean up IOSLiquidStreamViewer (terminates PaywalledRTCClient + IOSRtcDataChannel).
-        streamViewer?.terminate()
-        streamViewer = null
+        setupMppPaymentViewerUseCase.stop()
+        paymentDataChannel?.notifyClosed()
+        paymentDataChannel = null
+        pendingPaymentRailSetup = null
     }
 
     @Suppress("unused")
@@ -247,8 +249,9 @@ class IosLiquidStreamViewerConnectionManager(
         sendViewerHello()
         // Start balance polling if we already know viewer + host addresses
         maybeStartBalancePolling()
-        // Open the DC bridge so IOSLiquidStreamViewer / PaywalledRTCClient starts listening.
-        streamViewer?.notifyHostConnected()
+        runPendingPaymentRailSetupIfReady()
+        // Open the DC bridge so SetupMppPaymentViewerUseCase / PaywalledRTCClient starts listening.
+        paymentDataChannel?.notifyOpen()
     }
 
     @Suppress("unused")
@@ -258,7 +261,7 @@ class IosLiquidStreamViewerConnectionManager(
         stopBalancePolling()
         _connectionState.value = ConnectionState.DISCONNECTED
         _latestVideoFrame.value = null
-        streamViewer?.notifyHostDisconnected()
+        paymentDataChannel?.notifyClosed()
     }
 
     @Suppress("unused")
@@ -284,122 +287,67 @@ class IosLiquidStreamViewerConnectionManager(
         }
     }
 
-    // ── IOSLiquidStreamViewer setup (Android + iOS hosts) ────────────────────
-
-    var onReceiptVoucherNeeded: (
-        suspend (
-            sessionId: String,
-            viewerAddress: String,
-            hostAddress: String,
-            totalAmountClaimedMicroUsdc: Long,
-            segmentDebitMicroUsdc: Long,
-            remainingMicroUsdc: Long,
-            sendMessageFn: (String) -> Unit,
-        ) -> Unit
-    )? = null
+    // ── MPP payment setup (matches Android: platform transport + common manager) ──────────────
 
     fun setupPaymentRail(
         mppClientConfig: MppClientConfig,
         authorizedSignerPublicKey: ByteArray? = null,
+        signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
     ) {
-        streamViewer?.terminate()
+        setupMppPaymentViewerUseCase.stop()
+        paymentDataChannel?.notifyClosed()
         if (authorizedSignerPublicKey != null) {
             viewerAuthorizedSignerPublicKey = authorizedSignerPublicKey
         }
 
-        val consentHandler =
-            object : ConsentHandler {
-                override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
-                    // Check existing on-chain balance: if funded, skip dialog.
-                    val viewer = _viewerAddress.value
-                    val host = _hostAddress.value
-                    if (viewer.isNotBlank() && host.isNotBlank()) {
-                        val existing =
-                            runCatching {
-                                getRemainingBalanceUseCase(
-                                    GetRemainingSessionVaultBalanceUseCase.Params(
-                                        viewerAddress = viewer,
-                                        hostAddress = host,
-                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-                                        // Use the cached signer key so the channel ID matches deposits.
-                                        authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
-                                    ),
-                                ).getOrDefault(0L)
-                            }.getOrDefault(0L)
-                        if (existing > 0L) {
-                            println("$TAG: 💰 existing vault balance=$existing — skipping consent dialog")
-                            return ConsentApproval(
-                                approved = true,
-                                autoPaySegments = true,
-                                budgetCap =
-                                    BudgetCap(
-                                        amount = existing.toString(),
-                                        asset = "USDC",
-                                    ),
-                            )
-                        }
-                    }
-                    // No existing balance — show consent dialog and await user decision.
-                    val deferred = CompletableDeferred<ConsentApproval>()
-                    paymentConsentContinuation = deferred
-                    _pendingMppConsent.value = terms
-                    println("$TAG: 🎭 payment consent dialog shown amount=${terms.amount} payTo=${terms.payTo}")
-                    return deferred.await()
-                }
-            }
-
-        val viewer =
-            IOSLiquidStreamViewer(
-                mppClientConfig = mppClientConfig,
-                consentHandler = consentHandler,
-                clientConfig = ClientConfig(autoPaySegments = false),
-            )
-
-        // ── Voucher sending on each accepted segment ──────────────────────────
-        // Mirror the Android viewer: after every segment:accepted receipt, generate
-        // a signed liquid:payment:voucher and send it to the host so the host's
-        // LiquidStreamBlockConsumptionManager can settle on-chain.
-        var segmentClaimedMicroUsdc = 0L
-        viewer.onPaymentAccepted = { receipt ->
-            scope.launch {
-                val voucherHandler =
-                    onReceiptVoucherNeeded ?: run {
-                        println("$TAG: ⚠️ VOUCHER_SKIP — onReceiptVoucherNeeded not set (wire it in AnswerScreenOverlay)")
-                        return@launch
-                    }
-                val viewerAddr = _viewerAddress.value
-                val hostAddr = _hostAddress.value
-                if (viewerAddr.isBlank() || hostAddr.isBlank()) {
-                    println("$TAG: ⚠️ VOUCHER_SKIP — viewer='$viewerAddr' host='$hostAddr' not yet known")
-                    return@launch
-                }
-                val debit = receipt.amount.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
-                segmentClaimedMicroUsdc = (segmentClaimedMicroUsdc + debit).coerceAtLeast(1L)
-                println(
-                    "$TAG: VOUCHER_TRIGGER session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
-                        "debit=$debit cumulative=$segmentClaimedMicroUsdc viewer=$viewerAddr host=$hostAddr",
-                )
-                voucherHandler(
-                    receipt.sessionId,
-                    viewerAddr,
-                    hostAddr,
-                    segmentClaimedMicroUsdc,
-                    debit,
-                    _remainingBalanceMicroUsdc.value,
-                    ::sendMessage,
+        val viewer = _viewerAddress.value
+        val host = _hostAddress.value
+        if (viewer.isBlank() || host.isBlank()) {
+            pendingPaymentRailSetup = {
+                setupPaymentRail(
+                    mppClientConfig = mppClientConfig,
+                    authorizedSignerPublicKey = authorizedSignerPublicKey,
+                    signFido2Challenge = signFido2Challenge,
                 )
             }
+            println("$TAG: ⚠️ setupPaymentRail deferred — viewer='$viewer' host='$host'")
+            return
         }
+        pendingPaymentRailSetup = null
 
-        streamViewer = viewer
-        viewer.start()
+        val dataChannel =
+            IosRtcDataChannel(sendMessageProvider = {
+                iosViewerPaymentDCSendMessageHandler ?: iosViewerSendMessageHandler
+            })
+        paymentDataChannel = dataChannel
 
-        // If already connected (setup called after notifyConnected), open the DC now.
+        setupMppPaymentViewerUseCase(
+            SetupMppPaymentViewerUseCase.Params(
+                dataChannel = dataChannel,
+                viewerAddress = viewer,
+                hostAddress = host,
+                scope = scope,
+                signer = mppClientConfig.signer,
+                mppNetwork = mppClientConfig.network,
+                requestMppConsent = ::requestMppConsent,
+                setViewerSessionVaultProgress = ::updateSessionVaultProgress,
+                signFido2Challenge = signFido2Challenge,
+                sendMessage = ::sendMessage,
+            ),
+        )
+
         if (_connectionState.value == ConnectionState.CONNECTED) {
-            viewer.notifyHostConnected()
+            dataChannel.notifyOpen()
         }
 
-        println("$TAG: ✅ IOSLiquidStreamViewer set up (works for both Android and iOS PaywalledRTCServer hosts)")
+        println("$TAG: ✅ MPP payment rail set up through SetupMppPaymentViewerUseCase")
+    }
+
+    private fun runPendingPaymentRailSetupIfReady() {
+        val setup = pendingPaymentRailSetup ?: return
+        if (_viewerAddress.value.isBlank() || _hostAddress.value.isBlank()) return
+        pendingPaymentRailSetup = null
+        setup()
     }
 
     // ── Balance helpers ───────────────────────────────────────────────────────
@@ -407,11 +355,24 @@ class IosLiquidStreamViewerConnectionManager(
     /** Called by Swift / Compose to push a freshly-fetched on-chain balance. */
     @Suppress("unused")
     fun updateRemainingBalance(microUsdc: Long) {
-        _remainingBalanceMicroUsdc.value = microUsdc.coerceAtLeast(0L)
-        if (microUsdc > _progressBalanceMicroUsdc.value) {
-            _progressBalanceMicroUsdc.value = microUsdc.coerceAtLeast(0L)
-        }
+        updateSessionVaultProgress(microUsdc, maxOf(microUsdc, _progressBalanceMicroUsdc.value))
         println("$TAG: 💰 balance updated → ${microUsdc / 1_000_000.0} USDC")
+    }
+
+    private fun updateSessionVaultProgress(
+        remainingBalanceMicroUsdc: Long,
+        progressBalanceMicroUsdc: Long,
+    ) {
+        _remainingBalanceMicroUsdc.value = remainingBalanceMicroUsdc.coerceAtLeast(0L)
+        _progressBalanceMicroUsdc.value = progressBalanceMicroUsdc.coerceAtLeast(0L)
+    }
+
+    private suspend fun requestMppConsent(terms: ConsentTerms): ConsentApproval {
+        val deferred = CompletableDeferred<ConsentApproval>()
+        paymentConsentContinuation = deferred
+        _pendingMppConsent.value = terms
+        println("$TAG: 🎭 payment consent dialog shown amount=${terms.amount} payTo=${terms.payTo}")
+        return deferred.await()
     }
 
     /**
@@ -612,19 +573,19 @@ class IosLiquidStreamViewerConnectionManager(
                     DCMessageType.SEGMENT_REJECTED,
                     DCMessageType.SESSION_TERMINATE,
                     -> {
-                        // PaywalledRTCServer format — route through IOSLiquidStreamViewer.
+                        // PaywalledRTCServer format — route through SetupMppPaymentViewerUseCase.
                         // Works for both Android hosts and iOS hosts with PaywalledRTCServer enabled.
                         if (msgType == DCMessageType.SEGMENT_REQUEST) {
                             // Capture host address from payTo inside payload if not yet known.
                             extractAndSetHostAddressFromSegmentRequest(message)
+                            runPendingPaymentRailSetupIfReady()
                         }
-                        val viewer = streamViewer
-                        if (viewer != null) {
-                            println("$TAG: 📨 PAYWALLED_DC_MSG type=$msgType → IOSLiquidStreamViewer")
-                            viewer.notifyMessageReceived(message)
+                        val channel = paymentDataChannel
+                        if (channel != null) {
+                            println("$TAG: 📨 PAYWALLED_DC_MSG type=$msgType → SetupMppPaymentViewerUseCase")
+                            channel.notifyMessage(message)
                         } else {
-                            // IOSLiquidStreamViewer not yet set up — setupPaymentRail() not called yet.
-                            println("$TAG: ⚠️ PAYWALLED_DC_MSG type=$msgType — IOSLiquidStreamViewer not set up yet, dropping message")
+                            println("$TAG: ⚠️ PAYWALLED_DC_MSG type=$msgType — payment data channel not set up yet, dropping message")
                         }
                     }
                     else -> println("$TAG: 📨 MSG_NO_REF type=$msgType preview=${message.take(120)}")

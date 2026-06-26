@@ -341,7 +341,7 @@ class IosViewerPaymentOrchestrator(
 
     // ── Signing helpers ───────────────────────────────────────────────────────
 
-    private suspend fun signClaimMessage(
+    suspend fun signClaimMessage(
         claimMessage: ByteArray,
         signer: MppWalletSigner,
         address: String,
