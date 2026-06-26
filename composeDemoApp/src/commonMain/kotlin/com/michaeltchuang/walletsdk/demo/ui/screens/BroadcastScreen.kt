@@ -60,7 +60,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.createCameraStrea
  * @param tag The tag for this screen (unused)
  */
 data class BroadcastPlatformState(
-    val isMainnetUnsupported: Boolean,
     val accountsLoaded: Boolean,
     val accounts: List<LocalAccount>,
     val connectionManager: LiquidAuthConnectionManager,
@@ -81,11 +80,6 @@ fun BroadcastScreen(
     miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>,
 ) {
     val platformState = rememberBroadcastPlatformState()
-
-    if (platformState.isMainnetUnsupported) {
-        MainnetUnsupportedBroadcastScreen()
-        return
-    }
 
     val cameraPreviewController = remember { CameraStreamingPreviewController() }
     val cameraPreview =
@@ -139,55 +133,6 @@ fun BroadcastScreen(
         miniPlayerOnCloseActionState = miniPlayerOnCloseActionState,
         cameraPreviewController = cameraPreviewController,
     )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun MainnetUnsupportedBroadcastScreen() {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {},
-                colors =
-                    TopAppBarDefaults.topAppBarColors(
-                        containerColor = AlgoKitTheme.colors.background,
-                        titleContentColor = AlgoKitTheme.colors.textMain,
-                    ),
-            )
-        },
-    ) { padding ->
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxSize()
-                    .background(AlgoKitTheme.colors.background)
-                    .padding(padding)
-                    .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "Network Not Supported",
-                style = MaterialTheme.typography.headlineMedium,
-                color = AlgoKitTheme.colors.textMain,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Liquid Stream is currently only supported on Algorand Testnet",
-                style = MaterialTheme.typography.bodyLarge,
-                color = AlgoKitTheme.colors.textGray,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Please switch your wallet network from Mainnet to Testnet before starting a broadcast",
-                style = MaterialTheme.typography.bodyMedium,
-                color = AlgoKitTheme.colors.textGray,
-                textAlign = TextAlign.Center,
-            )
-        }
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
