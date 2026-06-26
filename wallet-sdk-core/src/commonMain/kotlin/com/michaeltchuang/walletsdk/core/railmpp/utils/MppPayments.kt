@@ -112,12 +112,22 @@ object MppPayments {
         viewerAddress: String,
         hostAddress: String,
         appId: Long,
+        authorizedSignerPublicKey: ByteArray? = null,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        if (channelId == null) {
-            return 0L
-        }
-        val result = getRemainingBalanceFromSessionVaultByChannelId(channelId!!, appId, logContext = baseContext)
+        val resolvedChannelId =
+            channelId
+                ?: authorizedSignerPublicKey
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.let {
+                        contractClient(appId = appId).initializeChannelId(
+                            payerAddress = viewerAddress,
+                            payeeAddress = hostAddress,
+                            authorizedSignerPublicKey = it,
+                        )
+                    }
+                ?: return 0L
+        val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, appId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
         Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=$appId $baseContext", tag = TAG)
@@ -351,6 +361,15 @@ object MppPayments {
         algodUrl: String = algodUrlForAppId(appId),
         authorizedSignerPublicKey: ByteArray? = null,
     ): SessionProgressSnapshot? {
+        authorizedSignerPublicKey
+            ?.takeIf { it.isNotEmpty() }
+            ?.let {
+                contractClient(appId = appId, algodUrl = algodUrl).initializeChannelId(
+                    payerAddress = viewerAddress,
+                    payeeAddress = hostAddress,
+                    authorizedSignerPublicKey = it,
+                )
+            }
         val data =
             getSessionDynamicDataFromVault(viewerAddress, hostAddress, appId, algodUrl, authorizedSignerPublicKey)
                 ?: return null
@@ -364,15 +383,14 @@ object MppPayments {
         algodUrl: String = algodUrlForAppId(appId),
         authorizedSignerPublicKey: ByteArray? = null,
     ): SessionDynamicData? {
-        val viewerPk = decodeAlgorandAddressPublicKey(viewerAddress)
-        val hostPk = decodeAlgorandAddressPublicKey(hostAddress)
-        val signerCandidates =
-            authorizedSignerPublicKey?.takeIf { it.isNotEmpty() }?.let { listOf(it) }
-                ?: listOf(viewerPk, hostPk)
+        val client = contractClient(appId = appId, algodUrl = algodUrl)
         val channelIdCandidates =
-            signerCandidates
-                .map { channelId ?: return null }
-                .distinctBy { it.toList() }
+            authorizedSignerPublicKey
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { signerPublicKey ->
+                    listOf(client.initializeChannelId(viewerAddress, hostAddress, signerPublicKey))
+                }
+                ?: listOf(channelId ?: return null)
 
         channelIdCandidates.forEachIndexed { index, channelId ->
             val result = getSessionDynamicDataFromVaultByChannelId(channelId, appId, algodUrl, "candidate=$index")

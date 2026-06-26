@@ -10,6 +10,7 @@ class SessionVaultBalanceRepositoryImpl : SessionVaultBalanceRepository {
                 viewerAddress = params.viewerAddress,
                 hostAddress = params.hostAddress,
                 appId = params.appId,
+                authorizedSignerPublicKey = params.authorizedSignerPublicKey,
             )
         }
 }

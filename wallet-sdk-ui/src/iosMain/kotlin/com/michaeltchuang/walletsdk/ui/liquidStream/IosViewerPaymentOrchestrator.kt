@@ -59,6 +59,7 @@ class IosViewerPaymentOrchestrator(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
                             appId = vaultContext.appId,
+                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                         )
                     }.getOrDefault(0L)
 
@@ -68,17 +69,17 @@ class IosViewerPaymentOrchestrator(
                     tag = TAG,
                 )
 
+                if (existingBalance > 0L) {
+                    Napier.d(
+                        "[VIEWER_DEPOSIT_SKIP_EXISTING_FUNDED] viewer=$viewerAddress host=$hostAddress remaining=$existingBalance",
+                        tag = TAG,
+                    )
+                    onResult(existingBalance)
+                    return@launch
+                }
+
                 val depositResult =
-                    if (existingBalance > 0L) {
-                        // Top up an existing session vault.
-                        Napier.d("[VIEWER_DEPOSIT_TOPUP] viewer=$viewerAddress", tag = TAG)
-                        MppPayments.topUpSessionVault(
-                            signer = signer,
-                            additionalDepositMicroUsdc = depositMicroUsdc,
-                            appId = vaultContext.appId,
-                            usdcAssetId = vaultContext.usdcAssetId,
-                        )
-                    } else {
+                    run {
                         // Open a new session vault and deposit.
                         Napier.d("[VIEWER_DEPOSIT_OPEN] viewer=$viewerAddress", tag = TAG)
                         val openResult =
@@ -127,6 +128,7 @@ class IosViewerPaymentOrchestrator(
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
                             appId = vaultContext.appId,
+                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                         )
                     }.getOrDefault(depositMicroUsdc)
 
