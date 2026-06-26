@@ -13,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.demo.ui.components.ConnectionStatusBar
 import com.michaeltchuang.walletsdk.demo.ui.components.NetworkStatusBar
@@ -32,6 +33,8 @@ fun AppNavigation() {
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     val miniPlayerOnCloseActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val showTopBarActions = currentRoute != Broadcast::class.qualifiedName
 
     Box(
         modifier =
@@ -45,7 +48,7 @@ fun AppNavigation() {
                     .fillMaxSize(),
             topBar = {
                 Column {
-                    TopBar()
+                    TopBar(showActions = showTopBarActions)
                     NetworkStatusBar()
                     ConnectionStatusBar()
                 }
