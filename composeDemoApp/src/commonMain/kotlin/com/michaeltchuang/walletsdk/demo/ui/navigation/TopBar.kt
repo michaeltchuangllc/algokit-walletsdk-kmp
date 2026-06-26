@@ -30,7 +30,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TopBar() {
+fun TopBar(showActions: Boolean = true) {
     val scope = rememberCoroutineScope()
     val locale = LocalAppLocale.current
     TopAppBar(
@@ -48,36 +48,38 @@ fun TopBar() {
             }
         },
         actions = {
-            Row {
-                Icon(
-                    modifier =
-                        Modifier
-                            .size(44.dp)
-                            .padding(horizontal = 8.dp)
-                            .clickable(onClick = {
-                                scope.launch {
-                                    ACTIONS.qrClickEvent.emit(true)
-                                }
-                            }),
-                    painter = painterResource(Res.drawable.ic_qr_scan),
-                    contentDescription = "qr",
-                    tint = AlgoKitTheme.colors.textMain,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(
-                    modifier =
-                        Modifier
-                            .size(44.dp)
-                            .padding(horizontal = 8.dp)
-                            .clickable(onClick = {
-                                scope.launch {
-                                    ACTIONS.settingsClickEvent.emit(true)
-                                }
-                            }),
-                    painter = painterResource(Res.drawable.ic_settings),
-                    contentDescription = "qr",
-                    tint = AlgoKitTheme.colors.textMain,
-                )
+            if (showActions) {
+                Row {
+                    Icon(
+                        modifier =
+                            Modifier
+                                .size(44.dp)
+                                .padding(horizontal = 8.dp)
+                                .clickable(onClick = {
+                                    scope.launch {
+                                        ACTIONS.qrClickEvent.emit(true)
+                                    }
+                                }),
+                        painter = painterResource(Res.drawable.ic_qr_scan),
+                        contentDescription = "qr",
+                        tint = AlgoKitTheme.colors.textMain,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(
+                        modifier =
+                            Modifier
+                                .size(44.dp)
+                                .padding(horizontal = 8.dp)
+                                .clickable(onClick = {
+                                    scope.launch {
+                                        ACTIONS.settingsClickEvent.emit(true)
+                                    }
+                                }),
+                        painter = painterResource(Res.drawable.ic_settings),
+                        contentDescription = "settings",
+                        tint = AlgoKitTheme.colors.textMain,
+                    )
+                }
             }
         },
     )
