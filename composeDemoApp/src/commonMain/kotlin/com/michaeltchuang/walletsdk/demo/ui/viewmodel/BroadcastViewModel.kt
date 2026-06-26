@@ -18,19 +18,6 @@ class BroadcastViewModel(
     EventViewModel<BroadcastViewModel.BroadcastEvent> by eventDelegate {
     init {
         stateDelegate.setDefaultState(BroadcastState.Idle)
-        observeCurrentNetwork()
-    }
-
-    private fun observeCurrentNetwork() {
-        viewModelScope.launch {
-            networkNodeSettings.collect { network ->
-                if (network == AlgorandNetwork.MAINNET) {
-                    stateDelegate.updateState { BroadcastState.MainnetUnsupported }
-                } else if (stateDelegate.state.value is BroadcastState.MainnetUnsupported) {
-                    stateDelegate.updateState { BroadcastState.Idle }
-                }
-            }
-        }
     }
 
     fun generateQRCode(data: String) {
@@ -72,8 +59,6 @@ class BroadcastViewModel(
         data object Idle : BroadcastState
 
         data object Loading : BroadcastState
-
-        data object MainnetUnsupported : BroadcastState
 
         data class Content(
             val qrData: String,
