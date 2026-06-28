@@ -22,7 +22,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.math.roundToLong
 
 var activeIOSViewerConnectionManager: IosLiquidStreamViewerConnectionManager? = null
 var iosViewerStartHandler: ((origin: String, requestId: String) -> Unit)? = null
@@ -418,96 +417,9 @@ class IosLiquidStreamViewerConnectionManager(
 
     // ── MPP Consent API (called from Compose UI) ──────────────────────────────
 
-    @Suppress("unused")
-    fun approveMppConsent(enteredAmountUsdc: String) {
-        val entered = enteredAmountUsdc.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
-        val microUsdc = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
 
-        // ── PaywalledRTCServer path (Android or iOS host) ──────────────────────
-        val androidDeferred = paymentConsentContinuation
-        if (androidDeferred != null) {
-            println("$TAG: ✅ PaywalledRTCServer consent approved (MPP payment handles the charge)")
-            val terms = _pendingMppConsent.value
-            val perSegmentMicro = terms?.amount?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-            val maxSegments = (microUsdc / perSegmentMicro).toInt().coerceAtLeast(1)
-            paymentConsentContinuation = null
-            _pendingMppConsent.value = null
-            _isPaymentProcessing.value = false
-            androidDeferred.complete(
-                ConsentApproval(
-                    approved = true,
-                    autoPaySegments = true,
-                    budgetCap =
-                        BudgetCap(
-                            amount = microUsdc.toString(),
-                            asset = "USDC",
-                        ),
-                    maxAutoPaySegments = maxSegments,
-                ),
-            )
-            return
-        }
-
-        // ── iOS host path (session vault deposit) ─────────────────────────────
-        val terms = _pendingMppConsent.value
-        val perSegmentMicro = terms?.amount?.toLongOrNull()?.coerceAtLeast(1L) ?: 1L
-        val maxSegments = (microUsdc / perSegmentMicro).toInt().coerceAtLeast(1)
-
-        _isPaymentProcessing.value = true
-        println("$TAG: 💳 user approved iOS-host consent — depositMicroUsdc=$microUsdc")
-
-        val viewerAddr = _viewerAddress.value
-        val hostAddr = _hostAddress.value
-
-        val depositHandler = iosViewerDepositHandler
-        if (depositHandler != null) {
-            // Delegate the actual deposit to Swift (which has access to the signer).
-            depositHandler(viewerAddr, hostAddr, microUsdc) { remaining ->
-                _isPaymentProcessing.value = false
-                if (remaining != null) {
-                    updateRemainingBalance(remaining)
-                    startBalancePolling(viewerAddr, hostAddr)
-                    println("$TAG: ✅ deposit via Swift handler succeeded remaining=${remaining / 1_000_000.0} USDC")
-                } else {
-                    println("$TAG: ❌ deposit via Swift handler failed")
-                }
-                pendingConsentContinuation?.complete(
-                    ConsentApproval(
-                        approved = true,
-                        autoPaySegments = true,
-                        budgetCap =
-                            BudgetCap(
-                                amount = microUsdc.toString(),
-                                asset = "USDC",
-                            ),
-                        maxAutoPaySegments = maxSegments,
-                    ),
-                )
-                _pendingMppConsent.value = null
-                pendingConsentContinuation = null
-            }
-        } else {
-            // Fallback: use the Kotlin-native GetRemainingSessionVaultBalanceUseCase to poll
-            // after the deposit (actual deposit done externally by Swift via x402 handler).
-            _isPaymentProcessing.value = false
-            println("$TAG: ⚠️ iosViewerDepositHandler not set — completing consent without deposit")
-            pendingConsentContinuation?.complete(
-                ConsentApproval(
-                    approved = true,
-                    autoPaySegments = true,
-                    budgetCap =
-                        BudgetCap(
-                            amount = microUsdc.toString(),
-                            asset = "USDC",
-                        ),
-                    maxAutoPaySegments = maxSegments,
-                ),
-            )
-            _pendingMppConsent.value = null
-            pendingConsentContinuation = null
-            // Start polling regardless so the UI reflects any existing balance.
-            startBalancePolling(viewerAddr, hostAddr)
-        }
+    fun approveMppConsent(approval: ConsentApproval) {
+        paymentConsentContinuation?.complete(approval)
     }
 
     /** Called by Compose UI when user taps "Cancel" on the consent dialog. */

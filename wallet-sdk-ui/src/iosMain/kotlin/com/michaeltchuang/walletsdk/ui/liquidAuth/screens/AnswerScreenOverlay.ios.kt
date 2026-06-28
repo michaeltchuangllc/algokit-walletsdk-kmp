@@ -26,6 +26,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
@@ -38,6 +40,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSession
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -45,6 +48,7 @@ import org.koin.compose.koinInject
 import platform.Foundation.NSLog
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.roundToLong
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
@@ -285,7 +289,7 @@ actual fun AnswerScreenOverlay() {
                     },
                     onTopUpConfirm = { enteredAmountUsdc ->
                         scope.launch {
-                            viewerManager.approveMppConsent(enteredAmountUsdc)
+                            //viewerManager.approveMppConsent(enteredAmountUsdc)
                         }
                     },
                 )
@@ -301,9 +305,12 @@ actual fun AnswerScreenOverlay() {
             )
 
             // MPP consent / deposit dialog — shown when the host requests payment.
-            val consent = pendingConsent
-            if (showPaymentDialog && consent != null) {
-                val amountText = "1.0"
+            val mppConsent = pendingConsent
+            if (showPaymentDialog && mppConsent != null) {
+                val amountMicro = mppConsent.amount.toLongOrNull() ?: 0L
+                val defaultTopUpMicro = 1_000_000L
+                val amountText = (defaultTopUpMicro / 1_000_000.0).toString()
+                Napier.d("howing MPP consent dialog")
                 LiquidAuthSessionVaultModal(
                     initialAmount = amountText,
                     quickAmounts = listOf(amountText, "8.0"),
@@ -317,9 +324,36 @@ actual fun AnswerScreenOverlay() {
                         }
                     },
                     onTopUpAndStream = { enteredAmount ->
+                        val entered =
+                            enteredAmount.toDoubleOrNull() ?: (defaultTopUpMicro / 1_000_000.0)
+                        val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
+                        val perSegmentMicro = amountMicro.coerceAtLeast(1L)
+                        val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
+                        val hostAddress = mppConsent.payTo.orEmpty()
+                        Napier.d(
+                            "[VIEWER_MPP_CONSENT_TOPUP] viewer=$address host=$hostAddress " +
+                                    "amountMicroUsdc=$micro " +
+                                    "perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments",
+                        )
+                        if (hostAddress.isBlank()) {
+                            Napier.d("Invalid host address: $hostAddress")
+                            viewerManager.rejectMppConsent()
+                            showPaymentDialog = false
+                            return@LiquidAuthSessionVaultModal
+                        }
                         if (!isPaymentProcessing) {
                             scope.launch {
-                                viewerManager.approveMppConsent(enteredAmount)
+                                viewerManager.approveMppConsent(
+                                    ConsentApproval(
+                                        approved = true,
+                                        autoPaySegments = true,
+                                        budgetCap = BudgetCap(
+                                            amount = micro.toString(),
+                                            asset = "USDC"
+                                        ),
+                                        maxAutoPaySegments = maxSegments,
+                                    )
+                                )
                                 showPaymentDialog = false
                             }
                         }
