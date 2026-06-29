@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
-import com.michaeltchuang.walletsdk.ui.liquidStream.IosRtcDataChannel
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +21,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
     }
 
     data class Params(
-        val dataChannel: IosRtcDataChannel,
+        val dataChannel: CallbackRtcDataChannel,
         val viewerAddress: String,
         val hostAddress: String,
         val scope: CoroutineScope,

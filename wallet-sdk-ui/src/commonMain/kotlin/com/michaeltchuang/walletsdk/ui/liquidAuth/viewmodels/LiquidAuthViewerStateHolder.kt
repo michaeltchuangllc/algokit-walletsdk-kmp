@@ -2,8 +2,11 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
@@ -118,6 +121,15 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val _accountAddress = MutableStateFlow("")
     val accountAddress: StateFlow<String> = _accountAddress
 
+    private val _viewerAddress = MutableStateFlow("")
+    val viewerAddress: StateFlow<String> = _viewerAddress
+
+    private val _hostAddress = MutableStateFlow("")
+    val hostAddress: StateFlow<String> = _hostAddress
+
+    private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
+    val connectionType: StateFlow<IceConnectionType> = _connectionType
+
     // --- Video streaming state -----------------------------------------------------------------
     private val _videoFrame = MutableStateFlow<VideoFrameData?>(null)
     val videoFrame: StateFlow<VideoFrameData?> = _videoFrame
@@ -134,6 +146,10 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     // --- MPP consent bridge --------------------------------------------------------------------
     private val _pendingMppConsent = MutableStateFlow<ConsentTerms?>(null)
     val pendingMppConsent: StateFlow<ConsentTerms?> = _pendingMppConsent
+    val pendingViewerConsent: StateFlow<ConsentTerms?> = _pendingMppConsent
+
+    private val _isViewerPaymentProcessing = MutableStateFlow(false)
+    val isViewerPaymentProcessing: StateFlow<Boolean> = _isViewerPaymentProcessing
 
     private val _viewerSessionVaultMicroUsdc = MutableStateFlow(0L)
     val viewerSessionVaultMicroUsdc: StateFlow<Long> = _viewerSessionVaultMicroUsdc
@@ -187,7 +203,42 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
 
     // --- Public setters / helpers --------------------------------------------------------------
     fun setSession(cookie: String?) {
-        if (cookie != null) _session.value = cookie
+        _session.value = cookie ?: SESSION_LOGGED_OUT
+    }
+
+    fun setViewerAddress(address: String) {
+        _viewerAddress.value = address
+    }
+
+    fun setHostAddress(address: String) {
+        _hostAddress.value = address
+    }
+
+    fun buildViewerHelloMessage(publicKeyBase64: String?): String? {
+        val viewer = viewerAddress.value
+        if (viewer.isBlank()) return null
+        val keyField = if (!publicKeyBase64.isNullOrBlank()) """,\"viewerPublicKey\":\"$publicKeyBase64\""" else ""
+        return """{"reference":"liquid:viewer:hello","viewer":"$viewer"$keyField}"""
+    }
+
+    fun applyViewerMessageSessionState(
+        hostAddress: String?,
+        sessionId: String?,
+    ) {
+        if (!hostAddress.isNullOrBlank()) setHostAddress(hostAddress)
+        if (!sessionId.isNullOrBlank()) setSession(sessionId)
+    }
+
+    fun setConnectionType(type: IceConnectionType) {
+        _connectionType.value = type
+    }
+
+    fun clearViewerConnectionState() {
+        _viewerAddress.value = ""
+        _hostAddress.value = ""
+        _connectionType.value = IceConnectionType.UNKNOWN
+        _session.value = SESSION_LOGGED_OUT
+        setViewerSessionVaultProgress(0L, 0L)
     }
 
     fun setMessage(authMessage: AuthMessage?) {
@@ -267,6 +318,28 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
             _viewerProgressBalanceMicroUsdc.value = 0L
         }
         pendingMppConsentContinuation?.complete(approval)
+        _pendingMppConsent.value = null
+    }
+
+    fun approveViewerConsent(approval: ConsentApproval) {
+        approveMppConsent(approval)
+    }
+
+    fun approveFundedViewerConsent(
+        existingBalanceMicroUsdc: Long,
+        asset: String = "USDC",
+    ) {
+        approveViewerConsent(
+            ConsentApproval(
+                approved = true,
+                autoPaySegments = true,
+                budgetCap =
+                    BudgetCap(
+                        amount = existingBalanceMicroUsdc.toString(),
+                        asset = asset,
+                    ),
+            ),
+        )
     }
 
     fun rejectMppConsent() {
@@ -277,6 +350,47 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                 autoPaySegments = false,
             ),
         )
+        _pendingMppConsent.value = null
+        _isViewerPaymentProcessing.value = false
+    }
+
+    fun rejectViewerConsent() {
+        rejectMppConsent()
+    }
+
+    fun setViewerPaymentProcessing(isProcessing: Boolean) {
+        _isViewerPaymentProcessing.value = isProcessing
+    }
+
+    fun showPendingViewerConsent(terms: ConsentTerms) {
+        _pendingMppConsent.value = terms
+    }
+
+    fun showPendingViewerConsent(
+        amount: String,
+        asset: String,
+        payTo: String,
+        network: String = "algorand-testnet",
+        segmentDuration: Int = 3,
+        gatingMode: GatingMode = GatingMode.PARTIAL_TIME,
+    ) {
+        showPendingViewerConsent(
+            ConsentTerms(
+                gatingMode = gatingMode,
+                amount = amount.ifBlank { "1000000" },
+                asset = asset,
+                network = network,
+                payTo = payTo,
+                segmentDuration = segmentDuration,
+            ),
+        )
+    }
+
+    fun clearViewerConsent() {
+        _pendingMppConsent.value = null
+        _isViewerPaymentProcessing.value = false
+        pendingMppConsentContinuation?.cancel()
+        pendingMppConsentContinuation = null
     }
 
     fun setViewerSessionVaultProgress(

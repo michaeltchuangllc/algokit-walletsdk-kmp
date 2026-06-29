@@ -1,0 +1,88 @@
+package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
+
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.AnswerPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import kotlinx.coroutines.CoroutineScope
+
+actual open class AnswerViewModel actual constructor(
+    getCurrentBlockUseCase: GetCurrentBlockUseCase,
+    getAccountAlgoBalance: GetAccountAlgoBalance,
+    getLocalAccount: GetLocalAccount,
+    getLocalAccounts: GetLocalAccounts,
+    getAlgo25SecretKey: GetAlgo25SecretKey,
+    getFalcon24SecretKey: GetFalcon24SecretKey,
+    getSeed: GetHdSeed,
+    getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+    getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
+    setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    mppWalletSignerUseCase: MppWalletSignerUseCase,
+) : CommonAnswerViewModel(
+        getCurrentBlockUseCase = getCurrentBlockUseCase,
+        getAccountAlgoBalance = getAccountAlgoBalance,
+        getLocalAccount = getLocalAccount,
+        getLocalAccounts = getLocalAccounts,
+        getAlgo25SecretKey = getAlgo25SecretKey,
+        getFalcon24SecretKey = getFalcon24SecretKey,
+        getSeed = getSeed,
+        getCurrentNetworkUseCase = getCurrentNetworkUseCase,
+        getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
+        getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
+        setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+        mppWalletSignerUseCase = mppWalletSignerUseCase,
+    ) {
+    val platformServices = AnswerPlatformServices()
+
+    suspend fun setupViewerPaymentRail(
+        viewerAddress: String,
+        hostAddress: String,
+        scope: CoroutineScope,
+    ): Boolean {
+        if (viewerAddress.isBlank() || hostAddress.isBlank()) return false
+        val signer = buildMppWalletSigner(viewerAddress) ?: return false
+        platformServices.closeViewerPaymentDataChannel()
+        val dataChannel = platformServices.createViewerPaymentDataChannel()
+        setupMppPaymentViewerUseCase(
+            SetupMppPaymentViewerUseCase.Params(
+                dataChannel = dataChannel,
+                viewerAddress = viewerAddress,
+                hostAddress = hostAddress,
+                scope = scope,
+                signer = signer,
+                mppNetwork = MppNetworks.ALGORAND_TESTNET,
+                requestMppConsent = ::requestMppConsentFromUi,
+                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+                signFido2Challenge = { challenge, challengeAddress ->
+                    signer.takeIf { it.address == challengeAddress }?.signMessage(challenge)
+                        ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)
+                        ?: signFido2Challenge(challenge, challengeAddress)
+                },
+                sendMessage = { message -> platformServices.sendViewerMessage(message) },
+            ),
+        )
+        return true
+    }
+
+    fun openViewerPaymentRail() {
+        platformServices.openViewerPaymentDataChannel()
+    }
+
+    fun closeViewerPaymentRail() {
+        setupMppPaymentViewerUseCase.stop()
+        platformServices.closeViewerPaymentDataChannel()
+    }
+
+    fun handlePlatformPaymentMessage(message: String): Boolean = platformServices.notifyViewerPaymentMessage(message)
+}
