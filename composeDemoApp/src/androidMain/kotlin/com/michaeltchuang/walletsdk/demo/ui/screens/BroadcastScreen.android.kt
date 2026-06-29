@@ -17,14 +17,12 @@ import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 actual fun rememberBroadcastPlatformState(): BroadcastPlatformState {
-    val viewModel: BroadcastViewModel = koinViewModel()
-    val broadcastState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     val connectionManager = remember(context) { createLiquidAuthConnectionManager(context) }
 
     val getLocalAccountsUseCase = koinInject<GetLocalAccountsUseCase>()
-    val accountResult by produceState<Pair<Boolean, List<LocalAccount>>>(initialValue = false to emptyList()) {
+    val accountResult by produceState(initialValue = false to emptyList()) {
         value = true to
             getSupportedLocalAccountsByAppId(
                 appId = AppId.LIQUID_AUTH_STREAM.name,
@@ -33,7 +31,6 @@ actual fun rememberBroadcastPlatformState(): BroadcastPlatformState {
     }
 
     return BroadcastPlatformState(
-        isMainnetUnsupported = broadcastState is BroadcastViewModel.BroadcastState.MainnetUnsupported,
         accountsLoaded = accountResult.first,
         accounts = accountResult.second,
         connectionManager = connectionManager,
