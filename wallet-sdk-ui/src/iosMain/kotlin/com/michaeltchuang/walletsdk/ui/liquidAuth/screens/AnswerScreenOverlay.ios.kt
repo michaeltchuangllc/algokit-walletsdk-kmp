@@ -23,29 +23,31 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon2
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.CommonAnswerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.IosLiquidStreamViewerConnectionManager
-import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDepositHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
-import kotlinx.coroutines.flow.combine
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
 import platform.Foundation.NSLog
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.roundToLong
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
@@ -58,7 +60,6 @@ actual fun AnswerScreenOverlay() {
     val origin = AnswerScreenState.origin
 
     val viewerManager: IosLiquidStreamViewerConnectionManager = koinInject()
-    val paymentOrchestrator: IosViewerPaymentOrchestrator = koinInject()
     val scope = rememberCoroutineScope()
 
     // Inject use cases from Koin so the shared CommonAnswerViewModel can be constructed.
@@ -69,6 +70,11 @@ actual fun AnswerScreenOverlay() {
     val getAlgo25SecretKey: GetAlgo25SecretKey = koinInject()
     val getFalcon24SecretKey: GetFalcon24SecretKey = koinInject()
     val getSeed: GetHdSeed = koinInject()
+    val getCurrentNetworkUseCase: GetCurrentNetworkUseCase = koinInject()
+    val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase = koinInject()
+    val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase = koinInject()
+    val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase = koinInject()
+    val mppWalletSignerUseCase: MppWalletSignerUseCase = koinInject()
 
     // Scoped to a per-overlay ViewModelStore so its stream-timeout monitor and block-number
     // polling are cancelled when the overlay is dismissed.
@@ -79,11 +85,11 @@ actual fun AnswerScreenOverlay() {
             }
         }
 
-    // CommonAnswerViewModel — shared with Android — provides currentBlockNumber, balance,
-    // FIDO-2 signing helpers, and the stream-timeout mechanism.
-    val stateHolder: CommonAnswerViewModel =
+    // AnswerViewModel is the platform-facing expect/actual type; iOS currently delegates
+    // to the shared CommonAnswerViewModel implementation.
+    val stateHolder: AnswerViewModel =
         viewModel(viewModelStoreOwner) {
-            CommonAnswerViewModel(
+            AnswerViewModel(
                 getCurrentBlockUseCase = getCurrentBlockUseCase,
                 getAccountAlgoBalance = getAccountAlgoBalance,
                 getLocalAccount = getLocalAccount,
@@ -91,19 +97,23 @@ actual fun AnswerScreenOverlay() {
                 getAlgo25SecretKey = getAlgo25SecretKey,
                 getFalcon24SecretKey = getFalcon24SecretKey,
                 getSeed = getSeed,
+                getCurrentNetworkUseCase = getCurrentNetworkUseCase,
+                getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
+                getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
+                setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+                mppWalletSignerUseCase = mppWalletSignerUseCase,
             )
         }
 
-    // Video frames + session-vault progress are read from the shared holder; connection-specific
-    // state (consent flow, ICE type, session id) stays on the iOS connection manager.
+    // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
     val frame by stateHolder.videoFrame.collectAsStateWithLifecycle()
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
     val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
-    val connType by viewerManager.connectionType.collectAsStateWithLifecycle()
-    val sessionId by viewerManager.sessionId.collectAsStateWithLifecycle()
-    val pendingConsent by viewerManager.pendingMppConsent.collectAsStateWithLifecycle()
-    val isPaymentProcessing by viewerManager.isPaymentProcessing.collectAsStateWithLifecycle()
+    val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
+    val sessionId by stateHolder.session.collectAsStateWithLifecycle()
+    val pendingConsent by stateHolder.pendingViewerConsent.collectAsStateWithLifecycle()
+    val isPaymentProcessing by stateHolder.isViewerPaymentProcessing.collectAsStateWithLifecycle()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
@@ -115,6 +125,7 @@ actual fun AnswerScreenOverlay() {
         // Reset shared state for this session and route the holder's stream-timeout to teardown,
         // mirroring Android's auto-disconnect when no frames arrive for a few seconds.
         stateHolder.clearVideoFrame()
+        viewerManager.attachAnswerViewModel(stateHolder)
         stateHolder.onTimeout = { dismissOverlay(viewerManager) }
         if (address.isNotBlank()) {
             stateHolder.setAccountAddress(address)
@@ -130,12 +141,12 @@ actual fun AnswerScreenOverlay() {
 
         // Provide the Ed25519 public key so the viewer hello message can carry it, enabling
         // correct on-chain session-vault balance lookups.
-        if (iosViewerPublicKeyProvider == null) {
-            iosViewerPublicKeyProvider = { addr ->
+        if (!stateHolder.platformServices.hasViewerPublicKeyProvider()) {
+            stateHolder.platformServices.setViewerPublicKeyProvider { addr ->
                 runCatching {
                     runBlocking {
-                        paymentOrchestrator
-                            .buildWalletSigner(addr)
+                        stateHolder
+                            .buildMppWalletSigner(addr)
                             ?.authorizedSignerPublicKey
                             ?.let { Base64.encode(it) }
                     }
@@ -146,62 +157,12 @@ actual fun AnswerScreenOverlay() {
         // Set the viewer address BEFORE notifyConnected() so sendViewerHello() can include it.
         if (address.isNotBlank()) {
             viewerManager.setViewerAddress(address)
-            viewerManager.startBalancePollingSafe(address, viewerManager.hostAddress.value)
-        }
-
-        // Set up the MPP payment rail so the iOS viewer uses PaywalledRTCClient for ALL
-        // PaywalledRTCServer hosts.
-        if (address.isNotBlank()) {
-            runCatching {
-                val signer = runBlocking { paymentOrchestrator.buildWalletSigner(address) }
-                if (signer != null) {
-                    val mppClientConfig =
-                        MppClientConfig(
-                            network = MppNetworks.ALGORAND_TESTNET,
-                            signer = signer,
-                        )
-                    viewerManager.setupPaymentRail(mppClientConfig, signer.authorizedSignerPublicKey)
-
-                    // Wire the voucher-send callback so that each segment:accepted receipt
-                    // generates a signed liquid:payment:voucher sent to the host.
-                    // This mirrors the Android viewer's SetupMppPaymentViewerUseCase.onPaymentReceipt.
-                    viewerManager.onReceiptVoucherNeeded =
-                        { sessionId, viewerAddr, hostAddr, claimedMicroUsdc, debitMicroUsdc, remaining, send ->
-                            paymentOrchestrator.sendVoucherForReceipt(
-                                signer = signer,
-                                viewerAddress = viewerAddr,
-                                hostAddress = hostAddr,
-                                sessionId = sessionId,
-                                totalAmountClaimedMicroUsdc = claimedMicroUsdc,
-                                segmentDebitMicroUsdc = debitMicroUsdc,
-                                remainingMicroUsdc = remaining,
-                                sendMessageFn = send,
-                            )
-                        }
-                    NSLog("$TAG: IOSLiquidStreamViewer MPP payment rail configured for viewer=$address")
-                } else {
-                    NSLog("$TAG: Could not build wallet signer for $address — PaywalledRTCClient rail not set")
-                }
-            }.onFailure { e ->
-                NSLog("$TAG: Failed to set up PaywalledRTCClient payment rail: ${e.message}")
-            }
-        }
-
-        // Wire the deposit handler: performs the on-chain deposit + sends a voucher to the host.
-        iosViewerDepositHandler = { viewerAddr, hostAddr, depositMicroUsdc, callback ->
-            paymentOrchestrator.depositAndSendVoucher(
-                viewerAddress = viewerAddr,
-                hostAddress = hostAddr,
-                sessionId = viewerManager.sessionId.value,
-                depositMicroUsdc = depositMicroUsdc,
-                sendMessageFn = { msg -> viewerManager.sendMessage(msg) },
-                onResult = callback,
-            )
+            viewerManager.startBalancePollingSafe(address, stateHolder.hostAddress.value)
         }
 
         NSLog(
             "$TAG: init viewerAddress='$address' origin='$origin' " +
-                "_viewerAddress='${viewerManager.viewerAddress.value}'",
+                "_viewerAddress='${stateHolder.viewerAddress.value}'",
         )
 
         // The native WebRTC connection is already being established by the Swift handler;
@@ -213,43 +174,6 @@ actual fun AnswerScreenOverlay() {
     LaunchedEffect(pendingConsent) {
         if (pendingConsent != null) {
             showPaymentDialog = true
-        }
-    }
-
-    // Bridge the iOS connection manager's connection-specific flows into the shared holder so the
-    // UI renders from one cross-platform state layer and the holder's timeout monitor sees frames.
-    LaunchedEffect(viewerManager, stateHolder) {
-        launch {
-            viewerManager.latestVideoFrame.collect { vf ->
-                if (vf != null) {
-                    stateHolder.setVideoFrame(
-                        VideoFrameData(
-                            id = vf.id,
-                            timestamp = vf.timestamp,
-                            data = vf.data,
-                            width = vf.width,
-                            height = vf.height,
-                            format = vf.format,
-                        ),
-                    )
-                } else {
-                    stateHolder.clearVideoFrame()
-                }
-            }
-        }
-        launch {
-            combine(
-                viewerManager.remainingBalanceMicroUsdc,
-                viewerManager.progressBalanceMicroUsdc,
-            ) { remaining, progress -> remaining to progress }
-                .collect { (remaining, progress) ->
-                    stateHolder.setViewerSessionVaultProgress(remaining, progress)
-                }
-        }
-        launch {
-            viewerManager.sessionId.collect { sid ->
-                stateHolder.setSession(sid.ifBlank { null })
-            }
         }
     }
 
@@ -268,6 +192,7 @@ actual fun AnswerScreenOverlay() {
         }
         onDispose {
             stateHolder.stopRealtimeBlockNumberUpdates()
+            viewerManager.attachAnswerViewModel(null)
             viewerManager.disconnect()
             if (activeIOSViewerConnectionManager === viewerManager) {
                 activeIOSViewerConnectionManager = null
@@ -308,7 +233,7 @@ actual fun AnswerScreenOverlay() {
                     },
                     onTopUpConfirm = { enteredAmountUsdc ->
                         scope.launch {
-                            viewerManager.approveMppConsent(enteredAmountUsdc)
+                            //viewerManager.approveMppConsent(enteredAmountUsdc)
                         }
                     },
                 )
@@ -324,9 +249,12 @@ actual fun AnswerScreenOverlay() {
             )
 
             // MPP consent / deposit dialog — shown when the host requests payment.
-            val consent = pendingConsent
-            if (showPaymentDialog && consent != null) {
-                val amountText = "1.0"
+            val mppConsent = pendingConsent
+            if (showPaymentDialog && mppConsent != null) {
+                val amountMicro = mppConsent.amount.toLongOrNull() ?: 0L
+                val defaultTopUpMicro = 1_000_000L
+                val amountText = (defaultTopUpMicro / 1_000_000.0).toString()
+                Napier.d("howing MPP consent dialog")
                 LiquidAuthSessionVaultModal(
                     initialAmount = amountText,
                     quickAmounts = listOf(amountText, "8.0"),
@@ -335,14 +263,41 @@ actual fun AnswerScreenOverlay() {
                     isDismissible = false,
                     onDismiss = {
                         if (!isPaymentProcessing) {
-                            viewerManager.rejectMppConsent()
+                            stateHolder.rejectViewerConsent()
                             showPaymentDialog = false
                         }
                     },
                     onTopUpAndStream = { enteredAmount ->
+                        val entered =
+                            enteredAmount.toDoubleOrNull() ?: (defaultTopUpMicro / 1_000_000.0)
+                        val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
+                        val perSegmentMicro = amountMicro.coerceAtLeast(1L)
+                        val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
+                        val hostAddress = mppConsent.payTo.orEmpty()
+                        Napier.d(
+                            "[VIEWER_MPP_CONSENT_TOPUP] viewer=$address host=$hostAddress " +
+                                    "amountMicroUsdc=$micro " +
+                                    "perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments",
+                        )
+                        if (hostAddress.isBlank()) {
+                            Napier.d("Invalid host address: $hostAddress")
+                            stateHolder.rejectViewerConsent()
+                            showPaymentDialog = false
+                            return@LiquidAuthSessionVaultModal
+                        }
                         if (!isPaymentProcessing) {
                             scope.launch {
-                                viewerManager.approveMppConsent(enteredAmount)
+                                stateHolder.approveViewerConsent(
+                                    ConsentApproval(
+                                        approved = true,
+                                        autoPaySegments = true,
+                                        budgetCap = BudgetCap(
+                                            amount = micro.toString(),
+                                            asset = "USDC"
+                                        ),
+                                        maxAutoPaySegments = maxSegments,
+                                    )
+                                )
                                 showPaymentDialog = false
                             }
                         }

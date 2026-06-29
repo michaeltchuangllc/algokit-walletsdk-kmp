@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.7")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.7")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.8")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.8")
 }
 ```
 
@@ -59,7 +59,7 @@ The demo apps (Android & iOS) in this repo demonstrate `wallet-sdk` library usag
 - Theme customization
 - Network switching between mainnet/testnet (code hasn't been audited, so use mainnet at your own risk)
 - QR code scanning for account imports and keyreg transactions
-- Algo-only experience for now (to swap memecoins...please use Pera app, Haystack app, etc)
+- Algo-only & USDC experience for now (to swap memecoins...please use Pera app, Haystack app, etc)
 - Account detail screen
 - Passphrase management
 - Localization

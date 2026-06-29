@@ -16,7 +16,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCS
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.IosViewerPaymentOrchestrator
 import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
@@ -566,7 +565,7 @@ private val broadcastSettlementScope = CoroutineScope(Dispatchers.Default)
 
 /**
  * Builds an [MppWalletSigner] for the iOS HOST account (broadcaster).
- * Mirror of [IosViewerPaymentOrchestrator.buildWalletSigner] but for the host side.
+ * Builds a host-side MPP wallet signer for the demo app.
  */
 private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
     val localAccount =

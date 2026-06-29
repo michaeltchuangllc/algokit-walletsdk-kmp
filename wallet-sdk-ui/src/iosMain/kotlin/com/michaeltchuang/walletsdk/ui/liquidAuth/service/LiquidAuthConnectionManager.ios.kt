@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
@@ -10,9 +11,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.IOSLiquidStreamCreator
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
 import kotlinx.coroutines.CoroutineScope
 import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.Dispatchers
@@ -39,6 +41,8 @@ var iosBroadcastStopHandler: (() -> Unit)? = null
 var iosBroadcastSendMessageHandler: ((message: String) -> Unit)? = null
 
 var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
+
+var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
 
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
@@ -83,9 +87,10 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         getKoin().get()
     private val scope = CoroutineScope(Dispatchers.Default)
 
-    // ── IOSLiquidStreamCreator (host payment channel) ─────────────────────────
+    // ── LiquidStreamCreator (host payment channel) ────────────────────────────
 
-    private var streamCreator: IOSLiquidStreamCreator? = null
+    private var streamCreator: LiquidStreamCreator? = null
+    private var streamCreatorDataChannel: CallbackRtcDataChannel? = null
 
     private var isVideoGated = false
 
@@ -139,6 +144,8 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         iosBroadcastStopHandler?.invoke()
         streamCreator?.terminate("stopListening")
         streamCreator = null
+        streamCreatorDataChannel?.notifyClosed()
+        streamCreatorDataChannel = null
         activeGatingConfig = null
         activeRequestId = null
         activeViewerAddressForVault = null
@@ -204,7 +211,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     private fun startPaywalledRTCServer(paymentRequest: PaymentRequest) {
         if (streamCreator != null) {
-            println("$TAG: IOSLiquidStreamCreator already active — skipping duplicate")
+            println("$TAG: LiquidStreamCreator already active — skipping duplicate")
             return
         }
 
@@ -244,43 +251,54 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
         activeGatingConfig = gatingConfig
 
+        val dataChannel =
+            CallbackRtcDataChannel(
+                sendMessageProvider = {
+                    iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
+                },
+                logTag = "IOSLiquidAuthPaymentDc",
+            )
+        streamCreatorDataChannel = dataChannel
+
         val creator =
-            IOSLiquidStreamCreator(
+            LiquidStreamCreator(
+                dataChannel = dataChannel,
+                rtpSenders = listOf(BroadcastRtcRtpSender()),
                 mppServerConfig = mppServerConfig,
                 serverConfig = serverConfig,
                 getRemainingSessionVaultBalanceUseCase = getRemainingBalanceUseCase,
             )
 
-        creator.onSessionStarted = { sid ->
+        creator.rtcServer.onSessionStarted = { sid ->
             println("$TAG: [Creator] onSessionStarted session=$sid")
         }
-        creator.onPaymentRequested = { req ->
+        creator.rtcServer.onPaymentRequested = { req ->
             println("$TAG: [Creator] onPaymentRequested segment=${req.segmentIndex} amount=${req.amount}")
         }
-        creator.onPaymentSettled = { receipt ->
+        creator.rtcServer.onPaymentSettled = { receipt ->
             println("$TAG: [Creator] onPaymentSettled session=${receipt.sessionId} segment=${receipt.segmentIndex}")
             // Sync activePaymentSessionId to the PaywalledRTCServer's actual session.
             activePaymentSessionId = receipt.sessionId
             viewModel?.startVideoStreaming()
             startBlockConsumption(receipt.sessionId)
         }
-        creator.onPaymentRejected = { reason ->
+        creator.rtcServer.onPaymentRejected = { reason ->
             println("$TAG: [Creator] onPaymentRejected reason=$reason")
         }
-        creator.onSegmentStarted = { idx -> println("$TAG: [Creator] onSegmentStarted idx=$idx") }
-        creator.onSegmentGated = { idx ->
+        creator.rtcServer.onSegmentStarted = { idx -> println("$TAG: [Creator] onSegmentStarted idx=$idx") }
+        creator.rtcServer.onSegmentGated = { idx ->
             isVideoGated = true
             println("$TAG: [Creator] onSegmentGated idx=$idx — frame sending paused")
         }
-        creator.onSegmentResumed = { idx ->
+        creator.rtcServer.onSegmentResumed = { idx ->
             isVideoGated = false
             println("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
         }
-        creator.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
-        creator.onError = { err -> println("$TAG: [Creator] error: $err") }
+        creator.rtcServer.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
+        creator.rtcServer.onError = { err -> println("$TAG: [Creator] error: $err") }
 
         streamCreator = creator
-        println("$TAG: IOSLiquidStreamCreator created — calling start()")
+        println("$TAG: LiquidStreamCreator created — calling start()")
         creator.start()
         // Sync activePaymentSessionId to the PaywalledRTCServer's session ID right away.
         activePaymentSessionId = creator.sessionId
@@ -288,7 +306,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
         // If DC is already open (viewer connected before sendPaymentRequest), open immediately.
         if (isConnected()) {
-            creator.notifyViewerConnected()
+            dataChannel.notifyOpen()
         }
     }
 
@@ -367,8 +385,8 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("$TAG: notifyClientConnected requestId=$requestId")
         viewModel?.onClientConnected(requestId)
         startConnectionTypePolling()
-        // Open the host DC so IOSLiquidStreamCreator (if already started) begins the handshake.
-        streamCreator?.notifyViewerConnected()
+        // Open the host DC so LiquidStreamCreator (if already started) begins the handshake.
+        streamCreatorDataChannel?.notifyOpen()
     }
 
     @Suppress("unused")
@@ -376,8 +394,9 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("$TAG: notifyClientDisconnected")
         stopConnectionTypePolling()
         stopBlockConsumption()
-        streamCreator?.notifyViewerDisconnected()
+        streamCreatorDataChannel?.notifyClosed()
         streamCreator = null
+        streamCreatorDataChannel = null
         viewModel?.onClientDisconnected(activePaymentRecipient)
     }
 
@@ -394,10 +413,10 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         // Always capture viewer address / signer key for balance polling.
         tryCaptureViewerAddressFromMessage(message)
 
-        // Route `"type"`-keyed messages (PaywalledRTCClient protocol) to IOSLiquidStreamCreator.
+        // Route `"type"`-keyed messages (PaywalledRTCClient protocol) to LiquidStreamCreator.
         if (msgType != null && streamCreator != null) {
-            println("$TAG: routing type-keyed DC msg to IOSLiquidStreamCreator (type=$msgType)")
-            streamCreator?.notifyMessageReceived(message)
+            println("$TAG: routing type-keyed DC msg to LiquidStreamCreator (type=$msgType)")
+            streamCreatorDataChannel?.notifyMessage(message)
             return
         }
 

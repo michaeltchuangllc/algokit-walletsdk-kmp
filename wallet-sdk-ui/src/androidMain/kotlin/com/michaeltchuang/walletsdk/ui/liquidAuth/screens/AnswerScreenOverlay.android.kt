@@ -36,6 +36,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -429,7 +430,7 @@ private suspend fun handleWebRTCSetup(
                 }
                 viewModel.handleMessages(
                     msgStr = peerMsg,
-                    onVideoFrame = { frameData -> viewModel.setVideoFrame(frameData) },
+                    onVideoFrame = { frameData: VideoFrameData -> viewModel.setVideoFrame(frameData) },
                 )
             },
             onStateChange = { state ->

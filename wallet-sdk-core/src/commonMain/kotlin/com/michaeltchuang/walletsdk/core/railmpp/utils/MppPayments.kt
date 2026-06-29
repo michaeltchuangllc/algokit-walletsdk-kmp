@@ -116,16 +116,16 @@ object MppPayments {
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
         val resolvedChannelId =
-            channelId
-                ?: authorizedSignerPublicKey
-                    ?.takeIf { it.isNotEmpty() }
-                    ?.let {
-                        contractClient(appId = appId).initializeChannelId(
-                            payerAddress = viewerAddress,
-                            payeeAddress = hostAddress,
-                            authorizedSignerPublicKey = it,
-                        )
-                    }
+            authorizedSignerPublicKey
+                ?.takeIf { it.isNotEmpty() }
+                ?.let {
+                    contractClient(appId = appId).initializeChannelId(
+                        payerAddress = viewerAddress,
+                        payeeAddress = hostAddress,
+                        authorizedSignerPublicKey = it,
+                    )
+                }
+                ?: channelId
                 ?: return 0L
         val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, appId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
