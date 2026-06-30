@@ -9,6 +9,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
@@ -33,8 +35,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import org.webrtc.DataChannel
 
-actual class AnswerPlatformServices(
+actual class LiquidAuthPlatformServices(
     val addNewPasskey: AddNewPasskey,
     val passkeyRepository: PasskeyRepository,
     val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
@@ -52,7 +55,7 @@ actual class AnswerPlatformServices(
     val providerHttpClientUseCase: ProvideHttpClientUseCase,
 ) {
     companion object {
-        private const val TAG = "AnswerPlatformServices"
+        private const val TAG = "LiquidAuthPlatformServices"
     }
 
     private var signalServiceConnection: ServiceConnection? = null
@@ -85,6 +88,26 @@ actual class AnswerPlatformServices(
     fun stopSignalService() {
         _signalService.value?.stop()
     }
+
+    fun isHostPeerConnectionReady(service: SignalService?): Boolean = service?.peerConnection != null
+
+    fun getOrCreateHostPaymentDataChannel(service: SignalService?): DataChannel? {
+        if (!isHostPeerConnectionReady(service)) return null
+        return service?.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service?.createDataChannel(PAYMENT_CHANNEL_LABEL)
+    }
+
+    fun createHostPaymentWebRtcDataChannel(dataChannel: DataChannel): WebRtcDataChannel = WebRtcDataChannel(dataChannel)
+
+    fun sendHostMessage(
+        service: SignalService?,
+        message: String,
+    ) {
+        service?.send(message)
+    }
+
+    fun hostDataChannelState(service: SignalService?): String? = service?.dataChannel?.state()?.toString()
+
+    fun isHostConnected(service: SignalService?): Boolean = hostDataChannelState(service) == "OPEN"
 
     fun onStreamTimeout(
         viewModel: AnswerViewModel,

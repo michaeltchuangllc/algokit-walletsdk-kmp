@@ -27,7 +27,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.AnswerPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
@@ -84,10 +84,10 @@ actual open class AnswerViewModel actual constructor(
         const val SERVICE_NOTIFICATION_ID = 1000
     }
 
-    private lateinit var platformServices: AnswerPlatformServices
+    private lateinit var platformServices: LiquidAuthPlatformServices
 
     constructor(
-        platformServices: AnswerPlatformServices,
+        platformServices: LiquidAuthPlatformServices,
         getAlgo25SecretKey: GetAlgo25SecretKey,
         getFalcon24SecretKey: GetFalcon24SecretKey,
         getLocalAccount: GetLocalAccount,

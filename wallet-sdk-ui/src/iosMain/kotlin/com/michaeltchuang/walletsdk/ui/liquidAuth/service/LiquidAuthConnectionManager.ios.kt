@@ -10,9 +10,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
 import kotlinx.coroutines.CoroutineScope
@@ -24,12 +26,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
 
-var activeIOSBroadcastConnectionManager: IOSLiquidAuthConnectionManager? = null
+var activeIOSBroadcastConnectionManager: LiquidAuthConnectionManager? = null
+var activeIOSViewerConnectionManager: LiquidAuthConnectionManager? = null
 var iosBroadcastStartHandler: ((origin: String, requestId: String) -> Unit)? = null
 var iosBroadcastStopHandler: (() -> Unit)? = null
 
@@ -61,20 +63,91 @@ var iosBroadcastClaimVoucherHandler: (
 
 var iosBroadcastMppSecretKey: String = "ios-host-mpp-secret"
 
-private const val TAG = "IOSLiquidAuthCM"
-private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L
+var iosViewerStartHandler: ((origin: String, requestId: String) -> Unit)? = null
+var iosViewerStopHandler: (() -> Unit)? = null
+var iosViewerSendMessageHandler: ((message: String) -> Unit)? = null
+var iosViewerPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
+var iosViewerIsConnectedHandler: (() -> Boolean)? = null
+var iosViewerDetectConnectionTypeHandler: (() -> String)? = null
 
+/**
+ * Called by Kotlin to retrieve the base64-encoded Ed25519 public key for the viewer's address.
+ * Swift must set this before the viewer connects so the hello message can be sent.
+ */
+var iosViewerPublicKeyProvider: ((viewerAddress: String) -> String?)? = null
+
+/**
+ * Called by Swift to retrieve the current on-chain remaining balance for the viewer's session
+ * vault. The callback receives the balance in micro-USDC or null on failure.
+ */
+var iosViewerFetchBalanceHandler: (
+    (
+        viewerAddress: String,
+        hostAddress: String,
+        callback: (remainingMicroUsdc: Long?) -> Unit,
+    ) -> Unit
+)? = null
+
+private const val TAG = "IOSLiquidAuthCM"
 /** Polling interval for the host-side on-chain balance during paid streaming (ms). */
 private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
 
-class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
+actual class LiquidAuthConnectionManager actual constructor(
+    @Suppress("UNUSED_PARAMETER") platformContext: Any,
+) {
+    enum class ViewerConnectionState { IDLE, CONNECTING, CONNECTED, DISCONNECTED }
+
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
-    override val connectionType: StateFlow<IceConnectionType> = _connectionType
+    actual val connectionType: StateFlow<IceConnectionType> = _connectionType
 
     private var viewModel: LiquidAuthOfferViewModel? = null
+    private var answerViewModel: AnswerViewModel? = null
     private var activeRequestId: String? = null
-    private var connectionTypePollingJob: Job? = null
+    private var activeViewerOrigin: String? = null
+    private var activeViewerRequestId: String? = null
+    private val connectionTypePollingController =
+        LiquidAuthPollingJobController(
+            scope = CoroutineScope(Dispatchers.Default),
+            onPoll = {
+                platformServices.detectHostConnectionType()?.let { notifyConnectionTypeChanged(it) }
+            },
+            onStop = { _connectionType.value = IceConnectionType.UNKNOWN },
+        )
+    private val viewerConnectionTypePollingController =
+        LiquidAuthPollingJobController(
+            scope = CoroutineScope(Dispatchers.Default),
+            onPoll = {
+                platformServices.detectViewerConnectionType()?.let { notifyViewerConnectionTypeChanged(it) }
+            },
+            onStop = { _viewerConnectionType.value = IceConnectionType.UNKNOWN },
+        )
     private var blockConsumptionJob: Job? = null
+    private var viewerPaymentRailSetupKey: String? = null
+
+    private val _viewerConnectionState = MutableStateFlow(ViewerConnectionState.IDLE)
+
+    @Suppress("unused")
+    val viewerConnectionState: StateFlow<ViewerConnectionState> = _viewerConnectionState
+
+    private val _viewerConnectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
+
+    @Suppress("unused")
+    val viewerConnectionType: StateFlow<IceConnectionType> = _viewerConnectionType
+
+    private val _viewerSessionId = MutableStateFlow("")
+
+    @Suppress("unused")
+    val viewerSessionId: StateFlow<String> = _viewerSessionId
+
+    private val _viewerAddress = MutableStateFlow("")
+
+    @Suppress("unused")
+    val viewerAddress: StateFlow<String> = _viewerAddress
+
+    private val _hostAddress = MutableStateFlow("")
+
+    @Suppress("unused")
+    val hostAddress: StateFlow<String> = _hostAddress
 
     private var activeViewerAddressForVault: String? = null
     private var activeViewerAuthorizedSignerKey: ByteArray? = null
@@ -85,6 +158,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         getKoin().get()
+    private val platformServices = LiquidAuthPlatformServices()
     private val scope = CoroutineScope(Dispatchers.Default)
 
     // ── LiquidStreamCreator (host payment channel) ────────────────────────────
@@ -105,13 +179,13 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         val totalAmountClaimedMicroUsdc: Long,
     )
 
-    override fun initialize(viewModel: LiquidAuthOfferViewModel) {
+    actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         this.viewModel = viewModel
         activeIOSBroadcastConnectionManager = this
         println("$TAG: initialize() viewModel=$viewModel")
     }
 
-    override fun startListening(
+    actual fun startListening(
         origin: String,
         requestId: String,
     ) {
@@ -137,14 +211,14 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         handler(origin, requestId)
     }
 
-    override fun stopListening() {
+    actual fun stopListening() {
         println("$TAG: stopListening() (activeRequestId=$activeRequestId)")
         stopConnectionTypePolling()
         stopBlockConsumption()
         iosBroadcastStopHandler?.invoke()
         streamCreator?.terminate("stopListening")
         streamCreator = null
-        streamCreatorDataChannel?.notifyClosed()
+        platformServices.closeHostPaymentDataChannel()
         streamCreatorDataChannel = null
         activeGatingConfig = null
         activeRequestId = null
@@ -157,17 +231,20 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         _connectionType.value = IceConnectionType.UNKNOWN
     }
 
-    override fun sendMessage(message: String) {
-        val handler = iosBroadcastSendMessageHandler
-        if (handler == null) {
-            println("$TAG: sendMessage skipped — iosBroadcastSendMessageHandler not set")
-            return
+    fun clearActiveViewerIfCurrent() {
+        if (activeIOSViewerConnectionManager === this) {
+            activeIOSViewerConnectionManager = null
         }
-        handler(message)
+    }
+
+    actual fun sendMessage(message: String) {
+        if (!platformServices.sendHostMessage(message)) {
+            println("$TAG: sendMessage skipped — iosBroadcastSendMessageHandler not set")
+        }
     }
 
     @OptIn(ExperimentalEncodingApi::class)
-    override fun sendVideoFrame(
+    actual fun sendVideoFrame(
         frameId: String,
         timestamp: Long,
         frameData: ByteArray,
@@ -180,22 +257,123 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             return
         }
         try {
-            val base64Data = Base64.encode(frameData)
-            val hostAddress = activePaymentRecipient.orEmpty()
-            val sessionId = activePaymentSessionId.orEmpty()
-            val hostJsonField = if (hostAddress.isNotBlank()) ""","hostAddress":"$hostAddress"""" else ""
-            val sessionJsonField = if (sessionId.isNotBlank()) ""","sessionId":"$sessionId"""" else ""
             val jsonMessage =
-                """{"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height$hostJsonField$sessionJsonField}"""
+                buildLiquidAuthVideoFrameMessage(
+                    frameId = frameId,
+                    timestamp = timestamp,
+                    frameData = frameData,
+                    width = width,
+                    height = height,
+                    format = format,
+                    hostAddress = activePaymentRecipient.orEmpty(),
+                    sessionId = activePaymentSessionId.orEmpty(),
+                )
             sendMessage(jsonMessage)
         } catch (e: Exception) {
             println("$TAG: sendVideoFrame failed: $e")
         }
     }
 
-    override fun isConnected(): Boolean = iosBroadcastIsConnectedHandler?.invoke() ?: false
+    actual fun isConnected(): Boolean = platformServices.isHostConnected()
 
-    override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
+    // ── Viewer connection lifecycle ───────────────────────────────────────────
+
+    @Suppress("unused")
+    fun connectViewer(
+        origin: String,
+        requestId: String,
+        viewerAddress: String = "",
+    ) {
+        activeIOSViewerConnectionManager = this
+        activeViewerOrigin = origin
+        activeViewerRequestId = requestId
+        if (viewerAddress.isNotBlank()) setViewerAddress(viewerAddress)
+        _viewerConnectionState.value = ViewerConnectionState.CONNECTING
+        println("$TAG: connectViewer() origin=$origin requestId=$requestId")
+        if (!platformServices.startViewerConnection(origin, requestId)) {
+            println("$TAG: iosViewerStartHandler not set")
+        }
+    }
+
+    fun disconnectViewer() {
+        println("$TAG: disconnectViewer()")
+        stopViewerConnectionTypePolling()
+        answerViewModel?.stopMppPaymentViewer()
+        platformServices.stopViewerConnection()
+        activeViewerOrigin = null
+        activeViewerRequestId = null
+        _viewerConnectionState.value = ViewerConnectionState.DISCONNECTED
+        _viewerConnectionType.value = IceConnectionType.UNKNOWN
+        _viewerSessionId.value = ""
+        answerViewModel?.clearViewerConnectionState()
+        answerViewModel?.setViewerSessionVaultProgress(0L, 0L)
+        answerViewModel?.clearViewerConsent()
+        viewerPaymentRailSetupKey = null
+        answerViewModel?.closeViewerPaymentRail()
+    }
+
+    @Suppress("unused")
+    fun isViewerConnected(): Boolean = platformServices.isViewerConnected()
+
+    fun sendViewerMessage(message: String) {
+        if (!platformServices.sendViewerMessage(message)) {
+            println("$TAG: sendViewerMessage skipped — handler not set")
+        }
+    }
+
+    fun attachAnswerViewModel(viewModel: AnswerViewModel?) {
+        answerViewModel = viewModel
+        maybeSetupViewerPaymentRail()
+    }
+
+    @Suppress("unused")
+    fun notifyViewerConnected() {
+        println("$TAG: notifyViewerConnected")
+        _viewerConnectionState.value = ViewerConnectionState.CONNECTED
+        startViewerConnectionTypePolling()
+        sendViewerHello()
+        startViewerOnChainRefreshIfReady()
+        maybeSetupViewerPaymentRail()
+        answerViewModel?.openViewerPaymentRail()
+    }
+
+    @Suppress("unused")
+    fun notifyViewerDisconnected() {
+        println("$TAG: notifyViewerDisconnected")
+        stopViewerConnectionTypePolling()
+        answerViewModel?.stopMppPaymentViewer()
+        _viewerConnectionState.value = ViewerConnectionState.DISCONNECTED
+        answerViewModel?.clearVideoFrame()
+        answerViewModel?.closeViewerPaymentRail()
+    }
+
+    fun setViewerAddress(address: String) {
+        if (address.isBlank()) return
+        _viewerAddress.value = address
+        answerViewModel?.setViewerAddress(address)
+        println("$TAG: VIEWER_ADDR_SET addr=$address")
+    }
+
+    fun startViewerBalancePollingSafe(
+        viewerAddress: String,
+        hostAddress: String,
+    ) {
+        if (viewerAddress.isNotBlank()) setViewerAddress(viewerAddress)
+        if (hostAddress.isNotBlank()) setViewerHostAddress(hostAddress)
+
+        println(
+            "$TAG: startViewerBalancePollingSafe viewer=$viewerAddress host=$hostAddress " +
+                "_viewerAddress='${_viewerAddress.value}' _hostAddress='${_hostAddress.value}'",
+        )
+
+        if (viewerAddress.isBlank() || hostAddress.isBlank()) {
+            println("$TAG: startViewerBalancePollingSafe — polling deferred (host address not yet known)")
+            return
+        }
+        startViewerOnChainRefreshIfReady()
+    }
+
+    actual fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         println(
             "$TAG: 💰 sendPaymentRequest — session=${paymentRequest.id} " +
                 "amount=${paymentRequest.amount} payTo=${paymentRequest.payTo}",
@@ -215,29 +393,16 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             return
         }
 
-        val networkString =
-            when {
-                paymentRequest.network.contains("testnet", ignoreCase = true) -> MppNetworks.ALGORAND_TESTNET
-                paymentRequest.network.contains("mainnet", ignoreCase = true) -> MppNetworks.ALGORAND_MAINNET
-                else -> MppNetworks.ALGORAND_TESTNET
-            }
+        val resolvedPaymentRequest = resolveLiquidAuthPaymentRequest(paymentRequest)
 
         val mppServerConfig =
             MppServerConfig(
-                network = networkString,
+                network = resolvedPaymentRequest.network,
                 recipient = paymentRequest.payTo,
                 secretKey = iosBroadcastMppSecretKey,
             )
 
-        val gatingConfig =
-            GatingConfig(
-                mode = paymentRequest.meta.gatingMode,
-                amount = paymentRequest.amount,
-                asset = paymentRequest.asset,
-                network = paymentRequest.network,
-                payTo = paymentRequest.payTo,
-                segmentDuration = paymentRequest.meta.segmentDuration,
-            )
+        val gatingConfig = resolvedPaymentRequest.gatingConfig
 
         val serverConfig =
             ServerConfig(
@@ -251,13 +416,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
         activeGatingConfig = gatingConfig
 
-        val dataChannel =
-            CallbackRtcDataChannel(
-                sendMessageProvider = {
-                    iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
-                },
-                logTag = "IOSLiquidAuthPaymentDc",
-            )
+        val dataChannel = platformServices.createHostPaymentDataChannel()
         streamCreatorDataChannel = dataChannel
 
         val creator =
@@ -315,7 +474,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
      * Calls [LiquidAuthOfferViewModel.consumeBlock] on each poll tick so the host
      * UI reflects the live remaining balance.
      */
-    override fun startBlockConsumption(sessionId: String) {
+    actual fun startBlockConsumption(sessionId: String) {
         if (blockConsumptionJob?.isActive == true) {
             println("$TAG: startBlockConsumption — already running (session=$sessionId)")
             return
@@ -374,7 +533,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
             }
     }
 
-    override fun stopBlockConsumption() {
+    actual fun stopBlockConsumption() {
         println("$TAG: stopBlockConsumption")
         blockConsumptionJob?.cancel()
         blockConsumptionJob = null
@@ -386,7 +545,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         viewModel?.onClientConnected(requestId)
         startConnectionTypePolling()
         // Open the host DC so LiquidStreamCreator (if already started) begins the handshake.
-        streamCreatorDataChannel?.notifyOpen()
+        platformServices.openHostPaymentDataChannel()
     }
 
     @Suppress("unused")
@@ -394,7 +553,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         println("$TAG: notifyClientDisconnected")
         stopConnectionTypePolling()
         stopBlockConsumption()
-        streamCreatorDataChannel?.notifyClosed()
+        platformServices.closeHostPaymentDataChannel()
         streamCreator = null
         streamCreatorDataChannel = null
         viewModel?.onClientDisconnected(activePaymentRecipient)
@@ -402,8 +561,39 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     @Suppress("unused")
     fun notifyMessageReceived(message: String) {
-        val ref = message.jsonOptString("reference") ?: "(no-ref)"
-        val msgType = message.jsonOptString("type")
+        if (answerViewModel != null) {
+            notifyViewerMessageReceived(message)
+            return
+        }
+        notifyHostMessageReceived(message)
+    }
+
+    fun notifyViewerMessageReceived(message: String) {
+        val ref = parseLiquidAuthHostTransportMessage(message).reference ?: "(no-ref)"
+        if (ref != "liquid:video:frame") {
+            println(
+                "$TAG: VIEWER_MSG_RECV ref=$ref len=${message.length} " +
+                    "viewer='${_viewerAddress.value}' host='${_hostAddress.value}' " +
+                    "preview=${message.take(160)}",
+            )
+        }
+        answerViewModel?.handleViewerTransportMessage(
+            message = message,
+            onPongRequested = { sendViewerMessage("""{"reference":"pong"}""") },
+            onLegacyPaymentRequest = ::handleViewerPaymentRequest,
+            onPaymentMessage = { paymentMessage -> answerViewModel?.handlePlatformPaymentMessage(paymentMessage) == true },
+            onHostDiscovered = { host ->
+                if (!host.isNullOrBlank() && _hostAddress.value != host) setViewerHostAddress(host)
+                startViewerOnChainRefreshIfReady()
+                maybeSetupViewerPaymentRail()
+            },
+        ) ?: println("$TAG: message dropped — AnswerViewModel not attached")
+    }
+
+    private fun notifyHostMessageReceived(message: String) {
+        val parsed = parseLiquidAuthHostTransportMessage(message)
+        val ref = parsed.reference ?: "(no-ref)"
+        val msgType = parsed.type
         println(
             "$TAG: HOST_MSG_RECV ref=$ref type=$msgType len=${message.length} " +
                 "viewer='$activeViewerAddressForVault' host='$activePaymentRecipient' " +
@@ -416,15 +606,14 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         // Route `"type"`-keyed messages (PaywalledRTCClient protocol) to LiquidStreamCreator.
         if (msgType != null && streamCreator != null) {
             println("$TAG: routing type-keyed DC msg to LiquidStreamCreator (type=$msgType)")
-            streamCreatorDataChannel?.notifyMessage(message)
+            platformServices.notifyHostPaymentMessage(message)
             return
         }
 
         // Only call onClientConnected for connection-establishment messages, NOT for protocol
         // messages that have a `reference` field (like liquid:payment:voucher, liquid:viewer:hello).
         // Calling it for every voucher causes repeated spurious ViewModel callbacks.
-        val hasReference = message.jsonOptString("reference") != null
-        if (!hasReference) {
+        if (parsed.reference == null) {
             val requestId = activeRequestId
             if (requestId != null && isConnected()) {
                 viewModel?.onClientConnected(requestId)
@@ -434,7 +623,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
 
     @Suppress("unused")
     fun notifyConnectionTypeChanged(typeString: String) {
-        val type = parseConnectionType(typeString)
+        val type = parseIceConnectionType(typeString)
         if (_connectionType.value != type) {
             _connectionType.value = type
             println("$TAG: connection type -> ${type.displayName()}")
@@ -442,52 +631,102 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         }
     }
 
+    @Suppress("unused")
+    fun notifyViewerConnectionTypeChanged(typeString: String) {
+        val type = parseIceConnectionType(typeString)
+        if (_viewerConnectionType.value != type) {
+            _viewerConnectionType.value = type
+            answerViewModel?.setConnectionType(type)
+            println("$TAG: viewer connection type -> ${type.displayName()}")
+        }
+    }
+
+    @Suppress("unused")
+    fun updateRemainingBalance(microUsdc: Long) {
+        answerViewModel?.setViewerSessionVaultBalance(microUsdc)
+        println("$TAG: viewer balance updated -> ${microUsdc / 1_000_000.0} USDC")
+    }
+
     // ── Private helpers ────────────────────────────────────────────────────────
+
+    private fun setViewerHostAddress(address: String) {
+        if (address.isBlank()) return
+        _hostAddress.value = address
+        answerViewModel?.setHostAddress(address)
+        maybeSetupViewerPaymentRail()
+    }
+
+    private fun maybeSetupViewerPaymentRail() {
+        val viewModel = answerViewModel ?: return
+        val viewer = _viewerAddress.value
+        val host = _hostAddress.value
+        if (viewer.isBlank() || host.isBlank()) return
+        val setupKey = "$viewer:$host"
+        if (viewerPaymentRailSetupKey == setupKey) return
+        viewerPaymentRailSetupKey = setupKey
+        scope.launch {
+            val configured = viewModel.setupViewerPaymentRail(
+                viewerAddress = viewer,
+                hostAddress = host,
+                scope = scope,
+            )
+            if (!configured) viewerPaymentRailSetupKey = null
+        }
+    }
+
+    private fun sendViewerHello() {
+        val viewer = _viewerAddress.value
+        println(
+            "$TAG: HELLO_ATTEMPT viewer='$viewer' " +
+                "keyProviderSet=${platformServices.hasViewerPublicKeyProvider()} ",
+        )
+        if (viewer.isBlank()) {
+            println(
+                "$TAG: HELLO_SKIP — viewerAddress is blank! " +
+                    "Call setViewerAddress() or startViewerBalancePollingSafe() BEFORE notifyViewerConnected()",
+            )
+            return
+        }
+        val publicKeyBase64 = platformServices.getViewerPublicKey(viewer)
+        val keyField = if (!publicKeyBase64.isNullOrBlank()) """,\"viewerPublicKey\":\"$publicKeyBase64\""" else ""
+        val hello = """{"reference":"liquid:viewer:hello","viewer":"$viewer"$keyField}"""
+        println("$TAG: HELLO_SEND viewer=$viewer keyPresent=${!publicKeyBase64.isNullOrBlank()}")
+        sendViewerMessage(hello)
+    }
+
+    private fun handleViewerPaymentRequest(message: String) {
+        println("$TAG: PAYMENT_REQUEST_RECEIVED (legacy iOS host) preview=${message.take(160)}")
+    }
+
+    private fun startViewerOnChainRefreshIfReady() {
+        val viewModel = answerViewModel ?: return
+        val viewer = _viewerAddress.value
+        val host = _hostAddress.value
+        if (viewer.isNotBlank() && host.isNotBlank()) {
+            viewModel.startViewerOnChainRefresh(viewer, host)
+        }
+    }
 
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
         runCatching {
-            val voucherRef = msg.jsonOptString("reference") ?: return@runCatching
+            val parsed = parseLiquidAuthHostTransportMessage(msg)
 
-            if (voucherRef == "liquid:viewer:hello") {
-                val helloViewer = msg.jsonOptString("viewer")
+            parsed.viewerHello?.let { hello ->
+                val helloViewer = hello.viewerAddress
 
                 if (!helloViewer.isNullOrBlank() && helloViewer != activeViewerAddressForVault) {
                     activeViewerAddressForVault = helloViewer
                     println("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
                 }
 
-                val helloPublicKeyBase64 = msg.jsonOptString("viewerPublicKey")
-                val signerKey =
-                    if (helloPublicKeyBase64 != null) {
-                        decodeBase64OrNull(helloPublicKeyBase64)
-                    } else {
-                        null
-                    }
+                val signerKey = hello.viewerPublicKey
                 if (signerKey != null) {
                     activeViewerAuthorizedSignerKey = signerKey
                     println(
                         "$TAG: [VIEWER_HELLO_KEY] viewer=$helloViewer " +
                             "keyLen=${signerKey.size} session=$activePaymentSessionId",
                     )
-                    // Update the server's config with the viewer's key so skipPaymentRequestWhenSessionFunded works.
-                    val fallbackNetwork = activeGatingConfig?.network ?: MppNetworks.ALGORAND_TESTNET
-                    val currentGating =
-                        activeGatingConfig ?: GatingConfig(
-                            mode = GatingMode.PARTIAL_TIME,
-                            amount = activePaymentAmount ?: "0",
-                            asset = "USDC",
-                            network = fallbackNetwork,
-                            payTo = activePaymentRecipient ?: "",
-                        )
-                    streamCreator?.updateConfig(
-                        ServerConfig(
-                            sessionId = activePaymentSessionId,
-                            gating = currentGating,
-                            viewerAddress = helloViewer,
-                            viewerAuthorizedSignerPublicKey = signerKey,
-                            skipPaymentRequestWhenSessionFunded = true,
-                        ),
-                    )
+                    updateCreatorViewerSignerConfig(helloViewer, signerKey)
                 } else {
                     println(
                         "$TAG: [VIEWER_HELLO_NO_KEY] viewer=$helloViewer — " +
@@ -504,19 +743,17 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 }
             }
 
-            if (voucherRef == "liquid:payment:voucher") {
-                val signature = msg.jsonOptString("signature")
-                val claimedAmount = msg.jsonOptLong("totalAmountClaimedMicroUsdc")
-                val voucherSessionId = msg.jsonOptString("id")
-                val voucherViewer = msg.jsonOptString("viewer")
-                val voucherViewerPublicKey = msg.jsonOptString("viewerPublicKey")
-                val voucherChannelId = msg.jsonOptString("channelId")
-                voucherChannelId
-                    ?.let(::decodeBase64OrNull)
-                    ?.let { decodedChannelId ->
-                        EscrowSessionVaultManagerClient.channelId = decodedChannelId
-                        println("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
-                    }
+            parsed.paymentVoucher?.let { voucher ->
+                val signature = voucher.signatureBase64
+                val claimedAmount = voucher.totalAmountClaimedMicroUsdc
+                val voucherSessionId = voucher.sessionId
+                val voucherViewer = voucher.viewerAddress
+                val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
+                val voucherChannelId = voucher.channelIdBase64
+                voucher.channelId?.let { decodedChannelId ->
+                    EscrowSessionVaultManagerClient.channelId = decodedChannelId
+                    println("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
+                }
 
                 if (signature == null ||
                     claimedAmount == null ||
@@ -526,7 +763,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 ) {
                     println(
                         "$TAG: [VOUCHER_SKIP] reason=invalid_payload " +
-                            "session=${msg.jsonOptString("id")} claimedAmount=$claimedAmount",
+                            "session=${voucher.sessionId} claimedAmount=$claimedAmount",
                     )
                 } else {
                     val activeSession = activePaymentSessionId
@@ -557,7 +794,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                                 println("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
                             }
                             if (activeViewerAuthorizedSignerKey == null) {
-                                val voucherSignerKey = decodeBase64OrNull(voucherViewerPublicKey)
+                                val voucherSignerKey = voucher.viewerPublicKey
                                 if (voucherSignerKey != null) {
                                     activeViewerAuthorizedSignerKey = voucherSignerKey
                                     println(
@@ -608,7 +845,7 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
                 }
             }
 
-            val candidate = msg.jsonOptString("address")
+            val candidate = parsed.address
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
                 println("$TAG: viewer address captured from message: $candidate")
@@ -618,62 +855,45 @@ class IOSLiquidAuthConnectionManager : LiquidAuthConnectionManager {
         }
     }
 
+    private fun updateCreatorViewerSignerConfig(
+        viewerAddress: String?,
+        signerKey: ByteArray,
+    ) {
+        val fallbackNetwork = activeGatingConfig?.network ?: MppNetworks.ALGORAND_TESTNET
+        val currentGating =
+            activeGatingConfig ?: GatingConfig(
+                mode = GatingMode.PARTIAL_TIME,
+                amount = activePaymentAmount ?: "0",
+                asset = "USDC",
+                network = fallbackNetwork,
+                payTo = activePaymentRecipient ?: "",
+            )
+        streamCreator?.updateConfig(
+            ServerConfig(
+                sessionId = activePaymentSessionId,
+                gating = currentGating,
+                viewerAddress = viewerAddress,
+                viewerAuthorizedSignerPublicKey = signerKey,
+                skipPaymentRequestWhenSessionFunded = true,
+            ),
+        )
+    }
+
     private fun startConnectionTypePolling() {
         println("$TAG: starting connection-type polling")
-        connectionTypePollingJob?.cancel()
-        connectionTypePollingJob =
-            CoroutineScope(Dispatchers.Default).launch {
-                while (isActive) {
-                    val detectHandler = iosBroadcastDetectConnectionTypeHandler
-                    if (detectHandler != null) {
-                        notifyConnectionTypeChanged(detectHandler())
-                    }
-                    delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
-                }
-            }
+        connectionTypePollingController.start()
     }
 
     private fun stopConnectionTypePolling() {
-        connectionTypePollingJob?.cancel()
-        connectionTypePollingJob = null
-        _connectionType.value = IceConnectionType.UNKNOWN
+        connectionTypePollingController.stop()
     }
 
-    private fun parseConnectionType(typeString: String): IceConnectionType =
-        when (typeString.trim().lowercase()) {
-            "local" -> IceConnectionType.LOCAL
-            "stun" -> IceConnectionType.STUN
-            "relay" -> IceConnectionType.RELAY
-            "failed" -> IceConnectionType.FAILED
-            else -> IceConnectionType.UNKNOWN
-        }
+    private fun startViewerConnectionTypePolling() {
+        viewerConnectionTypePollingController.start()
+    }
 
-    private fun String.jsonOptString(key: String): String? =
-        Regex(""""$key"\s*:\s*"([^"]*)"""")
-            .find(this)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.takeIf { it.isNotEmpty() }
-
-    private fun String.jsonOptLong(key: String): Long? =
-        Regex(""""$key"\s*:\s*(-?\d+)""")
-            .find(this)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.toLongOrNull()
-
-    @OptIn(ExperimentalEncodingApi::class)
-    private fun decodeBase64OrNull(value: String): ByteArray? =
-        runCatching {
-            val normalised =
-                value
-                    .replace("\\/", "/")
-                    .replace('-', '+')
-                    .replace('_', '/')
-                    .trimEnd('=')
-            val padded = normalised + "=".repeat((4 - normalised.length % 4) % 4)
-            Base64.decode(padded)
-        }.getOrNull()
+    private fun stopViewerConnectionTypePolling() {
+        viewerConnectionTypePollingController.stop()
+    }
 }
 
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager = IOSLiquidAuthConnectionManager()

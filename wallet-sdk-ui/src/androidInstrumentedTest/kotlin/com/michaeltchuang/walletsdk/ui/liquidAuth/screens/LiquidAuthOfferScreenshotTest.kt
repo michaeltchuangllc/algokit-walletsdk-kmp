@@ -16,7 +16,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import org.junit.Test
 import java.util.Locale
 

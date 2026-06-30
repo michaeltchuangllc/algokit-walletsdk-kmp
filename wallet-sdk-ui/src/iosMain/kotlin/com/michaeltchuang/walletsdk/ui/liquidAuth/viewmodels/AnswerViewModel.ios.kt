@@ -12,7 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.AnswerPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import kotlinx.coroutines.CoroutineScope
 
@@ -43,7 +43,7 @@ actual open class AnswerViewModel actual constructor(
         setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
         mppWalletSignerUseCase = mppWalletSignerUseCase,
     ) {
-    val platformServices = AnswerPlatformServices()
+    val platformServices = LiquidAuthPlatformServices()
 
     suspend fun setupViewerPaymentRail(
         viewerAddress: String,

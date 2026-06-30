@@ -18,7 +18,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.AnswerPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -72,26 +72,29 @@ val liquidAuthUIModule =
             )
         }
 
+        single {
+            LiquidAuthPlatformServices(
+                addNewPasskey = get(),
+                passkeyRepository = get(),
+                setPasskeyLastUsedTime = get(),
+                getAccountMnemonic = get(),
+                timeProvider = get(),
+                processBiometricTransactionSigningUseCase = get(),
+                registerPasskeyUseCase = get(),
+                prepareAuthenticationUseCase = get(),
+                manageSignalServiceUseCase = get(),
+                processSignTransactionsUseCase = get(),
+                attestationIntentLauncherUseCase = get(),
+                assertionIntentLauncherUseCase = get(),
+                eventDelegate = get(),
+                logAppSignatureUseCase = get(),
+                providerHttpClientUseCase = get(),
+            )
+        }
+
         viewModel {
             AnswerViewModel(
-                platformServices =
-                    AnswerPlatformServices(
-                        addNewPasskey = get(),
-                        passkeyRepository = get(),
-                        setPasskeyLastUsedTime = get(),
-                        getAccountMnemonic = get(),
-                        timeProvider = get(),
-                        processBiometricTransactionSigningUseCase = get(),
-                        registerPasskeyUseCase = get(),
-                        prepareAuthenticationUseCase = get(),
-                        manageSignalServiceUseCase = get(),
-                        processSignTransactionsUseCase = get(),
-                        attestationIntentLauncherUseCase = get(),
-                        assertionIntentLauncherUseCase = get(),
-                        eventDelegate = get(),
-                        logAppSignatureUseCase = get(),
-                        providerHttpClientUseCase = get(),
-                    ),
+                platformServices = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
                 getLocalAccount = get(),

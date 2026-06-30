@@ -1,17 +1,44 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerDetectConnectionTypeHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerFetchBalanceHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerIsConnectedHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPaymentDCSendMessageHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPublicKeyProvider
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerStartHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerStopHandler
 
-actual class AnswerPlatformServices {
+actual class LiquidAuthPlatformServices {
+    private var hostPaymentDataChannel: CallbackRtcDataChannel? = null
     private var viewerPaymentDataChannel: CallbackRtcDataChannel? = null
+
+    fun isHostConnected(): Boolean = iosBroadcastIsConnectedHandler?.invoke() ?: false
+
+    fun sendHostMessage(message: String): Boolean {
+        val handler = iosBroadcastSendMessageHandler ?: return false
+        handler(message)
+        return true
+    }
+
+    fun hostPaymentMessageSender(): ((message: String) -> Unit)? =
+        iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
+
+    fun createHostPaymentDataChannel(): CallbackRtcDataChannel =
+        CallbackRtcDataChannel(
+            sendMessageProvider = ::hostPaymentMessageSender,
+            logTag = "IOSLiquidAuthPaymentDc",
+        ).also { hostPaymentDataChannel = it }
+
+    fun openHostPaymentDataChannel() {
+        hostPaymentDataChannel?.notifyOpen()
+    }
+
+    fun closeHostPaymentDataChannel() {
+        hostPaymentDataChannel?.notifyClosed()
+        hostPaymentDataChannel = null
+    }
+
+    fun notifyHostPaymentMessage(message: String): Boolean {
+        val channel = hostPaymentDataChannel ?: return false
+        channel.notifyMessage(message)
+        return true
+    }
+
+    fun detectHostConnectionType(): String? = iosBroadcastDetectConnectionTypeHandler?.invoke()
 
     fun startViewerConnection(
         origin: String,
@@ -68,6 +95,7 @@ actual class AnswerPlatformServices {
 
     fun hasViewerPublicKeyProvider(): Boolean = iosViewerPublicKeyProvider != null
 
+    @Suppress("unused")
     fun fetchViewerBalance(
         viewerAddress: String,
         hostAddress: String,
