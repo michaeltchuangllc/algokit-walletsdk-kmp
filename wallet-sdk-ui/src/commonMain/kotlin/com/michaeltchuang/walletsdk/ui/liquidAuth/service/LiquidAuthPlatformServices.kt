@@ -1,3 +1,3 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
-expect class AnswerPlatformServices
+expect class LiquidAuthPlatformServices

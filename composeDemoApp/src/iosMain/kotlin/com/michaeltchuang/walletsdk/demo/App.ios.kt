@@ -16,10 +16,10 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCS
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerPaymentDCSendMessageHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerSendMessageHandler
-import com.michaeltchuang.walletsdk.ui.liquidStream.iosViewerStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerPaymentDCSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope

@@ -57,8 +57,8 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersC
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource

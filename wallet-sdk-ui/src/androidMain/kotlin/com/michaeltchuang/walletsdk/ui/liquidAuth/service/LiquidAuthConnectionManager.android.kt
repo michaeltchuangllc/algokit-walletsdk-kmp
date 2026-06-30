@@ -21,19 +21,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
-import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.fromJson
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
@@ -41,20 +35,16 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
-import org.json.JSONObject
 import org.koin.java.KoinJavaComponent
 import java.math.BigInteger
 import kotlin.io.encoding.Base64
@@ -65,27 +55,40 @@ import kotlin.io.encoding.Base64
  * Binds to SignalService and manages WebRTC peer connections.
  * Tracks ICE connection type for quality indicators and billing.
  */
-class AndroidLiquidAuthConnectionManager(
-    private val context: Context,
-    private val mppWalletSignerUseCase: MppWalletSignerUseCase,
-    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
-    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
-) : LiquidAuthConnectionManager {
+actual class LiquidAuthConnectionManager actual constructor(
+    platformContext: Any,
+) {
     companion object {
-        private const val TAG = "AndroidLiquidAuthCM"
+        private const val TAG = "CommonLiquidAuthCM"
         private const val NOTIFICATION_ID = 1338
         private const val CHANNEL_ID = "liquid_auth_broadcast"
-        private const val CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L // Check every 1 second
-        private const val SOLANA_USDC_DEVNET_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-        private const val SOLANA_USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     }
 
+    private val context = platformContext as Context
+    private val koin = KoinJavaComponent.getKoin()
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
+    private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
+        koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
+    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase =
+        koin.get(clazz = GetSessionVaultConfigUseCase::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
+    private val platformServices: LiquidAuthPlatformServices = KoinJavaComponent.get(LiquidAuthPlatformServices::class.java)
     private var signalService: SignalService? = null
     private var serviceConnection: ServiceConnection? = null
     private var isBound = false
     private var activeRequestId: String? = null
-    private var connectionTypePollingJob: Job? = null
+    private val connectionTypePollingController =
+        LiquidAuthPollingJobController(
+            scope = CoroutineScope(Dispatchers.Default),
+            runImmediately = true,
+            onPoll = { pollCount ->
+                if (pollCount > 0 && pollCount % 5 == 0) {
+                    Log.d(TAG, "🔄 Connection type poll #$pollCount, service=$signalService")
+                }
+                detectAndUpdateConnectionType()
+            },
+            onStop = { _connectionType.value = IceConnectionType.UNKNOWN },
+        )
     private var liquidStreamCreator: LiquidStreamCreator? = null
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
@@ -106,7 +109,7 @@ class AndroidLiquidAuthConnectionManager(
 
     // Connection type state flow - exposed for UI and billing
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
-    override val connectionType: StateFlow<IceConnectionType> = _connectionType
+    actual val connectionType: StateFlow<IceConnectionType> = _connectionType
 
     private val blockConsumptionManager =
         LiquidStreamBlockConsumptionManager(
@@ -120,7 +123,7 @@ class AndroidLiquidAuthConnectionManager(
             getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         )
 
-    override fun initialize(viewModel: LiquidAuthOfferViewModel) {
+    actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         Log.d(TAG, "🔌 initialize() called with viewModel=$viewModel")
         this.viewModel = viewModel
         Log.d(TAG, "🔌 viewModel set, this.viewModel=${this.viewModel}")
@@ -129,7 +132,7 @@ class AndroidLiquidAuthConnectionManager(
     /**
      * Start X402 block consumption
      */
-    override fun startBlockConsumption(sessionId: String) {
+    actual fun startBlockConsumption(sessionId: String) {
         val targetSessionId = activePaymentSessionId ?: sessionId
         Log.e(
             TAG,
@@ -147,27 +150,23 @@ class AndroidLiquidAuthConnectionManager(
     /**
      * Stop block consumption
      */
-    override fun stopBlockConsumption() {
+    actual fun stopBlockConsumption() {
         blockConsumptionManager.stop()
     }
 
     /**
      * Send payment request to client
      */
-    override fun sendPaymentRequest(paymentRequest: PaymentRequest) {
+    actual fun sendPaymentRequest(paymentRequest: PaymentRequest) {
         val service = signalService
-        val peerConnection = service?.peerConnection
-        if (service == null || peerConnection == null) {
+        if (!platformServices.isHostPeerConnectionReady(service)) {
             val message = "MPP payment rail unavailable: peer connection is not ready"
             Log.e(TAG, message)
             viewModel?.onMppPaymentRejected(message)
             return
         }
 
-        val paymentChannel =
-            service.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service.createDataChannel(
-                PAYMENT_CHANNEL_LABEL,
-            )
+        val paymentChannel = platformServices.getOrCreateHostPaymentDataChannel(service)
         if (paymentChannel == null) {
             val message = "MPP payment channel unavailable"
             Log.e(TAG, message)
@@ -183,9 +182,10 @@ class AndroidLiquidAuthConnectionManager(
                     "[SESSION_VAULT_VIEWER_SET_FROM_REQUEST] viewer=$activeViewerAddressForVault session=${paymentRequest.id}",
                 )
             }
-            val network = toMppNetwork(paymentRequest.network)
-            val amount = paymentRequest.amount
-            val recipient = paymentRequest.payTo
+            val resolvedPaymentRequest = resolveLiquidAuthPaymentRequest(paymentRequest)
+            val network = resolvedPaymentRequest.network
+            val amount = resolvedPaymentRequest.amount
+            val recipient = resolvedPaymentRequest.recipient
             // Keep one creator-side payment session id stable for the active connection.
             // If incoming requests churn ids for the same stream, lock to active id.
             val resolvedSessionId = activePaymentSessionId ?: paymentRequest.id
@@ -195,29 +195,14 @@ class AndroidLiquidAuthConnectionManager(
                     "[SESSION_VAULT_SESSION_LOCKED] incoming=${paymentRequest.id} active=$activePaymentSessionId using=$resolvedSessionId",
                 )
             }
-            val isSolanaNetwork = network.startsWith("solana:", ignoreCase = true)
-            val asset =
-                if (isSolanaNetwork) {
-                    if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
-                } else {
-                    paymentRequest.asset.takeIf { it.isNotBlank() } ?: "USDC"
-                }
+            val asset = resolvedPaymentRequest.asset
             Log.d(
                 TAG,
                 "💰 Building MPP payment request: network=$network recipient=$recipient asset=$asset amount=$amount",
             )
             val serverConfig =
                 ServerConfig(
-                    gating =
-                        GatingConfig(
-                            mode = GatingMode.PARTIAL_TIME,
-                            amount = amount,
-                            asset = asset,
-                            network = network,
-                            payTo = recipient,
-                            segmentDuration = 3,
-                            leadTime = 0,
-                        ),
+                    gating = resolvedPaymentRequest.gatingConfig,
                     gracePeriod = 5,
                     viewerAddress = activeViewerAddressForVault,
                     // Prefer the key from the most-recent voucher (authoritative).
@@ -245,7 +230,7 @@ class AndroidLiquidAuthConnectionManager(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        dataChannel = WebRtcDataChannel(paymentChannel),
+                        dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
                         rtpSenders = emptyList(),
                         mppServerConfig =
                             MppServerConfig(
@@ -326,53 +311,20 @@ class AndroidLiquidAuthConnectionManager(
         }
     }
 
-    private fun toMppNetwork(network: String): String {
-        val n = network.lowercase()
-        return when {
-            network == MppNetworks.SOLANA_MAINNET ||
-                n.contains(
-                    "solana",
-                ) &&
-                (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
-
-            network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
-            network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
-            n.contains("mainnet") || network == MppNetworks.ALGORAND_MAINNET -> MppNetworks.ALGORAND_MAINNET
-            else -> MppNetworks.ALGORAND_TESTNET
-        }
-    }
-
     /**
      * Start polling for connection type changes.
      * This monitors the ICE connection and updates the flow.
      */
     private fun startConnectionTypePolling() {
         Log.d(TAG, "🔄 Starting connection type polling")
-        connectionTypePollingJob?.cancel()
-        connectionTypePollingJob =
-            CoroutineScope(Dispatchers.Default).launch {
-                // Immediate first detection
-                detectAndUpdateConnectionType()
-
-                var pollCount = 0
-                while (isActive) {
-                    pollCount++
-                    if (pollCount % 5 == 0) { // Log every 5th poll (10 seconds)
-                        Log.d(TAG, "🔄 Connection type poll #$pollCount, service=$signalService")
-                    }
-                    detectAndUpdateConnectionType()
-                    delay(CONNECTION_TYPE_POLL_INTERVAL_MS)
-                }
-            }
+        connectionTypePollingController.start()
     }
 
     /**
      * Stop polling for connection type.
      */
     private fun stopConnectionTypePolling() {
-        connectionTypePollingJob?.cancel()
-        connectionTypePollingJob = null
-        _connectionType.value = IceConnectionType.UNKNOWN
+        connectionTypePollingController.stop()
     }
 
     /**
@@ -405,7 +357,7 @@ class AndroidLiquidAuthConnectionManager(
         } ?: Log.w(TAG, "⚠️ Cannot detect - signalService is null")
     }
 
-    override fun startListening(
+    actual fun startListening(
         origin: String,
         requestId: String,
     ) {
@@ -600,50 +552,37 @@ class AndroidLiquidAuthConnectionManager(
 
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
         runCatching {
-            val json = JSONObject(msg)
+            val parsed = parseLiquidAuthHostTransportMessage(msg)
+            Log.e(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_SIG] voucherRef=${parsed.reference.orEmpty()}")
 
-            val voucherRef = json.optString("reference", "")
-            Log.e(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_SIG] voucherRef=$voucherRef")
-            if (voucherRef == LiquidDcMessages.REF_VIEWER_HELLO) {
-                val json = msg.fromJson<HelloMessage>()
-                val helloViewer = json.viewer.takeIf { it.isNotBlank() }
-                val helloPublicKeyBase64 =
-                    json.viewerPublicKey.takeIf { it.isNotBlank() }
-                if (helloPublicKeyBase64 != null) {
-                    val signerKey = decodeBase64OrNull(helloPublicKeyBase64)
-                    if (signerKey != null) {
-                        if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
-                            activeViewerAddressForVault = helloViewer
-                            Log.e(TAG, "[SESSION_VAULT_VIEWER_HELLO_ADDR] viewer=$helloViewer")
-                        }
-                        activeViewerAuthorizedSignerKey = signerKey
-
-                        Napier.e(
-                            "[SESSION_VAULT_VIEWER_HELLO_KEY] viewer=$helloViewer keyLen=${signerKey.size} session=$activePaymentSessionId creatorReady=${liquidStreamCreator != null}",
-                        )
-
-                        // If the creator already exists, push the key immediately so
-                        // PaywalledRTCServer.viewerKeyDeferred resolves without waiting.
-                        updateCreatorViewerSignerConfig(signerKey)
+            parsed.viewerHello?.let { hello ->
+                val helloViewer = hello.viewerAddress
+                val signerKey = hello.viewerPublicKey
+                if (signerKey != null) {
+                    if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
+                        activeViewerAddressForVault = helloViewer
+                        Log.e(TAG, "[SESSION_VAULT_VIEWER_HELLO_ADDR] viewer=$helloViewer")
                     }
+                    activeViewerAuthorizedSignerKey = signerKey
+
+                    Napier.e(
+                        "[SESSION_VAULT_VIEWER_HELLO_KEY] viewer=$helloViewer keyLen=${signerKey.size} session=$activePaymentSessionId creatorReady=${liquidStreamCreator != null}",
+                    )
+
+                    // If the creator already exists, push the key immediately so
+                    // PaywalledRTCServer.viewerKeyDeferred resolves without waiting.
+                    updateCreatorViewerSignerConfig(signerKey)
                 }
             }
 
-            if (voucherRef == LiquidDcMessages.REF_PAYMENT_VOUCHER) {
-                val json = msg.fromJson<PaymentVoucher>()
-                val channelId = json.channelId
-                channelId?.let {
-                    Napier.e("channelId=$channelId", tag = TAG)
-                    EscrowSessionVaultManagerClient.channelId =
-                        decodeBase64OrNull(channelId)
-                }
-                val signature = json.signature
-                val claimedAmount =
-                    json.totalAmountClaimedMicroUsdc.takeIf { it >= 0L }
-                val voucherSessionId = json.id.takeIf { it.isNotBlank() }
-                val voucherViewer = json.viewer.takeIf { it.isNotBlank() }
-                val voucherViewerPublicKey =
-                    json.viewerPublicKey.takeIf { it.isNotBlank() }
+            parsed.paymentVoucher?.let { voucher ->
+                voucher.channelIdBase64?.let { Napier.e("channelId=$it", tag = TAG) }
+                voucher.channelId?.let { EscrowSessionVaultManagerClient.channelId = it }
+                val signature = voucher.signatureBase64
+                val claimedAmount = voucher.totalAmountClaimedMicroUsdc?.takeIf { it >= 0L }
+                val voucherSessionId = voucher.sessionId
+                val voucherViewer = voucher.viewerAddress
+                val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
 
                 if (signature == null ||
                     claimedAmount == null ||
@@ -653,9 +592,7 @@ class AndroidLiquidAuthConnectionManager(
                 ) {
                     Log.e(
                         TAG,
-                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${
-                            json.id
-                        } claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
+                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${voucher.sessionId} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
                     )
                 } else {
                     val activeSession = activePaymentSessionId
@@ -681,7 +618,7 @@ class AndroidLiquidAuthConnectionManager(
                                     signatureBase64 = signature,
                                     totalAmountClaimedMicroUsdc = claimedAmount,
                                 )
-                            val signerKey = decodeBase64OrNull(voucherViewerPublicKey)
+                            val signerKey = voucher.viewerPublicKey
                             updateCreatorViewerSignerConfig(signerKey)
                             Log.e(
                                 TAG,
@@ -696,15 +633,13 @@ class AndroidLiquidAuthConnectionManager(
                 }
             }
 
-            val candidate = json.optString("address", "").takeIf { it.isNotBlank() }
+            val candidate = parsed.address
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
                 Log.d(TAG, "🔑 Captured viewer address from LiquidAuth message: $candidate")
             }
         }
     }
-
-    private fun decodeBase64OrNull(value: String): ByteArray? = runCatching { Base64.decode(value) }.getOrNull()
 
     private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
         liquidStreamCreator?.updateConfig(
@@ -730,7 +665,7 @@ class AndroidLiquidAuthConnectionManager(
         )
     }
 
-    override fun stopListening() {
+    actual fun stopListening() {
         Log.d(TAG, "Stopping SignalService (activeRequestId=$activeRequestId)")
         stopConnectionTypePolling()
         stopBlockConsumption()
@@ -771,8 +706,8 @@ class AndroidLiquidAuthConnectionManager(
         activeRequestId = null
     }
 
-    override fun sendMessage(message: String) {
-        val dataChannelState = signalService?.dataChannel?.state()?.toString()
+    actual fun sendMessage(message: String) {
+        val dataChannelState = platformServices.hostDataChannelState(signalService)
         val isOpen = dataChannelState == "OPEN"
         Log.d(
             TAG,
@@ -782,10 +717,10 @@ class AndroidLiquidAuthConnectionManager(
                 )
             }",
         )
-        signalService?.send(message)
+        platformServices.sendHostMessage(signalService, message)
     }
 
-    override fun sendVideoFrame(
+    actual fun sendVideoFrame(
         frameId: String,
         timestamp: Long,
         frameData: ByteArray,
@@ -802,31 +737,26 @@ class AndroidLiquidAuthConnectionManager(
         }
 
         try {
-            // Create JSON video frame message
-            val base64Data =
-                Base64.encode(frameData)
-            val hostAddress = activePaymentRecipient.orEmpty()
-            val sessionId = activePaymentSessionId.orEmpty()
-            val hostJsonField =
-                if (hostAddress.isNotBlank()) ",\"hostAddress\":\"$hostAddress\"" else ""
-            val sessionJsonField =
-                if (sessionId.isNotBlank()) ",\"sessionId\":\"$sessionId\"" else ""
             val jsonMessage =
-                """
-                {"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height$hostJsonField$sessionJsonField}
-                """.trimIndent()
+                buildLiquidAuthVideoFrameMessage(
+                    frameId = frameId,
+                    timestamp = timestamp,
+                    frameData = frameData,
+                    width = width,
+                    height = height,
+                    format = format,
+                    hostAddress = activePaymentRecipient.orEmpty(),
+                    sessionId = activePaymentSessionId.orEmpty(),
+                )
 
             Log.d(TAG, "🎥 Sending video frame: ${width}x$height, ${frameData.size} bytes")
-            signalService?.send(jsonMessage)
+            platformServices.sendHostMessage(signalService, jsonMessage)
         } catch (e: Exception) {
             Log.e(TAG, "❌ Failed to send video frame: $e")
         }
     }
 
-    override fun isConnected(): Boolean {
-        val dataChannelState = signalService?.dataChannel?.state()?.toString()
-        return dataChannelState == "OPEN"
-    }
+    actual fun isConnected(): Boolean = platformServices.isHostConnected(signalService)
 
     private suspend fun signFalconTxnFromBundle(
         txn: Transaction,
@@ -1026,15 +956,3 @@ class AndroidLiquidAuthConnectionManager(
 /**
  * Android actual implementation of factory function.
  */
-actual fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager {
-    val context = platformContext as Context
-    val koin =
-        KoinJavaComponent
-            .getKoin()
-    return AndroidLiquidAuthConnectionManager(
-        context = context,
-        mppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class),
-        getRemainingSessionVaultBalanceUseCase = koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class),
-        getSessionVaultConfigUseCase = koin.get(clazz = GetSessionVaultConfigUseCase::class),
-    )
-}

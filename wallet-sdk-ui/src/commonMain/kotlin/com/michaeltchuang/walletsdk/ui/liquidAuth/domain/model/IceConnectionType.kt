@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidStream.domain.model
+package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model
 
 /**
  * WebRTC ICE Connection Type
@@ -33,6 +33,18 @@ fun IceConnectionType.displayName(): String =
         IceConnectionType.RELAY -> "Relay"
         IceConnectionType.FAILED -> "Failed"
         IceConnectionType.UNKNOWN -> "Detecting..."
+    }
+
+/**
+ * Parse a platform-provided ICE connection type string into the shared UI model.
+ */
+fun parseIceConnectionType(typeString: String): IceConnectionType =
+    when (typeString.trim().lowercase()) {
+        "local" -> IceConnectionType.LOCAL
+        "stun" -> IceConnectionType.STUN
+        "relay" -> IceConnectionType.RELAY
+        "failed" -> IceConnectionType.FAILED
+        else -> IceConnectionType.UNKNOWN
     }
 
 /**

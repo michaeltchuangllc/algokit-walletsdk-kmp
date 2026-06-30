@@ -33,10 +33,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.IosLiquidStreamViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidStream.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
@@ -59,7 +59,7 @@ actual fun AnswerScreenOverlay() {
     val address = AnswerScreenState.accountAddress
     val origin = AnswerScreenState.origin
 
-    val viewerManager: IosLiquidStreamViewerConnectionManager = koinInject()
+    val viewerManager: LiquidAuthConnectionManager = koinInject()
     val scope = rememberCoroutineScope()
 
     // Inject use cases from Koin so the shared CommonAnswerViewModel can be constructed.
@@ -154,10 +154,10 @@ actual fun AnswerScreenOverlay() {
             }
         }
 
-        // Set the viewer address BEFORE notifyConnected() so sendViewerHello() can include it.
+        // Set the viewer address BEFORE notifyViewerConnected() so sendViewerHello() can include it.
         if (address.isNotBlank()) {
             viewerManager.setViewerAddress(address)
-            viewerManager.startBalancePollingSafe(address, stateHolder.hostAddress.value)
+            viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
         }
 
         NSLog(
@@ -167,7 +167,7 @@ actual fun AnswerScreenOverlay() {
 
         // The native WebRTC connection is already being established by the Swift handler;
         // notify the manager so it sends the hello message and starts balance polling.
-        viewerManager.notifyConnected()
+        viewerManager.notifyViewerConnected()
     }
 
     // Show the consent dialog when a payment request arrives.
@@ -193,10 +193,8 @@ actual fun AnswerScreenOverlay() {
         onDispose {
             stateHolder.stopRealtimeBlockNumberUpdates()
             viewerManager.attachAnswerViewModel(null)
-            viewerManager.disconnect()
-            if (activeIOSViewerConnectionManager === viewerManager) {
-                activeIOSViewerConnectionManager = null
-            }
+            viewerManager.disconnectViewer()
+            viewerManager.clearActiveViewerIfCurrent()
             ConnectionStatusState.onDisconnect = null
             // Cancels the holder's viewModelScope (stream-timeout monitor + block polling).
             viewModelStoreOwner.viewModelStore.clear()
@@ -311,11 +309,9 @@ actual fun AnswerScreenOverlay() {
 /**
  * Tears down the active viewer connection and hides the overlay + connection-status bar.
  */
-private fun dismissOverlay(viewerManager: IosLiquidStreamViewerConnectionManager) {
-    viewerManager.disconnect()
-    if (activeIOSViewerConnectionManager === viewerManager) {
-        activeIOSViewerConnectionManager = null
-    }
+private fun dismissOverlay(viewerManager: LiquidAuthConnectionManager) {
+    viewerManager.disconnectViewer()
+    viewerManager.clearActiveViewerIfCurrent()
     AnswerScreenState.isVisible = false
     AnswerScreenState.origin = ""
     AnswerScreenState.requestId = ""

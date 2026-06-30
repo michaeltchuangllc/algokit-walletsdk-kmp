@@ -2,8 +2,8 @@ package com.michaeltchuang.walletsdk.ui.base.di
 
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.AnswerPlatformServices
-import com.michaeltchuang.walletsdk.ui.liquidStream.IosLiquidStreamViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.core.module.Module
@@ -21,7 +21,7 @@ actual fun uiPlatformModule(): Module =
                 getSessionVaultContextUseCase = get(),
             )
         }
-        factory { AnswerPlatformServices() }
-        factory { IosLiquidStreamViewerConnectionManager(get()) }
+        factory { LiquidAuthPlatformServices() }
+        factory { LiquidAuthConnectionManager(Unit) }
         factory { SetupMppPaymentViewerUseCase(get(), get()) }
     }
