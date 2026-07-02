@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +124,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         )
     private var blockConsumptionJob: Job? = null
     private var viewerPaymentRailSetupKey: String? = null
+
+    private val pendingViewerPaymentMessages = mutableListOf<String>()
 
     private val _viewerConnectionState = MutableStateFlow(ViewerConnectionState.IDLE)
 
@@ -309,6 +312,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel?.setViewerSessionVaultProgress(0L, 0L)
         answerViewModel?.clearViewerConsent()
         viewerPaymentRailSetupKey = null
+        pendingViewerPaymentMessages.clear()
         answerViewModel?.closeViewerPaymentRail()
     }
 
@@ -344,6 +348,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel?.stopMppPaymentViewer()
         _viewerConnectionState.value = ViewerConnectionState.DISCONNECTED
         answerViewModel?.clearVideoFrame()
+        viewerPaymentRailSetupKey = null
+        pendingViewerPaymentMessages.clear()
         answerViewModel?.closeViewerPaymentRail()
     }
 
@@ -581,7 +587,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             message = message,
             onPongRequested = { sendViewerMessage("""{"reference":"pong"}""") },
             onLegacyPaymentRequest = ::handleViewerPaymentRequest,
-            onPaymentMessage = { paymentMessage -> answerViewModel?.handlePlatformPaymentMessage(paymentMessage) == true },
+            onPaymentMessage = { paymentMessage -> deliverViewerPaymentMessage(paymentMessage) },
             onHostDiscovered = { host ->
                 if (!host.isNullOrBlank() && _hostAddress.value != host) setViewerHostAddress(host)
                 startViewerOnChainRefreshIfReady()
@@ -670,7 +676,38 @@ actual class LiquidAuthConnectionManager actual constructor(
                 hostAddress = host,
                 scope = scope,
             )
-            if (!configured) viewerPaymentRailSetupKey = null
+            if (!configured) {
+                viewerPaymentRailSetupKey = null
+            } else {
+                viewModel.openViewerPaymentRail()
+                flushPendingViewerPaymentMessages()
+            }
+        }
+    }
+
+    private fun deliverViewerPaymentMessage(message: String): Boolean {
+        val delivered = answerViewModel?.handlePlatformPaymentMessage(message) == true
+        if (!delivered) {
+            pendingViewerPaymentMessages.add(message)
+            println(
+                "$TAG: viewer payment rail not ready — buffered payment message " +
+                    "(pending=${pendingViewerPaymentMessages.size}) preview=${message.take(120)}",
+            )
+        }
+        return delivered
+    }
+
+    private fun flushPendingViewerPaymentMessages() {
+        if (pendingViewerPaymentMessages.isEmpty()) return
+        val viewModel = answerViewModel ?: return
+        val buffered = pendingViewerPaymentMessages.toList()
+        pendingViewerPaymentMessages.clear()
+        buffered.forEach { message ->
+            val delivered = viewModel.handlePlatformPaymentMessage(message)
+            Napier.d(
+                "$TAG: replayed buffered viewer payment message delivered=$delivered " +
+                    "preview=${message.take(120)}",
+            )
         }
     }
 
@@ -681,7 +718,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 "keyProviderSet=${platformServices.hasViewerPublicKeyProvider()} ",
         )
         if (viewer.isBlank()) {
-            println(
+            Napier.d(
                 "$TAG: HELLO_SKIP — viewerAddress is blank! " +
                     "Call setViewerAddress() or startViewerBalancePollingSafe() BEFORE notifyViewerConnected()",
             )
@@ -690,12 +727,12 @@ actual class LiquidAuthConnectionManager actual constructor(
         val publicKeyBase64 = platformServices.getViewerPublicKey(viewer)
         val keyField = if (!publicKeyBase64.isNullOrBlank()) """,\"viewerPublicKey\":\"$publicKeyBase64\""" else ""
         val hello = """{"reference":"liquid:viewer:hello","viewer":"$viewer"$keyField}"""
-        println("$TAG: HELLO_SEND viewer=$viewer keyPresent=${!publicKeyBase64.isNullOrBlank()}")
+            Napier.d("$TAG: HELLO_SEND viewer=$viewer keyPresent=${!publicKeyBase64.isNullOrBlank()}")
         sendViewerMessage(hello)
     }
 
     private fun handleViewerPaymentRequest(message: String) {
-        println("$TAG: PAYMENT_REQUEST_RECEIVED (legacy iOS host) preview=${message.take(160)}")
+        Napier.d("$TAG: PAYMENT_REQUEST_RECEIVED (legacy iOS host) preview=${message.take(160)}")
     }
 
     private fun startViewerOnChainRefreshIfReady() {
@@ -716,19 +753,19 @@ actual class LiquidAuthConnectionManager actual constructor(
 
                 if (!helloViewer.isNullOrBlank() && helloViewer != activeViewerAddressForVault) {
                     activeViewerAddressForVault = helloViewer
-                    println("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
+                        Napier.d("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
                 }
 
                 val signerKey = hello.viewerPublicKey
                 if (signerKey != null) {
                     activeViewerAuthorizedSignerKey = signerKey
-                    println(
+                    Napier.d(
                         "$TAG: [VIEWER_HELLO_KEY] viewer=$helloViewer " +
                             "keyLen=${signerKey.size} session=$activePaymentSessionId",
                     )
                     updateCreatorViewerSignerConfig(helloViewer, signerKey)
                 } else {
-                    println(
+                    Napier.d(
                         "$TAG: [VIEWER_HELLO_NO_KEY] viewer=$helloViewer — " +
                             "viewerPublicKey absent. Balance polling will wait.",
                     )
@@ -752,7 +789,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 val voucherChannelId = voucher.channelIdBase64
                 voucher.channelId?.let { decodedChannelId ->
                     EscrowSessionVaultManagerClient.channelId = decodedChannelId
-                    println("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
+                    Napier.d("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
                 }
 
                 if (signature == null ||
@@ -761,14 +798,14 @@ actual class LiquidAuthConnectionManager actual constructor(
                     voucherViewer == null ||
                     voucherViewerPublicKey == null
                 ) {
-                    println(
+                    Napier.d(
                         "$TAG: [VOUCHER_SKIP] reason=invalid_payload " +
                             "session=${voucher.sessionId} claimedAmount=$claimedAmount",
                     )
                 } else {
                     val activeSession = activePaymentSessionId
                     if (activeSession != null && voucherSessionId != activeSession) {
-                        println(
+                        Napier.d(
                             "$TAG: [VOUCHER_SKIP] reason=session_mismatch " +
                                 "voucherSession=$voucherSessionId activeSession=$activeSession",
                         )
@@ -776,7 +813,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                         val previousClaimedAmount =
                             activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc
                         if (previousClaimedAmount != null && claimedAmount < previousClaimedAmount) {
-                            println(
+                            Napier.d(
                                 "$TAG: [VOUCHER_STALE_SKIP] session=$voucherSessionId " +
                                     "claimed=$claimedAmount previous=$previousClaimedAmount",
                             )
@@ -791,19 +828,19 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 )
                             if (voucherViewer != activeViewerAddressForVault) {
                                 activeViewerAddressForVault = voucherViewer
-                                println("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
+                                Napier.d("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
                             }
                             if (activeViewerAuthorizedSignerKey == null) {
                                 val voucherSignerKey = voucher.viewerPublicKey
                                 if (voucherSignerKey != null) {
                                     activeViewerAuthorizedSignerKey = voucherSignerKey
-                                    println(
+                                    Napier.d(
                                         "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=$voucherViewer " +
                                             "keyLen=${voucherSignerKey.size}",
                                     )
                                 }
                             }
-                            println(
+                            Napier.d(
                                 "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
                                     "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
                             )
@@ -851,7 +888,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 println("$TAG: viewer address captured from message: $candidate")
             }
         }.onFailure { e ->
-            println("$TAG: tryCaptureViewerAddressFromMessage error: $e")
+            Napier.e("$TAG: tryCaptureViewerAddressFromMessage error: $e")
         }
     }
 
@@ -880,7 +917,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     private fun startConnectionTypePolling() {
-        println("$TAG: starting connection-type polling")
+        Napier.d("$TAG: starting connection-type polling")
         connectionTypePollingController.start()
     }
 

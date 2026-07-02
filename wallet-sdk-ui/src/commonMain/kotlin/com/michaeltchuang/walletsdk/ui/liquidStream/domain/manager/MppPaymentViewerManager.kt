@@ -18,11 +18,14 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.toJson
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.encoding.Base64
@@ -263,7 +266,7 @@ class MppPaymentViewerManager(
             return
         }
         val sessionVaultHostAddress = hostAddress?.takeIf { it.isNotBlank() } ?: return
-        Napier.d("[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
+       // Napier.d("[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
         stopViewerOnChainRefresh()
         viewerOnChainRefreshJob =
             scope.launch {
@@ -280,7 +283,7 @@ class MppPaymentViewerManager(
                     }.onSuccess { remaining ->
                         setViewerSessionVaultProgress(remaining, remaining)
                         if (remaining == 0L) {
-                            liquidStreamViewer?.rtcClient?.extendBudget(additionalMicroUsdc = 0L, asset = "USDC")
+                            liquidStreamViewer?.rtcClient?.onStreamGated?.invoke("Session balance exhausted")
                         }
                     }.onFailure { err ->
                         Napier.e(
@@ -566,12 +569,14 @@ class MppPaymentViewerManager(
                     ?: 1_000_000L
             val existingSessionData =
                 safeApiCall("getSessionDynamicData.streamGated") {
-                    MppPayments.getSessionDynamicDataFromVault(
-                        viewerAddress = viewerAddress,
-                        hostAddress = hostAddress,
-                        appId = sessionVaultAppId,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                    )
+                    withContext(Dispatchers.IO) {
+                        MppPayments.getSessionDynamicDataFromVault(
+                            viewerAddress = viewerAddress,
+                            hostAddress = hostAddress,
+                            appId = sessionVaultAppId,
+                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        )
+                    }
                 }
 
             val depositResult =

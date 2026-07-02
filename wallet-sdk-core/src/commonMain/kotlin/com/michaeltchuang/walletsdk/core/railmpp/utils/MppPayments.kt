@@ -16,6 +16,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.verifyEd25519
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient.Companion.channelId
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
+import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -108,7 +111,7 @@ object MppPayments {
 
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
 
-    fun getRemainingBalanceFromSessionVault(
+    suspend fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
         hostAddress: String,
         appId: Long,
@@ -134,21 +137,23 @@ object MppPayments {
         return 0L
     }
 
-    fun getRemainingBalanceFromSessionVaultByChannelId(
+    suspend fun getRemainingBalanceFromSessionVaultByChannelId(
         channelId: ByteArray,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = algodUrlForAppId(appId),
         logContext: String? = null,
     ): Long? =
-        runCatching {
-            val data =
-                contractClient(appId = appId, algodUrl = algodUrl)
-                    .getSessionDynamicData(channelId, algodUrl)
-                    .getOrThrow()
-            (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
-        }.onFailure {
-            Napier.e("[SESSION_VAULT_REMAINING_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
-        }.getOrNull()
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val data =
+                    contractClient(appId = appId, algodUrl = algodUrl)
+                        .getSessionDynamicData(channelId, algodUrl)
+                        .getOrThrow()
+                (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
+            }.onFailure {
+                Napier.e("[SESSION_VAULT_REMAINING_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
+            }.getOrNull()
+        }
 
     suspend fun openSessionAndDeposit(
         signer: MppWalletSigner,
@@ -354,7 +359,7 @@ object MppPayments {
         )
     }
 
-    fun getSessionProgressSnapshotFromVault(
+    suspend fun getSessionProgressSnapshotFromVault(
         viewerAddress: String,
         hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
@@ -376,7 +381,7 @@ object MppPayments {
         return computeSessionProgressSnapshot(data)
     }
 
-    fun getSessionDynamicDataFromVault(
+    suspend fun getSessionDynamicDataFromVault(
         viewerAddress: String,
         hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
@@ -399,18 +404,20 @@ object MppPayments {
         return null
     }
 
-    fun getSessionDynamicDataFromVaultByChannelId(
+    suspend fun getSessionDynamicDataFromVaultByChannelId(
         channelId: ByteArray,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = algodUrlForAppId(appId),
         logContext: String? = null,
     ): SessionDynamicData? =
-        runCatching {
-            val data = contractClient(appId, algodUrl = algodUrl).getSessionDynamicData(channelId, algodUrl).getOrThrow()
-            SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
-        }.onFailure {
-            Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
-        }.getOrNull()
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val data = contractClient(appId, algodUrl = algodUrl).getSessionDynamicData(channelId, algodUrl).getOrThrow()
+                SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
+            }.onFailure {
+                Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
+            }.getOrNull()
+        }
 
     fun buildClaimMessage(
         appId: Long,
