@@ -157,7 +157,7 @@ actual fun AnswerScreenOverlay() {
         // Set the viewer address BEFORE notifyViewerConnected() so sendViewerHello() can include it.
         if (address.isNotBlank()) {
             viewerManager.setViewerAddress(address)
-            viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
+          //  viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
         }
 
         NSLog(

@@ -91,7 +91,6 @@ open class CommonAnswerViewModel(
         onVideoFrame: ((VideoFrameData) -> Unit)? = null,
     ) {
         try {
-            Napier.d(tag = TAG, message = "Received DataChannel Message length: ${msgStr.length}")
 
             if (msgStr.trimStart().startsWith("{")) {
                 handleJsonDataChannelMessage(msgStr, onVideoFrame)
@@ -148,7 +147,6 @@ open class CommonAnswerViewModel(
         val jsonObject = json.parseToJsonElement(msgStr).jsonObject
         when (val reference = jsonObject.optString("reference")) {
             "liquid:video:frame" -> {
-                Napier.d(tag = TAG, message = "Video frame JSON message detected")
                 handleVideoFrameMessage(msgStr, onVideoFrame)
             }
 
@@ -180,7 +178,6 @@ open class CommonAnswerViewModel(
                     height = jsonObject.reqInt("height"),
                     format = jsonObject.optString("format") ?: "jpeg",
                 )
-            Napier.d(tag = TAG, message = "Video frame decoded: ${videoFrame.width}x${videoFrame.height}, ${frameData.size} bytes")
             setVideoFrame(videoFrame)
             onVideoFrame?.invoke(videoFrame)
         } catch (e: Exception) {
