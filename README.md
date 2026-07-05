@@ -121,8 +121,8 @@ timeline
             
     section Future 🔮
     2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
-             : 🔄 Onboarding - Create and integrate new algokit-core KMP library
              : 🔄 Liquid Stream - Refactor code to be more in common folder
+             : 🔄 Onboarding - Create and integrate new algokit-core KMP library
              : Android - Upgrade to AGP9 and KMP 2.4
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens

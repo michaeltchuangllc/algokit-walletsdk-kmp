@@ -1,5 +1,5 @@
 [versions]
-agp = "8.10.0"
+agp = "8.10.1"
 algoSdk = "2.10.1"
 algokit-walletSdk = "3.202603.0"
 algokit-core = "1.0.0-alpha.84"
