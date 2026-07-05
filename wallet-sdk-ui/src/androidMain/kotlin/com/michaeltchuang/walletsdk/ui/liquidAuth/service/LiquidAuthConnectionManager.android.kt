@@ -43,7 +43,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import org.koin.java.KoinJavaComponent
 import java.math.BigInteger
@@ -847,7 +846,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
         )
 
-        return withContext(GoMobileDispatcher.dispatcher) {
+        return GoMobileDispatcher.withGoThread {
             val expectedTxns = txns.map { Encoder.encodeToMsgPack(it) }
             val expectedTxIds = txns.map { it.txID() }
             val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
@@ -860,7 +859,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     )
                 } catch (t: Throwable) {
                     Log.e(TAG, "[FALCON_BUNDLE_SIGN_FAILED] error=${t.message}", t)
-                    return@withContext emptyList()
+                    return@withGoThread emptyList()
                 }
 
             val rawSigned =
@@ -915,7 +914,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                         TAG,
                         "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
                     )
-                    return@withContext rawSigned
+                    return@withGoThread rawSigned
                 }
             }
 
@@ -939,7 +938,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                             TAG,
                             "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId",
                         )
-                        return@withContext emptyList()
+                        return@withGoThread emptyList()
                     }
                 }
             }

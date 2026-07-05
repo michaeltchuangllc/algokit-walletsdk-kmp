@@ -16,7 +16,6 @@ import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
 
 class ProcessSignTransactionsUseCase(
@@ -68,7 +67,7 @@ class ProcessSignTransactionsUseCase(
             // Call the Go Bundle Signer - SDK auto-adds dummies and manages group
             try {
                 val resultCsv =
-                    withContext(GoMobileDispatcher.dispatcher) {
+                    GoMobileDispatcher.withGoThread {
                         val txnList = BytesArray()
                         decodedTxnBytes.forEach { txnList.append(it) }
                         Sdk.signFalconBundle(
