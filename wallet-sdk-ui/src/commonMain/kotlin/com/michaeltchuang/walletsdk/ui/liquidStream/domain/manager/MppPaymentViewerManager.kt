@@ -344,10 +344,7 @@ class MppPaymentViewerManager(
             val preUpdateDynamicData =
                 safeApiCall("getSessionDynamicData.preUpdate") {
                     MppPayments.getSessionDynamicDataFromVault(
-                        viewerAddress = receiptViewerAddress,
-                        hostAddress = hostAddress,
-                        appId = sessionVaultAppId,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        appId = sessionVaultAppId
                     )
                 }
             val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
@@ -409,10 +406,7 @@ class MppPaymentViewerManager(
         val progressSnapshot =
             safeApiCall("getSessionProgressSnapshot.onReceipt") {
                 MppPayments.getSessionProgressSnapshotFromVault(
-                    viewerAddress = receiptViewerAddress,
-                    hostAddress = hostAddress,
-                    appId = sessionVaultAppId,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                    appId = sessionVaultAppId
                 )
             }
         setViewerSessionVaultProgress(
@@ -490,10 +484,7 @@ class MppPaymentViewerManager(
         val onChainDynamicData =
             safeApiCall("getSessionDynamicData.postUpdate") {
                 MppPayments.getSessionDynamicDataFromVault(
-                    viewerAddress = receiptViewerAddress,
-                    hostAddress = hostAddress,
-                    appId = sessionVaultAppId,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                    appId = sessionVaultAppId
                 )
             }
         val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
@@ -505,10 +496,7 @@ class MppPaymentViewerManager(
             val progressSnapshot =
                 safeApiCall("getSessionProgressSnapshot.postUpdate") {
                     MppPayments.getSessionProgressSnapshotFromVault(
-                        viewerAddress = receiptViewerAddress,
-                        hostAddress = hostAddress,
                         appId = sessionVaultAppId,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     )
                 }
             val voucherJson =
@@ -571,10 +559,7 @@ class MppPaymentViewerManager(
                 safeApiCall("getSessionDynamicData.streamGated") {
                     withContext(Dispatchers.IO) {
                         MppPayments.getSessionDynamicDataFromVault(
-                            viewerAddress = viewerAddress,
-                            hostAddress = hostAddress,
-                            appId = sessionVaultAppId,
-                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                            appId = sessionVaultAppId
                         )
                     }
                 }

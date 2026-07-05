@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
@@ -21,6 +22,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -77,6 +80,8 @@ class PaywalledRTCServer
         private var segmentTimer: Job? = null
         private var graceTimer: Job? = null
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+        private var cachedChannelIdBase64: String? = null
 
         /**
          * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
@@ -293,8 +298,13 @@ class PaywalledRTCServer
         private fun requestPayment() {
             scope.launch(Dispatchers.Default) {
                 try {
+                    val channelIdBase64 = resolveChannelIdBase64()
+
                     val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
-                    Napier.d("[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt", tag = TAG)
+                    Napier.d(
+                        "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
+                        tag = TAG,
+                    )
                     if (shouldSkipPrompt) {
                         Napier.d(
                             "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
@@ -309,32 +319,34 @@ class PaywalledRTCServer
                                 payTo = config.gating.payTo,
                                 payFrom = config.viewerAddress.orEmpty(),
                                 network = config.gating.network,
+                                channelId = channelIdBase64,
                             )
                         completePaidSegment(syntheticReceipt, config.gating.amount)
                         return@launch
                     }
 
                     val request =
-                        paymentRail.createPaymentRequest(
-                            PaymentRailRequestParams(
-                                sessionId = sessionId,
-                                segmentIndex = segmentIndex,
-                                amount = config.gating.amount,
-                                asset = config.gating.asset,
-                                network = config.gating.network,
-                                payTo = config.gating.payTo,
-                                ttl = config.paymentTTL,
-                                meta =
-                                    PaymentRequestMeta(
-                                        gatingMode = config.gating.mode,
-                                        enforcement = config.enforcement,
-                                        segmentDuration = config.gating.segmentDuration,
-                                        segmentBytes = config.gating.segmentBytes,
-                                        viewerAddress = config.viewerAddress,
-                                        voucherSignature = null,
-                                    ),
-                            ),
-                        )
+                        paymentRail
+                            .createPaymentRequest(
+                                PaymentRailRequestParams(
+                                    sessionId = sessionId,
+                                    segmentIndex = segmentIndex,
+                                    amount = config.gating.amount,
+                                    asset = config.gating.asset,
+                                    network = config.gating.network,
+                                    payTo = config.gating.payTo,
+                                    ttl = config.paymentTTL,
+                                    meta =
+                                        PaymentRequestMeta(
+                                            gatingMode = config.gating.mode,
+                                            enforcement = config.enforcement,
+                                            segmentDuration = config.gating.segmentDuration,
+                                            segmentBytes = config.gating.segmentBytes,
+                                            viewerAddress = config.viewerAddress,
+                                            voucherSignature = null,
+                                        ),
+                                ),
+                            ).copy(channelId = channelIdBase64)
 
                     pendingRequest = request
                     onPaymentRequested?.invoke(request)
@@ -390,6 +402,29 @@ class PaywalledRTCServer
                         gate()
                     }
                 }
+        }
+
+        @OptIn(ExperimentalEncodingApi::class)
+        private fun resolveChannelIdBase64(): String? {
+            cachedChannelIdBase64?.let { return it }
+
+            val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return null
+            val payTo = config.gating.payTo.takeIf { it.isNotBlank() } ?: return null
+            val signerKey = config.viewerAuthorizedSignerPublicKey?.takeIf { it.isNotEmpty() } ?: return null
+
+            return runCatching {
+                val channelId =
+                    MppPayments
+                        .contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
+                        .initializeChannelId(
+                            payerAddress = viewer,
+                            payeeAddress = payTo,
+                            authorizedSignerPublicKey = signerKey,
+                        )
+                Base64.encode(channelId)
+            }.onFailure {
+                Napier.e("[RESOLVE_CHANNEL_ID_FAILED] session=$sessionId viewer=$viewer payTo=$payTo", it, tag = TAG)
+            }.getOrNull()?.also { cachedChannelIdBase64 = it }
         }
 
         private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
@@ -535,12 +570,15 @@ class PaywalledRTCServer
         }
 
         private fun sendAcceptedReceipt(receipt: PaymentReceipt) {
+            // Ensure the receipt always carries the creator-derived channel id for the viewer.
+            val receiptWithChannelId =
+                if (receipt.channelId != null) receipt else receipt.copy(channelId = resolveChannelIdBase64())
             sendDC(
                 buildJsonObject {
                     put("type", DCMessageType.SEGMENT_ACCEPTED)
                     put("sessionId", sessionId)
                     put("segmentIndex", segmentIndex)
-                    put("payload", receipt.toJson())
+                    put("payload", receiptWithChannelId.toJson())
                 },
             )
         }
@@ -566,6 +604,7 @@ class PaywalledRTCServer
             payFrom: String,
             network: String,
             sessionId: String = this.sessionId,
+            channelId: String? = null,
         ): PaymentReceipt =
             PaymentReceipt(
                 txId = "$txIdPrefix-${mppNowMs()}",
@@ -579,6 +618,7 @@ class PaywalledRTCServer
                 facilitator = null,
                 network = network,
                 timestamp = mppNowMs(),
+                channelId = channelId,
             )
 
         private fun scheduleSegmentTimer(

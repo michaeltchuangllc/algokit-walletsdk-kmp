@@ -76,12 +76,8 @@ class EscrowSessionVaultManagerClient(
             require(payerAddress == signer.address) {
                 "payerAddress must match signer.address for session vault deposit"
             }
-            val deriveChannelId =
-                initializeChannelId(
-                    payerAddress = payerAddress,
-                    payeeAddress = payeeAddress,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                )
+            val channelId = channelId ?: error("channelId is null")
+
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
                 appId = appId,
@@ -97,8 +93,8 @@ class EscrowSessionVaultManagerClient(
                     ),
                 boxKeys =
                     listOf(
-                        Pair(appId, deriveChannelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + deriveChannelId),
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
                     ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,

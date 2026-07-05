@@ -18,7 +18,7 @@ enum class GatingMode(
 
     companion object {
         fun fromString(s: String): GatingMode =
-            values().firstOrNull { it.value == s }
+            entries.firstOrNull { it.value == s }
                 ?: throw IllegalArgumentException("Unknown GatingMode: $s")
     }
 }
@@ -68,6 +68,7 @@ data class PaymentRequest(
     val nonce: String,
     val meta: PaymentRequestMeta,
     val railPayload: Any? = null,
+    val channelId: String? = null,
 )
 
 /**
@@ -97,6 +98,7 @@ data class PaymentReceipt(
     val facilitator: String? = null,
     val network: String,
     val timestamp: Long,
+    val channelId: String? = null,
 )
 
 // ─── Consent ─────────────────────────────────────────────
@@ -123,7 +125,31 @@ data class ConsentApproval(
     val budgetCap: BudgetCap? = null,
     val maxAutoPaySegments: Int? = null,
     val voucherSignature: ByteArray? = null,
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as ConsentApproval
+
+        if (approved != other.approved) return false
+        if (autoPaySegments != other.autoPaySegments) return false
+        if (maxAutoPaySegments != other.maxAutoPaySegments) return false
+        if (budgetCap != other.budgetCap) return false
+        if (!voucherSignature.contentEquals(other.voucherSignature)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = approved.hashCode()
+        result = 31 * result + autoPaySegments.hashCode()
+        result = 31 * result + (maxAutoPaySegments ?: 0)
+        result = 31 * result + (budgetCap?.hashCode() ?: 0)
+        result = 31 * result + (voucherSignature?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 // ─── Session Stats ───────────────────────────────────────
 
@@ -173,7 +199,37 @@ data class ServerConfig(
     val viewerAddress: String? = null,
     val viewerAuthorizedSignerPublicKey: ByteArray? = null,
     val skipPaymentRequestWhenSessionFunded: Boolean = false,
-)
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other == null || this::class != other::class) return false
+
+        other as ServerConfig
+
+        if (paymentTTL != other.paymentTTL) return false
+        if (gracePeriod != other.gracePeriod) return false
+        if (skipPaymentRequestWhenSessionFunded != other.skipPaymentRequestWhenSessionFunded) return false
+        if (sessionId != other.sessionId) return false
+        if (gating != other.gating) return false
+        if (enforcement != other.enforcement) return false
+        if (viewerAddress != other.viewerAddress) return false
+        if (!viewerAuthorizedSignerPublicKey.contentEquals(other.viewerAuthorizedSignerPublicKey)) return false
+
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = paymentTTL
+        result = 31 * result + gracePeriod
+        result = 31 * result + skipPaymentRequestWhenSessionFunded.hashCode()
+        result = 31 * result + (sessionId?.hashCode() ?: 0)
+        result = 31 * result + gating.hashCode()
+        result = 31 * result + enforcement.hashCode()
+        result = 31 * result + (viewerAddress?.hashCode() ?: 0)
+        result = 31 * result + (viewerAuthorizedSignerPublicKey?.contentHashCode() ?: 0)
+        return result
+    }
+}
 
 data class ClientConfig(
     val autoPaySegments: Boolean = false,

@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.internal.ensureCryptoProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -18,6 +19,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -228,6 +231,7 @@ class PaywalledRTCClient(
                             }
                         }
                     val request = paymentRequestFromJson(merged)
+                    captureChannelId(request.channelId)
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo}",
@@ -248,7 +252,9 @@ class PaywalledRTCClient(
                             payTo = payload.optStr("payTo", ""),
                             network = payload.optStr("network", ""),
                             timestamp = payload.optLong("timestamp", mppNowMs()),
+                            channelId = payload["channelId"]?.jsonPrimitive?.content,
                         )
+                    captureChannelId(receipt.channelId)
                     onPaymentReceipt?.invoke(receipt)
                 }
 
@@ -387,6 +393,20 @@ class PaywalledRTCClient(
             onError?.invoke(e)
             onStreamGated?.invoke("Payment failed: ${e.message}")
         }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun captureChannelId(channelIdBase64: String?) {
+        val encoded = channelIdBase64?.takeIf { it.isNotBlank() } ?: return
+        runCatching { Base64.decode(encoded) }
+            .onSuccess { decoded ->
+                if (decoded.isNotEmpty()) {
+                    EscrowSessionVaultManagerClient.channelId = decoded
+                    Napier.d("[VIEWER_CHANNEL_ID_CAPTURED] len=${decoded.size}", tag = TAG)
+                }
+            }.onFailure {
+                Napier.e("[VIEWER_CHANNEL_ID_DECODE_FAILED]", it, tag = TAG)
+            }
     }
 
     private fun handleDisconnect() {
