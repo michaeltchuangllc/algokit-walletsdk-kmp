@@ -143,6 +143,14 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         )
     }
 
+    actual fun markPaymentPending() {
+        viewerManager.markPaymentPending()
+    }
+
+    actual fun clearPendingPayment() {
+        viewerManager.clearPendingPayment()
+    }
+
     actual fun stop() {
         viewerManager.stop()
     }

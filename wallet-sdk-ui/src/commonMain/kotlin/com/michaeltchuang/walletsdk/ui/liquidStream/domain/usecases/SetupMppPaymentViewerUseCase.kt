@@ -17,5 +17,9 @@ expect class SetupMppPaymentViewerUseCase(
         setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
     )
 
+    fun markPaymentPending()
+
+    fun clearPendingPayment()
+
     fun stop()
 }
