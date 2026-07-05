@@ -38,6 +38,7 @@ internal fun PaymentRequest.toJson(): JsonObject =
         put("payTo", payTo)
         put("ttl", ttl)
         put("nonce", nonce)
+        channelId?.let { put("channelId", it) }
         put(
             "meta",
             buildJsonObject {
@@ -85,6 +86,7 @@ internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest {
         nonce = json["nonce"]!!.jsonPrimitive.content,
         meta = meta,
         railPayload = json["railPayload"],
+        channelId = json["channelId"]?.jsonPrimitive?.contentOrNull,
     )
 }
 
@@ -122,6 +124,7 @@ internal fun PaymentReceipt.toJson(): JsonObject =
         facilitator?.let { put("facilitator", it) }
         put("network", network)
         put("timestamp", timestamp)
+        channelId?.let { put("channelId", it) }
     }
 
 /** Coerces an `Any` rail payload (kotlinx [JsonElement] in practice) to a [JsonElement]. */

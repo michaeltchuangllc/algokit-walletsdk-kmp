@@ -182,10 +182,7 @@ class EscrowSessionVaultDebugViewModel(
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault(
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            appId = vaultContext.appId,
-                            authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                            appId = vaultContext.appId
                         )
                     } ?: run {
                         showError(PaymentError.SessionNotFound, "UPDATE_VOUCHER_NO_SNAPSHOT")
@@ -315,10 +312,7 @@ class EscrowSessionVaultDebugViewModel(
 
     fun settleAmount() {
         val content = contentState()
-        val viewer = content.viewerAddress.trim()
         val creator = content.creatorAddress.trim()
-        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
-        val requestedIncrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
         if (!validateViewerAndCreator(content)) return
 
@@ -327,20 +321,11 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 sendStatus("Preparing settlement...")
 
-                val viewerSigner =
-                    mppWalletSignerUseCase(viewer) ?: run {
-                        showError(PaymentError.SignerNotFound(viewer), "SETTLE_NO_VIEWER_SIGNER")
-                        return@launch
-                    }
-
                 val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault(
-                            viewerAddress = viewer,
-                            hostAddress = creator,
-                            appId = vaultContext.appId,
-                            authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                            appId = vaultContext.appId
                         )
                     } ?: run {
                         showError(PaymentError.SessionNotFound, "SETTLE_NO_SNAPSHOT")

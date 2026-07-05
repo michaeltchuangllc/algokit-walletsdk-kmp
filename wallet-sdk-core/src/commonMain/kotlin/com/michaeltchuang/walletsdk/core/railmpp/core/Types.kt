@@ -68,6 +68,11 @@ data class PaymentRequest(
     val nonce: String,
     val meta: PaymentRequestMeta,
     val railPayload: Any? = null,
+    /**
+     * Base64-encoded session-vault channel id derived by the creator from the smart contract.
+     * Sent to the viewer with the payment request when the on-chain balance is depleted.
+     */
+    val channelId: String? = null,
 )
 
 /**
@@ -97,6 +102,7 @@ data class PaymentReceipt(
     val facilitator: String? = null,
     val network: String,
     val timestamp: Long,
+    val channelId: String? = null,
 )
 
 // ─── Consent ─────────────────────────────────────────────

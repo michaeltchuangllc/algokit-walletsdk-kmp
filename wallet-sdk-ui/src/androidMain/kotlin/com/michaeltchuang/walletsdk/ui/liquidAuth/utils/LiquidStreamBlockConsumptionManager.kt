@@ -15,7 +15,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
-import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 
 internal class LiquidStreamBlockConsumptionManager(
@@ -240,16 +239,6 @@ internal class LiquidStreamBlockConsumptionManager(
             getActiveViewerAddress()
                 ?.takeIf { it.isNotBlank() }
 
-        val snapshotSignerPublicKey =
-            getCreatorVoucherClaimSnapshot()
-                ?.viewerPublicKeyBase64
-                ?.takeIf { it.isNotBlank() }
-                ?.let { encoded ->
-                    runCatching {
-                        Base64.getDecoder().decode(encoded)
-                    }.getOrNull()
-                }
-
         val progressSnapshot =
             if (viewerAddress == null) {
                 null
@@ -257,10 +246,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 try {
                     withTimeout(CHAIN_READ_TIMEOUT_MS) {
                         MppPayments.getSessionProgressSnapshotFromVault(
-                            viewerAddress = viewerAddress,
-                            hostAddress = creatorAddress,
-                            appId = sessionVaultAppId,
-                            authorizedSignerPublicKey = snapshotSignerPublicKey,
+                            appId = sessionVaultAppId
                         )
                     }
                 } catch (ce: CancellationException) {
@@ -331,20 +317,6 @@ internal class LiquidStreamBlockConsumptionManager(
             return
         }
 
-        val signerPublicKey =
-            runCatching {
-                Base64
-                    .getDecoder()
-                    .decode(claimSnapshot.viewerPublicKeyBase64)
-            }.getOrElse {
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_CLAIM_SKIP] reason=invalid_viewer_public_key",
-                    it,
-                )
-                return
-            }
-
         val signedTotalAmount =
             claimSnapshot.totalAmountClaimedMicroUsdc
                 .coerceAtLeast(0L)
@@ -366,10 +338,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 val refreshed =
                     withTimeout(CHAIN_READ_TIMEOUT_MS) {
                         MppPayments.getSessionDynamicDataFromVault(
-                            viewerAddress = claimSnapshot.viewerAddress,
-                            hostAddress = creatorAddress,
-                            appId = sessionVaultAppId,
-                            authorizedSignerPublicKey = signerPublicKey,
+                            appId = sessionVaultAppId
                         )
                     }
 
@@ -430,10 +399,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             if (nothingToSettleAssert) {
                                 withTimeout(CHAIN_READ_TIMEOUT_MS) {
                                     MppPayments.getSessionDynamicDataFromVault(
-                                        viewerAddress = claimSnapshot.viewerAddress,
-                                        hostAddress = creatorAddress,
-                                        appId = sessionVaultAppId,
-                                        authorizedSignerPublicKey = signerPublicKey,
+                                        appId = sessionVaultAppId
                                     )
                                 }
                             } else {

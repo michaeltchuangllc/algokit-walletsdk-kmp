@@ -118,18 +118,7 @@ object MppPayments {
         authorizedSignerPublicKey: ByteArray? = null,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val resolvedChannelId =
-            authorizedSignerPublicKey
-                ?.takeIf { it.isNotEmpty() }
-                ?.let {
-                    contractClient(appId = appId).initializeChannelId(
-                        payerAddress = viewerAddress,
-                        payeeAddress = hostAddress,
-                        authorizedSignerPublicKey = it,
-                    )
-                }
-                ?: channelId
-                ?: return 0L
+        val resolvedChannelId = channelId ?: return 0L
         val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, appId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
@@ -360,42 +349,20 @@ object MppPayments {
     }
 
     suspend fun getSessionProgressSnapshotFromVault(
-        viewerAddress: String,
-        hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = algodUrlForAppId(appId),
-        authorizedSignerPublicKey: ByteArray? = null,
     ): SessionProgressSnapshot? {
-        authorizedSignerPublicKey
-            ?.takeIf { it.isNotEmpty() }
-            ?.let {
-                contractClient(appId = appId, algodUrl = algodUrl).initializeChannelId(
-                    payerAddress = viewerAddress,
-                    payeeAddress = hostAddress,
-                    authorizedSignerPublicKey = it,
-                )
-            }
         val data =
-            getSessionDynamicDataFromVault(viewerAddress, hostAddress, appId, algodUrl, authorizedSignerPublicKey)
+            getSessionDynamicDataFromVault(  appId, algodUrl)
                 ?: return null
         return computeSessionProgressSnapshot(data)
     }
 
     suspend fun getSessionDynamicDataFromVault(
-        viewerAddress: String,
-        hostAddress: String,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         algodUrl: String = algodUrlForAppId(appId),
-        authorizedSignerPublicKey: ByteArray? = null,
     ): SessionDynamicData? {
-        val client = contractClient(appId = appId, algodUrl = algodUrl)
-        val channelIdCandidates =
-            authorizedSignerPublicKey
-                ?.takeIf { it.isNotEmpty() }
-                ?.let { signerPublicKey ->
-                    listOf(client.initializeChannelId(viewerAddress, hostAddress, signerPublicKey))
-                }
-                ?: listOf(channelId ?: return null)
+        val channelIdCandidates = listOf(channelId ?: return null)
 
         channelIdCandidates.forEachIndexed { index, channelId ->
             val result = getSessionDynamicDataFromVaultByChannelId(channelId, appId, algodUrl, "candidate=$index")
