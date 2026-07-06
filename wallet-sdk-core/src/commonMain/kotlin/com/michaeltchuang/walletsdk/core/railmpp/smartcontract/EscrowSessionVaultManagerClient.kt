@@ -16,15 +16,12 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 class EscrowSessionVaultManagerClient(
     private val appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
     private val usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-    private val defaultSalt: ByteArray = DEFAULT_CHANNEL_SALT,
+    private val defaultSalt: ByteArray,
     private val defaultAlgodUrl: String = DEFAULT_ALGOD_URL,
 ) {
     companion object {
-        const val SIGNER_TYPE_ED25519 = 0L
-        const val SIGNER_TYPE_FALCON_TXN_AUTH = 1L
 
         private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
-        private val DEFAULT_CHANNEL_SALT = "walletsdk-session-v1".encodeToByteArray()
         private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
 
         private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)

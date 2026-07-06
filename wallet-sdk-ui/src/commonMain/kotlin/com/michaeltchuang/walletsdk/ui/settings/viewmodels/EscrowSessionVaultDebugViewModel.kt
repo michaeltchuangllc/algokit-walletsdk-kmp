@@ -285,8 +285,6 @@ class EscrowSessionVaultDebugViewModel(
                         withContext(Dispatchers.Default) {
                             MppPayments.verifySettleSignature(
                                 signer = viewerSigner,
-                                viewerAddress = viewer,
-                                hostAddress = creator,
                                 cumulativeAmountMicroUsdc = depositMicroUsdc,
                                 signature = signature,
                                 appId = vaultContext.appId,
