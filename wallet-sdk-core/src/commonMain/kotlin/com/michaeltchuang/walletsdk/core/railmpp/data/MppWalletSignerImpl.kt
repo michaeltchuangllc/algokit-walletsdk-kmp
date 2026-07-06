@@ -24,59 +24,11 @@ class MppWalletSignerImpl(
     private val getHdSeed: GetHdSeed,
     private val logTag: String = "MppWalletSignerImpl",
 ) : MppWalletSigner {
-    override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray {
-        return try {
-            when (localAccount) {
-                is LocalAccount.Algo25 -> {
-                    val secretKey = getAlgo25SecretKey(address)
-                    if (secretKey == null) {
-                        Napier.e("Missing Algo25 key for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signAlgo25Transaction(secretKey = secretKey, transactionByteArray = txnMsgpack)
-                }
-                is LocalAccount.HdKey -> {
-                    val seed = getHdSeed(localAccount.seedId)
-                    if (seed == null) {
-                        Napier.e("Missing HD seed for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signHdKeyTransaction(
-                        transactionByteArray = txnMsgpack,
-                        seed = seed,
-                        account = localAccount.account,
-                        change = localAccount.change,
-                        key = localAccount.keyIndex,
-                    ) ?: run {
-                        Napier.e("HD signing failed for $address", tag = logTag)
-                        ByteArray(0)
-                    }
-                }
-                is LocalAccount.Falcon24 -> {
-                    val secretKey = getFalcon24SecretKey(address)
-                    if (secretKey == null) {
-                        Napier.e("Missing Falcon24 key for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signFalcon24Transaction(
-                        transactionByteArray = txnMsgpack,
-                        publicKey = localAccount.publicKey,
-                        privateKey = secretKey,
-                    ) ?: run {
-                        Napier.e("Falcon24 signing failed for $address", tag = logTag)
-                        ByteArray(0)
-                    }
-                }
-                else -> {
-                    Napier.e("Unsupported account type for $address", tag = logTag)
-                    ByteArray(0)
-                }
-            }
-        } catch (t: Throwable) {
-            Napier.e("signTransactionBytes failed for $address: ${t.message}", t, tag = logTag)
-            ByteArray(0)
-        }
-    }
+    override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray =
+        signWithLocalAccount(
+            bytes = txnMsgpack,
+            operation = SigningOperation.TRANSACTION,
+        ) ?: ByteArray(0)
 
     override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> {
         if (localAccount !is LocalAccount.Falcon24 || txnsMsgpack.size <= 1) {
@@ -110,60 +62,113 @@ class MppWalletSignerImpl(
         }
     }
 
-    override suspend fun signMessage(message: ByteArray): ByteArray {
-        return try {
+    override suspend fun signMessage(message: ByteArray): ByteArray =
+        signWithLocalAccount(
+            bytes = message,
+            operation = SigningOperation.MESSAGE,
+        ) ?: ByteArray(0)
+
+    private suspend fun signWithLocalAccount(
+        bytes: ByteArray,
+        operation: SigningOperation,
+    ): ByteArray? =
+        try {
             when (localAccount) {
-                is LocalAccount.Algo25 -> {
-                    val secretKey = getAlgo25SecretKey(address)
-                    if (secretKey == null) {
-                        Napier.e("Missing Algo25 key for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signAlgo25ArbitraryData(data = message, secretKey = secretKey) ?: run {
-                        Napier.e("Algo25 message signing failed for $address", tag = logTag)
-                        ByteArray(0)
-                    }
-                }
-                is LocalAccount.HdKey -> {
-                    val seed = getHdSeed(localAccount.seedId)
-                    if (seed == null) {
-                        Napier.e("Missing HD seed for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signHdKeyArbitraryData(
-                        data = message,
-                        seed = seed,
-                        account = localAccount.account,
-                        change = localAccount.change,
-                        key = localAccount.keyIndex,
-                    ) ?: run {
-                        Napier.e("HD message signing failed for $address", tag = logTag)
-                        ByteArray(0)
-                    }
-                }
-                is LocalAccount.Falcon24 -> {
-                    val secretKey = getFalcon24SecretKey(address)
-                    if (secretKey == null) {
-                        Napier.e("Missing Falcon24 key for $address", tag = logTag)
-                        return ByteArray(0)
-                    }
-                    signFalcon24ArbitraryData(
-                        data = message,
-                        publicKey = localAccount.publicKey,
-                        privateKey = secretKey,
-                    ) ?: run {
-                        Napier.e("Falcon24 message signing failed for $address", tag = logTag)
-                        ByteArray(0)
-                    }
-                }
+                is LocalAccount.Algo25 -> signAlgo25(bytes, operation)
+                is LocalAccount.HdKey -> signHdKey(bytes, operation, localAccount)
+                is LocalAccount.Falcon24 -> signFalcon24(bytes, operation, localAccount)
                 else -> {
-                    Napier.e("Unsupported account type for message signing: $address", tag = logTag)
-                    ByteArray(0)
+                    Napier.e("Unsupported account type for ${operation.logName}: $address", tag = logTag)
+                    null
+                }
+            }?.also { signedBytes ->
+                if (signedBytes.isEmpty()) {
+                    Napier.e("${operation.logName} signing returned empty bytes for $address", tag = logTag)
                 }
             }
         } catch (t: Throwable) {
-            Napier.e("signMessage failed for $address: ${t.message}", t, tag = logTag)
-            ByteArray(0)
+            Napier.e("${operation.logName} signing failed for $address: ${t.message}", t, tag = logTag)
+            null
         }
+
+    private suspend fun signAlgo25(
+        bytes: ByteArray,
+        operation: SigningOperation,
+    ): ByteArray? {
+        val secretKey = getAlgo25SecretKey(address)
+        if (secretKey == null) {
+            Napier.e("Missing Algo25 key for $address", tag = logTag)
+            return null
+        }
+
+        return when (operation) {
+            SigningOperation.TRANSACTION -> signAlgo25Transaction(secretKey = secretKey, transactionByteArray = bytes)
+            SigningOperation.MESSAGE -> signAlgo25ArbitraryData(data = bytes, secretKey = secretKey)
+        }
+    }
+
+    private suspend fun signHdKey(
+        bytes: ByteArray,
+        operation: SigningOperation,
+        account: LocalAccount.HdKey,
+    ): ByteArray? {
+        val seed = getHdSeed(account.seedId)
+        if (seed == null) {
+            Napier.e("Missing HD seed for $address", tag = logTag)
+            return null
+        }
+
+        return when (operation) {
+            SigningOperation.TRANSACTION ->
+                signHdKeyTransaction(
+                    transactionByteArray = bytes,
+                    seed = seed,
+                    account = account.account,
+                    change = account.change,
+                    key = account.keyIndex,
+                )
+            SigningOperation.MESSAGE ->
+                signHdKeyArbitraryData(
+                    data = bytes,
+                    seed = seed,
+                    account = account.account,
+                    change = account.change,
+                    key = account.keyIndex,
+                )
+        }
+    }
+
+    private suspend fun signFalcon24(
+        bytes: ByteArray,
+        operation: SigningOperation,
+        account: LocalAccount.Falcon24,
+    ): ByteArray? {
+        val secretKey = getFalcon24SecretKey(address)
+        if (secretKey == null) {
+            Napier.e("Missing Falcon24 key for $address", tag = logTag)
+            return null
+        }
+
+        return when (operation) {
+            SigningOperation.TRANSACTION ->
+                signFalcon24Transaction(
+                    transactionByteArray = bytes,
+                    publicKey = account.publicKey,
+                    privateKey = secretKey,
+                )
+            SigningOperation.MESSAGE ->
+                signFalcon24ArbitraryData(
+                    data = bytes,
+                    publicKey = account.publicKey,
+                    privateKey = secretKey,
+                )
+        }
+    }
+
+    private enum class SigningOperation(
+        val logName: String,
+    ) {
+        TRANSACTION("transaction"),
+        MESSAGE("message"),
     }
 }

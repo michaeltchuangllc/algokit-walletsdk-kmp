@@ -60,6 +60,16 @@ class MppPaymentViewerManager(
     private var viewerVoucherBlocksConsumed: Int = 0
     private var viewerVoucherClaimedMicroUsdc: Long = 0L
     private var viewerVoucherCapLoggedSessionId: String? = null
+    private var pendingPayment: Boolean = false
+
+    fun markPaymentPending() {
+        pendingPayment = true
+        Napier.d("[VIEWER_SESSION_VAULT_PAYMENT_PENDING] pendingPayment=$pendingPayment", tag = TAG)
+    }
+
+    fun clearPendingPayment() {
+        pendingPayment = false
+    }
 
     fun start(params: StartParams) {
         val viewerAddress = params.viewerAddress
@@ -75,6 +85,7 @@ class MppPaymentViewerManager(
         viewerVoucherBlocksConsumed = 0
         viewerVoucherClaimedMicroUsdc = 0L
         viewerVoucherCapLoggedSessionId = null
+        pendingPayment = false
 
         Napier.d(
             "[VIEWER_MPP_CREATE_VIEWER] viewer=$viewerAddress host=$sessionVaultHostAddress network=${params.mppNetwork}",
@@ -107,6 +118,7 @@ class MppPaymentViewerManager(
                                 ).getOrDefault(0L)
 
                             if (existingOnChainBalance > 0L) {
+                                pendingPayment = false
                                 params.setViewerSessionVaultProgress(existingOnChainBalance, existingOnChainBalance)
                                 Napier.d(
                                     "[VIEWER_SESSION_VAULT_FUNDED] balanceMicroUsdc=$existingOnChainBalance balanceUsdc=${existingOnChainBalance / 1_000_000.0} action=skip_payment_modal",
@@ -149,7 +161,8 @@ class MppPaymentViewerManager(
                                     depositAmountMicroUsdc = depositMicroUsdc,
                                     appId = sessionVaultAppId,
                                 ).onSuccess { txId ->
-                                    Napier.d("[VIEWER_SESSION_VAULT_DEPOSIT_OK] txId=$txId", tag = TAG)
+                                    markPaymentPending()
+                                    Napier.d("[VIEWER_SESSION_VAULT_DEPOSIT_OK] txId=$txId pendingPayment=$pendingPayment", tag = TAG)
                                     MppPayments
                                         .setAuthorizedSignerForSession(
                                             signer = signer,
@@ -174,6 +187,9 @@ class MppPaymentViewerManager(
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             ),
                                         ).getOrDefault(0L)
+                                    if (onChainRemaining > 0L) {
+                                        pendingPayment = false
+                                    }
                                     params.setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
                                     startViewerOnChainRefresh(
                                         scope = scope,
@@ -184,6 +200,7 @@ class MppPaymentViewerManager(
                                         setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                     )
                                 }.onFailure { err ->
+                                    pendingPayment = false
                                     Napier.e("[VIEWER_SESSION_VAULT_DEPOSIT_ERR]", err, tag = TAG)
                                 }
 
@@ -281,9 +298,17 @@ class MppPaymentViewerManager(
                             ),
                         ).getOrThrow()
                     }.onSuccess { remaining ->
+                        if (remaining > 0L) {
+                            pendingPayment = false
+                        }
                         setViewerSessionVaultProgress(remaining, remaining)
-                        if (remaining == 0L) {
+                        if (remaining == 0L && !pendingPayment) {
                             liquidStreamViewer?.rtcClient?.onStreamGated?.invoke("Session balance exhausted")
+                        } else if (remaining == 0L) {
+                            Napier.d(
+                                "[VIEWER_SESSION_VAULT_REFRESH_PENDING] balanceMicroUsdc=0 action=skip_stream_gated",
+                                tag = TAG,
+                            )
                         }
                     }.onFailure { err ->
                         Napier.e(
@@ -306,6 +331,7 @@ class MppPaymentViewerManager(
         viewerVoucherBlocksConsumed = 0
         viewerVoucherClaimedMicroUsdc = 0L
         viewerVoucherCapLoggedSessionId = null
+        pendingPayment = false
     }
 
     private suspend fun handlePaymentReceipt(

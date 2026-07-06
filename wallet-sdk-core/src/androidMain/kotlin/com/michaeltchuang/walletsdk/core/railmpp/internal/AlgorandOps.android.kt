@@ -22,6 +22,10 @@ private const val DUMMIES_PER_REAL_TXN = 3
 private const val MIN_TXN_FEE = 1_000L
 private const val SIGNER_TYPE_FALCON = 1L
 
+private val falconLsigAddress: Address by lazy {
+    Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
+}
+
 internal actual fun getSessionBoxBytesInternal(
     appId: Long,
     channelId: ByteArray,
@@ -155,7 +159,7 @@ private suspend fun signTxnGroup(
 ): List<ByteArray> =
     when (signer) {
         is AndroidMppWalletSigner -> signer.signTransactions(txns)
-        else -> txns.map { signer.signTransactionBytes(Encoder.encodeToMsgPack(it)) }
+        else -> signer.signTransactionsBytes(txns.map { Encoder.encodeToMsgPack(it) })
     }
 
 private fun buildAppCallTxn(
@@ -183,9 +187,8 @@ private fun buildAppCallTxn(
 private fun buildFalconDummy(
     params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
     index: Int,
-): Transaction {
-    val falconLsigAddress = Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
-    return Transaction
+): Transaction =
+    Transaction
         .PaymentTransactionBuilder()
         .sender(falconLsigAddress)
         .receiver(falconLsigAddress)
@@ -194,7 +197,6 @@ private fun buildFalconDummy(
         .note(byteArrayOf(index.toByte()))
         .build()
         .also { it.fee = BigInteger.ZERO }
-}
 
 private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }
 

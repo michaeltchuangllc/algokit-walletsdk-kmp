@@ -33,7 +33,6 @@ object MppPayments {
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
     private val CHANNEL_ID_SALT = "walletsdk-session-v1".encodeToByteArray()
-    private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
 
     fun algodUrlForAppId(appId: Long): String =
         when (appId) {

@@ -456,18 +456,26 @@ open class CommonAnswerViewModel(
         val amountUsdc = enteredAmount.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
         val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
 
-        return runCatching {
-            val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
-            val txId =
+        val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
+        val topUpResult =
+            runCatching {
                 MppPayments
                     .topUpSessionVault(
                         signer = signer,
                         additionalDepositMicroUsdc = depositMicroUsdc,
                         appId = sessionVaultAppId,
                     ).getOrThrow()
-            Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress txId=$txId")
+            }.onFailure { throwable ->
+                setupMppPaymentViewerUseCase.clearPendingPayment()
+                Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress", throwable = throwable)
+            }
 
-            val onChainRemaining =
+        val txId = topUpResult.getOrElse { return Result.failure(it) }
+        setupMppPaymentViewerUseCase.markPaymentPending()
+        Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress txId=$txId")
+
+        val onChainRemaining =
+            runCatching {
                 getRemainingSessionVaultBalanceUseCase(
                     GetRemainingSessionVaultBalanceUseCase.Params(
                         viewerAddress = viewerAddress,
@@ -476,12 +484,21 @@ open class CommonAnswerViewModel(
                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     ),
                 ).getOrThrow()
+            }.onFailure { throwable ->
+                Napier.e(
+                    tag = TAG,
+                    message = "[VIEWER_SESSION_VAULT_TOPUP_REFRESH_ERR] viewer=$viewerAddress creator=$creatorAddress",
+                    throwable = throwable,
+                )
+            }.getOrNull()
 
+        if (onChainRemaining != null) {
+            if (onChainRemaining > 0L) {
+                setupMppPaymentViewerUseCase.clearPendingPayment()
+            }
             setViewerSessionVaultBalance(onChainRemaining)
-            onChainRemaining
-        }.onFailure { throwable ->
-            Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress", throwable = throwable)
         }
+        return Result.success(onChainRemaining)
     }
 
     /** Build an [MppWalletSigner] for the given account address. */
