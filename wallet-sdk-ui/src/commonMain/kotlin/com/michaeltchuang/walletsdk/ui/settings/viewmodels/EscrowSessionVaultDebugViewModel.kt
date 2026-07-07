@@ -14,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaul
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.contractClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -94,6 +95,15 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
+                    if (EscrowSessionVaultManagerClient.channelId == null) {
+                        contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
+                                .initializeChannelId(
+                                    payerAddress = viewer,
+                                    payeeAddress = creator,
+                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                )
+                    }
+
                     val result =
                         withContext(Dispatchers.Default) {
                             MppPayments.openSessionAndDeposit(
@@ -285,8 +295,6 @@ class EscrowSessionVaultDebugViewModel(
                         withContext(Dispatchers.Default) {
                             MppPayments.verifySettleSignature(
                                 signer = viewerSigner,
-                                viewerAddress = viewer,
-                                hostAddress = creator,
                                 cumulativeAmountMicroUsdc = depositMicroUsdc,
                                 signature = signature,
                                 appId = vaultContext.appId,

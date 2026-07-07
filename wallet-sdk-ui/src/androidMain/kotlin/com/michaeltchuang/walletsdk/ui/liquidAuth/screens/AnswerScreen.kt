@@ -17,8 +17,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
@@ -213,7 +213,10 @@ fun AnswerScreen(
                                 ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
-                                    budgetCap = BudgetCap(amount = micro.toString(), asset = "USDC"),
+                                    budgetCap = BudgetCap(
+                                        amount = micro.toString(),
+                                        asset = "USDC"
+                                    ),
                                     maxAutoPaySegments = maxSegments,
                                 ),
                             )

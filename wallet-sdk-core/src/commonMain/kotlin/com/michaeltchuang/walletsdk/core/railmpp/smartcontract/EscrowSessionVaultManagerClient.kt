@@ -16,15 +16,12 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 class EscrowSessionVaultManagerClient(
     private val appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
     private val usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-    private val defaultSalt: ByteArray = DEFAULT_CHANNEL_SALT,
+    val defaultSalt: ByteArray,
     private val defaultAlgodUrl: String = DEFAULT_ALGOD_URL,
 ) {
     companion object {
-        const val SIGNER_TYPE_ED25519 = 0L
-        const val SIGNER_TYPE_FALCON_TXN_AUTH = 1L
 
         private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
-        private val DEFAULT_CHANNEL_SALT = "walletsdk-session-v1".encodeToByteArray()
         private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
 
         private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
@@ -40,6 +37,7 @@ class EscrowSessionVaultManagerClient(
         private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
         private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
         var channelId: ByteArray? = null
+        var salt: ByteArray? = null
     }
 
     fun deriveChannelId(
@@ -77,6 +75,7 @@ class EscrowSessionVaultManagerClient(
                 "payerAddress must match signer.address for session vault deposit"
             }
             val channelId = channelId ?: error("channelId is null")
+            val salt = salt ?: error("salt is null")
 
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
@@ -87,7 +86,7 @@ class EscrowSessionVaultManagerClient(
                     listOf(
                         ABI_OPEN,
                         decodeAlgorandAddressPublicKey(payeeAddress),
-                        encodeArc4DynamicBytes(defaultSalt),
+                        encodeArc4DynamicBytes(salt),
                         encodeArc4DynamicBytes(computeSignerPubkeyHash(signer.authorizedSignerPublicKey)),
                         encodeArc4DynamicBytes(signer.authorizedSignerPublicKey),
                     ),
@@ -131,7 +130,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args =
                     listOf(
@@ -160,7 +158,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args =
                     listOf(
@@ -190,7 +187,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args =
                     listOf(
@@ -218,7 +214,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_SETTLE_LATEST, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
@@ -237,7 +232,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
@@ -257,7 +251,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_REQUEST_CLOSE, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
@@ -275,7 +268,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
@@ -294,7 +286,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_FUND_MBR_POOL, decodeAlgorandAddressPublicKey(receiverAddress)),
                 boxKeys = emptyList(),
@@ -311,7 +302,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args = listOf(ABI_OPT_IN_USDC),
                 boxKeys = emptyList(),
@@ -331,7 +321,6 @@ class EscrowSessionVaultManagerClient(
                 signer = signer,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
-                defaultSalt = defaultSalt,
                 algodUrl = algodUrl,
                 args =
                     listOf(

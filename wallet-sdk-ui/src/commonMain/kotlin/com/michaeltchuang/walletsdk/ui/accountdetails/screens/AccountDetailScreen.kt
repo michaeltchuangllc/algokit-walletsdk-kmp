@@ -218,7 +218,7 @@ internal fun ScreenContent(
                                 if (state.isSolanaAccount) {
                                     "https://faucet.solana.com/"
                                 } else {
-                                    "https://lora.algokit.io/testnet/fund?address=$address"
+                                    "https://testnet-dispenser.algorand.tech/?account=$address"
                                 },
                         )
                     }

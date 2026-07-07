@@ -1,10 +1,10 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import kotlinx.coroutines.CoroutineScope

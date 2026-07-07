@@ -3,21 +3,19 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationDetailsInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
-import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeMsgPackAny
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
-import com.michaeltchuang.walletsdk.core.railmpp.internal.signEd25519
-import com.michaeltchuang.walletsdk.core.railmpp.internal.verifyEd25519
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient.Companion.channelId
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -32,7 +30,7 @@ object MppPayments {
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
-    private val CHANNEL_ID_SALT = "walletsdk-session-v1".encodeToByteArray()
+    private val railMppDataRepository = RailMppDataRepositoryImpl()
 
     fun algodUrlForAppId(appId: Long): String =
         when (appId) {
@@ -54,7 +52,7 @@ object MppPayments {
         EscrowSessionVaultManagerClient(
             appId = appId,
             usdcAssetId = usdcAssetId,
-            defaultSalt = CHANNEL_ID_SALT,
+            defaultSalt = runBlocking { railMppDataRepository.getOrCreateChannelSalt() },
             defaultAlgodUrl = algodUrl,
         )
 
@@ -232,7 +230,6 @@ object MppPayments {
         hostAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
-        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
         val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
@@ -278,12 +275,9 @@ object MppPayments {
 
     suspend fun settle(
         signer: MppWalletSigner,
-        viewerAddress: String,
-        hostAddress: String,
         appId: Long,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
         val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
         val algodUrl = algodUrlForAppId(appId)
@@ -292,8 +286,6 @@ object MppPayments {
 
     suspend fun verifySettleSignature(
         signer: MppWalletSigner,
-        viewerAddress: String,
-        hostAddress: String,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
@@ -394,36 +386,6 @@ object MppPayments {
     @OptIn(ExperimentalEncodingApi::class)
     fun serializeVoucherSignature(signature: ByteArray): String = Base64.encode(signature)
 
-    fun buildClaimMessageHashHex(
-        appId: Long,
-        channelId: ByteArray,
-        totalAmountClaimedMicroUsdc: Long,
-    ): String = hashHex(buildClaimMessage(appId, channelId, totalAmountClaimedMicroUsdc))
-
-    fun buildClaimMessageHashHex(
-        appId: Long,
-        viewerAddress: String,
-        hostAddress: String,
-        totalAmountClaimedMicroUsdc: Long,
-    ): String =
-        buildClaimMessageHashHex(
-            appId,
-            channelId!!,
-            totalAmountClaimedMicroUsdc,
-        )
-
-    fun signClaimMessageWithAlgoSdk(
-        secretKey: ByteArray,
-        appId: Long,
-        channelId: ByteArray,
-        totalAmountClaimedMicroUsdc: Long,
-    ): ByteArray? =
-        runCatching {
-            signEd25519(secretKey, buildClaimMessage(appId, channelId, totalAmountClaimedMicroUsdc))
-        }.onFailure {
-            Napier.e("[CLAIM_SIGN_ERR] appId=$appId keySize=${secretKey.size}", it, tag = TAG)
-        }.getOrNull()
-
     fun hashHex(bytes: ByteArray): String =
         sha256(bytes).joinToString("") {
             val v = it.toInt() and 0xFF
@@ -431,47 +393,6 @@ object MppPayments {
         }
 
     private val HEX_CHARS = "0123456789abcdef"
-
-    fun verifyClaimSignatureLocally(
-        viewerAddress: String,
-        appId: Long,
-        channelId: ByteArray,
-        totalAmountClaimedMicroUsdc: Long,
-        signature: ByteArray,
-    ): Boolean {
-        val publicKey = decodeAlgorandAddressPublicKey(viewerAddress)
-        if (publicKey.size != 32 || signature.size != 64) return false
-        return verifyEd25519(publicKey, buildClaimMessage(appId, channelId, totalAmountClaimedMicroUsdc), signature)
-    }
-
-    data class VerifyClaimVoucherOnChainResult(
-        val txId: String,
-        val verified: Boolean,
-        val confirmedRound: Long,
-        val logCount: Int,
-    )
-
-    suspend fun debugVerifyClaimVoucherSignatureOnChain(
-        signer: MppWalletSigner,
-        appId: Long,
-        viewerAddress: String,
-        totalAmountClaimedMicroUsdc: Long,
-        signature: ByteArray,
-        algodUrl: String = algodUrlForAppId(appId),
-    ): Result<VerifyClaimVoucherOnChainResult> =
-        runCatching {
-            Napier.d("[VERIFY_HELPER_BUILD] appId=$appId viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc", tag = TAG)
-            val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
-            val txId =
-                contractClient(appId, algodUrl = algodUrl)
-                    .verifySettleSignatureOnChain(signer, channelId, totalAmountClaimedMicroUsdc, signature, algodUrl)
-                    .getOrThrow()
-
-            val (confirmedRound, logCount) = awaitConfirmationDetailsInternal(txId, algodUrl)
-            VerifyClaimVoucherOnChainResult(txId = txId, verified = true, confirmedRound = confirmedRound, logCount = logCount)
-        }.onFailure {
-            Napier.e("[VERIFY_HELPER_ERR] appId=$appId viewer=$viewerAddress amount=$totalAmountClaimedMicroUsdc", it, tag = TAG)
-        }
 
     fun awaitTransactionConfirmation(
         txId: String,

@@ -42,7 +42,6 @@ internal actual suspend fun submitAppCallInternal(
     signer: MppWalletSigner,
     appId: Long,
     usdcAssetId: Long,
-    defaultSalt: ByteArray,
     algodUrl: String,
     args: List<ByteArray>,
     boxKeys: List<Pair<Long, ByteArray>>,

@@ -25,11 +25,11 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState

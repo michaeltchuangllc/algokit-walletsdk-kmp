@@ -1,6 +1,18 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendSummary
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.internal.ensureCryptoProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -232,6 +244,7 @@ class PaywalledRTCClient(
                         }
                     val request = paymentRequestFromJson(merged)
                     captureChannelId(request.channelId)
+                    captureSalt(request.salt)
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo}",
@@ -406,6 +419,20 @@ class PaywalledRTCClient(
                 }
             }.onFailure {
                 Napier.e("[VIEWER_CHANNEL_ID_DECODE_FAILED]", it, tag = TAG)
+            }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun captureSalt(saltBase64: String?) {
+        val encoded = saltBase64?.takeIf { it.isNotBlank() } ?: return
+        runCatching { Base64.decode(encoded) }
+            .onSuccess { decoded ->
+                if (decoded.isNotEmpty()) {
+                    EscrowSessionVaultManagerClient.salt = decoded
+                    Napier.d("[VIEWER_SALT_CAPTURED] len=${decoded.size}", tag = TAG)
+                }
+            }.onFailure {
+                Napier.e("[VIEWER_SALT_DECODE_FAILED]", it, tag = TAG)
             }
     }
 

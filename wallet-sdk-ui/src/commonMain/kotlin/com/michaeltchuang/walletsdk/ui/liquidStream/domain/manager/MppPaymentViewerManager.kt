@@ -2,14 +2,14 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager
 
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ClientConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
@@ -135,7 +135,10 @@ class MppPaymentViewerManager(
                                 return ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
-                                    budgetCap = BudgetCap(amount = existingOnChainBalance.toString(), asset = "USDC"),
+                                    budgetCap = BudgetCap(
+                                        amount = existingOnChainBalance.toString(),
+                                        asset = "USDC"
+                                    ),
                                 )
                             }
 

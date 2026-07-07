@@ -1,5 +1,11 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -39,6 +45,7 @@ internal fun PaymentRequest.toJson(): JsonObject =
         put("ttl", ttl)
         put("nonce", nonce)
         channelId?.let { put("channelId", it) }
+        salt?.let { put("salt", it) }
         put(
             "meta",
             buildJsonObject {
@@ -87,6 +94,7 @@ internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest {
         meta = meta,
         railPayload = json["railPayload"],
         channelId = json["channelId"]?.jsonPrimitive?.contentOrNull,
+        salt = json["salt"]?.jsonPrimitive?.contentOrNull,
     )
 }
 

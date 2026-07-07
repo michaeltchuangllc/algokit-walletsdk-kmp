@@ -19,10 +19,10 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase

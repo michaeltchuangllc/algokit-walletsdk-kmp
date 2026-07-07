@@ -2,12 +2,12 @@ package com.michaeltchuang.walletsdk.core.railmpp.usecases
 
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
-import com.michaeltchuang.walletsdk.core.railmpp.core.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 
 /**
  * Starts the creator payment stream on the existing RTC data channel.

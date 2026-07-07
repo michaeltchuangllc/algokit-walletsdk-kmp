@@ -1,6 +1,14 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SessionStats
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -82,6 +90,7 @@ class PaywalledRTCServer
         private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
         private var cachedChannelIdBase64: String? = null
+        private var cachedSaltBase64: String? = null
 
         /**
          * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
@@ -346,7 +355,7 @@ class PaywalledRTCServer
                                             voucherSignature = null,
                                         ),
                                 ),
-                            ).copy(channelId = channelIdBase64)
+                            ).copy(channelId = channelIdBase64, salt = resolveSaltBase64())
 
                     pendingRequest = request
                     onPaymentRequested?.invoke(request)
@@ -425,6 +434,19 @@ class PaywalledRTCServer
             }.onFailure {
                 Napier.e("[RESOLVE_CHANNEL_ID_FAILED] session=$sessionId viewer=$viewer payTo=$payTo", it, tag = TAG)
             }.getOrNull()?.also { cachedChannelIdBase64 = it }
+        }
+        @OptIn(ExperimentalEncodingApi::class)
+        private fun resolveSaltBase64(): String? {
+            cachedSaltBase64?.let { return it }
+            return runCatching {
+                Base64.encode(
+                    MppPayments
+                        .contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
+                        .defaultSalt,
+                )
+            }.onFailure {
+                Napier.e("[RESOLVE_SALT_FAILED] session=$sessionId", it, tag = TAG)
+            }.getOrNull()?.also { cachedSaltBase64 = it }
         }
 
         private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {

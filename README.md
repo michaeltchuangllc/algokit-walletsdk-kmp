@@ -124,6 +124,7 @@ timeline
              : 🔄 Liquid Stream - Refactor code to be more in common folder
              : 🔄 Onboarding - Create and integrate new algokit-core KMP library
              : Android - Upgrade to AGP9 and KMP 2.4
+             : Liquid Stream - Research Lsig based session vault for Algorand 
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Onboarding - Add Falcon25 (non-lsig) wallet account flow
@@ -131,6 +132,7 @@ timeline
              : TBD
     2026Q4   
              : Liquid Gossip mobile POC
+             : Seed Vault - Escrow Session Vault for Solana accounts 
              : Research - React Native sample app talking to service
              : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
              : TBD
