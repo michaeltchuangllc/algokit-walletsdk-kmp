@@ -1,5 +1,5 @@
 import UIKit
-import composeDemoApp
+import sharedDemoApp
 import Foundation
 import WebRTC
 
@@ -145,7 +145,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("✅ Broadcast frame capture bridge registered")
 
         // ── Viewer (answer) handler ────────────────────────────────────────────
-        // Register the callback using the bridge function in composeDemoApp
+        // Register the callback using the bridge function in sharedDemoApp
         App_iosKt.setIosLiquidAuthHandler { [weak self] origin, requestId, algoAddress in
             NSLog("🔗 Liquid Auth callback triggered from Kotlin")
             NSLog("   Origin: '\(origin)'")

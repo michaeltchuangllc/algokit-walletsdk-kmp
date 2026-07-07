@@ -1,10 +1,10 @@
 package com.michaeltchuang.walletsdk.demo.ui.navigation
 
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.Res
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_home
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_tv
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.nav_broadcast
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.nav_home
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.Res
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_home
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_tv
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.nav_broadcast
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.nav_home
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem

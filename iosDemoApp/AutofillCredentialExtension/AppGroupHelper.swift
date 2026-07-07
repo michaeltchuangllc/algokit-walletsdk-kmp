@@ -1,5 +1,5 @@
 import Foundation
-import composeDemoApp
+import sharedDemoApp
 
 /// Helper to configure the app group for database sharing
 struct AppGroupHelper {

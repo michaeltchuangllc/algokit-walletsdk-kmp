@@ -1,5 +1,5 @@
 [versions]
-agp = "8.10.1"
+agp = "9.1.0"
 algoSdk = "2.10.1"
 algokit-walletSdk = "3.202603.1"
 algokit-core = "1.0.0-alpha.84"
@@ -16,10 +16,11 @@ bignum = "0.3.10"
 biometric = "1.1.0"
 bip39 = "1.0.9"
 ble = "2.8.0"
-buildConfig = "5.6.5"
+buildConfig = "6.0.10"
 coil = "3.0.4"
 compose = "1.7.3"
 compose-ui = "1.8.2"
+compose-ui-test = "1.11.2"
 composeBom = "2026.01.01"
 composeFoundation = "1.8.2"
 composeWebview = "2.0.3"
@@ -37,7 +38,7 @@ espresso = "3.6.1"
 falcon-sdk = "0.0.12"
 flexbox = "3.0.0"
 googleServicesVersion = "4.4.4"
-gradlePlayPublisher = "3.13.0"
+gradlePlayPublisher = "4.0.0"
 installreferrer = "2.2"
 jackson-annotations = "2.16.1"
 jackson-dataformat-cbor = "2.16.1"
@@ -49,7 +50,7 @@ junit = "4.13.2"
 junitKtx = "1.2.1"
 khex = "1.1.2"
 koin = "4.0.1-Beta1"
-kotlin = "2.2.21"
+kotlin = "2.4.0"
 kotlinfixture = "1.2.0"
 kotlinx-coroutines-play-services = "1.7.3"
 kotlinxDatetime = "0.7.1"
@@ -83,11 +84,11 @@ seedvaultWalletSdk = "0.4.0"
 shot = "6.1.0"
 socketio = "2.1.0"
 sol4k = "0.7.0"
-spmForKmp = "1.4.10"
+spmForKmp = "1.9.4"
 sqlite = "2.5.0"
 stream-webrtc = "1.3.10"
 uiautomator = "2.3.0"
-uuid-generator = "5.1.0"
+uuid-generator = "5.2.0"
 webviewMultiplatform = "1.3.0"
 
 [libraries]
@@ -105,8 +106,8 @@ androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-
 androidx-lifecycle-viewmodel-savedstate = { module = "androidx.lifecycle:lifecycle-viewmodel-savedstate", version.ref = "lifecycle" }
 compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "compose-ui" }
 compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview", version.ref = "compose-ui" }
-compose-ui-testManifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "compose-ui" }
-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "compose-ui" }
+compose-ui-testManifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "compose-ui-test" }
+compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "compose-ui-test" }
 core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
 lifecycle-common-java8 = { module = "androidx.lifecycle:lifecycle-common-java8", version.ref = "lifecycle" }
 lifecycle-extensions = { module = "androidx.lifecycle:lifecycle-extensions", version.ref = "lifecycleExt" }

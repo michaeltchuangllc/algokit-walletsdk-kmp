@@ -1,9 +1,9 @@
 package com.michaeltchuang.walletsdk.demo.ui.navigation
 
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.Res
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.app_name_topbar
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_qr_scan
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.ic_settings
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.Res
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.app_name_topbar
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_qr_scan
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer

@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.utils
 
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 inline fun <reified T> T.toJson(

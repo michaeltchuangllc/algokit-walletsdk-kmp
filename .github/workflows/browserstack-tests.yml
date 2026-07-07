@@ -29,8 +29,8 @@ jobs:
 
       - name: "Create Debug APK and Test APK"
         run: |
-          ./gradlew composeDemoApp:assembleDebug
-          ./gradlew composeDemoApp:assembleDebugAndroidTest
+          ./gradlew androidDemoApp:assembleDebug
+          ./gradlew androidDemoApp:assembleDebugAndroidTest
 
       - name: "Upload and Run Tests on BrowserStack"
         id: browserstack
@@ -40,18 +40,18 @@ jobs:
           browserstackAccessKey: ${{ secrets.BROWSERSTACK_ACCESS_KEY }}
           project: AlgoKit-WalletSDK-KMP
           buildTag: ${{ github.sha }}
-          appFilePath: ${{ github.workspace }}/composeDemoApp/build/outputs/apk/debug/composeDemoApp-debug.apk
-          testFilePath: ${{ github.workspace }}/composeDemoApp/build/outputs/apk/androidTest/debug/composeDemoApp-debug-androidTest.apk
+          appFilePath: ${{ github.workspace }}/androidDemoApp/build/outputs/apk/debug/androidDemoApp-debug.apk
+          testFilePath: ${{ github.workspace }}/androidDemoApp/build/outputs/apk/androidTest/debug/androidDemoApp-debug-androidTest.apk
           devices: Samsung Galaxy S24-14.0
 
       - name: "Write to Json file"
         run: |
-          mkdir -p ${{ github.workspace }}/composeDemoApp/build/reports/browserstack
-          touch ${{ github.workspace }}/composeDemoApp/build/reports/browserstack/test-results.json
-          echo '${{ env.test_result }}' > ${{ github.workspace }}/composeDemoApp/build/reports/browserstack/test-results.json
+          mkdir -p ${{ github.workspace }}/androidDemoApp/build/reports/browserstack
+          touch ${{ github.workspace }}/androidDemoApp/build/reports/browserstack/test-results.json
+          echo '${{ env.test_result }}' > ${{ github.workspace }}/androidDemoApp/build/reports/browserstack/test-results.json
 
       - name: "Upload Test Results"
         uses: actions/upload-artifact@v5
         with:
           name: browserstack-test-results
-          path: ${{ github.workspace }}/composeDemoApp/build/reports/browserstack/test-results.json
+          path: ${{ github.workspace }}/androidDemoApp/build/reports/browserstack/test-results.json

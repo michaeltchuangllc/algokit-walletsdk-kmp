@@ -2,7 +2,7 @@ import AVFoundation
 import CoreImage
 import CoreVideo
 import UIKit
-import composeDemoApp
+import sharedDemoApp
 
 final class BroadcastFrameCapture: NSObject, AVCaptureVideoDataOutputSampleBufferDelegate {
 

@@ -1,6 +1,6 @@
 package com.michaeltchuang.walletsdk.demo.ui.components
 
-import algokit_walletsdk_kmp.composedemoapp.generated.resources.Res
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.Res
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
