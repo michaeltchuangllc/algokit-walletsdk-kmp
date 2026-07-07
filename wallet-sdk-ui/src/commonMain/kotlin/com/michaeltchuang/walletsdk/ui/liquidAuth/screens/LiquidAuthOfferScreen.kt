@@ -64,10 +64,10 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
-import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController

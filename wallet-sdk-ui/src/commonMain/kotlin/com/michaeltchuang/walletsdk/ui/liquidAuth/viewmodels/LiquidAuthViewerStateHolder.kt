@@ -2,10 +2,10 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.railmpp.core.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentApproval
-import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentTerms
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import io.github.aakira.napier.Napier

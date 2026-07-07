@@ -3,9 +3,9 @@ package com.michaeltchuang.walletsdk.core.railmpp
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRail
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRailRequestParams
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentReceipt
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.core.railmpp.core.RailPayment
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppConsumer
 import com.michaeltchuang.walletsdk.core.railmpp.internal.MppProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppDecodeTxn

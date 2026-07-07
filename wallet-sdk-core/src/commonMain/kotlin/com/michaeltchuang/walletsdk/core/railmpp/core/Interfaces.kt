@@ -1,5 +1,14 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.AuthChallenge
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.AuthIdentity
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
+
 // Core interfaces for webrtc-payment-sdk.
 // Extension points for auth providers, payment rails, and signaling adapters.
 
