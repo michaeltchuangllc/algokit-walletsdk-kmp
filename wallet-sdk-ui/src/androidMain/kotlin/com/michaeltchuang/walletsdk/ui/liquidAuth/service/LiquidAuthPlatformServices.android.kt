@@ -126,10 +126,11 @@ actual class LiquidAuthPlatformServices(
         response: String,
     ) {
         val requestOption = PublicKeyCredentialCreationOptions(response)
+        val credentialId = credential.rawId ?: return
         addNewPasskey(
             address = account,
             requestOptions = requestOption,
-            credId = credential.rawId,
+            credId = credentialId,
         )
         Napier.d(tag = TAG, message = "Credential saved to local storage")
         eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast("Credential saved to local storage"))

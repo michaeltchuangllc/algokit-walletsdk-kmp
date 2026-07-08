@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.onboarding.components
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_ledger_old_export
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_phone_new
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -21,11 +22,11 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShapeBig
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.utils.LottieJsonAnimations
-import io.github.alexzhirkevich.compottie.LottieAnimation
+import io.github.alexzhirkevich.compottie.Compottie
 import io.github.alexzhirkevich.compottie.LottieCompositionSpec
-import io.github.alexzhirkevich.compottie.LottieConstants
 import io.github.alexzhirkevich.compottie.animateLottieCompositionAsState
 import io.github.alexzhirkevich.compottie.rememberLottieComposition
+import io.github.alexzhirkevich.compottie.rememberLottiePainter
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.vectorResource
 
@@ -40,7 +41,7 @@ fun AnimationLoader(
     val preloaderLottieComposition by rememberLottieComposition(lottie)
     val preloaderProgress by animateLottieCompositionAsState(
         preloaderLottieComposition,
-        iterations = LottieConstants.IterateForever,
+        iterations = Compottie.IterateForever,
         isPlaying = true,
     )
     Column(modifier = modifier) {
@@ -49,9 +50,12 @@ fun AnimationLoader(
                 imageVector = start,
                 contentDescription = "start side of the animation",
             )
-            LottieAnimation(
-                composition = preloaderLottieComposition,
-                progress = { preloaderProgress },
+            Image(
+                painter = rememberLottiePainter(
+                    composition = preloaderLottieComposition,
+                    progress = { preloaderProgress },
+                ),
+                contentDescription = null,
                 modifier =
                     Modifier
                         .width(120.dp)

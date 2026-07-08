@@ -28,7 +28,6 @@ plugins {
     alias(libs.plugins.compose).apply(false)
     alias(libs.plugins.compose.compiler).apply(false)
     alias(libs.plugins.gradle.play.publisher).apply(false)
-    alias(libs.plugins.kotlin.android).apply(false)
     alias(libs.plugins.kotlinx.kover).apply(false)
     alias(libs.plugins.kotlinx.serialization).apply(false)
     alias(libs.plugins.ksp).apply(false)

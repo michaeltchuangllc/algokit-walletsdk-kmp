@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.multiplatform)
 
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlinx.serialization)
@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.maven.publish)
 }
 
-apply(plugin = "shot")
 
 // Apply shared version calculation script
 apply(from = rootProject.file("gradle/version.gradle.kts"))
@@ -22,24 +21,40 @@ fun calculateVersionName(): String = (extra["calculateVersionName"] as () -> Str
 fun getGitHash(): String = (extra["getGitHash"] as () -> String).invoke()
 
 kotlin {
-    androidTarget {
-        publishLibraryVariants(
-            "release",
-        )
-        compilations.all {
-            compileTaskProvider {
-                compilerOptions {
-                    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-                    freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
-                }
+    android {
+        namespace = "com.michaeltchuang.walletsdk.ui"
+        compileSdk =
+            libs.versions.android.compileSdk
+                .get()
+                .toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        androidResources.enable = true
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
+        }
+        packaging {
+            resources {
+                excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             }
+        }
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }.configure {
+            applicationId = "com.michaeltchuang.walletsdk.ui.test"
+            instrumentationRunner = "com.karumi.shot.ShotTestRunner"
         }
     }
 
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
-        iosX64(),
     ).forEach { target ->
         target.compilations.all {
             compileTaskProvider.configure {
@@ -151,7 +166,7 @@ kotlin {
             }
         }
 
-        androidInstrumentedTest {
+        val androidDeviceTest by getting {
             dependencies {
                 implementation(compose.uiTooling)
                 implementation(compose.material3)
@@ -183,37 +198,6 @@ configurations.all {
     }
 }
 
-android {
-    namespace = "com.michaeltchuang.walletsdk.ui"
-    compileSdk = 36
-
-    packagingOptions {
-        exclude("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
-    }
-
-    defaultConfig {
-        minSdk =
-            libs.versions.android.minSdk
-                .get()
-                .toInt()
-        testApplicationId = "com.michaeltchuang.walletsdk.ui.test"
-        testInstrumentationRunner = "com.karumi.shot.ShotTestRunner"
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
-    sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
-
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
-    }
-}
 
 val generateBuildInfo by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/kotlin")

@@ -423,7 +423,7 @@ actual open class AnswerViewModel actual constructor(
             .setContentTitle(contentTitle)
             .setContentText(contentText)
             .setColor(ContextCompat.getColor(context, R.color.biometric_error_color))
-            .setSmallIcon(com.michaeltchuang.walletsdk.ui.R.drawable.ic_key)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
 
     // --- ViewEvents ---
     sealed interface ViewEvent {
