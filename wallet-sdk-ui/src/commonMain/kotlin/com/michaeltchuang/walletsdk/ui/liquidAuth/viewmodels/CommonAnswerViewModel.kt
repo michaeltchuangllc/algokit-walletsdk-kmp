@@ -463,7 +463,6 @@ open class CommonAnswerViewModel(
                     .topUpSessionVault(
                         signer = signer,
                         additionalDepositMicroUsdc = depositMicroUsdc,
-                        appId = sessionVaultAppId,
                     ).getOrThrow()
             }.onFailure { throwable ->
                 setupMppPaymentViewerUseCase.clearPendingPayment()

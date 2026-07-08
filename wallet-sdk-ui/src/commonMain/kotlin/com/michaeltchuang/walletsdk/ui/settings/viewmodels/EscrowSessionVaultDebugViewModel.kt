@@ -12,9 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultC
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.contractClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -96,12 +94,11 @@ class EscrowSessionVaultDebugViewModel(
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
                     if (EscrowSessionVaultManagerClient.channelId == null) {
-                        contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
-                                .initializeChannelId(
-                                    payerAddress = viewer,
-                                    payeeAddress = creator,
-                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                                )
+                        EscrowSessionVaultManagerClient.initializeChannelId(
+                            payerAddress = viewer,
+                            payeeAddress = creator,
+                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        )
                     }
 
                     val result =
@@ -111,8 +108,6 @@ class EscrowSessionVaultDebugViewModel(
                                 viewerAddress = viewer,
                                 creatorAddress = creator,
                                 depositAmountMicroUsdc = depositMicroUsdc,
-                                appId = vaultContext.appId,
-                                usdcAssetId = vaultContext.usdcAssetId,
                             )
                         }
                     result
@@ -150,7 +145,6 @@ class EscrowSessionVaultDebugViewModel(
                         MppPayments.getRemainingBalanceFromSessionVault(
                             viewerAddress = viewer,
                             hostAddress = creator,
-                            appId = vaultContext.appId,
                         )
                     }
                 updateContent { it.copy(remainingBalance = remaining) }
@@ -191,9 +185,7 @@ class EscrowSessionVaultDebugViewModel(
                 val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
-                        MppPayments.getSessionProgressSnapshotFromVault(
-                            appId = vaultContext.appId
-                        )
+                        MppPayments.getSessionProgressSnapshotFromVault()
                     } ?: run {
                         showError(PaymentError.SessionNotFound, "UPDATE_VOUCHER_NO_SNAPSHOT")
                         return@launch
@@ -233,7 +225,6 @@ class EscrowSessionVaultDebugViewModel(
                     MppPayments.settleMessage(
                         cumulativeAmountMicroUsdc = newCumulative,
                         channelId = channelId,
-                        appId = vaultContext.appId,
                     )
 
                 val viewerSignature = viewerSigner.signMessage(settleMessage)
@@ -242,7 +233,6 @@ class EscrowSessionVaultDebugViewModel(
                 withContext(Dispatchers.Default) {
                     MppPayments.updateVoucherOnChain(
                         signer = viewerSigner,
-                        appId = vaultContext.appId,
                         viewerAddress = viewer,
                         hostAddress = creator,
                         totalAmountUsedMicroUsdc = newCumulative,
@@ -285,10 +275,9 @@ class EscrowSessionVaultDebugViewModel(
                     }
                     val settleMessage =
                         MppPayments.settleMessage(
-                            cumulativeAmountMicroUsdc = depositMicroUsdc,
-                            channelId = channelId,
-                            appId = vaultContext.appId,
-                        )
+                        cumulativeAmountMicroUsdc = depositMicroUsdc,
+                        channelId = channelId,
+                    )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     val result =
@@ -297,7 +286,6 @@ class EscrowSessionVaultDebugViewModel(
                                 signer = viewerSigner,
                                 cumulativeAmountMicroUsdc = depositMicroUsdc,
                                 signature = signature,
-                                appId = vaultContext.appId,
                             )
                         }
                     result
@@ -332,9 +320,7 @@ class EscrowSessionVaultDebugViewModel(
                 val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
-                        MppPayments.getSessionProgressSnapshotFromVault(
-                            appId = vaultContext.appId
-                        )
+                        MppPayments.getSessionProgressSnapshotFromVault()
                     } ?: run {
                         showError(PaymentError.SessionNotFound, "SETTLE_NO_SNAPSHOT")
                         return@launch
@@ -379,10 +365,7 @@ class EscrowSessionVaultDebugViewModel(
                 sendStatus("Settling to creator…")
                 val settleResult =
                     withContext(Dispatchers.Default) {
-                        MppPayments.settleLatestVoucher(
-                            signer = creatorSigner,
-                            appId = vaultContext.appId,
-                        )
+                        MppPayments.settleLatestVoucher(signer = creatorSigner)
                     }
 
                 settleResult
@@ -421,15 +404,9 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        val vaultContext = getSessionVaultContextUseCase()
-                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
-                        contractClient(
-                            appId = vaultContext.appId,
-                            usdcAssetId = vaultContext.usdcAssetId,
-                        ).close(
+                        EscrowSessionVaultManagerClient.close(
                             signer = creatorSigner,
                             channelId = channelId,
-                            algodUrl = algodUrl,
                         )
                     }
 
@@ -472,15 +449,9 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        val vaultContext = getSessionVaultContextUseCase()
-                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
-                        contractClient(
-                            appId = vaultContext.appId,
-                            usdcAssetId = vaultContext.usdcAssetId,
-                        ).requestClose(
+                        EscrowSessionVaultManagerClient.requestClose(
                             signer = viewerSigner,
                             channelId = channelId,
-                            algodUrl = algodUrl,
                         )
                     }
 
@@ -523,15 +494,9 @@ class EscrowSessionVaultDebugViewModel(
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        val vaultContext = getSessionVaultContextUseCase()
-                        val algodUrl = MppPayments.algodUrlForAppId(vaultContext.appId)
-                        contractClient(
-                            appId = vaultContext.appId,
-                            usdcAssetId = vaultContext.usdcAssetId,
-                        ).withdraw(
+                        EscrowSessionVaultManagerClient.withdraw(
                             signer = viewerSigner,
                             channelId = channelId,
-                            algodUrl = algodUrl,
                         )
                     }
 

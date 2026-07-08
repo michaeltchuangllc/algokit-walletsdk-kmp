@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
@@ -11,11 +10,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeMsgPackAny
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient.Companion.channelId
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -30,7 +27,6 @@ object MppPayments {
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
-    private val railMppDataRepository = RailMppDataRepositoryImpl()
 
     fun algodUrlForAppId(appId: Long): String =
         when (appId) {
@@ -44,18 +40,6 @@ object MppPayments {
             else -> AssetConstants.USDC_TESTNET_ID
         }
 
-    fun contractClient(
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        usdcAssetId: Long = usdcAssetIdForAppId(appId),
-        algodUrl: String = algodUrlForAppId(appId),
-    ): EscrowSessionVaultManagerClient =
-        EscrowSessionVaultManagerClient(
-            appId = appId,
-            usdcAssetId = usdcAssetId,
-            defaultSalt = runBlocking { railMppDataRepository.getOrCreateChannelSalt() },
-            defaultAlgodUrl = algodUrl,
-        )
-
     fun decodeSignedTransaction(bytes: ByteArray): Any? =
         runCatching { decodeMsgPackAny(bytes) }
             .onFailure {
@@ -65,7 +49,7 @@ object MppPayments {
     @OptIn(ExperimentalEncodingApi::class)
     fun createVoucherJson(
         sessionId: String,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+        appId: Long = EscrowSessionVaultManagerClient.appId,
         viewerAddress: String,
         viewerPublicKey: ByteArray,
         creatorAddress: String,
@@ -75,7 +59,7 @@ object MppPayments {
         signatureBase64: String? = null,
     ): String {
         val channelId =
-            channelId
+            EscrowSessionVaultManagerClient.channelId
                 ?.let(Base64::encode)
 
         return PaymentVoucher(
@@ -111,33 +95,30 @@ object MppPayments {
     suspend fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
         hostAddress: String,
-        appId: Long,
         authorizedSignerPublicKey: ByteArray? = null,
     ): Long {
         val baseContext = "viewer=$viewerAddress host=$hostAddress"
-        val resolvedChannelId = channelId ?: return 0L
-        val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, appId, logContext = baseContext)
+        val resolvedChannelId = EscrowSessionVaultManagerClient.channelId ?: return 0L
+        val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
-        Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=$appId $baseContext", tag = TAG)
+        Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=${EscrowSessionVaultManagerClient.appId} $baseContext", tag = TAG)
         return 0L
     }
 
     suspend fun getRemainingBalanceFromSessionVaultByChannelId(
         channelId: ByteArray,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        algodUrl: String = algodUrlForAppId(appId),
         logContext: String? = null,
     ): Long? =
         withContext(Dispatchers.IO) {
             runCatching {
                 val data =
-                    contractClient(appId = appId, algodUrl = algodUrl)
-                        .getSessionDynamicData(channelId, algodUrl)
+                    EscrowSessionVaultManagerClient
+                        .getSessionDynamicData(channelId)
                         .getOrThrow()
                 (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
             }.onFailure {
-                Napier.e("[SESSION_VAULT_REMAINING_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
+                Napier.e("[SESSION_VAULT_REMAINING_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}", it, tag = TAG)
             }.getOrNull()
         }
 
@@ -146,58 +127,50 @@ object MppPayments {
         viewerAddress: String,
         creatorAddress: String,
         depositAmountMicroUsdc: Long = DEPOSIT_MICRO_USDC_LONG,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        usdcAssetId: Long = usdcAssetIdForAppId(appId),
     ): Result<String> {
         require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
         require(creatorAddress.isNotBlank()) { "creatorAddress is required" }
         require(signer.address == viewerAddress) {
             "Session vault deposit signer must match viewerAddress"
         }
-        val algodUrl = algodUrlForAppId(appId)
         Napier.d(
-            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress creator=$creatorAddress appId=$appId usdcAssetId=$usdcAssetId algodUrl=$algodUrl",
+            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress creator=$creatorAddress appId=${EscrowSessionVaultManagerClient.appId} usdcAssetId=${EscrowSessionVaultManagerClient.usdcAssetId} algodUrl=${EscrowSessionVaultManagerClient.algodUrl}",
             tag = TAG,
         )
-        return contractClient(appId, usdcAssetId).openAndDeposit(
+        return EscrowSessionVaultManagerClient.openAndDeposit(
             signer = signer,
             payerAddress = viewerAddress,
             payeeAddress = creatorAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
-            algodUrl = algodUrl,
         )
     }
 
     suspend fun topUpSessionVault(
         signer: MppWalletSigner,
         additionalDepositMicroUsdc: Long,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        usdcAssetId: Long = usdcAssetIdForAppId(appId),
     ): Result<String> {
-        if (channelId == null) return Result.failure(Exception("channelId is null"))
-        val algodUrl = algodUrlForAppId(appId)
-        return contractClient(appId, usdcAssetId).topUp(signer, channelId!!, additionalDepositMicroUsdc, algodUrl)
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
+        return EscrowSessionVaultManagerClient.topUp(signer, channelId, additionalDepositMicroUsdc)
     }
 
     suspend fun setAuthorizedSignerForSession(
         signer: MppWalletSigner,
-        appId: Long,
         viewerAddress: String,
         hostAddress: String,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
-        if (channelId == null) return Result.failure(Exception("channelId is null"))
-        val algodUrl = algodUrlForAppId(appId)
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
         val result =
-            contractClient(appId).setAuthorizedSignerPublicKey(
+            EscrowSessionVaultManagerClient.setAuthorizedSignerPublicKey(
                 signer,
-                channelId!!,
+                channelId,
                 authorizedSignerPublicKey,
-                algodUrl,
             )
         result
-            .onSuccess { Napier.d("[VIEWER_SET_AUTH_SIGNER_OK] appId=$appId txId=$it", tag = TAG) }
-            .onFailure { Napier.e("[VIEWER_SET_AUTH_SIGNER_ERR] appId=$appId viewer=$viewerAddress", it, tag = TAG) }
+            .onSuccess { Napier.d("[VIEWER_SET_AUTH_SIGNER_OK] appId=${EscrowSessionVaultManagerClient.appId} txId=$it", tag = TAG) }
+            .onFailure { Napier.e("[VIEWER_SET_AUTH_SIGNER_ERR] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress", it, tag = TAG) }
         return result
     }
 
@@ -225,27 +198,24 @@ object MppPayments {
 
     suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
-        appId: Long,
         viewerAddress: String,
         hostAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
-        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
         Napier.d(
-            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=$appId viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
+            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
             tag = TAG,
         )
-
-        val algodUrl = algodUrlForAppId(appId)
         val result =
-            contractClient(appId).updateVoucher(
+            EscrowSessionVaultManagerClient.updateVoucher(
                 signer,
                 channelId,
                 totalAmountUsedMicroUsdc,
                 signature,
-                algodUrl,
             )
         result
             .onSuccess { Napier.d("[VIEWER_UPDATE_VOUCHER_OK] txId=$it channelIdHash=$channelIdHash", tag = TAG) }
@@ -264,48 +234,42 @@ object MppPayments {
         return result
     }
 
-    suspend fun settleLatestVoucher(
-        signer: MppWalletSigner,
-        appId: Long,
-    ): Result<String> {
-        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
-        val algodUrl = algodUrlForAppId(appId)
-        return contractClient(appId).settleLatest(signer, channelId, algodUrl)
+    suspend fun settleLatestVoucher(signer: MppWalletSigner): Result<String> {
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
+        return EscrowSessionVaultManagerClient.settleLatest(signer, channelId)
     }
 
     suspend fun settle(
         signer: MppWalletSigner,
-        appId: Long,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
-        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
-        val algodUrl = algodUrlForAppId(appId)
-        return contractClient(appId).settle(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
+        return EscrowSessionVaultManagerClient.settle(signer, channelId, cumulativeAmountMicroUsdc, signature)
     }
 
     suspend fun verifySettleSignature(
         signer: MppWalletSigner,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
     ): Result<String> {
-        val channelId = channelId ?: return Result.failure(Exception("channelId is null"))
-        val algodUrl = algodUrlForAppId(appId)
-        return contractClient(appId = appId).verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature, algodUrl)
+        val channelId = EscrowSessionVaultManagerClient.channelId
+            ?: return Result.failure(Exception("channelId is null"))
+        return EscrowSessionVaultManagerClient.verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature)
     }
 
     fun settleMessage(
         cumulativeAmountMicroUsdc: Long,
         channelId: ByteArray,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-    ): ByteArray = contractClient(appId = appId).settleMessage(channelId, cumulativeAmountMicroUsdc)
+    ): ByteArray = EscrowSessionVaultManagerClient.settleMessage(channelId, cumulativeAmountMicroUsdc)
 
     suspend fun closeSessionVault(
         signer: MppWalletSigner,
         channelId: ByteArray,
     ): Result<String> =
-        contractClient().close(
+        EscrowSessionVaultManagerClient.close(
             signer = signer,
             channelId = channelId,
         )
@@ -339,24 +303,15 @@ object MppPayments {
         )
     }
 
-    suspend fun getSessionProgressSnapshotFromVault(
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        algodUrl: String = algodUrlForAppId(appId),
-    ): SessionProgressSnapshot? {
-        val data =
-            getSessionDynamicDataFromVault(  appId, algodUrl)
-                ?: return null
+    suspend fun getSessionProgressSnapshotFromVault(): SessionProgressSnapshot? {
+        val data = getSessionDynamicDataFromVault() ?: return null
         return computeSessionProgressSnapshot(data)
     }
 
-    suspend fun getSessionDynamicDataFromVault(
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        algodUrl: String = algodUrlForAppId(appId),
-    ): SessionDynamicData? {
-        val channelIdCandidates = listOf(channelId ?: return null)
-
+    suspend fun getSessionDynamicDataFromVault(): SessionDynamicData? {
+        val channelIdCandidates = listOf(EscrowSessionVaultManagerClient.channelId ?: return null)
         channelIdCandidates.forEachIndexed { index, channelId ->
-            val result = getSessionDynamicDataFromVaultByChannelId(channelId, appId, algodUrl, "candidate=$index")
+            val result = getSessionDynamicDataFromVaultByChannelId(channelId, "candidate=$index")
             if (result != null) return result
         }
         return null
@@ -364,24 +319,21 @@ object MppPayments {
 
     suspend fun getSessionDynamicDataFromVaultByChannelId(
         channelId: ByteArray,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-        algodUrl: String = algodUrlForAppId(appId),
         logContext: String? = null,
     ): SessionDynamicData? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val data = contractClient(appId, algodUrl = algodUrl).getSessionDynamicData(channelId, algodUrl).getOrThrow()
+                val data = EscrowSessionVaultManagerClient.getSessionDynamicData(channelId).getOrThrow()
                 SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
             }.onFailure {
-                Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=$appId context=${logContext.orEmpty()}", it, tag = TAG)
+                Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}", it, tag = TAG)
             }.getOrNull()
         }
 
     fun buildClaimMessage(
-        appId: Long,
         channelId: ByteArray,
         totalAmountClaimedMicroUsdc: Long,
-    ): ByteArray = encodeUint64(appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) + "settle".encodeToByteArray()
+    ): ByteArray = encodeUint64(EscrowSessionVaultManagerClient.appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) + "settle".encodeToByteArray()
 
     @OptIn(ExperimentalEncodingApi::class)
     fun serializeVoucherSignature(signature: ByteArray): String = Base64.encode(signature)
@@ -396,9 +348,8 @@ object MppPayments {
 
     fun awaitTransactionConfirmation(
         txId: String,
-        appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
         maxRounds: Int = 10,
-    ): Boolean = awaitConfirmationInternal(txId, algodUrlForAppId(appId), maxRounds)
+    ): Boolean = awaitConfirmationInternal(txId, EscrowSessionVaultManagerClient.algodUrl, maxRounds)
 }
 
 sealed class MppPaymentVerificationResult {
