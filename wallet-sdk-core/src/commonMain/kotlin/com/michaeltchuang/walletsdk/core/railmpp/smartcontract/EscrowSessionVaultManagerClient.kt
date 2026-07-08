@@ -1,6 +1,10 @@
 package com.michaeltchuang.walletsdk.core.railmpp.smartcontract
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_URL
+import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
@@ -10,34 +14,48 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
 /** Kotlin client for the EscrowSessionVaultManager ARC-56 contract. */
-class EscrowSessionVaultManagerClient(
-    private val appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-    private val usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID,
-    val defaultSalt: ByteArray,
-    private val defaultAlgodUrl: String = DEFAULT_ALGOD_URL,
-) {
-    companion object {
+object EscrowSessionVaultManagerClient {
+    private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
+    private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
 
-        private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
-        private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
+    private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
+    private val ABI_TOP_UP = byteArrayOf(0xbd.toByte(), 0xcf.toByte(), 0xac.toByte(), 0x58)
+    private val ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY = byteArrayOf(0x4b, 0x1d, 0xbb.toByte(), 0x67)
+    private val ABI_UPDATE_VOUCHER = byteArrayOf(0xa9.toByte(), 0x8d.toByte(), 0x82.toByte(), 0xda.toByte())
+    private val ABI_SETTLE = byteArrayOf(0xf7.toByte(), 0xdf.toByte(), 0x8d.toByte(), 0xe2.toByte())
+    private val ABI_SETTLE_LATEST = byteArrayOf(0x6e, 0x87.toByte(), 0x27, 0x89.toByte())
+    private val ABI_CLOSE = byteArrayOf(0xe8.toByte(), 0x6a, 0xe9.toByte(), 0xe9.toByte())
+    private val ABI_REQUEST_CLOSE = byteArrayOf(0x34, 0x68, 0x50, 0x50)
+    private val ABI_WITHDRAW = byteArrayOf(0x59, 0x05, 0xd4.toByte(), 0xf4.toByte())
+    private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
+    private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
+    private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
 
-        private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
-        private val ABI_TOP_UP = byteArrayOf(0xbd.toByte(), 0xcf.toByte(), 0xac.toByte(), 0x58)
-        private val ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY = byteArrayOf(0x4b, 0x1d, 0xbb.toByte(), 0x67)
-        private val ABI_UPDATE_VOUCHER = byteArrayOf(0xa9.toByte(), 0x8d.toByte(), 0x82.toByte(), 0xda.toByte())
-        private val ABI_SETTLE = byteArrayOf(0xf7.toByte(), 0xdf.toByte(), 0x8d.toByte(), 0xe2.toByte())
-        private val ABI_SETTLE_LATEST = byteArrayOf(0x6e, 0x87.toByte(), 0x27, 0x89.toByte())
-        private val ABI_CLOSE = byteArrayOf(0xe8.toByte(), 0x6a, 0xe9.toByte(), 0xe9.toByte())
-        private val ABI_REQUEST_CLOSE = byteArrayOf(0x34, 0x68, 0x50, 0x50)
-        private val ABI_WITHDRAW = byteArrayOf(0x59, 0x05, 0xd4.toByte(), 0xf4.toByte())
-        private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
-        private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
-        private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
-        var channelId: ByteArray? = null
-        var salt: ByteArray? = null
+    var appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID
+    var usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID
+    var algodUrl: String = DEFAULT_ALGOD_URL
+    var defaultSalt: ByteArray? = null
+    var channelId: ByteArray? = null
+    var salt: ByteArray? = null
+
+    init {
+        runCatching {
+            val network = runBlocking {
+                provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
+            }
+            applyNetworkDefaults(network)
+        }
+        runCatching {
+            defaultSalt = runBlocking {
+                RailMppDataRepositoryImpl().getOrCreateChannelSalt()
+            }
+        }
     }
 
     fun deriveChannelId(
@@ -45,6 +63,7 @@ class EscrowSessionVaultManagerClient(
         payeeAddress: String,
         authorizedSignerPublicKey: ByteArray,
     ): ByteArray {
+        val defaultSalt = defaultSalt ?: error("defaultSalt is not configured")
         val payer = decodeAlgorandAddressPublicKey(payerAddress)
         val payee = decodeAlgorandAddressPublicKey(payeeAddress)
         return sha256(
@@ -68,14 +87,13 @@ class EscrowSessionVaultManagerClient(
         payerAddress: String = signer.address,
         payeeAddress: String,
         depositMicroUsdc: Long,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             require(payerAddress == signer.address) {
                 "payerAddress must match signer.address for session vault deposit"
             }
             val channelId = channelId ?: error("channelId is null")
-            val salt = salt ?: error("salt is null")
+            val salt = salt ?: defaultSalt ?: error("salt is null")
 
             submitAssetTransferAndAppCallInternal(
                 signer = signer,
@@ -104,7 +122,6 @@ class EscrowSessionVaultManagerClient(
         signer: MppWalletSigner,
         channelId: ByteArray,
         additionalDepositMicroUsdc: Long,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAssetTransferAndAppCallInternal(
@@ -123,7 +140,6 @@ class EscrowSessionVaultManagerClient(
         signer: MppWalletSigner,
         channelId: ByteArray,
         authorizedSignerPublicKey: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -151,7 +167,6 @@ class EscrowSessionVaultManagerClient(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -180,7 +195,6 @@ class EscrowSessionVaultManagerClient(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -207,7 +221,6 @@ class EscrowSessionVaultManagerClient(
     suspend fun settleLatest(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -225,7 +238,6 @@ class EscrowSessionVaultManagerClient(
     suspend fun close(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -236,7 +248,7 @@ class EscrowSessionVaultManagerClient(
                 args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
-                foreignAccounts = getChannelParticipants(channelId, algodUrl),
+                foreignAccounts = getChannelParticipants(channelId),
             )
         }
 
@@ -244,7 +256,6 @@ class EscrowSessionVaultManagerClient(
     suspend fun requestClose(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -261,7 +272,6 @@ class EscrowSessionVaultManagerClient(
     suspend fun withdraw(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -272,14 +282,13 @@ class EscrowSessionVaultManagerClient(
                 args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
                 boxKeys = listOf(Pair(appId, channelId)),
                 foreignAssets = listOf(usdcAssetId),
-                foreignAccounts = getChannelParticipants(channelId, algodUrl),
+                foreignAccounts = getChannelParticipants(channelId),
             )
         }
 
     suspend fun fundMbrPool(
         signer: MppWalletSigner,
         receiverAddress: String,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -295,7 +304,6 @@ class EscrowSessionVaultManagerClient(
 
     suspend fun optInUsdc(
         signer: MppWalletSigner,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -314,7 +322,6 @@ class EscrowSessionVaultManagerClient(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -343,15 +350,8 @@ class EscrowSessionVaultManagerClient(
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
     ): Result<String> =
-        verifySettleSignatureOnChain(
-            signer,
-            channelId,
-            cumulativeAmountMicroUsdc,
-            signature,
-            algodUrl,
-        )
+        verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature)
 
     data class SessionStaticData(
         val startRound: Long,
@@ -370,10 +370,7 @@ class EscrowSessionVaultManagerClient(
         val latestVoucherAmountOffset: Int,
     )
 
-    fun getSessionStaticData(
-        channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
-    ): Result<SessionStaticData> =
+    fun getSessionStaticData(channelId: ByteArray): Result<SessionStaticData> =
         runCatching {
             val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
             SessionStaticData(
@@ -382,10 +379,7 @@ class EscrowSessionVaultManagerClient(
             )
         }
 
-    fun getSessionDynamicData(
-        channelId: ByteArray,
-        algodUrl: String = defaultAlgodUrl,
-    ): Result<SessionDynamicData> =
+    fun getSessionDynamicData(channelId: ByteArray): Result<SessionDynamicData> =
         runCatching {
             val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
             val offsets = decodeSessionInfoOffsets(bytes)
@@ -414,10 +408,7 @@ class EscrowSessionVaultManagerClient(
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private fun getChannelParticipants(
-        channelId: ByteArray,
-        algodUrl: String,
-    ): List<String> {
+    private fun getChannelParticipants(channelId: ByteArray): List<String> {
         val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
         if (bytes.size < 64) error("Invalid session box payload size=${bytes.size}")
         val payer = encodeAlgorandAddress(bytes.copyOfRange(0, 32))
@@ -470,5 +461,21 @@ class EscrowSessionVaultManagerClient(
             ((bytes.size ushr 8) and 0xFF).toByte(),
             (bytes.size and 0xFF).toByte(),
         ) + bytes
+    }
+
+    private fun applyNetworkDefaults(network: AlgorandNetwork) {
+        when (network) {
+            AlgorandNetwork.MAINNET -> {
+                appId = RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID
+                usdcAssetId = AssetConstants.USDC_MAINNET_ID
+                algodUrl = NODE_MAINNET_URL
+            }
+
+            AlgorandNetwork.TESTNET -> {
+                appId = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
+                usdcAssetId = AssetConstants.USDC_TESTNET_ID
+                algodUrl = NODE_TESTNET_URL
+            }
+        }
     }
 }

@@ -5,10 +5,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastClaimVoucherHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
@@ -16,7 +16,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCS
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
@@ -664,10 +663,7 @@ suspend fun settleHostVoucherOnChain(
 
     try {
         val result =
-            MppPayments.settleLatestVoucher(
-                signer = signer,
-                appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
-            )
+            MppPayments.settleLatestVoucher(signer = signer)
         result
             .onSuccess { txId ->
                 Napier.d("[HOST_SETTLE_OK] txId=$txId host=$hostAddress viewer=$viewerAddress")

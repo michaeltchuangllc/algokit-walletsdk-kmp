@@ -162,17 +162,15 @@ class MppPaymentViewerManager(
                                     viewerAddress = viewerAddress,
                                     creatorAddress = sessionVaultHostAddress,
                                     depositAmountMicroUsdc = depositMicroUsdc,
-                                    appId = sessionVaultAppId,
                                 ).onSuccess { txId ->
                                     markPaymentPending()
                                     Napier.d("[VIEWER_SESSION_VAULT_DEPOSIT_OK] txId=$txId pendingPayment=$pendingPayment", tag = TAG)
                                     MppPayments
                                         .setAuthorizedSignerForSession(
                                             signer = signer,
-                                            appId = sessionVaultAppId,
                                             viewerAddress = viewerAddress,
-                                            hostAddress = sessionVaultHostAddress,
-                                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                    hostAddress = sessionVaultHostAddress,
+                                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                         ).onFailure { err ->
                                             Napier.e(
                                                 "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress host=$sessionVaultHostAddress",
@@ -372,9 +370,7 @@ class MppPaymentViewerManager(
         if (receiptViewerAddress.isNotBlank()) {
             val preUpdateDynamicData =
                 safeApiCall("getSessionDynamicData.preUpdate") {
-                    MppPayments.getSessionDynamicDataFromVault(
-                        appId = sessionVaultAppId
-                    )
+                    MppPayments.getSessionDynamicDataFromVault()
                 }
             val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
             val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
@@ -400,7 +396,6 @@ class MppPaymentViewerManager(
                 runCatching {
                     val message =
                         MppPayments.buildClaimMessage(
-                            appId = sessionVaultAppId,
                             totalAmountClaimedMicroUsdc = voucherClaimed,
                             channelId = channelId,
                         )
@@ -434,9 +429,7 @@ class MppPaymentViewerManager(
 
         val progressSnapshot =
             safeApiCall("getSessionProgressSnapshot.onReceipt") {
-                MppPayments.getSessionProgressSnapshotFromVault(
-                    appId = sessionVaultAppId
-                )
+                MppPayments.getSessionProgressSnapshotFromVault()
             }
         setViewerSessionVaultProgress(
             progressSnapshot?.remainingSettledMicroUsdc ?: 0L,
@@ -465,7 +458,6 @@ class MppPaymentViewerManager(
                         withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
                             MppPayments.updateVoucherOnChain(
                                 signer = signer,
-                                appId = sessionVaultAppId,
                                 viewerAddress = receiptViewerAddress,
                                 hostAddress = hostAddress,
                                 totalAmountUsedMicroUsdc = voucherClaimed,
@@ -500,7 +492,6 @@ class MppPaymentViewerManager(
             if (missingSignerBox) {
                 MppPayments.setAuthorizedSignerForSession(
                     signer = signer,
-                    appId = sessionVaultAppId,
                     viewerAddress = receiptViewerAddress,
                     hostAddress = hostAddress,
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
@@ -512,9 +503,7 @@ class MppPaymentViewerManager(
 
         val onChainDynamicData =
             safeApiCall("getSessionDynamicData.postUpdate") {
-                MppPayments.getSessionDynamicDataFromVault(
-                    appId = sessionVaultAppId
-                )
+                MppPayments.getSessionDynamicDataFromVault()
             }
         val onChainLatestVoucher = onChainDynamicData?.latestVoucherAmount ?: 0L
         val duplicateVoucherUpdate = MppPayments.isDuplicateVoucherUpdateError(updateResult.exceptionOrNull()?.message.orEmpty())
@@ -524,9 +513,7 @@ class MppPaymentViewerManager(
         if (effectiveUpdateOk) {
             val progressSnapshot =
                 safeApiCall("getSessionProgressSnapshot.postUpdate") {
-                    MppPayments.getSessionProgressSnapshotFromVault(
-                        appId = sessionVaultAppId,
-                    )
+                    MppPayments.getSessionProgressSnapshotFromVault()
                 }
             val voucherJson =
                 MppPayments.createVoucherJson(
@@ -587,9 +574,7 @@ class MppPaymentViewerManager(
             val existingSessionData =
                 safeApiCall("getSessionDynamicData.streamGated") {
                     withContext(Dispatchers.IO) {
-                        MppPayments.getSessionDynamicDataFromVault(
-                            appId = sessionVaultAppId
-                        )
+                        MppPayments.getSessionDynamicDataFromVault()
                     }
                 }
 
@@ -598,7 +583,6 @@ class MppPaymentViewerManager(
                     MppPayments.topUpSessionVault(
                         signer = signer,
                         additionalDepositMicroUsdc = depositMicroUsdc,
-                        appId = sessionVaultAppId,
                     )
                 } else {
                     MppPayments.openSessionAndDeposit(
@@ -606,11 +590,9 @@ class MppPaymentViewerManager(
                         viewerAddress = viewerAddress,
                         creatorAddress = hostAddress,
                         depositAmountMicroUsdc = depositMicroUsdc,
-                        appId = sessionVaultAppId,
                     ).onSuccess {
                         MppPayments.setAuthorizedSignerForSession(
                             signer = signer,
-                            appId = sessionVaultAppId,
                             viewerAddress = viewerAddress,
                             hostAddress = hostAddress,
                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,

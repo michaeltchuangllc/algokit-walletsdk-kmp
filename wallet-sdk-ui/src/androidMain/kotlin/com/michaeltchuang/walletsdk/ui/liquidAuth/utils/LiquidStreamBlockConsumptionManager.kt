@@ -245,9 +245,7 @@ internal class LiquidStreamBlockConsumptionManager(
             } else {
                 try {
                     withTimeout(CHAIN_READ_TIMEOUT_MS) {
-                        MppPayments.getSessionProgressSnapshotFromVault(
-                            appId = sessionVaultAppId
-                        )
+                        MppPayments.getSessionProgressSnapshotFromVault()
                     }
                 } catch (ce: CancellationException) {
                     throw ce
@@ -337,9 +335,7 @@ internal class LiquidStreamBlockConsumptionManager(
 
                 val refreshed =
                     withTimeout(CHAIN_READ_TIMEOUT_MS) {
-                        MppPayments.getSessionDynamicDataFromVault(
-                            appId = sessionVaultAppId
-                        )
+                        MppPayments.getSessionDynamicDataFromVault()
                     }
 
                 val refreshedLatest =
@@ -380,7 +376,6 @@ internal class LiquidStreamBlockConsumptionManager(
                                     MppPayments
                                         .settleLatestVoucher(
                                             signer = signer,
-                                            appId = sessionVaultAppId,
                                         ).getOrThrow()
                                 },
                             )
@@ -398,9 +393,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         val postFailureData =
                             if (nothingToSettleAssert) {
                                 withTimeout(CHAIN_READ_TIMEOUT_MS) {
-                                    MppPayments.getSessionDynamicDataFromVault(
-                                        appId = sessionVaultAppId
-                                    )
+                                    MppPayments.getSessionDynamicDataFromVault()
                                 }
                             } else {
                                 null

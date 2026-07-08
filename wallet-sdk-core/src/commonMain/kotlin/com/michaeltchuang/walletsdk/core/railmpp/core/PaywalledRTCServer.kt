@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
@@ -11,7 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SessionStats
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
@@ -423,8 +424,7 @@ class PaywalledRTCServer
 
             return runCatching {
                 val channelId =
-                    MppPayments
-                        .contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
+                    EscrowSessionVaultManagerClient
                         .initializeChannelId(
                             payerAddress = viewer,
                             payeeAddress = payTo,
@@ -440,9 +440,8 @@ class PaywalledRTCServer
             cachedSaltBase64?.let { return it }
             return runCatching {
                 Base64.encode(
-                    MppPayments
-                        .contractClient(RailMppConstants.MPP_SESSION_VAULT_APP_ID)
-                        .defaultSalt,
+                    EscrowSessionVaultManagerClient.defaultSalt
+                        ?: error("defaultSalt is not configured"),
                 )
             }.onFailure {
                 Napier.e("[RESOLVE_SALT_FAILED] session=$sessionId", it, tag = TAG)
