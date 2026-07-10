@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">AlgoKit Wallet SDK Demo</string>
+    <string name="service_name">WalletSDK Service</string>
+    <string name="service_description" translatable="false">Headless wallet service for AlgoKit-Core operations</string>
+</resources>

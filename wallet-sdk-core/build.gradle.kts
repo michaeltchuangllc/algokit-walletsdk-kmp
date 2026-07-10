@@ -6,7 +6,7 @@ plugins {
     // this needs to be first in list
     alias(libs.plugins.multiplatform)
 
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlinx.serialization)
@@ -21,28 +21,82 @@ plugins {
 
 kotlin {
 
-    androidTarget {
-        publishLibraryVariants("release")
-        compilations.all {
-            compileTaskProvider {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_21)
-                    freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
-                }
+    android {
+        namespace = "com.michaeltchuang.walletsdk.core"
+        compileSdk =
+            libs.versions.android.compileSdk
+                .get()
+                .toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        androidResources.enable = true
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
+        }
+        withHostTest {}
+        packaging {
+            resources {
+                // Exclude duplicate files from multiple dependencies
+                excludes.addAll(
+                    listOf(
+                        "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                        "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                        "META-INF/DEPENDENCIES",
+                        "META-INF/LICENSE",
+                        "META-INF/LICENSE.txt",
+                        "META-INF/license.txt",
+                        "META-INF/NOTICE",
+                        "META-INF/NOTICE.txt",
+                        "META-INF/notice.txt",
+                        "META-INF/ASL2.0",
+                        "META-INF/*.kotlin_module",
+                    ),
+                )
+                // Pick first occurrence of duplicate files
+                pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             }
+        }
+        lint {
+            // Disable problematic rules for KMP
+            disable.addAll(
+                listOf(
+                    "NullSafeMutableLiveData",
+                    "UnusedResources",
+                    "MissingTranslation",
+                    "Instantiatable",
+                    "InvalidPackage",
+                    "TypographyFractions",
+                    "TypographyQuotes",
+                    "TrustAllX509TrustManager",
+                    "UseTomlInstead",
+                    "AndroidGradlePluginVersion",
+                    "GradleDependency",
+                ),
+            )
+
+            // Continue on lint errors instead of failing the build
+            abortOnError = false
+
+            // Skip lint for release builds to speed up builds
+            checkReleaseBuilds = false
+
+            // Only run lint on changed files
+            checkDependencies = false
         }
     }
 
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-        languageVersion.set(KotlinVersion.KOTLIN_2_1)
+        languageVersion.set(KotlinVersion.KOTLIN_2_4)
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
-        iosX64(),
     ).forEach { iosTarget ->
         iosTarget.compilations {
             val main by getting {
@@ -174,7 +228,7 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
-        val androidUnitTest by getting {
+        val androidHostTest by getting {
             dependencies {
                 implementation(libs.junit)
                 implementation(libs.mockk)
@@ -185,78 +239,6 @@ kotlin {
     }
 }
 
-android {
-    namespace = "com.michaeltchuang.walletsdk.core"
-    compileSdk =
-        libs.versions.android.compileSdk
-            .get()
-            .toInt()
-    defaultConfig {
-        minSdk =
-            libs.versions.android.minSdk
-                .get()
-                .toInt()
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-    buildFeatures {
-        // enables a Compose tooling support in the AndroidStudio
-        compose = true
-    }
-
-    packaging {
-        resources {
-            // Exclude duplicate files from multiple dependencies
-            excludes.addAll(
-                listOf(
-                    "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                    "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                    "META-INF/DEPENDENCIES",
-                    "META-INF/LICENSE",
-                    "META-INF/LICENSE.txt",
-                    "META-INF/license.txt",
-                    "META-INF/NOTICE",
-                    "META-INF/NOTICE.txt",
-                    "META-INF/notice.txt",
-                    "META-INF/ASL2.0",
-                    "META-INF/*.kotlin_module",
-                ),
-            )
-            // Pick first occurrence of duplicate files
-            pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
-        }
-    }
-
-    lint {
-        // Disable problematic rules for KMP
-        disable.addAll(
-            listOf(
-                "NullSafeMutableLiveData",
-                "UnusedResources",
-                "MissingTranslation",
-                "Instantiatable",
-                "InvalidPackage",
-                "TypographyFractions",
-                "TypographyQuotes",
-                "TrustAllX509TrustManager",
-                "UseTomlInstead",
-                "AndroidGradlePluginVersion",
-                "GradleDependency",
-            ),
-        )
-
-        // Continue on lint errors instead of failing the build
-        abortOnError = false
-
-        // Skip lint for release builds to speed up builds
-        checkReleaseBuilds = false
-
-        // Only run lint on changed files
-        checkDependencies = false
-    }
-}
 
 room {
     schemaDirectory("$projectDir/schemas")
@@ -289,7 +271,6 @@ dependencies {
     add("kspAndroid", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
-    add("kspIosX64", libs.room.compiler)
 }
 
 mavenPublishing {

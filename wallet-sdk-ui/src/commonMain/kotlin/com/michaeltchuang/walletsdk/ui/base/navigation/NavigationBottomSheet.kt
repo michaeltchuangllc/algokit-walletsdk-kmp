@@ -28,6 +28,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.savedstate.SavedState
+import androidx.savedstate.read
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
@@ -263,7 +265,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val scannedAddress = backStackEntry.arguments?.getString("scannedAddress")
+                    val scannedAddress = backStackEntry.arguments.stringArgument("scannedAddress")
                     CreateWatchAccountScreen(
                         navController = navController,
                         showSnackBar = { message ->
@@ -295,7 +297,7 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val isForWatchAccount =
-                        backStackEntry.arguments?.getBoolean("isForWatchAccount") ?: false
+                        backStackEntry.arguments.booleanArgument("isForWatchAccount", false)
                     QRCodeScannerScreen(
                         navController = navController,
                         onQrScanned = {
@@ -333,8 +335,8 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val accountTypeString =
-                        backStackEntry.arguments?.getString("accountType", "falcon24")
-                    val scannedMnemonic = backStackEntry.arguments?.getString("mnemonic", "") ?: ""
+                        backStackEntry.arguments.stringArgument("accountType", "falcon24")
+                    val scannedMnemonic = backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
 
                     val accountType =
                         when {
@@ -393,7 +395,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) {
-                    val transactionId = it.arguments?.getString("transactionId")
+                    val transactionId = it.arguments.stringArgument("transactionId")
                     transactionId?.let {
                         TransactionSuccessScreen(transactionId = it) {
                             closeSheet()
@@ -476,11 +478,11 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
-                    val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
-                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
-                    val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val receiver = backStackEntry.arguments.stringArgument("receiver") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
                     AssetTransferConfirmScreen(
                         navController = navController,
                         senderAddress = sender,
@@ -519,10 +521,10 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: 0L
-                    val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
-                    val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
+                    val receiver = backStackEntry.arguments.stringArgument("receiver") ?: ""
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
 
                     SelectAccountScreen(
                         navController = navController,
@@ -565,8 +567,8 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
-                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
 
                     SendAssetScreen(
                         navController = navController,
@@ -600,10 +602,10 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
-                    val note = backStackEntry.arguments?.getString("note") ?: ""
-                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: -7L
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
                     SelectReceiverScreen(
                         navController = navController,
                         amount = amount,
@@ -642,7 +644,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val address = backStackEntry.arguments?.getString("address") ?: ""
+                    val address = backStackEntry.arguments.stringArgument("address") ?: ""
                     AddressNamingScreen(
                         navController,
                         address,
@@ -670,7 +672,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val uri = backStackEntry.arguments?.getString("uri")
+                    val uri = backStackEntry.arguments.stringArgument("uri")
                     LiquidAuthScreen(
                         navController = navController,
                         uri = uri,
@@ -698,8 +700,8 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val assetId = backStackEntry.arguments?.getLong("assetId") ?: 0L
-                    val accountAddress = backStackEntry.arguments?.getString("accountAddress") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
+                    val accountAddress = backStackEntry.arguments.stringArgument("accountAddress") ?: ""
                     AddAssetScreen(
                         navController = navController,
                         assetId = assetId,
@@ -720,7 +722,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val selectedSeedIdsRaw = backStackEntry.arguments?.getString("selectedSeedIds")
+                    val selectedSeedIdsRaw = backStackEntry.arguments.stringArgument("selectedSeedIds")
                     val selectedSeedIds =
                         selectedSeedIdsRaw
                             ?.split(",")
@@ -749,6 +751,15 @@ fun NavigationBottomSheetNavHost(
         }
     }
 }
+
+private fun SavedState?.stringArgument(key: String, defaultValue: String? = null): String? =
+    this?.read { getStringOrNull(key) } ?: defaultValue
+
+private fun SavedState?.longArgument(key: String, defaultValue: Long): Long =
+    this?.read { getLongOrNull(key) } ?: defaultValue
+
+private fun SavedState?.booleanArgument(key: String, defaultValue: Boolean): Boolean =
+    this?.read { getBooleanOrNull(key) } ?: defaultValue
 
 fun startDestination(
     accounts: Int,

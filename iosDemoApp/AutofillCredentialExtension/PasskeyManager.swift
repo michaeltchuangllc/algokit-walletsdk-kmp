@@ -1,8 +1,8 @@
-import composeDemoApp
+import sharedDemoApp
 
 class PasskeyManager {
     // Get the repository from Koin
-    private let passkeyRepository: composeDemoApp.Wallet_sdk_corePasskeyRepository
+    private let passkeyRepository: sharedDemoApp.Wallet_sdk_corePasskeyRepository
 
     init() {
         // Configure app group for database sharing BEFORE initializing Koin
@@ -24,7 +24,7 @@ class PasskeyManager {
         displayName: String,
         credentialId: String
     ) async throws {
-        let args = composeDemoApp.Wallet_sdk_coreAddPasskeyArgs(
+        let args = sharedDemoApp.Wallet_sdk_coreAddPasskeyArgs(
             siteUrl: siteUrl,
             siteName: siteName,
             address: algoAddress,
@@ -37,7 +37,7 @@ class PasskeyManager {
         try await passkeyRepository.addNewPasskey(args: args)
     }
 
-    func getPasskey(credentialId: String) async throws -> composeDemoApp.Wallet_sdk_corePasskey? {
+    func getPasskey(credentialId: String) async throws -> sharedDemoApp.Wallet_sdk_corePasskey? {
         return try await passkeyRepository.getPasskey(credId: credentialId)
     }
     
@@ -46,7 +46,7 @@ class PasskeyManager {
         try await passkeyRepository.setPasskeyLastUsedTime(credId: credentialId, lastUsed: currentTimeMs)
     }
 
-    func getAllPasskeys() async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
+    func getAllPasskeys() async throws -> [sharedDemoApp.Wallet_sdk_corePasskey] {
         // Get all passkeys from the repository
         // Note: You may need to convert Flow to async/await or use Combine
         // For now, this is a placeholder - you'll need to handle the Flow conversion
@@ -58,7 +58,7 @@ class PasskeyManager {
     }
     
     /// Get passkeys for a specific Algorand address
-    func getPasskeysByAlgoAddress(address: String) async throws -> [composeDemoApp.Wallet_sdk_corePasskey] {
+    func getPasskeysByAlgoAddress(address: String) async throws -> [sharedDemoApp.Wallet_sdk_corePasskey] {
         // Get credential ID for this address
         guard let credId = try await passkeyRepository.getCredentialIdByAddress(address: address) else {
             return []

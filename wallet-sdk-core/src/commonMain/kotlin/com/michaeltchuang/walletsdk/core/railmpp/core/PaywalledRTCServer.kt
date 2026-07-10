@@ -362,7 +362,8 @@ class PaywalledRTCServer
                     onPaymentRequested?.invoke(request)
                     Napier.d(
                         "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} " +
-                            "amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} ttl=${request.ttl}",
+                            "amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} " +
+                                "ttl=${request.ttl} channelId=${request.channelId} salt=${request.salt}",
                         tag = TAG,
                     )
 
@@ -418,9 +419,18 @@ class PaywalledRTCServer
         private fun resolveChannelIdBase64(): String? {
             cachedChannelIdBase64?.let { return it }
 
-            val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return null
-            val payTo = config.gating.payTo.takeIf { it.isNotBlank() } ?: return null
-            val signerKey = config.viewerAuthorizedSignerPublicKey?.takeIf { it.isNotEmpty() } ?: return null
+            val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: run {
+                Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_viewer session=$sessionId", tag = TAG)
+                return null
+            }
+            val payTo = config.gating.payTo.takeIf { it.isNotBlank() } ?: run {
+                Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_payTo session=$sessionId", tag = TAG)
+                return null
+            }
+            val signerKey = config.viewerAuthorizedSignerPublicKey?.takeIf { it.isNotEmpty() } ?: run {
+                Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_signer session=$sessionId viewer=$viewer payTo=$payTo", tag = TAG)
+                return null
+            }
 
             return runCatching {
                 val channelId =

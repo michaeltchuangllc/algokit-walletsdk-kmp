@@ -20,8 +20,11 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "algokit-walletsdk-kmp"
-include(":composeDemoApp")
+include(":androidDemoApp")
+include(":sharedDemoApp")
 include(":serviceDemoApp")
 include(":wallet-sdk-core")
 include(":wallet-sdk-ui")
-include(":wallet-sdk-service")
+if (file("wallet-sdk-service").isDirectory) {
+    include(":wallet-sdk-service")
+}

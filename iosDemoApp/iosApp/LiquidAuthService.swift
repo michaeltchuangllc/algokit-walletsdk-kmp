@@ -15,7 +15,7 @@
  */
 
 import AuthenticationServices
-import composeDemoApp
+import sharedDemoApp
 import CryptoKit
 import deterministicP256_swift
 import Foundation

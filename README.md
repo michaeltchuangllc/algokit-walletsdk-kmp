@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202602.8")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202602.8")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.0")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.8")
 }
 ```
 
@@ -121,17 +121,20 @@ timeline
             
     section Future 🔮
     2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
-             : 🔄 Liquid Stream - Refactor code to be more in common folder
-             : 🔄 Onboarding - Create and integrate new algokit-core KMP library
-             : Android - Upgrade to AGP9 and KMP 2.4
-             : Liquid Stream - Research Lsig based session vault for Algorand 
-             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : ✅ Liquid Stream - Refactor code to be more in common folder
+             : ✅ Android - Upgrade to AGP9 and KMP 2.4
+             : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
+             : 🔄 Liquid Stream - Research hybrid (Lsig / smart contract) session vault for Algorand
+             : 🔄 Liquid Stream - Add in Chat functionality
              : Onboarding - Add Falcon25 (non-lsig) wallet account flow
-             : Transaction - Refactor MPP smart contract to support Falcon25
-             : TBD
+             : Transaction - Refactor escrow session vault smart contract to support Falcon25
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
+
     2026Q4   
              : Liquid Gossip mobile POC
+             : Liquid Stream - Website showing latest escrow session vault activity
+             : Liquid Stream - Decouple feature to it's own repo and app
              : Seed Vault - Escrow Session Vault for Solana accounts 
              : Research - React Native sample app talking to service
              : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
@@ -153,11 +156,12 @@ timeline
 
 This repo has the following modules:
 
-- **composeDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) sample wallet app that demonstrates `wallet-sdk` usage.  This app on Android also contains a [service](https://developer.android.com/develop/background-work/services) that provides a headless way for other android applications on the same device to share the same wallet-sdk-core wallet-sdk-ui instance (using AIDL).
-- **iosDemoApp**: The iOS app for `composeSampleApp`. Open this module in Xcode if needed.
+- **sharedDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) shared demo module that demonstrates `wallet-sdk` usage across platforms. Shared UI, navigation, view models, common abstractions, and reusable Android `actual` implementations live here. Android-specific code in `sharedDemoApp/src/androidMain` should support shared APIs or reusable shared demo behavior.
+- **androidDemoApp**: The installable Android demo app shell. This module owns Android app entry points, manifest/package identity, app icons, Play/App Bundle configuration, and host-only Android wiring while depending on `sharedDemoApp` for reusable demo functionality.
+- **iosDemoApp**: The iOS demo app shell. Open this module in Xcode if needed; it consumes the Kotlin framework produced by `sharedDemoApp`.
 - **wallet-sdk-core**: The AlgoKit Wallet SDK core module - a headless wallet utils library built with [Kotlin Multiplatform](https://developer.android.com/kotlin/multiplatform). It provides foundational wallet functionality and is built on top of [AlgoKit-Core SDK](https://github.com/algorandfoundation/algokit-core), [Algo xHD Swift SDK](https://github.com/algorandfoundation/xHD-Wallet-API-swift), [Algo xHD Kotlin SDK](https://github.com/algorandfoundation/xHD-Wallet-API-kt), [Algo Java SDK](https://github.com/algorand/java-algorand-sdk), and [Algo Go SDK](https://github.com/perawallet/algorand-go-mobile-sdk).
 - **wallet-sdk-ui**: The AlgoKit Wallet SDK UI module - an embedded wallet utils library built with [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform). This module extends wallet-sdk-core and provides ready-to-use UI components for developers who want an integrated wallet interface in their applications.
-- **serviceDemoApp**: A secondary Android only (non-KMP) demo app that is able to test service functionality in composeDemoApp.
+- **serviceDemoApp**: A secondary Android-only demo app that tests service functionality exposed through the shared demo/app integration.
 
 This project is developed using [Android Studio](https://developer.android.com/studio) (stable version) and the [Kotlin Multiplatform Plugin](https://plugins.jetbrains.com/plugin/14936-kotlin-multiplatform). As a mobile development project, it is primarily developed on macOS, support for Windows and Linux is quite limited.  We also follow the [KMP compatibility guide](https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-compatibility-guide.html).
 

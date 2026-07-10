@@ -22,7 +22,7 @@
 		BA8BABF82FE35711008683F7 /* AlgoKitCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = BA8BABF72FE35711008683F7 /* AlgoKitCrypto */; };
 		BA8BABFA2FE35711008683F7 /* AlgoKitTransact in Frameworks */ = {isa = PBXBuildFile; productRef = BA8BABF92FE35711008683F7 /* AlgoKitTransact */; };
 		BA8BABFC2FE35711008683F7 /* AlgoKitUtils in Frameworks */ = {isa = PBXBuildFile; productRef = BA8BABFB2FE35711008683F7 /* AlgoKitUtils */; };
-		BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* composeDemoApp.framework */; };
+		BAB26D262F2834B3003B0073 /* sharedDemoApp.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAB26D222F28348C003B0073 /* sharedDemoApp.framework */; };
 		BAC161E42F296BFE0050270D /* LiquidAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E22F296BFE0050270D /* LiquidAuthService.swift */; };
 		BAC161E52F296BFE0050270D /* LiquidAuthViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */; };
 		BAC1623A2F2974D20050270D /* SocketIO in Frameworks */ = {isa = PBXBuildFile; productRef = BAC162392F2974D20050270D /* SocketIO */; };
@@ -90,8 +90,8 @@
 		A93A953E29CC810D00F8E227 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A93A954129CC810D00F8E227 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		BA0473392CF53E5E004A8EBF /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphoneos18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
-		BAB26D222F28348C003B0073 /* composeDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = composeDemoApp.framework; path = "../composeDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/composeDemoApp.framework"; sourceTree = "<group>"; };
+		BA1018682F26C34E00A6DC27 /* sharedDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = sharedDemoApp.framework; path = "../sharedDemoApp/build/xcode-frameworks/Debug/iphoneos18.5/sharedDemoApp.framework"; sourceTree = "<group>"; };
+		BAB26D222F28348C003B0073 /* sharedDemoApp.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = sharedDemoApp.framework; path = "../sharedDemoApp/build/xcode-frameworks/Debug/iphonesimulator18.5/sharedDemoApp.framework"; sourceTree = "<group>"; };
 		BAC161E22F296BFE0050270D /* LiquidAuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthService.swift; sourceTree = "<group>"; };
 		BAC161E32F296BFE0050270D /* LiquidAuthViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidAuthViewController.swift; sourceTree = "<group>"; };
 		BBFC00012F296BFE0050270D /* BroadcastFrameCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BroadcastFrameCapture.swift; sourceTree = "<group>"; };
@@ -185,7 +185,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BAB26D262F2834B3003B0073 /* composeDemoApp.framework in Frameworks */,
+				BAB26D262F2834B3003B0073 /* sharedDemoApp.framework in Frameworks */,
 				C291B1E22F292EC700AA5CA6 /* SocketIO in Frameworks */,
 				C2F9B3FF2F2480CD00E5B9C2 /* AuthenticationServices.framework in Frameworks */,
 				BA8BABFC2FE35711008683F7 /* AlgoKitUtils in Frameworks */,
@@ -258,8 +258,8 @@
 		C4127409AE3703430489E7BC /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
-				BA1018682F26C34E00A6DC27 /* composeDemoApp.framework */,
-				BAB26D222F28348C003B0073 /* composeDemoApp.framework */,
+				BA1018682F26C34E00A6DC27 /* sharedDemoApp.framework */,
+				BAB26D222F28348C003B0073 /* sharedDemoApp.framework */,
 				C2F9B3FE2F2480CD00E5B9C2 /* AuthenticationServices.framework */,
 			);
 			name = Frameworks;
@@ -447,11 +447,11 @@
 			);
 			name = "Compile Kotlin Framework for Extension";
 			outputPaths = (
-				"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/composeDemoApp.framework",
+				"$(SRCROOT)/../sharedDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)/sharedDemoApp.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :composeDemoApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedDemoApp:embedAndSignAppleFrameworkForXcode\n";
 		};
 		C2F9B5322F28360000E5B9C2 /* Copy Compose Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -465,7 +465,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Determine the architecture based on SDK\nif [[ \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  if [[ \"$ARCHS\" == *\"arm64\"* ]] || [[ \"$(uname -m)\" == \"arm64\" ]]; then\n    ARCH_DIR=\"iosSimulatorArm64Main\"\n  else\n    ARCH_DIR=\"iosX64Main\"\n  fi\nelse\n  ARCH_DIR=\"iosArm64Main\"\nfi\n\n# List of modules with Compose resources\nMODULES=(\"composeDemoApp\" \"wallet-sdk-ui\" \"wallet-sdk-core\")\n\n# Destination path (note: includes composeResources subdirectory)\nRESOURCE_DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/compose-resources/composeResources\"\n\necho \"📦 Copying Compose resources for architecture: $ARCH_DIR\"\n\n# Create the destination directory if it doesn't exist\nmkdir -p \"$RESOURCE_DEST\"\n\n# Copy resources from each module\nfor MODULE in \"${MODULES[@]}\"; do\n  RESOURCE_SRC=\"$SRCROOT/../$MODULE/build/generated/compose/resourceGenerator/assembledResources/$ARCH_DIR/composeResources\"\n  \n  if [ -d \"$RESOURCE_SRC\" ]; then\n    echo \"  ✅ Copying resources from $MODULE\"\n    cp -R \"$RESOURCE_SRC/\"* \"$RESOURCE_DEST/\" 2>/dev/null || true\n  else\n    echo \"  ℹ️  No resources found for $MODULE (this is OK if module has no resources)\"\n  fi\ndone\n\necho \"📦 Compose resources copy complete\"\n";
+			shellScript = "# Determine the architecture based on SDK\nif [[ \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  if [[ \"$ARCHS\" == *\"arm64\"* ]] || [[ \"$(uname -m)\" == \"arm64\" ]]; then\n    ARCH_DIR=\"iosSimulatorArm64Main\"\n  else\n    ARCH_DIR=\"iosX64Main\"\n  fi\nelse\n  ARCH_DIR=\"iosArm64Main\"\nfi\n\n# List of modules with Compose resources\nMODULES=(\"sharedDemoApp\" \"wallet-sdk-ui\" \"wallet-sdk-core\")\n\n# Destination path (note: includes composeResources subdirectory)\nRESOURCE_DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/compose-resources/composeResources\"\n\necho \"📦 Copying Compose resources for architecture: $ARCH_DIR\"\n\n# Create the destination directory if it doesn't exist\nmkdir -p \"$RESOURCE_DEST\"\n\n# Copy resources from each module\nfor MODULE in \"${MODULES[@]}\"; do\n  RESOURCE_SRC=\"$SRCROOT/../$MODULE/build/generated/compose/resourceGenerator/assembledResources/$ARCH_DIR/composeResources\"\n  \n  if [ -d \"$RESOURCE_SRC\" ]; then\n    echo \"  ✅ Copying resources from $MODULE\"\n    cp -R \"$RESOURCE_SRC/\"* \"$RESOURCE_DEST/\" 2>/dev/null || true\n  else\n    echo \"  ℹ️  No resources found for $MODULE (this is OK if module has no resources)\"\n  fi\ndone\n\necho \"📦 Compose resources copy complete\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -643,7 +643,7 @@
 				DEVELOPMENT_TEAM = 8W2L568H7X;
 				ENABLE_PREVIEWS = NO;
 				EXCLUDED_ARCHS = "";
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../sharedDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "WalletSDK Demo";
@@ -686,7 +686,7 @@
 				DEVELOPMENT_TEAM = 8W2L568H7X;
 				ENABLE_PREVIEWS = NO;
 				EXCLUDED_ARCHS = "";
-				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
+				FRAMEWORK_SEARCH_PATHS = "\"$(SRCROOT)/../sharedDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)\"";
 				GCC_OPTIMIZATION_LEVEL = 0;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = iosApp/Info.plist;
@@ -731,7 +731,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+					"$(SRCROOT)/../sharedDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -749,7 +749,7 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
-					composeDemoApp,
+					sharedDemoApp,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AutofillCredentialExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -773,7 +773,7 @@
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
-					"$(SRCROOT)/../composeDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
+					"$(SRCROOT)/../sharedDemoApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -791,7 +791,7 @@
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-framework",
-					composeDemoApp,
+					sharedDemoApp,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo.AutofillCredentialExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";

@@ -247,7 +247,9 @@ class PaywalledRTCClient(
                     captureSalt(request.salt)
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
-                            "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo}",
+                            "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network}" +
+                                " payTo=${request.payTo} channelId=${request.channelId}" +
+                                " salt=${request.salt}",
                         tag = TAG,
                     )
                     scope.launch { handlePaymentRequest(request) }

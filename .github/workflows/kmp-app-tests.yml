@@ -74,7 +74,7 @@ jobs:
           java-version: "21"
           cache: "gradle"
       - name: "Run Compose Android App Checks"
-        run: ./gradlew composeDemoApp:packageReleaseBundle
+        run: ./gradlew androidDemoApp:packageReleaseBundle
       - name: "Archive Compose Android App Check Results"
         uses: actions/upload-artifact@v5
         if: ${{ always() }}
@@ -96,7 +96,7 @@ jobs:
           java-version: "21"
           cache: "gradle"
       - name: "Run Compose iOS App Checks"
-        run: ./gradlew composeDemoApp:compileKotlinIosSimulatorArm64
+        run: ./gradlew sharedDemoApp:compileKotlinIosSimulatorArm64
       - name: "Archive Compose iOS App Check Results"
         uses: actions/upload-artifact@v5
         if: ${{ always() }}

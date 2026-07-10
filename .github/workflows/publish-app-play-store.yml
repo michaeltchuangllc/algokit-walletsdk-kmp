@@ -41,8 +41,8 @@ jobs:
         run: |
           echo "github_run_number is $GITHUB_RUN_NUMBER + offset=8"
           echo "Building and publishing Android app to Play Store internal track..."
-          ./gradlew :composeDemoApp:bundleRelease
-          ./gradlew :composeDemoApp:publishReleaseBundle --track internal
+          ./gradlew :androidDemoApp:bundleRelease
+          ./gradlew :androidDemoApp:publishReleaseBundle --track internal
 
       - name: Cleanup
         if: always()
