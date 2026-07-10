@@ -10,16 +10,15 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
-import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,6 +26,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.koin.mp.KoinPlatform.getKoin
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
@@ -173,6 +173,8 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     /** Stored gating config for the current server session (used to rebuild [ServerConfig] on viewer-hello). */
     private var activeGatingConfig: GatingConfig? = null
+
+    private val viewerReady = MutableStateFlow(false)
 
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -390,7 +392,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         // (set after creator.start()). For the legacy path we keep it from paymentRequest.id.
         activePaymentRecipient = paymentRequest.payTo
         activePaymentAmount = paymentRequest.amount
-        startPaywalledRTCServer(paymentRequest)
+        activeViewerAddressForVault
+        scope.launch {
+            viewerReady.collect { isReady ->
+                if (isReady) {
+                    startPaywalledRTCServer(paymentRequest)
+                }
+            }
+        }
     }
 
     private fun startPaywalledRTCServer(paymentRequest: PaymentRequest) {
@@ -885,6 +894,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             val candidate = parsed.address
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
+                viewerReady.value = true
                 println("$TAG: viewer address captured from message: $candidate")
             }
         }.onFailure { e ->
