@@ -22,7 +22,8 @@ val provideViewModelModules =
         viewModel<BroadcastViewModel> {
             BroadcastViewModel(
                 stateDelegate = get(),
-                eventDelegate = get(),
+                getLocalAccounts = get(),
+                getCurrentNetwork = get(),
             )
         }
     }

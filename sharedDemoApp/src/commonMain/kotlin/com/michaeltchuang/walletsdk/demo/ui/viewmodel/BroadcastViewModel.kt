@@ -2,78 +2,98 @@ package com.michaeltchuang.walletsdk.demo.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
-import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetLocalAccountsUseCase
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.getSupportedLocalAccountsByAppId
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class BroadcastViewModel(
     private val stateDelegate: StateDelegate<BroadcastState>,
-    private val eventDelegate: EventDelegate<BroadcastEvent>,
+    private val getLocalAccounts: GetLocalAccountsUseCase,
+    private val getCurrentNetwork: GetCurrentNetworkUseCase,
 ) : ViewModel(),
-    StateViewModel<BroadcastViewModel.BroadcastState> by stateDelegate,
-    EventViewModel<BroadcastViewModel.BroadcastEvent> by eventDelegate {
+    StateViewModel<BroadcastViewModel.BroadcastState> by stateDelegate {
     init {
-        stateDelegate.setDefaultState(BroadcastState.Idle)
+        stateDelegate.setDefaultState(BroadcastState())
+        loadAccounts()
+        observeNetwork()
     }
 
-    fun generateQRCode(data: String) {
-        stateDelegate.updateState { BroadcastState.Loading }
-        viewModelScope.launch {
-            try {
-                if (data.isBlank()) {
-                    stateDelegate.updateState { BroadcastState.Error("No data provided for QR code") }
-                    return@launch
-                }
+    fun onEvent(event: BroadcastEvent) {
+        when (event) {
+            is BroadcastEvent.CreatorAddressSelected -> selectCreatorAddress(event.address)
+        }
+    }
 
-                stateDelegate.updateState {
-                    BroadcastState.Content(
-                        qrData = data,
-                    )
-                }
-            } catch (e: Exception) {
-                stateDelegate.updateState { BroadcastState.Error(e.message ?: "Failed to generate QR code") }
-                eventDelegate.sendEvent(
-                    BroadcastEvent.ShowError(
-                        e.message ?: "Failed to generate QR code.",
-                    ),
+    private fun loadAccounts() {
+        viewModelScope.launch {
+            val accounts =
+                getSupportedLocalAccountsByAppId(
+                    appId = AppId.LIQUID_AUTH_STREAM.name,
+                    localAccount = getLocalAccounts(),
                 )
-            }
+            updateAccounts(accounts)
         }
     }
 
-    fun refreshQRCode() {
+    private fun observeNetwork() {
         viewModelScope.launch {
-            stateDelegate.onState<BroadcastState.Content> { currentState ->
-                eventDelegate.sendEvent(BroadcastEvent.QRCodeRefreshed)
-                // Re-generate with same data to trigger any refresh logic
-                generateQRCode(currentState.qrData)
+            getCurrentNetwork().collectLatest { network ->
+                stateDelegate.updateState {
+                    it.copy(creatorAssetId = network.usdcAssetId)
+                }
             }
         }
     }
 
-    sealed interface BroadcastState {
-        data object Idle : BroadcastState
-
-        data object Loading : BroadcastState
-
-        data class Content(
-            val qrData: String,
-        ) : BroadcastState
-
-        data class Error(
-            val message: String,
-        ) : BroadcastState
+    private fun updateAccounts(accounts: List<LocalAccount>) {
+        stateDelegate.updateState { currentState ->
+            val selectedCreatorAddress = currentState.selectedCreatorAddress
+            currentState.copy(
+                accounts = accounts,
+                accountsLoaded = true,
+                selectedCreatorAddress =
+                    selectedCreatorAddress?.takeIf { selectedAddress ->
+                        accounts.any { it.address == selectedAddress }
+                    } ?: accounts.firstOrNull()?.address,
+            )
+        }
     }
+
+    private fun selectCreatorAddress(address: String) {
+        stateDelegate.updateState { currentState ->
+            if (currentState.accounts.any { it.address == address }) {
+                currentState.copy(selectedCreatorAddress = address)
+            } else {
+                currentState
+            }
+        }
+    }
+
+    data class BroadcastState(
+        val accountsLoaded: Boolean = false,
+        val accounts: List<LocalAccount> = emptyList(),
+        val selectedCreatorAddress: String? = null,
+        val creatorAssetId: Long = AssetConstants.USDC_TESTNET_ID,
+    )
 
     sealed interface BroadcastEvent {
-        data class ShowError(
-            val message: String,
+        data class CreatorAddressSelected(
+            val address: String,
         ) : BroadcastEvent
-
-        data object QRCodeRefreshed : BroadcastEvent
     }
+
+    private val AlgorandNetwork.usdcAssetId: Long
+        get() =
+            when (this) {
+                AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+            }
 }

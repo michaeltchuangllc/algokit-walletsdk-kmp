@@ -15,7 +15,6 @@ object AssetConstants {
 
     const val USDC_MAINNET_ID = 31566704L
     const val USDC_TESTNET_ID = 10458941L
-    const val USDT_MAINNET_ID = 312769L
 
     fun usdcIdForNetwork(network: String): Long =
         if (network.contains("mainnet", ignoreCase = true)) {
