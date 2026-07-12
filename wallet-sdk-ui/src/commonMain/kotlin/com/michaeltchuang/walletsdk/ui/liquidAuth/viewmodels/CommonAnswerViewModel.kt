@@ -48,7 +48,7 @@ open class CommonAnswerViewModel(
     protected val getAlgo25SecretKey: GetAlgo25SecretKey,
     protected val getFalcon24SecretKey: GetFalcon24SecretKey,
     protected val getSeed: GetHdSeed,
-    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+    protected val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
     protected val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
