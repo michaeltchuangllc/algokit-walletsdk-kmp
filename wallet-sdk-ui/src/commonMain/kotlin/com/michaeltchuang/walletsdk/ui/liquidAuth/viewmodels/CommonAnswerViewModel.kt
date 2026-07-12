@@ -21,6 +21,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
@@ -52,6 +53,7 @@ open class CommonAnswerViewModel(
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
     protected val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    protected val mppPaymentViewerManager: MppPaymentViewerManager,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : LiquidAuthViewerStateHolder() {
     companion object {
@@ -455,7 +457,7 @@ open class CommonAnswerViewModel(
     ): Result<Long?> {
         val amountUsdc = enteredAmount.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
         val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-
+        mppPaymentViewerManager.markPaymentPending()
         val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
         val topUpResult =
             runCatching {
@@ -465,12 +467,11 @@ open class CommonAnswerViewModel(
                         additionalDepositMicroUsdc = depositMicroUsdc,
                     ).getOrThrow()
             }.onFailure { throwable ->
-                setupMppPaymentViewerUseCase.clearPendingPayment()
+                mppPaymentViewerManager.clearPendingPayment()
                 Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress", throwable = throwable)
             }
 
         val txId = topUpResult.getOrElse { return Result.failure(it) }
-        setupMppPaymentViewerUseCase.markPaymentPending()
         Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress creator=$creatorAddress txId=$txId")
 
         val onChainRemaining =
@@ -493,7 +494,7 @@ open class CommonAnswerViewModel(
 
         if (onChainRemaining != null) {
             if (onChainRemaining > 0L) {
-                setupMppPaymentViewerUseCase.clearPendingPayment()
+                mppPaymentViewerManager.clearPendingPayment()
             }
             setViewerSessionVaultBalance(onChainRemaining)
         }
@@ -509,7 +510,7 @@ open class CommonAnswerViewModel(
     ) {
         viewModelScope.launch {
             val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
-            setupMppPaymentViewerUseCase.startViewerOnChainRefresh(
+            mppPaymentViewerManager.startViewerOnChainRefresh(
                 scope = viewModelScope,
                 viewerAddress = viewerAddress,
                 hostAddress = hostAddress,
@@ -521,7 +522,7 @@ open class CommonAnswerViewModel(
     }
 
     fun stopMppPaymentViewer() {
-        setupMppPaymentViewerUseCase.stop()
+        mppPaymentViewerManager.stop()
     }
 
     protected suspend fun resolveMppClientNetwork(address: String): String =

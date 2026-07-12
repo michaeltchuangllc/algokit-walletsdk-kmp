@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.core.module.Module
@@ -23,5 +24,6 @@ actual fun uiPlatformModule(): Module =
         }
         factory { LiquidAuthPlatformServices() }
         factory { LiquidAuthConnectionManager(Unit) }
-        factory { SetupMppPaymentViewerUseCase(get(), get()) }
+        single { MppPaymentViewerManager(get()) }
+        single { SetupMppPaymentViewerUseCase(get(), get()) }
     }
