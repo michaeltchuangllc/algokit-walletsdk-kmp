@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
@@ -85,10 +84,10 @@ actual fun AnswerScreenOverlay() {
             }
         }
 
-    // AnswerViewModel is the platform-facing expect/actual type; iOS currently delegates
-    // to the shared CommonAnswerViewModel implementation.
-    val stateHolder: AnswerViewModel =
-        viewModel(viewModelStoreOwner) {
+    // AnswerViewModel is scoped to this overlay so stream-timeout monitoring and block polling
+    // are cancelled when the overlay is dismissed. This avoids the Android-only Compose viewModel API.
+    val stateHolder =
+        remember(viewModelStoreOwner) {
             AnswerViewModel(
                 getCurrentBlockUseCase = getCurrentBlockUseCase,
                 getAccountAlgoBalance = getAccountAlgoBalance,
@@ -102,7 +101,7 @@ actual fun AnswerScreenOverlay() {
                 getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
                 setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
                 mppWalletSignerUseCase = mppWalletSignerUseCase,
-            )
+            ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
         }
 
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.

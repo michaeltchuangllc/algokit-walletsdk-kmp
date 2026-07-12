@@ -7,6 +7,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import kotlinx.coroutines.flow.first
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
@@ -54,6 +56,11 @@ actual open class AnswerViewModel actual constructor(
         val signer = buildMppWalletSigner(viewerAddress) ?: return false
         platformServices.closeViewerPaymentDataChannel()
         val dataChannel = platformServices.createViewerPaymentDataChannel()
+        val mppNetwork =
+            when (getCurrentNetworkUseCase().first()) {
+                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
+                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
+            }
         setupMppPaymentViewerUseCase(
             SetupMppPaymentViewerUseCase.Params(
                 dataChannel = dataChannel,
@@ -61,7 +68,7 @@ actual open class AnswerViewModel actual constructor(
                 hostAddress = hostAddress,
                 scope = scope,
                 signer = signer,
-                mppNetwork = MppNetworks.ALGORAND_TESTNET,
+                mppNetwork = mppNetwork,
                 requestMppConsent = ::requestMppConsentFromUi,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 signFido2Challenge = { challenge, challengeAddress ->
