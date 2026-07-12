@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.di
 
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.koin.core.module.dsl.viewModel
@@ -19,6 +20,7 @@ internal val liquidStreamModules =
                 LiquidAuthViewerViewModel(
                     stateDelegate = StateDelegate(),
                     eventDelegate = get(),
+                    getCurrentNetworkUseCase = get<GetCurrentNetworkUseCase>(),
                 )
             }
         },

@@ -6,15 +6,20 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import kotlinx.coroutines.launch
 
 class LiquidAuthViewerViewModel(
     private val stateDelegate: StateDelegate<UiState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
+    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
 ) : ViewModel(),
     StateViewModel<LiquidAuthViewerViewModel.UiState> by stateDelegate,
     EventViewModel<LiquidAuthViewerViewModel.ViewEvent> by eventDelegate {
     init {
         stateDelegate.setDefaultState(UiState())
+        observeNetwork()
     }
 
     fun onSettingsClicked() {
@@ -81,6 +86,14 @@ class LiquidAuthViewerViewModel(
         stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
     }
 
+    private fun observeNetwork() {
+        viewModelScope.launch {
+            getCurrentNetworkUseCase().collect { network ->
+                stateDelegate.updateState { it.copy(network = network) }
+            }
+        }
+    }
+
     data class UiState(
         val showAnalyticsModal: Boolean = false,
         val showViewerSettingsSheet: Boolean = false,
@@ -92,9 +105,12 @@ class LiquidAuthViewerViewModel(
         val message: String = "",
         val realTimeRate: String = "0.42",
         val streamRevenue: String = "+1.402.15",
-        val securedViaLabel: String = "Secured via Algorand Mainnet",
-        val blockNumberLabel: String = "#38291041",
-    )
+        val blockNumberLabel: String = "#--------",
+        val network: AlgorandNetwork = AlgorandNetwork.TESTNET,
+    ) {
+        val networkLabel: String
+            get() = network.name
+    }
 
     companion object {
         const val PAYOUT_EVERY_256_BLOCKS_TAB_ID = "every_256_blocks"
