@@ -609,7 +609,7 @@ class MppPaymentViewerManager(
                 liquidStreamViewer?.rtcClient?.extendBudget(additionalMicroUsdc = depositMicroUsdc, asset = "USDC")
                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(sessionId = viewerVoucherSessionId ?: "")
             }.onFailure { err ->
-                clearPendingPayment()
+                // clearPendingPayment()
                 Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress host=$hostAddress", err, tag = TAG)
             }
         }.onFailure { err ->
