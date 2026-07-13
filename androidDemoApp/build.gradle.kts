@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.gradle.play.publisher)
 }
-apply(plugin = "shot")
 apply(from = rootProject.file("gradle/version.gradle.kts"))
 
 fun calculateVersionCode(): Int = (extra["calculateVersionCode"] as () -> Int).invoke()
@@ -34,23 +33,11 @@ android {
         applicationId = "com.michaeltchuang.walletsdk.demo"
         versionCode = calculateVersionCode()
         versionName = calculateVersionName()
-        testInstrumentationRunner = "com.karumi.shot.ShotTestRunner"
     }
 
     buildFeatures {
         aidl = true
         compose = true
-    }
-
-    @Suppress("UnstableApiUsage")
-    testOptions {
-        managedDevices.localDevices {
-            create("pixel5") {
-                device = "Pixel 5"
-                apiLevel = 34
-                systemImageSource = "aosp"
-            }
-        }
     }
 
     compileOptions {
@@ -171,7 +158,6 @@ dependencies {
     implementation(project(":sharedDemoApp"))
     implementation(project(":wallet-sdk-ui"))
     implementation(project(":wallet-sdk-core"))
-    implementation(libs.androidx.material3)
 
     implementation(project.dependencies.platform(libs.koin.bom))
     implementation(libs.androidx.activityCompose)
@@ -184,16 +170,4 @@ dependencies {
     implementation(libs.lifecycle.common.java8)
     implementation(libs.seedvault.wallet.sdk)
 
-    androidTestImplementation(libs.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.uiautomator)
-    debugImplementation(libs.compose.ui.testManifest)
-
-    androidTestImplementation(libs.compose.ui.tooling)
-    androidTestImplementation(libs.androidx.compose.material3)
-    androidTestImplementation(libs.androidx.compose.foundation)
-    androidTestImplementation(libs.androidx.compose.ui)
-    androidTestImplementation(libs.navigation.compose)
-
-    androidTestImplementation(libs.junit)
 }

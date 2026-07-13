@@ -179,7 +179,7 @@ kotlin {
                 implementation(libs.compose.ui.testManifest)
                 implementation(libs.compose.ui.test.junit4)
                 implementation(libs.androidx.uiautomator)
-                implementation("com.karumi:shot-android:${libs.versions.shot.get()}")
+                implementation(libs.shot.android)
             }
         }
 

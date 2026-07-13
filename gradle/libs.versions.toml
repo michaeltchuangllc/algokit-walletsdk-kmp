@@ -90,7 +90,6 @@ stream-webrtc = "1.3.10"
 uiautomator = "2.4.0"
 uuid-generator = "5.2.0"
 webviewMultiplatform = "1.3.0"
-material3 = "1.4.0"
 
 [libraries]
 
@@ -208,6 +207,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 multidex = { module = "androidx.multidex:multidex", version.ref = "multidex" }
 rules = { group = "androidx.test", name = "rules", version.ref = "rules" }
 runner = { module = "androidx.test:runner", version.ref = "runner" }
+shot-android = { module = "com.karumi:shot-android", version.ref = "shot" }
 shot-plugin = { module = "com.karumi:shot", version.ref = "shot" }
 
 # Android / Google Libraries
@@ -245,7 +245,6 @@ jackson-dataformat-msgpack = { module = "org.msgpack:jackson-dataformat-msgpack"
 jackson-dataformat-cbor = { module = "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor", version.ref = "jackson-dataformat-cbor" }
 json-kotlin-schema = { module = "net.pwall.json:json-kotlin-schema", version.ref = "json-kotlin-schema" }
 json-canonicalization = { module = "io.github.erdtman:java-json-canonicalization", version.ref = "jsonCanonicalization" }
-androidx-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
