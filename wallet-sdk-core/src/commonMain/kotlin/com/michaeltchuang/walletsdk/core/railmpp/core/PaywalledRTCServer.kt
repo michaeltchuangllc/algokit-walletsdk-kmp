@@ -33,6 +33,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -212,7 +213,7 @@ class PaywalledRTCServer
             if (disposed) return
             // Small delay to ensure the remote side has set up its onmessage handler.
             scope.launch {
-                delay(100)
+                delay(100L.milliseconds)
                 // If skipPaymentRequestWhenSessionFunded is enabled but the viewer's authorized
                 // signer key is not yet known, wait for it before running the funded-skip check.
                 val needsKey =

@@ -492,7 +492,6 @@ class MppPaymentViewerManager(
                 MppPayments.setAuthorizedSignerForSession(
                     signer = signer,
                     viewerAddress = receiptViewerAddress,
-                    hostAddress = hostAddress,
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 )
                 delay(350L.milliseconds)
@@ -649,7 +648,6 @@ class MppPaymentViewerManager(
                 .setAuthorizedSignerForSession(
                     signer = signer,
                     viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 ).onFailure { err ->
                     Napier.e(

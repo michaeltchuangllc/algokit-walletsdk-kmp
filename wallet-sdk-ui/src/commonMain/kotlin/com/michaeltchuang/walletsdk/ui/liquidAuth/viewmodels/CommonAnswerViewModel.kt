@@ -40,6 +40,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.roundToLong
+import kotlin.time.Duration.Companion.milliseconds
 
 open class CommonAnswerViewModel(
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
@@ -569,7 +570,7 @@ open class CommonAnswerViewModel(
                             -> Unit
                         }
                     }
-                    delay(1000)
+                    delay(1000L.milliseconds)
                 }
             }
     }

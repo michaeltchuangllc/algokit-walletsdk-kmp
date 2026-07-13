@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -658,7 +659,7 @@ class LiquidAuthOfferViewModel(
                         }
 
                         // Wait 1 second before next poll (faster updates, ~60 req/min to Algonode)
-                        delay(1000)
+                        delay(1000L.milliseconds)
                     }
 
                     println("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
@@ -745,7 +746,7 @@ class LiquidAuthOfferViewModel(
                             -> Unit
                         }
                     }
-                    delay(1000)
+                    delay(1000L.milliseconds)
                 }
             }
     }

@@ -20,6 +20,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.DataChannel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.milliseconds
 
 actual class SetupMppPaymentViewerUseCase actual constructor(
     private val viewerManager: MppPaymentViewerManager,
@@ -128,7 +129,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
         repeat(20) {
             service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { channel -> return channel }
-            delay(100L)
+            delay(100L.milliseconds)
         }
         service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
 
