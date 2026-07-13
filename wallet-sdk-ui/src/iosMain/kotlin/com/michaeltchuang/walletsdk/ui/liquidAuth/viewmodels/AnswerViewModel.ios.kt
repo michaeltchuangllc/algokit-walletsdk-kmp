@@ -15,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import kotlinx.coroutines.CoroutineScope
 
@@ -30,6 +31,7 @@ actual open class AnswerViewModel actual constructor(
     getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
     setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    mppPaymentViewerManager: MppPaymentViewerManager,
     mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : CommonAnswerViewModel(
         getCurrentBlockUseCase = getCurrentBlockUseCase,
@@ -43,6 +45,7 @@ actual open class AnswerViewModel actual constructor(
         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
         getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+        mppPaymentViewerManager = mppPaymentViewerManager,
         mppWalletSignerUseCase = mppWalletSignerUseCase,
     ) {
     val platformServices = LiquidAuthPlatformServices()
@@ -87,7 +90,7 @@ actual open class AnswerViewModel actual constructor(
     }
 
     fun closeViewerPaymentRail() {
-        setupMppPaymentViewerUseCase.stop()
+        mppPaymentViewerManager.stop()
         platformServices.closeViewerPaymentDataChannel()
     }
 

@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 
 expect open class AnswerViewModel(
@@ -25,5 +26,6 @@ expect open class AnswerViewModel(
     getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
     setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    mppPaymentViewerManager: MppPaymentViewerManager,
     mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : CommonAnswerViewModel

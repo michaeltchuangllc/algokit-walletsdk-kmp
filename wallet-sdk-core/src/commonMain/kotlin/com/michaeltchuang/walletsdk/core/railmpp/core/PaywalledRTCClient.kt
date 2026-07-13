@@ -348,7 +348,7 @@ class PaywalledRTCClient(
         }
 
         // Budget cap.
-        consentApproval!!.budgetCap?.let { cap ->
+        consentApproval?.budgetCap?.let { cap ->
             val newTotal = BigInteger.parseString(spend.totalAmount) + BigInteger.parseString(request.amount)
             if (newTotal > BigInteger.parseString(cap.amount)) {
                 onBudgetExceeded?.invoke(spend)
@@ -358,7 +358,7 @@ class PaywalledRTCClient(
         }
 
         // Max auto-pay segments.
-        consentApproval!!.maxAutoPaySegments?.let { max ->
+        consentApproval?.maxAutoPaySegments?.let { max ->
             if (spend.segmentsPaid >= max) {
                 consentApproval = null
                 handlePaymentRequest(request)

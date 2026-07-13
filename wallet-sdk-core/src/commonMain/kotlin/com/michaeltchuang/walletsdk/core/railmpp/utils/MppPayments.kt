@@ -157,7 +157,6 @@ object MppPayments {
     suspend fun setAuthorizedSignerForSession(
         signer: MppWalletSigner,
         viewerAddress: String,
-        hostAddress: String,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
         val channelId = EscrowSessionVaultManagerClient.channelId

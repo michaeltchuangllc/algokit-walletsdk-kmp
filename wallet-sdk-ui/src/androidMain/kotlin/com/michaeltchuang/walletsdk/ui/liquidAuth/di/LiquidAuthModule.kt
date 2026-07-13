@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
@@ -40,6 +41,7 @@ val liquidAuthUIModule =
         singleOf(::HandleAssertionResultUseCase)
         singleOf(::PrepareAuthenticationUseCase)
         single { ProcessBiometricTransactionSigningUseCase(get()) }
+        single { MppPaymentViewerManager(get()) }
         single { SetupMppPaymentViewerUseCase(get(), get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
@@ -103,6 +105,7 @@ val liquidAuthUIModule =
                 getAccountAlgoBalance = get(),
                 getCurrentBlockUseCase = get(),
                 setupMppPaymentViewerUseCase = get(),
+                mppPaymentViewerManager = get(),
                 getCurrentNetworkUseCase = get(),
                 getRemainingSessionVaultBalanceUseCase = get(),
                 getSessionVaultConfigUseCase = get(),

@@ -35,6 +35,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
@@ -73,6 +74,7 @@ actual fun AnswerScreenOverlay() {
     val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase = koinInject()
     val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase = koinInject()
     val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase = koinInject()
+    val mppPaymentViewerManager: MppPaymentViewerManager = koinInject()
     val mppWalletSignerUseCase: MppWalletSignerUseCase = koinInject()
 
     // Scoped to a per-overlay ViewModelStore so its stream-timeout monitor and block-number
@@ -100,6 +102,7 @@ actual fun AnswerScreenOverlay() {
                 getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
                 getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
                 setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+                mppPaymentViewerManager = mppPaymentViewerManager,
                 mppWalletSignerUseCase = mppWalletSignerUseCase,
             ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
         }
