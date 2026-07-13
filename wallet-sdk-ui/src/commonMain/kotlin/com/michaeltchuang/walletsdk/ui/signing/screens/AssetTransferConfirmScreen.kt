@@ -176,7 +176,7 @@ fun AssetTransferConfirmScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     viewState: AssetTransferConfirmViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },

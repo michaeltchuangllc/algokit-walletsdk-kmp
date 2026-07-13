@@ -62,7 +62,7 @@ fun DeveloperSettingsScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     onCreateAlgoAccount: () -> Unit = {},
 ) {

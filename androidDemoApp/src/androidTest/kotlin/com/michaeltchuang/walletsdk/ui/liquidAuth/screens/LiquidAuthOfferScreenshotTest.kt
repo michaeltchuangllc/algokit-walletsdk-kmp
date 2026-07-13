@@ -9,10 +9,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.michaeltchuang.walletsdk.core.railmpp.core.EnforcementMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequest
-import com.michaeltchuang.walletsdk.core.railmpp.core.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.test.BaseScreenshotTest
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController

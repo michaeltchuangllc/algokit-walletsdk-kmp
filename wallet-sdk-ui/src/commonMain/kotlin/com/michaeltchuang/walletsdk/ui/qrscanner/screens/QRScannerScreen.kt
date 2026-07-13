@@ -134,7 +134,7 @@ fun QRCodeScannerScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     hasProcessedResult: Boolean = false,
     onQrCodeScanned: (String) -> Unit = {},

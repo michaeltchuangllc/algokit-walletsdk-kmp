@@ -15,9 +15,7 @@ class DeveloperSettingsScreenshotTest(
             val navController = rememberNavController()
             ScreenContent(
                 navController = navController,
-                onCreateAlgoAccount = { },
-                onNavigateToNodeSettings = { },
-                onNavigateToHDWalletSelection = { },
+                onCreateAlgoAccount = { }
             )
         }
         takeScreenshot("testContent")

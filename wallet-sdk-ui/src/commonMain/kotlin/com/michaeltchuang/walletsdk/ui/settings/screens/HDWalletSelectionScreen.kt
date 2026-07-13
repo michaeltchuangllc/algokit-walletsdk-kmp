@@ -88,7 +88,7 @@ fun HdWalletSelectionScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     viewState: HDWalletSelectionViewModel.ViewState,
     navController: NavController,
     createNewWalletClick: () -> Unit = {},
