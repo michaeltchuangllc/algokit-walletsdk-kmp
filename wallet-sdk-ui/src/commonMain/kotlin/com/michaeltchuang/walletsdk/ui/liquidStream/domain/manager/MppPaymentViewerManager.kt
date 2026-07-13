@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.encoding.Base64
+import kotlin.time.Duration.Companion.milliseconds
 
 class MppPaymentViewerManager(
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
@@ -112,11 +113,6 @@ class MppPaymentViewerManager(
                             Napier.d(
                                 "[VIEWER_MPP_CONSENT_REQUEST] viewer=$viewerAddress host=$sessionVaultHostAddress amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
                                 tag = TAG,
-                            )
-                            EscrowSessionVaultManagerClient.initializeChannelId(
-                                payerAddress = viewerAddress,
-                                payeeAddress = sessionVaultHostAddress,
-                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                             )
                             val existingOnChainBalance =
                                 getRemainingSessionVaultBalanceUseCase(
@@ -321,7 +317,7 @@ class MppPaymentViewerManager(
                             tag = TAG,
                         )
                     }
-                    delay(1000L)
+                    delay(1000L.milliseconds)
                 }
             }
     }
@@ -458,7 +454,7 @@ class MppPaymentViewerManager(
             suspend {
                 try {
                     Result.success(
-                        withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
+                        withTimeout(CHAIN_WRITE_TIMEOUT_MS.milliseconds) {
                             MppPayments.updateVoucherOnChain(
                                 signer = signer,
                                 viewerAddress = receiptViewerAddress,
@@ -483,7 +479,7 @@ class MppPaymentViewerManager(
             }
 
         if (updateResult.isFailure && !MppPayments.isDuplicateVoucherUpdateError(updateResult.exceptionOrNull()?.message.orEmpty())) {
-            delay(350L)
+            delay(350L.milliseconds)
             updateResult = updateVoucherOnChain()
         }
 
@@ -499,7 +495,7 @@ class MppPaymentViewerManager(
                     hostAddress = hostAddress,
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 )
-                delay(350L)
+                delay(350L.milliseconds)
                 updateResult = updateVoucherOnChain()
             }
         }
@@ -609,7 +605,7 @@ class MppPaymentViewerManager(
                 liquidStreamViewer?.rtcClient?.extendBudget(additionalMicroUsdc = depositMicroUsdc, asset = "USDC")
                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(sessionId = viewerVoucherSessionId ?: "")
             }.onFailure { err ->
-                // clearPendingPayment()
+                 clearPendingPayment()
                 Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress host=$hostAddress", err, tag = TAG)
             }
         }.onFailure { err ->
