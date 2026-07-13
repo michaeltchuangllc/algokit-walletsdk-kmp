@@ -31,6 +31,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServ
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import foundation.algorand.crypto.EncoderType
 import foundation.algorand.crypto.avm.Encoder
@@ -62,6 +63,7 @@ actual open class AnswerViewModel actual constructor(
     getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
     getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
     setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+    mppPaymentViewerManager: MppPaymentViewerManager,
     mppWalletSignerUseCase: MppWalletSignerUseCase,
 ) : CommonAnswerViewModel(
         getCurrentBlockUseCase = getCurrentBlockUseCase,
@@ -75,6 +77,7 @@ actual open class AnswerViewModel actual constructor(
         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
         getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+        mppPaymentViewerManager = mppPaymentViewerManager,
         mppWalletSignerUseCase = mppWalletSignerUseCase,
     ),
     EventViewModel<AnswerViewModel.ViewEvent> {
@@ -96,6 +99,7 @@ actual open class AnswerViewModel actual constructor(
         getAccountAlgoBalance: GetAccountAlgoBalance,
         getCurrentBlockUseCase: GetCurrentBlockUseCase,
         setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
+        mppPaymentViewerManager: MppPaymentViewerManager,
         getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
         getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
         getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
@@ -112,6 +116,7 @@ actual open class AnswerViewModel actual constructor(
         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
         getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+        mppPaymentViewerManager = mppPaymentViewerManager,
         mppWalletSignerUseCase = mppWalletSignerUseCase,
     ) {
         this.platformServices = platformServices

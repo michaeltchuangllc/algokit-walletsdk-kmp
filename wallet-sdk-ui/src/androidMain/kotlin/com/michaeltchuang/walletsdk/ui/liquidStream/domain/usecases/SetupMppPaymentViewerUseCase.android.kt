@@ -11,7 +11,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import kotlinx.coroutines.CoroutineScope
@@ -21,9 +20,10 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import org.webrtc.DataChannel
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.milliseconds
 
 actual class SetupMppPaymentViewerUseCase actual constructor(
-    getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    private val viewerManager: MppPaymentViewerManager,
     private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) {
     companion object {
@@ -42,7 +42,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
     )
 
-    private val viewerManager = MppPaymentViewerManager(getRemainingSessionVaultBalanceUseCase)
 
     operator fun invoke(params: Params) {
         Log.d(
@@ -125,41 +124,12 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         }
     }
 
-    actual fun startViewerOnChainRefresh(
-        scope: CoroutineScope,
-        viewerAddress: String,
-        hostAddress: String?,
-        sessionVaultAppId: Long,
-        authorizedSignerPublicKey: ByteArray?,
-        setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
-    ) {
-        viewerManager.startViewerOnChainRefresh(
-            scope = scope,
-            viewerAddress = viewerAddress,
-            hostAddress = hostAddress,
-            sessionVaultAppId = sessionVaultAppId,
-            authorizedSignerPublicKey = authorizedSignerPublicKey,
-            setViewerSessionVaultProgress = setViewerSessionVaultProgress,
-        )
-    }
-
-    actual fun markPaymentPending() {
-        viewerManager.markPaymentPending()
-    }
-
-    actual fun clearPendingPayment() {
-        viewerManager.clearPendingPayment()
-    }
-
-    actual fun stop() {
-        viewerManager.stop()
-    }
 
     private suspend fun awaitPaymentDataChannel(service: SignalService): DataChannel? {
         service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
         repeat(20) {
             service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { channel -> return channel }
-            delay(100L)
+            delay(100L.milliseconds)
         }
         service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
 
