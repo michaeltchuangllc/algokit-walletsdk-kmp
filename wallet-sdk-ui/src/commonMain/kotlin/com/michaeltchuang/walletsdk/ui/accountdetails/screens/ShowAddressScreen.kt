@@ -94,7 +94,7 @@ fun ShowAddressScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     viewState: QRCodeViewModel.ViewState,
     onCopyAddress: () -> Unit,

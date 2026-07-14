@@ -99,7 +99,7 @@ fun ConfirmTransactionRequestScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     viewState: KeyRegConfirmViewModel.ViewState,
     onConfirm: () -> Unit,
     onBack: () -> Unit,

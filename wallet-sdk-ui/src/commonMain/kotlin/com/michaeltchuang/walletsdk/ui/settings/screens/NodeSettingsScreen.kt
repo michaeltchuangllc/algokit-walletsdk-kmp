@@ -95,7 +95,7 @@ fun NodeSettingsScreen(navController: NavController) {
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     viewState: NodeSettingsViewModel.ViewState,
     showMainnetWarningDialog: Boolean = false,

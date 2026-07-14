@@ -9,16 +9,17 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.unit.dp
 import com.karumi.shot.ScreenshotTest
-import com.michaeltchuang.walletsdk.components.TopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ThemedColors
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.components.TopBar
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalAppLocale
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.LocalizationPreference
 import org.junit.Rule
@@ -67,7 +68,7 @@ abstract class BaseScreenshotTest(
 
         composeTestRule.setContent {
             // Provide theme directly without AlgoKitTheme to avoid override
-            val themeState = mutableStateOf(darkTheme)
+            val themeState = remember { mutableStateOf(darkTheme) }
             val customColors = ThemedColors.getColorsByMode(darkTheme)
             val localePreference =
                 when (locale.language) {

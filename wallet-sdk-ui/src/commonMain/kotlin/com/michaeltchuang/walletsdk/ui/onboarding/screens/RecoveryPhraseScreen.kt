@@ -155,7 +155,7 @@ fun RecoveryPhraseScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     accountType: AccountMnemonic.AccountType,
     mnemonicList: List<String>,

@@ -123,7 +123,7 @@ fun OnboardingAccountTypeScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     hasWalletWithNoAccounts: Boolean,
     isLoading: Boolean = false,
     onCreateNewAccount: () -> Unit = {},

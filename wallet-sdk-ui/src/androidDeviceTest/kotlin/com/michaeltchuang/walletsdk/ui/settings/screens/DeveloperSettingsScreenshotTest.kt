@@ -16,8 +16,6 @@ class DeveloperSettingsScreenshotTest(
             ScreenContent(
                 navController = navController,
                 onCreateAlgoAccount = { },
-                onNavigateToNodeSettings = { },
-                onNavigateToHDWalletSelection = { },
             )
         }
         takeScreenshot("testContent")

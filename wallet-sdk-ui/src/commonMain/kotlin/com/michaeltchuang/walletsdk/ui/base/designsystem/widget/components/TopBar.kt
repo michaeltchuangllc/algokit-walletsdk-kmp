@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.components
+package com.michaeltchuang.walletsdk.ui.base.designsystem.widget.components
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.app_name_topbar

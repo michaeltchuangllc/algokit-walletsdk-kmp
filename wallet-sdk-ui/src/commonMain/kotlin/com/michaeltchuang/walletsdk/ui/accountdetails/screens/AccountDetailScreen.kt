@@ -114,7 +114,7 @@ fun AccountDetailScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     address: String,
     viewState: AccountDetailViewModel.ViewState,

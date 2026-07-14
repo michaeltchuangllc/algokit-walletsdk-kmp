@@ -179,6 +179,7 @@ kotlin {
                 implementation(libs.compose.ui.testManifest)
                 implementation(libs.compose.ui.test.junit4)
                 implementation(libs.androidx.uiautomator)
+                implementation(libs.shot.android)
             }
         }
 
@@ -301,6 +302,45 @@ mavenPublishing {
             url.set("https://github.com/michaeltchuangllc/algokit-walletsdk-kmp")
         }
     }
+}
+
+val screenshotDevicePath =
+    "/sdcard/Download/screenshots/com.michaeltchuang.walletsdk.ui.test/screenshots-compose-default"
+
+val androidSdkDirectory =
+    sequenceOf(
+        providers.environmentVariable("ANDROID_HOME").orNull,
+        providers.environmentVariable("ANDROID_SDK_ROOT").orNull,
+        providers.gradleProperty("android.sdk.path").orNull,
+    ).filterNotNull().firstOrNull()
+
+val adbExecutable = androidSdkDirectory?.let { "$it/platform-tools/adb" } ?: "adb"
+
+val clearDeviceScreenshots by tasks.registering(Exec::class) {
+    commandLine(adbExecutable, "shell", "rm", "-rf", screenshotDevicePath)
+}
+
+val pullRecordedScreenshots by tasks.registering(Exec::class) {
+    val screenshotsDirectory = layout.projectDirectory.dir("screenshots/debug").asFile
+    onlyIf { project.hasProperty("record") }
+    doFirst {
+        screenshotsDirectory.mkdirs()
+    }
+    commandLine(adbExecutable, "pull", "$screenshotDevicePath/.", screenshotsDirectory.absolutePath)
+}
+
+tasks.configureEach {
+    if (name == "connectedAndroidDeviceTest") {
+        dependsOn(clearDeviceScreenshots)
+    }
+}
+
+val executeScreenshotTests by tasks.registering {
+    group = "verification"
+    description =
+        "Runs Android device screenshot tests. Use -Precord to copy captured screenshots to screenshots/debug."
+    dependsOn("connectedAndroidDeviceTest")
+    finalizedBy(pullRecordedScreenshots)
 }
 
 // Task to copy screenshots to GitHub Pages directory

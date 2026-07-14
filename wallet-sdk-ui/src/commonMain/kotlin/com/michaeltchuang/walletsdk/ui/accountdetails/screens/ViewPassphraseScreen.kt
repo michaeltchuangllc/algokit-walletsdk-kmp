@@ -53,7 +53,7 @@ fun ViewPassphraseScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+ fun ScreenContent(
     navController: NavController,
     viewState: ViewPassphraseViewModel.ViewState,
 ) {

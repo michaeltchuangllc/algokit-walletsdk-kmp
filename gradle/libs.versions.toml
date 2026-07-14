@@ -207,6 +207,7 @@ mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
 multidex = { module = "androidx.multidex:multidex", version.ref = "multidex" }
 rules = { group = "androidx.test", name = "rules", version.ref = "rules" }
 runner = { module = "androidx.test:runner", version.ref = "runner" }
+shot-android = { module = "com.karumi:shot-android", version.ref = "shot" }
 shot-plugin = { module = "com.karumi:shot", version.ref = "shot" }
 
 # Android / Google Libraries
