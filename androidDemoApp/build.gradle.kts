@@ -33,6 +33,8 @@ android {
         applicationId = "com.michaeltchuang.walletsdk.demo"
         versionCode = calculateVersionCode()
         versionName = calculateVersionName()
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildFeatures {
@@ -40,15 +42,20 @@ android {
         compose = true
     }
 
+    @Suppress("UnstableApiUsage")
+    testOptions {
+        managedDevices.localDevices {
+            create("pixel5") {
+                device = "Pixel 5"
+                apiLevel = 34
+                systemImageSource = "aosp"
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_21)
-        }
     }
 
     val localProperties = Properties()
@@ -148,6 +155,12 @@ android {
     }
 }
 
+kotlin {
+    compilerOptions {
+        jvmTarget.set(JvmTarget.JVM_21)
+    }
+}
+
 play {
     serviceAccountCredentials.set(file("../service-account.json"))
     track.set("internal")
@@ -170,4 +183,8 @@ dependencies {
     implementation(libs.lifecycle.common.java8)
     implementation(libs.seedvault.wallet.sdk)
 
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.uiautomator)
+    debugImplementation(libs.compose.ui.testManifest)
 }
