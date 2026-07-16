@@ -22,11 +22,14 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.webrtc.EglBase
+import org.webrtc.VideoTrack
 import kotlin.math.roundToLong
 
 /**
@@ -48,7 +51,7 @@ fun AnswerScreen(
     val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
-    val videoFrame by viewModel.videoFrame.collectAsState()
+    val signalService by viewModel.signalService.collectAsState()
     val pendingMppConsentFromState by viewModel.pendingMppConsent.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
     val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
@@ -56,6 +59,34 @@ fun AnswerScreen(
 
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+
+    // Native WebRTC remote track (host camera + mic) received on the viewer side.
+    // The peer connection (and its EGL context / tracks) is created asynchronously inside
+    // `service.peer()`, so poll until it becomes available instead of resolving once — otherwise
+    // we race the peerClient creation and end up with a null context/track (audio-only).
+    var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
+    var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
+
+    LaunchedEffect(signalService) {
+        val service = signalService ?: return@LaunchedEffect
+        service.setOnRemoteVideoTrack { track ->
+            remoteVideoTrack = track
+        }
+        while (true) {
+            if (eglBaseContext == null) {
+                service.eglBaseContext?.let { eglBaseContext = it }
+            }
+            val track = service.remoteVideoTrack
+            if (track !== remoteVideoTrack) {
+                remoteVideoTrack = track
+            }
+            // Re-register the listener once the peerClient exists (it may not have on first pass).
+            if (track == null) {
+                service.setOnRemoteVideoTrack { t -> remoteVideoTrack = t }
+            }
+            delay(300)
+        }
+    }
 
     var showPaymentDialog by remember { mutableStateOf(false) }
     var isPaymentProcessing by remember { mutableStateOf(false) }
@@ -108,13 +139,11 @@ fun AnswerScreen(
         )
 
     val viewerCameraPreview: (@Composable () -> Unit)? =
-        videoFrame?.let { frame ->
+        remoteVideoTrack?.let { track ->
             {
-                val aspectRatio = if (frame.height > 0) frame.width.toFloat() / frame.height else 4f / 3f
-                Log.d("AnswerScreen", "Rendering viewer frame ${frame.width}x${frame.height}, bytes=${frame.data.size}")
-                VideoFrameDisplay(
-                    frameData = frame.data,
-                    aspectRatio = aspectRatio,
+                WebRtcVideoRenderer(
+                    eglBaseContext = eglBaseContext,
+                    videoTrack = track,
                 )
             }
         }
@@ -140,7 +169,7 @@ fun AnswerScreen(
                     remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
                     progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
                     onMinimize = {
-                        Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
+                        Log.d("AnswerScreen", "Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}")
                         isViewerSheetVisible = false
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized

@@ -1,16 +1,29 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
 import android.content.Context
+import android.media.AudioManager
 import android.util.Log
+import org.webrtc.AudioSource
+import org.webrtc.AudioTrack
+import org.webrtc.Camera2Enumerator
+import org.webrtc.CameraVideoCapturer
 import org.webrtc.DataChannel
+import org.webrtc.DefaultVideoDecoderFactory
+import org.webrtc.DefaultVideoEncoderFactory
+import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
+import org.webrtc.MediaStreamTrack
 import org.webrtc.PeerConnection
 import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
+import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import org.webrtc.SurfaceTextureHelper
+import org.webrtc.VideoSource
+import org.webrtc.VideoTrack
 import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
@@ -20,14 +33,46 @@ class PeerApi(
 ) {
     companion object {
         const val TAG = "connect.PeerApi"
+
+        private const val LOCAL_VIDEO_TRACK_ID = "local_video"
+        private const val LOCAL_AUDIO_TRACK_ID = "local_audio"
+        private const val LOCAL_MEDIA_STREAM_ID = "liquid_stream"
+        private const val DEFAULT_CAPTURE_WIDTH = 1280
+        private const val DEFAULT_CAPTURE_HEIGHT = 720
+        private const val DEFAULT_CAPTURE_FPS = 30
     }
+
+    // Application context, used for camera capture.
+    private val appContext: Context = context.applicationContext
 
     // Data Channel to send and receive messages
     private var dataChannel: DataChannel? = null
     private val additionalDataChannels: MutableMap<String, DataChannel> = mutableMapOf()
 
+    // Shared EGL context for hardware video encode/decode + rendering.
+    private val eglBase: EglBase = EglBase.create()
+    val eglBaseContext: EglBase.Context get() = eglBase.eglBaseContext
+
     // Create the Peer Connection Factory
     private var peerConnectionFactory: PeerConnectionFactory
+
+    // ── Media tracks (native WebRTC video/audio streaming) ──────────────────────
+    private var videoCapturer: CameraVideoCapturer? = null
+    private var videoSource: VideoSource? = null
+    private var audioSource: AudioSource? = null
+    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+
+    /** Local camera track, used by the creator/host for preview + sending. */
+    var localVideoTrack: VideoTrack? = null
+        private set
+    private var localAudioTrack: AudioTrack? = null
+
+    /** Remote camera track received from the peer, used by the viewer for rendering. */
+    var remoteVideoTrack: VideoTrack? = null
+        private set
+
+    /** Invoked on the signaling thread whenever a remote video track arrives. */
+    var onRemoteVideoTrack: ((VideoTrack?) -> Unit)? = null
 
     init {
         PeerConnectionFactory.initialize(
@@ -39,7 +84,10 @@ class PeerApi(
         peerConnectionFactory =
             PeerConnectionFactory
                 .builder()
-                .setOptions(
+                .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
+                .setVideoEncoderFactory(
+                    DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true),
+                ).setOptions(
                     PeerConnectionFactory.Options().apply {
                         disableEncryption = false
                         disableNetworkMonitor = false
@@ -67,9 +115,16 @@ class PeerApi(
             peerConnection?.close()
         }
 
+        val rtcConfig =
+            PeerConnection
+                .RTCConfiguration(iceServers ?: emptyList())
+                .apply {
+                    sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
+                }
+
         peerConnection =
             peerConnectionFactory.createPeerConnection(
-                iceServers,
+                rtcConfig,
                 object : PeerConnection.Observer {
                     override fun onIceCandidate(p0: IceCandidate?) {
                         p0?.let {
@@ -129,9 +184,23 @@ class PeerApi(
                         p1: Array<out MediaStream>?,
                     ) {
                         Log.d(TAG, "onAddTrack($p0, $p1)")
+                        (p0?.track() as? VideoTrack)?.let { handleRemoteVideoTrack(it) }
+                    }
+
+                    override fun onTrack(transceiver: RtpTransceiver?) {
+                        val track = transceiver?.receiver?.track()
+                        Log.d(TAG, "onTrack(${track?.kind()})")
+                        (track as? VideoTrack)?.let { handleRemoteVideoTrack(it) }
                     }
                 },
             )
+    }
+
+    private fun handleRemoteVideoTrack(track: VideoTrack) {
+        Log.d(TAG, "Remote video track received: ${track.id()}")
+        remoteVideoTrack = track
+        track.setEnabled(true)
+        onRemoteVideoTrack?.invoke(track)
     }
 
     suspend fun createPeerConnection(
@@ -340,7 +409,142 @@ class PeerApi(
         }
     }
 
+    // ── Native WebRTC media tracks ──────────────────────────────────────────────
+    
+    fun startLocalCapture(
+        width: Int = DEFAULT_CAPTURE_WIDTH,
+        height: Int = DEFAULT_CAPTURE_HEIGHT,
+        fps: Int = DEFAULT_CAPTURE_FPS,
+    ): VideoTrack? {
+        val pc =
+            peerConnection ?: run {
+                Log.w(TAG, "startLocalCapture skipped: peerConnection is null")
+                return null
+            }
+        if (localVideoTrack != null || localAudioTrack != null) {
+            Log.d(TAG, "startLocalCapture skipped: capture already started")
+            return localVideoTrack
+        }
+        configureAudioForStreaming()
+
+        // Video capture
+        val capturer = createCameraCapturer()
+        if (capturer != null) {
+            videoCapturer = capturer
+            val helper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
+            surfaceTextureHelper = helper
+            val source = peerConnectionFactory.createVideoSource(capturer.isScreencast)
+            videoSource = source
+            capturer.initialize(helper, appContext, source.capturerObserver)
+            runCatching { capturer.startCapture(width, height, fps) }
+                .onFailure { Log.e(TAG, "Failed to start camera capture", it) }
+            val track = peerConnectionFactory.createVideoTrack(LOCAL_VIDEO_TRACK_ID, source)
+            track.setEnabled(true)
+            localVideoTrack = track
+            pc.addTrack(track, listOf(LOCAL_MEDIA_STREAM_ID))
+            Log.d(TAG, "Local video track added")
+        } else {
+            Log.w(TAG, "No camera available for local capture")
+        }
+
+        // Audio capture
+        val aSource = peerConnectionFactory.createAudioSource(MediaConstraints())
+        audioSource = aSource
+        val aTrack = peerConnectionFactory.createAudioTrack(LOCAL_AUDIO_TRACK_ID, aSource)
+        aTrack.setEnabled(true)
+        localAudioTrack = aTrack
+        pc.addTrack(aTrack, listOf(LOCAL_MEDIA_STREAM_ID))
+        Log.d(TAG, "Local audio track added")
+
+        return localVideoTrack
+    }
+    
+    fun addReceiveOnlyMediaTransceivers() {
+        val pc =
+            peerConnection ?: run {
+                Log.w(TAG, "addReceiveOnlyMediaTransceivers skipped: peerConnection is null")
+                return
+            }
+        val init =
+            RtpTransceiver.RtpTransceiverInit(
+                RtpTransceiver.RtpTransceiverDirection.RECV_ONLY,
+            )
+        pc.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, init)
+        pc.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, init)
+        configureAudioForStreaming()
+        Log.d(TAG, "Added recv-only video + audio transceivers")
+    }
+
+    /** Toggle between front/back cameras (creator side). */
+    fun switchCamera() {
+        videoCapturer?.switchCamera(null)
+    }
+
+    private fun createCameraCapturer(): CameraVideoCapturer? {
+        val enumerator = Camera2Enumerator(appContext)
+        // Prefer the front camera, fall back to the back camera.
+        enumerator.deviceNames.firstOrNull { enumerator.isFrontFacing(it) }?.let {
+            return enumerator.createCapturer(it, null)
+        }
+        enumerator.deviceNames.firstOrNull { enumerator.isBackFacing(it) }?.let {
+            return enumerator.createCapturer(it, null)
+        }
+        return enumerator.deviceNames.firstOrNull()?.let { enumerator.createCapturer(it, null) }
+    }
+
+    private fun stopLocalCapture() {
+        runCatching { videoCapturer?.stopCapture() }
+        videoCapturer?.dispose()
+        videoCapturer = null
+        surfaceTextureHelper?.dispose()
+        surfaceTextureHelper = null
+        localVideoTrack = null
+        localAudioTrack = null
+        runCatching { videoSource?.dispose() }
+        videoSource = null
+        runCatching { audioSource?.dispose() }
+        audioSource = null
+    }
+
+    // ── Audio routing ─────────────────────────────────────────────────────────────
+
+    // null = audio not yet configured; non-null = saved original mode to restore on destroy().
+    private var savedAudioMode: Int? = null
+    private var savedSpeakerphoneOn: Boolean = false
+
+    /**
+     * Route audio to the loudspeaker for media streaming.
+     *
+     * WebRTC uses `AudioAttributes.USAGE_VOICE_COMMUNICATION` internally, which Android routes to
+     * the earpiece by default. Calling this with `MODE_IN_COMMUNICATION + speakerphoneOn = true`
+     * overrides that so viewers and creators both hear through the loudspeaker.
+     */
+    @Suppress("DEPRECATION")
+    private fun configureAudioForStreaming() {
+        if (savedAudioMode != null) return // already configured
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        savedAudioMode = am.mode
+        savedSpeakerphoneOn = am.isSpeakerphoneOn
+        am.mode = AudioManager.MODE_IN_COMMUNICATION
+        am.isSpeakerphoneOn = true
+        Log.d(TAG, "Audio routed to loudspeaker (was mode=$savedAudioMode, speaker=$savedSpeakerphoneOn)")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun restoreAudioMode() {
+        val previousMode = savedAudioMode ?: return
+        savedAudioMode = null
+        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        am.isSpeakerphoneOn = savedSpeakerphoneOn
+        am.mode = previousMode
+        Log.d(TAG, "Audio mode restored to $previousMode, speaker=$savedSpeakerphoneOn")
+    }
+
     fun destroy() {
+        restoreAudioMode()
+        stopLocalCapture()
+        remoteVideoTrack = null
+        onRemoteVideoTrack = null
         dataChannel?.close()
 //        dataChannel?.dispose()
         additionalDataChannels.values.forEach { it.close() }
@@ -349,5 +553,6 @@ class PeerApi(
         peerConnection?.dispose()
         peerConnection = null
         dataChannel = null
+        runCatching { eglBase.release() }
     }
 }
