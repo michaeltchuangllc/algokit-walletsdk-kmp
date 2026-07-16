@@ -186,6 +186,14 @@ class SignalService : Service() {
         peerClient?.switchCamera()
     }
 
+    fun setAudioEnabled(enabled: Boolean) {
+        peerClient?.setAudioEnabled(enabled)
+    }
+
+    fun setVideoEnabled(enabled: Boolean) {
+        peerClient?.setVideoEnabled(enabled)
+    }
+
     fun createDataChannel(label: String): DataChannel? = peerClient?.createAdditionalDataChannel(label)
 
     fun getDataChannel(label: String): DataChannel? = peerClient?.getAdditionalDataChannel(label)

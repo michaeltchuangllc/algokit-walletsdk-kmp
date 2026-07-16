@@ -786,6 +786,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         signalService?.switchCamera()
     }
 
+    actual fun setAudioEnabled(enabled: Boolean) {
+        signalService?.setAudioEnabled(enabled)
+    }
+
+    actual fun setVideoEnabled(enabled: Boolean) {
+        signalService?.setVideoEnabled(enabled)
+    }
+
     private suspend fun signFalconTxnFromBundle(
         txn: Transaction,
         publicKey: ByteArray,

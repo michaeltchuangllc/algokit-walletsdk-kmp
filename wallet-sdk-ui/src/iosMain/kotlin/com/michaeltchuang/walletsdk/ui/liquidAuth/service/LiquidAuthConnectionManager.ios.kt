@@ -554,6 +554,15 @@ actual class LiquidAuthConnectionManager actual constructor(
         blockConsumptionJob = null
     }
 
+
+    actual fun setAudioEnabled(enabled: Boolean) {
+        println("$TAG: setAudioEnabled($enabled) — delegate to Swift layer if needed")
+    }
+
+    actual fun setVideoEnabled(enabled: Boolean) {
+        println("$TAG: setVideoEnabled($enabled) — delegate to Swift layer if needed")
+    }
+
     @Suppress("unused")
     fun notifyClientConnected(requestId: String) {
         println("$TAG: notifyClientConnected requestId=$requestId")

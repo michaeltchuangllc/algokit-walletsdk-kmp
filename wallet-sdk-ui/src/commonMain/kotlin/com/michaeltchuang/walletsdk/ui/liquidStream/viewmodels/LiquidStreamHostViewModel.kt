@@ -64,6 +64,18 @@ class LiquidStreamHostViewModel(
         stateDelegate.updateState { it.copy(subsidizeViewerFeesEnabled = enabled) }
     }
 
+    fun onMicClicked() {
+        val newMutedState = !state.value.isMicMuted
+        stateDelegate.updateState { it.copy(isMicMuted = newMutedState) }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.ToggleMic(isMuted = newMutedState))
+    }
+
+    fun onCameraClicked() {
+        val newEnabledState = !state.value.isCameraEnabled
+        stateDelegate.updateState { it.copy(isCameraEnabled = newEnabledState) }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.ToggleCamera(isEnabled = newEnabledState))
+    }
+
     data class UiState(
         val message: String = "",
         val isStatsModalVisible: Boolean = false,
@@ -75,6 +87,8 @@ class LiquidStreamHostViewModel(
         val streamRevenue: String = "+1.402.15",
         val securedViaLabel: String = "Secured via Algorand Mainnet",
         val blockNumberLabel: String = "#38291041",
+        val isMicMuted: Boolean = false,
+        val isCameraEnabled: Boolean = true,
     )
 
     companion object {
@@ -89,6 +103,14 @@ class LiquidStreamHostViewModel(
 
         data class ShowError(
             val message: String,
+        ) : ViewEvent
+
+        data class ToggleMic(
+            val isMuted: Boolean,
+        ) : ViewEvent
+
+        data class ToggleCamera(
+            val isEnabled: Boolean,
         ) : ViewEvent
     }
 }

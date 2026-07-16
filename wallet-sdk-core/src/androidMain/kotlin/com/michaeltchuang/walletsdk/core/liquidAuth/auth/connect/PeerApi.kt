@@ -480,6 +480,17 @@ class PeerApi(
         videoCapturer?.switchCamera(null)
     }
 
+
+    fun setAudioEnabled(enabled: Boolean) {
+        localAudioTrack?.setEnabled(enabled)
+        Log.d(TAG, "Local audio track enabled: $enabled")
+    }
+
+    fun setVideoEnabled(enabled: Boolean) {
+        localVideoTrack?.setEnabled(enabled)
+        Log.d(TAG, "Local video track enabled: $enabled")
+    }
+
     private fun createCameraCapturer(): CameraVideoCapturer? {
         val enumerator = Camera2Enumerator(appContext)
         // Prefer the front camera, fall back to the back camera.
