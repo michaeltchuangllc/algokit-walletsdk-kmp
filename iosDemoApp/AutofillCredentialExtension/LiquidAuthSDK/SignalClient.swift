@@ -58,7 +58,9 @@ public class SignalClient {
         requestId: String,
         type: String,
         iceServers: [RTCIceServer],
+        enableMedia: Bool,
         onDataChannelOpen: @escaping (RTCDataChannel) -> Void,
+        onRemoteVideoTrack: @escaping (RTCVideoTrack) -> Void,
         onMessage: @escaping (String) -> Void,
         onStateChange: @escaping (String?) -> Void
     ) -> RTCDataChannel? {
@@ -72,6 +74,7 @@ public class SignalClient {
             iceServers: iceServers,
             poolSize: 10,
             signalService: service,
+            enableMedia: enableMedia,
             onDataChannel: { [weak self] dataChannel in
                 Logger.debug("SignalClient: onDataChannel called with: \(dataChannel.label)")
                 let isPaymentChannel = dataChannel.label == "x402-payment-channel"
@@ -143,6 +146,7 @@ public class SignalClient {
                     onStateChange("open")
                 }
             },
+            onRemoteVideoTrack: onRemoteVideoTrack,
             onIceCandidate: { [weak self] candidate in
                 guard let self else { return }
                 Logger.debug("Generated ICE candidate: \(candidate)")

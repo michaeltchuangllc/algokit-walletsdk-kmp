@@ -36,6 +36,10 @@ public class SignalService {
     var paymentDataChannel: RTCDataChannel?
 
     var onPaymentDataChannelReady: ((RTCDataChannel) -> Void)?
+    /// App-provided hook for attaching local tracks. Kept camera-free for extension compatibility.
+    var onPeerCreated: ((PeerApi) -> Void)?
+    var onRemoteVideoTrack: ((RTCVideoTrack) -> Void)?
+    var remoteVideoTrack: RTCVideoTrack?
 
     private var peerConnection: RTCPeerConnection?
     private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
@@ -77,6 +81,8 @@ public class SignalService {
         dataChannel = nil
         paymentDataChannel = nil
         onPaymentDataChannelReady = nil
+        remoteVideoTrack = nil
+        onRemoteVideoTrack = nil
         peerConnection = nil
         delegate?.signalService(self, didReceiveStatusUpdate: "Signal Service", message: "Service stopped.")
     }
@@ -106,6 +112,7 @@ public class SignalService {
         type: String,
         origin: String,
         iceServers: [RTCIceServer],
+        enableMedia: Bool = false,
         onMessage: @escaping (String) -> Void,
         onStateChange: @escaping (String?) -> Void
     ) {
@@ -127,6 +134,7 @@ public class SignalService {
                 requestId: requestId,
                 type: type,
                 iceServers: iceServers,
+                enableMedia: enableMedia,
                 onDataChannelOpen: { [weak self] dataChannel in
                     guard let self else { return }
                     Logger.debug("SignalService: onDataChannelOpen called with: \(dataChannel.label)")
@@ -150,6 +158,10 @@ public class SignalService {
                         self.startKeepAlive()
                     }
                 },
+                onRemoteVideoTrack: { [weak self] track in
+                    self?.remoteVideoTrack = track
+                    self?.onRemoteVideoTrack?(track)
+                },
                 onMessage: { message in
                     onMessage(message)
                 },
@@ -158,6 +170,9 @@ public class SignalService {
 
             peerClient = signalClient?.peerClient
             peerConnection = peerClient?.peerConnection
+            if enableMedia, type == "offer", let peerClient {
+                self.onPeerCreated?(peerClient)
+            }
 
             if let peerConnection {
                 Logger.debug("Peer connection state: \(peerConnection.connectionState.rawValue)")
@@ -175,6 +190,20 @@ public class SignalService {
         signalClient?.connectSocket()
         Logger.debug("ICE servers: \(iceServers)")
         Logger.debug("Waiting for socket to connect before signaling.")
+    }
+
+    var localPeerApi: PeerApi? { peerClient }
+
+    func setLocalAudioEnabled(_ enabled: Bool) {
+        peerClient?.setAudioEnabled(enabled)
+    }
+
+    func setLocalVideoEnabled(_ enabled: Bool) {
+        peerClient?.setVideoEnabled(enabled)
+    }
+
+    func makeLocalVideoRenderer() -> RTCMTLVideoView? {
+        peerClient?.makeLocalVideoRenderer()
     }
 
     /// Sends a message through the data channel

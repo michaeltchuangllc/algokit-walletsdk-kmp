@@ -14,29 +14,40 @@
  * limitations under the License.
  */
 
+import CoreMedia
 import Foundation
 import WebRTC
 
 // MARK: - PeerApi
 
 class PeerApi {
-    private let peerConnectionFactory: RTCPeerConnectionFactory
+    let peerConnectionFactory: RTCPeerConnectionFactory
     var peerConnection: RTCPeerConnection?
     private var peerConnectionDelegate: PeerConnectionDelegate?
     private var dataChannel: RTCDataChannel?
     private let onDataChannel: (RTCDataChannel) -> Void
     private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
     private weak var signalService: SignalService?
+    private let enableMedia: Bool
+    private let onRemoteVideoTrack: (RTCVideoTrack) -> Void
+    var videoSource: RTCVideoSource?
+    var audioSource: RTCAudioSource?
+    var localVideoTrack: RTCVideoTrack?
+    var localAudioTrack: RTCAudioTrack?
 
     init(
         iceServers: [RTCIceServer],
         poolSize: Int,
         signalService: SignalService?,
+        enableMedia: Bool,
         onDataChannel: @escaping (RTCDataChannel) -> Void,
+        onRemoteVideoTrack: @escaping (RTCVideoTrack) -> Void,
         onIceCandidate: @escaping (RTCIceCandidate) -> Void
     ) {
         self.signalService = signalService
+        self.enableMedia = enableMedia
         self.onDataChannel = onDataChannel
+        self.onRemoteVideoTrack = onRemoteVideoTrack
         // Initialize the PeerConnectionFactory
         RTCPeerConnectionFactory.initialize()
         peerConnectionFactory = RTCPeerConnectionFactory()
@@ -51,16 +62,14 @@ class PeerApi {
         let delegate = PeerConnectionDelegate(
             onIceCandidate: onIceCandidate,
             onDataChannel: onDataChannel,
+            onRemoteVideoTrack: onRemoteVideoTrack,
             onConnectionStateChange: { state in
                 Logger.debug("PeerAPI: Peer connection state changed: \(state.rawValue)")
             }
         )
 
         // Create the PeerConnection
-        let constraints = RTCMediaConstraints(
-            mandatoryConstraints: ["OfferToReceiveAudio": "false", "OfferToReceiveVideo": "false"],
-            optionalConstraints: ["DtlsSrtpKeyAgreement": "true"]
-        )
+        let constraints = mediaConstraints()
 
         peerConnectionDelegate = delegate
         peerConnection = peerConnectionFactory.peerConnection(
@@ -82,16 +91,14 @@ class PeerApi {
         configuration.sdpSemantics = .unifiedPlan
         configuration.continualGatheringPolicy = .gatherContinually
 
-        let constraints = RTCMediaConstraints(
-            mandatoryConstraints: ["OfferToReceiveAudio": "false", "OfferToReceiveVideo": "false"],
-            optionalConstraints: ["DtlsSrtpKeyAgreement": "true"]
-        )
+        let constraints = mediaConstraints()
         peerConnection = peerConnectionFactory.peerConnection(
             with: configuration,
             constraints: constraints,
             delegate: PeerConnectionDelegate(
                 onIceCandidate: onIceCandidate,
                 onDataChannel: onDataChannel,
+                onRemoteVideoTrack: onRemoteVideoTrack,
                 onConnectionStateChange: onConnectionStateChange
             )
         )
@@ -148,10 +155,7 @@ class PeerApi {
             completion(nil)
             return
         }
-        peerConnection.offer(for: RTCMediaConstraints(
-            mandatoryConstraints: ["OfferToReceiveAudio": "false", "OfferToReceiveVideo": "false"],
-            optionalConstraints: ["DtlsSrtpKeyAgreement": "true"]
-        )) { sdp, error in
+        peerConnection.offer(for: mediaConstraints()) { sdp, error in
             if let error {
                 Logger.error("PeerAPI: Failed to create offer: \(error)")
                 completion(nil)
@@ -167,10 +171,7 @@ class PeerApi {
             Logger.error("PeerAPI: PeerConnection is null, ensure you are connected")
             return
         }
-        peerConnection.answer(for: RTCMediaConstraints(
-            mandatoryConstraints: ["OfferToReceiveAudio": "false", "OfferToReceiveVideo": "false"],
-            optionalConstraints: ["DtlsSrtpKeyAgreement": "true"]
-        )) { sdp, error in
+        peerConnection.answer(for: mediaConstraints()) { sdp, error in
             if let error {
                 Logger.error("PeerAPI: Failed to create answer: \(error)")
                 completion(nil)
@@ -178,6 +179,32 @@ class PeerApi {
                 completion(sdp)
             }
         }
+    }
+
+    private func mediaConstraints() -> RTCMediaConstraints {
+        RTCMediaConstraints(
+            mandatoryConstraints: [
+                "OfferToReceiveAudio": enableMedia ? "true" : "false",
+                "OfferToReceiveVideo": enableMedia ? "true" : "false",
+            ],
+            optionalConstraints: ["DtlsSrtpKeyAgreement": "true"]
+        )
+    }
+
+    func setAudioEnabled(_ enabled: Bool) {
+        localAudioTrack?.isEnabled = enabled
+    }
+
+    func setVideoEnabled(_ enabled: Bool) {
+        localVideoTrack?.isEnabled = enabled
+    }
+
+    func makeLocalVideoRenderer() -> RTCMTLVideoView? {
+        guard let localVideoTrack else { return nil }
+        let renderer = RTCMTLVideoView(frame: .zero)
+        renderer.videoContentMode = .scaleAspectFill
+        localVideoTrack.add(renderer)
+        return renderer
     }
 
     // Create a Data Channel
@@ -230,16 +257,19 @@ class PeerApi {
 class PeerConnectionDelegate: NSObject, RTCPeerConnectionDelegate {
     private let onIceCandidate: (RTCIceCandidate) -> Void
     private let onDataChannel: (RTCDataChannel) -> Void
+    private let onRemoteVideoTrack: (RTCVideoTrack) -> Void
     private let onConnectionStateChange: (RTCPeerConnectionState) -> Void
 
     init(
         onIceCandidate: @escaping (RTCIceCandidate) -> Void,
         onDataChannel: @escaping (RTCDataChannel) -> Void,
+        onRemoteVideoTrack: @escaping (RTCVideoTrack) -> Void,
         onConnectionStateChange: @escaping (RTCPeerConnectionState) -> Void
     ) {
         Logger.debug("PeerAPI: PeerConnectionDelegate initialized")
         self.onIceCandidate = onIceCandidate
         self.onDataChannel = onDataChannel
+        self.onRemoteVideoTrack = onRemoteVideoTrack
         self.onConnectionStateChange = onConnectionStateChange
     }
 
@@ -254,6 +284,13 @@ class PeerConnectionDelegate: NSObject, RTCPeerConnectionDelegate {
 
     func peerConnection(_: RTCPeerConnection, didRemove stream: RTCMediaStream) {
         Logger.debug("PeerAPI: Media stream removed: \(stream)")
+    }
+
+    func peerConnection(_: RTCPeerConnection, didStartReceivingOn transceiver: RTCRtpTransceiver) {
+        guard let videoTrack = transceiver.receiver.track as? RTCVideoTrack else { return }
+        videoTrack.isEnabled = true
+        Logger.info("PeerAPI: remote video track received: \(videoTrack.trackId)")
+        onRemoteVideoTrack(videoTrack)
     }
 
     func peerConnectionShouldNegotiate(_: RTCPeerConnection) {

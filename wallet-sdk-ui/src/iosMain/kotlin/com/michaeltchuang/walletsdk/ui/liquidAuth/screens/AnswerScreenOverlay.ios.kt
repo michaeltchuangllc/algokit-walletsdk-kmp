@@ -13,6 +13,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.UIKitView
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -34,17 +35,18 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
 import platform.Foundation.NSLog
+import platform.UIKit.UIView
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.roundToLong
@@ -108,7 +110,6 @@ actual fun AnswerScreenOverlay() {
         }
 
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
-    val frame by stateHolder.videoFrame.collectAsStateWithLifecycle()
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
     val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
@@ -118,6 +119,7 @@ actual fun AnswerScreenOverlay() {
     val isPaymentProcessing by stateHolder.isViewerPaymentProcessing.collectAsStateWithLifecycle()
 
     var showPaymentDialog by remember { mutableStateOf(false) }
+    var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
 
@@ -170,6 +172,12 @@ actual fun AnswerScreenOverlay() {
         // The native WebRTC connection is already being established by the Swift handler;
         // notify the manager so it sends the hello message and starts balance polling.
         viewerManager.notifyViewerConnected()
+        // The remote track may arrive after the data channel opens, so retry briefly until the
+        // Swift WebRTC service can create its RTCMTLVideoView renderer.
+        while (remoteVideoView == null) {
+            remoteVideoView = iosViewerVideoViewProvider?.invoke() as? UIView
+            if (remoteVideoView == null) kotlinx.coroutines.delay(300)
+        }
     }
 
     // Show the consent dialog when a payment request arrives.
@@ -206,11 +214,11 @@ actual fun AnswerScreenOverlay() {
     AlgoKitTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             val viewerCameraPreview: (@Composable () -> Unit) = {
-                val currentFrame = frame
-                if (currentFrame != null && currentFrame.height > 0) {
-                    VideoFrameDisplay(
-                        frameData = currentFrame.data,
-                        aspectRatio = currentFrame.width.toFloat() / currentFrame.height.toFloat(),
+                val renderer = remoteVideoView
+                if (renderer != null) {
+                    UIKitView(
+                        factory = { renderer },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black))

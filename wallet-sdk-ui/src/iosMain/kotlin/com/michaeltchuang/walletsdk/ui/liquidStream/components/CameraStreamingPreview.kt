@@ -5,8 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -16,203 +15,55 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.viewinterop.UIKitView
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.readBytes
-import platform.AVFoundation.AVCaptureDevice
-import platform.AVFoundation.AVCaptureDeviceDiscoverySession
-import platform.AVFoundation.AVCaptureDeviceInput
-import platform.AVFoundation.AVCaptureDevicePositionBack
-import platform.AVFoundation.AVCaptureDevicePositionFront
-import platform.AVFoundation.AVCaptureDeviceTypeBuiltInWideAngleCamera
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastVideoViewProvider
+import kotlinx.coroutines.delay
 import platform.AVFoundation.AVCaptureSession
-import platform.AVFoundation.AVCaptureSessionPreset640x480
-import platform.AVFoundation.AVCaptureVideoPreviewLayer
-import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
-import platform.AVFoundation.AVMediaTypeVideo
-import platform.CoreGraphics.CGRectMake
 import platform.Foundation.NSData
-import platform.Foundation.NSDate
-import platform.Foundation.NSUUID
-import platform.Foundation.date
-import platform.Foundation.timeIntervalSince1970
 import platform.UIKit.UIView
-import platform.darwin.DISPATCH_QUEUE_PRIORITY_DEFAULT
-import platform.darwin.dispatch_async
-import platform.darwin.dispatch_get_global_queue
-import platform.darwin.dispatch_get_main_queue
 
+/** Legacy JPEG capture bridge retained for source compatibility; native WebRTC tracks are used instead. */
 var iosBroadcastCaptureSession: AVCaptureSession? = null
-
-@Suppress("unused")
 var iosOnBroadcastFrameReady: ((data: NSData, width: Int, height: Int) -> Unit)? = null
 var iosStartBroadcastFrameCapture: (() -> Unit)? = null
 var iosStopBroadcastFrameCapture: (() -> Unit)? = null
 
-@OptIn(ExperimentalForeignApi::class)
+/**
+ * iOS host preview backed by the same native WebRTC camera track that is sent to the viewer.
+ * This avoids opening a competing AVCaptureSession and eliminates JPEG frame transport.
+ */
 actual fun createCameraStreamingPreview(
     connectionManager: LiquidAuthConnectionManager?,
     controller: CameraStreamingPreviewController?,
 ): @Composable () -> Unit =
     {
-        IOSCameraPreviewContent(
-            connectionManager = connectionManager,
-            controller = controller,
-        )
+        IOSWebRtcCameraPreview(controller)
     }
 
-@OptIn(ExperimentalForeignApi::class)
 @Composable
-private fun IOSCameraPreviewContent(
-    connectionManager: LiquidAuthConnectionManager?,
-    controller: CameraStreamingPreviewController?,
-) {
-    val session =
-        remember {
-            AVCaptureSession().apply {
-                sessionPreset = AVCaptureSessionPreset640x480
-            }
-        }
-    val previewView = remember { CameraPreviewContainerView(session) }
-    var cameraPosition by remember { mutableStateOf(AVCaptureDevicePositionBack) }
-    val canSwitchCamera = remember { hasCamera(AVCaptureDevicePositionBack) && hasCamera(AVCaptureDevicePositionFront) }
-    var hasActiveInput by remember { mutableStateOf(false) }
+private fun IOSWebRtcCameraPreview(controller: CameraStreamingPreviewController?) {
+    var videoView by remember { mutableStateOf<UIView?>(null) }
 
-    DisposableEffect(session) {
-        iosBroadcastCaptureSession = session
-        onDispose {
-            if (iosBroadcastCaptureSession === session) {
-                iosBroadcastCaptureSession = null
-            }
+    LaunchedEffect(Unit) {
+        while (videoView == null) {
+            videoView = iosBroadcastVideoViewProvider?.invoke() as? UIView
+            if (videoView == null) delay(300)
         }
     }
 
-    DisposableEffect(connectionManager) {
-        iosOnBroadcastFrameReady = frameCallback@{ data, w, h ->
-            if (connectionManager?.isConnected() != true) return@frameCallback
-            val length = data.length.toInt()
-            if (length == 0) return@frameCallback
-            val bytes = data.bytes?.readBytes(length) ?: return@frameCallback
-            connectionManager.sendVideoFrame(
-                frameId = NSUUID().UUIDString,
-                timestamp = (NSDate.date().timeIntervalSince1970 * 1000.0).toLong(),
-                frameData = bytes,
-                width = w,
-                height = h,
-                format = "jpeg",
-            )
-        }
-        iosStartBroadcastFrameCapture?.invoke()
-        onDispose {
-            iosStopBroadcastFrameCapture?.invoke()
-            iosOnBroadcastFrameReady = null
-        }
-    }
+    controller?.onRotateCamera = null
 
-    DisposableEffect(cameraPosition) {
-        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u)) {
-            val configured = configureSessionInput(session, cameraPosition)
-            dispatch_async(dispatch_get_main_queue()) {
-                hasActiveInput = configured
-            }
-            if (configured && !session.running) {
-                session.startRunning()
-            }
-        }
-        onDispose {}
-    }
-
-    DisposableEffect(session) {
-        onDispose {
-            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0u)) {
-                if (session.running) session.stopRunning()
-            }
-        }
-    }
-
-    SideEffect {
-        controller?.onRotateCamera = {
-            if (canSwitchCamera) {
-                cameraPosition =
-                    if (cameraPosition == AVCaptureDevicePositionBack) {
-                        AVCaptureDevicePositionFront
-                    } else {
-                        AVCaptureDevicePositionBack
-                    }
-            }
-        }
-    }
-
-    DisposableEffect(controller) {
-        onDispose { controller?.onRotateCamera = null }
-    }
-
-    Box(modifier = Modifier.fillMaxSize()) {
+    val renderer = videoView
+    if (renderer != null) {
         UIKitView(
-            factory = { previewView },
+            factory = { renderer },
             modifier = Modifier.fillMaxSize(),
         )
-        if (!hasActiveInput) {
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color.Black),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(text = "Unable to start camera", color = Color.White)
-            }
+    } else {
+        Box(
+            modifier = Modifier.fillMaxSize().background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(text = "Waiting for camera", color = Color.White)
         }
     }
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private class CameraPreviewContainerView(
-    session: AVCaptureSession,
-) : UIView(frame = CGRectMake(0.0, 0.0, 0.0, 0.0)) {
-    private val previewLayer =
-        AVCaptureVideoPreviewLayer.layerWithSession(session).apply {
-            videoGravity = AVLayerVideoGravityResizeAspectFill
-        }
-
-    init {
-        layer.addSublayer(previewLayer)
-    }
-
-    override fun layoutSubviews() {
-        super.layoutSubviews()
-        previewLayer.frame = bounds
-    }
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun hasCamera(position: Long): Boolean {
-    val discoverySession =
-        AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes(
-            deviceTypes = listOf(AVCaptureDeviceTypeBuiltInWideAngleCamera),
-            mediaType = AVMediaTypeVideo,
-            position = position,
-        )
-    return discoverySession.devices.isNotEmpty()
-}
-
-@OptIn(ExperimentalForeignApi::class)
-private fun configureSessionInput(
-    session: AVCaptureSession,
-    position: Long,
-): Boolean {
-    val discoverySession =
-        AVCaptureDeviceDiscoverySession.discoverySessionWithDeviceTypes(
-            deviceTypes = listOf(AVCaptureDeviceTypeBuiltInWideAngleCamera),
-            mediaType = AVMediaTypeVideo,
-            position = position,
-        )
-    val device = discoverySession.devices.firstOrNull() as? AVCaptureDevice ?: return false
-    val input = AVCaptureDeviceInput.deviceInputWithDevice(device, error = null) ?: return false
-
-    session.beginConfiguration()
-    session.inputs.forEach { session.removeInput(it as platform.AVFoundation.AVCaptureInput) }
-    if (!session.canAddInput(input)) {
-        session.commitConfiguration()
-        return false
-    }
-    session.addInput(input)
-    session.commitConfiguration()
-    return true
 }
