@@ -792,6 +792,9 @@ public class LiquidAuthService {
         guard let remoteVideoTrack = signalService?.remoteVideoTrack else { return nil }
         let renderer = RTCMTLVideoView(frame: .zero)
         renderer.videoContentMode = .scaleAspectFill
+        // RTCMTLVideoView does not expose WebRTC Android's renderer mirror flag. Mirror the
+        // remote view here so iOS viewers see Android host footage with the same orientation.
+        renderer.transform = CGAffineTransform(scaleX: -1, y: 1)
         remoteVideoTrack.add(renderer)
         return renderer
     }
