@@ -46,6 +46,10 @@ var iosBroadcastSendMessageHandler: ((message: String) -> Unit)? = null
 var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 
 var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
+var iosBroadcastSetAudioEnabledHandler: ((enabled: Boolean) -> Unit)? = null
+var iosBroadcastSetVideoEnabledHandler: ((enabled: Boolean) -> Unit)? = null
+/** Supplies a UIKit view that renders the local native WebRTC video track. */
+var iosBroadcastVideoViewProvider: (() -> Any?)? = null
 
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
@@ -70,6 +74,9 @@ var iosViewerSendMessageHandler: ((message: String) -> Unit)? = null
 var iosViewerPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 var iosViewerIsConnectedHandler: (() -> Boolean)? = null
 var iosViewerDetectConnectionTypeHandler: (() -> String)? = null
+
+/** Supplies a UIKit view that renders the remote native WebRTC video track. */
+var iosViewerVideoViewProvider: (() -> Any?)? = null
 
 /**
  * Called by Kotlin to retrieve the base64-encoded Ed25519 public key for the viewer's address.
@@ -552,6 +559,17 @@ actual class LiquidAuthConnectionManager actual constructor(
         println("$TAG: stopBlockConsumption")
         blockConsumptionJob?.cancel()
         blockConsumptionJob = null
+    }
+
+
+    actual fun setAudioEnabled(enabled: Boolean) {
+        iosBroadcastSetAudioEnabledHandler?.invoke(enabled)
+            ?: println("$TAG: setAudioEnabled($enabled) skipped — Swift media handler not set")
+    }
+
+    actual fun setVideoEnabled(enabled: Boolean) {
+        iosBroadcastSetVideoEnabledHandler?.invoke(enabled)
+            ?: println("$TAG: setVideoEnabled($enabled) skipped — Swift media handler not set")
     }
 
     @Suppress("unused")

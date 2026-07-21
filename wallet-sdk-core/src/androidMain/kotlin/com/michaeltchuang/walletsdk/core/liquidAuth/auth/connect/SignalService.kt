@@ -154,11 +154,44 @@ class SignalService : Service() {
         requestId: String,
         type: String,
         iceServers: List<PeerConnection.IceServer>,
+        enableMedia: Boolean = false,
     ) {
-        dataChannel = signalClient?.peer(requestId, type, iceServers)
+        dataChannel = signalClient?.peer(requestId, type, iceServers, enableMedia)
         peerClient = signalClient?.peerClient
         peerConnection = peerClient?.peerConnection
         paymentDataChannel = null
+    }
+
+    /** Shared EGL context for rendering local/remote video tracks. */
+    val eglBaseContext: org.webrtc.EglBase.Context?
+        get() = peerClient?.eglBaseContext
+
+    /** Creator/host local camera track for self-preview. */
+    val localVideoTrack: org.webrtc.VideoTrack?
+        get() = peerClient?.localVideoTrack
+
+    /** Remote camera track received from the peer (viewer side). */
+    val remoteVideoTrack: org.webrtc.VideoTrack?
+        get() = peerClient?.remoteVideoTrack
+
+    /** Register a listener notified when the remote video track arrives (viewer side). */
+    fun setOnRemoteVideoTrack(listener: ((org.webrtc.VideoTrack?) -> Unit)?) {
+        peerClient?.onRemoteVideoTrack = listener
+        // Deliver the current track immediately if it already arrived.
+        peerClient?.remoteVideoTrack?.let { listener?.invoke(it) }
+    }
+
+    /** Toggle the creator/host camera between front and back. */
+    fun switchCamera() {
+        peerClient?.switchCamera()
+    }
+
+    fun setAudioEnabled(enabled: Boolean) {
+        peerClient?.setAudioEnabled(enabled)
+    }
+
+    fun setVideoEnabled(enabled: Boolean) {
+        peerClient?.setVideoEnabled(enabled)
     }
 
     fun createDataChannel(label: String): DataChannel? = peerClient?.createAdditionalDataChannel(label)

@@ -9,10 +9,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.UIKitView
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,8 +24,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
@@ -34,20 +32,18 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
-import io.github.aakira.napier.Napier
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
 import platform.Foundation.NSLog
+import platform.UIKit.UIView
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.math.roundToLong
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
@@ -60,8 +56,6 @@ actual fun AnswerScreenOverlay() {
     val origin = AnswerScreenState.origin
 
     val viewerManager: LiquidAuthConnectionManager = koinInject()
-    val scope = rememberCoroutineScope()
-
     // Inject use cases from Koin so the shared CommonAnswerViewModel can be constructed.
     val getCurrentBlockUseCase: GetCurrentBlockUseCase = koinInject()
     val getAccountAlgoBalance: GetAccountAlgoBalance = koinInject()
@@ -108,16 +102,12 @@ actual fun AnswerScreenOverlay() {
         }
 
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
-    val frame by stateHolder.videoFrame.collectAsStateWithLifecycle()
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
     val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
     val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
     val sessionId by stateHolder.session.collectAsStateWithLifecycle()
-    val pendingConsent by stateHolder.pendingViewerConsent.collectAsStateWithLifecycle()
-    val isPaymentProcessing by stateHolder.isViewerPaymentProcessing.collectAsStateWithLifecycle()
-
-    var showPaymentDialog by remember { mutableStateOf(false) }
+    var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
 
@@ -170,12 +160,11 @@ actual fun AnswerScreenOverlay() {
         // The native WebRTC connection is already being established by the Swift handler;
         // notify the manager so it sends the hello message and starts balance polling.
         viewerManager.notifyViewerConnected()
-    }
-
-    // Show the consent dialog when a payment request arrives.
-    LaunchedEffect(pendingConsent) {
-        if (pendingConsent != null) {
-            showPaymentDialog = true
+        // The remote track may arrive after the data channel opens, so retry briefly until the
+        // Swift WebRTC service can create its RTCMTLVideoView renderer.
+        while (remoteVideoView == null) {
+            remoteVideoView = iosViewerVideoViewProvider?.invoke() as? UIView
+            if (remoteVideoView == null) kotlinx.coroutines.delay(300)
         }
     }
 
@@ -206,11 +195,11 @@ actual fun AnswerScreenOverlay() {
     AlgoKitTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             val viewerCameraPreview: (@Composable () -> Unit) = {
-                val currentFrame = frame
-                if (currentFrame != null && currentFrame.height > 0) {
-                    VideoFrameDisplay(
-                        frameData = currentFrame.data,
-                        aspectRatio = currentFrame.width.toFloat() / currentFrame.height.toFloat(),
+                val renderer = remoteVideoView
+                if (renderer != null) {
+                    UIKitView(
+                        factory = { renderer },
+                        modifier = Modifier.fillMaxSize(),
                     )
                 } else {
                     Box(modifier = Modifier.fillMaxSize().background(Color.Black))
@@ -231,11 +220,6 @@ actual fun AnswerScreenOverlay() {
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized
                     },
-                    onTopUpConfirm = { enteredAmountUsdc ->
-                        scope.launch {
-                            //viewerManager.approveMppConsent(enteredAmountUsdc)
-                        }
-                    },
                 )
             }
 
@@ -248,62 +232,7 @@ actual fun AnswerScreenOverlay() {
                 },
             )
 
-            // MPP consent / deposit dialog — shown when the host requests payment.
-            val mppConsent = pendingConsent
-            if (showPaymentDialog && mppConsent != null) {
-                val amountMicro = mppConsent.amount.toLongOrNull() ?: 0L
-                val defaultTopUpMicro = 1_000_000L
-                val amountText = (defaultTopUpMicro / 1_000_000.0).toString()
-                Napier.d("howing MPP consent dialog")
-                LiquidAuthSessionVaultModal(
-                    initialAmount = amountText,
-                    quickAmounts = listOf(amountText, "8.0"),
-                    currencyLabel = "USDC",
-                    isProcessing = isPaymentProcessing,
-                    isDismissible = false,
-                    onDismiss = {
-                        if (!isPaymentProcessing) {
-                            stateHolder.rejectViewerConsent()
-                            showPaymentDialog = false
-                        }
-                    },
-                    onTopUpAndStream = { enteredAmount ->
-                        val entered =
-                            enteredAmount.toDoubleOrNull() ?: (defaultTopUpMicro / 1_000_000.0)
-                        val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-                        val perSegmentMicro = amountMicro.coerceAtLeast(1L)
-                        val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
-                        val hostAddress = mppConsent.payTo.orEmpty()
-                        Napier.d(
-                            "[VIEWER_MPP_CONSENT_TOPUP] viewer=$address host=$hostAddress " +
-                                    "amountMicroUsdc=$micro " +
-                                    "perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments",
-                        )
-                        if (hostAddress.isBlank()) {
-                            Napier.d("Invalid host address: $hostAddress")
-                            stateHolder.rejectViewerConsent()
-                            showPaymentDialog = false
-                            return@LiquidAuthSessionVaultModal
-                        }
-                        if (!isPaymentProcessing) {
-                            scope.launch {
-                                stateHolder.approveViewerConsent(
-                                    ConsentApproval(
-                                        approved = true,
-                                        autoPaySegments = true,
-                                        budgetCap = BudgetCap(
-                                            amount = micro.toString(),
-                                            asset = "USDC"
-                                        ),
-                                        maxAutoPaySegments = maxSegments,
-                                    )
-                                )
-                                showPaymentDialog = false
-                            }
-                        }
-                    },
-                )
-            }
+            ViewerMppConsentDialog(stateHolder = stateHolder)
         }
     }
 }

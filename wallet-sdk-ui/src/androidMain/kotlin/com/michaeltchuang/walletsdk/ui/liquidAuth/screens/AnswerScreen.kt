@@ -12,22 +12,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidAuthSessionVaultModal
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.VideoFrameDisplay
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
-import kotlinx.coroutines.launch
-import kotlin.math.roundToLong
+import kotlinx.coroutines.delay
+import org.webrtc.EglBase
+import org.webrtc.VideoTrack
 
 /**
  * Answer Screen for Liquid Auth Client
@@ -48,8 +46,7 @@ fun AnswerScreen(
     val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
-    val videoFrame by viewModel.videoFrame.collectAsState()
-    val pendingMppConsentFromState by viewModel.pendingMppConsent.collectAsState()
+    val signalService by viewModel.signalService.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
     val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
@@ -57,14 +54,39 @@ fun AnswerScreen(
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
 
-    var showPaymentDialog by remember { mutableStateOf(false) }
-    var isPaymentProcessing by remember { mutableStateOf(false) }
+    // Native WebRTC remote track (host camera + mic) received on the viewer side.
+    // The peer connection (and its EGL context / tracks) is created asynchronously inside
+    // `service.peer()`, so poll until it becomes available instead of resolving once — otherwise
+    // we race the peerClient creation and end up with a null context/track (audio-only).
+    var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
+    var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
+
+    LaunchedEffect(signalService) {
+        val service = signalService ?: return@LaunchedEffect
+        service.setOnRemoteVideoTrack { track ->
+            remoteVideoTrack = track
+        }
+        while (true) {
+            if (eglBaseContext == null) {
+                service.eglBaseContext?.let { eglBaseContext = it }
+            }
+            val track = service.remoteVideoTrack
+            if (track !== remoteVideoTrack) {
+                remoteVideoTrack = track
+            }
+            // Re-register the listener once the peerClient exists (it may not have on first pass).
+            if (track == null) {
+                service.setOnRemoteVideoTrack { t -> remoteVideoTrack = t }
+            }
+            delay(300)
+        }
+    }
+
     var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
     val hasError = errorMessage != null
     val isConnected = message != null && session != SESSION_LOGGED_OUT && !hasError
     val isPasskeyAuthenticated = session == LIQUID_AUTH_SESSION
     val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(viewModel) {
         viewModel.startRealtimeBlockNumberUpdates()
@@ -75,7 +97,6 @@ fun AnswerScreen(
                 is AnswerViewModel.ViewEvent.StreamDisconnected -> {
                     Log.w("AnswerScreen", "Viewer stream disconnected: ${event.reason}")
                     isViewerSheetVisible = false
-                    showPaymentDialog = false
                     ConnectionStatusState.isVisible = false
                     ConnectionStatusState.isExpanded = false
                     ConnectionStatusState.session = ""
@@ -85,14 +106,6 @@ fun AnswerScreen(
                 }
                 else -> { /* other events */ }
             }
-        }
-    }
-
-    LaunchedEffect(pendingMppConsentFromState) {
-        if (pendingMppConsentFromState != null) {
-            showPaymentDialog = true
-            isViewerSheetVisible = true
-            isPaymentProcessing = false
         }
     }
 
@@ -108,13 +121,11 @@ fun AnswerScreen(
         )
 
     val viewerCameraPreview: (@Composable () -> Unit)? =
-        videoFrame?.let { frame ->
+        remoteVideoTrack?.let { track ->
             {
-                val aspectRatio = if (frame.height > 0) frame.width.toFloat() / frame.height else 4f / 3f
-                Log.d("AnswerScreen", "Rendering viewer frame ${frame.width}x${frame.height}, bytes=${frame.data.size}")
-                VideoFrameDisplay(
-                    frameData = frame.data,
-                    aspectRatio = aspectRatio,
+                WebRtcVideoRenderer(
+                    eglBaseContext = eglBaseContext,
+                    videoTrack = track,
                 )
             }
         }
@@ -140,7 +151,7 @@ fun AnswerScreen(
                     remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
                     progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
                     onMinimize = {
-                        Log.d("AnswerScreen", "Viewer minimize tapped. hasFrame=${videoFrame != null}")
+                        Log.d("AnswerScreen", "Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}")
                         isViewerSheetVisible = false
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized
@@ -167,66 +178,6 @@ fun AnswerScreen(
             },
         )
 
-        // Session Vault modal reused for MPP consent approval.
-        val mppConsent = pendingMppConsentFromState
-        if (showPaymentDialog && mppConsent != null) {
-            val amountMicro = mppConsent.amount.toLongOrNull() ?: 0L
-            val defaultTopUpMicro = 1_000_000L
-            val amountText = (defaultTopUpMicro / 1_000_000.0).toString()
-            Log.d("AnswerScreen", "🎭 Showing MPP consent dialog")
-            LiquidAuthSessionVaultModal(
-                initialAmount = amountText,
-                quickAmounts = listOf(amountText, "8.0"),
-                currencyLabel = "USDC",
-                isProcessing = isPaymentProcessing,
-                isDismissible = false,
-                onDismiss = {
-                    if (!isPaymentProcessing) {
-                        viewModel.rejectMppConsent()
-                        showPaymentDialog = false
-                    }
-                },
-                onTopUpAndStream = { enteredAmount ->
-                    if (isPaymentProcessing) {
-                        Log.d("AnswerScreen", "Payment processing already in progress")
-                        return@LiquidAuthSessionVaultModal
-                    }
-                    isPaymentProcessing = true
-                    scope.launch {
-                        try {
-                            val entered = enteredAmount.toDoubleOrNull() ?: (defaultTopUpMicro / 1_000_000.0)
-                            val micro = (entered * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-                            val perSegmentMicro = amountMicro.coerceAtLeast(1L)
-                            val maxSegments = (micro / perSegmentMicro).toInt().coerceAtLeast(1)
-                            val hostAddress = mppConsent.payTo.orEmpty()
-                            Log.e(
-                                "AnswerScreen",
-                                "[VIEWER_MPP_CONSENT_TOPUP] viewer=$accountAddress host=$hostAddress amountMicroUsdc=$micro perSegmentMicroUsdc=$perSegmentMicro maxSegments=$maxSegments",
-                            )
-                            if (hostAddress.isBlank()) {
-                                Log.e("AnswerScreen", "Invalid host address: $hostAddress")
-                                viewModel.rejectMppConsent()
-                                showPaymentDialog = false
-                                return@launch
-                            }
-                            viewModel.approveMppConsent(
-                                ConsentApproval(
-                                    approved = true,
-                                    autoPaySegments = true,
-                                    budgetCap = BudgetCap(
-                                        amount = micro.toString(),
-                                        asset = "USDC"
-                                    ),
-                                    maxAutoPaySegments = maxSegments,
-                                ),
-                            )
-                            showPaymentDialog = false
-                        } finally {
-                            isPaymentProcessing = false
-                        }
-                    }
-                },
-            )
-        }
+        ViewerMppConsentDialog(stateHolder = viewModel)
     }
 }

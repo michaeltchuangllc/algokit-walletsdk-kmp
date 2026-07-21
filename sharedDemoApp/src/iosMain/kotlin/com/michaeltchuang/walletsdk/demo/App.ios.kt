@@ -709,6 +709,18 @@ fun registerBroadcastHandlers(
     println("iOS broadcast handlers registered")
 }
 
+fun registerIosNativeMediaHandlers(
+    localVideoViewProvider: () -> Any?,
+    remoteVideoViewProvider: () -> Any?,
+    setAudioEnabled: (Boolean) -> Unit,
+    setVideoEnabled: (Boolean) -> Unit,
+) {
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastVideoViewProvider = localVideoViewProvider
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider = remoteVideoViewProvider
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetAudioEnabledHandler = setAudioEnabled
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetVideoEnabledHandler = setVideoEnabled
+}
+
 fun notifyBroadcastClientConnected(requestId: String) {
     activeIOSBroadcastConnectionManager?.notifyClientConnected(requestId)
 }

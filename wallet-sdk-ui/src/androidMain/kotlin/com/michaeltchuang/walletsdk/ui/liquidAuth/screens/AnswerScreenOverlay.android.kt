@@ -296,6 +296,7 @@ actual fun AnswerScreenOverlay() {
                 viewModel.stopMppPaymentViewer()
                 viewModel.unbindSignalService(context)
                 viewModelStoreOwner.viewModelStore.clear()
+                AnswerScreenState.isVisible = false
             }
         }
 
@@ -412,7 +413,10 @@ private suspend fun handleWebRTCSetup(
     val msg = viewModel.authMessage.value ?: return
     if (viewModel.signalService.value != null) {
         Log.d(TAG, "Setting up WebRTC connection...")
-        viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers)
+        // Streaming sessions receive the creator's camera + microphone as native WebRTC
+        // media tracks, so request recv-only media on the offer for those sessions only.
+        val enableMedia = msg.appId == AppId.LIQUID_AUTH_STREAM.name
+        viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers, enableMedia)
         var hasStartedMppViewer = false
         viewModel.signalService.value?.handleMessages(
             activity = activity,

@@ -8,6 +8,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     private var activeStreamingService: LiquidAuthService?
+    private var broadcastVideoCapturer: RTCCameraVideoCapturer?
 
     func application(
         _ application: UIApplication,
@@ -57,17 +58,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             self?.activeStreamingService = nil
         }
 
+        App_iosKt.registerIosNativeMediaHandlers(
+            localVideoViewProvider: { SignalService.shared.makeLocalVideoRenderer() },
+            remoteVideoViewProvider: { [weak self] in self?.activeStreamingService?.makeRemoteVideoRenderer() },
+            setAudioEnabled: { SignalService.shared.setLocalAudioEnabled($0.boolValue) },
+            setVideoEnabled: { SignalService.shared.setLocalVideoEnabled($0.boolValue) }
+        )
+
         App_iosKt.registerBroadcastHandlers(
             startHandler: { origin, requestId in
                 DispatchQueue.main.async {
                     let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
                     NSLog("📡 Broadcast: connecting for origin=\(origin) requestId=\(requestId)")
                     // Note: no separate start() call — connectToPeer handles socket setup internally.
+                    SignalService.shared.onPeerCreated = { [weak self] peerApi in
+                        self?.startBroadcastMedia(on: peerApi)
+                    }
                     SignalService.shared.connectToPeer(
                         requestId: requestId,
                         type: "offer",
                         origin: origin,
                         iceServers: iceServers,
+                        enableMedia: true,
                         onMessage: { message in
                             App_iosKt.notifyBroadcastMessageReceived(message: message)
                         },
@@ -167,6 +179,42 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("✅ Liquid Auth callback registered successfully")
     }
     
+    private func startBroadcastMedia(on peerApi: PeerApi) {
+        guard peerApi.localVideoTrack == nil, let peerConnection = peerApi.peerConnection else { return }
+
+        let videoSource = peerApi.peerConnectionFactory.videoSource()
+        let capturer = RTCCameraVideoCapturer(delegate: videoSource)
+        guard let camera = RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == .front })
+            ?? RTCCameraVideoCapturer.captureDevices().first,
+            let format = RTCCameraVideoCapturer.supportedFormats(for: camera).max(by: {
+                CMVideoFormatDescriptionGetDimensions($0.formatDescription).width <
+                    CMVideoFormatDescriptionGetDimensions($1.formatDescription).width
+            }) else {
+            NSLog("❌ Broadcast: no camera available for WebRTC capture")
+            return
+        }
+
+        let fps = min(format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 30, 30)
+        capturer.startCapture(with: camera, format: format, fps: Int(fps))
+        let videoTrack = peerApi.peerConnectionFactory.videoTrack(with: videoSource, trackId: "local_video")
+        videoTrack.isEnabled = true
+        peerConnection.add(videoTrack, streamIds: ["liquid_stream"])
+
+        let audioSource = peerApi.peerConnectionFactory.audioSource(
+            with: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
+        )
+        let audioTrack = peerApi.peerConnectionFactory.audioTrack(with: audioSource, trackId: "local_audio")
+        audioTrack.isEnabled = true
+        peerConnection.add(audioTrack, streamIds: ["liquid_stream"])
+
+        peerApi.videoSource = videoSource
+        peerApi.audioSource = audioSource
+        peerApi.localVideoTrack = videoTrack
+        peerApi.localAudioTrack = audioTrack
+        broadcastVideoCapturer = capturer
+        NSLog("✅ Broadcast: native WebRTC camera and microphone tracks added")
+    }
+
     /// Present the Liquid Auth flow.
     private func presentLiquidAuthFlow(origin: String, requestId: String, algoAddress: String) {
         NSLog("🌉 Presenting Liquid Auth flow")

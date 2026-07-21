@@ -291,6 +291,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_initialized session=$resolvedSessionId viewer=$activeViewerAddressForVault recipient=$recipient",
                 )
+                // Notify the viewer of the creator's payment address + session so it can
+                // set up its payment flow (replaces the old `liquid:video:frame` piggyback).
+                sendCreatorSessionInfo(recipient, resolvedSessionId)
                 startBlockConsumption(resolvedSessionId)
             } else {
                 current.updateConfig(serverConfig.copy(sessionId = resolvedSessionId))
@@ -302,6 +305,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     TAG,
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_reused session=$resolvedSessionId viewer=$activeViewerAddressForVault recipient=$recipient",
                 )
+                sendCreatorSessionInfo(recipient, resolvedSessionId)
                 startBlockConsumption(resolvedSessionId)
             }
         } catch (e: Exception) {
@@ -466,6 +470,8 @@ actual class LiquidAuthConnectionManager actual constructor(
                     requestId = requestId,
                     type = "offer",
                     iceServers = IceServerConfig.iceServers,
+                    // Creator/host streams its camera + microphone via native WebRTC media tracks.
+                    enableMedia = true,
                 )
                 Log.d(TAG, "🔌 service.peer() returned - peer connection established")
 
@@ -719,6 +725,16 @@ actual class LiquidAuthConnectionManager actual constructor(
         platformServices.sendHostMessage(signalService, message)
     }
 
+    private fun sendCreatorSessionInfo(hostAddress: String, sessionId: String) {
+        if (hostAddress.isBlank()) {
+            Log.w(TAG, "sendCreatorSessionInfo: skipping — hostAddress is blank")
+            return
+        }
+        val json = """{"reference":"liquid:stream:info","hostAddress":"$hostAddress","sessionId":"$sessionId"}"""
+        Log.d(TAG, "[CREATOR_SESSION_INFO_SENT] host=$hostAddress session=$sessionId")
+        platformServices.sendHostMessage(signalService, json)
+    }
+
     actual fun sendVideoFrame(
         frameId: String,
         timestamp: Long,
@@ -756,6 +772,27 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun isConnected(): Boolean = platformServices.isHostConnected(signalService)
+
+    // ── Native WebRTC media track rendering (creator/host) ──────────────────────
+
+    /** Shared EGL context used to initialize a `SurfaceViewRenderer`. */
+    fun getStreamEglBaseContext(): org.webrtc.EglBase.Context? = signalService?.eglBaseContext
+
+    /** Local camera track for the creator self-preview. */
+    fun getLocalVideoTrack(): org.webrtc.VideoTrack? = signalService?.localVideoTrack
+
+    /** Toggle the creator camera between front and back. */
+    fun switchCamera() {
+        signalService?.switchCamera()
+    }
+
+    actual fun setAudioEnabled(enabled: Boolean) {
+        signalService?.setAudioEnabled(enabled)
+    }
+
+    actual fun setVideoEnabled(enabled: Boolean) {
+        signalService?.setVideoEnabled(enabled)
+    }
 
     private suspend fun signFalconTxnFromBundle(
         txn: Transaction,

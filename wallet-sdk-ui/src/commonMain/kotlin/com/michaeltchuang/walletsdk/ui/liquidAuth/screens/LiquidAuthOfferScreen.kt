@@ -77,6 +77,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -196,24 +197,6 @@ fun LiquidAuthMiniPlayerOverlay(
     }
 }
 
-/**
- * Liquid Auth Offer Screen with WebRTC video streaming support
- *
- * This screen generates a QR code that dApps can scan to initiate
- * a Liquid Auth connection. Once connected, it can stream video
- * back to the client over WebRTC data channels.
- *
- * This is a self-contained component that manages:
- * - QR code generation for peer connection
- * - WebRTC SignalService binding (Android)
- * - Connection state detection and UI transitions
- * - Video streaming UI
- *
- * @param origin The origin URL of the liquid auth service (e.g., https://auth.example.com)
- * @param title The title composable to display in the app bar
- * @param onBackPressed Callback when user presses back
- * @param cameraPreview Optional camera preview composable slot for streaming
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LiquidAuthOfferScreen(
@@ -221,7 +204,7 @@ fun LiquidAuthOfferScreen(
     title: @Composable () -> Unit = {},
     onBackPressed: (() -> Unit)? = null,
     cameraPreview: @Composable (() -> Unit)? = null,
-    connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
+    connectionManager: LiquidAuthConnectionManager? = null,
     showTopBar: Boolean = false,
     headerContent: @Composable (() -> Unit)? = null,
     creatorAddress: String? = null, // For X402 paid streaming
@@ -447,6 +430,7 @@ fun LiquidAuthOfferScreen(
         headerContent = headerContent,
         state = state,
         cameraPreview = cameraPreview,
+        connectionManager = connectionManager,
         onRegenerate = { viewModel.regenerateOffer(origin) },
         onStopStreaming = { viewModel.stopVideoStreaming() },
         onRetry = { viewModel.regenerateOffer(origin) },
@@ -475,6 +459,7 @@ fun LiquidAuthOfferScreenContent(
     headerContent: @Composable (() -> Unit)? = null,
     state: LiquidAuthOfferViewModel.OfferState,
     cameraPreview: @Composable (() -> Unit)?,
+    connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
     onRegenerate: () -> Unit,
     onStopStreaming: () -> Unit,
     onRetry: () -> Unit,
@@ -573,6 +558,7 @@ fun LiquidAuthOfferScreenContent(
 
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
+            connectionManager = connectionManager,
             cameraPreviewController = cameraPreviewController,
             onStatsClick = {},
             onMinimise = {
@@ -601,6 +587,7 @@ fun LiquidAuthOfferScreenContent(
 @Composable
 private fun StreamHostBottomSheet(
     cameraPreview: @Composable (() -> Unit)?,
+    connectionManager: LiquidAuthConnectionManager? = null,
     cameraPreviewController: CameraStreamingPreviewController,
     onStatsClick: () -> Unit,
     onMinimise: () -> Unit,
@@ -627,6 +614,7 @@ private fun StreamHostBottomSheet(
         ) {
             LiquidStreamHostLiveScreen(
                 cameraPreview = cameraPreview,
+                connectionManager = connectionManager,
                 onSettingsClick = {},
                 onMinimise = onMinimise,
                 onRotateCamera = { cameraPreviewController.rotateCamera() },
@@ -672,6 +660,7 @@ private fun StreamHostBottomSheet(
             ) {
                 LiquidStreamHostLiveScreen(
                     cameraPreview = cameraPreview,
+                    connectionManager = connectionManager,
                     onSettingsClick = {},
                     onMinimise = onMinimise,
                     onRotateCamera = { cameraPreviewController.rotateCamera() },

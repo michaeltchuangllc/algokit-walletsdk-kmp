@@ -14,7 +14,9 @@
  * limitations under the License.
  */
 
+import AVFoundation
 import AuthenticationServices
+import CoreMedia
 import sharedDemoApp
 import CryptoKit
 import deterministicP256_swift
@@ -57,6 +59,7 @@ public class LiquidAuthService {
     private var mnemonic: String?
     private var signalService: SignalService?
     private var dataChannel: RTCDataChannel?
+    private var videoCapturer: RTCCameraVideoCapturer?
     private var credentialID: String?
     
     // WebAuthn/FIDO2 related
@@ -744,6 +747,7 @@ public class LiquidAuthService {
             type: "answer",  // iOS wallet acts as the "answer" side
             origin: self.origin,  // ✅ Explicitly use self.origin
             iceServers: iceServers,
+            enableMedia: true,
             onMessage: { [weak self] message in
                 guard let self = self else { return }
 
@@ -783,6 +787,17 @@ public class LiquidAuthService {
         NSLog("   (This may take 10-30 seconds)")
     }
 
+
+    func makeRemoteVideoRenderer() -> RTCMTLVideoView? {
+        guard let remoteVideoTrack = signalService?.remoteVideoTrack else { return nil }
+        let renderer = RTCMTLVideoView(frame: .zero)
+        renderer.videoContentMode = .scaleAspectFill
+        // RTCMTLVideoView does not expose WebRTC Android's renderer mirror flag. Mirror the
+        // remote view here so iOS viewers see Android host footage with the same orientation.
+        renderer.transform = CGAffineTransform(scaleX: -1, y: 1)
+        remoteVideoTrack.add(renderer)
+        return renderer
+    }
 
     private func sendViewerHelloMessage() {
         let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)

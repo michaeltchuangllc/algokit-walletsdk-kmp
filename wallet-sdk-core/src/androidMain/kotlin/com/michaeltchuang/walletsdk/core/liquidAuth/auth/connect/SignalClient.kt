@@ -102,6 +102,7 @@ class SignalClient
             requestId: String,
             type: String,
             iceServers: List<PeerConnection.IceServer>?,
+            enableMedia: Boolean,
         ): DataChannel? {
             createSocket()
             return suspendCoroutine { continuation ->
@@ -167,6 +168,18 @@ class SignalClient
                         },
                         iceServers,
                     )
+
+                    // Native WebRTC media setup. Tracks/transceivers must be attached before
+                    // the SDP is created so the media sections are negotiated.
+                    if (enableMedia) {
+                        if (type === "offer") {
+                            // Creator/host answers the peer: capture camera + mic and send them.
+                            peerClient?.startLocalCapture()
+                        } else {
+                            // Viewer offers to the peer: request recv-only audio + video.
+                            peerClient?.addReceiveOnlyMediaTransceivers()
+                        }
+                    }
 
                     // Wait for Offer, then create Answer
                     if (type === "offer") {

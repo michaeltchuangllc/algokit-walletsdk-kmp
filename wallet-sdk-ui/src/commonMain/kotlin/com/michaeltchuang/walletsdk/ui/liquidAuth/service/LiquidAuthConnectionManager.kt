@@ -103,6 +103,10 @@ expect class LiquidAuthConnectionManager(platformContext: Any) {
      * Stop block consumption timer.
      */
     fun stopBlockConsumption()
+
+    fun setAudioEnabled(enabled: Boolean)
+
+    fun setVideoEnabled(enabled: Boolean)
 }
 
 const val LIQUID_AUTH_CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L

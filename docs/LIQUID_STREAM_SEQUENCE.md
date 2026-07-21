@@ -1,89 +1,192 @@
 # Liquid Stream — Creator ↔ Viewer Connection & Payment Sequence
 
-This document describes the complete code flow from the **Creator (Provider/Server)** side to the **Viewer (Consumer/Client)** side — what happens first on connection and what messages are exchanged.
+This document describes the complete code flow from the **Creator (Provider/Server)** side to the **Viewer (Consumer/Client)** side — what happens first on connection, how native WebRTC video/audio is established, and what messages are exchanged.
 
 ---
 
 ## Architecture Overview
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
+┌─────────────────���───────────────────────────────────────────────────┐
 │                        CREATOR SIDE                                 │
-│  AndroidLiquidAuthConnectionManager                                 │
-│      └─ SignalService (WebRTC Offerer)                              │
+│  LiquidAuthConnectionManager (Android)                              │
+│      └─ SignalService (Foreground Service)                          │
+│            ├─ SignalClient ──── WebSocket ──── Signaling Server     │
+│            ├─ PeerApi (PeerConnection · EglBase)                    │
+│            │     ├─ localVideoTrack  ──→ Camera2 capture           │
+│            │     └─ localAudioTrack  ──→ Microphone capture        │
 │            └─ LiquidStreamCreator                                   │
-│                  ├─ MppPaymentRail (serverConfig)  → MppProvider    │
-│                  └─ PaywalledRTCServer              → DataChannel   │
+│                  ├─ MppPaymentRail (serverConfig)  → MppProvider   │
+│                  └─ PaywalledRTCServer  → x402-payment-channel      │
 └─────────────────────────────────────────────────────────────────────┘
-                          │  WebRTC PeerConnection
-                          │  DataChannel: "x402-payment-channel"
-                          │  SignalService WebSocket
+              │  WebRTC PeerConnection (Unified Plan · BUNDLE)
+              │  ┌─ m=video   sendonly  (Camera2, H.264/VP8)
+              │  ├─ m=audio   sendonly  (Microphone, Opus)
+              │  └─ m=application  (SCTP DataChannels)
+              │       ├─ "liquid"               ← auth + session msgs
+              │       └─ "x402-payment-channel" ← payment protocol
 ┌─────────────────────────────────────────────────────────────────────┐
 │                        VIEWER SIDE                                  │
 │  AnswerViewModel                                                    │
 │      └─ SetupMppPaymentViewerUseCase                                │
-│            └─ LiquidStreamViewer                                    │
-│                  ├─ MppPaymentRail (clientConfig)  → MppConsumer    │
-│                  └─ PaywalledRTCClient              → DataChannel   │
+│            └─ MppPaymentViewerManager                               │
+│                  ├─ LiquidStreamViewer                              │
+│                  │     ├─ MppPaymentRail (clientConfig) → MppConsumer│
+│                  │     └─ PaywalledRTCClient → x402-payment-channel │
+│                  └─ WebRtcVideoRenderer (TextureView)               │
+│                        └─ remoteVideoTrack  (renders camera feed)   │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 1 — WebRTC Signaling & Connection Setup
+## Phase 1 — WebRTC Signaling & SDP Negotiation
 
-### Creator (`AndroidLiquidAuthConnectionManager`)
+### SDP Roles (Unified Plan)
 
-1. **`startListening(origin, requestId)`** is called.
-2. Starts `SignalService` as a foreground Android service.
-3. **`service.start(url)`** + **`service.peer(requestId, type = "offer", iceServers)`**
-   - Creator creates a `PeerConnection` as the **WebRTC offerer**.
-   - SDP Offer is sent through the signaling server.
-4. ICE candidates are exchanged until a direct/relay path is established.
+| Role | Side | What it does |
+|---|---|---|
+| **SDP Offerer** | **Viewer** | `peer(type="answer")` — creates and sends the SDP Offer |
+| **SDP Answerer** | **Creator** | `peer(type="offer")` — waits for the offer, creates and sends the SDP Answer |
 
-### Viewer (`AnswerViewModel` → `SetupMppPaymentViewerUseCase`)
+> The parameter naming is inverted from the SDP role: `type="offer"` on the Creator means *"I wait for an offer"*, and `type="answer"` on the Viewer means *"I create the offer"*. The SDP Offerer is always the Viewer.
 
-5. Viewer connects to the same signaling server as the **WebRTC answerer**.
-6. Accepts the SDP Offer, sends back an SDP Answer.
-7. **`awaitPaymentDataChannel(service)`** — polls/waits for a `DataChannel` with label `"x402-payment-channel"`.
+### Viewer (`AnswerScreenOverlay.handleWebRTCSetup`)
+
+1. **`signalService.peer(requestId, type="answer", enableMedia=true)`** is called.
+2. Inside `SignalClient.peer`:
+   - Creates a `PeerApi` (PeerConnectionFactory + shared `EglBase`).
+   - **`addReceiveOnlyMediaTransceivers()`** — adds two `recvonly` transceivers (video + audio) so the SDP Offer includes both m-lines.
+   - Creates the **"liquid"** DataChannel.
+   - Creates and sends the SDP Offer via the signaling server.
+   - Waits for the SDP Answer from the Creator.
+
+### Creator (`LiquidAuthConnectionManager.setupSignalService`)
+
+3. **`service.peer(requestId, type="offer", enableMedia=true)`** is called.
+4. Inside `SignalClient.peer`:
+   - Creates a `PeerApi`.
+   - **`startLocalCapture()`** — opens Camera2 + microphone; creates `localVideoTrack` and `localAudioTrack`; calls `peerConnection.addTrack()` for each.
+   - **`configureAudioForStreaming()`** — sets `AudioManager.MODE_IN_COMMUNICATION` + `isSpeakerphoneOn = true` so remote audio plays through the loudspeaker instead of the earpiece.
+   - Waits for the Viewer's SDP Offer, sets remote description, creates and sends the SDP Answer.
+
+5. ICE candidates are exchanged in both directions until a DTLS/ICE path is established.
+6. PeerConnection state → **CONNECTED**. All media tracks and DataChannels are now live.
 
 ---
 
-## Phase 2 — DataChannel Opens (First Event on Both Sides)
+## Phase 2 — "liquid" DataChannel Opens
 
 ### Creator
 
-8. `DataChannel` state → `OPEN`.
-9. **`viewModel?.onClientConnected(requestId)`** fires.
-10. **`sendPaymentRequest()`** is called, which:
-    - Creates a **`LiquidStreamCreator`** wrapping `PaywalledRTCServer` + `MppPaymentRail(serverConfig)`.
-    - Calls **`creator.start()`** → `PaywalledRTCServer.listen(dataChannel, rtpSenders)`.
-    - Registers `DataChannel.Observer` on the server side.
+7. `onDataChannel("liquid")` fires on the Creator's `PeerApi.Observer`.
+   - Incoming channel is stored as `dataChannel`.
+   - `peer()` coroutine unblocks and returns the channel.
+8. **`service.handleMessages()`** — registers a `DataChannel.Observer` on the "liquid" channel to receive Viewer messages.
+9. DataChannel state → `OPEN`:
+   - **`viewModel?.onClientConnected(requestId)`** fires.
+   - `startConnectionTypePolling()` begins.
 
 ### Viewer
 
-11. The `"x402-payment-channel"` `DataChannel` is found (or created).
-12. **`LiquidStreamViewer`** is created, wrapping `PaywalledRTCClient` + `MppPaymentRail(clientConfig)`.
-13. **`viewer.start()`** → `PaywalledRTCClient.connect(dataChannel)`.
-    - Registers `DataChannel.Observer`.
-    - **`onDataChannelOpen` callback fires** on the viewer side.
+10. "liquid" DataChannel state → `OPEN`.
+11. **Viewer sends a passkey credential/auth message** over the "liquid" channel.
+12. Creator's `onMessage` fires → `tryCaptureViewerAddressFromMessage()` captures viewer address and signer key if present.
 
 ---
 
-## Phase 3 — First Message: Creator Sends Payment Request
+## Phase 3 — Creator Starts Payment & Announces Session
 
-14. **`PaywalledRTCServer.handleDataChannelOpen()`** fires (with a 100 ms safety delay), then:
-    - **`WHOLE_STREAM` mode** → immediately calls `requestPayment()`.
-    - **`PARTIAL_TIME` mode** → `ungate()` stream (stream starts freely), schedules a segment timer with `leadTime`, then calls `requestPaymentWithGrace()`.
+13. **`sendPaymentRequest()`** is called on the Creator (triggered by the `LiquidAuthOfferScreen` UI):
+    - **`getOrCreateHostPaymentDataChannel()`** — creates the **`"x402-payment-channel"`** DataChannel (odd SCTP stream ID, negotiated).
+    - Builds a `LiquidStreamCreator` wrapping `PaywalledRTCServer` + `MppPaymentRail(serverConfig)`.
+    - **`creator.start()`** → `PaywalledRTCServer` starts its segment loop.
+    - Stores `activePaymentRecipient` (creator's Algorand address) and `activePaymentSessionId`.
 
-15. **`requestPayment()`** on Creator:
-    - Checks if the viewer's **session vault** is already on-chain funded → if yes, **skips the request entirely** and auto-completes with a synthetic receipt.
-    - Otherwise calls `MppPaymentRail.createPaymentRequest()` → `MppProvider.issueChallenge()`.
-    - `issueChallenge()` generates a **WWW-Authenticate challenge** (UUID nonce + Algorand suggested params embedded).
-    - **Sends the first DataChannel message →**
+14. **`sendCreatorSessionInfo(hostAddress, sessionId)`** — immediately sends a lightweight JSON message over the "liquid" channel:
 
 ```json
-// type: "segment:request"   (Creator → Viewer)
+// reference: "liquid:stream:info"   (Creator → Viewer, via "liquid" DataChannel)
+{
+  "reference": "liquid:stream:info",
+  "hostAddress": "<creator_algorand_address>",
+  "sessionId": "<uuid>"
+}
+```
+
+> **Why this message is needed:** Previously `hostAddress` was piggybacked on every `liquid:video:frame` JPEG message. Native WebRTC media tracks replaced those frames, so this dedicated message now delivers the creator's payment address to the viewer. Without it, the viewer never knows who to pay.
+
+---
+
+## Phase 4 — Viewer Sets Up Payment Flow
+
+15. Viewer's `onMessage` receives `"liquid:stream:info"`.
+    - `extractHostAddress(peerMsg)` finds `hostAddress` → not blank.
+    - **`viewModel.setupMppPaymentViewer(viewerAddress, hostAddress)`** is called.
+
+16. **`SetupMppPaymentViewerUseCase.invoke()`**:
+    - **`awaitPaymentDataChannel(service)`** — polls up to 2 seconds for the `"x402-payment-channel"` DataChannel (created by the Creator in step 13).
+    - On success: wraps it as `WebRtcDataChannel(paymentChannel)`.
+
+17. **`MppPaymentViewerManager.start()`** — creates a `LiquidStreamViewer` wrapping `PaywalledRTCClient` + `MppPaymentRail(clientConfig)`.
+    - **`viewer.start()`** → `PaywalledRTCClient.connect(dataChannel)`.
+    - Registers `RtcDataChannelObserver` on the x402 channel.
+
+18. When `"x402-payment-channel"` state → `OPEN`, `onDataChannelOpen` fires:
+    - Viewer sends `liquid:viewer:hello` over the **"liquid"** channel:
+
+```json
+// reference: "liquid:viewer:hello"   (Viewer → Creator, via "liquid" DataChannel)
+{
+  "reference": "liquid:viewer:hello",
+  "viewer": "<viewer_algorand_address>",
+  "viewerPublicKey": "<base64_authorized_signer_public_key>"
+}
+```
+
+19. Creator receives the hello → `tryCaptureViewerAddressFromMessage()`:
+    - Sets `activeViewerAuthorizedSignerKey`.
+    - Calls `updateCreatorViewerSignerConfig(signerKey)` → resolves `viewerKeyDeferred` inside `PaywalledRTCServer` so `channelId` can be computed.
+
+---
+
+## Phase 5 — Native WebRTC Video & Audio (Runs in Parallel)
+
+Video and audio stream as native WebRTC media tracks, independent of the DataChannels.
+
+### Creator (sender)
+
+- `PeerApi.startLocalCapture()` opened Camera2 + microphone during Phase 1.
+- `localVideoTrack` and `localAudioTrack` are already added via `peerConnection.addTrack()`.
+- `CameraStreamingPreview` renders `localVideoTrack` locally via `WebRtcVideoRenderer` (self-preview).
+
+### Viewer (receiver)
+
+- `PeerApi.onTrack(transceiver)` fires when the remote video track arrives.
+- `handleRemoteVideoTrack(track)` stores `remoteVideoTrack` and invokes `onRemoteVideoTrack`.
+- `AnswerScreen` polls `signalService.eglBaseContext` and `signalService.remoteVideoTrack` every 300 ms until both are non-null (avoids the race with async `peerClient` creation).
+- `WebRtcVideoRenderer` — backed by **`WebRtcTextureViewRenderer`** (a `TextureView`) — renders the remote track.
+
+> **Why `TextureView` instead of `SurfaceViewRenderer`:** WebRTC's `SurfaceViewRenderer` is a `SurfaceView` that punches a hole in its host window. Compose's `ModalBottomSheet` renders in a separate dialog window, so a `SurfaceView` always appears black there. A `TextureView` composites as a normal view and works correctly inside dialogs/bottom sheets.
+
+### Audio routing
+
+- WebRTC's audio device module uses `AudioAttributes.USAGE_VOICE_COMMUNICATION` (`usage=2`), which Android routes to the earpiece by default.
+- `configureAudioForStreaming()` forces `MODE_IN_COMMUNICATION` + `speakerphoneOn = true` so audio plays through the loudspeaker.
+- `restoreAudioMode()` reverts these settings when `PeerApi.destroy()` is called.
+
+---
+
+## Phase 6 — Creator Sends Payment Request
+
+20. **`PaywalledRTCServer.requestPayment()`** is triggered by the segment timer:
+    - **`resolveChannelIdBase64()`** — derives the escrow session vault channel ID from `viewerAddress + payTo + viewerAuthorizedSignerPublicKey` (requires `liquid:viewer:hello` to have been received first).
+    - Checks if the session vault is already on-chain funded → if yes, **skips the request entirely** and auto-completes with a synthetic receipt.
+    - Otherwise calls `MppPaymentRail.createPaymentRequest()` → `MppProvider.issueChallenge()` → generates a **WWW-Authenticate challenge**.
+    - **Sends the first x402 DataChannel message →**
+
+```json
+// type: "segment:request"   (Creator → Viewer, via "x402-payment-channel")
 {
   "type": "segment:request",
   "sessionId": "<uuid>",
@@ -92,17 +195,19 @@ This document describes the complete code flow from the **Creator (Provider/Serv
     "id": "<uuid>",
     "sessionId": "<uuid>",
     "segmentIndex": 0,
-    "amount": "3000",
-    "asset": "10458941",
+    "amount": "100000",
+    "asset": "USDC",
     "network": "algorand:testnet",
-    "payTo": "<creator_address>",
-    "ttl": 60,
+    "payTo": "<creator_algorand_address>",
+    "ttl": 30,
     "nonce": "mpp:<challengeId>",
+    "channelId": "<base64_escrow_channel_id>",
+    "salt": "<base64_salt>",
     "meta": {
       "gatingMode": "partial:time",
       "enforcement": "track",
-      "segmentDuration": 3,
-      "viewerAddress": "<viewer_address>"
+      "segmentDuration": 30,
+      "viewerAddress": "<viewer_algorand_address>"
     },
     "railPayload": {
       "protocol": "mpp",
@@ -115,27 +220,25 @@ This document describes the complete code flow from the **Creator (Provider/Serv
 }
 ```
 
-> **This is always the first message.** The Viewer never sends a message first — it only responds.
-
 ---
 
-## Phase 4 — Viewer Processes & Responds with Payment
+## Phase 7 — Viewer Processes & Responds with Payment
 
-16. `PaywalledRTCClient.handleDataChannelMessage()` receives `"segment:request"` → `handlePaymentRequest()`.
+21. `PaywalledRTCClient.handleDataChannelMessage()` receives `"segment:request"` → `handlePaymentRequest()`.
 
-17. **Consent check:**
+22. **Consent check:**
     - Checks if session vault is already funded on-chain → if funded, auto-approves with a `BudgetCap`.
-    - Otherwise `ConsentHandler.requestConsent()` is called → shows **payment consent UI** to the user.
+    - Otherwise `ConsentHandler.requestConsent()` is called → shows **payment consent UI** (`LiquidAuthSessionVaultModal`) to the user.
     - If vault not funded yet:
       - `MppPayments.openSessionAndDeposit()` — deposits USDC into the escrow vault on-chain.
       - `MppPayments.setAuthorizedSignerForSession()` — registers the viewer's authorized signer key on-chain.
 
-18. If approved: `MppPaymentRail.createRailPayment(request)` → `MppConsumer.createCredential()` → **signs the Algorand transaction group** with the viewer's wallet key.
+23. If approved: `MppPaymentRail.createRailPayment(request)` → `MppConsumer.createCredential()` → **signs the Algorand transaction group** with the viewer's wallet key.
 
-19. **Sends the second DataChannel message →**
+24. **Sends the second x402 DataChannel message →**
 
 ```json
-// type: "segment:payment"   (Viewer → Creator)
+// type: "segment:payment"   (Viewer → Creator, via "x402-payment-channel")
 {
   "type": "segment:payment",
   "sessionId": "<uuid>",
@@ -150,9 +253,9 @@ This document describes the complete code flow from the **Creator (Provider/Serv
     "paymentRequirements": {
       "scheme": "charge",
       "network": "algorand:testnet",
-      "amount": "3000",
-      "asset": "10458941",
-      "payTo": "<creator_address>"
+      "amount": "100000",
+      "asset": "USDC",
+      "payTo": "<creator_algorand_address>"
     }
   }
 }
@@ -162,18 +265,18 @@ This document describes the complete code flow from the **Creator (Provider/Serv
 
 ---
 
-## Phase 5 — Creator Verifies & Unlocks the Stream
+## Phase 8 — Creator Verifies & Unlocks the Stream
 
-20. `PaywalledRTCServer.handleDataChannelMessage()` receives `"segment:payment"` → `handlePayment()`.
-21. **Nonce check** — must match the pending `PaymentRequest.nonce`.
-22. **Replay protection** — `NonceStore.checkAndStore(nonce, ttl)` rejects duplicate nonces.
-23. `MppPaymentRail.verifyAndSettle()` → `MppProvider.verifyAndBroadcast()` → **submits the signed transaction group to the Algorand/Solana node**.
-24. `completePaidSegment()`:
-    - `ungate()` → **enables RTP tracks — the media stream unlocks**.
-    - **Sends the third DataChannel message →**
+25. `PaywalledRTCServer.handleDataChannelMessage()` receives `"segment:payment"` → `handlePayment()`.
+26. **Nonce check** — must match the pending `PaymentRequest.nonce`.
+27. **Replay protection** — `NonceStore.checkAndStore(nonce, ttl)` rejects duplicate nonces.
+28. `MppPaymentRail.verifyAndSettle()` → `MppProvider.verifyAndBroadcast()` → **submits the signed transaction group to the Algorand node**.
+29. `completePaidSegment()`:
+    - `ungate()` → **stream continues / segment unlocked**.
+    - **Sends the third x402 DataChannel message →**
 
 ```json
-// type: "segment:accepted"   (Creator → Viewer)
+// type: "segment:accepted"   (Creator → Viewer, via "x402-payment-channel")
 {
   "type": "segment:accepted",
   "sessionId": "<uuid>",
@@ -182,81 +285,155 @@ This document describes the complete code flow from the **Creator (Provider/Serv
     "txId": "<blockchain_tx_id>",
     "sessionId": "<uuid>",
     "segmentIndex": 0,
-    "amount": "3000",
-    "asset": "10458941",
-    "payTo": "<creator_address>",
-    "payFrom": "<viewer_address>",
+    "amount": "100000",
+    "asset": "USDC",
+    "payTo": "<creator_algorand_address>",
+    "payFrom": "<viewer_algorand_address>",
     "network": "algorand:testnet",
+    "channelId": "<base64_escrow_channel_id>",
     "timestamp": 1715000000000
   }
 }
 ```
 
-25. For **`PARTIAL_TIME` mode**: schedules the next segment timer → the request/payment/accept cycle **repeats every `segmentDuration` seconds**.
+30. For **`PARTIAL_TIME` mode**: schedules the next segment timer → the request/payment/accept cycle **repeats every `segmentDuration` seconds**.
 
 ---
 
-## Phase 6 — Viewer Voucher Update (Post-Receipt)
+## Phase 9 — Viewer Voucher Update (Post-Receipt)
 
-26. Viewer's **`onPaymentReceipt`** callback fires.
-27. Builds a **cumulative voucher** — a FIDO2-signed claim message with `totalAmountClaimedMicroUsdc`.
-28. `MppPayments.updateVoucherOnChain()` — updates the escrow session vault on-chain with the new voucher amount.
-29. Sends a **voucher JSON over the WebSocket signaling channel** (not the DataChannel):
+31. Viewer's **`onPaymentReceipt`** callback fires.
+32. Builds a **cumulative voucher** — a FIDO2-signed claim with `totalAmountClaimedMicroUsdc`.
+33. `MppPayments.updateVoucherOnChain()` — updates the escrow session vault on-chain.
+34. Sends a **voucher JSON over the "liquid" DataChannel** (`service.send()`):
 
 ```json
-// reference: "liquid:payment:voucher"   (Viewer → Creator, via SignalService.send())
+// reference: "liquid:payment:voucher"   (Viewer → Creator, via "liquid" DataChannel)
 {
   "reference": "liquid:payment:voucher",
   "id": "<sessionId>",
   "viewer": "<viewer_algorand_address>",
   "viewerPublicKey": "<base64_authorized_signer_public_key>",
   "signature": "<base64_fido2_signature>",
-  "totalAmountClaimedMicroUsdc": 3000
+  "totalAmountClaimedMicroUsdc": 100000
 }
 ```
 
-30. Creator's `tryCaptureViewerAddressFromMessage()` receives this → stores `activeCreatorVoucherClaimSnapshot` → used to **skip future payment requests** if the vault still has balance.
+35. Creator's `tryCaptureViewerAddressFromMessage()` receives this → stores `activeCreatorVoucherClaimSnapshot` → used to **skip future payment requests** if the vault still has balance.
 
 ---
 
-## Complete DataChannel Message Flow
+## Complete Message Flow
 
 ```
-CREATOR                                  VIEWER
-   |                                        |
-   |  [DataChannel OPEN]                    |
-   |                                        |
-   |──── segment:request ──────────────────>|   ← First message ever sent
-   |     (challenge + payment terms)        |     100ms after DC opens
-   |                                        |
-   |     [Viewer shows consent UI]          |
-   |     [or auto-approves if vault funded] |
-   |                                        |
-   |<─── segment:payment ───────────────────|   ← Viewer's first response
-   |     (signed credential)                |
-   |     OR payload=null to deny            |
-   |                                        |
-   |  [Creator verifies + broadcasts txn]   |
-   |  [Ungate → RTP tracks enabled]         |
-   |                                        |
-   |──── segment:accepted ─────────────────>|   ← Stream is now live
-   |     (payment receipt)                  |
-   |                                        |
-   |  ───── repeats every N seconds ──────  |
-   |  (for PARTIAL_TIME gating mode)        |
-   |                                        |
-   |──── session:terminate ────────────────>|   ← Either side can close
-   |     (reason)                           |
-   |                                        |
+SIGNALING SERVER       CREATOR                              VIEWER
+       │                  │                                    │
+       │←── connect (WS) ─┤                                    │
+       │←── connect (WS) ─┼────────────────────────────────────┤
+       │                  │                                    │
+       │                  │  [Viewer: addReceiveOnlyTransceivers│
+       │                  │   video recvonly · audio recvonly]  │
+       │←── SDP Offer ────┼────────────────────────────────────┤
+       │                  │                                    │
+       │   [Creator: startLocalCapture() → cam + mic]          │
+       │   [configureAudioForStreaming() → speakerphone]        │
+       │                  │                                    │
+       │── SDP Answer ────┼────────────────────────────────────►│
+       │                  │                                    │
+       │         [ICE candidates exchanged ↔]                  │
+       │         [DTLS → PeerConnection CONNECTED]             │
+       │                  │                                    │
+       ╔══════════════════╪══ "liquid" DataChannel OPEN ═══════╪╗
+       ║                  │                                    │║
+       ║                  │←── credential / passkey auth msg ──┤║  Viewer auth
+       ║                  │    [onClientConnected fires]        │║
+       ╚══════════════════╪════════════════════════════════════╪╝
+       │                  │                                    │
+       │  [Creator: sendPaymentRequest()]                       │
+       │  [create x402-payment-channel DC]                     │
+       │  [LiquidStreamCreator.start()]                        │
+       │                  │                                    │
+       │                  │── liquid:stream:info ──────────────►│  "liquid" DC
+       │                  │   { hostAddress, sessionId }        │
+       │                  │                                    │
+       │           [Viewer: extractHostAddress()]               │
+       │           [setupMppPaymentViewer()]                    │
+       │           [awaitPaymentDataChannel() → found]          │
+       │           [PaywalledRTCClient.connect()]               │
+       │                  │                                    │
+       ╔══════════════════╪══ "x402-payment-channel" OPEN ═════╪╗
+       ║                  │                                    │║
+       ║                  │←── liquid:viewer:hello ────────────┤║  "liquid" DC
+       ║                  │    { viewer, viewerPublicKey }      │║
+       ║   [Creator: viewerKeyDeferred resolved]                │║
+       ║   [channelId can now be computed]                      │║
+       ╚══════════════════╪════════════════════════════════════╪╝
+       │                  │                                    │
+       │    ══════════════╪═ Native WebRTC Media (continuous) ═╪══
+       │                  │~~~ Video Track (H.264/VP8) ~~~~~~~~►│
+       │                  │~~~ Audio Track (Opus) ~~~~~~~~~~~~~►│
+       │    ══════════════╪════════════════════════════════════╪══
+       │                  │   [Viewer: onTrack() fires]         │
+       │                  │   [remoteVideoTrack → TextureView]  │
+       │                  │                                    │
+       ╔══════════════════╪══ Payment Cycle (x402 DC) ═════════╪╗
+       ║                  │                                    │║
+       ║  [resolveChannelIdBase64()]                            │║
+       ║  [MppProvider.issueChallenge()]                        │║
+       ║                  │── segment:request ─────────────────►│║
+       ║                  │   { channelId, nonce, amount }      │║
+       ║                  │                                    │║
+       ║          [Viewer shows consent UI]                     │║
+       ║          [or auto-approves if vault funded]            │║
+       ║          [openSessionAndDeposit() if needed]           │║
+       ║          [MppConsumer.createCredential()]              │║
+       ║                  │                                    │║
+       ║                  │←── segment:payment ────────────────┤║
+       ║                  │    { signed credential }            │║
+       ║                  │    OR payload=null to deny          │║
+       ║                  │                                    │║
+       ║  [verifyAndBroadcast() → Algorand node]                │║
+       ║  [completePaidSegment() → ungate()]                    │║
+       ║                  │                                    │║
+       ║                  │── segment:accepted ────────────────►│║
+       ║                  │   { txId, receipt }                 │║
+       ║                  │                                    │║
+       ║          ──── repeats every segmentDuration s ────     │║
+       ╚══════════════════╪════════════════════════════════════╪╝
+       │                  │                                    │
+       │          [Viewer: build FIDO2 voucher]                 │
+       │          [updateVoucherOnChain()]                      │
+       │                  │←── liquid:payment:voucher ─────────┤  "liquid" DC
+       │                  │    { totalAmountClaimed, sig }      │
+       │                  │                                    │
+       │                  │── session:terminate ───────────────►│  Either side
+       │                  │   { reason }                        │
+       │                  │                                    │
+       │  [PeerApi.destroy()]                                   │
+       │  [restoreAudioMode() · stopLocalCapture()]             │
+       │                  │                                    │
 ```
 
-### All DataChannel Message Types
+---
+
+## DataChannel Message Reference
+
+### "liquid" channel — auth & session messages
+
+| Reference | Direction | Purpose |
+|---|---|---|
+| *(credential/auth)* | Viewer → Creator | Passkey authentication at connection time |
+| `liquid:stream:info` | Creator → Viewer | Delivers `hostAddress` + `sessionId` — replaces old `liquid:video:frame` piggyback |
+| `liquid:viewer:hello` | Viewer → Creator | Viewer's Algorand address + authorized signer public key; required to compute `channelId` |
+| `liquid:payment:voucher` | Viewer → Creator | Cumulative FIDO2-signed claim; Creator skips future requests if vault still funded |
+
+### "x402-payment-channel" — payment protocol
 
 | Message Type | Direction | Purpose |
 |---|---|---|
-| `segment:request` | Creator → Viewer | Payment challenge + stream terms |
+| `segment:request` | Creator → Viewer | Payment challenge + stream terms (includes `channelId`) |
 | `segment:payment` | Viewer → Creator | Signed credential (or `null` to deny) |
-| `segment:accepted` | Creator → Viewer | Payment receipt — stream unlocked |
+| `segment:accepted` | Creator → Viewer | Payment receipt — segment unlocked |
 | `segment:rejected` | Creator → Viewer | Nonce mismatch or replay detected |
 | `session:terminate` | Either → Either | Session ended with reason |
 | `segment:key` | Creator → Viewer | Reserved for crypto enforcement (future) |
@@ -274,6 +451,11 @@ CREATOR                                  VIEWER
 | Session vault already funded | Creator **skips** `segment:request` entirely; stream unlocks immediately with synthetic receipt |
 | Budget cap exceeded | Viewer emits `onBudgetExceeded` + `onStreamGated("Budget exceeded")` |
 | DataChannel closed | Both sides emit `onSessionTerminated` |
+| Camera permission not granted | `startLocalCapture` catches and logs; audio-only stream continues |
+| `x402-payment-channel` race | Viewer polls 2 s; Creator sends channel immediately after `sendPaymentRequest` — resolves within window |
+| `channelId = null` in segment:request | `liquid:viewer:hello` not yet received; Creator waits for viewer key before `resolveChannelIdBase64` runs |
+| Remote video black in bottom sheet | Fixed by `WebRtcTextureViewRenderer` (`TextureView`-backed) — `SurfaceViewRenderer` punches through dialog windows |
+| Audio plays from earpiece | Fixed by `configureAudioForStreaming()` — forces `MODE_IN_COMMUNICATION` + `speakerphoneOn = true` |
 
 ---
 
@@ -281,14 +463,23 @@ CREATOR                                  VIEWER
 
 | Class / File | Module | Role |
 |---|---|---|
-| `PaywalledRTCServer` | `wallet-sdk-core` | Creator-side DataChannel manager — sends requests, verifies payments |
-| `PaywalledRTCClient` | `wallet-sdk-core` | Viewer-side DataChannel manager — receives requests, sends payments |
-| `MppPaymentRail` | `wallet-sdk-core` | Payment rail implementation — creates challenges (provider) and credentials (consumer) |
-| `MppProvider` | `wallet-sdk-core` | Issues WWW-Authenticate challenges; verifies and broadcasts signed txns |
-| `MppConsumer` | `wallet-sdk-core` | Parses challenges; builds and signs Algorand/Solana transaction groups |
-| `DataChannelProtocol.kt` | `wallet-sdk-core` | DC message types, JSON serializers/deserializers |
-| `LiquidStreamCreator` | `wallet-sdk-core` | High-level creator convenience wrapper |
-| `LiquidStreamViewer` | `wallet-sdk-core` | High-level viewer convenience wrapper |
-| `AndroidLiquidAuthConnectionManager` | `wallet-sdk-ui` | Manages `SignalService` binding + creator session lifecycle |
-| `SetupMppPaymentViewerUseCase` | `wallet-sdk-ui` | Manages viewer session — consent, on-chain vault, voucher updates |
-| `AnswerViewModel` | `wallet-sdk-ui` | Viewer-side ViewModel orchestrating the whole viewer flow |
+| `PeerApi` | `wallet-sdk-core` | WebRTC peer connection, media track capture/receive, EGL context, DataChannels, audio routing |
+| `SignalClient` | `wallet-sdk-core` | WebSocket signaling, SDP offer/answer exchange, ICE candidate relay |
+| `SignalService` | `wallet-sdk-core` | Android foreground service hosting the WebRTC session; exposes `localVideoTrack`, `remoteVideoTrack`, `eglBaseContext` |
+| `PaywalledRTCServer` | `wallet-sdk-core` | Creator-side x402 DataChannel manager — sends requests, verifies payments, resolves `channelId` |
+| `PaywalledRTCClient` | `wallet-sdk-core` | Viewer-side x402 DataChannel manager — receives requests, handles consent, sends payments |
+| `MppPaymentRail` | `wallet-sdk-core` | Payment rail — creates WWW-Authenticate challenges (provider) and signs credentials (consumer) |
+| `MppProvider` | `wallet-sdk-core` | Issues challenges; verifies and broadcasts signed txns to Algorand |
+| `MppConsumer` | `wallet-sdk-core` | Parses challenges; builds and signs Algorand transaction groups |
+| `DataChannelProtocol.kt` | `wallet-sdk-core` | DC message types, JSON serializers/deserializers, `PAYMENT_CHANNEL_LABEL` |
+| `WebRtcDataChannel` | `wallet-sdk-core` | Adapts `org.webrtc.DataChannel` to the platform-agnostic `RtcDataChannel` interface |
+| `LiquidStreamCreator` | `wallet-sdk-core` | High-level creator wrapper (`PaywalledRTCServer` + `MppPaymentRail`) |
+| `LiquidStreamViewer` | `wallet-sdk-core` | High-level viewer wrapper (`PaywalledRTCClient` + `MppPaymentRail`) |
+| `LiquidAuthConnectionManager` | `wallet-sdk-ui` | Creator: manages `SignalService` binding, calls `sendPaymentRequest`, sends `liquid:stream:info` |
+| `SetupMppPaymentViewerUseCase` | `wallet-sdk-ui` | Viewer: `awaitPaymentDataChannel`, builds `MppPaymentViewerManager` |
+| `MppPaymentViewerManager` | `wallet-sdk-ui` | Viewer: wires `PaywalledRTCClient` callbacks, sends `liquid:viewer:hello`, handles vouchers |
+| `WebRtcVideoRenderer` | `wallet-sdk-ui` | Compose composable that renders a `VideoTrack` via `WebRtcTextureViewRenderer` |
+| `WebRtcTextureViewRenderer` | `wallet-sdk-ui` | `TextureView`-backed `EglRenderer` sink — works correctly inside `ModalBottomSheet` dialog windows |
+| `CameraStreamingPreview` | `wallet-sdk-ui` | Creator self-preview; polls `getLocalVideoTrack()` and renders via `WebRtcVideoRenderer` |
+| `AnswerScreen` | `wallet-sdk-ui` | Viewer screen; polls `signalService.remoteVideoTrack` + `eglBaseContext` and renders remote stream |
+| `AnswerScreenOverlay` | `wallet-sdk-ui` | Wires viewer `handleWebRTCSetup`, extracts host address from `liquid:stream:info`, triggers payment setup |

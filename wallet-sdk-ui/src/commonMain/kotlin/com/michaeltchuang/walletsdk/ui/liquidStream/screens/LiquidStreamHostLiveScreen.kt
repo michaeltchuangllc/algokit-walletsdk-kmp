@@ -8,9 +8,11 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic_off
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_minimise
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera_off
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,6 +58,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
@@ -66,11 +69,12 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 fun LiquidStreamHostLiveScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
+    connectionManager: LiquidAuthConnectionManager? = null,
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
     onWalletClick: () -> Unit = {},
-    onCameraClick: () -> Unit = {},
-    onMicClick: () -> Unit = {},
+    onCameraClick: (isEnabled: Boolean) -> Unit = {},
+    onMicClick: (isMuted: Boolean) -> Unit = {},
     onRotateCamera: () -> Unit = {},
     onStatsClick: () -> Unit = {},
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
@@ -101,6 +105,14 @@ fun LiquidStreamHostLiveScreen(
             when (event) {
                 is LiquidStreamHostViewModel.ViewEvent.SendMessage -> onSendClick()
                 is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
+                is LiquidStreamHostViewModel.ViewEvent.ToggleMic -> {
+                    connectionManager?.setAudioEnabled(!event.isMuted)
+                    onMicClick(event.isMuted)
+                }
+                is LiquidStreamHostViewModel.ViewEvent.ToggleCamera -> {
+                    connectionManager?.setVideoEnabled(event.isEnabled)
+                    onCameraClick(event.isEnabled)
+                }
             }
         }
     }
@@ -114,8 +126,8 @@ fun LiquidStreamHostLiveScreen(
         },
         onMinimise = onMinimise,
         onWalletClick = onWalletClick,
-        onCameraClick = onCameraClick,
-        onMicClick = onMicClick,
+        onCameraClick = viewModel::onCameraClicked,
+        onMicClick = viewModel::onMicClicked,
         onRotateCamera = onRotateCamera,
         onStatsClick = {
             val isStatsVisible = !uiState.isStatsModalVisible
@@ -182,7 +194,8 @@ private fun LiquidStreamHostLiveScreenContent(
                 .fillMaxSize()
                 .background(Color(0xFF76818D)),
     ) {
-        if (cameraPreview != null) {
+        // Only render the local camera preview when the camera is enabled.
+        if (cameraPreview != null && uiState.isCameraEnabled) {
             cameraPreview()
         }
 
@@ -230,6 +243,8 @@ private fun LiquidStreamHostLiveScreenContent(
                 onMicClick = onMicClick,
                 onRotateCamera = onRotateCamera,
                 onStatsClick = onStatsClick,
+                isMicMuted = uiState.isMicMuted,
+                isCameraEnabled = uiState.isCameraEnabled,
             )
             Spacer(Modifier.height(18.dp))
             CreatorComposer(
@@ -445,6 +460,8 @@ private fun CreatorActionRow(
     onMicClick: () -> Unit,
     onRotateCamera: () -> Unit,
     onStatsClick: () -> Unit,
+    isMicMuted: Boolean = false,
+    isCameraEnabled: Boolean = true,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -470,8 +487,18 @@ private fun CreatorActionRow(
                     .padding(horizontal = 10.dp, vertical = 10.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                InnerActionButton(icon = Res.drawable.ic_video_camera, onClick = onCameraClick, backgroundColor = Color(0xFFE6E8FF))
-                InnerActionButton(icon = Res.drawable.ic_mic, onClick = onMicClick, backgroundColor = Color(0xFFE6E8FF))
+                InnerActionButton(
+                    icon = if (isCameraEnabled) Res.drawable.ic_video_camera else Res.drawable.ic_video_camera_off,
+                    onClick = onCameraClick,
+                    backgroundColor = if (isCameraEnabled) Color(0xFFE6E8FF) else Color(0xFFFF3B30),
+                    iconTint = if (isCameraEnabled) Color(0xFF2D2DF1) else Color.White,
+                )
+                InnerActionButton(
+                    icon = if (isMicMuted) Res.drawable.ic_mic_off else Res.drawable.ic_mic,
+                    onClick = onMicClick,
+                    backgroundColor = if (isMicMuted) Color(0xFFFF3B30) else Color(0xFFE6E8FF),
+                    iconTint = if (isMicMuted) Color.White else Color(0xFF2D2DF1),
+                )
                 InnerActionButton(icon = Res.drawable.ic_camera_flip, onClick = onRotateCamera, backgroundColor = Color(0xFFE6E8FF))
             }
         }
@@ -654,8 +681,8 @@ private fun LiquidStreamHostLiveScreenPreview() {
             onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false) },
             onMinimise = {},
             onWalletClick = {},
-            onCameraClick = {},
-            onMicClick = {},
+            onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
+            onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
             onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
             onSendClick = { uiState = uiState.copy(message = "") },

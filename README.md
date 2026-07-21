@@ -124,11 +124,11 @@ timeline
              : ✅ Liquid Stream - Refactor code to be more in common folder
              : ✅ Android - Upgrade to AGP9 and KMP 2.4
              : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
+             : 🔄 Liquid Stream - Add in audio and muting functionality
              : 🔄 Liquid Stream - Research hybrid (Lsig / smart contract) session vault for Algorand
-             : 🔄 Liquid Stream - Add in Chat functionality
+             : Liquid Stream - Add in chat functionality
              : Onboarding - Add Falcon25 (non-lsig) wallet account flow
              : Transaction - Refactor escrow session vault smart contract to support Falcon25
-             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
 
     2026Q4   
@@ -138,6 +138,7 @@ timeline
              : Seed Vault - Escrow Session Vault for Solana accounts 
              : Research - React Native sample app talking to service
              : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : TBD
     Backlog
             : Onboarding - Rekey flow

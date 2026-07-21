@@ -20,9 +20,20 @@
         android:name="android.permission.FLASHLIGHT"
         android:required="false" />
 
+    <!-- Microphone capture for WebRTC audio streaming (creator/host) -->
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+    <uses-permission
+        android:name="android.permission.RECORD_AUDIO"
+        android:required="false" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
     <!-- Foreground service permissions for Liquid Auth SignalService -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
 
     <!-- Biometric authentication for passkeys -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
@@ -62,7 +73,7 @@
             android:name="com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="dataSync" />
+            android:foregroundServiceType="dataSync|camera|microphone" />
 
     </application>
 </manifest>
