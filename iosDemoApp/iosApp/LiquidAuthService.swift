@@ -739,6 +739,13 @@ public class LiquidAuthService {
                 self?.signalService?.sendPaymentMessage(message)
             }
             NSLog("✅ iosViewerPaymentDCSendMessageHandler wired → x402-payment-channel")
+            let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)
+            let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
+                ? ",\"viewerPublicKey\":\"\(publicKeyBase64!)\""
+                : ""
+            let helloJson = "{\"type\":\"segment:handshake\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
+            self.signalService?.sendPaymentMessage(helloJson)
+            NSLog("[VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
         }
 
         // Connect to peer using SignalService
@@ -799,22 +806,10 @@ public class LiquidAuthService {
         return renderer
     }
 
-    private func sendViewerHelloMessage() {
-        let publicKeyBase64 = App_iosKt.getPublicKeyForAlgorandWallet(address: self.algoAddress)
-        let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
-            ? ",\"viewerPublicKey\":\"\(publicKeyBase64!)\""
-            : ""
-        let helloJson = "{\"reference\":\"liquid:viewer:hello\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
-        signalService?.sendMessage(helloJson)
-        NSLog("[VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
-    }
-
     private func sendCredentialMessage(credential: Any) {
         NSLog("📤 Sending credential message as JSON")
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
-
-        sendViewerHelloMessage()
 
         // ── 2. Send the credential handshake ─────────────────────────────────
         // Note: Transaction responses use CBOR, but credential handshake uses JSON

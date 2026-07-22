@@ -22,11 +22,13 @@ object DCMessageType {
     const val SEGMENT_PAYMENT = "segment:payment"
     const val SEGMENT_ACCEPTED = "segment:accepted"
     const val SEGMENT_REJECTED = "segment:rejected"
-    const val SEGMENT_KEY = "segment:key"
     const val SESSION_TERMINATE = "session:terminate"
 
     /** Sent by the viewer after a session-vault top-up so the server re-issues the pending request. */
     const val VIEWER_VAULT_FUNDED = "viewer:vault:funded"
+
+    const val SEGMENT_HANDSHAKE = "segment:handshake"
+    const val SEGMENT_VOUCHER = "segment:voucher"
 }
 
 /** DataChannel label the SDK uses for payment signaling. */

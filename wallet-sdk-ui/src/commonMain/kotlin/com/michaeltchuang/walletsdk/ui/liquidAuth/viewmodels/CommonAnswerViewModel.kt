@@ -154,7 +154,6 @@ open class CommonAnswerViewModel(
             }
 
             "liquid:payment:balance",
-            "liquid:payment:voucher",
             "liquid:payment:depleted",
             -> {
                 Napier.d(tag = TAG, message = "Liquid payment JSON message: $reference")
@@ -196,13 +195,11 @@ open class CommonAnswerViewModel(
     fun handleViewerTransportMessage(
         message: String,
         onPongRequested: () -> Unit,
-        onLegacyPaymentRequest: (message: String) -> Unit,
         onPaymentMessage: (message: String) -> Boolean,
         onHostDiscovered: (hostAddress: String?) -> Unit = {},
     ) {
         when (message.jsonOptString("reference")) {
             "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
-            "liquid:payment:request" -> handleLegacyViewerPaymentRequest(message, onLegacyPaymentRequest, onHostDiscovered)
             "ping" -> onPongRequested()
             null -> handleViewerPaymentMessage(message, onPaymentMessage, onHostDiscovered)
             else -> Unit
@@ -234,35 +231,6 @@ open class CommonAnswerViewModel(
         applyViewerSharedMessageState(message)
         if (!hostAddress.isNullOrBlank()) onHostDiscovered(hostAddress)
         handleMessages(message)
-    }
-
-    private fun handleLegacyViewerPaymentRequest(
-        message: String,
-        onLegacyPaymentRequest: (message: String) -> Unit,
-        onHostDiscovered: (hostAddress: String?) -> Unit,
-    ) {
-        val sessionId = message.jsonOptString("id")
-        val amount = message.jsonOptString("amount") ?: ""
-        val payTo = message.jsonOptString("payTo") ?: ""
-        val asset = message.jsonOptString("asset") ?: "USDC"
-
-        applyViewerMessageSessionState(payTo, sessionId)
-        if (payTo.isNotBlank()) onHostDiscovered(payTo)
-
-        viewModelScope.launch {
-            val existing = getExistingViewerSessionVaultBalance(payTo)
-            if (existing > 0L) {
-                setViewerSessionVaultBalance(existing)
-                approveFundedViewerConsent(existing)
-            } else {
-                showPendingViewerConsent(
-                    amount = amount,
-                    asset = asset,
-                    payTo = payTo,
-                )
-            }
-        }
-        onLegacyPaymentRequest(message)
     }
 
     private suspend fun getExistingViewerSessionVaultBalance(hostAddress: String): Long {

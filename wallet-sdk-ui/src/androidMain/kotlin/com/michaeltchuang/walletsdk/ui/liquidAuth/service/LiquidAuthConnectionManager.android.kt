@@ -97,7 +97,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
     /**
-     * Viewer's authorized-signer public key received via the early [liquid:viewer:hello]
+     * Viewer's authorized-signer public key received via the early [segment:handshake]
      * message.  Stored separately so it survives the race where the hello arrives before
      * [liquidStreamCreator] is constructed (i.e. before [sendPaymentRequest] is called).
      *
@@ -206,7 +206,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     viewerAddress = activeViewerAddressForVault,
                     // Prefer the key from the most-recent voucher (authoritative).
                     // Fall back to the early hello key for first-connection scenarios where
-                    // no voucher exists yet but the viewer already sent liquid:viewer:hello.
+                    // no voucher exists yet but the viewer already sent segment:handshake.
                     viewerAuthorizedSignerPublicKey =
                         activeCreatorVoucherClaimSnapshot
                             ?.viewerPublicKeyBase64
@@ -240,6 +240,13 @@ actual class LiquidAuthConnectionManager actual constructor(
                         serverConfig = serverConfig.copy(sessionId = resolvedSessionId),
                         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
                     )
+                creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
+                    val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
+                    tryCaptureViewerAddressFromMessage(helloJson)
+                }
+                creator.rtcServer.onVoucherReceived = { voucherJson ->
+                    tryCaptureViewerAddressFromMessage(voucherJson)
+                }
                 creator.rtcServer.onPaymentSettled = { receipt ->
                     receipt.payFrom
                         .takeIf { it.isNotBlank() }

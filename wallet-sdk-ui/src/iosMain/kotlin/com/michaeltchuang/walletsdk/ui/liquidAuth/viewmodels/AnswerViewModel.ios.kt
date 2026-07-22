@@ -79,7 +79,6 @@ actual open class AnswerViewModel actual constructor(
                         ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)
                         ?: signFido2Challenge(challenge, challengeAddress)
                 },
-                sendMessage = { message -> platformServices.sendViewerMessage(message) },
             ),
         )
         return true

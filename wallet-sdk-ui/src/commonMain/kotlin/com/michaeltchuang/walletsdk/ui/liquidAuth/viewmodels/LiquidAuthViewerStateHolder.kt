@@ -218,7 +218,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         val viewer = viewerAddress.value
         if (viewer.isBlank()) return null
         val keyField = if (!publicKeyBase64.isNullOrBlank()) """,\"viewerPublicKey\":\"$publicKeyBase64\""" else ""
-        return """{"reference":"liquid:viewer:hello","viewer":"$viewer"$keyField}"""
+        return """{"type":"segment:handshake","viewer":"$viewer"$keyField}"""
     }
 
     fun applyViewerMessageSessionState(

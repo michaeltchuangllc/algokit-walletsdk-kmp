@@ -113,7 +113,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                         requestMppConsent = params.requestMppConsent,
                         setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                         signFido2Challenge = params.signFido2Challenge,
-                        sendMessage = service::send,
                     ),
                 )
             } catch (_: CancellationException) {
