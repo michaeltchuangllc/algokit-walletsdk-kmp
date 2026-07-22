@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
-import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
+import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
@@ -63,7 +63,7 @@ object MppPayments {
                 ?.let(Base64::encode)
 
         return PaymentVoucher(
-            reference = LiquidDcMessages.REF_PAYMENT_VOUCHER,
+            type = DCMessageType.SEGMENT_VOUCHER,
             id = sessionId,
             appId = appId,
             viewer = viewerAddress,

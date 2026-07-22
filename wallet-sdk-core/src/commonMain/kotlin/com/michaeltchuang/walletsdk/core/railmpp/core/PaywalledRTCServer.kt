@@ -65,6 +65,8 @@ class PaywalledRTCServer
 
         // ─── Callbacks ──────────────────────────────────────────
         var onSessionStarted: ((sessionId: String) -> Unit)? = null
+        var onViewerHello: ((viewer: String, viewerPublicKeyBase64: String) -> Unit)? = null
+        var onVoucherReceived: ((voucherJson: String) -> Unit)? = null
         var onPaymentRequested: ((PaymentRequest) -> Unit)? = null
         var onPaymentReceived: ((RailPayment) -> Unit)? = null
         var onPaymentSettled: ((PaymentReceipt) -> Unit)? = null
@@ -267,6 +269,18 @@ class PaywalledRTCServer
                 val msgType = msg["type"]?.jsonPrimitive?.content
                 Napier.d("[DC_MESSAGE_RECEIVED] session=$sessionId type=$msgType bytes=${msgStr.length}", tag = TAG)
                 when (msgType) {
+                    DCMessageType.SEGMENT_HANDSHAKE -> {
+                        val viewer = msg["viewer"]?.jsonPrimitive?.content.orEmpty()
+                        val viewerPublicKey = msg["viewerPublicKey"]?.jsonPrimitive?.content.orEmpty()
+                        Napier.d("[VIEWER_HELLO_RECEIVED] session=$sessionId viewer=$viewer keyLen=${viewerPublicKey.length}", tag = TAG)
+                        onViewerHello?.invoke(viewer, viewerPublicKey)
+                    }
+
+                    DCMessageType.SEGMENT_VOUCHER -> {
+                        Napier.d("[SEGMENT_VOUCHER_RECEIVED] session=$sessionId bytes=${msgStr.length}", tag = TAG)
+                        onVoucherReceived?.invoke(msgStr)
+                    }
+
                     DCMessageType.SEGMENT_PAYMENT -> {
                         val payload = msg["payload"]
                         if (payload == null || payload is JsonNull) {

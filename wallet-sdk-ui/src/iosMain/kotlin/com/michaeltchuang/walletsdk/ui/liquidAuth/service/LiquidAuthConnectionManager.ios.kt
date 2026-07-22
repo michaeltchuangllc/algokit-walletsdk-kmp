@@ -344,7 +344,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         println("$TAG: notifyViewerConnected")
         _viewerConnectionState.value = ViewerConnectionState.CONNECTED
         startViewerConnectionTypePolling()
-        sendViewerHello()
         startViewerOnChainRefreshIfReady()
         maybeSetupViewerPaymentRail()
         answerViewModel?.openViewerPaymentRail()
@@ -452,6 +451,13 @@ actual class LiquidAuthConnectionManager actual constructor(
 
         creator.rtcServer.onSessionStarted = { sid ->
             println("$TAG: [Creator] onSessionStarted session=$sid")
+        }
+        creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
+            val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
+            tryCaptureViewerAddressFromMessage(helloJson)
+        }
+        creator.rtcServer.onVoucherReceived = { voucherJson ->
+            tryCaptureViewerAddressFromMessage(voucherJson)
         }
         creator.rtcServer.onPaymentRequested = { req ->
             println("$TAG: [Creator] onPaymentRequested segment=${req.segmentIndex} amount=${req.amount}")
@@ -613,7 +619,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel?.handleViewerTransportMessage(
             message = message,
             onPongRequested = { sendViewerMessage("""{"reference":"pong"}""") },
-            onLegacyPaymentRequest = ::handleViewerPaymentRequest,
             onPaymentMessage = { paymentMessage -> deliverViewerPaymentMessage(paymentMessage) },
             onHostDiscovered = { host ->
                 if (!host.isNullOrBlank() && _hostAddress.value != host) setViewerHostAddress(host)
@@ -644,8 +649,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
 
         // Only call onClientConnected for connection-establishment messages, NOT for protocol
-        // messages that have a `reference` field (like liquid:payment:voucher, liquid:viewer:hello).
-        // Calling it for every voucher causes repeated spurious ViewModel callbacks.
+        // messages that have a `reference` field.
+        // Calling it for every such message causes repeated spurious ViewModel callbacks.
         if (parsed.reference == null) {
             val requestId = activeRequestId
             if (requestId != null && isConnected()) {
@@ -738,29 +743,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-    private fun sendViewerHello() {
-        val viewer = _viewerAddress.value
-        println(
-            "$TAG: HELLO_ATTEMPT viewer='$viewer' " +
-                "keyProviderSet=${platformServices.hasViewerPublicKeyProvider()} ",
-        )
-        if (viewer.isBlank()) {
-            Napier.d(
-                "$TAG: HELLO_SKIP — viewerAddress is blank! " +
-                    "Call setViewerAddress() or startViewerBalancePollingSafe() BEFORE notifyViewerConnected()",
-            )
-            return
-        }
-        val publicKeyBase64 = platformServices.getViewerPublicKey(viewer)
-        val keyField = if (!publicKeyBase64.isNullOrBlank()) """,\"viewerPublicKey\":\"$publicKeyBase64\""" else ""
-        val hello = """{"reference":"liquid:viewer:hello","viewer":"$viewer"$keyField}"""
-            Napier.d("$TAG: HELLO_SEND viewer=$viewer keyPresent=${!publicKeyBase64.isNullOrBlank()}")
-        sendViewerMessage(hello)
-    }
-
-    private fun handleViewerPaymentRequest(message: String) {
-        Napier.d("$TAG: PAYMENT_REQUEST_RECEIVED (legacy iOS host) preview=${message.take(160)}")
-    }
 
     private fun startViewerOnChainRefreshIfReady() {
         val viewModel = answerViewModel ?: return

@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 data class PaymentVoucher(
-    val reference: String,
+    val type: String,
     val id: String,
     val appId: Long,
     val viewer: String,

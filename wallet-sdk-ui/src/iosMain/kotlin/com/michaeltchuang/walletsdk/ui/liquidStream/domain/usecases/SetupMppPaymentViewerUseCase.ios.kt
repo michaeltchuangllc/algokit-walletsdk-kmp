@@ -29,7 +29,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         val requestMppConsent: suspend (ConsentTerms) -> ConsentApproval,
         val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
-        val sendMessage: (String) -> Unit,
     )
 
     operator fun invoke(params: Params) {
@@ -52,7 +51,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                 requestMppConsent = params.requestMppConsent,
                 setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                 signFido2Challenge = params.signFido2Challenge,
-                sendMessage = params.sendMessage,
             ),
         )
     }

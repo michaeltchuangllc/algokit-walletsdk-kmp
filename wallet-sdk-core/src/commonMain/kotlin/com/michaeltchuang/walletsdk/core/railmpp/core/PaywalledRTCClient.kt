@@ -5,11 +5,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendSummary
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendTransaction
@@ -33,8 +31,7 @@ import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
+
 
 /**
  * PaywalledRTCClient — consumer-side payment-channel orchestration.
@@ -162,6 +159,30 @@ class PaywalledRTCClient(
         )
     }
 
+    fun sendVoucher(json: String) {
+        try {
+            val dc = this.dc ?: return
+            if (dc.state() == RtcDataChannelState.OPEN) {
+                dc.send(json.encodeToByteArray())
+            }
+        } catch (e: Exception) {
+            Napier.e("sendVoucher failed", e, tag = TAG)
+        }
+    }
+
+    fun sendHello(
+        viewer: String,
+        viewerPublicKey: String,
+    ) {
+        sendDC(
+            buildJsonObject {
+                put("type", DCMessageType.SEGMENT_HANDSHAKE)
+                put("viewer", viewer)
+                put("viewerPublicKey", viewerPublicKey)
+            },
+        )
+    }
+
     fun terminate() {
         if (disposed) return
         disposed = true
@@ -186,47 +207,6 @@ class PaywalledRTCClient(
             }
 
             val msg = Json.parseToJsonElement(msgStr).jsonObject
-
-            if (msg["reference"]?.jsonPrimitive?.content == LiquidDcMessages.REF_PAYMENT_REQUEST) {
-                val env = LiquidDcMessages.parsePaymentRequest(msgStr)
-                if (env != null) {
-                    @OptIn(ExperimentalUuidApi::class)
-                    val request =
-                        PaymentRequest(
-                            id = env.id,
-                            sessionId = env.sessionId ?: env.id,
-                            segmentIndex = env.segmentIndex ?: 0,
-                            amount = env.amount,
-                            asset = env.asset,
-                            network = env.network,
-                            payTo = env.payTo,
-                            ttl = 30,
-                            nonce = env.nonce.ifBlank { Uuid.random().toString() },
-                            meta =
-                                PaymentRequestMeta(
-                                    gatingMode =
-                                        if (env.gatingMode != null) {
-                                            GatingMode.fromString(env.gatingMode)
-                                        } else {
-                                            GatingMode.PARTIAL_TIME
-                                        },
-                                    enforcement = EnforcementMode.TRACK,
-                                    segmentDuration = env.segmentDuration,
-                                ),
-                            railPayload = null,
-                        )
-                    Napier.d(
-                        "[VIEWER_IOS_PAYMENT_REQUEST_RECEIVED] session=${request.sessionId} " +
-                            "segment=${request.segmentIndex} nonce=${request.nonce} " +
-                            "amount=${request.amount} asset=${request.asset} payTo=${request.payTo}",
-                        tag = TAG,
-                    )
-                    scope.launch { handlePaymentRequest(request) }
-                } else {
-                    Napier.w("[VIEWER_IOS_PAYMENT_REQUEST_PARSE_FAILED] raw=${msgStr.take(200)}", tag = TAG)
-                }
-                return
-            }
 
             when (msg["type"]?.jsonPrimitive?.content) {
                 DCMessageType.SEGMENT_REQUEST -> {

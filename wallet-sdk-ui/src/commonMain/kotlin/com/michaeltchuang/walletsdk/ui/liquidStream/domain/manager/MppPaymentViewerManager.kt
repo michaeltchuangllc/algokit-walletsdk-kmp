@@ -3,19 +3,16 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
 import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
-import com.michaeltchuang.walletsdk.core.railmpp.core.LiquidDcMessages
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.HelloMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.toJson
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +48,6 @@ class MppPaymentViewerManager(
         val requestMppConsent: suspend (ConsentTerms) -> ConsentApproval,
         val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
-        val sendMessage: (String) -> Unit,
     )
 
     private data class VaultFundingResult(
@@ -211,13 +207,7 @@ class MppPaymentViewerManager(
             ).also { viewer ->
                 viewer.rtcClient.onDataChannelOpen = {
                     val pubKeyBytes = Base64.encode(signer.authorizedSignerPublicKey)
-                    val helloMsg =
-                        HelloMessage(
-                            reference = LiquidDcMessages.REF_VIEWER_HELLO,
-                            viewer = viewerAddress,
-                            viewerPublicKey = pubKeyBytes,
-                        )
-                    params.sendMessage(helloMsg.toJson())
+                    viewer.rtcClient.sendHello(viewer = viewerAddress, viewerPublicKey = pubKeyBytes)
                     Napier.d("[VIEWER_HELLO_SENT] viewer=$viewerAddress pubKeyLen=${pubKeyBytes.length}", tag = TAG)
                 }
 
@@ -242,7 +232,6 @@ class MppPaymentViewerManager(
                             sessionVaultAppId = sessionVaultAppId,
                             signer = signer,
                             signFido2Challenge = params.signFido2Challenge,
-                            sendMessage = params.sendMessage,
                             setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                         )
                     }
@@ -346,7 +335,6 @@ class MppPaymentViewerManager(
         sessionVaultAppId: Long,
         signer: MppWalletSigner,
         signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
-        sendMessage: (String) -> Unit,
         setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
     ) {
         val debit = receiptAmount.toLongOrNull() ?: 0L
@@ -408,7 +396,7 @@ class MppPaymentViewerManager(
                         tag = TAG,
                     )
                 } else {
-                    updateAndSendVoucher(
+                                            updateAndSendVoucher(
                         receiptSessionId = receiptSessionId,
                         receiptSegmentIndex = receiptSegmentIndex,
                         receiptViewerAddress = receiptViewerAddress,
@@ -420,7 +408,6 @@ class MppPaymentViewerManager(
                         voucherSignature = voucherSignature,
                         blocksConsumed = blocksConsumed,
                         preUpdateLatestVoucher = preUpdateLatestVoucher,
-                        sendMessage = sendMessage,
                     )
                 }
             }
@@ -448,7 +435,6 @@ class MppPaymentViewerManager(
         voucherSignature: ByteArray,
         blocksConsumed: Int,
         preUpdateLatestVoucher: Long,
-        sendMessage: (String) -> Unit,
     ) {
         val updateVoucherOnChain =
             suspend {
@@ -529,7 +515,7 @@ class MppPaymentViewerManager(
                 "[SESSION_VAULT_VOUCHER_SEND] session=$receiptSessionId segment=$receiptSegmentIndex claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$hostAddress sigLen=${voucherSignature.size}",
                 tag = TAG,
             )
-            sendMessage(voucherJson)
+            liquidStreamViewer?.rtcClient?.sendVoucher(voucherJson)
         } else {
             val lagMicroUsdc = (voucherClaimed - onChainLatestVoucher).coerceAtLeast(0L)
             Napier.e(
