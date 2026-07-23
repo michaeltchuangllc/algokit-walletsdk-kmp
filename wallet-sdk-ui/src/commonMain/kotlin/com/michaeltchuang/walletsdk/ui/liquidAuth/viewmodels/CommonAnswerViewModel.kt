@@ -14,7 +14,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
-import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
@@ -241,7 +241,6 @@ open class CommonAnswerViewModel(
             getRemainingSessionVaultBalanceUseCase(
                 GetRemainingSessionVaultBalanceUseCase.Params(
                     viewerAddress = viewer,
-                    hostAddress = host,
                     appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                     authorizedSignerPublicKey = null,
                 ),
@@ -254,7 +253,7 @@ open class CommonAnswerViewModel(
         onPaymentMessage: (message: String) -> Boolean,
         onHostDiscovered: (hostAddress: String?) -> Unit,
     ) {
-        when (val msgType = message.jsonOptString("type")) {
+        when (val msgType = DCMessageType.fromStringOrNull(message.jsonOptString("type"))) {
             DCMessageType.SEGMENT_REQUEST,
             DCMessageType.SEGMENT_ACCEPTED,
             DCMessageType.SEGMENT_REJECTED,
@@ -265,6 +264,7 @@ open class CommonAnswerViewModel(
                 }
                 onPaymentMessage(message)
             }
+            else -> Unit
         }
     }
 
@@ -448,7 +448,6 @@ open class CommonAnswerViewModel(
                 getRemainingSessionVaultBalanceUseCase(
                     GetRemainingSessionVaultBalanceUseCase.Params(
                         viewerAddress = viewerAddress,
-                        hostAddress = creatorAddress,
                         appId = sessionVaultAppId,
                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     ),
@@ -475,14 +474,12 @@ open class CommonAnswerViewModel(
 
     fun startViewerOnChainRefresh(
         viewerAddress: String,
-        hostAddress: String? = null,
     ) {
         viewModelScope.launch {
             val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             mppPaymentViewerManager.startViewerOnChainRefresh(
                 scope = viewModelScope,
                 viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
                 sessionVaultAppId = sessionVaultAppId,
                 authorizedSignerPublicKey = null,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,

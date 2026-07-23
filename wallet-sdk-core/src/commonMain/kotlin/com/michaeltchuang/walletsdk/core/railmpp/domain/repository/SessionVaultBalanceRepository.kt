@@ -5,7 +5,6 @@ interface SessionVaultBalanceRepository {
 
     class GetRemainingBalanceParams(
         val viewerAddress: String,
-        val hostAddress: String,
         val appId: Long,
         val algodUrl: String? = null,
         val authorizedSignerPublicKey: ByteArray? = null,

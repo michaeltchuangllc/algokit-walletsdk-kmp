@@ -1,5 +1,9 @@
 package com.michaeltchuang.walletsdk.core.railmpp.domain.model
 
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+@Serializable
 data class PaymentRequest(
     val id: String,
     val sessionId: String,
@@ -11,7 +15,7 @@ data class PaymentRequest(
     val ttl: Int,
     val nonce: String,
     val meta: PaymentRequestMeta,
-    val railPayload: Any? = null,
+    val railPayload: JsonElement? = null,
     val channelId: String? = null,
-    val salt: String ? = null,
+    val salt: String? = null,
 )

@@ -427,8 +427,8 @@ private suspend fun handleWebRTCSetup(
                         onHostAddressChanged(host)
                         if (!hasStartedMppViewer) {
                             hasStartedMppViewer = true
-                            viewModel.setupMppPaymentViewer(viewerAddress = address, hostAddress = host)
-                            viewModel.startViewerOnChainRefresh(address, host)
+                            viewModel.setupMppPaymentViewer(viewerAddress = address)
+                            viewModel.startViewerOnChainRefresh(viewerAddress = address)
                         }
                     }
                 }
@@ -488,7 +488,7 @@ private suspend fun topUpViewerSessionVault(
         ).onSuccess { remaining ->
             if (remaining != null) {
                 Toast.makeText(context, "SessionVault topped up successfully", Toast.LENGTH_SHORT).show()
-                viewModel.startViewerOnChainRefresh(viewerAddress, hostAddress)
+                viewModel.startViewerOnChainRefresh(viewerAddress = viewerAddress)
             } else {
                 Toast
                     .makeText(

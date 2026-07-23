@@ -2,7 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.utils
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
-import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
@@ -63,7 +63,7 @@ object MppPayments {
                 ?.let(Base64::encode)
 
         return PaymentVoucher(
-            type = DCMessageType.SEGMENT_VOUCHER,
+            type = DCMessageType.SEGMENT_VOUCHER.value,
             id = sessionId,
             appId = appId,
             viewer = viewerAddress,
@@ -94,10 +94,9 @@ object MppPayments {
 
     suspend fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
-        hostAddress: String,
         authorizedSignerPublicKey: ByteArray? = null,
     ): Long {
-        val baseContext = "viewer=$viewerAddress host=$hostAddress"
+        val baseContext = "viewer=$viewerAddress"
         val resolvedChannelId = EscrowSessionVaultManagerClient.channelId ?: return 0L
         val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
@@ -125,22 +124,19 @@ object MppPayments {
     suspend fun openSessionAndDeposit(
         signer: MppWalletSigner,
         viewerAddress: String,
-        creatorAddress: String,
         depositAmountMicroUsdc: Long = DEPOSIT_MICRO_USDC_LONG,
     ): Result<String> {
         require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
-        require(creatorAddress.isNotBlank()) { "creatorAddress is required" }
         require(signer.address == viewerAddress) {
             "Session vault deposit signer must match viewerAddress"
         }
         Napier.d(
-            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress creator=$creatorAddress appId=${EscrowSessionVaultManagerClient.appId} usdcAssetId=${EscrowSessionVaultManagerClient.usdcAssetId} algodUrl=${EscrowSessionVaultManagerClient.algodUrl}",
+            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress appId=${EscrowSessionVaultManagerClient.appId} usdcAssetId=${EscrowSessionVaultManagerClient.usdcAssetId} algodUrl=${EscrowSessionVaultManagerClient.algodUrl}",
             tag = TAG,
         )
         return EscrowSessionVaultManagerClient.openAndDeposit(
             signer = signer,
             payerAddress = viewerAddress,
-            payeeAddress = creatorAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
         )
     }
@@ -198,7 +194,6 @@ object MppPayments {
     suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
         viewerAddress: String,
-        hostAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
@@ -206,7 +201,7 @@ object MppPayments {
             ?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
         Napier.d(
-            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress host=$hostAddress claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
+            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress  claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
             tag = TAG,
         )
         val result =

@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
@@ -197,9 +198,9 @@ class PaywalledRTCServer
             gate()
             sendDC(
                 buildJsonObject {
-                    put("type", DCMessageType.SESSION_TERMINATE)
-                    put("sessionId", sessionId)
-                    put("payload", buildJsonObject { put("reason", reason ?: "") })
+                    put(DCFieldKey.TYPE, DCMessageType.SESSION_TERMINATE.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", reason ?: "") })
                 },
             )
             try {
@@ -266,8 +267,9 @@ class PaywalledRTCServer
                 }
 
                 val msg = Json.parseToJsonElement(msgStr).jsonObject
-                val msgType = msg["type"]?.jsonPrimitive?.content
-                Napier.d("[DC_MESSAGE_RECEIVED] session=$sessionId type=$msgType bytes=${msgStr.length}", tag = TAG)
+                val rawType = msg[DCFieldKey.TYPE]?.jsonPrimitive?.content
+                val msgType = DCMessageType.fromStringOrNull(rawType)
+                Napier.d("[DC_MESSAGE_RECEIVED] session=$sessionId type=$rawType bytes=${msgStr.length}", tag = TAG)
                 when (msgType) {
                     DCMessageType.SEGMENT_HANDSHAKE -> {
                         val viewer = msg["viewer"]?.jsonPrimitive?.content.orEmpty()
@@ -282,7 +284,7 @@ class PaywalledRTCServer
                     }
 
                     DCMessageType.SEGMENT_PAYMENT -> {
-                        val payload = msg["payload"]
+                        val payload = msg[DCFieldKey.PAYLOAD]
                         if (payload == null || payload is JsonNull) {
                             Napier.d("[SEGMENT_PAYMENT_DENIED] session=$sessionId segment=$segmentIndex", tag = TAG)
                             onPaymentRejected?.invoke("Consumer denied payment")
@@ -308,6 +310,7 @@ class PaywalledRTCServer
                             requestPayment()
                         }
                     }
+                    else -> Unit
                 }
             } catch (e: Exception) {
                 Napier.e("handleDataChannelMessage error", e, tag = TAG)
@@ -384,10 +387,10 @@ class PaywalledRTCServer
 
                     sendDC(
                         buildJsonObject {
-                            put("type", DCMessageType.SEGMENT_REQUEST)
-                            put("sessionId", sessionId)
-                            put("segmentIndex", segmentIndex)
-                            put("payload", request.toJson())
+                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REQUEST.value)
+                            put(DCFieldKey.SESSION_ID, sessionId)
+                            put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                            put(DCFieldKey.PAYLOAD, request.toJson())
                         },
                     )
                 } catch (e: Throwable) {
@@ -480,7 +483,6 @@ class PaywalledRTCServer
                 getRemainingSessionVaultBalanceUseCase(
                     GetRemainingSessionVaultBalanceUseCase.Params(
                         viewerAddress = viewerAddress,
-                        hostAddress = config.gating.payTo,
                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                         authorizedSignerPublicKey = config.viewerAuthorizedSignerPublicKey,
                     ),
@@ -509,10 +511,10 @@ class PaywalledRTCServer
                 onPaymentRejected?.invoke("Nonce mismatch")
                 sendDC(
                     buildJsonObject {
-                        put("type", DCMessageType.SEGMENT_REJECTED)
-                        put("sessionId", sessionId)
-                        put("segmentIndex", segmentIndex)
-                        put("payload", buildJsonObject { put("reason", "nonce_mismatch") })
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "nonce_mismatch") })
                     },
                 )
                 terminate("Nonce mismatch")
@@ -526,10 +528,10 @@ class PaywalledRTCServer
                 onPaymentRejected?.invoke("Nonce replay detected")
                 sendDC(
                     buildJsonObject {
-                        put("type", DCMessageType.SEGMENT_REJECTED)
-                        put("sessionId", sessionId)
-                        put("segmentIndex", segmentIndex)
-                        put("payload", buildJsonObject { put("reason", "nonce_replay") })
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "nonce_replay") })
                     },
                 )
                 return
@@ -621,10 +623,10 @@ class PaywalledRTCServer
                 if (receipt.channelId != null) receipt else receipt.copy(channelId = resolveChannelIdBase64())
             sendDC(
                 buildJsonObject {
-                    put("type", DCMessageType.SEGMENT_ACCEPTED)
-                    put("sessionId", sessionId)
-                    put("segmentIndex", segmentIndex)
-                    put("payload", receiptWithChannelId.toJson())
+                    put(DCFieldKey.TYPE, DCMessageType.SEGMENT_ACCEPTED.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                    put(DCFieldKey.PAYLOAD, receiptWithChannelId.toJson())
                 },
             )
         }

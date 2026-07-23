@@ -380,7 +380,6 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                 amount = amount.ifBlank { "1000000" },
                 asset = asset,
                 network = network,
-                payTo = payTo,
                 segmentDuration = segmentDuration,
             ),
         )

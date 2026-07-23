@@ -323,14 +323,12 @@ actual open class AnswerViewModel actual constructor(
         )
 
     fun setupMppPaymentViewer(
-        viewerAddress: String?,
-        hostAddress: String? = null,
+        viewerAddress: String?
     ) {
         setupMppPaymentViewerUseCase(
             SetupMppPaymentViewerUseCase.Params(
                 signalService = signalService.value,
                 viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
                 scope = viewModelScope,
                 buildMppWalletSigner = ::buildMppWalletSigner,
                 resolveMppClientNetwork = ::resolveMppClientNetwork,

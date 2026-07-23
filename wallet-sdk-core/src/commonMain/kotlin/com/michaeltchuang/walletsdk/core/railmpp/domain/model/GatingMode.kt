@@ -1,11 +1,15 @@
 package com.michaeltchuang.walletsdk.core.railmpp.domain.model
 
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
 enum class GatingMode(
     val value: String,
 ) {
-    WHOLE_STREAM("whole-stream"),
-    PARTIAL_TIME("partial-time"),
-    PARTIAL_BYTES("partial-bytes"),
+    @SerialName("whole-stream") WHOLE_STREAM("whole-stream"),
+    @SerialName("partial-time") PARTIAL_TIME("partial-time"),
+    @SerialName("partial-bytes") PARTIAL_BYTES("partial-bytes"),
     ;
 
     companion object {

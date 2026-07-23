@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
@@ -24,14 +25,16 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.long
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
+
+private val receiptDecodeJson = Json { ignoreUnknownKeys = true }
 
 /**
  * PaywalledRTCClient — consumer-side payment-channel orchestration.
@@ -153,8 +156,8 @@ class PaywalledRTCClient(
         Napier.d("[VIEWER_VAULT_FUNDED_NOTIFY] sessionId=$sessionId", tag = TAG)
         sendDC(
             buildJsonObject {
-                put("type", DCMessageType.VIEWER_VAULT_FUNDED)
-                put("sessionId", sessionId)
+                put(DCFieldKey.TYPE, DCMessageType.VIEWER_VAULT_FUNDED.value)
+                put(DCFieldKey.SESSION_ID, sessionId)
             },
         )
     }
@@ -176,7 +179,7 @@ class PaywalledRTCClient(
     ) {
         sendDC(
             buildJsonObject {
-                put("type", DCMessageType.SEGMENT_HANDSHAKE)
+                put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
                 put("viewer", viewer)
                 put("viewerPublicKey", viewerPublicKey)
             },
@@ -207,24 +210,27 @@ class PaywalledRTCClient(
             }
 
             val msg = Json.parseToJsonElement(msgStr).jsonObject
-
-            when (msg["type"]?.jsonPrimitive?.content) {
+            val rawType = msg[DCFieldKey.TYPE]?.jsonPrimitive?.content
+            val msgType = DCMessageType.fromStringOrNull(rawType)
+            Napier.d("[DC_MESSAGE_RECEIVED] type=$rawType bytes=${msgStr.length}", tag = TAG)
+            when (msgType) {
                 DCMessageType.SEGMENT_REQUEST -> {
-                    val payload = msg["payload"]!!.jsonObject
+                    val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
                     // Merge envelope fields if not present in the payload.
                     val merged =
                         buildJsonObject {
                             payload.forEach { (k, v) -> put(k, v) }
-                            if (!payload.containsKey("sessionId")) {
-                                put("sessionId", msg["sessionId"]!!.jsonPrimitive.content)
+                            if (!payload.containsKey(DCFieldKey.SESSION_ID)) {
+                                put(DCFieldKey.SESSION_ID, msg[DCFieldKey.SESSION_ID]!!.jsonPrimitive.content)
                             }
-                            if (!payload.containsKey("segmentIndex")) {
-                                put("segmentIndex", msg["segmentIndex"]!!.jsonPrimitive.int)
+                            if (!payload.containsKey(DCFieldKey.SEGMENT_INDEX)) {
+                                put(DCFieldKey.SEGMENT_INDEX, msg[DCFieldKey.SEGMENT_INDEX]!!.jsonPrimitive.int)
                             }
                         }
                     val request = paymentRequestFromJson(merged)
                     captureChannelId(request.channelId)
                     captureSalt(request.salt)
+                    EscrowSessionVaultManagerClient.hostAddress = request.payTo
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network}" +
@@ -236,31 +242,21 @@ class PaywalledRTCClient(
                 }
 
                 DCMessageType.SEGMENT_ACCEPTED -> {
-                    val payload = msg["payload"]!!.jsonObject
-                    val receipt =
-                        PaymentReceipt(
-                            txId = payload.optStr("txId", "?"),
-                            sessionId = payload.optStr("sessionId", ""),
-                            segmentIndex = payload.optInt("segmentIndex", 0),
-                            amount = payload.optStr("amount", "0"),
-                            asset = payload.optStr("asset", ""),
-                            payTo = payload.optStr("payTo", ""),
-                            network = payload.optStr("network", ""),
-                            timestamp = payload.optLong("timestamp", mppNowMs()),
-                            channelId = payload["channelId"]?.jsonPrimitive?.content,
-                        )
+                    val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
+                    val receipt = receiptDecodeJson.decodeFromJsonElement<PaymentReceipt>(payload)
                     captureChannelId(receipt.channelId)
                     onPaymentReceipt?.invoke(receipt)
                 }
 
                 DCMessageType.SEGMENT_REJECTED -> {
-                    val reason = (msg["payload"] as? JsonObject)?.optStr("reason", "rejected") ?: "rejected"
+                    val reason = (msg[DCFieldKey.PAYLOAD] as? JsonObject)?.optStr("reason", "rejected") ?: "rejected"
                     onStreamGated?.invoke(reason)
                 }
 
                 DCMessageType.SESSION_TERMINATE -> {
                     onSessionTerminated?.invoke()
                 }
+                else -> Unit
             }
         } catch (e: Exception) {
             Napier.e("handleDataChannelMessage error", e, tag = TAG)
@@ -295,7 +291,6 @@ class PaywalledRTCClient(
                     amount = request.amount,
                     asset = request.asset,
                     network = request.network,
-                    payTo = request.payTo,
                     segmentDuration = request.meta.segmentDuration,
                     segmentBytes = request.meta.segmentBytes,
                 )
@@ -313,10 +308,10 @@ class PaywalledRTCClient(
                 onConsentDenied?.invoke()
                 sendDC(
                     buildJsonObject {
-                        put("type", DCMessageType.SEGMENT_PAYMENT)
-                        put("sessionId", request.sessionId)
-                        put("segmentIndex", request.segmentIndex)
-                        put("payload", JsonNull)
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_PAYMENT.value)
+                        put(DCFieldKey.SESSION_ID, request.sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, request.segmentIndex)
+                        put(DCFieldKey.PAYLOAD, JsonNull)
                     },
                 )
                 return
@@ -369,10 +364,10 @@ class PaywalledRTCClient(
 
             sendDC(
                 buildJsonObject {
-                    put("type", DCMessageType.SEGMENT_PAYMENT)
-                    put("sessionId", request.sessionId)
-                    put("segmentIndex", request.segmentIndex)
-                    put("payload", railPayment.toJson())
+                    put(DCFieldKey.TYPE, DCMessageType.SEGMENT_PAYMENT.value)
+                    put(DCFieldKey.SESSION_ID, request.sessionId)
+                    put(DCFieldKey.SEGMENT_INDEX, request.segmentIndex)
+                    put(DCFieldKey.PAYLOAD, railPayment.toJson())
                 },
             )
             Napier.d(
@@ -441,12 +436,4 @@ private fun JsonObject.optStr(
     default: String,
 ): String = this[key]?.jsonPrimitive?.content ?: default
 
-private fun JsonObject.optInt(
-    key: String,
-    default: Int,
-): Int = this[key]?.jsonPrimitive?.int ?: default
 
-private fun JsonObject.optLong(
-    key: String,
-    default: Long,
-): Long = this[key]?.jsonPrimitive?.long ?: default
