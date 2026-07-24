@@ -188,7 +188,6 @@ actual fun AnswerScreenOverlay() {
                             activity = activity,
                             address = address,
                             credential = event.credential,
-                            onHostAddressChanged = { connectedHostAddress = it },
                         )
                     }
 
@@ -202,7 +201,6 @@ actual fun AnswerScreenOverlay() {
                             activity = activity,
                             address = address,
                             credential = event.credential,
-                            onHostAddressChanged = { connectedHostAddress = it },
                         )
                     }
 
@@ -408,7 +406,6 @@ private suspend fun handleWebRTCSetup(
     activity: AppCompatActivity,
     address: String,
     credential: PublicKeyCredential,
-    onHostAddressChanged: (String) -> Unit,
 ) {
     val msg = viewModel.authMessage.value ?: return
     if (viewModel.signalService.value != null) {
@@ -417,21 +414,11 @@ private suspend fun handleWebRTCSetup(
         // media tracks, so request recv-only media on the offer for those sessions only.
         val enableMedia = msg.appId == AppId.LIQUID_AUTH_STREAM.name
         viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers, enableMedia)
-        var hasStartedMppViewer = false
         viewModel.signalService.value?.handleMessages(
             activity = activity,
             onMessage = { peerMsg ->
-                // Cache host / pay-to address from incoming messages for top-up flows.
-                extractHostAddress(peerMsg)?.let { host ->
-                    if (host.isNotBlank()) {
-                        onHostAddressChanged(host)
-                        if (!hasStartedMppViewer) {
-                            hasStartedMppViewer = true
-                            viewModel.setupMppPaymentViewer(viewerAddress = address)
-                            viewModel.startViewerOnChainRefresh(viewerAddress = address)
-                        }
-                    }
-                }
+                viewModel.setupMppPaymentViewer(viewerAddress = address)
+                viewModel.startViewerOnChainRefresh(viewerAddress = address)
                 viewModel.handleMessages(
                     msgStr = peerMsg,
                     onVideoFrame = { frameData: VideoFrameData -> viewModel.setVideoFrame(frameData) },
@@ -505,22 +492,4 @@ private suspend fun topUpViewerSessionVault(
                     Toast.LENGTH_LONG,
                 ).show()
         }
-}
-
-private fun extractHostAddress(msgStr: String): String? {
-    return runCatching {
-        val json = JSONObject(msgStr)
-
-        fun extractHost(obj: JSONObject?): String? {
-            if (obj == null) return null
-            return listOf("hostAddress", "payTo", "recipient", "to", "address")
-                .firstNotNullOfOrNull { key ->
-                    obj.optString(key, "").takeIf { it.isNotBlank() }
-                }
-        }
-        extractHost(json)
-            ?: extractHost(json.optJSONObject("request"))
-            ?: extractHost(json.optJSONObject("params"))
-            ?: extractHost(json.optJSONObject("methodDetails"))
-    }.getOrNull()
 }
