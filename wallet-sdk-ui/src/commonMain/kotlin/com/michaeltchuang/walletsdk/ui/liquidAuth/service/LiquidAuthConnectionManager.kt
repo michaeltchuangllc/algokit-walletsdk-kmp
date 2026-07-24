@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
-import com.michaeltchuang.walletsdk.core.railmpp.core.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
@@ -223,7 +223,7 @@ fun parseLiquidAuthHostTransportMessage(message: String): LiquidAuthHostTranspor
     val reference = message.jsonOptString("reference")
     val type = message.jsonOptString("type")
     val viewerHello =
-        if (type == DCMessageType.SEGMENT_HANDSHAKE) {
+        if (type == DCMessageType.SEGMENT_HANDSHAKE.value) {
             val viewerPublicKeyBase64 = message.jsonOptString("viewerPublicKey")
             LiquidAuthViewerHelloMessage(
                 viewerAddress = message.jsonOptString("viewer"),
@@ -233,7 +233,7 @@ fun parseLiquidAuthHostTransportMessage(message: String): LiquidAuthHostTranspor
             null
         }
     val paymentVoucher =
-        if (type == DCMessageType.SEGMENT_VOUCHER) {
+        if (type == DCMessageType.SEGMENT_VOUCHER.value) {
             val viewerPublicKeyBase64 = message.jsonOptString("viewerPublicKey")
             val channelIdBase64 = message.jsonOptString("channelId")
             LiquidAuthPaymentVoucherMessage(

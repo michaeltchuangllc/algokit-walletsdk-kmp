@@ -43,6 +43,7 @@ object EscrowSessionVaultManagerClient {
     var defaultSalt: ByteArray? = null
     var channelId: ByteArray? = null
     var salt: ByteArray? = null
+    var hostAddress: String?=null
 
     init {
         runCatching {
@@ -85,12 +86,14 @@ object EscrowSessionVaultManagerClient {
     suspend fun openAndDeposit(
         signer: MppWalletSigner,
         payerAddress: String = signer.address,
-        payeeAddress: String,
         depositMicroUsdc: Long,
     ): Result<String> =
         runCatching {
             require(payerAddress == signer.address) {
                 "payerAddress must match signer.address for session vault deposit"
+            }
+            require(hostAddress != null) {
+                "hostAddress is null. hostAddress is required for session vault deposit"
             }
             val channelId = channelId ?: error("channelId is null")
             val salt = salt ?: defaultSalt ?: error("salt is null")
@@ -103,7 +106,7 @@ object EscrowSessionVaultManagerClient {
                 appCallArgs =
                     listOf(
                         ABI_OPEN,
-                        decodeAlgorandAddressPublicKey(payeeAddress),
+                        decodeAlgorandAddressPublicKey(hostAddress!!),
                         encodeArc4DynamicBytes(salt),
                         encodeArc4DynamicBytes(computeSignerPubkeyHash(signer.authorizedSignerPublicKey)),
                         encodeArc4DynamicBytes(signer.authorizedSignerPublicKey),

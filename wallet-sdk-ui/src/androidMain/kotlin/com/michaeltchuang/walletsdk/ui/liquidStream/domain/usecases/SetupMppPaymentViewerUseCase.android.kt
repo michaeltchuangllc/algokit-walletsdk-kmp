@@ -33,7 +33,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
     data class Params(
         val signalService: SignalService?,
         val viewerAddress: String?,
-        val hostAddress: String?,
         val scope: CoroutineScope,
         val buildMppWalletSigner: suspend (String) -> MppWalletSigner?,
         val resolveMppClientNetwork: suspend (String) -> String,
@@ -46,7 +45,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
     operator fun invoke(params: Params) {
         Log.d(
             TAG,
-            "[VIEWER_MPP_SETUP_START] viewer=${params.viewerAddress.orEmpty()} host=${params.hostAddress.orEmpty()} serviceReady=${params.signalService != null}",
+            "[VIEWER_MPP_SETUP_START] viewer=${params.viewerAddress.orEmpty()} serviceReady=${params.signalService != null}",
         )
         val service =
             params.signalService
@@ -61,31 +60,25 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         val viewerAddress =
             params.viewerAddress?.takeIf { it.isNotBlank() }
                 ?: run {
-                    Log.w(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=blank_viewer host=${params.hostAddress.orEmpty()}")
-                    return
-                }
-        val sessionVaultHostAddress =
-            params.hostAddress?.takeIf { it.isNotBlank() }
-                ?: run {
-                    Log.w(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=blank_host viewer=$viewerAddress")
+                    Log.w(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=blank_viewer")
                     return
                 }
 
         params.scope.launch {
             try {
-                Log.d(TAG, "[VIEWER_MPP_PAYMENT_CHANNEL_WAIT] viewer=$viewerAddress host=$sessionVaultHostAddress")
+                Log.d(TAG, "[VIEWER_MPP_PAYMENT_CHANNEL_WAIT] viewer=$viewerAddress")
                 val paymentChannel =
                     awaitPaymentDataChannel(service)
                         ?: run {
                             Log.e(
                                 TAG,
-                                "[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$viewerAddress host=$sessionVaultHostAddress",
+                                "[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$viewerAddress",
                             )
                             return@launch
                         }
                 Log.d(
                     TAG,
-                    "[VIEWER_MPP_PAYMENT_CHANNEL_READY] viewer=$viewerAddress host=$sessionVaultHostAddress label=${paymentChannel.label()} state=${paymentChannel.state()}",
+                    "[VIEWER_MPP_PAYMENT_CHANNEL_READY] viewer=$viewerAddress label=${paymentChannel.label()} state=${paymentChannel.state()}",
                 )
 
                 val signer =
@@ -93,7 +86,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                         ?: run {
                             Log.e(
                                 TAG,
-                                "[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$viewerAddress host=$sessionVaultHostAddress",
+                                "[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$viewerAddress",
                             )
                             return@launch
                         }
@@ -105,7 +98,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                     MppPaymentViewerManager.StartParams(
                         dataChannel = WebRtcDataChannel(paymentChannel),
                         viewerAddress = viewerAddress,
-                        hostAddress = sessionVaultHostAddress,
                         scope = params.scope,
                         signer = signer,
                         mppNetwork = mppNetwork,
@@ -116,9 +108,9 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                     ),
                 )
             } catch (_: CancellationException) {
-                Log.w(TAG, "[VIEWER_MPP_SETUP_CANCELLED] viewer=$viewerAddress host=$sessionVaultHostAddress")
+                Log.w(TAG, "[VIEWER_MPP_SETUP_CANCELLED] viewer=$viewerAddress")
             } catch (e: Exception) {
-                Log.e(TAG, "[VIEWER_MPP_SETUP_FAILED] viewer=$viewerAddress host=$sessionVaultHostAddress", e)
+                Log.e(TAG, "[VIEWER_MPP_SETUP_FAILED] viewer=$viewerAddress", e)
             }
         }
     }

@@ -5,7 +5,6 @@ data class ConsentTerms(
     val amount: String,
     val asset: String,
     val network: String,
-    val payTo: String? = null,
     val segmentDuration: Int? = null,
     val segmentBytes: Long? = null,
     val suggestedBudgetCap: String? = null,

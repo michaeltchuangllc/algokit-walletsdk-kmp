@@ -40,7 +40,6 @@ class MppPaymentViewerManager(
     data class StartParams(
         val dataChannel: RtcDataChannel,
         val viewerAddress: String,
-        val hostAddress: String,
         val scope: CoroutineScope,
         val signer: MppWalletSigner,
         val mppNetwork: String,
@@ -76,7 +75,6 @@ class MppPaymentViewerManager(
 
     fun start(params: StartParams) {
         val viewerAddress = params.viewerAddress
-        val sessionVaultHostAddress = params.hostAddress
         val signer = params.signer
         val sessionVaultAppId = params.sessionVaultAppId
         val scope = params.scope
@@ -91,7 +89,7 @@ class MppPaymentViewerManager(
         clearPendingPayment()
 
         Napier.d(
-            "[VIEWER_MPP_CREATE_VIEWER] viewer=$viewerAddress host=$sessionVaultHostAddress network=${params.mppNetwork}",
+            "[VIEWER_MPP_CREATE_VIEWER] viewer=$viewerAddress network=${params.mppNetwork}",
             tag = TAG,
         )
 
@@ -107,14 +105,13 @@ class MppPaymentViewerManager(
                     object : ConsentHandler {
                         override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
                             Napier.d(
-                                "[VIEWER_MPP_CONSENT_REQUEST] viewer=$viewerAddress host=$sessionVaultHostAddress amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
+                                "[VIEWER_MPP_CONSENT_REQUEST] viewer=$viewerAddress amount=${terms.amount} asset=${terms.asset} network=${terms.network} gating=${terms.gatingMode}",
                                 tag = TAG,
                             )
                             val existingOnChainBalance =
                                 getRemainingSessionVaultBalanceUseCase(
                                     GetRemainingSessionVaultBalanceUseCase.Params(
                                         viewerAddress = viewerAddress,
-                                        hostAddress = sessionVaultHostAddress,
                                         appId = sessionVaultAppId,
                                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                     ),
@@ -130,7 +127,6 @@ class MppPaymentViewerManager(
                                 startViewerOnChainRefresh(
                                     scope = scope,
                                     viewerAddress = viewerAddress,
-                                    hostAddress = sessionVaultHostAddress,
                                     sessionVaultAppId = sessionVaultAppId,
                                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                     setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
@@ -147,7 +143,7 @@ class MppPaymentViewerManager(
 
                             val approval = params.requestMppConsent(terms)
                             Napier.d(
-                                "[VIEWER_MPP_CONSENT_RESULT] viewer=$viewerAddress host=$sessionVaultHostAddress approved=${approval.approved} autoPay=${approval.autoPaySegments} budget=${approval.budgetCap?.amount}",
+                                "[VIEWER_MPP_CONSENT_RESULT] viewer=$viewerAddress approved=${approval.approved} autoPay=${approval.autoPaySegments} budget=${approval.budgetCap?.amount}",
                                 tag = TAG,
                             )
                             if (!approval.approved) return approval
@@ -163,7 +159,6 @@ class MppPaymentViewerManager(
                                 fundSessionVault(
                                     signer = signer,
                                     viewerAddress = viewerAddress,
-                                    hostAddress = sessionVaultHostAddress,
                                     depositMicroUsdc = depositMicroUsdc,
                                     logContext = "initialConsent",
                                 )
@@ -178,7 +173,6 @@ class MppPaymentViewerManager(
                                         getRemainingSessionVaultBalanceUseCase(
                                             GetRemainingSessionVaultBalanceUseCase.Params(
                                                 viewerAddress = viewerAddress,
-                                                hostAddress = sessionVaultHostAddress,
                                                 appId = sessionVaultAppId,
                                                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                             ),
@@ -190,7 +184,6 @@ class MppPaymentViewerManager(
                                     startViewerOnChainRefresh(
                                         scope = scope,
                                         viewerAddress = viewerAddress,
-                                        hostAddress = sessionVaultHostAddress,
                                         sessionVaultAppId = sessionVaultAppId,
                                         authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                                         setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
@@ -228,7 +221,6 @@ class MppPaymentViewerManager(
                             receiptPayTo = receipt.payTo,
                             txId = receipt.txId,
                             viewerAddress = viewerAddress,
-                            hostAddress = sessionVaultHostAddress,
                             sessionVaultAppId = sessionVaultAppId,
                             signer = signer,
                             signFido2Challenge = params.signFido2Challenge,
@@ -238,12 +230,11 @@ class MppPaymentViewerManager(
                 }
 
                 viewer.rtcClient.onStreamGated = { reason ->
-                    Napier.w("[VIEWER_STREAM_GATED] viewer=$viewerAddress host=$sessionVaultHostAddress reason=$reason", tag = TAG)
+                    Napier.w("[VIEWER_STREAM_GATED] viewer=$viewerAddress reason=$reason", tag = TAG)
                     scope.launch {
                         handleStreamGated(
                             scope = scope,
                             viewerAddress = viewerAddress,
-                            hostAddress = sessionVaultHostAddress,
                             sessionVaultAppId = sessionVaultAppId,
                             signer = signer,
                             mppNetwork = params.mppNetwork,
@@ -253,16 +244,15 @@ class MppPaymentViewerManager(
                     }
                 }
 
-                Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress host=$sessionVaultHostAddress network=${params.mppNetwork}", tag = TAG)
+                Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress network=${params.mppNetwork}", tag = TAG)
                 viewer.start()
-                Napier.d("[VIEWER_MPP_STARTED] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
+                Napier.d("[VIEWER_MPP_STARTED] viewer=$viewerAddress", tag = TAG)
             }
     }
 
     fun startViewerOnChainRefresh(
         scope: CoroutineScope,
         viewerAddress: String,
-        hostAddress: String?,
         sessionVaultAppId: Long,
         authorizedSignerPublicKey: ByteArray? = null,
         setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
@@ -271,7 +261,6 @@ class MppPaymentViewerManager(
             Napier.w("[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=blank_viewer", tag = TAG)
             return
         }
-        val sessionVaultHostAddress = hostAddress?.takeIf { it.isNotBlank() } ?: return
        // Napier.d("[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
         stopViewerOnChainRefresh()
         viewerOnChainRefreshJob =
@@ -281,7 +270,6 @@ class MppPaymentViewerManager(
                         getRemainingSessionVaultBalanceUseCase(
                             GetRemainingSessionVaultBalanceUseCase.Params(
                                 viewerAddress = viewerAddress,
-                                hostAddress = sessionVaultHostAddress,
                                 appId = sessionVaultAppId,
                                 authorizedSignerPublicKey = authorizedSignerPublicKey ?: viewerAuthorizedSignerPublicKey,
                             ),
@@ -301,7 +289,7 @@ class MppPaymentViewerManager(
                         }
                     }.onFailure { err ->
                         Napier.e(
-                            "[VIEWER_SESSION_VAULT_REFRESH_ERR] viewer=$viewerAddress host=$sessionVaultHostAddress",
+                            "[VIEWER_SESSION_VAULT_REFRESH_ERR] viewer=$viewerAddress",
                             err,
                             tag = TAG,
                         )
@@ -331,7 +319,6 @@ class MppPaymentViewerManager(
         receiptPayTo: String,
         txId: String,
         viewerAddress: String,
-        hostAddress: String,
         sessionVaultAppId: Long,
         signer: MppWalletSigner,
         signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
@@ -372,7 +359,7 @@ class MppPaymentViewerManager(
             if (voucherClaimedRaw > maxAllowedCumulative && viewerVoucherCapLoggedSessionId != receiptSessionId) {
                 viewerVoucherCapLoggedSessionId = receiptSessionId
                 Napier.e(
-                    "[VIEWER_VOUCHER_CLAMP_DEPOSIT] session=$receiptSessionId claimedRaw=$voucherClaimedRaw clampedClaimed=$voucherClaimed maxAllowedCumulative=$maxAllowedCumulative totalDeposit=$preUpdateTotalDeposit viewer=$receiptViewerAddress host=$hostAddress",
+                    "[VIEWER_VOUCHER_CLAMP_DEPOSIT] session=$receiptSessionId claimedRaw=$voucherClaimedRaw clampedClaimed=$voucherClaimed maxAllowedCumulative=$maxAllowedCumulative totalDeposit=$preUpdateTotalDeposit viewer=$receiptViewerAddress",
                     tag = TAG,
                 )
             }
@@ -392,16 +379,15 @@ class MppPaymentViewerManager(
             if (voucherSignature != null && voucherSignature.isNotEmpty()) {
                 if (DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG) {
                     Napier.d(
-                        "[VIEWER_UPDATE_VOUCHER_DISABLED_DEBUG] session=$receiptSessionId segment=$receiptSegmentIndex claimed=$voucherClaimed viewer=$receiptViewerAddress host=$hostAddress",
+                        "[VIEWER_UPDATE_VOUCHER_DISABLED_DEBUG] session=$receiptSessionId segment=$receiptSegmentIndex claimed=$voucherClaimed viewer=$receiptViewerAddress",
                         tag = TAG,
                     )
                 } else {
-                                            updateAndSendVoucher(
+                    updateAndSendVoucher(
                         receiptSessionId = receiptSessionId,
                         receiptSegmentIndex = receiptSegmentIndex,
                         receiptViewerAddress = receiptViewerAddress,
                         receiptPayTo = receiptPayTo,
-                        hostAddress = hostAddress,
                         sessionVaultAppId = sessionVaultAppId,
                         signer = signer,
                         voucherClaimed = voucherClaimed,
@@ -428,7 +414,6 @@ class MppPaymentViewerManager(
         receiptSegmentIndex: Int,
         receiptViewerAddress: String,
         receiptPayTo: String,
-        hostAddress: String,
         sessionVaultAppId: Long,
         signer: MppWalletSigner,
         voucherClaimed: Long,
@@ -444,7 +429,6 @@ class MppPaymentViewerManager(
                             MppPayments.updateVoucherOnChain(
                                 signer = signer,
                                 viewerAddress = receiptViewerAddress,
-                                hostAddress = hostAddress,
                                 totalAmountUsedMicroUsdc = voucherClaimed,
                                 signature = voucherSignature,
                             ).getOrThrow()
@@ -512,7 +496,7 @@ class MppPaymentViewerManager(
                     appId = sessionVaultAppId,
                 )
             Napier.e(
-                "[SESSION_VAULT_VOUCHER_SEND] session=$receiptSessionId segment=$receiptSegmentIndex claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress host=$hostAddress sigLen=${voucherSignature.size}",
+                "[SESSION_VAULT_VOUCHER_SEND] session=$receiptSessionId segment=$receiptSegmentIndex claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress sigLen=${voucherSignature.size}",
                 tag = TAG,
             )
             liquidStreamViewer?.rtcClient?.sendVoucher(voucherJson)
@@ -528,7 +512,6 @@ class MppPaymentViewerManager(
     private suspend fun handleStreamGated(
         scope: CoroutineScope,
         viewerAddress: String,
-        hostAddress: String,
         sessionVaultAppId: Long,
         signer: MppWalletSigner,
         mppNetwork: String,
@@ -543,7 +526,6 @@ class MppPaymentViewerManager(
                         amount = MppPayments.voucherSettleWindowMicroUsdc().toString(),
                         asset = "USDC",
                         network = mppNetwork,
-                        payTo = hostAddress,
                         segmentDuration = 3,
                     ),
                 )
@@ -560,7 +542,6 @@ class MppPaymentViewerManager(
                 fundSessionVault(
                     signer = signer,
                     viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
                     depositMicroUsdc = depositMicroUsdc,
                     logContext = "streamGated",
                 )
@@ -570,7 +551,6 @@ class MppPaymentViewerManager(
                     getRemainingSessionVaultBalanceUseCase(
                         GetRemainingSessionVaultBalanceUseCase.Params(
                             viewerAddress = viewerAddress,
-                            hostAddress = hostAddress,
                             appId = sessionVaultAppId,
                             authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                         ),
@@ -582,7 +562,6 @@ class MppPaymentViewerManager(
                 startViewerOnChainRefresh(
                     scope = scope,
                     viewerAddress = viewerAddress,
-                    hostAddress = hostAddress,
                     sessionVaultAppId = sessionVaultAppId,
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                     setViewerSessionVaultProgress = setViewerSessionVaultProgress,
@@ -591,17 +570,16 @@ class MppPaymentViewerManager(
                 liquidStreamViewer?.rtcClient?.notifyVaultFunded(sessionId = viewerVoucherSessionId ?: "")
             }.onFailure { err ->
                  clearPendingPayment()
-                Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress host=$hostAddress", err, tag = TAG)
+                Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress", err, tag = TAG)
             }
         }.onFailure { err ->
-            Napier.e("[VIEWER_STREAM_GATED_CONSENT_ERR] viewer=$viewerAddress host=$hostAddress", err, tag = TAG)
+            Napier.e("[VIEWER_STREAM_GATED_CONSENT_ERR] viewer=$viewerAddress", err, tag = TAG)
         }
     }
 
     private suspend fun fundSessionVault(
         signer: MppWalletSigner,
         viewerAddress: String,
-        hostAddress: String,
         depositMicroUsdc: Long,
         logContext: String,
     ): VaultFundingResult {
@@ -626,7 +604,6 @@ class MppPaymentViewerManager(
             MppPayments.openSessionAndDeposit(
                 signer = signer,
                 viewerAddress = viewerAddress,
-                creatorAddress = hostAddress,
                 depositAmountMicroUsdc = depositMicroUsdc,
             )
         openResult.onSuccess {
@@ -637,7 +614,7 @@ class MppPaymentViewerManager(
                     authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
                 ).onFailure { err ->
                     Napier.e(
-                        "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress host=$hostAddress",
+                        "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress",
                         err,
                         tag = TAG,
                     )

@@ -106,7 +106,6 @@ class EscrowSessionVaultDebugViewModel(
                             MppPayments.openSessionAndDeposit(
                                 signer = signer,
                                 viewerAddress = viewer,
-                                creatorAddress = creator,
                                 depositAmountMicroUsdc = depositMicroUsdc,
                             )
                         }
@@ -131,7 +130,6 @@ class EscrowSessionVaultDebugViewModel(
     fun fetchSessionVaultRemainingBalance() {
         val content = contentState()
         val viewer = content.viewerAddress.trim()
-        val creator = content.creatorAddress.trim()
 
         if (!validateViewerAndCreator(content)) return
 
@@ -141,10 +139,9 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val remaining =
                     withContext(Dispatchers.Default) {
-                        val vaultContext = getSessionVaultContextUseCase()
+                      //  val vaultContext = getSessionVaultContextUseCase()
                         MppPayments.getRemainingBalanceFromSessionVault(
-                            viewerAddress = viewer,
-                            hostAddress = creator,
+                            viewerAddress = viewer
                         )
                     }
                 updateContent { it.copy(remainingBalance = remaining) }
@@ -162,7 +159,6 @@ class EscrowSessionVaultDebugViewModel(
     fun updateVoucher() {
         val content = contentState()
         val viewer = content.viewerAddress.trim()
-        val creator = content.creatorAddress.trim()
         val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val requestedIncrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
@@ -182,7 +178,6 @@ class EscrowSessionVaultDebugViewModel(
                         return@launch
                     }
 
-                val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault()
@@ -234,7 +229,6 @@ class EscrowSessionVaultDebugViewModel(
                     MppPayments.updateVoucherOnChain(
                         signer = viewerSigner,
                         viewerAddress = viewer,
-                        hostAddress = creator,
                         totalAmountUsedMicroUsdc = newCumulative,
                         signature = viewerSignature,
                     )
@@ -255,7 +249,6 @@ class EscrowSessionVaultDebugViewModel(
     fun verifyVoucherSignature() {
         val content = contentState()
         val viewer = content.viewerAddress.trim()
-        val creator = content.creatorAddress.trim()
         val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
         val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
@@ -267,7 +260,6 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val viewerSigner = mppWalletSignerUseCase(viewer)
                 if (viewerSigner != null) {
-                    val vaultContext = getSessionVaultContextUseCase()
                     val channelId = EscrowSessionVaultManagerClient.channelId
                     if (channelId == null) {
                         Napier.e("channelId is null", tag = TAG)
@@ -317,7 +309,6 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 sendStatus("Preparing settlement...")
 
-                val vaultContext = getSessionVaultContextUseCase()
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault()

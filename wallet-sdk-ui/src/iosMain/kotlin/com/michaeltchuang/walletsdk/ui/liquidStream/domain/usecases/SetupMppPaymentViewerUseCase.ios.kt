@@ -37,13 +37,11 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                 Napier.w("[VIEWER_MPP_SETUP_SKIP] reason=blank_viewer host=${params.hostAddress}", tag = TAG)
                 return
             }
-        val sessionVaultHostAddress = params.hostAddress
         val sessionVaultConfig = getSessionVaultConfigUseCase(params.mppNetwork.toAlgorandNetwork())
         viewerManager.start(
             MppPaymentViewerManager.StartParams(
                 dataChannel = params.dataChannel,
                 viewerAddress = viewerAddress,
-                hostAddress = sessionVaultHostAddress,
                 scope = params.scope,
                 signer = params.signer,
                 mppNetwork = params.mppNetwork,

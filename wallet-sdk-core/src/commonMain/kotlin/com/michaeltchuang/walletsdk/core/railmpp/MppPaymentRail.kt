@@ -14,9 +14,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.spec.AuthParams
 import com.michaeltchuang.walletsdk.core.railmpp.spec.Base64Std
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeChallengeCodec
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeCredentialCodec
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.uuid.ExperimentalUuidApi
@@ -115,7 +117,7 @@ class MppPaymentRail(
         val consumer =
             consumer ?: error("MppPaymentRail: consumer mode requires MppClientConfig in the constructor")
         val payload =
-            request.railPayload as? JsonObject
+            request.railPayload?.jsonObject
                 ?: error("MppPaymentRail: PaymentRequest.railPayload must be a JsonObject")
         val wwwAuth =
             payload["wwwAuthenticate"]
@@ -191,12 +193,9 @@ class MppPaymentRail(
             else -> asset
         }
 
-    private fun extractCredential(payload: Any?): String {
-        if (payload is String) return payload
-        if (payload is JsonObject) {
-            val s = payload["credential"]?.jsonPrimitive?.contentOrNull
-            if (!s.isNullOrBlank()) return s
-        }
+    private fun extractCredential(payload: JsonElement): String {
+        val s = (payload as? JsonObject)?.get("credential")?.jsonPrimitive?.contentOrNull
+        if (!s.isNullOrBlank()) return s
         error("MppPaymentRail: railPayment.paymentPayload missing 'credential' field")
     }
 

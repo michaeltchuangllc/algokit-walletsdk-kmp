@@ -525,7 +525,6 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 getRemainingBalanceUseCase(
                                     GetRemainingSessionVaultBalanceUseCase.Params(
                                         viewerAddress = viewerAddr,
-                                        hostAddress = hostAddr,
                                         appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
                                         authorizedSignerPublicKey = signerKey,
                                     ),
@@ -749,7 +748,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val viewer = _viewerAddress.value
         val host = _hostAddress.value
         if (viewer.isNotBlank() && host.isNotBlank()) {
-            viewModel.startViewerOnChainRefresh(viewer, host)
+            viewModel.startViewerOnChainRefresh(viewer)
         }
     }
 

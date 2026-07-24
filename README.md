@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.1")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.1")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.2")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.2")
 }
 ```
 
@@ -124,9 +124,9 @@ timeline
              : ✅ Liquid Stream - Refactor code to be more in common folder
              : ✅ Android - Upgrade to AGP9 and KMP 2.4
              : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
-             : 🔄 Liquid Stream - Add in audio and muting functionality
+             : ✅ Liquid Stream - Add in audio and muting functionality
              : 🔄 Liquid Stream - Research hybrid (Lsig / smart contract) session vault for Algorand
-             : Liquid Stream - Add in chat functionality
+             : 🔄Liquid Stream - Add in chat functionality
              : Onboarding - Add Falcon25 (non-lsig) wallet account flow
              : Transaction - Refactor escrow session vault smart contract to support Falcon25
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
