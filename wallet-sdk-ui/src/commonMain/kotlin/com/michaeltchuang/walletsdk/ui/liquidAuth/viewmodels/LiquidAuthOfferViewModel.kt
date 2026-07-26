@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiqui
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
@@ -384,6 +385,15 @@ class LiquidAuthOfferViewModel(
         _connectionType.value = type
         viewModelScope.launch {
             eventDelegate.sendEvent(OfferEvent.ConnectionTypeChanged(type))
+        }
+    }
+
+    /**
+     * Handle incoming chat message
+     */
+    fun onChatMessageReceived(message: ChatMessage) {
+        viewModelScope.launch {
+            eventDelegate.sendEvent(OfferEvent.ChatMessageReceived(message))
         }
     }
 
@@ -986,6 +996,10 @@ class LiquidAuthOfferViewModel(
 
         data class ShowError(
             val message: String,
+        ) : OfferEvent
+
+        data class ChatMessageReceived(
+            val message: ChatMessage,
         ) : OfferEvent
     }
 }

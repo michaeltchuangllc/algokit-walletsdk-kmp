@@ -38,6 +38,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentVie
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
 import platform.Foundation.NSLog
@@ -101,6 +102,8 @@ actual fun AnswerScreenOverlay() {
             ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
         }
 
+    val viewerViewModel: LiquidAuthViewerViewModel = koinInject()
+
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
@@ -110,7 +113,7 @@ actual fun AnswerScreenOverlay() {
     var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-
+    var deliveredMessageCount by remember { mutableStateOf(0) }
     LaunchedEffect(viewerManager) {
         activeIOSViewerConnectionManager = viewerManager
 
@@ -192,6 +195,17 @@ actual fun AnswerScreenOverlay() {
         }
     }
 
+    LaunchedEffect(stateHolder) {
+        stateHolder.chatMessages.collect { messages ->
+            if (messages.size > deliveredMessageCount) {
+                messages.drop(deliveredMessageCount).forEach {
+                    viewerViewModel.receivedChatMessage(it)
+                }
+                deliveredMessageCount = messages.size
+            }
+        }
+    }
+
     AlgoKitTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             val viewerCameraPreview: (@Composable () -> Unit) = {
@@ -220,6 +234,9 @@ actual fun AnswerScreenOverlay() {
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized
                     },
+                    onSendClick = { text ->
+                        stateHolder.sendChatMessage(text)
+                    }
                 )
             }
 

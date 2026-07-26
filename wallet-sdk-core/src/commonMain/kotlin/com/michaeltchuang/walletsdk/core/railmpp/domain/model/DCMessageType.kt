@@ -11,13 +11,10 @@ enum class DCMessageType(val value: String) {
     VIEWER_VAULT_FUNDED("viewer:vault:funded"),
     SEGMENT_HANDSHAKE("segment:handshake"),
     SEGMENT_VOUCHER("segment:voucher"),
+    CHAT_MESSAGE("chat:message"),
     ;
 
     companion object {
-        fun fromString(value: String): DCMessageType =
-            entries.firstOrNull { it.value == value }
-                ?: throw IllegalArgumentException("Unknown DCMessageType: $value")
-
         fun fromStringOrNull(value: String?): DCMessageType? =
             entries.firstOrNull { it.value == value }
     }

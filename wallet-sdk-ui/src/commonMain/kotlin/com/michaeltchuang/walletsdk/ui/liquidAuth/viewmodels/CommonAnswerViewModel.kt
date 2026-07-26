@@ -14,13 +14,14 @@ import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.utils.DataResource
@@ -40,6 +41,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.math.roundToLong
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
 open class CommonAnswerViewModel(
@@ -148,20 +150,53 @@ open class CommonAnswerViewModel(
         onVideoFrame: ((VideoFrameData) -> Unit)?,
     ) {
         val jsonObject = json.parseToJsonElement(msgStr).jsonObject
-        when (val reference = jsonObject.optString("reference")) {
-            "liquid:video:frame" -> {
-                handleVideoFrameMessage(msgStr, onVideoFrame)
+        val type = jsonObject.optString("type")
+
+        when (val msgType = DCMessageType.fromStringOrNull(type)) {
+            DCMessageType.CHAT_MESSAGE -> {
+                val payload = jsonObject.reqJsonObject("payload")
+                val chatMsg = Json.decodeFromJsonElement(ChatMessage.serializer(), payload)
+                onChatMessageReceived(chatMsg)
             }
 
-            "liquid:payment:balance",
-            "liquid:payment:depleted",
-            -> {
-                Napier.d(tag = TAG, message = "Liquid payment JSON message: $reference")
+            DCMessageType.SEGMENT_REQUEST,
+            DCMessageType.SEGMENT_PAYMENT,
+            DCMessageType.SEGMENT_ACCEPTED,
+            DCMessageType.SEGMENT_REJECTED,
+            DCMessageType.SESSION_TERMINATE,
+            DCMessageType.VIEWER_VAULT_FUNDED,
+            DCMessageType.SEGMENT_HANDSHAKE,
+            DCMessageType.SEGMENT_VOUCHER -> {
+                Napier.d(tag = TAG, message = "Core protocol JSON message: ${msgType.value}")
             }
 
-            else -> Napier.w(tag = TAG, message = "Unknown JSON message reference: $reference")
+            else -> {
+                Napier.w(tag = TAG, message = "Unknown JSON DataChannel message type: $type")
+            }
         }
     }
+
+    protected open fun onChatMessageReceived(message: ChatMessage) {
+        addChatMessage(message)
+    }
+
+    fun sendChatMessage(text: String, amount: String? = null, asset: String? = null) {
+        val sender = accountAddress.value.takeIf { it.isNotBlank() } ?: "Viewer"
+        val chatMsg = ChatMessage(
+            sender = sender,
+            text = text,
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+            amount = amount,
+            asset = asset
+        )
+        
+        doSendChatMessage(chatMsg)
+
+        // Add to local list immediately for UI responsiveness
+        addChatMessage(chatMsg)
+    }
+
+    protected open fun doSendChatMessage(message: ChatMessage) {}
 
     private fun handleVideoFrameMessage(
         msgStr: String,
@@ -506,6 +541,9 @@ open class CommonAnswerViewModel(
 
     private fun JsonObject.reqString(key: String): String =
         this[key]?.jsonPrimitive?.contentOrNull ?: error("Missing '$key'")
+
+    private fun JsonObject.reqJsonObject(key: String): JsonObject =
+        this[key]?.jsonObject ?: error("Missing '$key'")
 
     private fun JsonObject.optString(key: String): String? =
         this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }

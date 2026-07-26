@@ -414,11 +414,15 @@ private suspend fun handleWebRTCSetup(
         // media tracks, so request recv-only media on the offer for those sessions only.
         val enableMedia = msg.appId == AppId.LIQUID_AUTH_STREAM.name
         viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers, enableMedia)
+        var viewerSetupDone = false
         viewModel.signalService.value?.handleMessages(
             activity = activity,
             onMessage = { peerMsg ->
-                viewModel.setupMppPaymentViewer(viewerAddress = address)
-                viewModel.startViewerOnChainRefresh(viewerAddress = address)
+                if (!viewerSetupDone) {
+                    viewModel.setupMppPaymentViewer(viewerAddress = address)
+                    viewModel.startViewerOnChainRefresh(viewerAddress = address)
+                    viewerSetupDone = true
+                }
                 viewModel.handleMessages(
                     msgStr = peerMsg,
                     onVideoFrame = { frameData: VideoFrameData -> viewModel.setVideoFrame(frameData) },

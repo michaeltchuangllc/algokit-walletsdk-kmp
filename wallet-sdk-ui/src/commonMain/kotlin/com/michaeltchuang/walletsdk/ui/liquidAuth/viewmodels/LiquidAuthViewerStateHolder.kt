@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
@@ -130,6 +131,9 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     val connectionType: StateFlow<IceConnectionType> = _connectionType
 
+    private val _chatMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val chatMessages: StateFlow<List<ChatMessage>> = _chatMessages
+
     // --- Video streaming state -----------------------------------------------------------------
     private val _videoFrame = MutableStateFlow<VideoFrameData?>(null)
     val videoFrame: StateFlow<VideoFrameData?> = _videoFrame
@@ -238,6 +242,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         _hostAddress.value = ""
         _connectionType.value = IceConnectionType.UNKNOWN
         _session.value = SESSION_LOGGED_OUT
+        _chatMessages.value = emptyList()
         setViewerSessionVaultProgress(0L, 0L)
     }
 
@@ -405,5 +410,9 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
             remainingBalanceMicroUsdc = balanceMicroUsdc,
             progressBalanceMicroUsdc = balanceMicroUsdc,
         )
+    }
+
+    fun addChatMessage(message: ChatMessage) {
+        _chatMessages.value = _chatMessages.value + message
     }
 }

@@ -59,6 +59,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
@@ -70,6 +71,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LiquidStreamHostLiveScreen(
     cameraPreview: @Composable (() -> Unit)? = null,
     connectionManager: LiquidAuthConnectionManager? = null,
+    viewModel: LiquidStreamHostViewModel = koinViewModel(),
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
     onWalletClick: () -> Unit = {},
@@ -78,7 +80,7 @@ fun LiquidStreamHostLiveScreen(
     onRotateCamera: () -> Unit = {},
     onStatsClick: () -> Unit = {},
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
-    onSendClick: () -> Unit = {},
+    onSendClick: (String) -> Unit = {},
     sessionId: String? = null,
     progressBalanceUsdc: Double? = null,
     remainingBalanceUsdc: Double? = progressBalanceUsdc,
@@ -89,7 +91,6 @@ fun LiquidStreamHostLiveScreen(
     balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
 ) {
-    val viewModel: LiquidStreamHostViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
 
@@ -103,7 +104,7 @@ fun LiquidStreamHostLiveScreen(
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
             when (event) {
-                is LiquidStreamHostViewModel.ViewEvent.SendMessage -> onSendClick()
+                is LiquidStreamHostViewModel.ViewEvent.SendMessage -> onSendClick(event.message)
                 is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
                 is LiquidStreamHostViewModel.ViewEvent.ToggleMic -> {
                     connectionManager?.setAudioEnabled(!event.isMuted)
@@ -135,7 +136,7 @@ fun LiquidStreamHostLiveScreen(
             onStatsModalVisibilityChanged(isStatsVisible)
             onStatsClick()
         },
-        onSendClick = viewModel::onSendClicked,
+        onSendClickInternal = { viewModel.onSendClicked() },
         sessionId = sessionId,
         progressBalanceUsdc = progressBalanceUsdc,
         remainingBalanceUsdc = remainingBalanceUsdc,
@@ -169,7 +170,7 @@ private fun LiquidStreamHostLiveScreenContent(
     onMicClick: () -> Unit,
     onRotateCamera: () -> Unit,
     onStatsClick: () -> Unit,
-    onSendClick: () -> Unit,
+    onSendClickInternal: () -> Unit,
     sessionId: String?,
     progressBalanceUsdc: Double?,
     remainingBalanceUsdc: Double?,
@@ -235,7 +236,7 @@ private fun LiquidStreamHostLiveScreenContent(
                 onMinimise = onMinimise,
             )
             Spacer(Modifier.weight(1f))
-            // CreatorChatStack()
+            CreatorChatStack(messages = uiState.chatMessages)
             Spacer(Modifier.height(18.dp))
             CreatorActionRow(
                 onWalletClick = onWalletClick,
@@ -250,7 +251,7 @@ private fun LiquidStreamHostLiveScreenContent(
             CreatorComposer(
                 text = uiState.message,
                 onTextChanged = onTextChanged,
-                onSendClick = onSendClick,
+                onSendClick = onSendClickInternal,
             )
             Spacer(Modifier.height(20.dp))
             HomeIndicator()
@@ -403,26 +404,20 @@ private fun TopSquareIconButton(
 }
 
 @Composable
-private fun CreatorChatStack() {
+private fun CreatorChatStack(messages: List<ChatUiMessage>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(
-            text = "@BLOCK_RUNNER",
-            color = Color(0xFFB9D9E1),
-            fontSize = 12.sp,
-            letterSpacing = 1.2.sp,
-        )
-        // CreatorMessageBubble(text = "The micro-billing is so smooth here.")
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = "@STREAM_HOPPER",
-            color = Color(0xFFB9D9E1),
-            fontSize = 12.sp,
-            letterSpacing = 1.2.sp,
-        )
-        CreatorMessageBubble(
-            text = "I've missed your streams! I've been busy with work, but I'm so glad to be back. Keep up the amazing content!",
-            maxLines = 3,
-        )
+        for (message in messages.takeLast(5)) {
+            Text(
+                text = "@${message.sender.take(8)}",
+                color = Color(0xFFB9D9E1),
+                fontSize = 12.sp,
+                letterSpacing = 1.2.sp,
+            )
+            CreatorMessageBubble(
+                text = message.text,
+                maxLines = 3,
+            )
+        }
     }
 }
 
@@ -685,7 +680,7 @@ private fun LiquidStreamHostLiveScreenPreview() {
             onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
             onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
-            onSendClick = { uiState = uiState.copy(message = "") },
+            onSendClickInternal = { uiState = uiState.copy(message = "") },
             sessionId = "session-preview-id",
             progressBalanceUsdc = 11.9,
             remainingBalanceUsdc = 12.0,

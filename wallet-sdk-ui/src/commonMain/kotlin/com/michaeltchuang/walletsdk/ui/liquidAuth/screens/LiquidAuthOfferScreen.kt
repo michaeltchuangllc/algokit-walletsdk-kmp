@@ -64,7 +64,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import kotlin.time.Clock
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
@@ -79,6 +81,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -220,6 +223,7 @@ fun LiquidAuthOfferScreen(
     cameraPreviewController: CameraStreamingPreviewController? = null,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
+    val hostViewModel: LiquidStreamHostViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
@@ -355,7 +359,7 @@ fun LiquidAuthOfferScreen(
     val currentCreatorAddress by rememberUpdatedState(creatorAddress)
     val currentConnectionManager by rememberUpdatedState(connectionManager)
 
-    LaunchedEffect(viewModel) {
+    LaunchedEffect(viewModel, hostViewModel) {
         viewModel.viewEvent.collect { event ->
             when (event) {
                 is LiquidAuthOfferViewModel.OfferEvent.ClientConnected -> {
@@ -368,6 +372,9 @@ fun LiquidAuthOfferScreen(
                         println("💰 Requesting payment from client...")
                         val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
                         viewModel.requestPaymentFromClient(address, network = paymentNetwork)
+                    } else if (address != null) {
+                        println("💬 Initializing chat only (no payment)...")
+                        connectionManager?.setupCreator(address, network = blockChainLabel)
                     } else {
                         println(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
@@ -411,6 +418,10 @@ fun LiquidAuthOfferScreen(
                     }
                 }
 
+                is LiquidAuthOfferViewModel.OfferEvent.ChatMessageReceived -> {
+                    hostViewModel.receivedChatMessage(event.message)
+                }
+
                 else -> { // other events
                 }
             }
@@ -447,6 +458,7 @@ fun LiquidAuthOfferScreen(
         balanceCurrencySymbol = balanceCurrencySymbol,
         originUrl = origin,
         onStatsModalVisibilityChanged = { isAnalyticsModalVisible.value = it },
+        hostViewModel = hostViewModel,
         creatorAsaBalance = creatorAsaBalance,
         isCheckingCreatorAsaBalance = isCheckingCreatorAsaBalance,
         requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
@@ -476,6 +488,7 @@ fun LiquidAuthOfferScreenContent(
     balanceCurrencySymbol: String = "A",
     originUrl: String = "-",
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
+    hostViewModel: LiquidStreamHostViewModel = koinViewModel(),
     creatorAsaBalance: String? = null,
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
@@ -579,6 +592,7 @@ fun LiquidAuthOfferScreenContent(
             balanceCurrencySymbol = balanceCurrencySymbol,
             originUrl = originUrl,
             onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+            hostViewModel = hostViewModel,
         )
     }
 }
@@ -602,6 +616,7 @@ private fun StreamHostBottomSheet(
     balanceCurrencySymbol: String,
     originUrl: String,
     onStatsModalVisibilityChanged: (Boolean) -> Unit,
+    hostViewModel: LiquidStreamHostViewModel,
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -615,6 +630,7 @@ private fun StreamHostBottomSheet(
             LiquidStreamHostLiveScreen(
                 cameraPreview = cameraPreview,
                 connectionManager = connectionManager,
+                viewModel = hostViewModel,
                 onSettingsClick = {},
                 onMinimise = onMinimise,
                 onRotateCamera = { cameraPreviewController.rotateCamera() },
@@ -629,6 +645,15 @@ private fun StreamHostBottomSheet(
                 networkLabel = networkLabel,
                 balanceCurrencySymbol = balanceCurrencySymbol,
                 originUrl = originUrl,
+                onSendClick = { text ->
+                    connectionManager?.sendChatMessage(
+                        ChatMessage(
+                            sender = "Creator",
+                            text = text,
+                            timestamp = Clock.System.now().toEpochMilliseconds()
+                        )
+                    )
+                },
             )
         }
         return
@@ -661,6 +686,7 @@ private fun StreamHostBottomSheet(
                 LiquidStreamHostLiveScreen(
                     cameraPreview = cameraPreview,
                     connectionManager = connectionManager,
+                    viewModel = hostViewModel,
                     onSettingsClick = {},
                     onMinimise = onMinimise,
                     onRotateCamera = { cameraPreviewController.rotateCamera() },
@@ -675,6 +701,15 @@ private fun StreamHostBottomSheet(
                     networkLabel = networkLabel,
                     balanceCurrencySymbol = balanceCurrencySymbol,
                     originUrl = originUrl,
+                    onSendClick = { text ->
+                        connectionManager?.sendChatMessage(
+                            ChatMessage(
+                                sender = "Creator",
+                                text = text,
+                                timestamp = Clock.System.now().toEpochMilliseconds()
+                            )
+                        )
+                    },
                 )
             }
         }

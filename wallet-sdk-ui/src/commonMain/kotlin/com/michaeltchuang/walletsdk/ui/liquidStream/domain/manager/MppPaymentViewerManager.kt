@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.core.ConsentHandler
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
@@ -47,6 +48,7 @@ class MppPaymentViewerManager(
         val requestMppConsent: suspend (ConsentTerms) -> ConsentApproval,
         val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
+        val onChatMessageReceived: (ChatMessage) -> Unit = {},
     )
 
     private data class VaultFundingResult(
@@ -71,6 +73,10 @@ class MppPaymentViewerManager(
     fun clearPendingPayment() {
         pendingPayment = false
         Napier.d("[PAYMENT_PENDING_CLEARED] pendingPayment=$pendingPayment", tag = TAG)
+    }
+
+    fun sendChatMessage(message: ChatMessage) {
+        liquidStreamViewer?.sendChatMessage(message)
     }
 
     fun start(params: StartParams) {
@@ -242,6 +248,10 @@ class MppPaymentViewerManager(
                             setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                         )
                     }
+                }
+
+                viewer.onChatMessageReceived = { chatMsg ->
+                    params.onChatMessageReceived(chatMsg)
                 }
 
                 Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress network=${params.mppNetwork}", tag = TAG)

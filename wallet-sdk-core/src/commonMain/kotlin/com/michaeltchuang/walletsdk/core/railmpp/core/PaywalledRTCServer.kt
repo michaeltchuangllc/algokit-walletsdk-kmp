@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
@@ -75,6 +76,7 @@ class PaywalledRTCServer
         var onSegmentStarted: ((segmentIndex: Int) -> Unit)? = null
         var onSegmentGated: ((segmentIndex: Int) -> Unit)? = null
         var onSegmentResumed: ((segmentIndex: Int) -> Unit)? = null
+        var onChatMessageReceived: ((ChatMessage) -> Unit)? = null
         var onSessionTerminated: ((sessionId: String) -> Unit)? = null
         var onError: ((Throwable) -> Unit)? = null
 
@@ -210,6 +212,16 @@ class PaywalledRTCServer
             onSessionTerminated?.invoke(sessionId)
         }
 
+        fun sendChatMessage(message: ChatMessage) {
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.CHAT_MESSAGE.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.PAYLOAD, Json.encodeToJsonElement(ChatMessage.serializer(), message))
+                },
+            )
+        }
+
         // ─── Internal ───────────────────────────────────────────
 
         private fun handleDataChannelOpen() {
@@ -308,6 +320,14 @@ class PaywalledRTCServer
                         if (gated || pendingRequest != null) {
                             cancelTimers()
                             requestPayment()
+                        }
+                    }
+
+                    DCMessageType.CHAT_MESSAGE -> {
+                        val payload = msg[DCFieldKey.PAYLOAD]?.jsonObject
+                        if (payload != null) {
+                            val chatMsg = Json.decodeFromJsonElement(ChatMessage.serializer(), payload)
+                            onChatMessageReceived?.invoke(chatMsg)
                         }
                     }
                     else -> Unit

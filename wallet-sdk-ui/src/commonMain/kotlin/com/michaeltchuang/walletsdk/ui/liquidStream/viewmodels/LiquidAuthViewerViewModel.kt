@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import kotlinx.coroutines.launch
 
 class LiquidAuthViewerViewModel(
@@ -76,14 +77,29 @@ class LiquidAuthViewerViewModel(
     }
 
     fun onSendClicked() {
-        val message = state.value.message.trim()
-        if (message.isEmpty()) {
+        val messageText = state.value.message.trim()
+        if (messageText.isEmpty()) {
             stateDelegate.updateState { it.copy(giftAmountTag = ZERO_GIFT_AMOUNT) }
             eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Message cannot be empty"))
             return
         }
-        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(message))
+
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
         stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
+    }
+
+    fun receivedChatMessage(message: ChatMessage) {
+        stateDelegate.updateState {
+            it.copy(
+                chatMessages = it.chatMessages + ChatUiMessage(
+                    sender = message.sender,
+                    text = message.text,
+                    timestamp = message.timestamp,
+                    amount = message.amount,
+                    asset = message.asset
+                )
+            )
+        }
     }
 
     private fun observeNetwork() {
@@ -107,6 +123,7 @@ class LiquidAuthViewerViewModel(
         val streamRevenue: String = "+1.402.15",
         val blockNumberLabel: String = "#--------",
         val network: AlgorandNetwork = AlgorandNetwork.TESTNET,
+        val chatMessages: List<ChatUiMessage> = emptyList(),
     ) {
         val networkLabel: String
             get() = network.name

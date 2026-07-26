@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
@@ -164,6 +165,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var activePaymentSessionId: String? = null
     private var activePaymentRecipient: String? = null
     private var activePaymentAmount: String? = null
+    private var activePaymentNetwork: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
 
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
@@ -253,6 +255,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (!platformServices.sendHostMessage(message)) {
             println("$TAG: sendMessage skipped — iosBroadcastSendMessageHandler not set")
         }
+    }
+
+    actual fun sendChatMessage(message: ChatMessage) {
+        streamCreator?.sendChatMessage(message)
     }
 
     @OptIn(ExperimentalEncodingApi::class)
@@ -481,6 +487,9 @@ actual class LiquidAuthConnectionManager actual constructor(
             isVideoGated = false
             println("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
         }
+        creator.rtcServer.onChatMessageReceived = { message ->
+            viewModel?.onChatMessageReceived(message)
+        }
         creator.rtcServer.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
         creator.rtcServer.onError = { err -> println("$TAG: [Creator] error: $err") }
 
@@ -564,6 +573,64 @@ actual class LiquidAuthConnectionManager actual constructor(
         println("$TAG: stopBlockConsumption")
         blockConsumptionJob?.cancel()
         blockConsumptionJob = null
+    }
+
+    actual fun setupCreator(creatorAddress: String, network: String) {
+        if (streamCreator != null && activePaymentRecipient == creatorAddress) return
+
+        val resolvedNetwork = resolveLiquidAuthMppNetwork(network)
+        val sessionId = activePaymentSessionId ?: "chat-session-${activeRequestId ?: ""}"
+
+        val serverConfig =
+            ServerConfig(
+                sessionId = sessionId,
+                gating = GatingConfig(
+                    mode = GatingMode.PARTIAL_TIME,
+                    amount = "0", // Free by default
+                    asset = "USDC",
+                    network = resolvedNetwork,
+                    payTo = creatorAddress,
+                ),
+                gracePeriod = 5,
+                viewerAddress = activeViewerAddressForVault,
+                viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
+                skipPaymentRequestWhenSessionFunded = true,
+            )
+
+        streamCreator?.terminate("replaced")
+        val dataChannel = platformServices.createHostPaymentDataChannel()
+        streamCreatorDataChannel = dataChannel
+
+        val creator =
+            LiquidStreamCreator(
+                dataChannel = dataChannel,
+                rtpSenders = emptyList(),
+                mppServerConfig =
+                    MppServerConfig(
+                        network = resolvedNetwork,
+                        recipient = creatorAddress,
+                        secretKey = iosBroadcastMppSecretKey,
+                    ),
+                serverConfig = serverConfig,
+                getRemainingSessionVaultBalanceUseCase = getRemainingBalanceUseCase,
+            )
+
+        creator.onChatMessageReceived = { message ->
+            viewModel?.onChatMessageReceived(message)
+        }
+
+        creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
+            val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
+            tryCaptureViewerAddressFromMessage(helloJson)
+        }
+
+        creator.start()
+        streamCreator = creator
+        activePaymentRecipient = creatorAddress
+        activePaymentNetwork = resolvedNetwork
+        activePaymentSessionId = sessionId
+        
+        println("$TAG: 💬 Chat initialized for creator=$creatorAddress")
     }
 
 

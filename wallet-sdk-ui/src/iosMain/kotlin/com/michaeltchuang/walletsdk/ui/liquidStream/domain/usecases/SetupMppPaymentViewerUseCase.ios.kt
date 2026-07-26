@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases
 
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -29,6 +30,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         val requestMppConsent: suspend (ConsentTerms) -> ConsentApproval,
         val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
+        val onChatMessageReceived: (ChatMessage) -> Unit = {},
     )
 
     operator fun invoke(params: Params) {
@@ -49,6 +51,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                 requestMppConsent = params.requestMppConsent,
                 setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                 signFido2Challenge = params.signFido2Challenge,
+                onChatMessageReceived = params.onChatMessageReceived,
             ),
         )
     }

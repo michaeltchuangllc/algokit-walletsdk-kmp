@@ -23,6 +23,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
@@ -166,6 +167,14 @@ actual open class AnswerViewModel actual constructor(
      */
     override fun onStreamTimeout(reason: String) {
         platformServices.onStreamTimeout(this, reason)
+    }
+
+    override fun doSendChatMessage(message: ChatMessage) {
+        mppPaymentViewerManager.sendChatMessage(message)
+    }
+
+    override fun onChatMessageReceived(message: ChatMessage) {
+        super.onChatMessageReceived(message)
     }
 
     // --- Public Setters and Helpers ---
@@ -335,6 +344,7 @@ actual open class AnswerViewModel actual constructor(
                 requestMppConsent = ::requestMppConsentFromUi,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 signFido2Challenge = ::signFido2Challenge,
+                onChatMessageReceived = ::onChatMessageReceived,
             ),
         )
     }

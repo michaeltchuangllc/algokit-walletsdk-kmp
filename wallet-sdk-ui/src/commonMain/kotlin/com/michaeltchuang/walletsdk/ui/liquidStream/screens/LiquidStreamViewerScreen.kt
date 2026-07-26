@@ -59,6 +59,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSetti
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
@@ -72,7 +73,7 @@ fun LiquidStreamViewerScreen(
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
     onMinimize: () -> Unit = {},
-    onSendClick: () -> Unit = {},
+    onSendClick: (String) -> Unit = {},
     onTopUpConfirm: (String) -> Unit = {},
     viewerAddress: String = "-",
     originUrl: String = "-",
@@ -93,7 +94,7 @@ fun LiquidStreamViewerScreen(
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
             when (event) {
-                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick()
+                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick(event.message)
                 is LiquidAuthViewerViewModel.ViewEvent.ShowError -> Unit
             }
         }
@@ -125,7 +126,7 @@ fun LiquidStreamViewerScreen(
         onGiftSupportClick = viewModel::onGiftSupportClicked,
         onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
         onGiftAmountSelected = viewModel::onGiftAmountSelected,
-        onSendClick = viewModel::onSendClicked,
+        onSendClick = { viewModel.onSendClicked() },
     )
 }
 
@@ -156,7 +157,7 @@ private fun LiquidStreamViewerScreenContent(
     onGiftSupportClick: () -> Unit,
     onGiftSupportDismissed: () -> Unit,
     onGiftAmountSelected: (String) -> Unit,
-    onSendClick: () -> Unit,
+    onSendClick: (String) -> Unit,
 ) {
     Box(
         modifier =
@@ -203,7 +204,7 @@ private fun LiquidStreamViewerScreenContent(
             Spacer(Modifier.height(20.dp))
             // GiftTickerCard()
             Spacer(Modifier.weight(1f))
-            // ChatStack()
+            ChatStack(messages = uiState.chatMessages)
             Spacer(Modifier.height(16.dp))
             FloatingButtons(
                 onTopUpClick = onTopUpClick,
@@ -220,7 +221,7 @@ private fun LiquidStreamViewerScreenContent(
                 giftAmountTag = uiState.giftAmountTag,
                 onMessageChanged = onMessageChanged,
                 onGiftClick = onGiftSupportClick,
-                onSendClick = onSendClick,
+                onSendClick = { onSendClick(uiState.message) },
             )
             Spacer(Modifier.height(12.dp))
         }
@@ -454,71 +455,27 @@ private fun GiftTickerCard() {
 }
 
 @Composable
-private fun ChatStack() {
+private fun ChatStack(messages: List<ChatUiMessage>) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Surface(
-            shape = RoundedCornerShape(18.dp),
-            color = Color.Transparent,
-            modifier =
-                Modifier.background(
-                    brush =
-                        Brush.horizontalGradient(
-                            colors = listOf(Color(0xCC2B3BFF), Color(0xCC1E93E0), Color(0xCC1D6F7D)),
-                        ),
-                    shape = RoundedCornerShape(18.dp),
-                ),
-        ) {
-            Column(
-                modifier = Modifier.padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        vectorResource(Res.drawable.figma_ic_drop),
-                        contentDescription = null,
-                        tint = Color(0xFF2ED8EA),
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text("@cyqueen", color = Color(0xFFE8F4FF), fontSize = 18.sp / 1.5f)
-                    Spacer(Modifier.weight(1f))
-                    Box(
-                        modifier =
-                            Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0x3398EDF0))
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                    ) {
-                        Text(
-                            text = "GIFT SUPERCHAT",
-                            color = Color(0xFFEBF9FF),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp,
-                        )
-                    }
-                }
-                Text(
-                    text = "This drop is legendary! Algos well spent",
-                    color = Color(0xFFF4F8FF),
-                    fontSize = 14.sp,
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier =
-                            Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0x4DE9FCFF))
-                                .padding(horizontal = 10.dp, vertical = 3.dp),
-                    ) {
-                        Text("0.888 USDC", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Text(text = "›", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
+        for (message in messages.takeLast(5)) {
+            if (message.amount != null) {
+                GiftMessageItem(message)
+            } else {
+                ChatMessageItem(message)
             }
         }
+    }
+}
 
-        Text(text = "@BLOCK_RUNNER", color = Color(0xFFB4D2DB), fontSize = 14.sp / 1.4f, letterSpacing = 1.sp)
+@Composable
+private fun ChatMessageItem(message: ChatUiMessage) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "@${message.sender.take(3)}",
+            color = Color(0xFFB4D2DB),
+            fontSize = 14.sp / 1.4f,
+            letterSpacing = 1.sp
+        )
 
         Box(
             modifier =
@@ -528,17 +485,82 @@ private fun ChatStack() {
                     .padding(horizontal = 14.dp, vertical = 11.dp),
         ) {
             Text(
-                text = "The micro-billing is so smooth here.",
+                text = message.text,
                 color = Color(0xFFD8EAF2),
                 fontSize = 14.sp,
-                maxLines = 1,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
 
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(text = "SYSTEM", color = Color(0x778DC1D0), fontSize = 14.sp / 1.4f, letterSpacing = 1.sp)
-            Text(text = "Viewer sent [Cyber Rose] gift", color = Color(0x819EB0BD), fontSize = 28.sp / 1.9f)
+@Composable
+private fun GiftMessageItem(message: ChatUiMessage) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = Color.Transparent,
+        modifier =
+            Modifier.background(
+                brush =
+                    Brush.horizontalGradient(
+                        colors = listOf(Color(0xCC2B3BFF), Color(0xCC1E93E0), Color(0xCC1D6F7D)),
+                    ),
+                shape = RoundedCornerShape(18.dp),
+            ),
+    ) {
+        Column(
+            modifier = Modifier.padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    vectorResource(Res.drawable.figma_ic_drop),
+                    contentDescription = null,
+                    tint = Color(0xFF2ED8EA),
+                    modifier = Modifier.size(14.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text("@${message.sender.take(8)}", color = Color(0xFFE8F4FF), fontSize = 18.sp / 1.5f)
+                Spacer(Modifier.weight(1f))
+                Box(
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0x3398EDF0))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = "GIFT SUPERCHAT",
+                        color = Color(0xFFEBF9FF),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                    )
+                }
+            }
+            Text(
+                text = message.text,
+                color = Color(0xFFF4F8FF),
+                fontSize = 14.sp,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier =
+                        Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0x4DE9FCFF))
+                            .padding(horizontal = 10.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        "${message.amount} ${message.asset}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Text(text = "›", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            }
         }
     }
 }

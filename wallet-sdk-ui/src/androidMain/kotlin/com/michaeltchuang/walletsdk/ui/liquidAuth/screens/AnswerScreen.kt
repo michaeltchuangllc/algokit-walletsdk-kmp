@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -21,9 +22,11 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import kotlinx.coroutines.delay
+import org.koin.compose.viewmodel.koinViewModel
 import org.webrtc.EglBase
 import org.webrtc.VideoTrack
 
@@ -42,6 +45,7 @@ fun AnswerScreen(
     onViewerTopUpConfirm: (String) -> Unit = {},
     onViewerClose: () -> Unit = {},
 ) {
+    val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel()
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
@@ -50,6 +54,7 @@ fun AnswerScreen(
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
     val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
+    var deliveredMessageCount by remember { mutableIntStateOf(0) }
 
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
@@ -130,6 +135,17 @@ fun AnswerScreen(
             }
         }
 
+    LaunchedEffect(viewModel) {
+        viewModel.chatMessages.collect { messages ->
+            if (messages.size > deliveredMessageCount) {
+                messages.drop(deliveredMessageCount).forEach {
+                    viewerViewModel.receivedChatMessage(it)
+                }
+                deliveredMessageCount = messages.size
+            }
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         if (shouldShowViewerSheet) {
             ModalBottomSheet(
@@ -158,6 +174,9 @@ fun AnswerScreen(
                         onMinimizeToPip()
                     },
                     onTopUpConfirm = onViewerTopUpConfirm,
+                    onSendClick = { text ->
+                        viewModel.sendChatMessage(text)
+                    },
                 )
             }
         }
