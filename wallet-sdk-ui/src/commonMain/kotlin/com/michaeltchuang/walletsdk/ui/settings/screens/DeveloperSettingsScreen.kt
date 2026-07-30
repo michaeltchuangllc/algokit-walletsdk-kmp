@@ -8,6 +8,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_session_va
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_node
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_session_vault_inspect
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.liquid_stream_viewer_debug_tool
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.node_settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -105,6 +106,13 @@ fun DeveloperSettingsScreen(
             localizedStringResource(Res.string.escrow_session_vault_debug_tool),
         ) {
             navController.navigate(AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name)
+        }
+
+        SettingsItem(
+            Res.drawable.ic_session_vault_inspect,
+            localizedStringResource(Res.string.liquid_stream_viewer_debug_tool),
+        ) {
+            navController.navigate(AlgoKitScreens.LIQUID_STREAM_VIEWER_DEBUG_TOOL_SCREEN.name)
         }
     }
 }

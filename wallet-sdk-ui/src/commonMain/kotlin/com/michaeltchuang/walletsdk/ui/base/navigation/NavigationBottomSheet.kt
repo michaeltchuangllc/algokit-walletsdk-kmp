@@ -57,6 +57,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.EscrowSessionVaultDebugT
 import com.michaeltchuang.walletsdk.ui.settings.screens.GithubRepoScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.LiquidStreamViewerDebugToolScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
@@ -114,6 +115,7 @@ enum class AlgoKitScreens {
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
     ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
+    LIQUID_STREAM_VIEWER_DEBUG_TOOL_SCREEN,
     GITHUB_REPO_SCREEN,
 }
 
@@ -743,6 +745,9 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(route = AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name) {
                     EscrowSessionVaultDebugToolScreen(navController)
+                }
+                composable(route = AlgoKitScreens.LIQUID_STREAM_VIEWER_DEBUG_TOOL_SCREEN.name) {
+                    LiquidStreamViewerDebugToolScreen()
                 }
                 composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
                     GithubRepoScreen(navController)
