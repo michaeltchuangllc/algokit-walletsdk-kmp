@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
@@ -201,6 +202,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             )
             val serverConfig =
                 ServerConfig(
+                    sessionId = resolvedSessionId,
                     gating = resolvedPaymentRequest.gatingConfig,
                     gracePeriod = 5,
                     viewerAddress = activeViewerAddressForVault,
@@ -237,7 +239,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 recipient = recipient,
                                 secretKey = "liquid-auth-mpp-${activeRequestId ?: paymentRequest.id}",
                             ),
-                        serverConfig = serverConfig.copy(sessionId = resolvedSessionId),
+                        serverConfig = serverConfig,
                         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
                     )
                 creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
@@ -288,6 +290,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                     Log.e(TAG, "💰 MPP creator error", e)
                     viewModel?.onMppPaymentRejected(e.message ?: "MPP creator error")
                 }
+                creator.onChatMessageReceived = { message ->
+                    viewModel?.onChatMessageReceived(message)
+                }
                 creator.start()
                 liquidStreamCreator = creator
                 activePaymentSessionId = resolvedSessionId
@@ -303,7 +308,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 sendCreatorSessionInfo(recipient, resolvedSessionId)
                 startBlockConsumption(resolvedSessionId)
             } else {
-                current.updateConfig(serverConfig.copy(sessionId = resolvedSessionId))
+                current.updateConfig(serverConfig)
                 activePaymentSessionId = resolvedSessionId
                 activePaymentRecipient = recipient
                 activePaymentAmount = amount
@@ -318,6 +323,71 @@ actual class LiquidAuthConnectionManager actual constructor(
         } catch (e: Exception) {
             Log.e(TAG, "💰 Failed to initialize MPP creator", e)
             viewModel?.onMppPaymentRejected(e.message ?: "MPP initialization failed")
+        }
+    }
+
+    actual fun setupCreator(creatorAddress: String, network: String) {
+        val service = signalService ?: return
+        if (!platformServices.isHostPeerConnectionReady(service)) return
+
+        val paymentChannel = platformServices.getOrCreateHostPaymentDataChannel(service) ?: return
+
+        try {
+            val current = liquidStreamCreator
+            if (current != null && activePaymentRecipient == creatorAddress) return
+
+            val resolvedNetwork = resolveLiquidAuthMppNetwork(network)
+            val sessionId = activePaymentSessionId ?: "chat-session-${activeRequestId ?: System.currentTimeMillis()}"
+            
+            val serverConfig =
+                ServerConfig(
+                    sessionId = sessionId,
+                    gating = GatingConfig(
+                        mode = GatingMode.PARTIAL_TIME,
+                        amount = "0", // Free by default until requested
+                        asset = "USDC",
+                        network = resolvedNetwork,
+                        payTo = creatorAddress,
+                    ),
+                    gracePeriod = 5,
+                    viewerAddress = activeViewerAddressForVault,
+                    viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
+                    skipPaymentRequestWhenSessionFunded = true,
+                )
+
+            current?.terminate("replaced")
+            val creator =
+                LiquidStreamCreator(
+                    dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
+                    rtpSenders = emptyList(),
+                    mppServerConfig =
+                        MppServerConfig(
+                            network = resolvedNetwork,
+                            recipient = creatorAddress,
+                            secretKey = "liquid-auth-chat-${activeRequestId ?: sessionId}",
+                        ),
+                    serverConfig = serverConfig,
+                    getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
+                )
+            
+            creator.onChatMessageReceived = { message ->
+                viewModel?.onChatMessageReceived(message)
+            }
+            
+            creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
+                val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
+                tryCaptureViewerAddressFromMessage(helloJson)
+            }
+            
+            creator.start()
+            liquidStreamCreator = creator
+            activePaymentRecipient = creatorAddress
+            activePaymentNetwork = resolvedNetwork
+            activePaymentSessionId = sessionId
+            
+            Log.d(TAG, "💬 Chat initialized for creator=$creatorAddress network=$resolvedNetwork")
+        } catch (e: Exception) {
+            Log.e(TAG, "💰 Failed to setup chat creator", e)
         }
     }
 
@@ -730,6 +800,10 @@ actual class LiquidAuthConnectionManager actual constructor(
             }",
         )
         platformServices.sendHostMessage(signalService, message)
+    }
+
+    actual fun sendChatMessage(message: ChatMessage) {
+        liquidStreamCreator?.sendChatMessage(message)
     }
 
     private fun sendCreatorSessionInfo(hostAddress: String, sessionId: String) {

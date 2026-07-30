@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import kotlinx.coroutines.flow.first
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
@@ -50,6 +51,14 @@ actual open class AnswerViewModel actual constructor(
     ) {
     val platformServices = LiquidAuthPlatformServices()
 
+    override fun doSendChatMessage(message: ChatMessage) {
+        mppPaymentViewerManager.sendChatMessage(message)
+    }
+
+    override fun onChatMessageReceived(message: ChatMessage) {
+        super.onChatMessageReceived(message)
+    }
+
     suspend fun setupViewerPaymentRail(
         viewerAddress: String,
         hostAddress: String,
@@ -79,6 +88,7 @@ actual open class AnswerViewModel actual constructor(
                         ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)
                         ?: signFido2Challenge(challenge, challengeAddress)
                 },
+                onChatMessageReceived = ::onChatMessageReceived,
             ),
         )
         return true

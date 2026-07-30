@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels
+package com.michaeltchuang.walletsdk.ui.settings.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,16 +8,19 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
-import kotlinx.coroutines.launch
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlin.time.Clock
 
-class LiquidAuthViewerViewModel(
+class LiquidStreamViewerDebugToolViewModel(
     private val stateDelegate: StateDelegate<UiState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
 ) : ViewModel(),
-    StateViewModel<LiquidAuthViewerViewModel.UiState> by stateDelegate,
-    EventViewModel<LiquidAuthViewerViewModel.ViewEvent> by eventDelegate {
+    StateViewModel<LiquidStreamViewerDebugToolViewModel.UiState> by stateDelegate,
+    EventViewModel<LiquidStreamViewerDebugToolViewModel.ViewEvent> by eventDelegate {
+
     init {
         stateDelegate.setDefaultState(UiState())
         observeNetwork()
@@ -84,30 +87,30 @@ class LiquidAuthViewerViewModel(
             return
         }
 
-        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
-        stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
-    }
+        // For debug tool, we just add the message locally
+        val newMessage = ChatUiMessage(
+            sender = "Viewer",
+            text = messageText,
+            timestamp = Clock.System.now().toEpochMilliseconds(),
+            amount = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) state.value.giftAmountTag else null,
+            asset = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) "USDC" else null
+        )
 
-    fun receivedChatMessage(message: ChatMessage) {
         stateDelegate.updateState {
             it.copy(
-                chatMessages = it.chatMessages + ChatUiMessage(
-                    sender = message.sender,
-                    text = message.text,
-                    timestamp = message.timestamp,
-                    amount = message.amount,
-                    asset = message.asset
-                )
+                chatMessages = it.chatMessages + newMessage,
+                message = "",
+                giftAmountTag = ZERO_GIFT_AMOUNT
             )
         }
     }
 
     private fun observeNetwork() {
-        viewModelScope.launch {
-            getCurrentNetworkUseCase().collect { network ->
+        getCurrentNetworkUseCase()
+            .onEach { network ->
                 stateDelegate.updateState { it.copy(network = network) }
             }
-        }
+            .launchIn(viewModelScope)
     }
 
     data class UiState(
@@ -135,10 +138,6 @@ class LiquidAuthViewerViewModel(
     }
 
     sealed interface ViewEvent {
-        data class SendMessage(
-            val message: String,
-        ) : ViewEvent
-
         data class ShowError(
             val message: String,
         ) : ViewEvent

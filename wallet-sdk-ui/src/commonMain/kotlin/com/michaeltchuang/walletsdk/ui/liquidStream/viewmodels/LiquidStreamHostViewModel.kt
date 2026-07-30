@@ -6,6 +6,8 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import kotlin.time.Clock
 
 class LiquidStreamHostViewModel(
     private val stateDelegate: StateDelegate<UiState>,
@@ -22,13 +24,37 @@ class LiquidStreamHostViewModel(
     }
 
     fun onSendClicked() {
-        val message = state.value.message.trim()
-        if (message.isEmpty()) {
+        val messageText = state.value.message.trim()
+        if (messageText.isEmpty()) {
             eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Message cannot be empty"))
             return
         }
-        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(message))
+
+        // Add locally immediately
+        receivedChatMessage(
+            ChatMessage(
+                sender = "You",
+                text = messageText,
+                timestamp = Clock.System.now().toEpochMilliseconds()
+            )
+        )
+
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
         stateDelegate.updateState { it.copy(message = "") }
+    }
+
+    fun receivedChatMessage(message: ChatMessage) {
+        stateDelegate.updateState {
+            it.copy(
+                chatMessages = it.chatMessages + ChatUiMessage(
+                    sender = message.sender,
+                    text = message.text,
+                    timestamp = message.timestamp,
+                    amount = message.amount,
+                    asset = message.asset
+                )
+            )
+        }
     }
 
     fun onSettingsClicked() {
@@ -89,6 +115,7 @@ class LiquidStreamHostViewModel(
         val blockNumberLabel: String = "#38291041",
         val isMicMuted: Boolean = false,
         val isCameraEnabled: Boolean = true,
+        val chatMessages: List<ChatUiMessage> = emptyList(),
     )
 
     companion object {

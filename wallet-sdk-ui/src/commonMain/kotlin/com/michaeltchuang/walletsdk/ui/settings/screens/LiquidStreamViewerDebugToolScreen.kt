@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidStream.screens
+package com.michaeltchuang.walletsdk.ui.settings.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
@@ -53,14 +53,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
-import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamViewerDebugToolViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -68,20 +68,18 @@ import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.round
 
 @Composable
-fun LiquidStreamViewerScreen(
-    sessionId: String = "",
-    connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
+fun LiquidStreamViewerDebugToolScreen(
+    sessionId: String = "debug-session-id",
+    connectionType: IceConnectionType = IceConnectionType.LOCAL,
     cameraPreview: @Composable (() -> Unit)? = null,
     onMinimize: () -> Unit = {},
-    onSendClick: (String) -> Unit = {},
-    onTopUpConfirm: (String) -> Unit = {},
-    viewerAddress: String = "-",
-    originUrl: String = "-",
-    currentBlockNumber: Long? = null,
-    remainingBalanceUsdc: Double = 0.0,
-    progressBalanceUsdc: Double = 0.0,
+    viewerAddress: String = "DEBUG_VIEWER_ADDR",
+    originUrl: String = "debug.origin.com",
+    currentBlockNumber: Long? = 12345678L,
+    remainingBalanceUsdc: Double = 10.0,
+    progressBalanceUsdc: Double = 5.0,
 ) {
-    val viewModel: LiquidAuthViewerViewModel = koinViewModel()
+    val viewModel: LiquidStreamViewerDebugToolViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
 
@@ -91,16 +89,7 @@ fun LiquidStreamViewerScreen(
         }
     }
 
-    LaunchedEffect(Unit) {
-        viewModel.viewEvent.collect { event ->
-            when (event) {
-                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick(event.message)
-                is LiquidAuthViewerViewModel.ViewEvent.ShowError -> Unit
-            }
-        }
-    }
-
-    LiquidStreamViewerScreenContent(
+    LiquidStreamViewerDebugToolScreenContent(
         sessionId = sessionId,
         connectionType = connectionType,
         cameraPreview = cameraPreview,
@@ -122,7 +111,7 @@ fun LiquidStreamViewerScreen(
         onMessageChanged = viewModel::onMessageChanged,
         onTopUpClick = viewModel::onTopUpClicked,
         onTopUpDismissed = viewModel::onTopUpDismissed,
-        onTopUpConfirm = onTopUpConfirm,
+        onTopUpConfirm = { /* No-op for debug tool */ },
         onGiftSupportClick = viewModel::onGiftSupportClicked,
         onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
         onGiftAmountSelected = viewModel::onGiftAmountSelected,
@@ -131,7 +120,7 @@ fun LiquidStreamViewerScreen(
 }
 
 @Composable
-private fun LiquidStreamViewerScreenContent(
+private fun LiquidStreamViewerDebugToolScreenContent(
     sessionId: String,
     connectionType: IceConnectionType,
     cameraPreview: @Composable (() -> Unit)?,
@@ -143,7 +132,7 @@ private fun LiquidStreamViewerScreenContent(
     remainingBalanceUsdc: Double,
     progressBalanceUsdc: Double,
     progressCapacityUsdc: Double,
-    uiState: LiquidAuthViewerViewModel.UiState,
+    uiState: LiquidStreamViewerDebugToolViewModel.UiState,
     onSettingsClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
     onAnalyticsDismissed: () -> Unit,
@@ -167,6 +156,9 @@ private fun LiquidStreamViewerScreenContent(
     ) {
         if (cameraPreview != null) {
             cameraPreview()
+        } else {
+            // Default background for debug tool if no camera preview
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
         }
 
         Box(
@@ -410,47 +402,6 @@ private fun TopSquareIconButton(
             tint = Color(0xFFB9EFEF),
             modifier = Modifier.size(24.dp),
         )
-    }
-}
-
-@Composable
-private fun GiftTickerCard() {
-    Row(
-        modifier =
-            Modifier
-                .clip(RoundedCornerShape(20.dp))
-                .border(1.dp, Color(0x9047E0E8), RoundedCornerShape(20.dp))
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(Color(0xCC13889A), Color(0xCC2B3CFF)),
-                    ),
-                ).padding(horizontal = 12.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
-                        ),
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                vectorResource(Res.drawable.ic_gift),
-                contentDescription = null,
-                tint = Color(0xFFEFFFFF),
-                modifier = Modifier.size(16.dp),
-            )
-        }
-        Column {
-            Text(text = "@CYQUEEN SENT", color = Color(0xFFACEBF1), fontSize = 10.sp, letterSpacing = 0.7.sp)
-            Text(text = "0.888 USDC", color = Color.White, fontSize = 28.sp / 1.5f)
-        }
     }
 }
 
@@ -759,31 +710,14 @@ private fun ChatComposer(
     }
 }
 
-@Composable
-private fun HomeIndicator() {
-    Box(
-        modifier = Modifier.fillMaxWidth(),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(
-            modifier =
-                Modifier
-                    .width(136.dp)
-                    .height(5.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Color(0x66B7C7D2)),
-        )
-    }
-}
-
 @Preview
 @Composable
-private fun LiquidAuthViewerScreenPreview() {
+private fun LiquidStreamViewerDebugToolScreenPreview() {
     AlgoKitTheme {
-        var uiState by remember { mutableStateOf(LiquidAuthViewerViewModel.UiState()) }
-        LiquidStreamViewerScreenContent(
-            sessionId = "session-preview-id",
-            connectionType = IceConnectionType.UNKNOWN,
+        var uiState by remember { mutableStateOf(LiquidStreamViewerDebugToolViewModel.UiState()) }
+        LiquidStreamViewerDebugToolScreenContent(
+            sessionId = "debug-session-id",
+            connectionType = IceConnectionType.LOCAL,
             cameraPreview = null,
             onMinimize = {},
             viewerAddress = "ABCDE...XYZ",
@@ -813,7 +747,16 @@ private fun LiquidAuthViewerScreenPreview() {
             onGiftSupportClick = { uiState = uiState.copy(showGiftSupportSheet = true) },
             onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
             onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },
-            onSendClick = { uiState = uiState.copy(message = "") },
+            onSendClick = { 
+                val newMessage = ChatUiMessage(
+                    sender = "Viewer",
+                    text = uiState.message,
+                    timestamp = 0L,
+                    amount = if (uiState.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) uiState.giftAmountTag else null,
+                    asset = if (uiState.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) "USDC" else null
+                )
+                uiState = uiState.copy(chatMessages = uiState.chatMessages + newMessage, message = "") 
+            },
             progressBalanceUsdc = 0.2,
             progressCapacityUsdc = 12.34,
         )

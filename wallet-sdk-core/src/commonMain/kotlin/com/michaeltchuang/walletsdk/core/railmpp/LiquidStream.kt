@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCClient
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
@@ -63,6 +64,16 @@ class LiquidStreamCreator(
     fun updateConfig(config: ServerConfig) {
         updateConfigUseCase(this, config)
     }
+
+    fun sendChatMessage(message: ChatMessage) {
+        rtcServer.sendChatMessage(message)
+    }
+
+    var onChatMessageReceived: ((ChatMessage) -> Unit)?
+        get() = rtcServer.onChatMessageReceived
+        set(value) {
+            rtcServer.onChatMessageReceived = value
+        }
 }
 
 /**
@@ -96,6 +107,16 @@ class LiquidStreamViewer(
     fun setAutoPay(enabled: Boolean) {
         setAutoPayUseCase(this, enabled)
     }
+
+    fun sendChatMessage(message: ChatMessage) {
+        rtcClient.sendChatMessage(message)
+    }
+
+    var onChatMessageReceived: ((ChatMessage) -> Unit)?
+        get() = rtcClient.onChatMessageReceived
+        set(value) {
+            rtcClient.onChatMessageReceived = value
+        }
 }
 
 /**

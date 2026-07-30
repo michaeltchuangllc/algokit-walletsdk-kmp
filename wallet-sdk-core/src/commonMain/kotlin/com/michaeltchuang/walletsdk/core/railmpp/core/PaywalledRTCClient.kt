@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
@@ -63,6 +64,7 @@ class PaywalledRTCClient(
     var onStreamGated: ((reason: String) -> Unit)? = null
     var onStreamResumed: (() -> Unit)? = null
     var onBudgetExceeded: ((SpendSummary) -> Unit)? = null
+    var onChatMessageReceived: ((ChatMessage) -> Unit)? = null
     var onSessionTerminated: (() -> Unit)? = null
     var onError: ((Throwable) -> Unit)? = null
 
@@ -198,6 +200,15 @@ class PaywalledRTCClient(
         onSessionTerminated?.invoke()
     }
 
+    fun sendChatMessage(message: ChatMessage) {
+        sendDC(
+            buildJsonObject {
+                put(DCFieldKey.TYPE, DCMessageType.CHAT_MESSAGE.value)
+                put(DCFieldKey.PAYLOAD, Json.encodeToJsonElement(ChatMessage.serializer(), message))
+            },
+        )
+    }
+
     // ─── Internal ───────────────────────────────────────────
 
     private fun handleDataChannelMessage(msgStr: String) {
@@ -255,6 +266,14 @@ class PaywalledRTCClient(
 
                 DCMessageType.SESSION_TERMINATE -> {
                     onSessionTerminated?.invoke()
+                }
+
+                DCMessageType.CHAT_MESSAGE -> {
+                    val payload = msg[DCFieldKey.PAYLOAD]?.jsonObject
+                    if (payload != null) {
+                        val chatMsg = Json.decodeFromJsonElement(ChatMessage.serializer(), payload)
+                        onChatMessageReceived?.invoke(chatMsg)
+                    }
                 }
                 else -> Unit
             }

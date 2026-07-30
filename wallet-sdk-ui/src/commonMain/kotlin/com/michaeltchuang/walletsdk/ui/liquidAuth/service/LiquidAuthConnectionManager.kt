@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
@@ -61,6 +62,11 @@ expect class LiquidAuthConnectionManager(platformContext: Any) {
     fun sendMessage(message: String)
 
     /**
+     * Send a chat message to the connected peer via data channel.
+     */
+    fun sendChatMessage(message: ChatMessage)
+
+    /**
      * Check if currently connected to a peer.
      */
     fun isConnected(): Boolean
@@ -103,6 +109,8 @@ expect class LiquidAuthConnectionManager(platformContext: Any) {
      * Stop block consumption timer.
      */
     fun stopBlockConsumption()
+
+    fun setupCreator(creatorAddress: String, network: String)
 
     fun setAudioEnabled(enabled: Boolean)
 
