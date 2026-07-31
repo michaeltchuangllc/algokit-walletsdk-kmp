@@ -12,13 +12,16 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetTransactionHistoryUrlUseCase
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.FUTURENET_DISPENSER_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.TESTNET_DISPENSER_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.core.network.utils.getExplorerBaseUrl
 import kotlinx.coroutines.launch
 
 class AccountDetailViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+    private val getTransactionHistoryUrlUseCase: GetTransactionHistoryUrlUseCase,
     private val getLocalAccount: GetLocalAccount,
     private val getAccountASABalance: GetAccountASABalance,
     private val stateDelegate: StateDelegate<ViewState>,
@@ -54,12 +57,22 @@ class AccountDetailViewModel(
                             AssetConstants.USDC_TESTNET_ID
                         }
                     val isUsdcOptedIn = getAccountASABalance(address, usdcAssetId) != null
-                    val explorerBaseUrl = getExplorerBaseUrl()
                     stateDelegate.updateState {
                         ViewState.Content(
                             currentNetwork = network,
                             isTestNet = network == AlgorandNetwork.TESTNET,
-                            explorerBaseUrl = explorerBaseUrl,
+                            dispenserBaseUrl =
+                                when (network) {
+                                    AlgorandNetwork.TESTNET -> TESTNET_DISPENSER_BASE_URL
+                                    AlgorandNetwork.FUTURENET -> FUTURENET_DISPENSER_BASE_URL
+                                    AlgorandNetwork.MAINNET -> null
+                                },
+                            transactionHistoryUrl =
+                                getTransactionHistoryUrlUseCase(
+                                    address = address,
+                                    network = network,
+                                    isSolanaAccount = isSolanaAccount,
+                                ),
                             isNoAuthAccount = isNoAuthAccount,
                             isSolanaAccount = isSolanaAccount,
                             isUsdcOptedIn = isUsdcOptedIn,
@@ -97,7 +110,8 @@ class AccountDetailViewModel(
         data class Content(
             val currentNetwork: AlgorandNetwork,
             val isTestNet: Boolean,
-            val explorerBaseUrl: String,
+            val dispenserBaseUrl: String? = null,
+            val transactionHistoryUrl: String = "",
             val isNoAuthAccount: Boolean = false,
             val isSolanaAccount: Boolean = false,
             val isUsdcOptedIn: Boolean = false,

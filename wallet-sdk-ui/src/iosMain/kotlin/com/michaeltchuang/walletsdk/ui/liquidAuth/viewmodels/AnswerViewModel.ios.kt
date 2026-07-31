@@ -72,6 +72,8 @@ actual open class AnswerViewModel actual constructor(
             when (getCurrentNetworkUseCase().first()) {
                 AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
                 AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
+                AlgorandNetwork.FUTURENET ->
+                    error("MPP payments are not configured for FutureNet")
             }
         setupMppPaymentViewerUseCase(
             SetupMppPaymentViewerUseCase.Params(

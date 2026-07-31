@@ -21,6 +21,7 @@ class NodeSettingsScreenshotTest(
                         listOf(
                             AlgorandNetwork.MAINNET,
                             AlgorandNetwork.TESTNET,
+                            AlgorandNetwork.FUTURENET,
                         ),
                     currentNetwork = AlgorandNetwork.TESTNET,
                 )
