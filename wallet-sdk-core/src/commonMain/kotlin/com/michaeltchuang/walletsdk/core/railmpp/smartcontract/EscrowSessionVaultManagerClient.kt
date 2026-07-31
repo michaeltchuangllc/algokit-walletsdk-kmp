@@ -1,8 +1,8 @@
 package com.michaeltchuang.walletsdk.core.railmpp.smartcontract
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_URL
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -471,14 +471,17 @@ object EscrowSessionVaultManagerClient {
             AlgorandNetwork.MAINNET -> {
                 appId = RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID
                 usdcAssetId = AssetConstants.USDC_MAINNET_ID
-                algodUrl = NODE_MAINNET_URL
+                algodUrl = NODE_MAINNET_BASE_URL
             }
 
             AlgorandNetwork.TESTNET -> {
                 appId = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
                 usdcAssetId = AssetConstants.USDC_TESTNET_ID
-                algodUrl = NODE_TESTNET_URL
+                algodUrl = NODE_TESTNET_BASE_URL
             }
+
+            AlgorandNetwork.FUTURENET ->
+                error("MPP session vault is not configured for FutureNet")
         }
     }
 }

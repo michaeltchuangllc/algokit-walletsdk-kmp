@@ -76,15 +76,12 @@ class LiquidAuthOfferViewModel(
     private val _currentBlockNumber = MutableStateFlow<Long?>(null)
     val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
 
-    // Current network label for UI display (TESTNET/MAINNET)
+    // Current network label for UI display
     private val _currentNetwork = MutableStateFlow(AlgorandNetwork.TESTNET)
     val currentNetworkLabel: StateFlow<String> =
         _currentNetwork
             .map { network ->
-                when (network) {
-                    AlgorandNetwork.MAINNET -> "MAINNET"
-                    AlgorandNetwork.TESTNET -> "TESTNET"
-                }
+                network.displayName.uppercase()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "TESTNET")
 
     // Payment session ID

@@ -180,7 +180,7 @@ fun AccountDetailScreen(
                     AccountDetailWebviewItem(
                         icon = Res.drawable.ic_receipt,
                         title = localizedStringResource(Res.string.transaction_history),
-                        url = getTransactionHistoryUrl(state = state, address = address),
+                        url = state.transactionHistoryUrl,
                     )
 
                     // Only show "View passphrase" for non-NoAuth accounts
@@ -197,8 +197,8 @@ fun AccountDetailScreen(
                         }
                     }
 
-                    // Only show dispenser on TestNet
-                    if (state.isTestNet) {
+                    // Show the network-specific dispenser when available.
+                    if (state.dispenserBaseUrl != null && (!state.isSolanaAccount || state.isTestNet)) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AccountDetailWebviewItem(
@@ -216,9 +216,9 @@ fun AccountDetailScreen(
                                 },
                             url =
                                 if (state.isSolanaAccount) {
-                                    "https://faucet.solana.com/"
+                                    WalletSdkConstants.SOLANA_DISPENSER_BASE_URL
                                 } else {
-                                    "https://testnet-dispenser.algorand.tech/?account=$address"
+                                    "${state.dispenserBaseUrl}/?account=$address"
                                 },
                         )
                     }
@@ -347,17 +347,6 @@ fun CopyAddress(
     }
 }
 
-private fun getTransactionHistoryUrl(
-    state: AccountDetailViewModel.ViewState.Content,
-    address: String,
-): String =
-    if (state.isSolanaAccount) {
-        val clusterQuery = if (state.isTestNet) "?cluster=devnet" else ""
-        "https://explorer.solana.com/address/$address$clusterQuery"
-    } else {
-        "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address"
-    }
-
 @Preview
 @Composable
 fun SettingsScreenPreview() {
@@ -369,7 +358,6 @@ fun SettingsScreenPreview() {
                 AccountDetailViewModel.ViewState.Content(
                     currentNetwork = com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork.TESTNET,
                     isTestNet = true,
-                    explorerBaseUrl = "https://testnet.algoexplorer.io",
                     isNoAuthAccount = false,
                     isSolanaAccount = false,
                     isUsdcOptedIn = true,

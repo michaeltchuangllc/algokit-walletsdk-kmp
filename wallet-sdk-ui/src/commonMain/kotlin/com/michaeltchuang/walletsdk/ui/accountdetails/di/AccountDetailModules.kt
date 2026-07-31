@@ -22,6 +22,7 @@ internal val accountDetailModules =
                     get(),
                     get(),
                     get(),
+                    get(),
                 )
             }
             viewModel {
