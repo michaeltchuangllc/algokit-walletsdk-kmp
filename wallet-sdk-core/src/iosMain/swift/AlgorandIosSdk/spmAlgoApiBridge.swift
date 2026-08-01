@@ -290,6 +290,11 @@ import CommonCrypto
         }
     }
 
+    public func getFalconMnemonicFromEntropy(entropy: Data) -> String? {
+        var error: NSError?
+        return AlgoSdkMnemonicFromEntropy(entropy, &error)
+    }
+
     public func getFalconAddressFromMnemonic(mnemonic: String) -> String {
         var error: NSError?
         let passphrase = ""
@@ -344,7 +349,8 @@ import CommonCrypto
     public func signFalconTransaction(
         transactionBytes: Data,
         publicKeyBase64: String,
-        privateKeyBase64: String
+        privateKeyBase64: String,
+        useLogicSig: Bool
     ) -> Data? {
         guard let publicKeyData = Data(base64Encoded: publicKeyBase64),
               let privateKeyData = Data(base64Encoded: privateKeyBase64)
@@ -354,17 +360,24 @@ import CommonCrypto
         }
 
         // Create BytesArray and add the transaction
-        let txnsArray = AlgoSdkBytesArray()
-        txnsArray.append(transactionBytes)
+        let txnsToSign = AlgoSdkBytesArray()
+        txnsToSign.append(transactionBytes)
 
         var error: NSError?
-        // AlgoSdkSignFalconBundle returns a CSV of base64 signed transactions (non-optional)
-        let csv = AlgoSdkSignFalconBundle(
-            txnsArray,
-            publicKeyData,
-            privateKeyData,
-            &error
-        )
+        // Falcon24 uses a LogicSig; Falcon25 is a native Falcon account.
+        let csv = useLogicSig
+            ? AlgoSdkSignFalconLsigBundle(
+                txnsToSign,
+                publicKeyData,
+                privateKeyData,
+                &error
+            )
+            : AlgoSdkSignFalconBundle(
+                txnsToSign,
+                publicKeyData,
+                privateKeyData,
+                &error
+            )
 
         if let error = error {
             print("Error signing Falcon bundle: \(error)")

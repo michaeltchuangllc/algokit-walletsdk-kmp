@@ -342,6 +342,7 @@ open class CommonAnswerViewModel(
         val localAccount = getLocalAccount(accountAddress.value)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> "0.004"
+            is LocalAccount.Falcon25 -> "0.003"
             else -> "0.001"
         }
     }
@@ -349,7 +350,9 @@ open class CommonAnswerViewModel(
     suspend fun getAccountTypeForFido2(address: String): String {
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
-            is LocalAccount.Falcon24 -> "falcon-1024"
+            is LocalAccount.Falcon24,
+            is LocalAccount.Falcon25,
+            -> "falcon-1024"
             is LocalAccount.SeedVault -> "solana"
             else -> "algorand"
         }
@@ -359,6 +362,7 @@ open class CommonAnswerViewModel(
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> localAccount.publicKey
+            is LocalAccount.Falcon25 -> localAccount.publicKey
             is LocalAccount.HdKey -> localAccount.publicKey
             is LocalAccount.Algo25 -> {
                 val secretKey = getAlgo25SecretKey(address)

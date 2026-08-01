@@ -12,6 +12,7 @@
     <string name="account_type_hd">Account HD</string>
     <string name="account_type_algo25">Account Algo25</string>
     <string name="account_type_falcon24">Account Falcon24</string>
+    <string name="account_type_falcon25">Account Falcon25</string>
     <string name="account_type_watch">Account Osservato</string>
     <string name="account_type_ledger">Account Ledger</string>
     <string name="account_type_seedvault">Account SeedVault</string>

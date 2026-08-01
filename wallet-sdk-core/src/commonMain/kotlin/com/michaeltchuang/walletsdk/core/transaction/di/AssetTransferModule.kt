@@ -15,6 +15,7 @@ val assetTransferModule =
                 get(),
                 get(),
                 get(),
+                get(),
             )
         }
     }

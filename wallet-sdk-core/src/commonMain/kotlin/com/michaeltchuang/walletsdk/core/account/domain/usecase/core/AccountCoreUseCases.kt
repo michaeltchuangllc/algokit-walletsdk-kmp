@@ -16,6 +16,18 @@ fun interface AddHdSeed {
     suspend operator fun invoke(entropy: ByteArray): WalletSdkResult<Int>
 }
 
+fun interface AddFalcon25Account {
+    suspend operator fun invoke(
+        address: String,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+        entropy: ByteArray,
+        isBackedUp: Boolean,
+        customName: String?,
+        orderIndex: Int,
+    )
+}
+
 fun interface AddFalcon24Account {
     suspend operator fun invoke(
         address: String,

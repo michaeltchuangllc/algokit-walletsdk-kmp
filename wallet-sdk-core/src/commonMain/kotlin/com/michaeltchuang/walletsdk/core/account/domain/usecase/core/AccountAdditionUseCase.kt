@@ -13,6 +13,7 @@ class AccountAdditionUseCase(
     private val addHdSeed: AddHdSeed,
     private val addAlgo25Account: AddAlgo25Account,
     private val addFalcon24Account: AddFalcon24Account,
+    private val addFalcon25Account: AddFalcon25Account,
     private val deleteNoAuthAccountUseCase: DeleteNoAuthAccountUseCase,
 ) {
     suspend fun addNewAccount(accountCreation: AccountCreation) {
@@ -27,6 +28,10 @@ class AccountAdditionUseCase(
                 if (success) {
                     deleteWatchAccountIfExists(createAccount.address)
                 }
+            }
+
+            is CreateAccount.Type.Falcon25 -> {
+                if (createFalcon25Account(createAccount, createAccount.type)) deleteWatchAccountIfExists(createAccount.address)
             }
 
             is CreateAccount.Type.Falcon24 -> {
@@ -95,6 +100,20 @@ class AccountAdditionUseCase(
         } catch (e: Exception) {
             false
         }
+
+    private suspend fun createFalcon25Account(createAccount: CreateAccount, type: CreateAccount.Type.Falcon25): Boolean =
+        try {
+            addFalcon25Account(
+                address = createAccount.address,
+                publicKey = type.publicKey,
+                privateKey = decryptByteArray(type.encryptedPrivateKey),
+                entropy = decryptByteArray(type.encryptedEntropy),
+                isBackedUp = createAccount.isBackedUp,
+                customName = createAccount.customName,
+                orderIndex = createAccount.orderIndex,
+            )
+            true
+        } catch (_: Exception) { false }
 
     private suspend fun createFalcon24Account(
         createAccount: CreateAccount,

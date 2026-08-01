@@ -93,11 +93,12 @@ internal class CreateKeyRegTransactionUseCase(
     private suspend fun KeyRegTransactionDetail.getFlatFee(params: TransactionParams): BigInteger {
         fee?.toLongOrNull()?.takeIf { it > 0L }?.let { return it.toBigInteger() }
 
-        return if (getLocalAccount(address) is LocalAccount.Falcon24) {
-            (params.getMinimumFee() * FALCON_BUNDLE_TXN_COUNT).toBigInteger()
-        } else {
-            (params.getMinimumFee()).toBigInteger()
-        }
+        val bundleTransactionCount =
+            when (getLocalAccount(address)) {
+                is LocalAccount.Falcon24 -> FALCON24_BUNDLE_TXN_COUNT
+                else -> 1L
+            }
+        return (params.getMinimumFee() * bundleTransactionCount).toBigInteger()
     }
 
     private fun TransactionParams.getMinimumFee(): Long = (minFee ?: MIN_FEE).coerceAtLeast(MIN_FEE)
@@ -110,6 +111,6 @@ internal class CreateKeyRegTransactionUseCase(
             !voteKeyDilution.isNullOrBlank()
 
     private companion object {
-        const val FALCON_BUNDLE_TXN_COUNT = 4L
+        const val FALCON24_BUNDLE_TXN_COUNT = 4L
     }
 }

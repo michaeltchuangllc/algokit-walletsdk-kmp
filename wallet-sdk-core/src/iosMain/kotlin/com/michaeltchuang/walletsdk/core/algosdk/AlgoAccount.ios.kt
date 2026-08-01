@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressIndex
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.Bip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
+import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Falcon25Account
 import com.michaeltchuang.walletsdk.core.foundation.utils.getMinimumFee
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
@@ -108,6 +109,42 @@ actual fun recoverAlgo25Account(mnemonic: String): Algo25Account? {
 }
 
 @OptIn(ExperimentalForeignApi::class)
+actual fun createFalcon25Account(): Falcon25Account? =
+    try {
+        val entropy = createAlgo25Account()?.secretKey?.copyOfRange(0, 32) ?: return null
+        val mnemonic = getFalcon25MnemonicFromEntropy(entropy) ?: return null
+        deriveFalcon25Account(mnemonic, entropy)
+    } catch (_: Exception) {
+        null
+    }
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun recoverFalcon25Account(mnemonic: String): Falcon25Account? =
+    try {
+        val entropy = AlgoKitBip39.getEntropyFromMnemonic(mnemonic)
+        deriveFalcon25Account(mnemonic, entropy)
+    } catch (_: Exception) {
+        null
+    }
+
+@OptIn(ExperimentalForeignApi::class)
+private fun deriveFalcon25Account(mnemonic: String, entropy: ByteArray): Falcon25Account? =
+    try {
+        Falcon25Account(
+            address = bridge.getFalconAddressFromMnemonicWithMnemonic(mnemonic),
+            publicKey = bridge.getFalconPublicKeyFromMnemonicWithMnemonic(mnemonic).fromBase64ToByteArray(),
+            privateKey = bridge.getFalconPrivateKeyFromMnemonicWithMnemonic(mnemonic).fromBase64ToByteArray(),
+            entropy = entropy,
+        )
+    } catch (_: Exception) {
+        null
+    }
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String? =
+    bridge.getFalconMnemonicFromEntropyWithEntropy(entropy.toNSData())
+
+@OptIn(ExperimentalForeignApi::class)
 actual fun createAlgo25Account(): Algo25Account? {
     val secretKey =
         bridge.getAlgo25SecretKeyWithMnemonic(
@@ -194,18 +231,44 @@ actual fun signFalcon24Transaction(
     publicKey: ByteArray,
     privateKey: ByteArray,
 ): ByteArray? =
+    signFalconTransaction(
+        transactionByteArray = transactionByteArray,
+        publicKey = publicKey,
+        privateKey = privateKey,
+        useLogicSig = true,
+    )
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun signFalcon25Transaction(
+    transactionByteArray: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? =
+    signFalconTransaction(
+        transactionByteArray = transactionByteArray,
+        publicKey = publicKey,
+        privateKey = privateKey,
+        useLogicSig = false,
+    )
+
+@OptIn(ExperimentalForeignApi::class)
+private fun signFalconTransaction(
+    transactionByteArray: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+    useLogicSig: Boolean,
+): ByteArray? =
     try {
         val transactionData = transactionByteArray.toNSData()
         val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u)
         val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u)
-
         val signedData =
             bridge.signFalconTransactionWithTransactionBytes(
                 transactionBytes = transactionData,
                 publicKeyBase64 = publicKeyBase64,
                 privateKeyBase64 = privateKeyBase64,
+                useLogicSig = useLogicSig,
             )
-
         signedData?.toByteArray()
     } catch (e: Exception) {
         println("Falcon transaction signing failed: ${e.message}")
@@ -596,6 +659,14 @@ actual fun signFalcon24ArbitraryData(
         println("Falcon24 arbitrary data signing failed: ${e.message}")
         null
     }
+
+@OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
+actual fun signFalcon25ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray? =
+    signFalcon24ArbitraryData(data, publicKey, privateKey)
 
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
 actual fun signAlgo25ArbitraryData(

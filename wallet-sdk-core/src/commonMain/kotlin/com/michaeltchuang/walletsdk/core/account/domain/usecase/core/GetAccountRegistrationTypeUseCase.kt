@@ -11,6 +11,7 @@ class GetAccountRegistrationTypeUseCase(
     override suspend fun invoke(address: String): AccountRegistrationType? =
         when (getLocalAccounts().firstOrNull { it.address == address }) {
             is LocalAccount.Algo25 -> AccountRegistrationType.Algo25
+            is LocalAccount.Falcon25 -> AccountRegistrationType.Falcon25
             is LocalAccount.Falcon24 -> AccountRegistrationType.Falcon24
             is LocalAccount.LedgerBle -> AccountRegistrationType.LedgerBle
             is LocalAccount.NoAuth -> AccountRegistrationType.NoAuth
@@ -22,6 +23,7 @@ class GetAccountRegistrationTypeUseCase(
     override fun invoke(account: LocalAccount): AccountRegistrationType =
         when (account) {
             is LocalAccount.Algo25 -> AccountRegistrationType.Algo25
+            is LocalAccount.Falcon25 -> AccountRegistrationType.Falcon25
             is LocalAccount.Falcon24 -> AccountRegistrationType.Falcon24
             is LocalAccount.LedgerBle -> AccountRegistrationType.LedgerBle
             is LocalAccount.NoAuth -> AccountRegistrationType.NoAuth

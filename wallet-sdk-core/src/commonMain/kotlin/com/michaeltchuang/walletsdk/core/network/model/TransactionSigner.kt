@@ -17,6 +17,10 @@ sealed interface TransactionSigner {
         override val address: String,
     ) : TransactionSigner
 
+    data class Falcon25(
+        override val address: String,
+    ) : TransactionSigner
+
     data class Falcon24(
         override val address: String,
     ) : TransactionSigner

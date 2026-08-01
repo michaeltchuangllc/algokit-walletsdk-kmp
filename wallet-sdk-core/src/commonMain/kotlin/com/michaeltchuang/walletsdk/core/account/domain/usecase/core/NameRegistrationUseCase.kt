@@ -17,6 +17,7 @@ class NameRegistrationUseCase(
     private val deleteHdKeyAccountUseCase: DeleteHdKeyAccountUseCase,
     private val deleteAlgo25AccountUseCase: DeleteAlgo25AccountUseCase,
     private val deleteFalcon24AccountUseCase: DeleteFalcon24AccountUseCase,
+    private val deleteFalcon25AccountUseCase: DeleteFalcon25AccountUseCase,
     private val deleteNoAuthAccountUseCase: DeleteNoAuthAccountUseCase,
     private val deleteSolanaAccountUseCase: DeleteSolanaAccountUseCase,
     private val passkeyRepository: PasskeyRepository,
@@ -48,6 +49,7 @@ class NameRegistrationUseCase(
         when (getAccountRegistrationTypeUseCase(address)) {
             AccountRegistrationType.Algo25 -> deleteAlgo25AccountUseCase(address)
             AccountRegistrationType.HdKey -> deleteHdKeyAccountUseCase(address)
+            AccountRegistrationType.Falcon25 -> deleteFalcon25AccountUseCase(address)
             AccountRegistrationType.Falcon24 -> deleteFalcon24AccountUseCase(address)
             AccountRegistrationType.NoAuth -> deleteNoAuthAccountUseCase(address).getOrThrow()
             AccountRegistrationType.SeedVault -> deleteSolanaAccountUseCase(address).getOrThrow()

@@ -53,7 +53,9 @@ class CreateAccountNameViewModel(
 
     fun fetchAccountDetails(accountCreation: AccountCreation) {
         when (val type = accountCreation.type) {
-            is AccountCreation.Type.Algo25 -> handleAlgo25Account()
+            is AccountCreation.Type.Algo25,
+            is AccountCreation.Type.Falcon25,
+            -> handleAlgo25Account()
             is AccountCreation.Type.Falcon24 -> handleFalcon24Account(seedId = type.seedId)
             is AccountCreation.Type.HdKey -> handleHDAccount(seedId = type.seedId)
             is AccountCreation.Type.LedgerBle, is AccountCreation.Type.NoAuth -> {

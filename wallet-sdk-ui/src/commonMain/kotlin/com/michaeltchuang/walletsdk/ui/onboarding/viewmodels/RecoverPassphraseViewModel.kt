@@ -59,7 +59,8 @@ class RecoverPassphraseViewModel(
         if (
             splittedText.size != OnboardingAccountType.Algo25.wordCount &&
             splittedText.size != OnboardingAccountType.HdKey.wordCount &&
-            splittedText.size != OnboardingAccountType.Falcon24.wordCount
+            splittedText.size != OnboardingAccountType.Falcon24.wordCount &&
+            splittedText.size != OnboardingAccountType.Falcon25.wordCount
         ) {
             viewModelScope.launch {
                 eventDelegate.sendEvent(

@@ -27,6 +27,7 @@ val keyRegTransactionModule =
                 getTransactionSigner = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
+                getFalcon25PrivateKey = get(),
                 getHdSeed = get(),
                 getLocalAccount = get(),
             )

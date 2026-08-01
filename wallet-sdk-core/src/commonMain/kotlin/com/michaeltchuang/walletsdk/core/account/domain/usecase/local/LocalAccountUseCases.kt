@@ -26,6 +26,26 @@ internal fun interface DeleteAlgo25Account {
     suspend operator fun invoke(address: String)
 }
 
+internal fun interface SaveFalcon25Account {
+    suspend operator fun invoke(
+        account: LocalAccount.Falcon25,
+        privateKey: ByteArray,
+        entropy: ByteArray,
+    )
+}
+
+internal fun interface DeleteFalcon25Account {
+    suspend operator fun invoke(address: String)
+}
+
+fun interface GetFalcon25PrivateKey {
+    suspend operator fun invoke(address: String): ByteArray?
+}
+
+fun interface GetFalcon25Entropy {
+    suspend operator fun invoke(address: String): ByteArray?
+}
+
 internal fun interface SaveFalcon24Account {
     suspend operator fun invoke(
         account: LocalAccount.Falcon24,
