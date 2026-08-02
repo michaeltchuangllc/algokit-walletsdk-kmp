@@ -41,8 +41,8 @@ expect fun signFalcon24Transaction(
 
 expect fun signFalcon25Transaction(
     transactionByteArray: ByteArray,
-    publicKey: ByteArray,
-    privateKey: ByteArray,
+    entropy: ByteArray,
+    passphrase: String = "",
 ): ByteArray?
 
 /**

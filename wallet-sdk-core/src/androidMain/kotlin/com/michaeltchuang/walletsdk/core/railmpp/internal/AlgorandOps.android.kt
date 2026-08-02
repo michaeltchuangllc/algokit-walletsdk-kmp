@@ -23,7 +23,7 @@ private const val MIN_TXN_FEE = 1_000L
 private const val SIGNER_TYPE_FALCON = 1L
 
 private val falconLsigAddress: Address by lazy {
-    Address(GoMobileDispatcher.runOnGoThread { Sdk.getDummyLsigAddress() })
+    Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
 }
 
 internal actual fun getSessionBoxBytesInternal(

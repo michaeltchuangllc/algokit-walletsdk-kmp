@@ -9,13 +9,13 @@ val assetTransferModule =
         factory { TransactionSignSigningHelper() }
         factory {
             TransactionSignManager(
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
+                getTransactionParams = get(),
+                signHelper = get(),
+                getFalcon24SecretKey = get(),
+                getFalcon25Entropy = get(),
+                getAlgo25SecretKey = get(),
+                getHdSeed = get(),
+                getLocalAccount = get(),
             )
         }
     }

@@ -346,101 +346,94 @@ import CommonCrypto
         return base64Key
     }
 
-    public func signFalconTransaction(
+    public func signFalcon24Transaction(
         transactionBytes: Data,
         publicKeyBase64: String,
-        privateKeyBase64: String,
-        useLogicSig: Bool
+        privateKeyBase64: String
     ) -> Data? {
         guard let publicKeyData = Data(base64Encoded: publicKeyBase64),
               let privateKeyData = Data(base64Encoded: privateKeyBase64)
         else {
-            print("Failed to decode base64 keys")
+            print("Failed to decode Falcon24 keys")
             return nil
         }
 
-        // Create BytesArray and add the transaction
         let txnsToSign = AlgoSdkBytesArray()
         txnsToSign.append(transactionBytes)
-
         var error: NSError?
-        // Falcon24 uses a LogicSig; Falcon25 is a native Falcon account.
-        let csv = useLogicSig
-            ? AlgoSdkSignFalconLsigBundle(
-                txnsToSign,
-                publicKeyData,
-                privateKeyData,
-                &error
-            )
-            : AlgoSdkSignFalconBundle(
-                txnsToSign,
-                publicKeyData,
-                privateKeyData,
-                &error
-            )
+        let csv = AlgoSdkSignFalconLsigBundle(txnsToSign, publicKeyData, privateKeyData, &error)
+        return decodeSingleFalconTransaction(csv: csv, error: error, signer: "Falcon24")
+    }
 
+    public func signFalcon25Transaction(
+        transactionBytes: Data,
+        entropy: Data,
+        passphrase: String
+    ) -> Data? {
+        let txnsToSign = AlgoSdkBytesArray()
+        txnsToSign.append(transactionBytes)
+        var error: NSError?
+        let csv = AlgoSdkSignFalconBundle(txnsToSign, entropy, passphrase, &error)
+        return decodeSingleFalconTransaction(csv: csv, error: error, signer: "Falcon25")
+    }
+
+    private func decodeSingleFalconTransaction(csv: String, error: NSError?, signer: String) -> Data? {
         if let error = error {
-            print("Error signing Falcon bundle: \(error)")
+            print("Error signing \(signer) transaction: \(error)")
             return nil
         }
 
-        // Parse CSV and decode all base64 transactions, then concatenate
-        let signedTxns = csv.components(separatedBy: ",")
-        var outputData = Data()
-        for encodedTxn in signedTxns {
-            guard !encodedTxn.isEmpty,
-                  let decodedData = Data(base64Encoded: encodedTxn)
-            else {
-                print("Failed to decode transaction from CSV: \(encodedTxn.prefix(20))...")
-                continue
-            }
-            outputData.append(decodedData)
+        let signedTransactions = csv.components(separatedBy: ",").filter { !$0.isEmpty }
+        guard signedTransactions.count == 1,
+              let signedTransaction = Data(base64Encoded: signedTransactions[0])
+        else {
+            print("\(signer) signer returned \(signedTransactions.count) transactions; expected one")
+            return nil
         }
-
-        return outputData.isEmpty ? nil : outputData
+        return signedTransaction
     }
     
-    public func signFalconArbitraryDataWithBase64(
+    public func signFalcon24ArbitraryData(
         dataBase64: String,
         publicKeyBase64: String,
         privateKeyBase64: String
     ) -> String {
-        guard let data = Data(base64Encoded: dataBase64) else {
-            print("Error: Failed to decode data from Base64")
+        guard let data = Data(base64Encoded: dataBase64),
+              let publicKeyData = Data(base64Encoded: publicKeyBase64),
+              let privateKeyData = Data(base64Encoded: privateKeyBase64),
+              !data.isEmpty
+        else {
+            print("Failed to decode Falcon24 arbitrary-data signing inputs")
             return ""
         }
-        
-        guard let publicKeyData = Data(base64Encoded: publicKeyBase64) else {
-            print("Error: Failed to decode public key from Base64")
-            return ""
-        }
-        
-        guard let privateKeyData = Data(base64Encoded: privateKeyBase64) else {
-            print("Error: Failed to decode private key from Base64")
-            return ""
-        }
-        
-        guard !data.isEmpty else {
-            print("Error signing data: Data is empty.")
-            return ""
-        }
-        
-        // Use FalconMobileSDK's RawSign function (same as Android's Sdk.rawSign)
+
         var error: NSError?
-        guard let signature = AlgoSdkRawSign(
-            data,
-            publicKeyData,
-            privateKeyData,
-            &error
-        ) else {
-            if let error = error {
-                print("Error signing Falcon data (SDK failed): \(error.localizedDescription)")
-            } else {
-                print("Failed to sign Falcon data (SDK failed): unknown error.")
-            }
+        guard let signature = AlgoSdkRawSignFalconLsig(data, publicKeyData, privateKeyData, &error) else {
+            print("Error signing Falcon24 data: \(error?.localizedDescription ?? "unknown error")")
             return ""
         }
-        
+        return signature.base64EncodedString()
+    }
+
+    public func signFalcon25ArbitraryData(
+        dataBase64: String,
+        publicKeyBase64: String,
+        privateKeyBase64: String
+    ) -> String {
+        guard let data = Data(base64Encoded: dataBase64),
+              let publicKeyData = Data(base64Encoded: publicKeyBase64),
+              let privateKeyData = Data(base64Encoded: privateKeyBase64),
+              !data.isEmpty
+        else {
+            print("Failed to decode Falcon25 arbitrary-data signing inputs")
+            return ""
+        }
+
+        var error: NSError?
+        guard let signature = AlgoSdkRawSign(data, publicKeyData, privateKeyData, &error) else {
+            print("Error signing Falcon25 data: \(error?.localizedDescription ?? "unknown error")")
+            return ""
+        }
         return signature.base64EncodedString()
     }
 
@@ -1099,7 +1092,7 @@ import CommonCrypto
         }
 
         var falconErr: NSError?
-        let falconCsv = AlgoSdkSignFalconBundle(falconArray, publicKeyData, privateKeyData, &falconErr)
+        let falconCsv = AlgoSdkSignFalconLsigBundle(falconArray, publicKeyData, privateKeyData, &falconErr)
         if let err = falconErr {
             NSLog("❌ signFalconGroupBundle Falcon signing error: %@", err.localizedDescription)
             return []

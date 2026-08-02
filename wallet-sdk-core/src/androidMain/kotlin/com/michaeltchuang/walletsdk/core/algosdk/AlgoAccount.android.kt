@@ -225,15 +225,15 @@ actual fun signFalcon24Transaction(
 
 actual fun signFalcon25Transaction(
     transactionByteArray: ByteArray,
-    publicKey: ByteArray,
-    privateKey: ByteArray,
+    entropy: ByteArray,
+    passphrase: String,
 ): ByteArray? {
     Security.removeProvider("BC")
     Security.insertProviderAt(BouncyCastleProvider(), 0)
     return SignFalcon25TransactionImpl().signTransaction(
         transactionByteArray,
-        publicKey,
-        privateKey,
+        entropy,
+        passphrase,
     )
 }
 

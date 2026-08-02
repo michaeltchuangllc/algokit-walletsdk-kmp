@@ -70,7 +70,7 @@ class ProcessSignTransactionsUseCase(
                     GoMobileDispatcher.withGoThread {
                         val txnList = BytesArray()
                         decodedTxnBytes.forEach { txnList.append(it) }
-                        Sdk.signFalconBundle(
+                        Sdk.signFalconLsigBundle(
                             txnList,
                             localAccount.publicKey.copyOf(),
                             privateKey.copyOf(),

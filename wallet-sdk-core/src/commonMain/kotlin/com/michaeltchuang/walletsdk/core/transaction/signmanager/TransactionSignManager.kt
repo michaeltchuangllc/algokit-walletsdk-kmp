@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetAcceptanceTxn
@@ -50,7 +50,7 @@ open class TransactionSignManager(
     // private val getAccountAlgoBalance: GetAccountAlgoBalance,
     // private val getAccountMinBalance: GetAccountMinBalance,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
-    private val getFalcon25PrivateKey: GetFalcon25PrivateKey,
+    private val getFalcon25Entropy: GetFalcon25Entropy,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
@@ -238,10 +238,10 @@ open class TransactionSignManager(
 
     private suspend fun signFalcon25Transaction(transactionByteArray: ByteArray?, accountAddress: String) {
         val transactionBytes = transactionByteArray ?: return handleSignError()
-        val account = getLocalAccount(accountAddress) as? LocalAccount.Falcon25 ?: return handleSignError()
-        val privateKey = getFalcon25PrivateKey(accountAddress) ?: return handleSignError()
-        val signed = signFalcon25Transaction(transactionBytes, account.publicKey.copyOf(), privateKey.copyOf()) ?: return handleSignError()
-        privateKey.clearFromMemory()
+        getLocalAccount(accountAddress) as? LocalAccount.Falcon25 ?: return handleSignError()
+        val entropy = getFalcon25Entropy(accountAddress) ?: return handleSignError()
+        val signed = signFalcon25Transaction(transactionBytes, entropy) ?: return handleSignError()
+        entropy.clearFromMemory()
         onTransactionSigned(signed)
     }
 

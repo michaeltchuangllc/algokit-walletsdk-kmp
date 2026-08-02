@@ -231,47 +231,31 @@ actual fun signFalcon24Transaction(
     publicKey: ByteArray,
     privateKey: ByteArray,
 ): ByteArray? =
-    signFalconTransaction(
-        transactionByteArray = transactionByteArray,
-        publicKey = publicKey,
-        privateKey = privateKey,
-        useLogicSig = true,
-    )
+    try {
+        bridge.signFalcon24TransactionWithTransactionBytes(
+            transactionBytes = transactionByteArray.toNSData(),
+            publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u),
+            privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u),
+        )?.toByteArray()
+    } catch (e: Exception) {
+        println("Falcon24 transaction signing failed: ${e.message}")
+        null
+    }
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun signFalcon25Transaction(
     transactionByteArray: ByteArray,
-    publicKey: ByteArray,
-    privateKey: ByteArray,
-): ByteArray? =
-    signFalconTransaction(
-        transactionByteArray = transactionByteArray,
-        publicKey = publicKey,
-        privateKey = privateKey,
-        useLogicSig = false,
-    )
-
-@OptIn(ExperimentalForeignApi::class)
-private fun signFalconTransaction(
-    transactionByteArray: ByteArray,
-    publicKey: ByteArray,
-    privateKey: ByteArray,
-    useLogicSig: Boolean,
+    entropy: ByteArray,
+    passphrase: String,
 ): ByteArray? =
     try {
-        val transactionData = transactionByteArray.toNSData()
-        val publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u)
-        val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u)
-        val signedData =
-            bridge.signFalconTransactionWithTransactionBytes(
-                transactionBytes = transactionData,
-                publicKeyBase64 = publicKeyBase64,
-                privateKeyBase64 = privateKeyBase64,
-                useLogicSig = useLogicSig,
-            )
-        signedData?.toByteArray()
+        bridge.signFalcon25TransactionWithTransactionBytes(
+            transactionBytes = transactionByteArray.toNSData(),
+            entropy = entropy.toNSData(),
+            passphrase = passphrase,
+        )?.toByteArray()
     } catch (e: Exception) {
-        println("Falcon transaction signing failed: ${e.message}")
+        println("Falcon25 transaction signing failed: ${e.message}")
         null
     }
 
@@ -648,7 +632,7 @@ actual fun signFalcon24ArbitraryData(
         val privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong())
 
         val signedDataBase64 =
-            bridge.signFalconArbitraryDataWithBase64WithDataBase64(
+            bridge.signFalcon24ArbitraryDataWithDataBase64(
                 dataBase64 = dataBase64,
                 publicKeyBase64 = publicKeyBase64,
                 privateKeyBase64 = privateKeyBase64,
@@ -666,7 +650,18 @@ actual fun signFalcon25ArbitraryData(
     publicKey: ByteArray,
     privateKey: ByteArray,
 ): ByteArray? =
-    signFalcon24ArbitraryData(data, publicKey, privateKey)
+    try {
+        val signedDataBase64 =
+            bridge.signFalcon25ArbitraryDataWithDataBase64(
+                dataBase64 = data.toNSData().base64EncodedStringWithOptions(0.toULong()),
+                publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0.toULong()),
+                privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0.toULong()),
+            )
+        Base64.decode(signedDataBase64)
+    } catch (e: Exception) {
+        println("Falcon25 arbitrary data signing failed: ${e.message}")
+        null
+    }
 
 @OptIn(ExperimentalEncodingApi::class, ExperimentalForeignApi::class)
 actual fun signAlgo25ArbitraryData(

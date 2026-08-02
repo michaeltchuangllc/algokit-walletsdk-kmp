@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
@@ -25,6 +26,7 @@ class MppWalletSignerImpl(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getFalcon25PrivateKey: GetFalcon25PrivateKey,
+    private val getFalcon25Entropy: GetFalcon25Entropy,
     private val getHdSeed: GetHdSeed,
     private val logTag: String = "MppWalletSignerImpl",
 ) : MppWalletSigner {
@@ -179,24 +181,29 @@ class MppWalletSignerImpl(
         operation: SigningOperation,
         account: LocalAccount.Falcon25,
     ): ByteArray? {
-        val privateKey = getFalcon25PrivateKey(address)
-        if (privateKey == null) {
-            Napier.e("Missing Falcon25 key for $address", tag = logTag)
-            return null
-        }
         return when (operation) {
-            SigningOperation.TRANSACTION ->
-                signFalcon25Transaction(
-                    transactionByteArray = bytes,
-                    publicKey = account.publicKey,
-                    privateKey = privateKey,
-                )
-            SigningOperation.MESSAGE ->
-                signFalcon25ArbitraryData(
-                    data = bytes,
-                    publicKey = account.publicKey,
-                    privateKey = privateKey,
-                )
+            SigningOperation.TRANSACTION -> {
+                val entropy = getFalcon25Entropy(address)
+                if (entropy == null) {
+                    Napier.e("Missing Falcon25 entropy for $address", tag = logTag)
+                    null
+                } else {
+                    signFalcon25Transaction(transactionByteArray = bytes, entropy = entropy)
+                }
+            }
+            SigningOperation.MESSAGE -> {
+                val privateKey = getFalcon25PrivateKey(address)
+                if (privateKey == null) {
+                    Napier.e("Missing Falcon25 key for $address", tag = logTag)
+                    null
+                } else {
+                    signFalcon25ArbitraryData(
+                        data = bytes,
+                        publicKey = account.publicKey,
+                        privateKey = privateKey,
+                    )
+                }
+            }
         }
     }
 
