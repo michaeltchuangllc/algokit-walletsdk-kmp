@@ -26,11 +26,85 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.Preview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import kotlinx.coroutines.delay
 import org.webrtc.VideoTrack
+
+@Composable
+actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
+    {
+        val context = LocalContext.current
+        val lifecycleOwner = LocalLifecycleOwner.current
+
+        fun hasPermission(permission: String) =
+            ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+
+        var hasCameraPermission by remember { mutableStateOf(hasPermission(Manifest.permission.CAMERA)) }
+
+        val permissionLauncher =
+            rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+            ) { isGranted ->
+                hasCameraPermission = isGranted
+            }
+
+        LaunchedEffect(Unit) {
+            hasCameraPermission = hasPermission(Manifest.permission.CAMERA)
+            if (!hasCameraPermission) {
+                permissionLauncher.launch(Manifest.permission.CAMERA)
+            }
+        }
+
+        if (!hasCameraPermission) {
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                Button(onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }) {
+                    Text("Grant Camera Permission")
+                }
+            }
+        } else {
+            val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+            AndroidView(
+                factory = { ctx ->
+                    val previewView = PreviewView(ctx)
+                    cameraProviderFuture.addListener(
+                        {
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview =
+                                Preview.Builder().build().also {
+                                    it.surfaceProvider = previewView.surfaceProvider
+                                }
+
+                            try {
+                                cameraProvider.unbindAll()
+                                cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    CameraSelector.DEFAULT_BACK_CAMERA,
+                                    preview,
+                                )
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        },
+                        ContextCompat.getMainExecutor(ctx),
+                    )
+                    previewView
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
 
 actual fun createCameraStreamingPreview(
     connectionManager: LiquidAuthConnectionManager?,
