@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerU
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
+import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -39,10 +40,12 @@ class EscrowSessionVaultDebugViewModel(
 
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
+        DebugAddressHolder.viewerAddress = address
     }
 
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
+        DebugAddressHolder.creatorAddress = address
     }
 
     fun onDepositAmountChanged(amount: String) {
@@ -57,10 +60,14 @@ class EscrowSessionVaultDebugViewModel(
                     .map { it.address }
             }.onSuccess { addresses ->
                 updateContent { current ->
+                    val viewer = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() }
+                    val creator = current.creatorAddress.ifBlank { addresses.getOrNull(1).orEmpty() }
+                    DebugAddressHolder.viewerAddress = viewer
+                    DebugAddressHolder.creatorAddress = creator
                     current.copy(
                         accountAddresses = addresses,
-                        viewerAddress = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() },
-                        creatorAddress = current.creatorAddress.ifBlank { addresses.getOrNull(1).orEmpty() },
+                        viewerAddress = viewer,
+                        creatorAddress = creator,
                     )
                 }
                 if (addresses.size < 2) {

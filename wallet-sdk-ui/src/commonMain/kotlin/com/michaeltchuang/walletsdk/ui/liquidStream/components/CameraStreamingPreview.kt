@@ -41,3 +41,6 @@ expect fun createCameraStreamingPreview(
     connectionManager: LiquidAuthConnectionManager?,
     controller: CameraStreamingPreviewController? = null,
 ): @Composable () -> Unit
+
+@Composable
+expect fun rememberStandaloneCameraPreview(): @Composable () -> Unit
