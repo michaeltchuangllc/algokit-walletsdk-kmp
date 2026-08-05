@@ -257,6 +257,13 @@ erDiagram
         ByteArray public_key UK
         ByteArray encrypted_secret_key
     }
+    falcon_25 {
+        String algo_address PK
+        ByteArray public_key
+        ByteArray encrypted_private_key
+        ByteArray encrypted_entropy
+        ByteArray encrypted_seed
+    }
     hd_keys {
         String algo_address PK
         ByteArray public_key UK
