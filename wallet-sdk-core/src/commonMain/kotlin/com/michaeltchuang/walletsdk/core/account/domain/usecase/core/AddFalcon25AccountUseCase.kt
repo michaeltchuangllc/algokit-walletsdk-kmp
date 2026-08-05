@@ -14,12 +14,13 @@ internal class AddFalcon25AccountUseCase(
         publicKey: ByteArray,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
         isBackedUp: Boolean,
         customName: String?,
         orderIndex: Int,
     ) {
         val account = LocalAccount.Falcon25(address, publicKey)
-        saveFalcon25Account(account, privateKey, entropy)
+        saveFalcon25Account(account, privateKey, entropy, seed)
         setCustomInfo(CustomAccountInfo(address, customName, orderIndex, isBackedUp))
     }
 }

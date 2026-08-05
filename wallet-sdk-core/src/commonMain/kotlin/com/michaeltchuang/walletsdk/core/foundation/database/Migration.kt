@@ -139,3 +139,21 @@ val MIGRATION_5_6 =
             """.trimIndent())
         }
     }
+
+// Falcon SDK v0.0.16 signs transactions with a seed derived from entropy. Existing Falcon25
+// accounts are intentionally discarded so all newly created accounts have a persisted seed.
+val MIGRATION_6_7 =
+    object : Migration(6, 7) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("DROP TABLE IF EXISTS falcon_25")
+            connection.execSQL("""
+                CREATE TABLE falcon_25 (
+                    algo_address TEXT PRIMARY KEY NOT NULL,
+                    public_key BLOB NOT NULL,
+                    encrypted_private_key BLOB NOT NULL,
+                    encrypted_entropy BLOB NOT NULL,
+                    encrypted_seed BLOB NOT NULL
+                )
+            """.trimIndent())
+        }
+    }

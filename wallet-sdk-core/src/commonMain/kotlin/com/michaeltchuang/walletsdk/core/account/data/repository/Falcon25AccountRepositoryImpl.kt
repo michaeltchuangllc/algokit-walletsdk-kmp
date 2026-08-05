@@ -48,9 +48,10 @@ internal class Falcon25AccountRepositoryImpl(
         account: Falcon25,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
     ) {
         withContext(coroutineDispatcher) {
-            val falcon25Entity = falcon25EntityMapper(account, privateKey, entropy)
+            val falcon25Entity = falcon25EntityMapper(account, privateKey, entropy, seed)
             falcon25Dao.insert(falcon25Entity)
         }
     }
@@ -77,5 +78,11 @@ internal class Falcon25AccountRepositoryImpl(
         withContext(coroutineDispatcher) {
             val encryptedEntropy = falcon25Dao.get(address)?.encryptedEntropy
             encryptedEntropy?.let { decryptByteArray(it) }
+        }
+
+    override suspend fun getSeed(address: String): ByteArray? =
+        withContext(coroutineDispatcher) {
+            val encryptedSeed = falcon25Dao.get(address)?.encryptedSeed
+            encryptedSeed?.let { decryptByteArray(it) }
         }
 }

@@ -80,6 +80,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveHdKeyAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ValidateWatchAccountUseCase
@@ -112,6 +113,7 @@ val localAccountsModule =
         factory { SaveFalcon25Account(get<Falcon25AccountRepository>()::addAccount) }
         factory { GetFalcon25PrivateKey(get<Falcon25AccountRepository>()::getPrivateKey) }
         factory { GetFalcon25Entropy(get<Falcon25AccountRepository>()::getEntropy) }
+        factory { GetFalcon25Seed(get<Falcon25AccountRepository>()::getSeed) }
 
         single<Falcon24Dao> { get<AlgoKitDatabase>().falcon24Dao() }
         single<Falcon24EntityMapper> { Falcon24EntityMapperImpl() }

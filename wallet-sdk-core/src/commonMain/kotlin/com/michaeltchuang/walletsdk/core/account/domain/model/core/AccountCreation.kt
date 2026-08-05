@@ -27,6 +27,7 @@ data class AccountCreation(
             val publicKey: ByteArray,
             val encryptedPrivateKey: ByteArray,
             val encryptedEntropy: ByteArray,
+            val encryptedSeed: ByteArray,
         ) : Type
 
         data class Falcon24(
@@ -78,6 +79,7 @@ data class AccountCreation(
                             type.publicKey,
                             type.encryptedPrivateKey,
                             type.encryptedEntropy,
+                            type.encryptedSeed,
                         )
 
                     is Type.Falcon24 ->

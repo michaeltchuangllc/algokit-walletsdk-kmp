@@ -165,7 +165,7 @@ fun getAccountTypeForFido2(address: String): String {
     return kotlinx.coroutines.runBlocking {
         val account = useCase(address)
         when (account) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24,
+            is LocalAccount.Falcon24,
             is LocalAccount.Falcon25,
             -> "falcon-1024"
             else -> "algorand"
@@ -218,7 +218,7 @@ fun signWithAlgorandWallet(
         platform.Foundation.NSLog("   Challenge size: ${challenge.size} bytes")
 
         when (localAccount) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+            is LocalAccount.Algo25 -> {
                 // Algo25 account
                 val algo25Account =
                     com.michaeltchuang.walletsdk.core.algosdk
@@ -235,7 +235,7 @@ fun signWithAlgorandWallet(
                 signature
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+            is LocalAccount.HdKey -> {
                 // HD Key account - get seed from database
                 val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
                     KoinPlatform.getKoin().get()
@@ -258,7 +258,7 @@ fun signWithAlgorandWallet(
                 signature
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+            is LocalAccount.Falcon24 -> {
                 // Falcon24 account - get private key from database
                 val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
                     KoinPlatform.getKoin().get()
@@ -352,7 +352,7 @@ fun signTxnWithAlgorandWallet(
 
         // Sign based on account type (using transaction-specific signing)
         when (localAccount) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+            is LocalAccount.Algo25 -> {
                 // Algo25 account - recover from mnemonic and sign transaction
                 val algo25Account =
                     com.michaeltchuang.walletsdk.core.algosdk
@@ -374,7 +374,7 @@ fun signTxnWithAlgorandWallet(
                 signedTxn
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+            is LocalAccount.HdKey -> {
                 // HD Key account - get seed and sign transaction
                 val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
                     KoinPlatform.getKoin().get()
@@ -402,7 +402,7 @@ fun signTxnWithAlgorandWallet(
                 signedTxn
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+            is LocalAccount.Falcon24 -> {
                 // Falcon24 account - get private key and sign transaction
                 val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
                     KoinPlatform.getKoin().get()
@@ -442,12 +442,12 @@ fun signTxnWithAlgorandWallet(
             is LocalAccount.Falcon25 -> {
                 val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
                     KoinPlatform.getKoin().get()
-                val entropy =
-                    kotlinx.coroutines.runBlocking { falcon25Repo.getEntropy(address) }
-                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 entropy") }
+                val seed =
+                    kotlinx.coroutines.runBlocking { falcon25Repo.getSeed(address) }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 seed") }
                 com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
                     transactionByteArray = txnBytes,
-                    entropy = entropy,
+                    seed = seed,
                 ) ?: return null.also { platform.Foundation.NSLog("❌ Falcon25 transaction signing failed") }
             }
 
@@ -501,7 +501,7 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
 
         val publicKey =
             when (localAccount) {
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+                is LocalAccount.Algo25 -> {
                     // Algo25 account - derive public key from mnemonic
                     val mnemonic =
                         try {
@@ -520,12 +520,12 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
                     algo25Account.secretKey.copyOfRange(32, 64)
                 }
 
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+                is LocalAccount.HdKey -> {
                     // HD Key account - public key is already a ByteArray
                     localAccount.publicKey
                 }
 
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 ->
+                is LocalAccount.Falcon24 ->
                     localAccount.publicKey
 
                 is LocalAccount.Falcon25 ->
@@ -664,10 +664,10 @@ private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
                     is LocalAccount.Falcon25 -> {
                         val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
                             KoinPlatform.getKoin().get()
-                        val entropy = falcon25Repo.getEntropy(hostAddress) ?: return ByteArray(0)
+                        val seed = falcon25Repo.getSeed(hostAddress) ?: return ByteArray(0)
                         com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
                             transactionByteArray = txnMsgpack,
-                            entropy = entropy,
+                            seed = seed,
                         ) ?: ByteArray(0)
                     }
                     else -> ByteArray(0)

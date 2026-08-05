@@ -19,6 +19,8 @@ expect fun recoverFalcon25Account(mnemonic: String): Falcon25Account?
 
 expect fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String?
 
+expect fun getFalcon25SeedFromEntropy(entropy: ByteArray): ByteArray?
+
 expect fun getBip39Wallet(entropy: ByteArray): Bip39Wallet
 
 expect fun createBip39Wallet(): Bip39Wallet
@@ -41,8 +43,7 @@ expect fun signFalcon24Transaction(
 
 expect fun signFalcon25Transaction(
     transactionByteArray: ByteArray,
-    entropy: ByteArray,
-    passphrase: String = "",
+    seed: ByteArray,
 ): ByteArray?
 
 /**

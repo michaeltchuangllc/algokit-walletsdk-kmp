@@ -67,6 +67,7 @@ class RecoverPassphraseUseCase(
                             publicKey = account.publicKey,
                             encryptedPrivateKey = encryptByteArray(account.privateKey),
                             encryptedEntropy = encryptByteArray(account.entropy),
+                            encryptedSeed = encryptByteArray(account.seed),
                         ),
                     creationType = CreationType.RECOVER,
                 )

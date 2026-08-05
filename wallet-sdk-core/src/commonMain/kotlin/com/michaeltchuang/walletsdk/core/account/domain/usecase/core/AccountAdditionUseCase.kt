@@ -108,6 +108,7 @@ class AccountAdditionUseCase(
                 publicKey = type.publicKey,
                 privateKey = decryptByteArray(type.encryptedPrivateKey),
                 entropy = decryptByteArray(type.encryptedEntropy),
+                seed = decryptByteArray(type.encryptedSeed),
                 isBackedUp = createAccount.isBackedUp,
                 customName = createAccount.customName,
                 orderIndex = createAccount.orderIndex,

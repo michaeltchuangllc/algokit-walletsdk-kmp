@@ -18,12 +18,11 @@ private fun ByteArray.withoutTxPrefix(): ByteArray =
 internal class SignFalcon25TransactionImpl {
     fun signTransaction(
         transactionByteArray: ByteArray,
-        entropy: ByteArray,
-        passphrase: String,
+        seed: ByteArray,
     ): ByteArray? =
         try {
             require(transactionByteArray.isNotEmpty()) { "transactionByteArray must not be empty" }
-            require(entropy.isNotEmpty()) { "entropy must not be empty" }
+            require(seed.isNotEmpty()) { "seed must not be empty" }
 
             val unsignedTransaction = transactionByteArray.withoutTxPrefix()
             val signedTransactionCsv =
@@ -32,8 +31,7 @@ internal class SignFalcon25TransactionImpl {
                     transactionList.append(unsignedTransaction.copyOf())
                     Sdk.signFalconBundle(
                         transactionList,
-                        entropy.copyOf(),
-                        "",
+                        seed.copyOf(),
                     )
                 }
             val signedTransactions =

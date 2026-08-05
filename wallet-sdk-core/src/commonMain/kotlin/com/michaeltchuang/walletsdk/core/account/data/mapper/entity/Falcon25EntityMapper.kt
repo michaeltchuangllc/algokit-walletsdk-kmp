@@ -8,5 +8,6 @@ internal interface Falcon25EntityMapper {
         account: LocalAccount.Falcon25,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
     ): Falcon25Entity
 }

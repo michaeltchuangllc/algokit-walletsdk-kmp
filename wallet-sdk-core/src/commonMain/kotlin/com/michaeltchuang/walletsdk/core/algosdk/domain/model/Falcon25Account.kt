@@ -5,4 +5,5 @@ data class Falcon25Account(
     val publicKey: ByteArray,
     val privateKey: ByteArray,
     val entropy: ByteArray,
+    val seed: ByteArray,
 )

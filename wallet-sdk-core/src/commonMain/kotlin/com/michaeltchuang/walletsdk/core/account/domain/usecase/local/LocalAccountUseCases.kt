@@ -31,6 +31,7 @@ internal fun interface SaveFalcon25Account {
         account: LocalAccount.Falcon25,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
     )
 }
 
@@ -43,6 +44,10 @@ fun interface GetFalcon25PrivateKey {
 }
 
 fun interface GetFalcon25Entropy {
+    suspend operator fun invoke(address: String): ByteArray?
+}
+
+fun interface GetFalcon25Seed {
     suspend operator fun invoke(address: String): ByteArray?
 }
 

@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetAcceptanceTxn
@@ -50,7 +50,7 @@ open class TransactionSignManager(
     // private val getAccountAlgoBalance: GetAccountAlgoBalance,
     // private val getAccountMinBalance: GetAccountMinBalance,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
-    private val getFalcon25Entropy: GetFalcon25Entropy,
+    private val getFalcon25Seed: GetFalcon25Seed,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
@@ -239,9 +239,9 @@ open class TransactionSignManager(
     private suspend fun signFalcon25Transaction(transactionByteArray: ByteArray?, accountAddress: String) {
         val transactionBytes = transactionByteArray ?: return handleSignError()
         getLocalAccount(accountAddress) as? LocalAccount.Falcon25 ?: return handleSignError()
-        val entropy = getFalcon25Entropy(accountAddress) ?: return handleSignError()
-        val signed = signFalcon25Transaction(transactionBytes, entropy) ?: return handleSignError()
-        entropy.clearFromMemory()
+        val seed = getFalcon25Seed(accountAddress) ?: return handleSignError()
+        val signed = signFalcon25Transaction(transactionBytes, seed) ?: return handleSignError()
+        seed.clearFromMemory()
         onTransactionSigned(signed)
     }
 

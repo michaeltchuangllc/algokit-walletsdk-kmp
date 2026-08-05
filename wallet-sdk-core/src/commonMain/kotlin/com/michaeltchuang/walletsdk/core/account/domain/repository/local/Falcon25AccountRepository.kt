@@ -14,9 +14,11 @@ interface Falcon25AccountRepository {
         account: LocalAccount.Falcon25,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
     )
     suspend fun deleteAccount(address: String)
     suspend fun deleteAllAccounts()
     suspend fun getPrivateKey(address: String): ByteArray?
     suspend fun getEntropy(address: String): ByteArray?
+    suspend fun getSeed(address: String): ByteArray?
 }

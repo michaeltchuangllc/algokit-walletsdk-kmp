@@ -365,15 +365,24 @@ import CommonCrypto
         return decodeSingleFalconTransaction(csv: csv, error: error, signer: "Falcon24")
     }
 
+    public func getFalconSeedFromEntropy(entropy: Data) -> Data? {
+        var error: NSError?
+        let seed = AlgoSdkSeedFromEntropy(entropy, "", &error)
+        if let error = error {
+            print("Error deriving Falcon seed: \(error)")
+            return nil
+        }
+        return seed
+    }
+
     public func signFalcon25Transaction(
         transactionBytes: Data,
-        entropy: Data,
-        passphrase: String
+        seed: Data
     ) -> Data? {
         let txnsToSign = AlgoSdkBytesArray()
         txnsToSign.append(transactionBytes)
         var error: NSError?
-        let csv = AlgoSdkSignFalconBundle(txnsToSign, entropy, passphrase, &error)
+        let csv = AlgoSdkSignFalconBundle(txnsToSign, seed, &error)
         return decodeSingleFalconTransaction(csv: csv, error: error, signer: "Falcon25")
     }
 

@@ -140,6 +140,7 @@ private fun deriveFalcon25Account(mnemonic: String, entropy: ByteArray): Falcon2
                 publicKey = it.publicKey,
                 privateKey = it.privateKey,
                 entropy = entropy,
+                seed = getFalcon25SeedFromEntropy(entropy) ?: ByteArray(0),
             )
         }
     } catch (_: Exception) {
@@ -150,6 +151,15 @@ actual fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String? =
     try {
         GoMobileDispatcher.runOnGoThread {
             Sdk.mnemonicFromEntropy(entropy.copyOf())
+        }
+    } catch (_: Exception) {
+        null
+    }
+
+actual fun getFalcon25SeedFromEntropy(entropy: ByteArray): ByteArray? =
+    try {
+        GoMobileDispatcher.runOnGoThread {
+            Sdk.seedFromEntropy(entropy.copyOf(), "")
         }
     } catch (_: Exception) {
         null
@@ -225,15 +235,13 @@ actual fun signFalcon24Transaction(
 
 actual fun signFalcon25Transaction(
     transactionByteArray: ByteArray,
-    entropy: ByteArray,
-    passphrase: String,
+    seed: ByteArray,
 ): ByteArray? {
     Security.removeProvider("BC")
     Security.insertProviderAt(BouncyCastleProvider(), 0)
     return SignFalcon25TransactionImpl().signTransaction(
         transactionByteArray,
-        entropy,
-        passphrase,
+        seed,
     )
 }
 

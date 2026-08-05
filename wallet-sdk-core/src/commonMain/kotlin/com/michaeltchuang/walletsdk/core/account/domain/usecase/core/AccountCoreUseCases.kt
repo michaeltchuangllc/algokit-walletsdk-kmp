@@ -22,6 +22,7 @@ fun interface AddFalcon25Account {
         publicKey: ByteArray,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
         isBackedUp: Boolean,
         customName: String?,
         orderIndex: Int,

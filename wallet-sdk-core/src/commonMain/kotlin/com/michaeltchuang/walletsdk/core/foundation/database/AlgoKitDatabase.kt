@@ -76,7 +76,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun solanaAccountDao(): SeedVaultDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 6
+        const val DATABASE_VERSION = 7
         const val DATABASE_NAME = "algokit_database"
     }
 }

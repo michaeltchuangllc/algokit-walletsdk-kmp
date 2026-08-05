@@ -4,7 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
@@ -26,7 +26,7 @@ class MppWalletSignerImpl(
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getFalcon25PrivateKey: GetFalcon25PrivateKey,
-    private val getFalcon25Entropy: GetFalcon25Entropy,
+    private val getFalcon25Seed: GetFalcon25Seed,
     private val getHdSeed: GetHdSeed,
     private val logTag: String = "MppWalletSignerImpl",
 ) : MppWalletSigner {
@@ -183,12 +183,12 @@ class MppWalletSignerImpl(
     ): ByteArray? {
         return when (operation) {
             SigningOperation.TRANSACTION -> {
-                val entropy = getFalcon25Entropy(address)
-                if (entropy == null) {
-                    Napier.e("Missing Falcon25 entropy for $address", tag = logTag)
+                val seed = getFalcon25Seed(address)
+                if (seed == null) {
+                    Napier.e("Missing Falcon25 seed for $address", tag = logTag)
                     null
                 } else {
-                    signFalcon25Transaction(transactionByteArray = bytes, entropy = entropy)
+                    signFalcon25Transaction(transactionByteArray = bytes, seed = seed)
                 }
             }
             SigningOperation.MESSAGE -> {

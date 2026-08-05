@@ -58,6 +58,7 @@ class OnboardingAccountTypeViewModel(
                             publicKey = falcon25.publicKey,
                             encryptedPrivateKey = encryptByteArray(falcon25.privateKey),
                             encryptedEntropy = encryptByteArray(falcon25.entropy),
+                            encryptedSeed = encryptByteArray(falcon25.seed),
                         ),
                     creationType = CreationType.CREATE,
                 )

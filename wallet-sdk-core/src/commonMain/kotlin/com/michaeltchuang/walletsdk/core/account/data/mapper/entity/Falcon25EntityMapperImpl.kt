@@ -9,11 +9,13 @@ internal class Falcon25EntityMapperImpl : Falcon25EntityMapper {
         account: LocalAccount.Falcon25,
         privateKey: ByteArray,
         entropy: ByteArray,
+        seed: ByteArray,
     ): Falcon25Entity =
         Falcon25Entity(
             algoAddress = account.address,
             publicKey = account.publicKey,
             encryptedPrivateKey = encryptByteArray(privateKey),
             encryptedEntropy = encryptByteArray(entropy),
+            encryptedSeed = encryptByteArray(seed),
         )
 }
