@@ -17,7 +17,10 @@ class GetSessionVaultConfigUseCase {
                     appAddress = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ADDRESS,
                 )
             AlgorandNetwork.FUTURENET ->
-                error("MPP session vault is not configured for FutureNet")
+                SessionVaultConfig(
+                    appId = RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID,
+                    appAddress = RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ADDRESS,
+                )
         }
 
     data class SessionVaultConfig(

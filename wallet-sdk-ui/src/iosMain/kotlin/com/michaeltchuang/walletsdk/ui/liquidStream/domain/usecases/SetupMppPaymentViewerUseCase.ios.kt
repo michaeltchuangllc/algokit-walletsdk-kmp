@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import io.github.aakira.napier.Napier
@@ -39,7 +40,9 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                 Napier.w("[VIEWER_MPP_SETUP_SKIP] reason=blank_viewer host=${params.hostAddress}", tag = TAG)
                 return
             }
-        val sessionVaultConfig = getSessionVaultConfigUseCase(params.mppNetwork.toAlgorandNetwork())
+        val sessionVaultNetwork = params.mppNetwork.toAlgorandNetwork()
+        EscrowSessionVaultManagerClient.configureForNetwork(sessionVaultNetwork)
+        val sessionVaultConfig = getSessionVaultConfigUseCase(sessionVaultNetwork)
         viewerManager.start(
             MppPaymentViewerManager.StartParams(
                 dataChannel = params.dataChannel,
@@ -58,9 +61,9 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
 
 
     private fun String.toAlgorandNetwork(): AlgorandNetwork =
-        if (this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true)) {
-            AlgorandNetwork.MAINNET
-        } else {
-            AlgorandNetwork.TESTNET
+        when {
+            this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true) -> AlgorandNetwork.MAINNET
+            this == MppNetworks.ALGORAND_FUTURENET || contains("futurenet", ignoreCase = true) || contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
+            else -> AlgorandNetwork.TESTNET
         }
 }

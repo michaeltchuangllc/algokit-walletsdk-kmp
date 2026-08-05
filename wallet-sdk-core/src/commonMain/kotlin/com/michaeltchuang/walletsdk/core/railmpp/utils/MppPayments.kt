@@ -23,6 +23,7 @@ object MppPayments {
 
     const val MAINNET_ALGOD_URL = "https://mainnet-api.algonode.cloud"
     const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
+    const val FUTURENET_ALGOD_URL = "https://fnet-api.4160.nodely.dev"
 
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
@@ -31,12 +32,14 @@ object MppPayments {
     fun algodUrlForAppId(appId: Long): String =
         when (appId) {
             RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID -> MAINNET_ALGOD_URL
+            RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID -> FUTURENET_ALGOD_URL
             else -> TESTNET_ALGOD_URL
         }
 
     fun usdcAssetIdForAppId(appId: Long): Long =
         when (appId) {
             RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID -> AssetConstants.USDC_MAINNET_ID
+            RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID -> AssetConstants.USDC_FUTURENET_ID
             else -> AssetConstants.USDC_TESTNET_ID
         }
 

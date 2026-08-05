@@ -14,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
@@ -23,7 +24,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.utils.DataResource
@@ -279,7 +279,7 @@ open class CommonAnswerViewModel(
             getRemainingSessionVaultBalanceUseCase(
                 GetRemainingSessionVaultBalanceUseCase.Params(
                     viewerAddress = viewer,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    appId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId,
                     authorizedSignerPublicKey = null,
                 ),
             ).getOrDefault(0L)
@@ -551,7 +551,11 @@ open class CommonAnswerViewModel(
         if (getLocalAccount(address) is LocalAccount.SeedVault) {
             MppNetworks.SOLANA_DEVNET
         } else {
-            MppNetworks.ALGORAND_TESTNET
+            when (getCurrentNetworkUseCase().first()) {
+                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
+                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
+                AlgorandNetwork.FUTURENET -> MppNetworks.ALGORAND_FUTURENET
+            }
         }
 
     private fun Byte.toHexByteString(): String {

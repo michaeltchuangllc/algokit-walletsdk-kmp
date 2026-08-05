@@ -41,6 +41,7 @@ class MppPaymentRail(
         listOf(
             MppNetworks.ALGORAND_MAINNET,
             MppNetworks.ALGORAND_TESTNET,
+            MppNetworks.ALGORAND_FUTURENET,
             MppNetworks.SOLANA_MAINNET,
             MppNetworks.SOLANA_DEVNET,
             MppNetworks.SOLANA_TESTNET,

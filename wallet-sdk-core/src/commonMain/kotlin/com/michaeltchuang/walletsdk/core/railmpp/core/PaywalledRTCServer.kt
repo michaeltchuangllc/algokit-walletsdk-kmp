@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
@@ -496,6 +497,13 @@ class PaywalledRTCServer
             }.getOrNull()?.also { cachedSaltBase64 = it }
         }
 
+        private fun sessionVaultAppIdForNetwork(network: String): Long =
+            when (network) {
+                MppNetworks.ALGORAND_MAINNET -> RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID
+                MppNetworks.ALGORAND_FUTURENET -> RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID
+                else -> RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
+            }
+
         private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
             if (!config.skipPaymentRequestWhenSessionFunded) return false
             val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
@@ -503,7 +511,7 @@ class PaywalledRTCServer
                 getRemainingSessionVaultBalanceUseCase(
                     GetRemainingSessionVaultBalanceUseCase.Params(
                         viewerAddress = viewerAddress,
-                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                        appId = sessionVaultAppIdForNetwork(config.gating.network),
                         authorizedSignerPublicKey = config.viewerAuthorizedSignerPublicKey,
                     ),
                 ).getOrDefault(0L)

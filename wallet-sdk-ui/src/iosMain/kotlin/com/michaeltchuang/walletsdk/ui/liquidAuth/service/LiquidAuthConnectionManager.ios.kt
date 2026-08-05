@@ -10,7 +10,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
@@ -534,7 +533,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 getRemainingBalanceUseCase(
                                     GetRemainingSessionVaultBalanceUseCase.Params(
                                         viewerAddress = viewerAddr,
-                                        appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                                        appId = EscrowSessionVaultManagerClient.appId,
                                         authorizedSignerPublicKey = signerKey,
                                     ),
                                 ).getOrDefault(0L)
