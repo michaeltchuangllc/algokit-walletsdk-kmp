@@ -120,7 +120,11 @@ object MppPayments {
                         .getOrThrow()
                 (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
             }.onFailure {
-                Napier.e("[SESSION_VAULT_REMAINING_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}", it, tag = TAG)
+                Napier.e(
+                    "[SESSION_VAULT_REMAINING_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",
+                    it,
+                    tag = TAG,
+                )
             }.getOrNull()
         }
 
@@ -148,8 +152,9 @@ object MppPayments {
         signer: MppWalletSigner,
         additionalDepositMicroUsdc: Long,
     ): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         return EscrowSessionVaultManagerClient.topUp(signer, channelId, additionalDepositMicroUsdc)
     }
 
@@ -158,8 +163,9 @@ object MppPayments {
         viewerAddress: String,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
     ): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         val result =
             EscrowSessionVaultManagerClient.setAuthorizedSignerPublicKey(
                 signer,
@@ -168,7 +174,13 @@ object MppPayments {
             )
         result
             .onSuccess { Napier.d("[VIEWER_SET_AUTH_SIGNER_OK] appId=${EscrowSessionVaultManagerClient.appId} txId=$it", tag = TAG) }
-            .onFailure { Napier.e("[VIEWER_SET_AUTH_SIGNER_ERR] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress", it, tag = TAG) }
+            .onFailure {
+                Napier.e(
+                    "[VIEWER_SET_AUTH_SIGNER_ERR] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress",
+                    it,
+                    tag = TAG,
+                )
+            }
         return result
     }
 
@@ -200,8 +212,9 @@ object MppPayments {
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         val channelIdHash = hashHex(channelId).take(16)
         Napier.d(
             "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress  claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
@@ -232,8 +245,9 @@ object MppPayments {
     }
 
     suspend fun settleLatestVoucher(signer: MppWalletSigner): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         return EscrowSessionVaultManagerClient.settleLatest(signer, channelId)
     }
 
@@ -242,8 +256,9 @@ object MppPayments {
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         return EscrowSessionVaultManagerClient.settle(signer, channelId, cumulativeAmountMicroUsdc, signature)
     }
 
@@ -252,8 +267,9 @@ object MppPayments {
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
     ): Result<String> {
-        val channelId = EscrowSessionVaultManagerClient.channelId
-            ?: return Result.failure(Exception("channelId is null"))
+        val channelId =
+            EscrowSessionVaultManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
         return EscrowSessionVaultManagerClient.verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature)
     }
 
@@ -323,14 +339,20 @@ object MppPayments {
                 val data = EscrowSessionVaultManagerClient.getSessionDynamicData(channelId).getOrThrow()
                 SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
             }.onFailure {
-                Napier.e("[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}", it, tag = TAG)
+                Napier.e(
+                    "[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",
+                    it,
+                    tag = TAG,
+                )
             }.getOrNull()
         }
 
     fun buildClaimMessage(
         channelId: ByteArray,
         totalAmountClaimedMicroUsdc: Long,
-    ): ByteArray = encodeUint64(EscrowSessionVaultManagerClient.appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) + "settle".encodeToByteArray()
+    ): ByteArray =
+        encodeUint64(EscrowSessionVaultManagerClient.appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) +
+            "settle".encodeToByteArray()
 
     @OptIn(ExperimentalEncodingApi::class)
     fun serializeVoucherSignature(signature: ByteArray): String = Base64.encode(signature)

@@ -10,8 +10,6 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import io.github.algorandecosystem.sdk.BytesArray
-import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
@@ -31,14 +29,16 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaul
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import io.github.aakira.napier.Napier
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -326,7 +326,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-    actual fun setupCreator(creatorAddress: String, network: String) {
+    actual fun setupCreator(
+        creatorAddress: String,
+        network: String,
+    ) {
         val service = signalService ?: return
         if (!platformServices.isHostPeerConnectionReady(service)) return
 
@@ -338,17 +341,18 @@ actual class LiquidAuthConnectionManager actual constructor(
 
             val resolvedNetwork = resolveLiquidAuthMppNetwork(network)
             val sessionId = activePaymentSessionId ?: "chat-session-${activeRequestId ?: System.currentTimeMillis()}"
-            
+
             val serverConfig =
                 ServerConfig(
                     sessionId = sessionId,
-                    gating = GatingConfig(
-                        mode = GatingMode.PARTIAL_TIME,
-                        amount = "0", // Free by default until requested
-                        asset = "USDC",
-                        network = resolvedNetwork,
-                        payTo = creatorAddress,
-                    ),
+                    gating =
+                        GatingConfig(
+                            mode = GatingMode.PARTIAL_TIME,
+                            amount = "0", // Free by default until requested
+                            asset = "USDC",
+                            network = resolvedNetwork,
+                            payTo = creatorAddress,
+                        ),
                     gracePeriod = 5,
                     viewerAddress = activeViewerAddressForVault,
                     viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
@@ -369,22 +373,22 @@ actual class LiquidAuthConnectionManager actual constructor(
                     serverConfig = serverConfig,
                     getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
                 )
-            
+
             creator.onChatMessageReceived = { message ->
                 viewModel?.onChatMessageReceived(message)
             }
-            
+
             creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
                 val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
                 tryCaptureViewerAddressFromMessage(helloJson)
             }
-            
+
             creator.start()
             liquidStreamCreator = creator
             activePaymentRecipient = creatorAddress
             activePaymentNetwork = resolvedNetwork
             activePaymentSessionId = sessionId
-            
+
             Log.d(TAG, "💬 Chat initialized for creator=$creatorAddress network=$resolvedNetwork")
         } catch (e: Exception) {
             Log.e(TAG, "💰 Failed to setup chat creator", e)
@@ -806,7 +810,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         liquidStreamCreator?.sendChatMessage(message)
     }
 
-    private fun sendCreatorSessionInfo(hostAddress: String, sessionId: String) {
+    private fun sendCreatorSessionInfo(
+        hostAddress: String,
+        sessionId: String,
+    ) {
         if (hostAddress.isBlank()) {
             Log.w(TAG, "sendCreatorSessionInfo: skipping — hostAddress is blank")
             return
@@ -814,42 +821,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         val json = """{"reference":"liquid:stream:info","hostAddress":"$hostAddress","sessionId":"$sessionId"}"""
         Log.d(TAG, "[CREATOR_SESSION_INFO_SENT] host=$hostAddress session=$sessionId")
         platformServices.sendHostMessage(signalService, json)
-    }
-
-    actual fun sendVideoFrame(
-        frameId: String,
-        timestamp: Long,
-        frameData: ByteArray,
-        width: Int,
-        height: Int,
-        format: String,
-    ) {
-        if (!isConnected()) {
-            Log.w(
-                TAG,
-                "Cannot send video frame - not connected",
-            )
-            return
-        }
-
-        try {
-            val jsonMessage =
-                buildLiquidAuthVideoFrameMessage(
-                    frameId = frameId,
-                    timestamp = timestamp,
-                    frameData = frameData,
-                    width = width,
-                    height = height,
-                    format = format,
-                    hostAddress = activePaymentRecipient.orEmpty(),
-                    sessionId = activePaymentSessionId.orEmpty(),
-                )
-
-            Log.d(TAG, "🎥 Sending video frame: ${width}x$height, ${frameData.size} bytes")
-            platformServices.sendHostMessage(signalService, jsonMessage)
-        } catch (e: Exception) {
-            Log.e(TAG, "❌ Failed to send video frame: $e")
-        }
     }
 
     actual fun isConnected(): Boolean = platformServices.isHostConnected(signalService)

@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreationFalcon24TypeMapper
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
-import com.michaeltchuang.walletsdk.core.algosdk.createFalcon25Account as createFalcon25NativeAccount
 import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
@@ -15,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.CreationType
 import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreationManager
 import kotlinx.coroutines.launch
+import com.michaeltchuang.walletsdk.core.algosdk.createFalcon25Account as createFalcon25NativeAccount
 
 class OnboardingIntroViewModel(
     private val accountCreationFalcon24TypeMapper: AccountCreationFalcon24TypeMapper,
@@ -42,10 +42,11 @@ class OnboardingIntroViewModel(
 
     fun createFalcon25Account() {
         viewModelScope.launch {
-            val falcon25 = createFalcon25NativeAccount() ?: run {
-                displayError("Failed to create Falcon25 account")
-                return@launch
-            }
+            val falcon25 =
+                createFalcon25NativeAccount() ?: run {
+                    displayError("Failed to create Falcon25 account")
+                    return@launch
+                }
             val accountCreation =
                 AccountCreation(
                     address = falcon25.address,

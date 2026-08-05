@@ -29,10 +29,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import foundation.algorand.crypto.EncoderType
@@ -336,9 +336,7 @@ actual open class AnswerViewModel actual constructor(
             accountAddress = accountAddress.value,
         )
 
-    fun setupMppPaymentViewer(
-        viewerAddress: String?
-    ) {
+    fun setupMppPaymentViewer(viewerAddress: String?) {
         setupMppPaymentViewerUseCase(
             SetupMppPaymentViewerUseCase.Params(
                 signalService = signalService.value,

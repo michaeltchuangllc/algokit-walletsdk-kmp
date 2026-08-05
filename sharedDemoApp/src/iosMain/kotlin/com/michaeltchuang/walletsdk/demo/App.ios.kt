@@ -736,7 +736,9 @@ fun registerBroadcastHandlers(
     // call settleLatestVoucher() on Algorand so lastSettled is updated.
     iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64, channelIdBase64 ->
         broadcastSettlementScope.launch {
-            Napier.d("[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}")
+            Napier.d(
+                "[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}",
+            )
             settleHostVoucherOnChain(
                 hostAddress = hostAddress,
                 viewerAddress = viewerAddress,

@@ -118,7 +118,7 @@ fun SelectReceiverScreen(
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: SelectReceiverViewModel.ViewState,
     onSearchTextChange: (String) -> Unit = {},

@@ -9,7 +9,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import kotlinx.coroutines.flow.first
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
@@ -20,6 +19,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServ
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 
 actual open class AnswerViewModel actual constructor(
     getCurrentBlockUseCase: GetCurrentBlockUseCase,

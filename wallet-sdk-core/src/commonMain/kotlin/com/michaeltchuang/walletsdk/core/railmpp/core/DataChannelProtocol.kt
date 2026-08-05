@@ -20,31 +20,28 @@ internal object DCFieldKey {
     const val PAYLOAD = "payload"
 }
 
-private val encodeJson = Json {
-    encodeDefaults = false
-    explicitNulls = false
-}
+private val encodeJson =
+    Json {
+        encodeDefaults = false
+        explicitNulls = false
+    }
 
-private val decodeJson = Json {
-    ignoreUnknownKeys = true
-}
+private val decodeJson =
+    Json {
+        ignoreUnknownKeys = true
+    }
 
 /** Serialize a PaymentRequest to a JSON object for wire transport. */
-internal fun PaymentRequest.toJson(): JsonObject =
-    encodeJson.encodeToJsonElement(this).jsonObject
+internal fun PaymentRequest.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject
 
 /** Parse a PaymentRequest from JSON. */
-internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest =
-    decodeJson.decodeFromJsonElement(json)
+internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest = decodeJson.decodeFromJsonElement(json)
 
 /** Serialize a RailPayment to JSON. */
-internal fun RailPayment.toJson(): JsonObject =
-    encodeJson.encodeToJsonElement(this).jsonObject
+internal fun RailPayment.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject
 
 /** Parse a RailPayment from JSON (server-side receives this from the consumer). */
-internal fun railPaymentFromJson(json: JsonObject): RailPayment =
-    decodeJson.decodeFromJsonElement(json)
+internal fun railPaymentFromJson(json: JsonObject): RailPayment = decodeJson.decodeFromJsonElement(json)
 
 /** Serialize a PaymentReceipt to JSON. */
-internal fun PaymentReceipt.toJson(): JsonObject =
-    encodeJson.encodeToJsonElement(this).jsonObject
+internal fun PaymentReceipt.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject

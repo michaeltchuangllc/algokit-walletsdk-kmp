@@ -6,5 +6,4 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.createLiquidAuthConnectionManager
 
 @Composable
-actual fun rememberBroadcastConnectionManager(): LiquidAuthConnectionManager =
-    remember { createLiquidAuthConnectionManager(Unit) }
+actual fun rememberBroadcastConnectionManager(): LiquidAuthConnectionManager = remember { createLiquidAuthConnectionManager(Unit) }

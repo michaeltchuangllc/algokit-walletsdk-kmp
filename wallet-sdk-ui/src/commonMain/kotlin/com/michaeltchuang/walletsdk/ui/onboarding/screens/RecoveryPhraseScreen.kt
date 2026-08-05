@@ -164,7 +164,7 @@ fun RecoveryPhraseScreen(
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     accountType: AccountMnemonic.AccountType,
     mnemonicList: List<String>,

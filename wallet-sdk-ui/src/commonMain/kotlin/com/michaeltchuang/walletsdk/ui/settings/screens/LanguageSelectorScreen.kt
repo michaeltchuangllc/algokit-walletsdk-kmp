@@ -66,7 +66,7 @@ fun LanguageScreen(navController: NavController) {
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: LanguageSelectorViewModel.ViewState,
     onLanguageSelected: (LocalizationPreference) -> Unit = {},

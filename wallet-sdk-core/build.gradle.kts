@@ -124,7 +124,9 @@ kotlin {
                     products = {
                         add("FalconMobileSDK")
                     },
-                    version = libs.versions.falcon.sdk.get(),
+                    version =
+                        libs.versions.falcon.sdk
+                            .get(),
                 )
                 remotePackageBranch(
                     url = uri("https://github.com/algorandecosystem/algokit-core-swift.git"),
@@ -238,7 +240,6 @@ kotlin {
         }
     }
 }
-
 
 room {
     schemaDirectory("$projectDir/schemas")

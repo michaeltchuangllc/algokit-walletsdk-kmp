@@ -141,8 +141,8 @@ fun LiquidStreamHostLiveScreen(
 @Composable
 fun LiquidStreamHostLiveScreenContent(
     cameraPreview: @Composable (() -> Unit)?,
-    creatorUsername: String ?,
-    numbersOfViewer: String ?,
+    creatorUsername: String?,
+    numbersOfViewer: String?,
     onSettingsClick: () -> Unit,
     onMinimise: () -> Unit,
     onWalletClick: () -> Unit,

@@ -42,7 +42,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun ChatStack(
     messages: List<ChatUiMessage>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val giftMessages = messages.filter { it.amount != null }
     val latestGiftMessage = giftMessages.lastOrNull()
@@ -50,7 +50,7 @@ fun ChatStack(
 
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AnimatedContent(
             targetState = latestGiftMessage,
@@ -59,7 +59,7 @@ fun ChatStack(
                     .togetherWith(slideOutHorizontally(targetOffsetX = { it }) + fadeOut())
                     .using(SizeTransform(clip = false))
             },
-            label = "GiftMessageAnimation"
+            label = "GiftMessageAnimation",
         ) { gift ->
             if (gift != null) {
                 GiftMessageItem(gift)
@@ -83,25 +83,30 @@ private fun ChatMessageItem(message: ChatUiMessage) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
-            modifier = Modifier.padding(start = 4.dp)
+            modifier = Modifier.padding(start = 4.dp),
         )
 
         Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(15.dp))
-                .background(brush =Brush.horizontalGradient(
-                    colorStops = arrayOf(
-                        0.00f to Color(0xFFAFEFF5),
-                        0.05f to Color(0xFFAFEFF5),
-                        1.00f to Color(0x00AFEFF5)
-                    )
-                ))
-                .padding(start = 2.dp)
+            modifier =
+                Modifier
+                    .clip(RoundedCornerShape(15.dp))
+                    .background(
+                        brush =
+                            Brush.horizontalGradient(
+                                colorStops =
+                                    arrayOf(
+                                        0.00f to Color(0xFFAFEFF5),
+                                        0.05f to Color(0xFFAFEFF5),
+                                        1.00f to Color(0x00AFEFF5),
+                                    ),
+                            ),
+                    ).padding(start = 2.dp),
         ) {
             Box(
-                modifier = Modifier
-                    .background(Color(0xCC082947), RoundedCornerShape(15.dp))
-                    .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp)
+                modifier =
+                    Modifier
+                        .background(Color(0xCC082947), RoundedCornerShape(15.dp))
+                        .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
             ) {
                 Text(
                     text = message.text,
@@ -114,24 +119,25 @@ private fun ChatMessageItem(message: ChatUiMessage) {
     }
 }
 
-
-private val GiftGradient = Brush.linearGradient(
-    colors = listOf(
-        Color(0xFF31DADA),
-        Color(0xFF2D2DF1)
-    ),
-    start = Offset(0f, 0f),
-    end = Offset(20f, 100f),
-    tileMode = TileMode.Clamp
-)
-
+private val GiftGradient =
+    Brush.linearGradient(
+        colors =
+            listOf(
+                Color(0xFF31DADA),
+                Color(0xFF2D2DF1),
+            ),
+        start = Offset(0f, 0f),
+        end = Offset(20f, 100f),
+        tileMode = TileMode.Clamp,
+    )
 
 @Composable
 private fun GiftMessageItem(message: ChatUiMessage) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFAFEFF5))
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color(0xFFAFEFF5)),
     ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -162,7 +168,7 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                     Text(
                         text = "@${message.sender.take(8).lowercase()}",
                         color = Color(0xFFE8F4FF),
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
                     )
                     Spacer(Modifier.weight(1f))
                     Box(
@@ -170,29 +176,29 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                             Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0x4031DADA), // 25% opacity
-                                            Color(0x402D2DF1)
+                                    brush =
+                                        Brush.linearGradient(
+                                            colors =
+                                                listOf(
+                                                    Color(0x4031DADA), // 25% opacity
+                                                    Color(0x402D2DF1),
+                                                ),
+                                            start = Offset.Zero,
+                                            end = Offset.Infinite,
                                         ),
-                                        start = Offset.Zero,
-                                        end = Offset.Infinite
-                                    ),
-                                    shape = RoundedCornerShape(50)
-                                )
-                                .border(
+                                    shape = RoundedCornerShape(50),
+                                ).border(
                                     width = 1.2.dp,
                                     brush = GiftGradient,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                ).padding(horizontal = 10.dp, vertical = 4.dp),
                     ) {
                         Text(
                             text = "GIFT SUPERCHAT",
                             color = Color(0xFFEBF9FF),
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
-                            letterSpacing = 0.5.sp
+                            letterSpacing = 0.5.sp,
                         )
                     }
                 }
@@ -213,7 +219,7 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                             "${message.amount} ${message.asset}",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = 12.sp,
                         )
                     }
                     Spacer(Modifier.weight(1f))

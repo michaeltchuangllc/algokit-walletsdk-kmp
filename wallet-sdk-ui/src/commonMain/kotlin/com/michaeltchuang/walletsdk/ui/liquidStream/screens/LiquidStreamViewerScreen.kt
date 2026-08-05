@@ -53,12 +53,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
@@ -474,7 +474,7 @@ private fun ChatMessageItem(message: ChatUiMessage) {
             text = "@${message.sender.take(3)}",
             color = Color(0xFFB4D2DB),
             fontSize = 14.sp / 1.4f,
-            letterSpacing = 1.sp
+            letterSpacing = 1.sp,
         )
 
         Box(
@@ -555,7 +555,7 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                         "${message.amount} ${message.asset}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
+                        fontSize = 12.sp,
                     )
                 }
                 Spacer(Modifier.weight(1f))

@@ -61,8 +61,7 @@ class EscrowSessionVaultDebugViewModel(
                             it is LocalAccount.Algo25 ||
                             it is LocalAccount.Falcon24 ||
                             it is LocalAccount.Falcon25
-                    }
-                    .map { it.address }
+                    }.map { it.address }
             }.onSuccess { addresses ->
                 updateContent { current ->
                     val viewer = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() }
@@ -151,9 +150,9 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val remaining =
                     withContext(Dispatchers.Default) {
-                      //  val vaultContext = getSessionVaultContextUseCase()
+                        //  val vaultContext = getSessionVaultContextUseCase()
                         MppPayments.getRemainingBalanceFromSessionVault(
-                            viewerAddress = viewer
+                            viewerAddress = viewer,
                         )
                     }
                 updateContent { it.copy(remainingBalance = remaining) }
@@ -279,9 +278,9 @@ class EscrowSessionVaultDebugViewModel(
                     }
                     val settleMessage =
                         MppPayments.settleMessage(
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                        channelId = channelId,
-                    )
+                            cumulativeAmountMicroUsdc = depositMicroUsdc,
+                            channelId = channelId,
+                        )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     val result =
@@ -565,7 +564,6 @@ class EscrowSessionVaultDebugViewModel(
 
     private fun contentState(): ViewState.Content = state.value as ViewState.Content
 
-
     private fun updateContent(block: (ViewState.Content) -> ViewState.Content) {
         stateDelegate.updateState { current -> block(current as ViewState.Content) }
     }
@@ -577,7 +575,6 @@ class EscrowSessionVaultDebugViewModel(
     private fun sendStatus(message: String) {
         eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage(message))
     }
-
 
     sealed interface ViewState {
         data class Content(

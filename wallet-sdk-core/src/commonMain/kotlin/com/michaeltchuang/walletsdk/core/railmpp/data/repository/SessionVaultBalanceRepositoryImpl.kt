@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 class SessionVaultBalanceRepositoryImpl : SessionVaultBalanceRepository {
     override suspend fun getRemainingBalance(params: SessionVaultBalanceRepository.GetRemainingBalanceParams): Result<Long> =
         runCatching {
-            withContext(Dispatchers.IO){
+            withContext(Dispatchers.IO) {
                 MppPayments.getRemainingBalanceFromSessionVault(
                     viewerAddress = params.viewerAddress,
                     authorizedSignerPublicKey = params.authorizedSignerPublicKey,

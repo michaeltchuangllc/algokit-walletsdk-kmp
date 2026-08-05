@@ -60,10 +60,17 @@ object AlgoKitBip39 {
     fun getMnemonicFromEntropy(entropy: ByteArray): String {
         require(entropy.size == 32) { "Expected 32 bytes of entropy, got ${entropy.size}" }
 
-        val entropyBits = entropy.joinToString("") { byte ->
-            byte.toUByte().toString(2).padStart(8, '0')
-        }
-        val checksumBits = entropy.sha256().first().toUByte().toString(2).padStart(8, '0')
+        val entropyBits =
+            entropy.joinToString("") { byte ->
+                byte.toUByte().toString(2).padStart(8, '0')
+            }
+        val checksumBits =
+            entropy
+                .sha256()
+                .first()
+                .toUByte()
+                .toString(2)
+                .padStart(8, '0')
         val mnemonicBits = entropyBits + checksumBits
 
         return mnemonicBits

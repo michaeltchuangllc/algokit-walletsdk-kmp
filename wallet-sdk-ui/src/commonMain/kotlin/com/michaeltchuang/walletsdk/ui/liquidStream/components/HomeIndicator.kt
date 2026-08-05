@@ -14,9 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun HomeIndicator(
-    modifier: Modifier = Modifier
-) {
+fun HomeIndicator(modifier: Modifier = Modifier) {
     Box(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center,

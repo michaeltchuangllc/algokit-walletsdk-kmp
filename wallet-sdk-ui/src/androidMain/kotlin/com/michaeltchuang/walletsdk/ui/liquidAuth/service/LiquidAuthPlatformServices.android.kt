@@ -9,8 +9,6 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
-import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
-import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
@@ -19,6 +17,8 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredenti
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase

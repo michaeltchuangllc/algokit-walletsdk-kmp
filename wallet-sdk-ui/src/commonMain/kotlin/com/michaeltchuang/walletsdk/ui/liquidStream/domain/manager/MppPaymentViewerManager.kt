@@ -140,10 +140,11 @@ class MppPaymentViewerManager(
                                 return ConsentApproval(
                                     approved = true,
                                     autoPaySegments = true,
-                                    budgetCap = BudgetCap(
-                                        amount = existingOnChainBalance.toString(),
-                                        asset = "USDC"
-                                    ),
+                                    budgetCap =
+                                        BudgetCap(
+                                            amount = existingOnChainBalance.toString(),
+                                            asset = "USDC",
+                                        ),
                                 )
                             }
 
@@ -169,7 +170,8 @@ class MppPaymentViewerManager(
                                     logContext = "initialConsent",
                                 )
 
-                            funding.result.onSuccess { txId ->
+                            funding.result
+                                .onSuccess { txId ->
                                     Napier.d(
                                         "[VIEWER_SESSION_VAULT_DEPOSIT_OK] txId=$txId action=${if (funding.openedSession) "open" else "top_up"} pendingPayment=$pendingPayment",
                                         tag = TAG,
@@ -271,7 +273,7 @@ class MppPaymentViewerManager(
             Napier.w("[VIEWER_SESSION_VAULT_REFRESH_SKIP] reason=blank_viewer", tag = TAG)
             return
         }
-       // Napier.d("[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
+        // Napier.d("[VIEWER_SESSION_VAULT_REFRESH_START] viewer=$viewerAddress host=$sessionVaultHostAddress", tag = TAG)
         stopViewerOnChainRefresh()
         viewerOnChainRefreshJob =
             scope.launch {
@@ -436,12 +438,13 @@ class MppPaymentViewerManager(
                 try {
                     Result.success(
                         withTimeout(CHAIN_WRITE_TIMEOUT_MS.milliseconds) {
-                            MppPayments.updateVoucherOnChain(
-                                signer = signer,
-                                viewerAddress = receiptViewerAddress,
-                                totalAmountUsedMicroUsdc = voucherClaimed,
-                                signature = voucherSignature,
-                            ).getOrThrow()
+                            MppPayments
+                                .updateVoucherOnChain(
+                                    signer = signer,
+                                    viewerAddress = receiptViewerAddress,
+                                    totalAmountUsedMicroUsdc = voucherClaimed,
+                                    signature = voucherSignature,
+                                ).getOrThrow()
                         },
                     )
                 } catch (timeout: TimeoutCancellationException) {
@@ -556,32 +559,33 @@ class MppPaymentViewerManager(
                     logContext = "streamGated",
                 )
 
-            funding.result.onSuccess {
-                val onChainRemaining =
-                    getRemainingSessionVaultBalanceUseCase(
-                        GetRemainingSessionVaultBalanceUseCase.Params(
-                            viewerAddress = viewerAddress,
-                            appId = sessionVaultAppId,
-                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                        ),
-                    ).getOrDefault(0L)
-                if (onChainRemaining > 0L) {
+            funding.result
+                .onSuccess {
+                    val onChainRemaining =
+                        getRemainingSessionVaultBalanceUseCase(
+                            GetRemainingSessionVaultBalanceUseCase.Params(
+                                viewerAddress = viewerAddress,
+                                appId = sessionVaultAppId,
+                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                            ),
+                        ).getOrDefault(0L)
+                    if (onChainRemaining > 0L) {
+                        clearPendingPayment()
+                    }
+                    setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
+                    startViewerOnChainRefresh(
+                        scope = scope,
+                        viewerAddress = viewerAddress,
+                        sessionVaultAppId = sessionVaultAppId,
+                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                        setViewerSessionVaultProgress = setViewerSessionVaultProgress,
+                    )
+                    liquidStreamViewer?.rtcClient?.extendBudget(additionalMicroUsdc = depositMicroUsdc, asset = "USDC")
+                    liquidStreamViewer?.rtcClient?.notifyVaultFunded(sessionId = viewerVoucherSessionId ?: "")
+                }.onFailure { err ->
                     clearPendingPayment()
+                    Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress", err, tag = TAG)
                 }
-                setViewerSessionVaultProgress(onChainRemaining, onChainRemaining)
-                startViewerOnChainRefresh(
-                    scope = scope,
-                    viewerAddress = viewerAddress,
-                    sessionVaultAppId = sessionVaultAppId,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                    setViewerSessionVaultProgress = setViewerSessionVaultProgress,
-                )
-                liquidStreamViewer?.rtcClient?.extendBudget(additionalMicroUsdc = depositMicroUsdc, asset = "USDC")
-                liquidStreamViewer?.rtcClient?.notifyVaultFunded(sessionId = viewerVoucherSessionId ?: "")
-            }.onFailure { err ->
-                 clearPendingPayment()
-                Napier.e("[VIEWER_STREAM_GATED_DEPOSIT_ERR] viewer=$viewerAddress", err, tag = TAG)
-            }
         }.onFailure { err ->
             Napier.e("[VIEWER_STREAM_GATED_CONSENT_ERR] viewer=$viewerAddress", err, tag = TAG)
         }

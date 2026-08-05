@@ -9,9 +9,9 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
@@ -180,8 +180,8 @@ class MppWalletSignerImpl(
         bytes: ByteArray,
         operation: SigningOperation,
         account: LocalAccount.Falcon25,
-    ): ByteArray? {
-        return when (operation) {
+    ): ByteArray? =
+        when (operation) {
             SigningOperation.TRANSACTION -> {
                 val seed = getFalcon25Seed(address)
                 if (seed == null) {
@@ -205,7 +205,6 @@ class MppWalletSignerImpl(
                 }
             }
         }
-    }
 
     private enum class SigningOperation(
         val logName: String,

@@ -109,17 +109,18 @@ val MIGRATION_3_4 =
         }
     }
 
-
 val MIGRATION_4_5 =
     object : Migration(4, 5) {
         override fun migrate(connection: SQLiteConnection) {
-            connection.execSQL("""
+            connection.execSQL(
+                """
                 CREATE TABLE IF NOT EXISTS falcon_25 (
                     algo_address TEXT PRIMARY KEY NOT NULL,
                     public_key BLOB NOT NULL,
                     encrypted_private_key BLOB NOT NULL
                 )
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
     }
 
@@ -129,14 +130,16 @@ val MIGRATION_5_6 =
     object : Migration(5, 6) {
         override fun migrate(connection: SQLiteConnection) {
             connection.execSQL("DROP TABLE IF EXISTS falcon_25")
-            connection.execSQL("""
+            connection.execSQL(
+                """
                 CREATE TABLE falcon_25 (
                     algo_address TEXT PRIMARY KEY NOT NULL,
                     public_key BLOB NOT NULL,
                     encrypted_private_key BLOB NOT NULL,
                     encrypted_entropy BLOB NOT NULL
                 )
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
     }
 
@@ -146,7 +149,8 @@ val MIGRATION_6_7 =
     object : Migration(6, 7) {
         override fun migrate(connection: SQLiteConnection) {
             connection.execSQL("DROP TABLE IF EXISTS falcon_25")
-            connection.execSQL("""
+            connection.execSQL(
+                """
                 CREATE TABLE falcon_25 (
                     algo_address TEXT PRIMARY KEY NOT NULL,
                     public_key BLOB NOT NULL,
@@ -154,6 +158,7 @@ val MIGRATION_6_7 =
                     encrypted_entropy BLOB NOT NULL,
                     encrypted_seed BLOB NOT NULL
                 )
-            """.trimIndent())
+                """.trimIndent(),
+            )
         }
     }

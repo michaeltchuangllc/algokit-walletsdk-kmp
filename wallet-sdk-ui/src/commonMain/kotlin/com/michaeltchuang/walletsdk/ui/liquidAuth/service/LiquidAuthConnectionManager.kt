@@ -6,8 +6,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -27,7 +27,9 @@ import kotlin.io.encoding.ExperimentalEncodingApi
  * - Tracking ICE connection type for quality/billing
  * - X402 payment messaging (payment requests, balance updates)
  */
-expect class LiquidAuthConnectionManager(platformContext: Any) {
+expect class LiquidAuthConnectionManager(
+    platformContext: Any,
+) {
     /**
      * Flow of current ICE connection type.
      * Used for UI quality indicators and x402-style billing.
@@ -110,7 +112,10 @@ expect class LiquidAuthConnectionManager(platformContext: Any) {
      */
     fun stopBlockConsumption()
 
-    fun setupCreator(creatorAddress: String, network: String)
+    fun setupCreator(
+        creatorAddress: String,
+        network: String,
+    )
 
     fun setAudioEnabled(enabled: Boolean)
 
@@ -219,7 +224,8 @@ fun resolveLiquidAuthMppNetwork(network: String): String {
     val n = network.lowercase()
     return when {
         network == MppNetworks.SOLANA_MAINNET ||
-            n.contains("solana") && (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
+            n.contains("solana") &&
+            (n.contains("mainnet") || n.contains("mainnet-beta")) -> MppNetworks.SOLANA_MAINNET
         network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
         network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
         n.contains("mainnet") || network == MppNetworks.ALGORAND_MAINNET -> MppNetworks.ALGORAND_MAINNET
@@ -294,26 +300,8 @@ fun String.decodeLiquidAuthBase64OrNull(): ByteArray? =
         Base64.decode(padded)
     }.getOrNull()
 
-@OptIn(ExperimentalEncodingApi::class)
-fun buildLiquidAuthVideoFrameMessage(
-    frameId: String,
-    timestamp: Long,
-    frameData: ByteArray,
-    width: Int,
-    height: Int,
-    format: String,
-    hostAddress: String = "",
-    sessionId: String = "",
-): String {
-    val base64Data = Base64.encode(frameData)
-    val hostJsonField = if (hostAddress.isNotBlank()) ",\"hostAddress\":\"$hostAddress\"" else ""
-    val sessionJsonField = if (sessionId.isNotBlank()) ",\"sessionId\":\"$sessionId\"" else ""
-    return """{"reference":"liquid:video:frame","id":"$frameId","timestamp":$timestamp,"format":"$format","data":"$base64Data","width":$width,"height":$height$hostJsonField$sessionJsonField}"""
-}
-
 /**
  * Factory function to create the default LiquidAuthConnectionManager.
  * Call this from Compose with LocalContext.current on Android, or Unit on iOS.
  */
-fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager =
-    LiquidAuthConnectionManager(platformContext)
+fun createLiquidAuthConnectionManager(platformContext: Any): LiquidAuthConnectionManager = LiquidAuthConnectionManager(platformContext)

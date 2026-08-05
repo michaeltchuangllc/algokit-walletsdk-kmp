@@ -125,7 +125,7 @@ fun AddAssetScreen(
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: AddAssetViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },

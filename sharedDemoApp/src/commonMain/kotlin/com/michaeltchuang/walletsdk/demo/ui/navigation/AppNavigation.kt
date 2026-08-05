@@ -33,7 +33,12 @@ fun AppNavigation() {
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     val miniPlayerOnCloseActionState = remember { mutableStateOf<(() -> Unit)?>(null) }
-    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val currentRoute =
+        navController
+            .currentBackStackEntryAsState()
+            .value
+            ?.destination
+            ?.route
     val showTopBarActions = currentRoute != Broadcast::class.qualifiedName
 
     Box(

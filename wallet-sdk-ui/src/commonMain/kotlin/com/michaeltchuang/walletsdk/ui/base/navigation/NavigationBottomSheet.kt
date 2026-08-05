@@ -764,14 +764,20 @@ fun NavigationBottomSheetNavHost(
     }
 }
 
-private fun SavedState?.stringArgument(key: String, defaultValue: String? = null): String? =
-    this?.read { getStringOrNull(key) } ?: defaultValue
+private fun SavedState?.stringArgument(
+    key: String,
+    defaultValue: String? = null,
+): String? = this?.read { getStringOrNull(key) } ?: defaultValue
 
-private fun SavedState?.longArgument(key: String, defaultValue: Long): Long =
-    this?.read { getLongOrNull(key) } ?: defaultValue
+private fun SavedState?.longArgument(
+    key: String,
+    defaultValue: Long,
+): Long = this?.read { getLongOrNull(key) } ?: defaultValue
 
-private fun SavedState?.booleanArgument(key: String, defaultValue: Boolean): Boolean =
-    this?.read { getBooleanOrNull(key) } ?: defaultValue
+private fun SavedState?.booleanArgument(
+    key: String,
+    defaultValue: Boolean,
+): Boolean = this?.read { getBooleanOrNull(key) } ?: defaultValue
 
 fun startDestination(
     accounts: Int,

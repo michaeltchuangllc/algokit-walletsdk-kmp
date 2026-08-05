@@ -35,8 +35,8 @@ class LiquidStreamHostViewModel(
             ChatMessage(
                 sender = "You",
                 text = messageText,
-                timestamp = Clock.System.now().toEpochMilliseconds()
-            )
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+            ),
         )
 
         eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
@@ -46,13 +46,15 @@ class LiquidStreamHostViewModel(
     fun receivedChatMessage(message: ChatMessage) {
         stateDelegate.updateState {
             it.copy(
-                chatMessages = it.chatMessages + ChatUiMessage(
-                    sender = message.sender,
-                    text = message.text,
-                    timestamp = message.timestamp,
-                    amount = message.amount,
-                    asset = message.asset
-                )
+                chatMessages =
+                    it.chatMessages +
+                        ChatUiMessage(
+                            sender = message.sender,
+                            text = message.text,
+                            timestamp = message.timestamp,
+                            amount = message.amount,
+                            asset = message.asset,
+                        ),
             )
         }
     }
