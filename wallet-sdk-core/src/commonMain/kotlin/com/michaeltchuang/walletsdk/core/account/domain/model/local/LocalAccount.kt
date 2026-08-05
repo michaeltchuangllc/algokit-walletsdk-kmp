@@ -30,6 +30,14 @@ sealed interface LocalAccount {
         override val address: String,
     ) : LocalAccount
 
+    data class Falcon25(
+        override val address: String,
+        val publicKey: ByteArray,
+    ) : LocalAccount {
+        override fun equals(other: Any?): Boolean = other is Falcon25 && address == other.address && publicKey.contentEquals(other.publicKey)
+        override fun hashCode(): Int = 31 * address.hashCode() + publicKey.contentHashCode()
+    }
+
     data class Falcon24(
         override val address: String,
         val seedId: Int,

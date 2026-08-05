@@ -1,14 +1,13 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk
 
 import android.util.Base64
-import io.github.algorandecosystem.sdk.BytesArray
-import io.github.algorandecosystem.sdk.Sdk
 import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
-import io.github.aakira.napier.Napier
+import io.github.algorandecosystem.sdk.BytesArray
+import io.github.algorandecosystem.sdk.Sdk
 import java.math.BigInteger
 
 private val TX_PREFIX = "TX".encodeToByteArray()
@@ -21,7 +20,7 @@ private fun ByteArray.withoutTxPrefix(): ByteArray =
     }
 
 private fun List<ByteArray>.flattenToByteArray(): ByteArray {
-    val totalSize = this.sumOf { it.size }
+    val totalSize = sumOf { it.size }
     val result = ByteArray(totalSize)
     var offset = 0
     for (bytes in this) {
@@ -32,7 +31,7 @@ private fun List<ByteArray>.flattenToByteArray(): ByteArray {
 }
 
 internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
-    override fun signTransaction(
+    fun signLogicSigTransaction(
         transactionByteArray: ByteArray,
         publicKey: ByteArray,
         privateKey: ByteArray,
@@ -43,57 +42,72 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             require(privateKey.isNotEmpty()) { "privateKey must not be empty" }
 
             val unsignedTxnBytes = transactionByteArray.withoutTxPrefix()
-            Napier.d(tag = TAG, message = "Signing Falcon24 transaction, input bytes: ${transactionByteArray.size}")
             val expectedTxn = Encoder.decodeFromMsgPack(unsignedTxnBytes, Transaction::class.java)
-
-            // BytesArray construction and signFalconBundle must run on the dedicated Go-mobile
-            // OS thread to prevent "fatal error: bulkBarrierPreWrite: unaligned arguments".
             val resultCsv =
                 GoMobileDispatcher.runOnGoThread {
-                    val txnList = BytesArray()
-                    txnList.append(unsignedTxnBytes.copyOf())
-                    Sdk.signFalconBundle(
-                        txnList,
+                    val transactionList = BytesArray()
+                    transactionList.append(unsignedTxnBytes.copyOf())
+                    Sdk.signFalconLsigBundle(
+                        transactionList,
                         publicKey.copyOf(),
                         privateKey.copyOf(),
                     )
                 }
-            Napier.d(tag = TAG, message = "signFalconBundle returned CSV with length: ${resultCsv.length}")
-
-            val signedResults = resultCsv.split(",").filter { it.isNotBlank() }
             val decodedResults =
-                signedResults.map { encodedTxn ->
-                    Base64.decode(encodedTxn, Base64.DEFAULT)
-                }
+                resultCsv
+                    .split(",")
+                    .filter { it.isNotBlank() }
+                    .map { Base64.decode(it, Base64.DEFAULT) }
 
             if (decodedResults.isEmpty()) {
-                throw IllegalStateException("Falcon signer returned no signed transaction")
+                throw IllegalStateException("Falcon24 LogicSig signer returned no signed transaction")
             }
 
             val containsExpectedTxn =
                 decodedResults.any { bytes ->
                     try {
                         val signed = Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
-                        val tx = signed.tx ?: return@any false
-                        matchesExpectedTransaction(expectedTxn, tx)
+                        val transaction = signed.tx ?: return@any false
+                        matchesExpectedTransaction(expectedTxn, transaction)
                     } catch (_: Exception) {
                         false
                     }
                 }
-
             if (!containsExpectedTxn) {
-                throw IllegalStateException("Falcon signer did not return a matching SignedTransaction")
+                throw IllegalStateException("Falcon24 LogicSig signer did not return a matching SignedTransaction")
             }
 
-            // Falcon bundle signing may return additional dummy transactions for verification budget.
-            // Return the full signed payload so algod receives the complete group.
-            if (decodedResults.size == 1) {
-                decodedResults.first()
-            } else {
-                decodedResults.flattenToByteArray()
+            if (decodedResults.size == 1) decodedResults.first() else decodedResults.flattenToByteArray()
+        } catch (throwable: Throwable) {
+            Log.e(tag = TAG, message = "Error signing Falcon24 LogicSig transaction: ${throwable.message}, cause: ${throwable.cause}")
+            null
+        }
+
+    override fun signTransaction(
+        transactionByteArray: ByteArray,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): ByteArray? = signLogicSigTransaction(transactionByteArray, publicKey, privateKey)
+
+    override fun signArbitraryData(
+        data: ByteArray,
+        publicKey: ByteArray,
+        privateKey: ByteArray,
+    ): ByteArray? =
+        try {
+            require(data.isNotEmpty()) { "data must not be empty" }
+            require(publicKey.isNotEmpty()) { "publicKey must not be empty" }
+            require(privateKey.isNotEmpty()) { "privateKey must not be empty" }
+
+            GoMobileDispatcher.runOnGoThread {
+                Sdk.rawSignFalconLsig(
+                    data.copyOf(),
+                    publicKey.copyOf(),
+                    privateKey.copyOf(),
+                )
             }
-        } catch (t: Throwable) {
-            Log.e(tag = TAG, message = "Error signing transaction: ${t.message}, cause: ${t.cause}")
+        } catch (throwable: Throwable) {
+            Log.e(TAG, "Error signing Falcon24 arbitrary data: ${throwable.message}, cause: ${throwable.cause}")
             null
         }
 
@@ -117,35 +131,7 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
         }
     }
 
-    override fun signArbitraryData(
-        data: ByteArray,
-        publicKey: ByteArray,
-        privateKey: ByteArray,
-    ): ByteArray? =
-        try {
-            require(data.isNotEmpty()) { "data must not be empty" }
-            require(publicKey.isNotEmpty()) { "publicKey must not be empty" }
-            require(privateKey.isNotEmpty()) { "privateKey must not be empty" }
-
-            // rawSign must also run on the dedicated Go-mobile OS thread so it cannot
-            // race with signFalconBundle (concurrent calls from different threads cause
-            // the Go GC to scan a half-initialised JNI goroutine and crash with
-            // "bulkBarrierPreWrite: unaligned arguments").
-            val signedBytes =
-                GoMobileDispatcher.runOnGoThread {
-                    Sdk.rawSign(
-                        data.copyOf(),
-                        publicKey.copyOf(),
-                        privateKey.copyOf(),
-                    )
-                }
-            signedBytes
-        } catch (t: Throwable) {
-            Log.e(TAG, "Error signing arbitrary data: ${t.message}, cause: ${t.cause}")
-            null
-        }
-
-    companion object {
+    private companion object {
         private val TAG = SignFalcon24TransactionImpl::class.java.simpleName
     }
 }

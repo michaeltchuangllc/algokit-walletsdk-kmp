@@ -104,6 +104,7 @@ fun getSupportedAccountsByAppId(
                     AccountRegistrationType.Algo25,
                     AccountRegistrationType.HdKey,
                     AccountRegistrationType.Falcon24,
+                    AccountRegistrationType.Falcon25,
                 )
         } ?: accountLite
 
@@ -115,5 +116,8 @@ fun getSupportedLocalAccountsByAppId(
         .takeIf {
             appId == AppId.LIQUID_AUTH_STREAM.name
         }?.filter {
-            it is LocalAccount.HdKey || it is LocalAccount.Algo25 || it is LocalAccount.Falcon24
+            it is LocalAccount.HdKey ||
+                it is LocalAccount.Algo25 ||
+                it is LocalAccount.Falcon24 ||
+                it is LocalAccount.Falcon25
         } ?: localAccount

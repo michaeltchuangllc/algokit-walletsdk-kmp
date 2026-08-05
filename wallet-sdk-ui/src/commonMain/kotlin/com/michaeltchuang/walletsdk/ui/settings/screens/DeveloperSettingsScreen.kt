@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_algo25_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_hd_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_post_quantum_lsig_falcon24_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_session_vault_debug_tool
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_node
@@ -99,6 +100,13 @@ fun DeveloperSettingsScreen(
             localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
             navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name)
+        }
+
+        SettingsItem(
+            Res.drawable.ic_wallet,
+            localizedStringResource(Res.string.create_post_quantum_lsig_falcon24_account),
+        ) {
+            navController.navigate(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name)
         }
 
         SettingsItem(

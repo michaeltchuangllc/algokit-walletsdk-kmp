@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.Algo25NoAuthD
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.CustomAccountInfoDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.CustomHdSeedInfoDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.Falcon24Dao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.Falcon25Dao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdKeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdSeedDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.LedgerBleDao
@@ -20,6 +21,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.Algo25Entit
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomAccountInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomHdSeedInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.Falcon24Entity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.Falcon25Entity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdKeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEntity
@@ -36,6 +38,7 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
         HdSeedEntity::class,
         Algo25Entity::class,
         Falcon24Entity::class,
+        Falcon25Entity::class,
         CustomAccountInfoEntity::class,
         CustomHdSeedInfoEntity::class,
         PasskeyEntity::class,
@@ -58,6 +61,8 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun falcon24Dao(): Falcon24Dao
 
+    abstract fun falcon25Dao(): Falcon25Dao
+
     abstract fun algo25NoAuthDao(): Algo25NoAuthDao
 
     abstract fun customAccountInfoDao(): CustomAccountInfoDao
@@ -71,7 +76,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun solanaAccountDao(): SeedVaultDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 4
+        const val DATABASE_VERSION = 7
         const val DATABASE_NAME = "algokit_database"
     }
 }

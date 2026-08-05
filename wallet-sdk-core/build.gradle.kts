@@ -119,12 +119,12 @@ kotlin {
                     },
                     version = "2.2.5",
                 )
-                remotePackageBranch(
+                remotePackageVersion(
                     url = uri("https://github.com/algorandecosystem/falcon-signatures-mobile.git"),
                     products = {
                         add("FalconMobileSDK")
                     },
-                    branch = "main",
+                    version = libs.versions.falcon.sdk.get(),
                 )
                 remotePackageBranch(
                     url = uri("https://github.com/algorandecosystem/algokit-core-swift.git"),

@@ -1,8 +1,9 @@
 package com.michaeltchuang.walletsdk.core.railmpp.smartcontract
 
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_URL
-import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_FUTURENET_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -466,18 +467,28 @@ object EscrowSessionVaultManagerClient {
         ) + bytes
     }
 
+    fun configureForNetwork(network: AlgorandNetwork) {
+        applyNetworkDefaults(network)
+    }
+
     private fun applyNetworkDefaults(network: AlgorandNetwork) {
         when (network) {
             AlgorandNetwork.MAINNET -> {
                 appId = RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID
                 usdcAssetId = AssetConstants.USDC_MAINNET_ID
-                algodUrl = NODE_MAINNET_URL
+                algodUrl = NODE_MAINNET_BASE_URL
             }
 
             AlgorandNetwork.TESTNET -> {
                 appId = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
                 usdcAssetId = AssetConstants.USDC_TESTNET_ID
-                algodUrl = NODE_TESTNET_URL
+                algodUrl = NODE_TESTNET_BASE_URL
+            }
+
+            AlgorandNetwork.FUTURENET -> {
+                appId = RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID
+                usdcAssetId = AssetConstants.USDC_FUTURENET_ID
+                algodUrl = NODE_FUTURENET_BASE_URL
             }
         }
     }

@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -94,6 +95,7 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
                         }
                 val mppNetwork = params.resolveMppClientNetwork(viewerAddress)
                 val sessionVaultNetwork = mppNetwork.toAlgorandNetwork()
+                EscrowSessionVaultManagerClient.configureForNetwork(sessionVaultNetwork)
                 val sessionVaultConfig = getSessionVaultConfigUseCase(sessionVaultNetwork)
 
                 viewerManager.start(
@@ -147,9 +149,9 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
     }
 
     private fun String.toAlgorandNetwork(): AlgorandNetwork =
-        if (this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true)) {
-            AlgorandNetwork.MAINNET
-        } else {
-            AlgorandNetwork.TESTNET
+        when {
+            this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true) -> AlgorandNetwork.MAINNET
+            this == MppNetworks.ALGORAND_FUTURENET || contains("futurenet", ignoreCase = true) || contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
+            else -> AlgorandNetwork.TESTNET
         }
 }

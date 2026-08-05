@@ -108,7 +108,6 @@ timeline
             : ✅ Onboarding - Add Liquid Auth PQ Account Integration for xGov Website (Subscribe to xGov)
             : ✅ Onboarding - Add Liquid Auth Integration for Android<>Android Connections
 
-    section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
             : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
@@ -119,20 +118,22 @@ timeline
             : ✅ Account Details - Send USDC in account detail (between accounts)
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
-    section Future 🔮
+    section In Progress 🔄
     2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
              : ✅ Liquid Stream - Refactor code to be more in common folder
              : ✅ Android - Upgrade to AGP9 and KMP 2.4
              : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
              : ✅ Liquid Stream - Add in audio and muting functionality
-             : 🔄 Liquid Stream - Research hybrid (Lsig / smart contract) session vault for Algorand
-             : 🔄Liquid Stream - Add in chat functionality
-             : Onboarding - Add Falcon25 (non-lsig) wallet account flow
-             : Transaction - Refactor escrow session vault smart contract to support Falcon25
-             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-
+             : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
+             : ✅ Settings - Add Fnet network support
+             : 🔄 Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand
+             : 🔄 Liquid Stream - Add in chat and superchat functionality
+             : Testing - Add Debug Host Mode for Liquid Stream (with multiple viewers)
+             
+    section Future 🔮
     2026Q4   
              : Liquid Gossip mobile POC
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Website showing latest escrow session vault activity
              : Liquid Stream - Decouple feature to it's own repo and app
              : Seed Vault - Escrow Session Vault for Solana accounts 
@@ -256,6 +257,13 @@ erDiagram
         Int seed_id FK
         ByteArray public_key UK
         ByteArray encrypted_secret_key
+    }
+    falcon_25 {
+        String algo_address PK
+        ByteArray public_key
+        ByteArray encrypted_private_key
+        ByteArray encrypted_entropy
+        ByteArray encrypted_seed
     }
     hd_keys {
         String algo_address PK

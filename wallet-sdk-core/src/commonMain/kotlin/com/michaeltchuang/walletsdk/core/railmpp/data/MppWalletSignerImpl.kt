@@ -3,12 +3,16 @@ package com.michaeltchuang.walletsdk.core.railmpp.data
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -21,6 +25,8 @@ class MppWalletSignerImpl(
     private val localAccount: LocalAccount,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
+    private val getFalcon25PrivateKey: GetFalcon25PrivateKey,
+    private val getFalcon25Seed: GetFalcon25Seed,
     private val getHdSeed: GetHdSeed,
     private val logTag: String = "MppWalletSignerImpl",
 ) : MppWalletSigner {
@@ -31,20 +37,24 @@ class MppWalletSignerImpl(
         ) ?: ByteArray(0)
 
     override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> {
-        if (localAccount !is LocalAccount.Falcon24 || txnsMsgpack.size <= 1) {
-            return super.signTransactionsBytes(txnsMsgpack)
-        }
+        if (localAccount is LocalAccount.Falcon25) return super.signTransactionsBytes(txnsMsgpack)
+        val falconPublicKey =
+            when (localAccount) {
+                is LocalAccount.Falcon24 -> localAccount.publicKey
+                else -> return super.signTransactionsBytes(txnsMsgpack)
+            }
+        if (txnsMsgpack.size <= 1) return super.signTransactionsBytes(txnsMsgpack)
         return try {
-            val secretKey = getFalcon24SecretKey(address)
-            if (secretKey == null) {
-                Napier.e("Missing Falcon24 key for group bundle signing: $address", tag = logTag)
+            val privateKey = getFalcon24SecretKey(address)
+            if (privateKey == null) {
+                Napier.e("Missing Falcon key for group bundle signing: $address", tag = logTag)
                 return txnsMsgpack.map { ByteArray(0) }
             }
             val result =
                 signFalcon24GroupBundle(
                     txnsByteArrays = txnsMsgpack,
-                    publicKey = localAccount.publicKey,
-                    privateKey = secretKey,
+                    publicKey = falconPublicKey,
+                    privateKey = privateKey,
                 )
             if (result.isEmpty()) {
                 Napier.e("Falcon24 group bundle returned empty for $address", tag = logTag)
@@ -77,6 +87,7 @@ class MppWalletSignerImpl(
                 is LocalAccount.Algo25 -> signAlgo25(bytes, operation)
                 is LocalAccount.HdKey -> signHdKey(bytes, operation, localAccount)
                 is LocalAccount.Falcon24 -> signFalcon24(bytes, operation, localAccount)
+                is LocalAccount.Falcon25 -> signFalcon25(bytes, operation, localAccount)
                 else -> {
                     Napier.e("Unsupported account type for ${operation.logName}: $address", tag = logTag)
                     null
@@ -162,6 +173,37 @@ class MppWalletSignerImpl(
                     publicKey = account.publicKey,
                     privateKey = secretKey,
                 )
+        }
+    }
+
+    private suspend fun signFalcon25(
+        bytes: ByteArray,
+        operation: SigningOperation,
+        account: LocalAccount.Falcon25,
+    ): ByteArray? {
+        return when (operation) {
+            SigningOperation.TRANSACTION -> {
+                val seed = getFalcon25Seed(address)
+                if (seed == null) {
+                    Napier.e("Missing Falcon25 seed for $address", tag = logTag)
+                    null
+                } else {
+                    signFalcon25Transaction(transactionByteArray = bytes, seed = seed)
+                }
+            }
+            SigningOperation.MESSAGE -> {
+                val privateKey = getFalcon25PrivateKey(address)
+                if (privateKey == null) {
+                    Napier.e("Missing Falcon25 key for $address", tag = logTag)
+                    null
+                } else {
+                    signFalcon25ArbitraryData(
+                        data = bytes,
+                        publicKey = account.publicKey,
+                        privateKey = privateKey,
+                    )
+                }
+            }
         }
     }
 

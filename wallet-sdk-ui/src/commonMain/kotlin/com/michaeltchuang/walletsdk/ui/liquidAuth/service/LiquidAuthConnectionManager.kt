@@ -223,6 +223,7 @@ fun resolveLiquidAuthMppNetwork(network: String): String {
         network == MppNetworks.SOLANA_DEVNET || n.contains("solana") && n.contains("devnet") -> MppNetworks.SOLANA_DEVNET
         network == MppNetworks.SOLANA_TESTNET || n.contains("solana") && n.contains("testnet") -> MppNetworks.SOLANA_TESTNET
         n.contains("mainnet") || network == MppNetworks.ALGORAND_MAINNET -> MppNetworks.ALGORAND_MAINNET
+        n.contains("futurenet") || n.contains("fnet") || network == MppNetworks.ALGORAND_FUTURENET -> MppNetworks.ALGORAND_FUTURENET
         else -> MppNetworks.ALGORAND_TESTNET
     }
 }

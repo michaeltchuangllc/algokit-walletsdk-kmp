@@ -401,6 +401,7 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.HdKey -> "HD Account"
         is AccountRegistrationType.Algo25 -> "Algo25"
         is AccountRegistrationType.Falcon24 -> "Falcon24"
+        is AccountRegistrationType.Falcon25 -> "Falcon25"
         is AccountRegistrationType.NoAuth -> "Watch"
         is AccountRegistrationType.LedgerBle -> "Ledger"
         is AccountRegistrationType.SeedVault -> "SeedVault"

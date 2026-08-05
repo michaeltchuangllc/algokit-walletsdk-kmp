@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.account.domain.usecase.core
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
@@ -14,6 +15,7 @@ import kotlinx.coroutines.withContext
 
 class GetLocalAccountsUseCase(
     private val falcon24AccountRepository: Falcon24AccountRepository,
+    private val falcon25AccountRepository: Falcon25AccountRepository,
     private val hdKeyAccountRepository: HdKeyAccountRepository,
     private val algo25AccountRepository: Algo25AccountRepository,
     private val noAuthAccountRepository: NoAuthAccountRepository,
@@ -22,6 +24,7 @@ class GetLocalAccountsUseCase(
 ) : GetLocalAccounts {
     override suspend fun invoke(): List<LocalAccount> =
         withContext(dispatcher) {
+            val deferredFalcon25Accounts = async { falcon25AccountRepository.getAll() }
             val deferredFalcon24Accounts = async { falcon24AccountRepository.getAll() }
             val deferredHdKeyAccounts = async { hdKeyAccountRepository.getAll() }
             val deferredAlgo25Accounts = async { algo25AccountRepository.getAll() }
@@ -40,6 +43,7 @@ class GetLocalAccountsUseCase(
                         }
                 }
             awaitAll(
+                deferredFalcon25Accounts,
                 deferredFalcon24Accounts,
                 deferredHdKeyAccounts,
                 deferredAlgo25Accounts,

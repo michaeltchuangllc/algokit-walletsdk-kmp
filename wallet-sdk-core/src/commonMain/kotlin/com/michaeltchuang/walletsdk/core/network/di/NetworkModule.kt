@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.network.domain.NodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetTransactionHistoryUrlUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.SaveNetworkPreferenceUseCase
 import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupApiService
 import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupRepositoryImpl
@@ -61,6 +62,7 @@ val networkModule =
         }
 
         factoryOf(::GetCurrentNetworkUseCase)
+        factoryOf(::GetTransactionHistoryUrlUseCase)
         factoryOf(::SaveNetworkPreferenceUseCase)
         factoryOf(::GetCurrentBlockUseCase)
 

@@ -5,7 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.AccountCreationFalcon24TypeMapper
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
-import com.michaeltchuang.walletsdk.core.algosdk.createBip39Wallet
+import com.michaeltchuang.walletsdk.core.algosdk.createFalcon25Account as createFalcon25NativeAccount
+import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -39,23 +40,24 @@ class OnboardingIntroViewModel(
         }
     }
 
-    fun createFalcon24Account() {
+    fun createFalcon25Account() {
         viewModelScope.launch {
-            val wallet = createBip39Wallet()
-            val mnemonic = wallet.getMnemonic().words.joinToString(" ")
-            val falcon24 = wallet.generateFalcon24Address(mnemonic)
-            val falcon24Type =
-                accountCreationFalcon24TypeMapper(
-                    wallet.getEntropy().value,
-                    falcon24,
-                    seedId = null,
-                )
+            val falcon25 = createFalcon25NativeAccount() ?: run {
+                displayError("Failed to create Falcon25 account")
+                return@launch
+            }
             val accountCreation =
                 AccountCreation(
-                    address = falcon24.address,
+                    address = falcon25.address,
                     customName = null,
                     isBackedUp = false,
-                    type = falcon24Type,
+                    type =
+                        AccountCreation.Type.Falcon25(
+                            publicKey = falcon25.publicKey,
+                            encryptedPrivateKey = encryptByteArray(falcon25.privateKey),
+                            encryptedEntropy = encryptByteArray(falcon25.entropy),
+                            encryptedSeed = encryptByteArray(falcon25.seed),
+                        ),
                     creationType = CreationType.CREATE,
                 )
 

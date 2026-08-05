@@ -100,6 +100,8 @@ class LiquidAuthViewModel(
         val usdcAssetId =
             when (currentNetwork) {
                 AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
                 else -> AssetConstants.USDC_TESTNET_ID
             }
         val solanaAccounts =

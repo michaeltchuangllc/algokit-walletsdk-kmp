@@ -16,6 +16,11 @@ class GetSessionVaultConfigUseCase {
                     appId = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID,
                     appAddress = RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ADDRESS,
                 )
+            AlgorandNetwork.FUTURENET ->
+                SessionVaultConfig(
+                    appId = RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID,
+                    appAddress = RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ADDRESS,
+                )
         }
 
     data class SessionVaultConfig(

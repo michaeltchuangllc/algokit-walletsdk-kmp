@@ -29,8 +29,10 @@ fun NetworkStatusBar(modifier: Modifier = Modifier) {
                     .fillMaxWidth()
                     .background(
                         when (network) {
-                            AlgorandNetwork.TESTNET -> ColorPalette.Purple100
-                            AlgorandNetwork.MAINNET -> ColorPalette.Purple100
+                            AlgorandNetwork.TESTNET,
+                            AlgorandNetwork.MAINNET,
+                            AlgorandNetwork.FUTURENET,
+                            -> ColorPalette.Purple100
                         },
                     ).padding(vertical = 4.dp),
             contentAlignment = Alignment.Center,
@@ -40,11 +42,14 @@ fun NetworkStatusBar(modifier: Modifier = Modifier) {
                     when (network) {
                         AlgorandNetwork.TESTNET -> "Testnet"
                         AlgorandNetwork.MAINNET -> "Mainnet"
+                        AlgorandNetwork.FUTURENET -> "Futurenet"
                     },
                 color =
                     when (network) {
-                        AlgorandNetwork.TESTNET -> AlgoKitTheme.colors.testnetText
-                        AlgorandNetwork.MAINNET -> AlgoKitTheme.colors.testnetText
+                        AlgorandNetwork.TESTNET,
+                        AlgorandNetwork.MAINNET,
+                        AlgorandNetwork.FUTURENET,
+                        -> AlgoKitTheme.colors.testnetText
                     },
                 style = AlgoKitTheme.typography.footnote.sansMedium,
                 textAlign = TextAlign.Center,

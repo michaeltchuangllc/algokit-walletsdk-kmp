@@ -14,6 +14,11 @@ sealed interface OnboardingAccountType {
     }
 
     @Suppress("MagicNumber")
+    data object Falcon25 : OnboardingAccountType {
+        override val wordCount: Int = 25
+    }
+
+    @Suppress("MagicNumber")
     data object Falcon24 : OnboardingAccountType {
         override val wordCount: Int = 24
     }

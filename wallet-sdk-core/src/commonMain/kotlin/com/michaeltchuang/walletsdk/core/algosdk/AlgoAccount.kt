@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.algosdk
 
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.Bip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
+import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Falcon25Account
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
@@ -11,6 +12,14 @@ expect fun recoverAlgo25Account(mnemonic: String): Algo25Account?
 expect fun createAlgo25Account(): Algo25Account?
 
 expect fun getMnemonicFromAlgo25SecretKey(secretKey: ByteArray): String?
+
+expect fun createFalcon25Account(): Falcon25Account?
+
+expect fun recoverFalcon25Account(mnemonic: String): Falcon25Account?
+
+expect fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String?
+
+expect fun getFalcon25SeedFromEntropy(entropy: ByteArray): ByteArray?
 
 expect fun getBip39Wallet(entropy: ByteArray): Bip39Wallet
 
@@ -30,6 +39,11 @@ expect fun signFalcon24Transaction(
     transactionByteArray: ByteArray,
     publicKey: ByteArray,
     privateKey: ByteArray,
+): ByteArray?
+
+expect fun signFalcon25Transaction(
+    transactionByteArray: ByteArray,
+    seed: ByteArray,
 ): ByteArray?
 
 /**
@@ -61,6 +75,12 @@ expect fun signHdKeyData(
 ): ByteArray?
 
 expect fun signFalcon24ArbitraryData(
+    data: ByteArray,
+    publicKey: ByteArray,
+    privateKey: ByteArray,
+): ByteArray?
+
+expect fun signFalcon25ArbitraryData(
     data: ByteArray,
     publicKey: ByteArray,
     privateKey: ByteArray,

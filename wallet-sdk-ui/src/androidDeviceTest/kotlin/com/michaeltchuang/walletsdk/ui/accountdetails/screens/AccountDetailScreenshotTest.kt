@@ -22,7 +22,6 @@ class AccountDetailScreenshotTest(
                     AccountDetailViewModel.ViewState.Content(
                         currentNetwork = AlgorandNetwork.MAINNET,
                         isTestNet = false,
-                        explorerBaseUrl = "https://algoexplorer.io",
                         isNoAuthAccount = false,
                         isSolanaAccount = false,
                     ),
@@ -44,7 +43,6 @@ class AccountDetailScreenshotTest(
                     AccountDetailViewModel.ViewState.Content(
                         currentNetwork = AlgorandNetwork.MAINNET,
                         isTestNet = false,
-                        explorerBaseUrl = "https://algoexplorer.io",
                         isNoAuthAccount = false,
                         isSolanaAccount = false,
                     ),
@@ -66,7 +64,6 @@ class AccountDetailScreenshotTest(
                     AccountDetailViewModel.ViewState.Content(
                         currentNetwork = AlgorandNetwork.MAINNET,
                         isTestNet = false,
-                        explorerBaseUrl = "https://algoexplorer.io",
                         isNoAuthAccount = true,
                         isSolanaAccount = false,
                     ),

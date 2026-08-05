@@ -12,6 +12,7 @@
     <string name="account_type_hd">एचडी खाता</string>
     <string name="account_type_algo25">एल्गो25 खाता</string>
     <string name="account_type_falcon24">फाल्कन24 खाता</string>
+    <string name="account_type_falcon25">फाल्कन25 खाता</string>
     <string name="account_type_watch">वॉच खाता</string>
     <string name="account_type_ledger">लेजर खाता</string>
     <string name="account_type_seedvault">सीडवॉल्ट खाता</string>

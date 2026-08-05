@@ -28,8 +28,5 @@ data class SessionVaultContext(
     val usdcAssetId: Long,
 ) {
     val networkLabel: String
-        get() = when (network) {
-            AlgorandNetwork.MAINNET -> "MainNet"
-            AlgorandNetwork.TESTNET -> "TestNet"
-        }
+        get() = network.displayName
 }

@@ -77,7 +77,9 @@ fun RecoveryPhraseScreen(
 
     val initialWordCount =
         when (accountType) {
-            AccountMnemonic.AccountType.Algo25 -> 25
+            AccountMnemonic.AccountType.Algo25,
+            AccountMnemonic.AccountType.Falcon25,
+            -> 25
             AccountMnemonic.AccountType.Falcon24 -> 24
             else -> 24
         }
@@ -137,6 +139,13 @@ fun RecoveryPhraseScreen(
                     viewModel.onRecoverAccount(
                         mnemonicList.joinToString(" "),
                         OnboardingAccountType.Falcon24,
+                    )
+                }
+
+                AccountMnemonic.AccountType.Falcon25 -> {
+                    viewModel.onRecoverAccount(
+                        mnemonicList.joinToString(" "),
+                        OnboardingAccountType.Falcon25,
                     )
                 }
 

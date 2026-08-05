@@ -165,7 +165,9 @@ fun getAccountTypeForFido2(address: String): String {
     return kotlinx.coroutines.runBlocking {
         val account = useCase(address)
         when (account) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> "falcon-1024"
+            is LocalAccount.Falcon24,
+            is LocalAccount.Falcon25,
+            -> "falcon-1024"
             else -> "algorand"
         }
     }
@@ -216,7 +218,7 @@ fun signWithAlgorandWallet(
         platform.Foundation.NSLog("   Challenge size: ${challenge.size} bytes")
 
         when (localAccount) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+            is LocalAccount.Algo25 -> {
                 // Algo25 account
                 val algo25Account =
                     com.michaeltchuang.walletsdk.core.algosdk
@@ -233,7 +235,7 @@ fun signWithAlgorandWallet(
                 signature
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+            is LocalAccount.HdKey -> {
                 // HD Key account - get seed from database
                 val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
                     KoinPlatform.getKoin().get()
@@ -256,7 +258,7 @@ fun signWithAlgorandWallet(
                 signature
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+            is LocalAccount.Falcon24 -> {
                 // Falcon24 account - get private key from database
                 val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
                     KoinPlatform.getKoin().get()
@@ -291,6 +293,19 @@ fun signWithAlgorandWallet(
 
                 platform.Foundation.NSLog("✅ Signed with Falcon24, signature size: ${signature.size} bytes")
                 signature
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                val privateKey =
+                    kotlinx.coroutines.runBlocking { falcon25Repo.getPrivateKey(address) }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 private key") }
+                com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData(
+                    data = challenge,
+                    publicKey = localAccount.publicKey,
+                    privateKey = privateKey,
+                ) ?: return null.also { platform.Foundation.NSLog("❌ Falcon25 signing failed") }
             }
 
             else -> {
@@ -337,7 +352,7 @@ fun signTxnWithAlgorandWallet(
 
         // Sign based on account type (using transaction-specific signing)
         when (localAccount) {
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+            is LocalAccount.Algo25 -> {
                 // Algo25 account - recover from mnemonic and sign transaction
                 val algo25Account =
                     com.michaeltchuang.walletsdk.core.algosdk
@@ -359,7 +374,7 @@ fun signTxnWithAlgorandWallet(
                 signedTxn
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+            is LocalAccount.HdKey -> {
                 // HD Key account - get seed and sign transaction
                 val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
                     KoinPlatform.getKoin().get()
@@ -387,7 +402,7 @@ fun signTxnWithAlgorandWallet(
                 signedTxn
             }
 
-            is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
+            is LocalAccount.Falcon24 -> {
                 // Falcon24 account - get private key and sign transaction
                 val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
                     KoinPlatform.getKoin().get()
@@ -422,6 +437,18 @@ fun signTxnWithAlgorandWallet(
 
                 platform.Foundation.NSLog("✅ Signed with Falcon24, signed txn size: ${signedTxn.size} bytes")
                 signedTxn
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                val seed =
+                    kotlinx.coroutines.runBlocking { falcon25Repo.getSeed(address) }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 seed") }
+                com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
+                    transactionByteArray = txnBytes,
+                    seed = seed,
+                ) ?: return null.also { platform.Foundation.NSLog("❌ Falcon25 transaction signing failed") }
             }
 
             else -> {
@@ -474,7 +501,7 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
 
         val publicKey =
             when (localAccount) {
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Algo25 -> {
+                is LocalAccount.Algo25 -> {
                     // Algo25 account - derive public key from mnemonic
                     val mnemonic =
                         try {
@@ -493,15 +520,16 @@ fun getPublicKeyForAlgorandWallet(address: String): String? {
                     algo25Account.secretKey.copyOfRange(32, 64)
                 }
 
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.HdKey -> {
+                is LocalAccount.HdKey -> {
                     // HD Key account - public key is already a ByteArray
                     localAccount.publicKey
                 }
 
-                is com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount.Falcon24 -> {
-                    // Falcon24 account - public key is already a ByteArray
+                is LocalAccount.Falcon24 ->
                     localAccount.publicKey
-                }
+
+                is LocalAccount.Falcon25 ->
+                    localAccount.publicKey
 
                 else -> {
                     platform.Foundation.NSLog("❌ Unsupported account type: ${localAccount::class.simpleName}")
@@ -578,6 +606,7 @@ private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
         when (localAccount) {
             is LocalAccount.HdKey -> localAccount.publicKey
             is LocalAccount.Falcon24 -> localAccount.publicKey
+            is LocalAccount.Falcon25 -> localAccount.publicKey
             is LocalAccount.Algo25 -> {
                 val secretKey =
                     runCatching {
@@ -590,7 +619,8 @@ private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
             else -> ByteArray(0)
         }
 
-    val signerType: Long = if (localAccount is LocalAccount.Falcon24) 1L else 0L
+    val signerType: Long =
+        if (localAccount is LocalAccount.Falcon24 || localAccount is LocalAccount.Falcon25) 1L else 0L
 
     return object : MppWalletSigner {
         override val address: String = hostAddress
@@ -629,6 +659,15 @@ private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
                             transactionByteArray = txnMsgpack,
                             publicKey = localAccount.publicKey,
                             privateKey = privateKey,
+                        ) ?: ByteArray(0)
+                    }
+                    is LocalAccount.Falcon25 -> {
+                        val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
+                            KoinPlatform.getKoin().get()
+                        val seed = falcon25Repo.getSeed(hostAddress) ?: return ByteArray(0)
+                        com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
+                            transactionByteArray = txnMsgpack,
+                            seed = seed,
                         ) ?: ByteArray(0)
                     }
                     else -> ByteArray(0)

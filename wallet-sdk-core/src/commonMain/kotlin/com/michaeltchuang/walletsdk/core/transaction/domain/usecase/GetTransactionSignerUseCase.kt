@@ -13,6 +13,7 @@ internal class GetTransactionSignerUseCase(
         return when (accountDetail) {
             is LocalAccount.Algo25 -> getAlgo25Signer(address)
             is LocalAccount.HdKey -> getHdKeySigner(address)
+            is LocalAccount.Falcon25 -> TransactionSigner.Falcon25(address)
             is LocalAccount.Falcon24 -> getFalcon24Signer(address)
             is LocalAccount.NoAuth -> TransactionSigner.SignerNotFound.NoAuth(address)
             is LocalAccount.SeedVault -> TransactionSigner.SignerNotFound.NoAuth(address)

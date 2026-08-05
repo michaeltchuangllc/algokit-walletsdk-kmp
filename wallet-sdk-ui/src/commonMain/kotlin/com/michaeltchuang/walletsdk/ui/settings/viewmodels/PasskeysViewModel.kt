@@ -98,6 +98,7 @@ class PasskeysViewModel(
                 AccountRegistrationType.Algo25 -> "Algo25 Account"
                 AccountRegistrationType.HdKey -> "HD Account"
                 AccountRegistrationType.Falcon24 -> "Falcon24 Account"
+                AccountRegistrationType.Falcon25 -> "Falcon25 Account"
                 AccountRegistrationType.SeedVault -> "SeedVault Account"
                 AccountRegistrationType.NoAuth -> "Watch Account"
                 AccountRegistrationType.LedgerBle -> "Ledger Account"

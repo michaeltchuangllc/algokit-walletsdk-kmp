@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.demo.ui.components
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.Res
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_algo25
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_falcon24
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_falcon25
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_hd
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_ledger
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_seedvault
@@ -142,6 +143,7 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.HdKey -> Res.string.account_type_hd
         is AccountRegistrationType.Algo25 -> Res.string.account_type_algo25
         is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
+        is AccountRegistrationType.Falcon25 -> Res.string.account_type_falcon25
         is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
         is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault

@@ -8,6 +8,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.OnboardingAcc
 import com.michaeltchuang.walletsdk.core.algosdk.AlgoKitBip39.getEntropyFromMnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.getBip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.recoverAlgo25Account
+import com.michaeltchuang.walletsdk.core.algosdk.recoverFalcon25Account
+import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.foundation.utils.CreationType
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
@@ -49,6 +51,23 @@ class RecoverPassphraseUseCase(
                     type =
                         Algo25AccountTypeMapper(
                             algo25account.secretKey,
+                        ),
+                    creationType = CreationType.RECOVER,
+                )
+            }
+
+            OnboardingAccountType.Falcon25 -> {
+                val account = recoverFalcon25Account(mnemonics.lowercase()) ?: return null
+                AccountCreation(
+                    address = account.address,
+                    customName = account.address.toShortenedAddress(),
+                    isBackedUp = false,
+                    type =
+                        AccountCreation.Type.Falcon25(
+                            publicKey = account.publicKey,
+                            encryptedPrivateKey = encryptByteArray(account.privateKey),
+                            encryptedEntropy = encryptByteArray(account.entropy),
+                            encryptedSeed = encryptByteArray(account.seed),
                         ),
                     creationType = CreationType.RECOVER,
                 )

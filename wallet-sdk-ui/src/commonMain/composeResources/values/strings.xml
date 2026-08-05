@@ -619,7 +619,7 @@
     <string name="create_a_new_wallet_desc">Create a new Algorand wallet with a new address and recovery passphrase</string>
     <string name="create_a_new_algorand_account_with">Create a new Algorand account with a new wallet and recovery passphrase</string>
     <string name="recover_an_account">Recover an account</string>
-    <string name="i_want_to_recover">I want to recover an Algorand account using my 24-word passphrase</string>
+    <string name="i_want_to_recover">I want to recover an Algorand account using my 24 or 25 word recovery phrase</string>
     <string name="pair_ledger_device">Pair Ledger device</string>
     <string name="operation_completed">Operation completed</string>
     <string name="asset_transfer_completed">Asset transfer completed</string>
@@ -926,7 +926,8 @@
         <item quantity="other">Sign Transactions</item>
     </plurals>
     <string name="signing_index_out_of_count">Signing %1$d out of %2$d…</string>
-    <string name="view_transaction_detail_in_pera_explorer">View Transaction detail in Pera Explorer</string>
+    <string name="view_transaction_detail_in_pera_explorer">View transaction detail in Pera Explorer</string>
+    <string name="view_transaction_detail_in_lora_explorer">View transaction detail in Lora Explorer</string>
     <string name="go_to_homepage">Go to Homepage</string>
 
     <string name="sending_the_transaction">Sending the transaction</string>
@@ -1486,9 +1487,14 @@
 
     <string name="you_dont_have_any">You don\u2019t have any authorized account matching with %1$s</string>
 
-    <string name="mnemonic_type_falcon24_title">Falcon24</string>
+    <string name="mnemonic_type_falcon24_title">Falcon24Lsig</string>
     <string name="mnemonic_type_falcon24_description">New inter-operable format that enables important features like post-quantum resistant wallets and accounts</string>
-    <string name="mnemonic_type_falcon24_footer">24 Key mnemonic keys</string>
+    <string name="mnemonic_type_falcon24_footer">24 words</string>
+    <string name="falcon25_recovery_title">Falcon25</string>
+    <string name="falcon25_recovery_description">Post-quantum account format protected by Falcon25</string>
+    <string name="recovery_phrase_24_words">24 words</string>
+    <string name="recovery_phrase_25_words">25 words</string>
+    <string name="select_your_recovery_phrase_type">Select your recovery phrase type</string>
 
     <string name="mnemonic_type_universal_title">Universal</string>
     <string name="mnemonic_type_universal_description">New inter-operable format that enables important features like HD Wallet</string>
@@ -1505,6 +1511,7 @@
 
     <string name="create_legacy_algo25_account">Create Non Post-Quantum Algo25 Account</string>
     <string name="create_legacy_hd_account">Create Non Post-Quantum Universal HD Account</string>
+    <string name="create_post_quantum_lsig_falcon24_account">Create Post-Quantum LSIG Falcon24 Account</string>
 
     <string name="migration_viewer">Migration Viewer</string>
     <string name="migration_troubleshooter">Migration Troubleshooter</string>

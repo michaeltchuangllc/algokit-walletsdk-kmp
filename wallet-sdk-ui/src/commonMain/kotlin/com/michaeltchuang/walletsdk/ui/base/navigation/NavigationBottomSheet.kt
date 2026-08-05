@@ -44,6 +44,7 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.AddressNamingScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.FalconRecoveryMnemonicTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
@@ -89,6 +90,7 @@ enum class AlgoKitScreens {
     QR_CODE_SCANNER_SCREEN,
     QR_CODE_SCREEN,
     RECOVER_AN_ACCOUNT_SCREEN,
+    FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN,
     RECOVER_PHRASE_SCREEN,
     RECOVER_REGISTERED_ACCOUNTS_SCREEN,
     SETTINGS_SCREEN,
@@ -322,6 +324,9 @@ fun NavigationBottomSheetNavHost(
                         )
                     }
                 }
+                composable(route = AlgoKitScreens.FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN.name) {
+                    FalconRecoveryMnemonicTypeScreen(navController = navController)
+                }
                 composable(
                     route = AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/{accountType}?mnemonic={mnemonic}",
                     arguments =
@@ -352,6 +357,8 @@ fun NavigationBottomSheetNavHost(
 
                             accountTypeString == "algo25" -> AccountMnemonic.AccountType.Algo25
                             accountTypeString == "hdkey" -> AccountMnemonic.AccountType.HdKey
+                            accountTypeString == "falcon24" -> AccountMnemonic.AccountType.Falcon24
+                            accountTypeString == "falcon25" -> AccountMnemonic.AccountType.Falcon25
                             else -> AccountMnemonic.AccountType.Falcon24
                         }
 

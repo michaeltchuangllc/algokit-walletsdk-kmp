@@ -113,10 +113,9 @@ class KeyRegConfirmViewModel(
                     if (paramsResult !is Result.Success) return@withContext null
 
                     val minimumFee = (paramsResult.data.minFee ?: MIN_FEE).coerceAtLeast(MIN_FEE)
-                    if (account is LocalAccount.Falcon24) {
-                        minimumFee * FALCON_BUNDLE_TXN_COUNT
-                    } else {
-                        minimumFee
+                    when (account) {
+                        is LocalAccount.Falcon24 -> minimumFee * FALCON24_BUNDLE_TXN_COUNT
+                        else -> minimumFee
                     }
                 } ?: return@launch
             updateMinimumFee(fee.toString().formatAmount())
@@ -169,7 +168,7 @@ class KeyRegConfirmViewModel(
     }
 
     private companion object {
-        const val FALCON_BUNDLE_TXN_COUNT = 4L
+        const val FALCON24_BUNDLE_TXN_COUNT = 4L
     }
 
     sealed interface ViewState {

@@ -108,7 +108,7 @@ private fun RecoverAnAccountWidget(navController: NavController) {
         description = localizedStringResource(descriptionRes),
         icon = vectorResource(Res.drawable.ic_key),
         iconContentDescription = localizedStringResource(Res.string.key),
-        onClick = { navController.navigate(AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/falcon24") },
+        onClick = { navController.navigate(AlgoKitScreens.FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN.name) },
     )
 }
 

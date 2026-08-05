@@ -16,6 +16,11 @@ internal class GetTransactionFeeForAccountUseCase(
                     feeInMicroAlgos = TransactionFee.FALCON24_FEE_MICRO_ALGOS,
                     feeInAlgos = TransactionFee.FALCON24_FEE_ALGOS,
                 )
+            is LocalAccount.Falcon25 ->
+                TransactionFee(
+                    feeInMicroAlgos = TransactionFee.FALCON25_FEE_MICRO_ALGOS,
+                    feeInAlgos = TransactionFee.FALCON25_FEE_ALGOS,
+                )
             else ->
                 TransactionFee(
                     feeInMicroAlgos = TransactionFee.STANDARD_FEE_MICRO_ALGOS,

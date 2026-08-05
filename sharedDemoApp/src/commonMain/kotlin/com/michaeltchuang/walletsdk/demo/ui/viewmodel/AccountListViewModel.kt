@@ -58,24 +58,6 @@ class AccountListViewModel(
         }
     }
 
-    fun deleteAccount(address: String) {
-        stateDelegate.updateState { AccountsState.Loading }
-        viewModelScope.launch {
-            try {
-                WalletSDK.deleteAccount(address)
-                eventDelegate.sendEvent(AccountsEvent.ShowMessage("Account deleted successfully."))
-                fetchAccounts() // Refresh the list after deletion
-            } catch (e: Exception) {
-                stateDelegate.updateState { AccountsState.Error(e.message ?: "Unknown error") }
-                eventDelegate.sendEvent(
-                    AccountsEvent.ShowError(
-                        e.message ?: "Failed to delete account.",
-                    ),
-                )
-            }
-        }
-    }
-
     sealed interface AccountsState {
         data object Idle : AccountsState
 
@@ -104,6 +86,8 @@ class AccountListViewModel(
         val usdcAssetId =
             when (currentNetwork) {
                 AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
                 else -> AssetConstants.USDC_TESTNET_ID
             }
         val solanaAccounts =

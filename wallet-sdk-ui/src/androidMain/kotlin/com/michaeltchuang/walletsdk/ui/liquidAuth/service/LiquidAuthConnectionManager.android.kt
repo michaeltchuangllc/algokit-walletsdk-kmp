@@ -970,7 +970,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
             val resultCsv =
                 try {
-                    Sdk.signFalconBundle(
+                    Sdk.signFalconLsigBundle(
                         txnList,
                         publicKey.copyOf(),
                         privateKey.copyOf(),

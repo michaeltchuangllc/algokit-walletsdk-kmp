@@ -22,6 +22,13 @@ data class CreateAccount(
             val encryptedSecretKey: ByteArray,
         ) : Type
 
+        data class Falcon25(
+            val publicKey: ByteArray,
+            val encryptedPrivateKey: ByteArray,
+            val encryptedEntropy: ByteArray,
+            val encryptedSeed: ByteArray,
+        ) : Type
+
         data class Falcon24(
             val publicKey: ByteArray,
             val encryptedPrivateKey: ByteArray,

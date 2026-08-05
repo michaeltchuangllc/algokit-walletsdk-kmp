@@ -55,6 +55,7 @@ val liquidAuthUIModule =
                 getLocalAccount = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
+                getFalcon25Seed = get(),
                 getSeed = get(),
                 decodeUnsignedTransaction = decodeUnsignedTransaction,
             )
@@ -99,6 +100,7 @@ val liquidAuthUIModule =
                 platformServices = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
+                getFalcon25PrivateKey = get(),
                 getLocalAccount = get(),
                 getLocalAccounts = get(),
                 getSeed = get(),

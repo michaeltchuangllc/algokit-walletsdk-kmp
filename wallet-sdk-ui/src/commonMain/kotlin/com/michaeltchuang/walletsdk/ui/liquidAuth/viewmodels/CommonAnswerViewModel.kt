@@ -5,13 +5,16 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
@@ -21,7 +24,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.utils.DataResource
@@ -51,6 +53,7 @@ open class CommonAnswerViewModel(
     protected val getLocalAccounts: GetLocalAccounts,
     protected val getAlgo25SecretKey: GetAlgo25SecretKey,
     protected val getFalcon24SecretKey: GetFalcon24SecretKey,
+    protected val getFalcon25PrivateKey: GetFalcon25PrivateKey,
     protected val getSeed: GetHdSeed,
     protected val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
@@ -276,7 +279,7 @@ open class CommonAnswerViewModel(
             getRemainingSessionVaultBalanceUseCase(
                 GetRemainingSessionVaultBalanceUseCase.Params(
                     viewerAddress = viewer,
-                    appId = RailMppConstants.MPP_SESSION_VAULT_APP_ID,
+                    appId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId,
                     authorizedSignerPublicKey = null,
                 ),
             ).getOrDefault(0L)
@@ -342,6 +345,7 @@ open class CommonAnswerViewModel(
         val localAccount = getLocalAccount(accountAddress.value)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> "0.004"
+            is LocalAccount.Falcon25 -> "0.003"
             else -> "0.001"
         }
     }
@@ -349,7 +353,9 @@ open class CommonAnswerViewModel(
     suspend fun getAccountTypeForFido2(address: String): String {
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
-            is LocalAccount.Falcon24 -> "falcon-1024"
+            is LocalAccount.Falcon24,
+            is LocalAccount.Falcon25,
+            -> "falcon-1024"
             is LocalAccount.SeedVault -> "solana"
             else -> "algorand"
         }
@@ -359,6 +365,7 @@ open class CommonAnswerViewModel(
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
             is LocalAccount.Falcon24 -> localAccount.publicKey
+            is LocalAccount.Falcon25 -> localAccount.publicKey
             is LocalAccount.HdKey -> localAccount.publicKey
             is LocalAccount.Algo25 -> {
                 val secretKey = getAlgo25SecretKey(address)
@@ -438,6 +445,20 @@ open class CommonAnswerViewModel(
                     signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
                 } catch (t: Throwable) {
                     println("$TAG: signFalcon24ArbitraryData threw: ${t.message}")
+                    null
+                }
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val privateKey = getFalcon25PrivateKey(address) ?: return null
+                if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
+                    println("$TAG: signFido2Challenge skipped — empty input for Falcon25")
+                    return null
+                }
+                try {
+                    signFalcon25ArbitraryData(challenge, localAccount.publicKey, privateKey)
+                } catch (t: Throwable) {
+                    println("$TAG: signFalcon25ArbitraryData threw: ${t.message}")
                     null
                 }
             }
@@ -530,7 +551,11 @@ open class CommonAnswerViewModel(
         if (getLocalAccount(address) is LocalAccount.SeedVault) {
             MppNetworks.SOLANA_DEVNET
         } else {
-            MppNetworks.ALGORAND_TESTNET
+            when (getCurrentNetworkUseCase().first()) {
+                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
+                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
+                AlgorandNetwork.FUTURENET -> MppNetworks.ALGORAND_FUTURENET
+            }
         }
 
     private fun Byte.toHexByteString(): String {

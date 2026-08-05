@@ -456,7 +456,9 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
     when (localAccount) {
         is AccountRegistrationType.HdKey -> Res.string.account_type_hd
         is AccountRegistrationType.Algo25 -> Res.string.account_type_algo25
-        is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
+        is AccountRegistrationType.Falcon24,
+        is AccountRegistrationType.Falcon25,
+        -> Res.string.account_type_falcon24
         is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
         is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
         is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
