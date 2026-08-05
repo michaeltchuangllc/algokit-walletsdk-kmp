@@ -125,14 +125,15 @@ timeline
              : ✅ Android - Upgrade to AGP9 and KMP 2.4
              : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
              : ✅ Liquid Stream - Add in audio and muting functionality
-             : 🔄 Liquid Stream - Research hybrid (Lsig / smart contract) session vault for Algorand
-             : 🔄Liquid Stream - Add in chat functionality
-             : Onboarding - Add Falcon25 (non-lsig) wallet account flow
-             : Transaction - Refactor escrow session vault smart contract to support Falcon25
-             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
+             : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
+             : ✅ Settings - Add Fnet network support
+             : 🔄 Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand
+             : 🔄 Liquid Stream - Add in chat and superchat functionality
+             : Testing - Add Debug Host Mode for Liquid Stream (with multiple viewers)
 
     2026Q4   
              : Liquid Gossip mobile POC
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Website showing latest escrow session vault activity
              : Liquid Stream - Decouple feature to it's own repo and app
              : Seed Vault - Escrow Session Vault for Solana accounts 
