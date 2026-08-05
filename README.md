@@ -108,7 +108,6 @@ timeline
             : ✅ Onboarding - Add Liquid Auth PQ Account Integration for xGov Website (Subscribe to xGov)
             : ✅ Onboarding - Add Liquid Auth Integration for Android<>Android Connections
 
-    section In Progress 🔄
     2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
             : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
             : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
@@ -119,7 +118,7 @@ timeline
             : ✅ Account Details - Send USDC in account detail (between accounts)
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
-    section Future 🔮
+    section In Progress 🔄
     2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
              : ✅ Liquid Stream - Refactor code to be more in common folder
              : ✅ Android - Upgrade to AGP9 and KMP 2.4
@@ -130,7 +129,8 @@ timeline
              : 🔄 Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand
              : 🔄 Liquid Stream - Add in chat and superchat functionality
              : Testing - Add Debug Host Mode for Liquid Stream (with multiple viewers)
-
+             
+    section Future 🔮
     2026Q4   
              : Liquid Gossip mobile POC
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
