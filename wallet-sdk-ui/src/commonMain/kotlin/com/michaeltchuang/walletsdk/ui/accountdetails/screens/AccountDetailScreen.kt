@@ -59,6 +59,7 @@ import androidx.navigation.compose.rememberNavController
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailWebviewItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
@@ -241,7 +242,12 @@ fun AccountDetailScreen(
                     if (!state.isNoAuthAccount && !state.isSolanaAccount) {
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        val usdcAssetId = if (state.isTestNet) AssetConstants.USDC_TESTNET_ID else AssetConstants.USDC_MAINNET_ID
+                        val usdcAssetId =
+                            when (state.currentNetwork) {
+                                AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                                AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                                AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
+                            }
                         AccountDetailItem(
                             icon = Res.drawable.ic_usdc,
                             isRemoveAccount = false,

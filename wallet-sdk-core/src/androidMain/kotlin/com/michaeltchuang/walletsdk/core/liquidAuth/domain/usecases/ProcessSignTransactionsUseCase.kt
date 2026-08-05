@@ -8,9 +8,11 @@ import com.algorand.algosdk.transaction.Transaction
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import foundation.algorand.provider.avm.models.SignTransactionsParams
@@ -22,6 +24,7 @@ class ProcessSignTransactionsUseCase(
     private val getLocalAccount: GetLocalAccount,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
+    private val getFalcon25Entropy: GetFalcon25Entropy,
     private val getSeed: GetHdSeed,
     private val decodeUnsignedTransaction: (String) -> Transaction?,
 ) {
@@ -108,6 +111,17 @@ class ProcessSignTransactionsUseCase(
                                 key = localAccount.keyIndex,
                             )!!
                         signedTxns.add(Base64.UrlSafe.encode(signature))
+                    }
+                    is LocalAccount.Falcon25 -> {
+                        val entropy =
+                            getFalcon25Entropy(accountAddress)
+                                ?: throw IllegalArgumentException("Falcon25 entropy not found for address: $accountAddress")
+                        val signedTransaction =
+                            signFalcon25Transaction(
+                                transactionByteArray = transactionBytes,
+                                entropy = entropy,
+                            ) ?: throw IllegalStateException("Falcon25 transaction signing failed")
+                        signedTxns.add(Base64.UrlSafe.encode(signedTransaction))
                     }
                     is LocalAccount.LedgerBle -> TODO("Implement Ledger Support")
                     is LocalAccount.NoAuth -> TODO("Implement NoAuth Support")

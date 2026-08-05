@@ -51,10 +51,10 @@ class AccountDetailViewModel(
 
                 getCurrentNetworkUseCase().collect { network ->
                     val usdcAssetId =
-                        if (network == AlgorandNetwork.MAINNET) {
-                            AssetConstants.USDC_MAINNET_ID
-                        } else {
-                            AssetConstants.USDC_TESTNET_ID
+                        when (network) {
+                            AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                            AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                            AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
                         }
                     val isUsdcOptedIn = getAccountASABalance(address, usdcAssetId) != null
                     stateDelegate.updateState {

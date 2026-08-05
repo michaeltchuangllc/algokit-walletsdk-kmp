@@ -5,11 +5,13 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
@@ -51,6 +53,7 @@ open class CommonAnswerViewModel(
     protected val getLocalAccounts: GetLocalAccounts,
     protected val getAlgo25SecretKey: GetAlgo25SecretKey,
     protected val getFalcon24SecretKey: GetFalcon24SecretKey,
+    protected val getFalcon25PrivateKey: GetFalcon25PrivateKey,
     protected val getSeed: GetHdSeed,
     protected val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
@@ -442,6 +445,20 @@ open class CommonAnswerViewModel(
                     signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
                 } catch (t: Throwable) {
                     println("$TAG: signFalcon24ArbitraryData threw: ${t.message}")
+                    null
+                }
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val privateKey = getFalcon25PrivateKey(address) ?: return null
+                if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
+                    println("$TAG: signFido2Challenge skipped — empty input for Falcon25")
+                    return null
+                }
+                try {
+                    signFalcon25ArbitraryData(challenge, localAccount.publicKey, privateKey)
+                } catch (t: Throwable) {
+                    println("$TAG: signFalcon25ArbitraryData threw: ${t.message}")
                     null
                 }
             }

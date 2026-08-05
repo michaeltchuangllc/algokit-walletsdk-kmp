@@ -1,8 +1,11 @@
 package com.michaeltchuang.walletsdk.core.network.service
 
 import com.michaeltchuang.walletsdk.core.network.model.ApiResult
+import com.michaeltchuang.walletsdk.core.network.model.AssetCreatorResponse
 import com.michaeltchuang.walletsdk.core.network.model.AssetDetailResponse
-import com.michaeltchuang.walletsdk.core.network.utils.getPeraWalletBaseUrl
+import com.michaeltchuang.walletsdk.core.network.utils.getIndexerBaseUrl
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -16,11 +19,11 @@ class AssetDetailApiServiceImpl(
     override suspend fun getAssetDetail(assetId: Long): ApiResult<AssetDetailResponse> =
         try {
             val response: HttpResponse =
-                httpClient.get("${getPeraWalletBaseUrl()}/v1/assets/$assetId/")
+                httpClient.get("${getIndexerBaseUrl()}/v2/assets/$assetId")
 
             when {
                 response.status.isSuccess() -> {
-                    val assetDetail = response.body<AssetDetailResponse>()
+                    val assetDetail = response.body<IndexerAssetResponse>().toAssetDetailResponse()
                     ApiResult.Success(assetDetail)
                 }
 
@@ -49,3 +52,35 @@ class AssetDetailApiServiceImpl(
             ApiResult.NetworkError(e)
         }
 }
+
+@Serializable
+private data class IndexerAssetResponse(
+    val asset: IndexerAsset,
+)
+
+@Serializable
+private data class IndexerAsset(
+    val index: Long,
+    val params: IndexerAssetParams,
+)
+
+@Serializable
+private data class IndexerAssetParams(
+    val name: String? = null,
+    @SerialName("unit-name") val unitName: String? = null,
+    val decimals: Int? = null,
+    val total: Long? = null,
+    val creator: String? = null,
+    val url: String? = null,
+)
+
+private fun IndexerAssetResponse.toAssetDetailResponse(): AssetDetailResponse =
+    AssetDetailResponse(
+        assetId = asset.index,
+        fullName = asset.params.name,
+        shortName = asset.params.unitName,
+        fractionDecimals = asset.params.decimals,
+        maxSupply = asset.params.total?.toString(),
+        assetCreator = asset.params.creator?.let(::AssetCreatorResponse),
+        url = asset.params.url,
+    )

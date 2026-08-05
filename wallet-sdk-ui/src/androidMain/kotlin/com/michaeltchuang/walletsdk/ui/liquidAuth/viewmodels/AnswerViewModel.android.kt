@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
@@ -59,6 +60,7 @@ actual open class AnswerViewModel actual constructor(
     getLocalAccounts: GetLocalAccounts,
     getAlgo25SecretKey: GetAlgo25SecretKey,
     getFalcon24SecretKey: GetFalcon24SecretKey,
+    getFalcon25PrivateKey: GetFalcon25PrivateKey,
     getSeed: GetHdSeed,
     getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
@@ -73,6 +75,7 @@ actual open class AnswerViewModel actual constructor(
         getLocalAccounts = getLocalAccounts,
         getAlgo25SecretKey = getAlgo25SecretKey,
         getFalcon24SecretKey = getFalcon24SecretKey,
+        getFalcon25PrivateKey = getFalcon25PrivateKey,
         getSeed = getSeed,
         getCurrentNetworkUseCase = getCurrentNetworkUseCase,
         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
@@ -101,6 +104,7 @@ actual open class AnswerViewModel actual constructor(
         getCurrentBlockUseCase: GetCurrentBlockUseCase,
         setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase,
         mppPaymentViewerManager: MppPaymentViewerManager,
+        getFalcon25PrivateKey: GetFalcon25PrivateKey,
         getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
         getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
         getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
@@ -112,6 +116,7 @@ actual open class AnswerViewModel actual constructor(
         getLocalAccounts = getLocalAccounts,
         getAlgo25SecretKey = getAlgo25SecretKey,
         getFalcon24SecretKey = getFalcon24SecretKey,
+        getFalcon25PrivateKey = getFalcon25PrivateKey,
         getSeed = getSeed,
         getCurrentNetworkUseCase = getCurrentNetworkUseCase,
         getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,

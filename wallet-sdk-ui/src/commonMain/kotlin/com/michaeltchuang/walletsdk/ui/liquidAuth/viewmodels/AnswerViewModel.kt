@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
@@ -21,6 +22,7 @@ expect open class AnswerViewModel(
     getLocalAccounts: GetLocalAccounts,
     getAlgo25SecretKey: GetAlgo25SecretKey,
     getFalcon24SecretKey: GetFalcon24SecretKey,
+    getFalcon25PrivateKey: GetFalcon25PrivateKey,
     getSeed: GetHdSeed,
     getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,

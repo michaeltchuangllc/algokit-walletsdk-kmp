@@ -95,7 +95,6 @@ class BroadcastViewModel(
             when (this) {
                 AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
                 AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
-                AlgorandNetwork.FUTURENET ->
-                    error("USDC broadcasts are not configured for FutureNet")
+                AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
             }
 }

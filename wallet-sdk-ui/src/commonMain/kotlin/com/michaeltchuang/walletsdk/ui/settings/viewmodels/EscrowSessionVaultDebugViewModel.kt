@@ -56,7 +56,12 @@ class EscrowSessionVaultDebugViewModel(
         viewModelScope.launch {
             runCatching {
                 getLocalAccounts()
-                    .filter { it is LocalAccount.HdKey || it is LocalAccount.Algo25 || it is LocalAccount.Falcon24 }
+                    .filter {
+                        it is LocalAccount.HdKey ||
+                            it is LocalAccount.Algo25 ||
+                            it is LocalAccount.Falcon24 ||
+                            it is LocalAccount.Falcon25
+                    }
                     .map { it.address }
             }.onSuccess { addresses ->
                 updateContent { current ->
