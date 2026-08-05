@@ -73,26 +73,6 @@ expect class LiquidAuthConnectionManager(
      */
     fun isConnected(): Boolean
 
-    /**
-     * Send a video frame to the connected peer.
-     * The frame should be JPEG/PNG encoded bytes.
-     *
-     * @param frameId Unique frame identifier
-     * @param timestamp Frame capture timestamp
-     * @param frameData JPEG/PNG encoded frame bytes
-     * @param width Frame width in pixels
-     * @param height Frame height in pixels
-     * @param format Image format: "jpeg" or "png"
-     */
-    fun sendVideoFrame(
-        frameId: String,
-        timestamp: Long,
-        frameData: ByteArray,
-        width: Int,
-        height: Int,
-        format: String = "jpeg",
-    )
-
     // ================= X402 Payment Methods =================
 
     /**
