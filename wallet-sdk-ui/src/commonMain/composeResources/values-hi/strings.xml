@@ -625,7 +625,7 @@
     <string name="create_a_new_wallet_desc">नया Algorand वॉलेट नया पता और रिकवरी पासफ्रेज़ के साथ बनाएँ</string>
     <string name="create_a_new_algorand_account_with">नए वॉलेट और रिकवरी पासफ्रेज़ के साथ नया Algorand खाता बनाएँ</string>
     <string name="recover_an_account">खाता पुनर्प्राप्त करें</string>
-    <string name="i_want_to_recover">मैं अपने 24-शब्दों के पासफ्रेज़ का उपयोग करके एक Algorand खाता पुनर्प्राप्त करना चाहता हूँ</string>
+    <string name="i_want_to_recover">मैं अपने 24 या 25-शब्दों के पुनर्प्राप्ति वाक्यांश का उपयोग करके एक Algorand खाता पुनर्प्राप्त करना चाहता हूँ</string>
     <string name="pair_ledger_device">लेजर डिवाइस पेयर करें</string>
     <string name="operation_completed">प्रक्रिया पूर्ण हुई</string>
     <string name="asset_transfer_completed">परिसंपत्ति स्थानांतरण पूर्ण हुआ</string>
@@ -1485,9 +1485,14 @@
 
     <string name="you_dont_have_any">आपके पास %1$s से मेल खाने वाला कोई अधिकृत खाता नहीं है</string>
 
-    <string name="mnemonic_type_falcon24_title">Falcon24</string>
+    <string name="mnemonic_type_falcon24_title">Falcon24Lsig</string>
     <string name="mnemonic_type_falcon24_description">नया इंटरऑपरेबल फॉर्मेट जो पोस्ट-क्वांटम रेजिस्टेंट वॉलेट्स और खातों जैसी महत्वपूर्ण सुविधाएँ सक्षम करता है</string>
-    <string name="mnemonic_type_falcon24_footer">24 कुंजी स्मरणीय कुंजियाँ</string>
+    <string name="mnemonic_type_falcon24_footer">24 शब्द</string>
+    <string name="falcon25_recovery_title">Falcon25</string>
+    <string name="falcon25_recovery_description">Falcon25 द्वारा सुरक्षित पोस्ट-क्वांटम खाता प्रारूप</string>
+    <string name="recovery_phrase_24_words">24 शब्द</string>
+    <string name="recovery_phrase_25_words">25 शब्द</string>
+    <string name="select_your_recovery_phrase_type">अपने पुनर्प्राप्ति वाक्यांश का प्रकार चुनें</string>
 
     <string name="mnemonic_type_universal_title">Universal</string>
     <string name="mnemonic_type_universal_description">नया इंटरऑपरेबल फॉर्मेट जो HD Wallet जैसी सुविधाएँ सक्षम करता है</string>
@@ -1506,6 +1511,7 @@
 
     <string name="create_legacy_algo25_account">नॉन पोस्ट-क्वांटम Algo25 खाता बनाएँ</string>
     <string name="create_legacy_hd_account">नॉन पोस्ट-क्वांटम यूनिवर्सल एचडी खाता बनाएँ</string>
+    <string name="create_post_quantum_lsig_falcon24_account">पोस्ट-क्वांटम एलएसआईजी फाल्कन24 खाता बनाएँ</string>
 
     <string name="migration_viewer">माइग्रेशन व्यूअर</string>
     <string name="migration_troubleshooter">माइग्रेशन समस्या निवारक</string>

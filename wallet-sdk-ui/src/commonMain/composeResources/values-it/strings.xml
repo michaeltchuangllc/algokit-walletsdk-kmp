@@ -602,7 +602,7 @@
     <string name="create_a_new_wallet_desc">Crea un nuovo wallet Algorand con un nuovo indirizzo e recovery passphrase</string>
     <string name="create_a_new_algorand_account_with">Crea un nuovo account Algorand con un nuovo wallet e recovery passphrase</string>
     <string name="recover_an_account">Recupera un account</string>
-    <string name="i_want_to_recover">Voglio recuperare un account Algorand usando la mia passphrase di 24 parole</string>
+    <string name="i_want_to_recover">Voglio recuperare un account Algorand usando la mia frase di recupero di 24 o 25 parole</string>
     <string name="pair_ledger_device">Abbina dispositivo Ledger</string>
     <string name="operation_completed">Operazione completata</string>
     <string name="asset_transfer_completed">Trasferimento asset completato</string>
@@ -1360,9 +1360,14 @@
     <string name="download_started">Download avviato: ID %1$d</string>
     <string name="download_completed">Download completato: ID %1$d</string>
     <string name="you_dont_have_any">Non hai alcun account autorizzato corrispondente a %1$s</string>
-    <string name="mnemonic_type_falcon24_title">Falcon24</string>
+    <string name="mnemonic_type_falcon24_title">Falcon24Lsig</string>
     <string name="mnemonic_type_falcon24_description">Nuovo formato interoperabile che abilita importanti funzionalità come wallet e account resistenti post-quantistici</string>
-    <string name="mnemonic_type_falcon24_footer">Mnemonic a 24 chiavi</string>
+    <string name="mnemonic_type_falcon24_footer">24 parole</string>
+    <string name="falcon25_recovery_title">Falcon25</string>
+    <string name="falcon25_recovery_description">Formato di account post-quantistico protetto da Falcon25</string>
+    <string name="recovery_phrase_24_words">24 parole</string>
+    <string name="recovery_phrase_25_words">25 parole</string>
+    <string name="select_your_recovery_phrase_type">Seleziona il tipo di frase di recupero</string>
     <string name="mnemonic_type_universal_title">Universale</string>
     <string name="mnemonic_type_universal_description">Nuovo formato interoperabile che abilita importanti funzionalità come HD Wallet</string>
     <string name="mnemonic_type_universal_footer">Mnemonic a 24 chiavi</string>
@@ -1377,6 +1382,7 @@
     <string name="create_your_new_account_under">Crea il tuo nuovo account sotto un HD wallet che già possiedi</string>
     <string name="create_legacy_algo25_account">Crea un account Algo25 non post-quantico</string>
     <string name="create_legacy_hd_account">Crea un account Universal HD non post-quantico</string>
+    <string name="create_post_quantum_lsig_falcon24_account">Crea un account Falcon24 LSIG post-quantico</string>
     <string name="migration_viewer">Visualizzatore Migrazione</string>
     <string name="migration_troubleshooter">Risoluzione Problemi Migrazione</string>
     <string name="clear_new_accounts">Svuota Nuovi Account (Post v6)</string>

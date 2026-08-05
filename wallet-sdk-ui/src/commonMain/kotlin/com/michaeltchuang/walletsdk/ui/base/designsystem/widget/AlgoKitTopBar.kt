@@ -37,7 +37,7 @@ fun AlgoKitTopBar(
             onClick = { onClick() },
             modifier =
                 Modifier
-                    .size(24.dp)
+                    .size(48.dp)
                     .align(alignment = Alignment.CenterVertically),
         ) {
             Icon(
