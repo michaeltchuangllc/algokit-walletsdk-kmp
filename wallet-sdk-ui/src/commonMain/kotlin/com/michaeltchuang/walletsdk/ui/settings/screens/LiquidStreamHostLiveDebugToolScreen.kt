@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.rememberStandaloneCameraPreview
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreenContent
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
@@ -135,16 +136,44 @@ fun LiquidStreamHostDebugToolScreen(
             onStatsClick()
         },
         onSendClickInternal = { viewModel.onSendClicked() },
-        sessionId = sessionId,
-        progressBalanceUsdc = progressBalanceUsdc,
-        remainingBalanceUsdc = remainingBalanceUsdc,
-        progressCapacityUsdc = progressCapacityUsdc,
-        connectionType = connectionType,
-        currentBlockNumber = currentBlockNumber,
+        viewers =
+            listOf(
+                ConnectedViewerInfo(
+                    sessionId = sessionId ?: "debug-session-1",
+                    remainingBalanceUSDC = remainingBalanceUsdc,
+                    progressBalanceUSDC = progressBalanceUsdc,
+                    progressCapacityUSDC = progressCapacityUsdc,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    networkLabel = networkLabel,
+                    originUrl = originUrl,
+                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                ),
+                ConnectedViewerInfo(
+                    sessionId = "debug-session-2",
+                    remainingBalanceUSDC = 10.5,
+                    progressBalanceUSDC = 5.0,
+                    progressCapacityUSDC = 10.5,
+                    connectionType = IceConnectionType.RELAY,
+                    currentBlockNumber = 12345679L,
+                    networkLabel = "TESTNET",
+                    originUrl = "https://viewer-2.app",
+                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                ),
+                ConnectedViewerInfo(
+                    sessionId = "debug-session-3",
+                    remainingBalanceUSDC = 88.88,
+                    progressBalanceUSDC = 20.0,
+                    progressCapacityUSDC = 88.88,
+                    connectionType = IceConnectionType.LOCAL,
+                    currentBlockNumber = 12345680L,
+                    networkLabel = "MAINNET",
+                    originUrl = "https://viewer-3.app",
+                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                ),
+            ),
         blockChainLabel = blockChainLabel,
-        networkLabel = networkLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
-        originUrl = originUrl,
         uiState = uiState,
         onTextChanged = viewModel::onMessageChanged,
         onStatsDismissed = {
@@ -200,16 +229,21 @@ fun LiquidStreamHostDebugScreenPreview() {
             onRotateCamera = {},
             onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
             onSendClickInternal = { uiState = uiState.copy(message = "") },
-            sessionId = "session-preview-id",
-            progressBalanceUsdc = 11.9,
-            remainingBalanceUsdc = 12.0,
-            progressCapacityUsdc = 12.0,
-            connectionType = IceConnectionType.UNKNOWN,
-            currentBlockNumber = 38291041L,
+            viewers =
+                listOf(
+                    ConnectedViewerInfo(
+                        sessionId = "session-preview-id",
+                        remainingBalanceUSDC = 12.0,
+                        progressBalanceUSDC = 11.9,
+                        progressCapacityUSDC = 12.0,
+                        connectionType = IceConnectionType.UNKNOWN,
+                        currentBlockNumber = 38291041L,
+                        networkLabel = "TESTNET",
+                        originUrl = "https://example.app",
+                    ),
+                ),
             blockChainLabel = "ALGORAND",
-            networkLabel = "TESTNET",
             balanceCurrencySymbol = "A",
-            originUrl = "https://example.app",
             uiState = uiState,
             onTextChanged = { message -> uiState = uiState.copy(message = message) },
             onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },

@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
@@ -18,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,53 +40,33 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import kotlin.math.round
 
+data class ConnectedViewerInfo(
+    val sessionId: String,
+    val remainingBalanceUSDC: Double?,
+    val progressBalanceUSDC: Double?,
+    val progressCapacityUSDC: Double? = null,
+    val connectionType: IceConnectionType,
+    val currentBlockNumber: Long? = null,
+    val networkLabel: String = "TESTNET",
+    val originUrl: String = "-",
+    val viewerAddress: String? = null,
+)
+
 @Composable
 internal fun ConnectedViewersCard(
-    sessionId: String,
-    remainingBalanceUSDC: Double?,
-    progressBalanceUSDC: Double?,
-    progressCapacityUSDC: Double? = null,
-    connectionType: IceConnectionType,
-    currentBlockNumber: Long? = null,
-    networkLabel: String = "TESTNET",
-    originUrl: String = "-",
-    viewerAddress: String? = null,
+    viewers: List<ConnectedViewerInfo>,
 ) {
+    if (viewers.isEmpty()) return
+
     val colors = AlgoKitTheme.colors
     val isDarkTheme = LocalThemeIsDark.current.value
-    val balanceText = remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
-    val streamCost =
-        if (connectionType == IceConnectionType.RELAY) {
-            "0.5"
-        } else {
-            microUsdcToUsdcDisplay(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC)
-        }
-    val progress =
-        if (progressBalanceUSDC != null) {
-            val capacity = (progressCapacityUSDC ?: remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
-            if (capacity > 0.0) {
-                (progressBalanceUSDC / capacity).coerceIn(0.0, 1.0).toFloat()
-            } else {
-                0f
-            }
-        } else {
-            0f
-        }
-    val shortSessionId = if (sessionId.length > 28) "${sessionId.take(28)}..." else sessionId
-    val originDisplay =
-        originUrl
-            .removePrefix("https://")
-            .removePrefix("http://")
-            .trimEnd('/')
-            .ifBlank { "-" }
-    val badgeText =
-        buildString {
-            append("WEBRTC")
-            currentBlockNumber?.let { append(" • ALGORAND $networkLabel #$it") }
-        }
+    val pagerState = rememberPagerState(pageCount = { viewers.size })
+    val coroutineScope = rememberCoroutineScope()
+
     val backgroundGradient =
         if (isDarkTheme) {
             Brush.horizontalGradient(
@@ -105,110 +89,178 @@ internal fun ConnectedViewersCard(
                     .fillMaxWidth()
                     .background(backgroundGradient)
                     .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                    .padding(vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top,
-            ) {
-                MetricBlock(
-                    label = "SESSION VAULT",
-                    value = balanceText,
-                    unit = "USDC",
-                    alignEnd = false,
-                )
-                MetricBlock(
-                    label = "STREAM COST",
-                    value = streamCost,
-                    unit = "USDC/BLOCK+GAS",
-                    alignEnd = true,
-                )
-            }
-
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .height(7.dp)
-                        .clip(RoundedCornerShape(100.dp))
-                        .background(colors.streamHostDivider),
-            ) {
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth(progress)
-                            .height(7.dp)
-                            .clip(RoundedCornerShape(100.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    colors = listOf(Color(0xFF2F46FF), Color(0xFF2CC8CB)),
-                                ),
-                            ),
-                )
+            ) { page ->
+                val viewer = viewers[page]
+                ConnectedViewerContent(viewer)
             }
 
             Row(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .clip(
-                            RoundedCornerShape(20.dp),
-                        ).border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(colors.streamHostAccent))
-                Text(
-                    text = "  $badgeText",
-                    color = colors.streamHostCaption,
-                    fontSize = 11.sp,
-                    lineHeight = 11.sp,
-                    textAlign = TextAlign.Center,
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
-                Text(
-                    text = "michaeltchuang.algo",
-                    color = colors.streamHostTitle,
-                    fontSize = 25.sp / 2f,
-                    fontWeight = FontWeight.Bold,
-                )
-                Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
-            }
-
-            MetaRow(label = "ORIGIN:", value = originDisplay)
-            MetaRow(label = "TYPE:", value = connectionType.displayName().uppercase())
-            MetaRow(label = "REQUEST ID:", value = shortSessionId)
-            viewerAddress?.takeIf { it.isNotBlank() }?.let {
-                MetaRow(label = "ACCOUNT:", value = it.toShortenedAddress())
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                NavButton(text = "‹")
+                NavButton(
+                    text = "‹",
+                    onClick = {
+                        if (pagerState.currentPage > 0) {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                            }
+                        }
+                    },
+                )
                 Text(
-                    text = "1 OF 1 STREAMS",
+                    text = "${pagerState.currentPage + 1} OF ${viewers.size} STREAMS",
                     color = colors.streamHostCaption,
                     fontSize = 20.sp / 2f,
                     letterSpacing = 1.sp,
                 )
-                NavButton(text = "›")
+                NavButton(
+                    text = "›",
+                    onClick = {
+                        if (pagerState.currentPage < viewers.size - 1) {
+                            coroutineScope.launch {
+                                pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                            }
+                        }
+                    },
+                )
             }
         }
     }
 }
+
+@Composable
+private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
+    val colors = AlgoKitTheme.colors
+    val balanceText = viewer.remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
+    val streamCost =
+        if (viewer.connectionType == IceConnectionType.RELAY) {
+            "0.5"
+        } else {
+            microUsdcToUsdcDisplay(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC)
+        }
+    val progress =
+        if (viewer.progressBalanceUSDC != null) {
+            val capacity = (viewer.progressCapacityUSDC ?: viewer.remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
+            if (capacity > 0.0) {
+                (viewer.progressBalanceUSDC / capacity).coerceIn(0.0, 1.0).toFloat()
+            } else {
+                0f
+            }
+        } else {
+            0f
+        }
+    val shortSessionId = if (viewer.sessionId.length > 28) "${viewer.sessionId.take(28)}..." else viewer.sessionId
+    val originDisplay =
+        viewer.originUrl
+            .removePrefix("https://")
+            .removePrefix("http://")
+            .trimEnd('/')
+            .ifBlank { "-" }
+    val badgeText =
+        buildString {
+            append("WEBRTC")
+            viewer.currentBlockNumber?.let { append(" • ALGORAND ${viewer.networkLabel} #$it") }
+        }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Top,
+        ) {
+            MetricBlock(
+                label = "SESSION VAULT",
+                value = balanceText,
+                unit = "USDC",
+                alignEnd = false,
+            )
+            MetricBlock(
+                label = "STREAM COST",
+                value = streamCost,
+                unit = "USDC/BLOCK+GAS",
+                alignEnd = true,
+            )
+        }
+
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(7.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(colors.streamHostDivider),
+        ) {
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth(progress)
+                        .height(7.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(Color(0xFF2F46FF), Color(0xFF2CC8CB)),
+                            ),
+                        ),
+            )
+        }
+
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .clip(
+                        RoundedCornerShape(20.dp),
+                    ).border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(20.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(colors.streamHostAccent))
+            Text(
+                text = "  $badgeText",
+                color = colors.streamHostCaption,
+                fontSize = 11.sp,
+                lineHeight = 11.sp,
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
+            Text(
+                text = "michaeltchuang.algo",
+                color = colors.streamHostTitle,
+                fontSize = 25.sp / 2f,
+                fontWeight = FontWeight.Bold,
+            )
+            Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
+        }
+
+        MetaRow(label = "ORIGIN:", value = originDisplay)
+        MetaRow(label = "TYPE:", value = viewer.connectionType.displayName().uppercase())
+        MetaRow(label = "REQUEST ID:", value = shortSessionId)
+        viewer.viewerAddress?.takeIf { it.isNotBlank() }?.let {
+            MetaRow(label = "ACCOUNT:", value = it.toShortenedAddress())
+        }
+    }
+}
+
 
 @Composable
 private fun MetricBlock(
@@ -222,22 +274,26 @@ private fun MetricBlock(
         Text(
             text = label,
             color = colors.streamHostMetricLabel,
-            fontSize = 21.sp / 2f,
-            letterSpacing = 1.sp,
+            fontSize = 12.sp,
+            lineHeight = 14.4.sp,
+            textAlign = TextAlign.Right,
+            letterSpacing = 1.2.sp,
+            fontWeight = FontWeight.Normal,
         )
         Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
                 text = value,
                 color = colors.streamHostTitle,
-                fontSize = 66.sp / 2f,
+                fontSize = 28.sp,
+                lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = 1.sp,
             )
             Text(
                 text = unit,
                 color = colors.streamHostBodyText,
-                fontSize = 30.sp / 2f,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp,
+                lineHeight = 14.4.sp,
+                fontWeight = FontWeight.Bold,
             )
         }
     }
@@ -278,7 +334,10 @@ private fun microUsdcToUsdcDisplay(microUsdc: Long): String {
 }
 
 @Composable
-private fun NavButton(text: String) {
+private fun NavButton(
+    text: String,
+    onClick: () -> Unit,
+) {
     val colors = AlgoKitTheme.colors
     Box(
         modifier =
@@ -287,7 +346,8 @@ private fun NavButton(text: String) {
                     width = 42.dp,
                     height = 38.dp,
                 ).clip(RoundedCornerShape(12.dp))
-                .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(12.dp)),
+                .border(1.dp, colors.streamHostSheetBorder, RoundedCornerShape(12.dp))
+                .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -311,14 +371,29 @@ private fun ConnectedViewersCardLightPreview() {
                 modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
             ) {
                 ConnectedViewersCard(
-                    sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
-                    remainingBalanceUSDC = 8.88,
-                    connectionType = IceConnectionType.RELAY,
-                    currentBlockNumber = null,
-                    networkLabel = "TESTNET",
-                    progressBalanceUSDC = 0.2,
-                    originUrl = "michaeltchuang.ngrok.dev",
-                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                    viewers =
+                        listOf(
+                            ConnectedViewerInfo(
+                                sessionId = "019d1234-1a42-7dd7-9474-222b83739bac",
+                                remainingBalanceUSDC = 8.88,
+                                connectionType = IceConnectionType.RELAY,
+                                currentBlockNumber = null,
+                                networkLabel = "TESTNET",
+                                progressBalanceUSDC = 0.2,
+                                originUrl = "michaeltchuang.ngrok.dev",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                            ),
+                            ConnectedViewerInfo(
+                                sessionId = "session-2",
+                                remainingBalanceUSDC = 5.0,
+                                connectionType = IceConnectionType.STUN,
+                                currentBlockNumber = 12345L,
+                                networkLabel = "MAINNET",
+                                progressBalanceUSDC = 0.5,
+                                originUrl = "another-origin.com",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                            ),
+                        ),
                 )
             }
         }
@@ -337,14 +412,19 @@ private fun ConnectedViewersCardDarkPreview() {
                 modifier = Modifier.fillMaxWidth().background(AlgoKitTheme.colors.background).padding(vertical = 16.dp),
             ) {
                 ConnectedViewersCard(
-                    sessionId = "session-1234567890",
-                    remainingBalanceUSDC = 8.88,
-                    connectionType = IceConnectionType.STUN,
-                    currentBlockNumber = null,
-                    networkLabel = "MAINNET",
-                    progressBalanceUSDC = 0.2,
-                    originUrl = "michaeltchuang.ngrok.dev",
-                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                    viewers =
+                        listOf(
+                            ConnectedViewerInfo(
+                                sessionId = "session-1234567890",
+                                remainingBalanceUSDC = 8.88,
+                                connectionType = IceConnectionType.STUN,
+                                currentBlockNumber = null,
+                                networkLabel = "MAINNET",
+                                progressBalanceUSDC = 0.2,
+                                originUrl = "michaeltchuang.ngrok.dev",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                            ),
+                        ),
                 )
             }
         }

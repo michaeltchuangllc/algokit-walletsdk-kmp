@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
@@ -243,15 +244,20 @@ private fun LiquidStreamViewerScreenContent(
                     modifier = Modifier.padding(bottom = 250.dp),
                 ) {
                     ConnectedViewersCard(
-                        sessionId = sessionId.ifBlank { "session-pending" },
-                        remainingBalanceUSDC = remainingBalanceUsdc,
-                        connectionType = connectionType,
-                        currentBlockNumber = currentBlockNumber,
-                        networkLabel = networkLabel,
-                        originUrl = originUrl,
-                        viewerAddress = viewerAddress,
-                        progressBalanceUSDC = progressBalanceUsdc,
-                        progressCapacityUSDC = progressCapacityUsdc,
+                        viewers =
+                            listOf(
+                                ConnectedViewerInfo(
+                                    sessionId = sessionId.ifBlank { "session-pending" },
+                                    remainingBalanceUSDC = remainingBalanceUsdc,
+                                    connectionType = connectionType,
+                                    currentBlockNumber = currentBlockNumber,
+                                    networkLabel = networkLabel,
+                                    originUrl = originUrl,
+                                    viewerAddress = viewerAddress,
+                                    progressBalanceUSDC = progressBalanceUsdc,
+                                    progressCapacityUSDC = progressCapacityUsdc,
+                                ),
+                            ),
                     )
                 }
             }
