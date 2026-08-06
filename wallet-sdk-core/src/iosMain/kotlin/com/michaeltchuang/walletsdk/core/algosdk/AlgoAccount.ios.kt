@@ -122,11 +122,16 @@ actual fun createFalcon25Account(): Falcon25Account? =
 @OptIn(ExperimentalForeignApi::class)
 actual fun recoverFalcon25Account(mnemonic: String): Falcon25Account? =
     try {
-        val entropy = AlgoKitBip39.getEntropyFromMnemonic(mnemonic)
+        val entropy = getFalcon25EntropyFromMnemonic(mnemonic)
         deriveFalcon25Account(mnemonic, entropy)
     } catch (_: Exception) {
         null
     }
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun getFalcon25EntropyFromMnemonic(mnemonic: String): ByteArray =
+    bridge.getFalcon25EntropyFromMnemonicWithMnemonic(mnemonic)?.toByteArray()
+        ?: throw IllegalArgumentException("Invalid Falcon25 mnemonic")
 
 @OptIn(ExperimentalForeignApi::class)
 private fun deriveFalcon25Account(

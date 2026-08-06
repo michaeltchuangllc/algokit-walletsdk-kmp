@@ -1615,6 +1615,7 @@
     <string name="account_type_hd">HD Account</string>
     <string name="account_type_algo25">Algo25 Account</string>
     <string name="account_type_falcon24">Falcon24 Account</string>
+    <string name="account_type_falcon25">Falcon25 Account</string>
     <string name="account_type_watch">Watch Account</string>
     <string name="account_type_ledger">Ledger Account</string>
     <string name="account_type_seedvault">SeedVault Account</string>

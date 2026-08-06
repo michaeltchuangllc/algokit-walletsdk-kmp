@@ -350,8 +350,9 @@ fun NavigationBottomSheetNavHost(
                             scannedMnemonic.isNotEmpty() -> {
                                 val wordCount = scannedMnemonic.trim().split("\\s+".toRegex()).size
                                 when (wordCount) {
-                                    25 -> AccountMnemonic.AccountType.Algo25
-                                    else -> AccountMnemonic.AccountType.Falcon24 // 24 words default
+                                    25 -> AccountMnemonic.AccountType.Falcon25
+                                    24 -> AccountMnemonic.AccountType.Falcon24
+                                    else -> AccountMnemonic.AccountType.Falcon24
                                 }
                             }
 

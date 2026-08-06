@@ -17,6 +17,9 @@ expect fun createFalcon25Account(): Falcon25Account?
 
 expect fun recoverFalcon25Account(mnemonic: String): Falcon25Account?
 
+/** Decodes a 25-word Algorand mnemonic to the original 32-byte Falcon entropy. */
+expect fun getFalcon25EntropyFromMnemonic(mnemonic: String): ByteArray
+
 expect fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String?
 
 expect fun getFalcon25SeedFromEntropy(entropy: ByteArray): ByteArray?

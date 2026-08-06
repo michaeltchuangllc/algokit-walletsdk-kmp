@@ -129,11 +129,14 @@ actual fun createFalcon25Account(): Falcon25Account? =
 
 actual fun recoverFalcon25Account(mnemonic: String): Falcon25Account? =
     try {
-        val entropy = AlgoKitBip39.getEntropyFromMnemonic(mnemonic)
+        val entropy = getFalcon25EntropyFromMnemonic(mnemonic)
         deriveFalcon25Account(mnemonic, entropy)
     } catch (_: Exception) {
         null
     }
+
+actual fun getFalcon25EntropyFromMnemonic(mnemonic: String): ByteArray =
+    GoMobileDispatcher.runOnGoThread { Sdk.mnemonicToEntropy(mnemonic) }
 
 private fun deriveFalcon25Account(
     mnemonic: String,
