@@ -69,7 +69,7 @@ private data class IndexerAssetParams(
     val name: String? = null,
     @SerialName("unit-name") val unitName: String? = null,
     val decimals: Int? = null,
-    val total: Long? = null,
+    val total: ULong? = null,
     val creator: String? = null,
     val url: String? = null,
 )
