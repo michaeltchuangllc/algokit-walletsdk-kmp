@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import AlgorandIosSdk.spmAlgoApiBridge
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import io.github.aakira.napier.Napier
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
@@ -142,7 +143,7 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
 
     val allSignedBytes: ByteArray
 
-    if (signer.signerType == 1L) {
+    if (signer.signerType == MppWalletSignerType.FALCON_LSIG) {
         // ── Falcon signer path (mirrors the working Android flow) ───────────────────
         // Hand the two real, UNGROUPED transactions to the Falcon bundle signer. With no
         // group ID present, the Go SDK (AlgoSdkSignFalconBundle) adds its own budget "dummy"

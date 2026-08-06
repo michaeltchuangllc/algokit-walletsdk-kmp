@@ -16,12 +16,13 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import io.github.aakira.napier.Napier
 
 class MppWalletSignerImpl(
     override val address: String,
     override val authorizedSignerPublicKey: ByteArray,
-    override val signerType: Long,
+    override val signerType: MppWalletSignerType,
     private val localAccount: LocalAccount,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,

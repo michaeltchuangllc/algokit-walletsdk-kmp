@@ -96,6 +96,7 @@ class EscrowSessionVaultDebugViewModel(
         viewModelScope.launch {
             setLoading(true)
             val vaultContext = getSessionVaultContextUseCase()
+            EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
             sendStatus("Depositing $amountUsdc USDC from viewer to ${vaultContext.networkLabel} Session Vault…")
             Napier.d(
                 "[ADD_TO_VAULT_CONTEXT] viewer=$viewer creator=$creator appId=${vaultContext.appId} usdcAssetId=${vaultContext.usdcAssetId}",
@@ -104,6 +105,8 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
+                    EscrowSessionVaultManagerClient.hostAddress = creator
+                    Napier.d("[ADD_TO_VAULT_HOST] hostAddress=$creator", tag = TAG)
                     if (EscrowSessionVaultManagerClient.channelId == null) {
                         EscrowSessionVaultManagerClient.initializeChannelId(
                             payerAddress = viewer,
