@@ -41,11 +41,13 @@ class EscrowSessionVaultDebugViewModel(
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
         DebugAddressHolder.viewerAddress = address
+        refreshDebugSessionContext()
     }
 
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
         DebugAddressHolder.creatorAddress = address
+        refreshDebugSessionContext()
     }
 
     fun onDepositAmountChanged(amount: String) {
@@ -74,6 +76,7 @@ class EscrowSessionVaultDebugViewModel(
                         creatorAddress = creator,
                     )
                 }
+                refreshDebugSessionContext()
                 if (addresses.size < 2) {
                     sendStatus("❌ At least two signable local Algorand accounts are required.")
                 }
@@ -105,15 +108,7 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
-                    EscrowSessionVaultManagerClient.hostAddress = creator
-                    Napier.d("[ADD_TO_VAULT_HOST] hostAddress=$creator", tag = TAG)
-                    if (EscrowSessionVaultManagerClient.channelId == null) {
-                        EscrowSessionVaultManagerClient.initializeChannelId(
-                            payerAddress = viewer,
-                            payeeAddress = creator,
-                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                        )
-                    }
+                    refreshDebugSessionContext(signer.authorizedSignerPublicKey)
 
                     val result =
                         withContext(Dispatchers.Default) {
@@ -534,6 +529,47 @@ class EscrowSessionVaultDebugViewModel(
                 setLoading(false)
             }
         }
+    }
+
+    private fun refreshDebugSessionContext(authorizedSignerPublicKey: ByteArray? = null) {
+        if (authorizedSignerPublicKey != null) {
+            configureDebugSessionContext(
+                content = contentState(),
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            val content = contentState()
+            val viewer = content.viewerAddress.trim()
+            if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return@launch
+            val signer = mppWalletSignerUseCase(viewer) ?: return@launch
+            configureDebugSessionContext(content, signer.authorizedSignerPublicKey)
+        }
+    }
+
+    private fun configureDebugSessionContext(
+        content: ViewState.Content,
+        authorizedSignerPublicKey: ByteArray,
+    ) {
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        if (viewer.isBlank() || creator.isBlank() || viewer == creator) return
+
+        EscrowSessionVaultManagerClient.hostAddress = creator
+        EscrowSessionVaultManagerClient.salt = EscrowSessionVaultManagerClient.defaultSalt
+        EscrowSessionVaultManagerClient.initializeChannelId(
+            payerAddress = viewer,
+            payeeAddress = creator,
+            authorizedSignerPublicKey = authorizedSignerPublicKey,
+        )
+        Napier.d(
+            "[DEBUG_SESSION_CONTEXT_REFRESHED] viewer=$viewer creator=$creator " +
+                "channelIdLength=${EscrowSessionVaultManagerClient.channelId?.size} " +
+                "saltLength=${EscrowSessionVaultManagerClient.salt?.size}",
+            tag = TAG,
+        )
     }
 
     private fun validateViewerAndCreator(content: ViewState.Content): Boolean {
