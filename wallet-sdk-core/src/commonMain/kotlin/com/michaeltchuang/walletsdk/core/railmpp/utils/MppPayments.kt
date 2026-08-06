@@ -20,34 +20,15 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 /** Top-level helper for Liquid Stream MPP payment operations. */
 object MppPayments {
     private const val TAG = "MppPayments"
-
-    const val MAINNET_ALGOD_URL = "https://mainnet-api.algonode.cloud"
-    const val TESTNET_ALGOD_URL = "https://testnet-api.algonode.cloud"
-    const val FUTURENET_ALGOD_URL = "https://fnet-api.4160.nodely.dev"
-
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
-
-    fun algodUrlForAppId(appId: Long): String =
-        when (appId) {
-            RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID -> MAINNET_ALGOD_URL
-            RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID -> FUTURENET_ALGOD_URL
-            else -> TESTNET_ALGOD_URL
-        }
-
     fun usdcAssetIdForAppId(appId: Long): Long =
         when (appId) {
             RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID -> AssetConstants.USDC_MAINNET_ID
             RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID -> AssetConstants.USDC_FUTURENET_ID
             else -> AssetConstants.USDC_TESTNET_ID
         }
-
-    fun decodeSignedTransaction(bytes: ByteArray): Any? =
-        runCatching { decodeMsgPackAny(bytes) }
-            .onFailure {
-                Napier.e("Failed to decode signed transaction", it, tag = TAG)
-            }.getOrNull()
 
     @OptIn(ExperimentalEncodingApi::class)
     fun createVoucherJson(
@@ -96,8 +77,7 @@ object MppPayments {
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
 
     suspend fun getRemainingBalanceFromSessionVault(
-        viewerAddress: String,
-        authorizedSignerPublicKey: ByteArray? = null,
+        viewerAddress: String
     ): Long {
         val baseContext = "viewer=$viewerAddress"
         val resolvedChannelId = EscrowSessionVaultManagerClient.channelId ?: return 0L
