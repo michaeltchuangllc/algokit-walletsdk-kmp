@@ -51,10 +51,11 @@ fun AnimationLoader(
                 contentDescription = "start side of the animation",
             )
             Image(
-                painter = rememberLottiePainter(
-                    composition = preloaderLottieComposition,
-                    progress = { preloaderProgress },
-                ),
+                painter =
+                    rememberLottiePainter(
+                        composition = preloaderLottieComposition,
+                        progress = { preloaderProgress },
+                    ),
                 contentDescription = null,
                 modifier =
                     Modifier

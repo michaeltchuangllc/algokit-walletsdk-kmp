@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform.getKoin
-import kotlin.io.encoding.ExperimentalEncodingApi
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
 
@@ -48,6 +47,7 @@ var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
 var iosBroadcastSetAudioEnabledHandler: ((enabled: Boolean) -> Unit)? = null
 var iosBroadcastSetVideoEnabledHandler: ((enabled: Boolean) -> Unit)? = null
+
 /** Supplies a UIKit view that renders the local native WebRTC video track. */
 var iosBroadcastVideoViewProvider: (() -> Any?)? = null
 
@@ -97,6 +97,7 @@ var iosViewerFetchBalanceHandler: (
 )? = null
 
 private const val TAG = "IOSLiquidAuthCM"
+
 /** Polling interval for the host-side on-chain balance during paid streaming (ms). */
 private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
 
@@ -258,37 +259,6 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     actual fun sendChatMessage(message: ChatMessage) {
         streamCreator?.sendChatMessage(message)
-    }
-
-    @OptIn(ExperimentalEncodingApi::class)
-    actual fun sendVideoFrame(
-        frameId: String,
-        timestamp: Long,
-        frameData: ByteArray,
-        width: Int,
-        height: Int,
-        format: String,
-    ) {
-        if (!isConnected()) {
-            println("$TAG: sendVideoFrame skipped — not connected")
-            return
-        }
-        try {
-            val jsonMessage =
-                buildLiquidAuthVideoFrameMessage(
-                    frameId = frameId,
-                    timestamp = timestamp,
-                    frameData = frameData,
-                    width = width,
-                    height = height,
-                    format = format,
-                    hostAddress = activePaymentRecipient.orEmpty(),
-                    sessionId = activePaymentSessionId.orEmpty(),
-                )
-            sendMessage(jsonMessage)
-        } catch (e: Exception) {
-            println("$TAG: sendVideoFrame failed: $e")
-        }
     }
 
     actual fun isConnected(): Boolean = platformServices.isHostConnected()
@@ -574,7 +544,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         blockConsumptionJob = null
     }
 
-    actual fun setupCreator(creatorAddress: String, network: String) {
+    actual fun setupCreator(
+        creatorAddress: String,
+        network: String,
+    ) {
         if (streamCreator != null && activePaymentRecipient == creatorAddress) return
 
         val resolvedNetwork = resolveLiquidAuthMppNetwork(network)
@@ -583,13 +556,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         val serverConfig =
             ServerConfig(
                 sessionId = sessionId,
-                gating = GatingConfig(
-                    mode = GatingMode.PARTIAL_TIME,
-                    amount = "0", // Free by default
-                    asset = "USDC",
-                    network = resolvedNetwork,
-                    payTo = creatorAddress,
-                ),
+                gating =
+                    GatingConfig(
+                        mode = GatingMode.PARTIAL_TIME,
+                        amount = "0", // Free by default
+                        asset = "USDC",
+                        network = resolvedNetwork,
+                        payTo = creatorAddress,
+                    ),
                 gracePeriod = 5,
                 viewerAddress = activeViewerAddressForVault,
                 viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
@@ -628,10 +602,9 @@ actual class LiquidAuthConnectionManager actual constructor(
         activePaymentRecipient = creatorAddress
         activePaymentNetwork = resolvedNetwork
         activePaymentSessionId = sessionId
-        
+
         println("$TAG: 💬 Chat initialized for creator=$creatorAddress")
     }
-
 
     actual fun setAudioEnabled(enabled: Boolean) {
         iosBroadcastSetAudioEnabledHandler?.invoke(enabled)
@@ -768,11 +741,12 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (viewerPaymentRailSetupKey == setupKey) return
         viewerPaymentRailSetupKey = setupKey
         scope.launch {
-            val configured = viewModel.setupViewerPaymentRail(
-                viewerAddress = viewer,
-                hostAddress = host,
-                scope = scope,
-            )
+            val configured =
+                viewModel.setupViewerPaymentRail(
+                    viewerAddress = viewer,
+                    hostAddress = host,
+                    scope = scope,
+                )
             if (!configured) {
                 viewerPaymentRailSetupKey = null
             } else {
@@ -808,7 +782,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-
     private fun startViewerOnChainRefreshIfReady() {
         val viewModel = answerViewModel ?: return
         val viewer = _viewerAddress.value
@@ -827,7 +800,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
                 if (!helloViewer.isNullOrBlank() && helloViewer != activeViewerAddressForVault) {
                     activeViewerAddressForVault = helloViewer
-                        Napier.d("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
+                    Napier.d("$TAG: [VIEWER_HELLO_ADDR] viewer=$helloViewer")
                 }
 
                 val signerKey = hello.viewerPublicKey
@@ -1008,4 +981,3 @@ actual class LiquidAuthConnectionManager actual constructor(
         viewerConnectionTypePollingController.stop()
     }
 }
-

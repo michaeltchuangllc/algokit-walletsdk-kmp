@@ -30,36 +30,38 @@ import platform.UIKit.UIView
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit = {
-    val cameraView = remember {
-        UIView().apply {
-            val session = AVCaptureSession()
-            val device = AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)
-            if (device != null) {
-                val input = AVCaptureDeviceInput.deviceInputWithDevice(device, null)
-                if (input != null && session.canAddInput(input)) {
-                    session.addInput(input)
-                    val previewLayer = AVCaptureVideoPreviewLayer.layerWithSession(session)
-                    previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill
-                    layer.addSublayer(previewLayer)
-                    session.startRunning()
+actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
+    {
+        val cameraView =
+            remember {
+                UIView().apply {
+                    val session = AVCaptureSession()
+                    val device = AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)
+                    if (device != null) {
+                        val input = AVCaptureDeviceInput.deviceInputWithDevice(device, null)
+                        if (input != null && session.canAddInput(input)) {
+                            session.addInput(input)
+                            val previewLayer = AVCaptureVideoPreviewLayer.layerWithSession(session)
+                            previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill
+                            layer.addSublayer(previewLayer)
+                            session.startRunning()
+                        }
+                    }
                 }
             }
-        }
-    }
 
-    UIKitView(
-        factory = { cameraView },
-        modifier = Modifier.fillMaxSize(),
-        update = { view ->
-            view.layer.sublayers?.firstOrNull()?.let { layer ->
-                if (layer is CALayer) {
-                    layer.frame = view.bounds
+        UIKitView(
+            factory = { cameraView },
+            modifier = Modifier.fillMaxSize(),
+            update = { view ->
+                view.layer.sublayers?.firstOrNull()?.let { layer ->
+                    if (layer is CALayer) {
+                        layer.frame = view.bounds
+                    }
                 }
-            }
-        },
-    )
-}
+            },
+        )
+    }
 
 /** Legacy JPEG capture bridge retained for source compatibility; native WebRTC tracks are used instead. */
 var iosBroadcastCaptureSession: AVCaptureSession? = null

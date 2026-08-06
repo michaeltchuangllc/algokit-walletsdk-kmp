@@ -1615,6 +1615,7 @@
     <string name="account_type_hd">खाता HD</string>
     <string name="account_type_algo25">खाता Algo25</string>
     <string name="account_type_falcon24">खाता Falcon24</string>
+    <string name="account_type_falcon25">खाता Falcon25</string>
     <string name="account_type_watch">खाता देखे गए</string>
     <string name="account_type_ledger">खाता Ledger</string>
     <string name="account_type_seedvault">खाता SeedVault</string>

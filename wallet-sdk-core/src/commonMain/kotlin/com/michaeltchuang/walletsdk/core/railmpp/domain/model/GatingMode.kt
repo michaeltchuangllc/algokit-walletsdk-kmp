@@ -7,9 +7,14 @@ import kotlinx.serialization.Serializable
 enum class GatingMode(
     val value: String,
 ) {
-    @SerialName("whole-stream") WHOLE_STREAM("whole-stream"),
-    @SerialName("partial-time") PARTIAL_TIME("partial-time"),
-    @SerialName("partial-bytes") PARTIAL_BYTES("partial-bytes"),
+    @SerialName("whole-stream")
+    WHOLE_STREAM("whole-stream"),
+
+    @SerialName("partial-time")
+    PARTIAL_TIME("partial-time"),
+
+    @SerialName("partial-bytes")
+    PARTIAL_BYTES("partial-bytes"),
     ;
 
     companion object {

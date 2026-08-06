@@ -91,13 +91,15 @@ class LiquidAuthViewerViewModel(
     fun receivedChatMessage(message: ChatMessage) {
         stateDelegate.updateState {
             it.copy(
-                chatMessages = it.chatMessages + ChatUiMessage(
-                    sender = message.sender,
-                    text = message.text,
-                    timestamp = message.timestamp,
-                    amount = message.amount,
-                    asset = message.asset
-                )
+                chatMessages =
+                    it.chatMessages +
+                        ChatUiMessage(
+                            sender = message.sender,
+                            text = message.text,
+                            timestamp = message.timestamp,
+                            amount = message.amount,
+                            asset = message.asset,
+                        ),
             )
         }
     }

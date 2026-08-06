@@ -10,10 +10,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon2
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.algosdk.SuggestedParams
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetAcceptanceTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makeAssetTransferTxn
 import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
-import com.michaeltchuang.walletsdk.core.algosdk.SuggestedParams
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
@@ -236,7 +236,10 @@ open class TransactionSignManager(
         }
     }
 
-    private suspend fun signFalcon25Transaction(transactionByteArray: ByteArray?, accountAddress: String) {
+    private suspend fun signFalcon25Transaction(
+        transactionByteArray: ByteArray?,
+        accountAddress: String,
+    ) {
         val transactionBytes = transactionByteArray ?: return handleSignError()
         getLocalAccount(accountAddress) as? LocalAccount.Falcon25 ?: return handleSignError()
         val seed = getFalcon25Seed(accountAddress) ?: return handleSignError()

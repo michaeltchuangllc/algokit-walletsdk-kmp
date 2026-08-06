@@ -29,15 +29,15 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
-import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import kotlinx.coroutines.runBlocking
@@ -155,7 +155,7 @@ actual fun AnswerScreenOverlay() {
         // Set the viewer address BEFORE notifyViewerConnected().
         if (address.isNotBlank()) {
             viewerManager.setViewerAddress(address)
-          //  viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
+            //  viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
         }
 
         NSLog(
@@ -239,7 +239,7 @@ actual fun AnswerScreenOverlay() {
                     },
                     onSendClick = { text ->
                         stateHolder.sendChatMessage(text)
-                    }
+                    },
                 )
             }
 

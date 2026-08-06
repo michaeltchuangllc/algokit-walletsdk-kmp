@@ -99,7 +99,6 @@ open class CommonAnswerViewModel(
         onVideoFrame: ((VideoFrameData) -> Unit)? = null,
     ) {
         try {
-
             if (msgStr.trimStart().startsWith("{")) {
                 handleJsonDataChannelMessage(msgStr, onVideoFrame)
                 return
@@ -169,7 +168,8 @@ open class CommonAnswerViewModel(
             DCMessageType.SESSION_TERMINATE,
             DCMessageType.VIEWER_VAULT_FUNDED,
             DCMessageType.SEGMENT_HANDSHAKE,
-            DCMessageType.SEGMENT_VOUCHER -> {
+            DCMessageType.SEGMENT_VOUCHER,
+            -> {
                 Napier.d(tag = TAG, message = "Core protocol JSON message: ${msgType.value}")
             }
 
@@ -183,16 +183,21 @@ open class CommonAnswerViewModel(
         addChatMessage(message)
     }
 
-    fun sendChatMessage(text: String, amount: String? = null, asset: String? = null) {
+    fun sendChatMessage(
+        text: String,
+        amount: String? = null,
+        asset: String? = null,
+    ) {
         val sender = accountAddress.value.takeIf { it.isNotBlank() } ?: "Viewer"
-        val chatMsg = ChatMessage(
-            sender = sender,
-            text = text,
-            timestamp = Clock.System.now().toEpochMilliseconds(),
-            amount = amount,
-            asset = asset
-        )
-        
+        val chatMsg =
+            ChatMessage(
+                sender = sender,
+                text = text,
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                amount = amount,
+                asset = asset,
+            )
+
         doSendChatMessage(chatMsg)
 
         // Add to local list immediately for UI responsiveness
@@ -493,7 +498,11 @@ open class CommonAnswerViewModel(
                     ).getOrThrow()
             }.onFailure { throwable ->
                 mppPaymentViewerManager.clearPendingPayment()
-                Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress", throwable = throwable)
+                Napier.e(
+                    tag = TAG,
+                    message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress creator=$creatorAddress",
+                    throwable = throwable,
+                )
             }
 
         val txId = topUpResult.getOrElse { return Result.failure(it) }
@@ -528,9 +537,7 @@ open class CommonAnswerViewModel(
     /** Build an [MppWalletSigner] for the given account address. */
     suspend fun buildMppWalletSigner(address: String): MppWalletSigner? = mppWalletSignerUseCase(address)
 
-    fun startViewerOnChainRefresh(
-        viewerAddress: String,
-    ) {
+    fun startViewerOnChainRefresh(viewerAddress: String) {
         viewModelScope.launch {
             val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             mppPaymentViewerManager.startViewerOnChainRefresh(
@@ -564,17 +571,13 @@ open class CommonAnswerViewModel(
         return "0x${digits[value shr 4]}${digits[value and 0x0F]}"
     }
 
-    private fun JsonObject.reqString(key: String): String =
-        this[key]?.jsonPrimitive?.contentOrNull ?: error("Missing '$key'")
+    private fun JsonObject.reqString(key: String): String = this[key]?.jsonPrimitive?.contentOrNull ?: error("Missing '$key'")
 
-    private fun JsonObject.reqJsonObject(key: String): JsonObject =
-        this[key]?.jsonObject ?: error("Missing '$key'")
+    private fun JsonObject.reqJsonObject(key: String): JsonObject = this[key]?.jsonObject ?: error("Missing '$key'")
 
-    private fun JsonObject.optString(key: String): String? =
-        this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
+    private fun JsonObject.optString(key: String): String? = this[key]?.jsonPrimitive?.contentOrNull?.ifBlank { null }
 
-    private fun JsonObject.reqInt(key: String): Int =
-        this[key]?.jsonPrimitive?.intOrNull ?: error("Missing '$key'")
+    private fun JsonObject.reqInt(key: String): Int = this[key]?.jsonPrimitive?.intOrNull ?: error("Missing '$key'")
 
     private fun String.jsonOptString(key: String): String? =
         Regex(""""$key"\s*:\s*"([^"]*)"""")
@@ -608,4 +611,3 @@ open class CommonAnswerViewModel(
         blockNumberPollingJob = null
     }
 }
-

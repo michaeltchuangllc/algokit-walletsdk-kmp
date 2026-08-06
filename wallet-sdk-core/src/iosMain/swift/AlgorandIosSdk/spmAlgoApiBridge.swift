@@ -295,6 +295,15 @@ import CommonCrypto
         return AlgoSdkMnemonicFromEntropy(entropy, &error)
     }
 
+    public func getFalcon25EntropyFromMnemonic(mnemonic: String) -> Data? {
+        var error: NSError?
+        let entropy = AlgoSdkMnemonicToEntropy(mnemonic, &error)
+        if let error {
+            print("Error decoding Falcon25 mnemonic entropy: \(error)")
+        }
+        return entropy
+    }
+
     public func getFalconAddressFromMnemonic(mnemonic: String) -> String {
         var error: NSError?
         let passphrase = ""

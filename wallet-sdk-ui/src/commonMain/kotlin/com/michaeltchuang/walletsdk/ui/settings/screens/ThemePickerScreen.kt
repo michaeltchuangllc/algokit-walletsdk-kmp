@@ -82,7 +82,7 @@ fun ThemeScreen(navController: NavController) {
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: ThemePickerViewModel.ViewState,
     onThemeSelected: (ThemePreference) -> Unit = {},

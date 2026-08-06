@@ -41,8 +41,8 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun CreatorTopBar(
     modifier: Modifier = Modifier,
-    creatorUsername: String?="michaeltchuang.algo",
-    numbersOfViewers: String?= "1",
+    creatorUsername: String? = "michaeltchuang.algo",
+    numbersOfViewers: String? = "1",
     onSettingsClick: () -> Unit,
     onMinimise: () -> Unit,
 ) {
@@ -64,9 +64,12 @@ fun CreatorTopBar(
                                 .clip(CircleShape)
                                 .border(2.dp, Color(0xFF35D3EF), CircleShape)
                                 .background(Color(0x33FFFFFF)),
-                    ){
-                        Image(painter = painterResource(Res.drawable.ic_user),
-                            contentDescription = null, modifier = Modifier.size(40.dp))
+                    ) {
+                        Image(
+                            painter = painterResource(Res.drawable.ic_user),
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp),
+                        )
                     }
                     Box(
                         modifier =
@@ -148,7 +151,7 @@ fun CreatorTopBarPreview() {
         Box(modifier = Modifier.background(Color.DarkGray).padding(16.dp)) {
             CreatorTopBar(
                 onSettingsClick = {},
-                onMinimise = {}
+                onMinimise = {},
             )
         }
     }

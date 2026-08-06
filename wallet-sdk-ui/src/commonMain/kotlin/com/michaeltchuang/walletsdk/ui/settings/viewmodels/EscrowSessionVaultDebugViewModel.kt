@@ -41,11 +41,13 @@ class EscrowSessionVaultDebugViewModel(
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
         DebugAddressHolder.viewerAddress = address
+        refreshDebugSessionContext()
     }
 
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
         DebugAddressHolder.creatorAddress = address
+        refreshDebugSessionContext()
     }
 
     fun onDepositAmountChanged(amount: String) {
@@ -61,8 +63,7 @@ class EscrowSessionVaultDebugViewModel(
                             it is LocalAccount.Algo25 ||
                             it is LocalAccount.Falcon24 ||
                             it is LocalAccount.Falcon25
-                    }
-                    .map { it.address }
+                    }.map { it.address }
             }.onSuccess { addresses ->
                 updateContent { current ->
                     val viewer = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() }
@@ -75,6 +76,7 @@ class EscrowSessionVaultDebugViewModel(
                         creatorAddress = creator,
                     )
                 }
+                refreshDebugSessionContext()
                 if (addresses.size < 2) {
                     sendStatus("❌ At least two signable local Algorand accounts are required.")
                 }
@@ -97,6 +99,7 @@ class EscrowSessionVaultDebugViewModel(
         viewModelScope.launch {
             setLoading(true)
             val vaultContext = getSessionVaultContextUseCase()
+            EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
             sendStatus("Depositing $amountUsdc USDC from viewer to ${vaultContext.networkLabel} Session Vault…")
             Napier.d(
                 "[ADD_TO_VAULT_CONTEXT] viewer=$viewer creator=$creator appId=${vaultContext.appId} usdcAssetId=${vaultContext.usdcAssetId}",
@@ -105,13 +108,7 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
-                    if (EscrowSessionVaultManagerClient.channelId == null) {
-                        EscrowSessionVaultManagerClient.initializeChannelId(
-                            payerAddress = viewer,
-                            payeeAddress = creator,
-                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                        )
-                    }
+                    refreshDebugSessionContext(signer.authorizedSignerPublicKey)
 
                     val result =
                         withContext(Dispatchers.Default) {
@@ -151,9 +148,9 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val remaining =
                     withContext(Dispatchers.Default) {
-                      //  val vaultContext = getSessionVaultContextUseCase()
+                        //  val vaultContext = getSessionVaultContextUseCase()
                         MppPayments.getRemainingBalanceFromSessionVault(
-                            viewerAddress = viewer
+                            viewerAddress = viewer,
                         )
                     }
                 updateContent { it.copy(remainingBalance = remaining) }
@@ -279,9 +276,9 @@ class EscrowSessionVaultDebugViewModel(
                     }
                     val settleMessage =
                         MppPayments.settleMessage(
-                        cumulativeAmountMicroUsdc = depositMicroUsdc,
-                        channelId = channelId,
-                    )
+                            cumulativeAmountMicroUsdc = depositMicroUsdc,
+                            channelId = channelId,
+                        )
                     val signature = viewerSigner.signMessage(settleMessage)
 
                     val result =
@@ -534,6 +531,47 @@ class EscrowSessionVaultDebugViewModel(
         }
     }
 
+    private fun refreshDebugSessionContext(authorizedSignerPublicKey: ByteArray? = null) {
+        if (authorizedSignerPublicKey != null) {
+            configureDebugSessionContext(
+                content = contentState(),
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+            )
+            return
+        }
+
+        viewModelScope.launch {
+            val content = contentState()
+            val viewer = content.viewerAddress.trim()
+            if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return@launch
+            val signer = mppWalletSignerUseCase(viewer) ?: return@launch
+            configureDebugSessionContext(content, signer.authorizedSignerPublicKey)
+        }
+    }
+
+    private fun configureDebugSessionContext(
+        content: ViewState.Content,
+        authorizedSignerPublicKey: ByteArray,
+    ) {
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        if (viewer.isBlank() || creator.isBlank() || viewer == creator) return
+
+        EscrowSessionVaultManagerClient.hostAddress = creator
+        EscrowSessionVaultManagerClient.salt = EscrowSessionVaultManagerClient.defaultSalt
+        EscrowSessionVaultManagerClient.initializeChannelId(
+            payerAddress = viewer,
+            payeeAddress = creator,
+            authorizedSignerPublicKey = authorizedSignerPublicKey,
+        )
+        Napier.d(
+            "[DEBUG_SESSION_CONTEXT_REFRESHED] viewer=$viewer creator=$creator " +
+                "channelIdLength=${EscrowSessionVaultManagerClient.channelId?.size} " +
+                "saltLength=${EscrowSessionVaultManagerClient.salt?.size}",
+            tag = TAG,
+        )
+    }
+
     private fun validateViewerAndCreator(content: ViewState.Content): Boolean {
         val viewer = content.viewerAddress.trim()
         val creator = content.creatorAddress.trim()
@@ -565,7 +603,6 @@ class EscrowSessionVaultDebugViewModel(
 
     private fun contentState(): ViewState.Content = state.value as ViewState.Content
 
-
     private fun updateContent(block: (ViewState.Content) -> ViewState.Content) {
         stateDelegate.updateState { current -> block(current as ViewState.Content) }
     }
@@ -577,7 +614,6 @@ class EscrowSessionVaultDebugViewModel(
     private fun sendStatus(message: String) {
         eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage(message))
     }
-
 
     sealed interface ViewState {
         data class Content(

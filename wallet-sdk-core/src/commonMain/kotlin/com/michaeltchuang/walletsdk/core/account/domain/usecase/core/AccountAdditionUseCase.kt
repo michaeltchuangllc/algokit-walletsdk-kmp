@@ -101,7 +101,10 @@ class AccountAdditionUseCase(
             false
         }
 
-    private suspend fun createFalcon25Account(createAccount: CreateAccount, type: CreateAccount.Type.Falcon25): Boolean =
+    private suspend fun createFalcon25Account(
+        createAccount: CreateAccount,
+        type: CreateAccount.Type.Falcon25,
+    ): Boolean =
         try {
             addFalcon25Account(
                 address = createAccount.address,
@@ -114,7 +117,9 @@ class AccountAdditionUseCase(
                 orderIndex = createAccount.orderIndex,
             )
             true
-        } catch (_: Exception) { false }
+        } catch (_: Exception) {
+            false
+        }
 
     private suspend fun createFalcon24Account(
         createAccount: CreateAccount,

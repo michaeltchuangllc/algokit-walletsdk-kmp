@@ -11,6 +11,7 @@ import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.algorandecosystem.sdk.Sdk
 import java.math.BigInteger
@@ -20,7 +21,6 @@ private const val TAG = "AlgorandOps"
 private const val APP_CALL_FEE = 12_000L
 private const val DUMMIES_PER_REAL_TXN = 3
 private const val MIN_TXN_FEE = 1_000L
-private const val SIGNER_TYPE_FALCON = 1L
 
 private val falconLsigAddress: Address by lazy {
     Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
@@ -53,18 +53,22 @@ internal actual suspend fun submitAppCallInternal(
     val params = client.TransactionParams().execute().body()
     val appCallTxn = buildAppCallTxn(signer, params, appId, args, boxKeys.toBoxReferences(), foreignAssets, foreignAccounts)
 
-    val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
-    val dummies = if (useFalcon) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
+    val needsFalcon24Dummies = signer.signerType == MppWalletSignerType.FALCON_LSIG
+    val dummies = if (needsFalcon24Dummies) List(DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
     if (dummies.isNotEmpty()) {
         appCallTxn.fee = BigInteger.valueOf((appCallTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
     }
 
     val txns = dummies + appCallTxn
     TxGroup.assignGroupID(*txns.toTypedArray())
-    Log.d(TAG, "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
+    Log.d(
+        TAG,
+        "[APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} " +
+            "signerType=${signer.signerType} falcon24Dummies=$needsFalcon24Dummies",
+    )
 
     val signed = signTxnGroup(signer, txns)
-    require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
+    require(if (needsFalcon24Dummies) signed.size >= txns.size else signed.size == txns.size) {
         "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
     }
     return broadcast(client, signed) ?: appCallTxn.txID()
@@ -97,19 +101,25 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
 
     val appCallTxn = buildAppCallTxn(signer, params, appId, appCallArgs, boxKeys.toBoxReferences(), appCallForeignAssets)
 
-    val useFalcon = signer.signerType == SIGNER_TYPE_FALCON
-    val dummies = if (useFalcon) List(2 * DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) } else emptyList()
-    if (dummies.isNotEmpty()) {
-        axferTxn.fee = BigInteger.valueOf((axferTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
-    }
-
-    val txns = dummies + axferTxn + appCallTxn
+    val needsFalcon24Dummies = signer.signerType == MppWalletSignerType.FALCON_LSIG
+    val realTxns = listOf(axferTxn, appCallTxn)
+    val txns =
+        if (needsFalcon24Dummies) {
+            val dummies = List(2 * DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) }
+            axferTxn.fee = BigInteger.valueOf((axferTxn.fee?.toLong() ?: MIN_TXN_FEE) + MIN_TXN_FEE * dummies.size)
+            dummies + realTxns
+        } else {
+            realTxns
+        }
     TxGroup.assignGroupID(*txns.toTypedArray())
-    Log.d(TAG, "[OPEN_TOPUP_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} falcon=$useFalcon")
-
+    Log.d(
+        TAG,
+        "[OPEN_TOPUP_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} " +
+            "signerType=${signer.signerType} falcon24Dummies=$needsFalcon24Dummies",
+    )
     val signed = signTxnGroup(signer, txns)
-    require(if (useFalcon) signed.size >= txns.size else signed.size == txns.size) {
-        "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
+    require(if (needsFalcon24Dummies) signed.size >= txns.size else signed.size == txns.size) {
+        "Unexpected signed group size: ${signed.size}, expected ${realTxns.size}"
     }
     return broadcast(client, signed) ?: appCallTxn.txID()
 }
@@ -212,6 +222,11 @@ private fun broadcast(
 ): String? {
     val concatenated = signedBlobs.fold(ByteArray(0)) { acc, b -> acc + b }
     val resp: Response<PostTransactionsResponse> = client.RawTransaction().rawtxn(concatenated).execute()
-    if (!resp.isSuccessful) error("Broadcast failed: ${resp.message() ?: "unknown"}")
+    if (!resp.isSuccessful) {
+        val responseBody = resp.body()?.toString().orEmpty()
+        val reason = responseBody.ifBlank { resp.message() ?: "unknown" }
+        Log.e(TAG, "[ALGORAND_GROUP_REJECTED] txCount=${signedBlobs.size} reason=$reason")
+        error("Broadcast failed: $reason")
+    }
     return resp.body()?.txId
 }

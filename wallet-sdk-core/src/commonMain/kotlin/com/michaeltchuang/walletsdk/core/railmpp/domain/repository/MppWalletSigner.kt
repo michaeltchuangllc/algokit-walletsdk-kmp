@@ -1,13 +1,19 @@
 package com.michaeltchuang.walletsdk.core.railmpp.domain.repository
 
+enum class MppWalletSignerType {
+    ED25519,
+    FALCON_NATIVE,
+    FALCON_LSIG,
+}
+
 /** Platform-agnostic wallet signer for Algorand/Solana payment rails. */
 interface MppWalletSigner {
     val address: String
     val authorizedSignerPublicKey: ByteArray
 
-    /** 0 = Ed25519 (Algo25/HD), 1 = Falcon txn-auth. */
-    val signerType: Long
-        get() = 0L
+    /** Transaction authorization algorithm used by this signer. */
+    val signerType: MppWalletSignerType
+        get() = MppWalletSignerType.ED25519
 
     suspend fun signMessage(message: ByteArray): ByteArray =
         throw UnsupportedOperationException("Message signing is not supported by this signer")

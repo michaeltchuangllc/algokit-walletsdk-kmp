@@ -350,8 +350,9 @@ fun NavigationBottomSheetNavHost(
                             scannedMnemonic.isNotEmpty() -> {
                                 val wordCount = scannedMnemonic.trim().split("\\s+".toRegex()).size
                                 when (wordCount) {
-                                    25 -> AccountMnemonic.AccountType.Algo25
-                                    else -> AccountMnemonic.AccountType.Falcon24 // 24 words default
+                                    25 -> AccountMnemonic.AccountType.Falcon25
+                                    24 -> AccountMnemonic.AccountType.Falcon24
+                                    else -> AccountMnemonic.AccountType.Falcon24
                                 }
                             }
 
@@ -764,14 +765,20 @@ fun NavigationBottomSheetNavHost(
     }
 }
 
-private fun SavedState?.stringArgument(key: String, defaultValue: String? = null): String? =
-    this?.read { getStringOrNull(key) } ?: defaultValue
+private fun SavedState?.stringArgument(
+    key: String,
+    defaultValue: String? = null,
+): String? = this?.read { getStringOrNull(key) } ?: defaultValue
 
-private fun SavedState?.longArgument(key: String, defaultValue: Long): Long =
-    this?.read { getLongOrNull(key) } ?: defaultValue
+private fun SavedState?.longArgument(
+    key: String,
+    defaultValue: Long,
+): Long = this?.read { getLongOrNull(key) } ?: defaultValue
 
-private fun SavedState?.booleanArgument(key: String, defaultValue: Boolean): Boolean =
-    this?.read { getBooleanOrNull(key) } ?: defaultValue
+private fun SavedState?.booleanArgument(
+    key: String,
+    defaultValue: Boolean,
+): Boolean = this?.read { getBooleanOrNull(key) } ?: defaultValue
 
 fun startDestination(
     accounts: Int,

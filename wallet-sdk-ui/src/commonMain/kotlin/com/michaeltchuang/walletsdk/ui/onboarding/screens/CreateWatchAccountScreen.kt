@@ -143,7 +143,7 @@ private fun LoadingState() {
 }
 
 @Composable
- fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: CreateWatchAccountViewModel.ViewState.Content,
     onAddressChanged: (String) -> Unit,

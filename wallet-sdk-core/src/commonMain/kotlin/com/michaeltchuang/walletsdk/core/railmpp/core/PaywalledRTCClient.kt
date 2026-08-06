@@ -3,10 +3,10 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
@@ -33,7 +33,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-
 
 private val receiptDecodeJson = Json { ignoreUnknownKeys = true }
 
@@ -245,8 +244,8 @@ class PaywalledRTCClient(
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network}" +
-                                " payTo=${request.payTo} channelId=${request.channelId}" +
-                                " salt=${request.salt}",
+                            " payTo=${request.payTo} channelId=${request.channelId}" +
+                            " salt=${request.salt}",
                         tag = TAG,
                     )
                     scope.launch { handlePaymentRequest(request) }
@@ -454,5 +453,3 @@ private fun JsonObject.optStr(
     key: String,
     default: String,
 ): String = this[key]?.jsonPrimitive?.content ?: default
-
-

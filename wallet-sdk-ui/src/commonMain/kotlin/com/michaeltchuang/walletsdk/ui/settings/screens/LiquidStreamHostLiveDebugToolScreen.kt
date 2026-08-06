@@ -64,15 +64,16 @@ fun LiquidStreamHostDebugToolScreen(
 
         // Auto-generated message pump for testing
         val randomNames = listOf("alice.algo", "bob.algo", "charlie.algo", "dave.algo", "eve.algo")
-        val randomTexts = listOf(
-            "Hello world!",
-            "This stream is awesome!",
-            "Keep it up!",
-            "Love the content!",
-            "Wow, very informative.",
-            "Testing 1 2 3",
-            "Liquid Stream is the future!"
-        )
+        val randomTexts =
+            listOf(
+                "Hello world!",
+                "This stream is awesome!",
+                "Keep it up!",
+                "Love the content!",
+                "Wow, very informative.",
+                "Testing 1 2 3",
+                "Liquid Stream is the future!",
+            )
 
         while (true) {
             delay(2000.milliseconds)
@@ -88,16 +89,16 @@ fun LiquidStreamHostDebugToolScreen(
                         text = "Gifting support: $text",
                         timestamp = timestamp,
                         amount = Random.nextInt(1, 100).toString(),
-                        asset = "USDC"
-                    )
+                        asset = "USDC",
+                    ),
                 )
             } else {
                 viewModel.receivedChatMessage(
                     ChatMessage(
                         sender = sender,
                         text = text,
-                        timestamp = timestamp
-                    )
+                        timestamp = timestamp,
+                    ),
                 )
             }
         }

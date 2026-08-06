@@ -66,25 +66,25 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
-import kotlin.time.Clock
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
+import kotlin.time.Clock
 
 enum class StreamHostUiMode {
     Hidden,
@@ -650,8 +650,8 @@ private fun StreamHostBottomSheet(
                         ChatMessage(
                             sender = "Creator",
                             text = text,
-                            timestamp = Clock.System.now().toEpochMilliseconds()
-                        )
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                        ),
                     )
                 },
             )
@@ -706,8 +706,8 @@ private fun StreamHostBottomSheet(
                             ChatMessage(
                                 sender = "Creator",
                                 text = text,
-                                timestamp = Clock.System.now().toEpochMilliseconds()
-                            )
+                                timestamp = Clock.System.now().toEpochMilliseconds(),
+                            ),
                         )
                     },
                 )

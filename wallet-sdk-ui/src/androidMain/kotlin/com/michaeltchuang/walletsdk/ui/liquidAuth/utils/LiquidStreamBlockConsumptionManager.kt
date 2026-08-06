@@ -442,7 +442,9 @@ internal class LiquidStreamBlockConsumptionManager(
     private fun String?.toAlgorandNetwork(): AlgorandNetwork =
         when {
             this == MppNetworks.ALGORAND_MAINNET || orEmpty().contains("mainnet", ignoreCase = true) -> AlgorandNetwork.MAINNET
-            this == MppNetworks.ALGORAND_FUTURENET || orEmpty().contains("futurenet", ignoreCase = true) || orEmpty().contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
+            this == MppNetworks.ALGORAND_FUTURENET ||
+                orEmpty().contains("futurenet", ignoreCase = true) ||
+                orEmpty().contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
             else -> AlgorandNetwork.TESTNET
         }
 

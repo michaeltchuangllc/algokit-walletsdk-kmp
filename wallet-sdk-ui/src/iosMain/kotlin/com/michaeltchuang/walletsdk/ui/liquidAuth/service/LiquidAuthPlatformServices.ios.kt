@@ -14,8 +14,7 @@ actual class LiquidAuthPlatformServices {
         return true
     }
 
-    fun hostPaymentMessageSender(): ((message: String) -> Unit)? =
-        iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
+    fun hostPaymentMessageSender(): ((message: String) -> Unit)? = iosBroadcastPaymentDCSendMessageHandler ?: iosBroadcastSendMessageHandler
 
     fun createHostPaymentDataChannel(): CallbackRtcDataChannel =
         CallbackRtcDataChannel(
@@ -61,8 +60,7 @@ actual class LiquidAuthPlatformServices {
         return true
     }
 
-    fun viewerPaymentMessageSender(): ((message: String) -> Unit)? =
-        iosViewerPaymentDCSendMessageHandler ?: iosViewerSendMessageHandler
+    fun viewerPaymentMessageSender(): ((message: String) -> Unit)? = iosViewerPaymentDCSendMessageHandler ?: iosViewerSendMessageHandler
 
     fun createViewerPaymentDataChannel(): CallbackRtcDataChannel =
         CallbackRtcDataChannel(
