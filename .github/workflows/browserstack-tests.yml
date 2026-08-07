@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: "Checkout Code"
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: "Install JDK 21"
         uses: actions/setup-java@v5
@@ -51,7 +51,7 @@ jobs:
           echo '${{ env.test_result }}' > ${{ github.workspace }}/androidDemoApp/build/reports/browserstack/test-results.json
 
       - name: "Upload Test Results"
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: browserstack-test-results
           path: ${{ github.workspace }}/androidDemoApp/build/reports/browserstack/test-results.json
