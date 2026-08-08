@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.demo
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
@@ -619,13 +620,17 @@ private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
             else -> ByteArray(0)
         }
 
-    val signerType: Long =
-        if (localAccount is LocalAccount.Falcon24 || localAccount is LocalAccount.Falcon25) 1L else 0L
+    val signerType =
+        when (localAccount) {
+            is LocalAccount.Falcon24 -> MppWalletSignerType.FALCON_LSIG
+            is LocalAccount.Falcon25 -> MppWalletSignerType.FALCON_NATIVE
+            else -> MppWalletSignerType.ED25519
+        }
 
     return object : MppWalletSigner {
         override val address: String = hostAddress
         override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
-        override val signerType: Long = signerType
+        override val signerType: MppWalletSignerType = signerType
 
         override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray {
             return try {
@@ -736,7 +741,9 @@ fun registerBroadcastHandlers(
     // call settleLatestVoucher() on Algorand so lastSettled is updated.
     iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64, channelIdBase64 ->
         broadcastSettlementScope.launch {
-            Napier.d("[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}")
+            Napier.d(
+                "[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}",
+            )
             settleHostVoucherOnChain(
                 hostAddress = hostAddress,
                 viewerAddress = viewerAddress,

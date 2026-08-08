@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.railmpp.data.MppWalletSignerImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 
 class MppWalletSignerUseCase(
     private val getLocalAccount: GetLocalAccount,
@@ -35,7 +36,11 @@ class MppWalletSignerUseCase(
             }
 
         val signerType =
-            if (localAccount is LocalAccount.Falcon24 || localAccount is LocalAccount.Falcon25) 1L else 0L
+            when (localAccount) {
+                is LocalAccount.Falcon24 -> MppWalletSignerType.FALCON_LSIG
+                is LocalAccount.Falcon25 -> MppWalletSignerType.FALCON_NATIVE
+                else -> MppWalletSignerType.ED25519
+            }
 
         return MppWalletSignerImpl(
             address = address,

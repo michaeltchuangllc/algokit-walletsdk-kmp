@@ -36,9 +36,10 @@ internal actual fun deriveBip39Seed(mnemonic: String): ByteArray = bridge.xhdSee
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual fun ByteArray.sha256(): ByteArray =
-    bridge.sha256WithDataBase64(
-        this.toNSData().base64EncodedStringWithOptions(0.toULong()),
-    ).fromBase64ToByteArray()
+    bridge
+        .sha256WithDataBase64(
+            this.toNSData().base64EncodedStringWithOptions(0.toULong()),
+        ).fromBase64ToByteArray()
 
 actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): SuggestedParams =
     SuggestedParams(
@@ -121,14 +122,22 @@ actual fun createFalcon25Account(): Falcon25Account? =
 @OptIn(ExperimentalForeignApi::class)
 actual fun recoverFalcon25Account(mnemonic: String): Falcon25Account? =
     try {
-        val entropy = AlgoKitBip39.getEntropyFromMnemonic(mnemonic)
+        val entropy = getFalcon25EntropyFromMnemonic(mnemonic)
         deriveFalcon25Account(mnemonic, entropy)
     } catch (_: Exception) {
         null
     }
 
 @OptIn(ExperimentalForeignApi::class)
-private fun deriveFalcon25Account(mnemonic: String, entropy: ByteArray): Falcon25Account? =
+actual fun getFalcon25EntropyFromMnemonic(mnemonic: String): ByteArray =
+    bridge.getFalcon25EntropyFromMnemonicWithMnemonic(mnemonic)?.toByteArray()
+        ?: throw IllegalArgumentException("Invalid Falcon25 mnemonic")
+
+@OptIn(ExperimentalForeignApi::class)
+private fun deriveFalcon25Account(
+    mnemonic: String,
+    entropy: ByteArray,
+): Falcon25Account? =
     try {
         Falcon25Account(
             address = bridge.getFalconAddressFromMnemonicWithMnemonic(mnemonic),
@@ -142,8 +151,7 @@ private fun deriveFalcon25Account(mnemonic: String, entropy: ByteArray): Falcon2
     }
 
 @OptIn(ExperimentalForeignApi::class)
-actual fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String? =
-    bridge.getFalconMnemonicFromEntropyWithEntropy(entropy.toNSData())
+actual fun getFalcon25MnemonicFromEntropy(entropy: ByteArray): String? = bridge.getFalconMnemonicFromEntropyWithEntropy(entropy.toNSData())
 
 @OptIn(ExperimentalForeignApi::class)
 actual fun getFalcon25SeedFromEntropy(entropy: ByteArray): ByteArray? =
@@ -237,11 +245,12 @@ actual fun signFalcon24Transaction(
     privateKey: ByteArray,
 ): ByteArray? =
     try {
-        bridge.signFalcon24TransactionWithTransactionBytes(
-            transactionBytes = transactionByteArray.toNSData(),
-            publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u),
-            privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u),
-        )?.toByteArray()
+        bridge
+            .signFalcon24TransactionWithTransactionBytes(
+                transactionBytes = transactionByteArray.toNSData(),
+                publicKeyBase64 = publicKey.toNSData().base64EncodedStringWithOptions(0u),
+                privateKeyBase64 = privateKey.toNSData().base64EncodedStringWithOptions(0u),
+            )?.toByteArray()
     } catch (e: Exception) {
         println("Falcon24 transaction signing failed: ${e.message}")
         null
@@ -253,10 +262,11 @@ actual fun signFalcon25Transaction(
     seed: ByteArray,
 ): ByteArray? =
     try {
-        bridge.signFalcon25TransactionWithTransactionBytes(
-            transactionBytes = transactionByteArray.toNSData(),
-            seed = seed.toNSData(),
-        )?.toByteArray()
+        bridge
+            .signFalcon25TransactionWithTransactionBytes(
+                transactionBytes = transactionByteArray.toNSData(),
+                seed = seed.toNSData(),
+            )?.toByteArray()
     } catch (e: Exception) {
         println("Falcon25 transaction signing failed: ${e.message}")
         null

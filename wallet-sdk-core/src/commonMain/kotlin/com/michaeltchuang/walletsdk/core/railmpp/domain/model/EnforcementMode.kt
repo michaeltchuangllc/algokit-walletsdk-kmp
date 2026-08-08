@@ -7,6 +7,9 @@ import kotlinx.serialization.Serializable
 enum class EnforcementMode(
     val value: String,
 ) {
-    @SerialName("track") TRACK("track"),
-    @SerialName("crypto") CRYPTO("crypto"),
+    @SerialName("track")
+    TRACK("track"),
+
+    @SerialName("crypto")
+    CRYPTO("crypto"),
 }

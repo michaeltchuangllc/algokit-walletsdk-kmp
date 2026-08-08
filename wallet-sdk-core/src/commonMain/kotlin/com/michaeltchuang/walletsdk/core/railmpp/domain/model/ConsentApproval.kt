@@ -1,4 +1,5 @@
 package com.michaeltchuang.walletsdk.core.railmpp.domain.model
+
 data class ConsentApproval(
     val approved: Boolean,
     val autoPaySegments: Boolean,

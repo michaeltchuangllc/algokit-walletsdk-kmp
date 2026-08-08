@@ -44,7 +44,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         val onChatMessageReceived: (ChatMessage) -> Unit = {},
     )
 
-
     operator fun invoke(params: Params) {
         Log.d(
             TAG,
@@ -120,7 +119,6 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
         }
     }
 
-
     private suspend fun awaitPaymentDataChannel(service: SignalService): DataChannel? {
         service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
         repeat(20) {
@@ -151,7 +149,12 @@ actual class SetupMppPaymentViewerUseCase actual constructor(
     private fun String.toAlgorandNetwork(): AlgorandNetwork =
         when {
             this == MppNetworks.ALGORAND_MAINNET || contains("mainnet", ignoreCase = true) -> AlgorandNetwork.MAINNET
-            this == MppNetworks.ALGORAND_FUTURENET || contains("futurenet", ignoreCase = true) || contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
+            this == MppNetworks.ALGORAND_FUTURENET ||
+                contains(
+                    "futurenet",
+                    ignoreCase = true,
+                ) ||
+                contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
             else -> AlgorandNetwork.TESTNET
         }
 }

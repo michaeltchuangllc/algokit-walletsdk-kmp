@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.maven.publish)
 }
 
-
 // Apply shared version calculation script
 apply(from = rootProject.file("gradle/version.gradle.kts"))
 
@@ -198,7 +197,6 @@ configurations.all {
         exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
     }
 }
-
 
 val generateBuildInfo by tasks.registering {
     val outputDir = layout.buildDirectory.dir("generated/kotlin")

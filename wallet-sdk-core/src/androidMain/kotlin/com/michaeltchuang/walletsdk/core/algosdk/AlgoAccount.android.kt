@@ -5,8 +5,6 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.AlgorandBip39WalletPr
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk.Bip39Wallet
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Algo25Account
 import com.michaeltchuang.walletsdk.core.algosdk.domain.model.Falcon25Account
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
-import io.github.algorandecosystem.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.AlgoKitBip39SdkImpl
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.SignFalcon24TransactionImpl
 import com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk.SignFalcon25TransactionImpl
@@ -16,6 +14,8 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.getMinimumFee
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
+import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
+import io.github.algorandecosystem.sdk.Sdk
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import uniffi.algokit_composer_ffi.AssetOptInParams
 import uniffi.algokit_composer_ffi.AssetTransferParams
@@ -27,12 +27,12 @@ import uniffi.algokit_composer_ffi.PaymentParams
 import uniffi.algokit_composer_ffi.TxnParams
 import uniffi.algokit_composer_ffi.TxnParamsKind
 import uniffi.algokit_composer_ffi.compose
-import uniffi.algokit_crypto_ffi.secretKeyToMnemonic
-import uniffi.algokit_crypto_ffi.seedFromMnemonic
-import uniffi.algokit_crypto_ffi.xhdSeedFromMnemonic
 import uniffi.algokit_crypto_ffi.ed25519PublicKeyFromSeed
 import uniffi.algokit_crypto_ffi.ed25519RawSign
 import uniffi.algokit_crypto_ffi.randomBytes
+import uniffi.algokit_crypto_ffi.secretKeyToMnemonic
+import uniffi.algokit_crypto_ffi.seedFromMnemonic
+import uniffi.algokit_crypto_ffi.xhdSeedFromMnemonic
 import uniffi.algokit_transact_ffi.addressFromPublicKey
 import uniffi.algokit_transact_ffi.decodeTransaction
 import uniffi.algokit_transact_ffi.ed25519SignTransaction
@@ -44,7 +44,10 @@ const val ROUND_THRESHOLD = 1000L
 
 internal actual fun deriveBip39Seed(mnemonic: String): ByteArray = xhdSeedFromMnemonic(mnemonic)
 
-internal actual fun ByteArray.sha256(): ByteArray = java.security.MessageDigest.getInstance("SHA-256").digest(this)
+internal actual fun ByteArray.sha256(): ByteArray =
+    java.security.MessageDigest
+        .getInstance("SHA-256")
+        .digest(this)
 
 actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): SuggestedParams =
     SuggestedParams(
@@ -126,13 +129,19 @@ actual fun createFalcon25Account(): Falcon25Account? =
 
 actual fun recoverFalcon25Account(mnemonic: String): Falcon25Account? =
     try {
-        val entropy = AlgoKitBip39.getEntropyFromMnemonic(mnemonic)
+        val entropy = getFalcon25EntropyFromMnemonic(mnemonic)
         deriveFalcon25Account(mnemonic, entropy)
     } catch (_: Exception) {
         null
     }
 
-private fun deriveFalcon25Account(mnemonic: String, entropy: ByteArray): Falcon25Account? =
+actual fun getFalcon25EntropyFromMnemonic(mnemonic: String): ByteArray =
+    GoMobileDispatcher.runOnGoThread { Sdk.mnemonicToEntropy(mnemonic) }
+
+private fun deriveFalcon25Account(
+    mnemonic: String,
+    entropy: ByteArray,
+): Falcon25Account? =
     try {
         GoMobileDispatcher.runOnGoThread { Sdk.deriveFromMnemonic(mnemonic, "") }.let {
             Falcon25Account(
@@ -185,11 +194,9 @@ actual fun getMnemonicFromAlgo25SecretKey(secretKey: ByteArray): String? =
 
 actual fun createBip39Wallet(): Bip39Wallet = AlgorandBip39WalletProvider().createBip39Wallet()
 
-actual fun getBip39Wallet(entropy: ByteArray): Bip39Wallet =
-    AlgorandBip39WalletProvider().getBip39Wallet(entropy)
+actual fun getBip39Wallet(entropy: ByteArray): Bip39Wallet = AlgorandBip39WalletProvider().getBip39Wallet(entropy)
 
-actual fun getSeedFromEntropy(entropy: ByteArray): ByteArray? =
-    AlgoKitBip39SdkImpl().getSeedFromEntropy(entropy)
+actual fun getSeedFromEntropy(entropy: ByteArray): ByteArray? = AlgoKitBip39SdkImpl().getSeedFromEntropy(entropy)
 
 actual fun signHdKeyTransaction(
     transactionByteArray: ByteArray,

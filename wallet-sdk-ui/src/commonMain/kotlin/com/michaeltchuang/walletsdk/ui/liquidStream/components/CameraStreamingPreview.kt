@@ -9,25 +9,9 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
 /**
  * Factory function to create a camera preview composable for video streaming.
  *
- * The implementation should:
- * 1. Display camera preview
- * 2. Capture frames at regular intervals (e.g., 10-15 FPS)
- * 3. Encode frames to JPEG
- * 4. Call connectionManager.sendVideoFrame() for each frame
+ * Platform implementations render the native WebRTC video track and display a camera preview.
  *
- * Example implementation using CameraX:
- * ```kotlin
- * @Composable
- * fun CameraStreamingPreview(
- *     connectionManager: LiquidAuthConnectionManager?,
- * ) {
- *     // Use CameraX Preview and ImageAnalysis
- *     // In ImageAnalysis.Analyzer, convert ImageProxy to JPEG
- *     // Call connectionManager?.sendVideoFrame(frameId, timestamp, jpegBytes, width, height, "jpeg")
- * }
- * ```
- *
- * @return A composable that displays camera preview and streams frames
+ * @return A composable that displays the camera preview
  */
 class CameraStreamingPreviewController {
     var onRotateCamera: (() -> Unit)? by mutableStateOf(null)

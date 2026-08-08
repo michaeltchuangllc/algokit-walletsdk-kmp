@@ -410,7 +410,7 @@ class PeerApi(
     }
 
     // ── Native WebRTC media tracks ──────────────────────────────────────────────
-    
+
     fun startLocalCapture(
         width: Int = DEFAULT_CAPTURE_WIDTH,
         height: Int = DEFAULT_CAPTURE_HEIGHT,
@@ -458,7 +458,7 @@ class PeerApi(
 
         return localVideoTrack
     }
-    
+
     fun addReceiveOnlyMediaTransceivers() {
         val pc =
             peerConnection ?: run {
@@ -479,7 +479,6 @@ class PeerApi(
     fun switchCamera() {
         videoCapturer?.switchCamera(null)
     }
-
 
     fun setAudioEnabled(enabled: Boolean) {
         localAudioTrack?.setEnabled(enabled)

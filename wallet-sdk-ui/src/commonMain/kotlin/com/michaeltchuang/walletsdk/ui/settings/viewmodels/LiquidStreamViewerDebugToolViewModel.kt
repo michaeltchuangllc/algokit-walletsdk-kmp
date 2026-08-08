@@ -20,7 +20,6 @@ class LiquidStreamViewerDebugToolViewModel(
 ) : ViewModel(),
     StateViewModel<LiquidStreamViewerDebugToolViewModel.UiState> by stateDelegate,
     EventViewModel<LiquidStreamViewerDebugToolViewModel.ViewEvent> by eventDelegate {
-
     init {
         stateDelegate.setDefaultState(UiState())
         observeNetwork()
@@ -88,19 +87,20 @@ class LiquidStreamViewerDebugToolViewModel(
         }
 
         // For debug tool, we just add the message locally
-        val newMessage = ChatUiMessage(
-            sender = "Viewer",
-            text = messageText,
-            timestamp = Clock.System.now().toEpochMilliseconds(),
-            amount = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) state.value.giftAmountTag else null,
-            asset = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) "USDC" else null
-        )
+        val newMessage =
+            ChatUiMessage(
+                sender = "Viewer",
+                text = messageText,
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+                amount = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) state.value.giftAmountTag else null,
+                asset = if (state.value.giftAmountTag.toDoubleOrNull() ?: 0.0 > 0.0) "USDC" else null,
+            )
 
         stateDelegate.updateState {
             it.copy(
                 chatMessages = it.chatMessages + newMessage,
                 message = "",
-                giftAmountTag = ZERO_GIFT_AMOUNT
+                giftAmountTag = ZERO_GIFT_AMOUNT,
             )
         }
     }
@@ -109,8 +109,7 @@ class LiquidStreamViewerDebugToolViewModel(
         getCurrentNetworkUseCase()
             .onEach { network ->
                 stateDelegate.updateState { it.copy(network = network) }
-            }
-            .launchIn(viewModelScope)
+            }.launchIn(viewModelScope)
     }
 
     data class UiState(

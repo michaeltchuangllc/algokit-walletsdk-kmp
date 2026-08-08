@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NOD
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
@@ -15,7 +16,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
-import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -44,19 +44,21 @@ object EscrowSessionVaultManagerClient {
     var defaultSalt: ByteArray? = null
     var channelId: ByteArray? = null
     var salt: ByteArray? = null
-    var hostAddress: String?=null
+    var hostAddress: String? = null
 
     init {
         runCatching {
-            val network = runBlocking {
-                provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
-            }
+            val network =
+                runBlocking {
+                    provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
+                }
             applyNetworkDefaults(network)
         }
         runCatching {
-            defaultSalt = runBlocking {
-                RailMppDataRepositoryImpl().getOrCreateChannelSalt()
-            }
+            defaultSalt =
+                runBlocking {
+                    RailMppDataRepositoryImpl().getOrCreateChannelSalt()
+                }
         }
     }
 
@@ -306,9 +308,7 @@ object EscrowSessionVaultManagerClient {
             )
         }
 
-    suspend fun optInUsdc(
-        signer: MppWalletSigner,
-    ): Result<String> =
+    suspend fun optInUsdc(signer: MppWalletSigner): Result<String> =
         runCatching {
             submitAppCallInternal(
                 signer = signer,
@@ -354,8 +354,7 @@ object EscrowSessionVaultManagerClient {
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-    ): Result<String> =
-        verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature)
+    ): Result<String> = verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature)
 
     data class SessionStaticData(
         val startRound: Long,

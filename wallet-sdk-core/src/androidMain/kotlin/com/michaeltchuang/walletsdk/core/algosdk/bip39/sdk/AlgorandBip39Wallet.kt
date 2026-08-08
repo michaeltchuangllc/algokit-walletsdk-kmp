@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk
 import cash.z.ecc.android.bip39.Mnemonics
 import cash.z.ecc.android.bip39.toSeed
 import com.algorand.algosdk.crypto.Address
-import io.github.algorandecosystem.sdk.Sdk
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Entropy
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Mnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Seed
@@ -14,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressIndex
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.HdKeyAddressLite
 import com.michaeltchuang.walletsdk.core.encryption.domain.utils.clearFromMemory
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
+import io.github.algorandecosystem.sdk.Sdk
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import uniffi.algokit_crypto_ffi.XhdDerivedAccount
 import uniffi.algokit_crypto_ffi.XhdKeyContext
@@ -79,11 +79,9 @@ internal class AlgorandBip39Wallet internal constructor(
         rootKey.clearFromMemory()
     }
 
-    private fun generatePrivateKey(index: HdKeyAddressIndex): ByteArray =
-        deriveAccount(index).extendedPrivateKey
+    private fun generatePrivateKey(index: HdKeyAddressIndex): ByteArray = deriveAccount(index).extendedPrivateKey
 
-    private fun generatePublicKey(index: HdKeyAddressIndex): ByteArray =
-        deriveAccount(index).publicKey
+    private fun generatePublicKey(index: HdKeyAddressIndex): ByteArray = deriveAccount(index).publicKey
 
     private fun deriveAccount(index: HdKeyAddressIndex): XhdDerivedAccount {
         require(index.changeIndex == 0) {

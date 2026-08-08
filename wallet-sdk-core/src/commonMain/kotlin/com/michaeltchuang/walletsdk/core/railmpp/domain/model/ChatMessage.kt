@@ -8,5 +8,5 @@ data class ChatMessage(
     val text: String,
     val timestamp: Long,
     val amount: String? = null,
-    val asset: String? = null
+    val asset: String? = null,
 )

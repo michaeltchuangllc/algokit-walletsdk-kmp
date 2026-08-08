@@ -4,14 +4,14 @@ import com.michaeltchuang.walletsdk.core.network.model.ApiResult
 import com.michaeltchuang.walletsdk.core.network.model.AssetCreatorResponse
 import com.michaeltchuang.walletsdk.core.network.model.AssetDetailResponse
 import com.michaeltchuang.walletsdk.core.network.utils.getIndexerBaseUrl
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 
 class AssetDetailApiServiceImpl(
     private val httpClient: HttpClient,
@@ -69,7 +69,7 @@ private data class IndexerAssetParams(
     val name: String? = null,
     @SerialName("unit-name") val unitName: String? = null,
     val decimals: Int? = null,
-    val total: Long? = null,
+    val total: ULong? = null,
     val creator: String? = null,
     val url: String? = null,
 )

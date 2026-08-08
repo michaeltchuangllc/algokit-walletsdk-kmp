@@ -33,10 +33,11 @@ fun LottieConfetti(modifier: Modifier = Modifier) {
         speed = 1.5f,
     )
     Image(
-        painter = rememberLottiePainter(
-            composition = composition,
-            progress = { progress },
-        ),
+        painter =
+            rememberLottiePainter(
+                composition = composition,
+                progress = { progress },
+            ),
         contentDescription = null,
         modifier = modifier,
     )
