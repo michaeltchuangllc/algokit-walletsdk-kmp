@@ -60,7 +60,9 @@ fun LiquidStreamHostDebugToolScreen(
     }
 
     LaunchedEffect(Unit) {
-        Napier.d("Viewer Address: ${DebugAddressHolder.viewerAddress}", tag = "LiquidStreamHostDebug")
+        Napier.d("Viewer 1 Address: ${DebugAddressHolder.viewerAddress}", tag = "LiquidStreamHostDebug")
+        Napier.d("Viewer 2 Address: ${DebugAddressHolder.viewerAddress2}", tag = "LiquidStreamHostDebug")
+        Napier.d("Viewer 3 Address: ${DebugAddressHolder.viewerAddress3}", tag = "LiquidStreamHostDebug")
         Napier.d("Creator Address: ${DebugAddressHolder.creatorAddress}", tag = "LiquidStreamHostDebug")
 
         // Auto-generated message pump for testing

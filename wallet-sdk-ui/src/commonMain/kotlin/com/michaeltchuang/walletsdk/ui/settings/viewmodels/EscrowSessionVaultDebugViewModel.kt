@@ -44,6 +44,16 @@ class EscrowSessionVaultDebugViewModel(
         refreshDebugSessionContext()
     }
 
+    fun onViewerAddress2Changed(address: String) {
+        updateContent { it.copy(viewerAddress2 = address) }
+        DebugAddressHolder.viewerAddress2 = address
+    }
+
+    fun onViewerAddress3Changed(address: String) {
+        updateContent { it.copy(viewerAddress3 = address) }
+        DebugAddressHolder.viewerAddress3 = address
+    }
+
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
         DebugAddressHolder.creatorAddress = address
@@ -73,6 +83,8 @@ class EscrowSessionVaultDebugViewModel(
                     current.copy(
                         accountAddresses = addresses,
                         viewerAddress = viewer,
+                        viewerAddress2 = DebugAddressHolder.viewerAddress2,
+                        viewerAddress3 = DebugAddressHolder.viewerAddress3,
                         creatorAddress = creator,
                     )
                 }
@@ -619,6 +631,8 @@ class EscrowSessionVaultDebugViewModel(
         data class Content(
             val accountAddresses: List<String> = emptyList(),
             val viewerAddress: String = "",
+            val viewerAddress2: String = "",
+            val viewerAddress3: String = "",
             val creatorAddress: String = "",
             val depositAmountUsdc: String = "0.1",
             val remainingBalance: Long? = null,
@@ -626,10 +640,12 @@ class EscrowSessionVaultDebugViewModel(
         ) : ViewState {
             val canRunVaultActions: Boolean
                 get() =
-                    accountAddresses.size >= 2 &&
-                        viewerAddress.isNotBlank() &&
-                        creatorAddress.isNotBlank() &&
-                        viewerAddress != creatorAddress
+                    creatorAddress.isNotBlank() &&
+                        (
+                            viewerAddress.isNotBlank() ||
+                                viewerAddress2.isNotBlank() ||
+                                viewerAddress3.isNotBlank()
+                        )
         }
     }
 

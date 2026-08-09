@@ -54,6 +54,8 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     val accountAddresses = content.accountAddresses
     val viewerAddress = content.viewerAddress
+    val viewerAddress2 = content.viewerAddress2
+    val viewerAddress3 = content.viewerAddress3
     val creatorAddress = content.creatorAddress
     val depositAmount = content.depositAmountUsdc
     val remainingBalance = content.remainingBalance
@@ -111,17 +113,6 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             fontWeight = FontWeight.SemiBold,
             color = AlgoKitTheme.colors.textMain,
         )
-
-        AddressDropdownField(
-            label = "Viewer Address",
-            placeholder = "Select the viewer (payer)",
-            selectedAddress = viewerAddress,
-            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
-            enabled = !isLoading,
-            colors = textFieldColors,
-            onAddressSelected = viewModel::onViewerAddressChanged,
-        )
-
         AddressDropdownField(
             label = "Creator Address",
             placeholder = "Select the creator (payee)",
@@ -131,6 +122,38 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             colors = textFieldColors,
             onAddressSelected = viewModel::onCreatorAddressChanged,
         )
+
+        AddressDropdownField(
+            label = "Viewer 1 Address",
+            placeholder = "Select the viewer 1 (payer)",
+            selectedAddress = viewerAddress,
+            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            enabled = !isLoading,
+            colors = textFieldColors,
+            onAddressSelected = viewModel::onViewerAddressChanged,
+        )
+
+        AddressDropdownField(
+            label = "Viewer 2 Address",
+            placeholder = "Select the viewer 2",
+            selectedAddress = viewerAddress2,
+            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            enabled = !isLoading,
+            colors = textFieldColors,
+            onAddressSelected = viewModel::onViewerAddress2Changed,
+        )
+
+        AddressDropdownField(
+            label = "Viewer 3 Address",
+            placeholder = "Select the viewer 3",
+            selectedAddress = viewerAddress3,
+            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            enabled = !isLoading,
+            colors = textFieldColors,
+            onAddressSelected = viewModel::onViewerAddress3Changed,
+        )
+
+
 
         OutlinedTextField(
             value = depositAmount,

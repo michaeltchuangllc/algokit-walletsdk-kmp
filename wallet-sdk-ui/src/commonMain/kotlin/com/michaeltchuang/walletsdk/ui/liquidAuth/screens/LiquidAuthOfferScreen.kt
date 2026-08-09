@@ -70,8 +70,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -82,7 +80,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
