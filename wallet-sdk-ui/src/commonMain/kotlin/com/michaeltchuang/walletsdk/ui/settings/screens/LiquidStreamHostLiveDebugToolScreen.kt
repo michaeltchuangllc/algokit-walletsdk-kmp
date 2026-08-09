@@ -1,5 +1,17 @@
 package com.michaeltchuang.walletsdk.ui.settings.screens
 
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -7,13 +19,12 @@ import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
-import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
-import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -24,17 +35,13 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
-import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun LiquidStreamHostDebugToolScreen(
@@ -63,6 +70,17 @@ fun LiquidStreamHostDebugToolScreen(
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(debugViewModel) {
+        debugViewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidStreamHostDebugToolViewModel.ViewEvent.ShowStatusMessage -> {
+                    statusMessage = event.message
+                }
+            }
+        }
+    }
 
     LaunchedEffect(
         DebugAddressHolder.viewerAddress,
@@ -138,76 +156,118 @@ fun LiquidStreamHostDebugToolScreen(
         }
     }
 
-    LiquidStreamHostLiveScreenContent(
-        cameraPreview = cameraPreviewComp,
-        creatorUsername = DebugAddressHolder.creatorAddress.toShortenedAddress(),
-        numbersOfViewer = "1",
-        onSettingsClick = {
-            viewModel.onSettingsClicked()
-            onStatsModalVisibilityChanged(false)
-            onSettingsClick()
-        },
-        onMinimise = onMinimise,
-        onWalletClick = onWalletClick,
-        onCameraClick = viewModel::onCameraClicked,
-        onMicClick = viewModel::onMicClicked,
-        onRotateCamera = onRotateCamera,
-        onStatsClick = {
-            val isStatsVisible = !uiState.isStatsModalVisible
-            viewModel.onStatsClicked()
-            onStatsModalVisibilityChanged(isStatsVisible)
-            onStatsClick()
-        },
-        onSendClickInternal = { viewModel.onSendClicked() },
-        viewers =
-            listOf(
-                ConnectedViewerInfo(
-                    sessionId = "debug-session-1",
-                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0) * 0.8,
-                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                    connectionType = IceConnectionType.RELAY,
-                    currentBlockNumber = debugState.liveBlockNumber,
-                    networkLabel = debugState.liveNetworkLabel,
-                    originUrl = "https://viewer-1.app",
-                    viewerAddress = DebugAddressHolder.viewerAddress,
-                ),
-                ConnectedViewerInfo(
-                    sessionId = "debug-session-2",
-                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0) * 0.5,
-                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                    connectionType = IceConnectionType.STUN,
-                    currentBlockNumber = debugState.liveBlockNumber,
-                    networkLabel = debugState.liveNetworkLabel,
-                    originUrl = "https://viewer-2.app",
-                    viewerAddress = DebugAddressHolder.viewerAddress2,
-                ),
-                ConnectedViewerInfo(
-                    sessionId = "debug-session-3",
-                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0) * 0.2,
-                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                    connectionType = IceConnectionType.LOCAL,
-                    currentBlockNumber = debugState.liveBlockNumber,
-                    networkLabel = debugState.liveNetworkLabel,
-                    originUrl = "https://viewer-3.app",
-                    viewerAddress = DebugAddressHolder.viewerAddress3,
-                ),
-            ).filter { !it.viewerAddress.isNullOrBlank() },
-        blockChainLabel = blockChainLabel,
-        balanceCurrencySymbol = balanceCurrencySymbol,
-        uiState = uiState,
-        onTextChanged = viewModel::onMessageChanged,
-        onStatsDismissed = {
-            viewModel.onStatsDismissed()
-            onStatsModalVisibilityChanged(false)
-        },
-        onStreamCostTabSelected = viewModel::onStreamCostTabSelected,
-        onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
-        onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
-        onSettingsDismissed = viewModel::onSettingsDismissed,
-    )
+    Box(modifier = Modifier.fillMaxSize()) {
+        LiquidStreamHostLiveScreenContent(
+            cameraPreview = cameraPreviewComp,
+            creatorUsername = DebugAddressHolder.creatorAddress.toShortenedAddress(),
+            numbersOfViewer = "1",
+            onSettingsClick = {
+                viewModel.onSettingsClicked()
+                onStatsModalVisibilityChanged(false)
+                onSettingsClick()
+            },
+            onMinimise = onMinimise,
+            onWalletClick = onWalletClick,
+            onCameraClick = viewModel::onCameraClicked,
+            onMicClick = viewModel::onMicClicked,
+            onRotateCamera = onRotateCamera,
+            onStatsClick = {
+                val isStatsVisible = !uiState.isStatsModalVisible
+                viewModel.onStatsClicked()
+                onStatsModalVisibilityChanged(isStatsVisible)
+                onStatsClick()
+            },
+            onSendClickInternal = { viewModel.onSendClicked() },
+            viewers =
+                listOf(
+                    ConnectedViewerInfo(
+                        sessionId = "debug-session-1",
+                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                        progressCapacityUSDC = 1.0,
+                        connectionType = IceConnectionType.RELAY,
+                        currentBlockNumber = debugState.liveBlockNumber,
+                        networkLabel = debugState.liveNetworkLabel,
+                        originUrl = "https://viewer-1.app",
+                        viewerAddress = DebugAddressHolder.viewerAddress,
+                    ),
+                    ConnectedViewerInfo(
+                        sessionId = "debug-session-2",
+                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                        progressCapacityUSDC = 1.0,
+                        connectionType = IceConnectionType.STUN,
+                        currentBlockNumber = debugState.liveBlockNumber,
+                        networkLabel = debugState.liveNetworkLabel,
+                        originUrl = "https://viewer-2.app",
+                        viewerAddress = DebugAddressHolder.viewerAddress2,
+                    ),
+                    ConnectedViewerInfo(
+                        sessionId = "debug-session-3",
+                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                        progressCapacityUSDC = 1.0,
+                        connectionType = IceConnectionType.LOCAL,
+                        currentBlockNumber = debugState.liveBlockNumber,
+                        networkLabel = debugState.liveNetworkLabel,
+                        originUrl = "https://viewer-3.app",
+                        viewerAddress = DebugAddressHolder.viewerAddress3,
+                    ),
+                ).filter { !it.viewerAddress.isNullOrBlank() },
+            blockChainLabel = blockChainLabel,
+            balanceCurrencySymbol = balanceCurrencySymbol,
+            uiState = uiState,
+            onTextChanged = viewModel::onMessageChanged,
+            onStatsDismissed = {
+                viewModel.onStatsDismissed()
+                onStatsModalVisibilityChanged(false)
+            },
+            onStreamCostTabSelected = viewModel::onStreamCostTabSelected,
+            onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
+            onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
+            onSettingsDismissed = viewModel::onSettingsDismissed,
+        )
+
+        // Floating Debug Status Info
+        Column(
+            modifier =
+                Modifier
+                    .padding(16.dp)
+                    .width(200.dp)
+                    .align(Alignment.TopStart)
+                    .padding(top = 100.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            statusMessage?.let { msg ->
+                androidx.compose.material3.Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = if (msg.startsWith("✅")) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
+                        ),
+                ) {
+                    Text(
+                        text = msg,
+                        modifier = Modifier.padding(8.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (msg.startsWith("✅")) Color(0xFF2E7D32) else Color(0xFFC62828),
+                    )
+                }
+
+                LaunchedEffect(msg) {
+                    delay(5000)
+                    statusMessage = null
+                }
+            }
+
+            if (debugState.isLoading) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    Text("Auto-processing on-chain...", style = MaterialTheme.typography.labelSmall, color = Color.White)
+                }
+            }
+        }
+    }
 }
 
 @Preview

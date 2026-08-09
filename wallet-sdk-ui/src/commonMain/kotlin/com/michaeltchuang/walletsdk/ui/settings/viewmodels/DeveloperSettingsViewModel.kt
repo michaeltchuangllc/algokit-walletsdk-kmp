@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.data.mapper.entity.Algo25Accoun
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountCreation
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository
 import com.michaeltchuang.walletsdk.core.algosdk.createAlgo25Account
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
@@ -13,8 +14,13 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.CreationType
 import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreationManager
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
+import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
+import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 
+const val MINIMUM_BALANCE = 10_000_0L // 10 ALGO/USDC
 class DeveloperSettingsViewModel(
     private val algo25AccountTypeMapper: Algo25AccountTypeMapper,
     private val hdSeedRepository: HdSeedRepository,
@@ -63,6 +69,57 @@ class DeveloperSettingsViewModel(
         }
     }
 
+    fun checkBalancesAndNavigateToDebugTool() {
+        viewModelScope.launch {
+            try {
+                val currentNetwork = networkNodeSettings.value
+                val usdcAssetId =
+                    when (currentNetwork) {
+                        AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                        AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                        AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
+                        else -> AssetConstants.USDC_TESTNET_ID
+                    }
+
+                val creatorAddress = DebugAddressHolder.creatorAddress
+                val viewerAddresses =
+                    listOf(
+                        DebugAddressHolder.viewerAddress,
+                        DebugAddressHolder.viewerAddress2,
+                        DebugAddressHolder.viewerAddress3,
+                    ).filter { it.isNotBlank() }
+
+                if (creatorAddress.isBlank() || viewerAddresses.isEmpty()) {
+                    displayError("Please select creator and at least one viewer in Escrow Session Vault Debug Tool first.")
+                    return@launch
+                }
+
+                val allAddresses = (viewerAddresses + creatorAddress).distinct()
+                val accountsWithAlgo = WalletSDK.getAccountsWithBalances()
+
+                for (address in allAddresses) {
+                    val account = accountsWithAlgo.find { it.address == address }
+                    val algoBalance = account?.balance?.toLongOrNull() ?: 0L
+                    if (algoBalance < MINIMUM_BALANCE) {
+                        displayError("Account $address needs at least 10 ALGO.")
+                        return@launch
+                    }
+
+                    val usdcBalanceStr = WalletSDK.getAccountASABalance(address, usdcAssetId)
+                    val usdcBalance = usdcBalanceStr?.toLongOrNull() ?: 0L
+                    if (usdcBalance < MINIMUM_BALANCE) {
+                        displayError("Account $address needs at least 10 USDC.")
+                        return@launch
+                    }
+                }
+
+                eventDelegate.sendEvent(ViewEvent.NavigateToDebugTool)
+            } catch (e: Exception) {
+                displayError("Balance check failed: ${e.message}")
+            }
+        }
+    }
+
     private fun displayError(message: String) {
         viewModelScope.launch {
             eventDelegate.sendEvent(ViewEvent.Error(message))
@@ -87,5 +144,7 @@ class DeveloperSettingsViewModel(
         data class Error(
             val message: String,
         ) : ViewEvent
+
+        data object NavigateToDebugTool : ViewEvent
     }
 }

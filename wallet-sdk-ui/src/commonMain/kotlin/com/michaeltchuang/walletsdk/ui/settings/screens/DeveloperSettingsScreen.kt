@@ -28,7 +28,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
-import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -54,6 +53,10 @@ fun DeveloperSettingsScreen(
                     Log.d(TAG, it.message)
                     onClick(it.message)
                 }
+
+                is DeveloperSettingsViewModel.ViewEvent.NavigateToDebugTool -> {
+                    navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
+                }
             }
         }
     }
@@ -61,7 +64,7 @@ fun DeveloperSettingsScreen(
     ScreenContent(
         navController = navController,
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
-        onShowMessage = onClick,
+        onNavigateToDebugTool = { viewModel.checkBalancesAndNavigateToDebugTool() },
     )
 }
 
@@ -69,7 +72,7 @@ fun DeveloperSettingsScreen(
 fun ScreenContent(
     navController: NavController,
     onCreateAlgoAccount: () -> Unit = {},
-    onShowMessage: (String) -> Unit = {},
+    onNavigateToDebugTool: () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -123,17 +126,7 @@ fun ScreenContent(
             Res.drawable.ic_session_vault_inspect,
             localizedStringResource(Res.string.liquid_stream_creator_debug_tool),
         ) {
-            val hasCreator = DebugAddressHolder.creatorAddress.isNotBlank()
-            val hasAtLeastOneViewer =
-                DebugAddressHolder.viewerAddress.isNotBlank() ||
-                    DebugAddressHolder.viewerAddress2.isNotBlank() ||
-                    DebugAddressHolder.viewerAddress3.isNotBlank()
-
-            if (hasCreator && hasAtLeastOneViewer) {
-                navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
-            } else {
-                onShowMessage("Please select creator and at least one viewer in Escrow Session Vault Debug Tool first.")
-            }
+            onNavigateToDebugTool()
         }
     }
 }

@@ -70,7 +70,7 @@ internal val settingsModules =
             }
 
             viewModel {
-                LiquidStreamHostDebugToolViewModel(get(), get(), get(), get(), get())
+                LiquidStreamHostDebugToolViewModel(get(), get(), get(), get(), get(), get())
             }
         },
     )
