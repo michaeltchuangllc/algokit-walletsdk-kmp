@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.settings.di
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.HDWalletSelectionViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LanguageSelectorViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamViewerDebugToolViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.NodeSettingsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.PasskeysViewModel
@@ -66,6 +67,10 @@ internal val settingsModules =
 
             viewModel {
                 LiquidStreamViewerDebugToolViewModel(get(), get(), get())
+            }
+
+            viewModel {
+                LiquidStreamHostDebugToolViewModel(get(), get(), get(), get(), get())
             }
         },
     )

@@ -9,6 +9,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -18,17 +23,23 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLive
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
+import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 @Composable
 fun LiquidStreamHostDebugToolScreen(
     viewModel: LiquidStreamHostViewModel = koinViewModel(),
+    debugViewModel: LiquidStreamHostDebugToolViewModel = koinViewModel(),
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
     onWalletClick: () -> Unit = {},
@@ -50,7 +61,16 @@ fun LiquidStreamHostDebugToolScreen(
 ) {
     val cameraPreviewComp = rememberStandaloneCameraPreview()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
+    val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+
+    LaunchedEffect(
+        DebugAddressHolder.viewerAddress,
+        DebugAddressHolder.viewerAddress2,
+        DebugAddressHolder.viewerAddress3,
+    ) {
+        debugViewModel.refreshViewerBalances()
+    }
 
     LaunchedEffect(remainingBalanceUsdc) {
         val balance = remainingBalanceUsdc ?: 0.0
@@ -142,39 +162,39 @@ fun LiquidStreamHostDebugToolScreen(
         viewers =
             listOf(
                 ConnectedViewerInfo(
-                    sessionId = sessionId ?: "debug-session-1",
-                    remainingBalanceUSDC = remainingBalanceUsdc,
-                    progressBalanceUSDC = progressBalanceUsdc,
-                    progressCapacityUSDC = progressCapacityUsdc,
-                    connectionType = connectionType,
-                    currentBlockNumber = currentBlockNumber,
-                    networkLabel = networkLabel,
-                    originUrl = originUrl,
-                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                    sessionId = "debug-session-1",
+                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0) * 0.8,
+                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                    connectionType = IceConnectionType.RELAY,
+                    currentBlockNumber = debugState.liveBlockNumber,
+                    networkLabel = debugState.liveNetworkLabel,
+                    originUrl = "https://viewer-1.app",
+                    viewerAddress = DebugAddressHolder.viewerAddress,
                 ),
                 ConnectedViewerInfo(
                     sessionId = "debug-session-2",
-                    remainingBalanceUSDC = 10.5,
-                    progressBalanceUSDC = 5.0,
-                    progressCapacityUSDC = 10.5,
-                    connectionType = IceConnectionType.RELAY,
-                    currentBlockNumber = 12345679L,
-                    networkLabel = "TESTNET",
+                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0) * 0.5,
+                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                    connectionType = IceConnectionType.STUN,
+                    currentBlockNumber = debugState.liveBlockNumber,
+                    networkLabel = debugState.liveNetworkLabel,
                     originUrl = "https://viewer-2.app",
-                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                    viewerAddress = DebugAddressHolder.viewerAddress2,
                 ),
                 ConnectedViewerInfo(
                     sessionId = "debug-session-3",
-                    remainingBalanceUSDC = 88.88,
-                    progressBalanceUSDC = 20.0,
-                    progressCapacityUSDC = 88.88,
+                    remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                    progressBalanceUSDC = (debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0) * 0.2,
+                    progressCapacityUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
                     connectionType = IceConnectionType.LOCAL,
-                    currentBlockNumber = 12345680L,
-                    networkLabel = "MAINNET",
+                    currentBlockNumber = debugState.liveBlockNumber,
+                    networkLabel = debugState.liveNetworkLabel,
                     originUrl = "https://viewer-3.app",
-                    viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                    viewerAddress = DebugAddressHolder.viewerAddress3,
                 ),
-            ),
+            ).filter { !it.viewerAddress.isNullOrBlank() },
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
         uiState = uiState,
