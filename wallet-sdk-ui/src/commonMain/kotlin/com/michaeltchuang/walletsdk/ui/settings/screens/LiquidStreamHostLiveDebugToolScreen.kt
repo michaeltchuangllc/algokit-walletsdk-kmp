@@ -50,7 +50,7 @@ fun LiquidStreamHostDebugToolScreen(
     debugViewModel: LiquidStreamHostDebugToolViewModel = koinViewModel(),
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
-    onWalletClick: () -> Unit = {},
+    onWalletClick: () -> Unit = {}, 
     onCameraClick: (isEnabled: Boolean) -> Unit = {},
     onMicClick: (isMuted: Boolean) -> Unit = {},
     onRotateCamera: () -> Unit = {},
@@ -222,7 +222,7 @@ fun LiquidStreamHostDebugToolScreen(
                 }
 
                 LaunchedEffect(msg) {
-                    delay(5000)
+                    delay(5000.milliseconds)
                     statusMessage = null
                 }
             }

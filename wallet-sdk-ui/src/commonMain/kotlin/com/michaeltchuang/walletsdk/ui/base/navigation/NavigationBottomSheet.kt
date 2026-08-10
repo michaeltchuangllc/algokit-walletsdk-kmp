@@ -755,7 +755,9 @@ fun NavigationBottomSheetNavHost(
                     EscrowSessionVaultDebugToolScreen(navController)
                 }
                 composable(route = AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name) {
-                    LiquidStreamHostDebugToolScreen()
+                    LiquidStreamHostDebugToolScreen(
+                        onMinimise = { navController.navigateUp() },
+                    )
                 }
                 composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
                     GithubRepoScreen(navController)

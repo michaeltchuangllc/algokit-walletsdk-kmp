@@ -20,6 +20,7 @@ actual fun uiPlatformModule(): Module =
                 mppWalletSignerUseCase = get(),
                 getLocalAccounts = get(),
                 getSessionVaultContextUseCase = get(),
+                debugAddressSelectionsUseCase = get(),
             )
         }
         factory { LiquidAuthPlatformServices() }

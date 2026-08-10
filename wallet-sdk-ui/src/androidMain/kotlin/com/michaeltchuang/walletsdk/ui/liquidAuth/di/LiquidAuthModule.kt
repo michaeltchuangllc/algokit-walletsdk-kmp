@@ -72,6 +72,7 @@ val liquidAuthUIModule =
                 mppWalletSignerUseCase = get(),
                 getLocalAccounts = get(),
                 getSessionVaultContextUseCase = get(),
+                debugAddressSelectionsUseCase = get(),
             )
         }
 
