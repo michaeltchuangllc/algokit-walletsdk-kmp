@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -41,7 +42,7 @@ class EscrowSessionVaultDebugViewModel(
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
         DebugAddressHolder.viewerAddress = address
-        refreshDebugSessionContext()
+        viewModelScope.launch { refreshDebugSessionContext() }
     }
 
     fun onViewerAddress2Changed(address: String) {
@@ -57,7 +58,7 @@ class EscrowSessionVaultDebugViewModel(
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
         DebugAddressHolder.creatorAddress = address
-        refreshDebugSessionContext()
+        viewModelScope.launch { refreshDebugSessionContext() }
     }
 
     fun onDepositAmountChanged(amount: String) {
@@ -120,7 +121,7 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
-                    refreshDebugSessionContext(signer.authorizedSignerPublicKey)
+                    refreshDebugSessionContext(signer)
 
                     val result =
                         withContext(Dispatchers.Default) {
@@ -132,8 +133,10 @@ class EscrowSessionVaultDebugViewModel(
                         }
                     result
                         .onSuccess { txId ->
-                            sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
-                            Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
+                            if (refreshDebugSessionContext(signer, registerAuthorizedSigner = true)) {
+                                sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
+                                Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
+                            }
                         }.onFailure { err ->
                             showError(PaymentError.Companion.from(err), "ADD_TO_VAULT_ERR", err)
                         }
@@ -158,6 +161,12 @@ class EscrowSessionVaultDebugViewModel(
             setLoading(true)
             sendStatus("Fetching Session Vault balance…")
             try {
+                val viewerSigner =
+                    mppWalletSignerUseCase(viewer) ?: run {
+                        showError(PaymentError.SignerNotFound(viewer), "FETCH_BALANCE_NO_VIEWER_SIGNER")
+                        return@launch
+                    }
+                refreshDebugSessionContext(viewerSigner)
                 val remaining =
                     withContext(Dispatchers.Default) {
                         //  val vaultContext = getSessionVaultContextUseCase()
@@ -198,6 +207,7 @@ class EscrowSessionVaultDebugViewModel(
                         )
                         return@launch
                     }
+                if (!refreshDebugSessionContext(viewerSigner, registerAuthorizedSigner = true)) return@launch
 
                 val snapshot =
                     withContext(Dispatchers.Default) {
@@ -543,22 +553,36 @@ class EscrowSessionVaultDebugViewModel(
         }
     }
 
-    private fun refreshDebugSessionContext(authorizedSignerPublicKey: ByteArray? = null) {
-        if (authorizedSignerPublicKey != null) {
-            configureDebugSessionContext(
-                content = contentState(),
-                authorizedSignerPublicKey = authorizedSignerPublicKey,
-            )
-            return
-        }
+    private suspend fun refreshDebugSessionContext(
+        signer: MppWalletSigner? = null,
+        registerAuthorizedSigner: Boolean = false,
+    ): Boolean {
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return false
+        val viewerSigner = signer ?: mppWalletSignerUseCase(viewer) ?: return false
+        configureDebugSessionContext(content, viewerSigner.authorizedSignerPublicKey)
 
-        viewModelScope.launch {
-            val content = contentState()
-            val viewer = content.viewerAddress.trim()
-            if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return@launch
-            val signer = mppWalletSignerUseCase(viewer) ?: return@launch
-            configureDebugSessionContext(content, signer.authorizedSignerPublicKey)
+        if (!registerAuthorizedSigner) return true
+
+        val result =
+            withContext(Dispatchers.Default) {
+                MppPayments.setAuthorizedSignerForSession(
+                    signer = viewerSigner,
+                    viewerAddress = viewer,
+                    authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                )
+            }
+        if (result.isFailure) {
+            val error = result.exceptionOrNull()
+            showError(
+                PaymentError.Companion.from(error ?: Exception("Failed to authorize signer")),
+                "SET_AUTHORIZED_SIGNER_ERR",
+                error,
+            )
+            return false
         }
+        return true
     }
 
     private fun configureDebugSessionContext(
