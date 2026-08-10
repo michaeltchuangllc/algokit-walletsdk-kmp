@@ -6,7 +6,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
-import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeMsgPackAny
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -77,10 +76,11 @@ object MppPayments {
     fun maxSessionDepositMicroUsdc(): Long = DEPOSIT_MICRO_USDC_LONG
 
     suspend fun getRemainingBalanceFromSessionVault(
-        viewerAddress: String
+        viewerAddress: String,
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
     ): Long {
         val baseContext = "viewer=$viewerAddress"
-        val resolvedChannelId = EscrowSessionVaultManagerClient.channelId ?: return 0L
+        val resolvedChannelId = channelId ?: return 0L
         val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
@@ -112,6 +112,7 @@ object MppPayments {
         signer: MppWalletSigner,
         viewerAddress: String,
         depositAmountMicroUsdc: Long = DEPOSIT_MICRO_USDC_LONG,
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
     ): Result<String> {
         require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
         require(signer.address == viewerAddress) {
@@ -125,6 +126,7 @@ object MppPayments {
             signer = signer,
             payerAddress = viewerAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
+            channelId = channelId,
         )
     }
 
@@ -191,11 +193,13 @@ object MppPayments {
         viewerAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
     ): Result<String> {
-        val channelId =
-            EscrowSessionVaultManagerClient.channelId
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
-        val channelIdHash = hashHex(channelId).take(16)
+        val channelIdHash = hashHex(resolvedChannelId).take(16)
         Napier.d(
             "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress  claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
             tag = TAG,
@@ -203,7 +207,7 @@ object MppPayments {
         val result =
             EscrowSessionVaultManagerClient.updateVoucher(
                 signer,
-                channelId,
+                resolvedChannelId,
                 totalAmountUsedMicroUsdc,
                 signature,
             )
@@ -224,11 +228,15 @@ object MppPayments {
         return result
     }
 
-    suspend fun settleLatestVoucher(signer: MppWalletSigner): Result<String> {
-        val channelId =
-            EscrowSessionVaultManagerClient.channelId
+    suspend fun settleLatestVoucher(
+        signer: MppWalletSigner,
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
+    ): Result<String> {
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.settleLatest(signer, channelId)
+        return EscrowSessionVaultManagerClient.settleLatest(signer, resolvedChannelId)
     }
 
     suspend fun settle(
@@ -296,15 +304,20 @@ object MppPayments {
         )
     }
 
-    suspend fun getSessionProgressSnapshotFromVault(): SessionProgressSnapshot? {
-        val data = getSessionDynamicDataFromVault() ?: return null
+    suspend fun getSessionProgressSnapshotFromVault(
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId
+    ): SessionProgressSnapshot? {
+        val data = getSessionDynamicDataFromVault(channelId) ?: return null
         return computeSessionProgressSnapshot(data)
     }
 
-    suspend fun getSessionDynamicDataFromVault(): SessionDynamicData? {
-        val channelIdCandidates = listOf(EscrowSessionVaultManagerClient.channelId ?: return null)
-        channelIdCandidates.forEachIndexed { index, channelId ->
-            val result = getSessionDynamicDataFromVaultByChannelId(channelId, "candidate=$index")
+    suspend fun getSessionDynamicDataFromVault(
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId
+    ): SessionDynamicData? {
+        val resolvedChannelId = channelId ?: EscrowSessionVaultManagerClient.channelId ?: return null
+        val channelIdCandidates = listOf(resolvedChannelId)
+        channelIdCandidates.forEachIndexed { index, candidate ->
+            val result = getSessionDynamicDataFromVaultByChannelId(candidate, "candidate=$index")
             if (result != null) return result
         }
         return null

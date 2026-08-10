@@ -12,6 +12,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultC
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
@@ -28,17 +30,31 @@ class LiquidStreamHostDebugToolViewModel(
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val getSessionVaultContextUseCase: GetSessionVaultContextUseCase,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
+    private val applicationScope: CoroutineScope,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     StateViewModel<LiquidStreamHostDebugToolViewModel.ViewState> by stateDelegate,
     EventViewModel<LiquidStreamHostDebugToolViewModel.ViewEvent> by eventDelegate {
 
+    private val viewerChannelIds = mutableMapOf<String, ByteArray>()
+
     init {
         stateDelegate.setDefaultState(ViewState())
         startLivePolling()
         refreshViewerBalances()
         startAutomation()
+    }
+
+    private fun getOrInitChannelId(viewerAddress: String, signer: com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner): ByteArray {
+        viewerChannelIds[viewerAddress]?.let { return it }
+        val derived = EscrowSessionVaultManagerClient.deriveChannelId(
+            payerAddress = viewerAddress,
+            payeeAddress = DebugAddressHolder.creatorAddress,
+            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+        )
+        viewerChannelIds[viewerAddress] = derived
+        return derived
     }
 
     private fun startAutomation() {
@@ -50,7 +66,7 @@ class LiquidStreamHostDebugToolViewModel(
             
             // 2. Periodic Settle Cycle
             while (true) {
-                delay(3.seconds)
+                delay(8.seconds)
                 performAutomatedSettlement(incrementUsdc = 0.1)
             }
         }
@@ -60,7 +76,12 @@ class LiquidStreamHostDebugToolViewModel(
         viewModelScope.launch {
             try {
                 val network = getCurrentNetworkUseCase().first()
-                stateDelegate.updateState { it.copy(liveNetworkLabel = network.displayName.uppercase()) }
+                stateDelegate.updateState {
+                    it.copy(
+                        liveNetworkLabel = network.displayName.uppercase(),
+                        viewers = buildViewersList(it.viewerBalances, it.liveBlockNumber, network.displayName.uppercase()),
+                    )
+                }
             } catch (e: Exception) {
                 Napier.e("Failed to fetch initial network", e, tag = "LiquidStreamHostDebugVM")
             }
@@ -68,7 +89,12 @@ class LiquidStreamHostDebugToolViewModel(
             while (true) {
                 getCurrentBlockUseCase().collect { result ->
                     if (result is DataResource.Success) {
-                        stateDelegate.updateState { it.copy(liveBlockNumber = result.data) }
+                        stateDelegate.updateState {
+                            it.copy(
+                                liveBlockNumber = result.data,
+                                viewers = buildViewersList(it.viewerBalances, result.data, it.liveNetworkLabel),
+                            )
+                        }
                     }
                 }
                 delay(3.seconds)
@@ -91,8 +117,10 @@ class LiquidStreamHostDebugToolViewModel(
                 val newBalances = mutableMapOf<String, Double>()
                 addresses.forEach { address ->
                     try {
+                        val signer = mppWalletSignerUseCase(address)
+                        val channelId = if (signer != null) getOrInitChannelId(address, signer) else null
                         val remaining = withContext(Dispatchers.Default) {
-                            MppPayments.getRemainingBalanceFromSessionVault(address)
+                            MppPayments.getRemainingBalanceFromSessionVault(address, channelId)
                         }
                         newBalances[address] = remaining / 1_000_000.0
                     } catch (e: Exception) {
@@ -100,12 +128,18 @@ class LiquidStreamHostDebugToolViewModel(
                         newBalances[address] = 0.0
                     }
                 }
-                stateDelegate.updateState { it.copy(viewerBalances = newBalances) }
+                stateDelegate.updateState {
+                    it.copy(
+                        viewerBalances = newBalances,
+                        viewers = buildViewersList(newBalances, it.liveBlockNumber, it.liveNetworkLabel),
+                    )
+                }
             } catch (e: Exception) {
                 Napier.e("Failed to configure vault for balances", e, tag = "LiquidStreamHostDebugVM")
             }
         }
     }
+
 
     private suspend fun performAutomatedSettlement(incrementUsdc: Double) {
         try {
@@ -125,19 +159,11 @@ class LiquidStreamHostDebugToolViewModel(
 
             for (viewer in addresses) {
                 val viewerSigner = mppWalletSignerUseCase(viewer) ?: continue
-
-                // 1. Resolve Channel Context
-                EscrowSessionVaultManagerClient.initializeChannelId(
-                    payerAddress = viewer,
-                    payeeAddress = creator,
-                    authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
-                )
-
-                val channelId = EscrowSessionVaultManagerClient.channelId ?: continue
+                val channelId = getOrInitChannelId(viewer, viewerSigner)
 
                 // 2. Fetch Snapshot to determine next cumulative amount
                 val snapshot = withContext(Dispatchers.Default) {
-                    MppPayments.getSessionProgressSnapshotFromVault()
+                    MppPayments.getSessionProgressSnapshotFromVault(channelId)
                 } ?: continue
 
                 val newCumulative = snapshot.latestVoucherAmountMicroUsdc + incrementMicroUsdc
@@ -158,13 +184,14 @@ class LiquidStreamHostDebugToolViewModel(
                         viewerAddress = viewer,
                         totalAmountUsedMicroUsdc = newCumulative,
                         signature = signature,
+                        channelId = channelId,
                     )
                 }.onSuccess { txId ->
                     Napier.d("[AUTO_VOUCHER_UPDATE_OK] viewer=$viewer txId=$txId newCumulative=$newCumulative", tag = "LiquidStreamHostDebugVM")
                     
                     // 4. Settle Latest Voucher to Creator ONLY if voucher update succeeded
                     withContext(Dispatchers.Default) {
-                        MppPayments.settleLatestVoucher(signer = creatorSigner)
+                        MppPayments.settleLatestVoucher(signer = creatorSigner, channelId = channelId)
                     }.onSuccess { settleTxId ->
                         Napier.d("[AUTO_SETTLE_OK] viewer=$viewer txId=$settleTxId", tag = "LiquidStreamHostDebugVM")
                     }.onFailure { settleErr ->
@@ -198,10 +225,12 @@ class LiquidStreamHostDebugToolViewModel(
                 for (viewer in addresses) {
                     val signer = mppWalletSignerUseCase(viewer)
                     if (signer != null) {
+                        val channelId = getOrInitChannelId(viewer, signer)
+
                         // 1. Check if viewer already has funds
                         val currentBalance = withContext(Dispatchers.Default) {
                             try {
-                                MppPayments.getRemainingBalanceFromSessionVault(viewer)
+                                MppPayments.getRemainingBalanceFromSessionVault(viewer, channelId)
                             } catch (_: Exception) {
                                 0L
                             }
@@ -212,17 +241,12 @@ class LiquidStreamHostDebugToolViewModel(
                             continue
                         }
 
-                        // 2. Resolve Channel Context
-                        EscrowSessionVaultManagerClient.initializeChannelId(
-                            payerAddress = viewer,
-                            payeeAddress = DebugAddressHolder.creatorAddress,
-                            authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                        )
                         withContext(Dispatchers.Default) {
                             MppPayments.openSessionAndDeposit(
                                 signer = signer,
                                 viewerAddress = viewer,
                                 depositAmountMicroUsdc = depositMicroUsdc,
+                                channelId = channelId,
                             )
                         }.onSuccess { txId ->
                             eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage("✅ Successfully deposited $amountUsdc USDC to $viewer"))
@@ -243,12 +267,88 @@ class LiquidStreamHostDebugToolViewModel(
         }
     }
 
+    fun closeAllSessions() {
+        applicationScope.launch {
+            try {
+                val vaultContext = getSessionVaultContextUseCase()
+                EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+
+                val addresses = listOf(
+                    DebugAddressHolder.viewerAddress,
+                    DebugAddressHolder.viewerAddress2,
+                    DebugAddressHolder.viewerAddress3,
+                ).filter { it.isNotBlank() }
+                val signer = mppWalletSignerUseCase(DebugAddressHolder.creatorAddress)
+                for (viewer in addresses) {
+
+                    if (signer != null) {
+                        val channelId = getOrInitChannelId(viewer, signer)
+
+                        // 2. Close Session Vault
+                        withContext(Dispatchers.Default) {
+                            MppPayments.closeSessionVault(signer = signer, channelId = channelId)
+                        }.onSuccess { txId ->
+                            Napier.d("[AUTO_CLOSE_OK] viewer=$viewer txId=$txId", tag = "LiquidStreamHostDebugVM")
+                        }.onFailure { err ->
+                            Napier.e("[AUTO_CLOSE_ERR] viewer=$viewer", err, tag = "LiquidStreamHostDebugVM")
+                        }
+                    }
+                }
+                refreshViewerBalances()
+            } catch (e: Exception) {
+                Napier.e("Close sessions failed", e, tag = "LiquidStreamHostDebugVM")
+            }
+        }
+    }
+
+    private fun buildViewersList(
+        balances: Map<String, Double>,
+        blockNumber: Long?,
+        networkLabel: String,
+    ): List<ConnectedViewerInfo> {
+        return listOf(
+            ConnectedViewerInfo(
+                sessionId = "debug-session-1",
+                remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                progressCapacityUSDC = 1.0,
+                connectionType = IceConnectionType.RELAY,
+                currentBlockNumber = blockNumber,
+                networkLabel = networkLabel,
+                originUrl = "https://viewer-1.app",
+                viewerAddress = DebugAddressHolder.viewerAddress,
+            ),
+            ConnectedViewerInfo(
+                sessionId = "debug-session-2",
+                remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                progressCapacityUSDC = 1.0,
+                connectionType = IceConnectionType.STUN,
+                currentBlockNumber = blockNumber,
+                networkLabel = networkLabel,
+                originUrl = "https://viewer-2.app",
+                viewerAddress = DebugAddressHolder.viewerAddress2,
+            ),
+            ConnectedViewerInfo(
+                sessionId = "debug-session-3",
+                remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                progressCapacityUSDC = 1.0,
+                connectionType = IceConnectionType.LOCAL,
+                currentBlockNumber = blockNumber,
+                networkLabel = networkLabel,
+                originUrl = "https://viewer-3.app",
+                viewerAddress = DebugAddressHolder.viewerAddress3,
+            ),
+        ).filter { !it.viewerAddress.isNullOrBlank() }
+    }
 
 
     data class ViewState(
         val liveBlockNumber: Long? = null,
         val liveNetworkLabel: String = "TESTNET",
         val viewerBalances: Map<String, Double> = emptyMap(),
+        val viewers: List<ConnectedViewerInfo> = emptyList(),
         val isLoading: Boolean = false,
     )
 

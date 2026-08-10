@@ -13,6 +13,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableDoubleStateOf
@@ -57,20 +58,21 @@ fun LiquidStreamHostDebugToolScreen(
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
     onSendClick: (String) -> Unit = {},
     sessionId: String? = "debug-session-id",
-    progressBalanceUsdc: Double? = 50.0,
     remainingBalanceUsdc: Double? = 25.0,
-    connectionType: IceConnectionType = IceConnectionType.STUN,
-    currentBlockNumber: Long? = 12345678L,
     blockChainLabel: String = "ALGORAND",
-    networkLabel: String = "TESTNET",
     balanceCurrencySymbol: String = "¦",
-    originUrl: String = "https://debug.app",
 ) {
     val cameraPreviewComp = rememberStandaloneCameraPreview()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+
+    DisposableEffect(debugViewModel) {
+        onDispose {
+            debugViewModel.closeAllSessions()
+        }
+    }
 
     LaunchedEffect(debugViewModel) {
         debugViewModel.viewEvent.collect { event ->
@@ -178,42 +180,7 @@ fun LiquidStreamHostDebugToolScreen(
                 onStatsClick()
             },
             onSendClickInternal = { viewModel.onSendClicked() },
-            viewers =
-                listOf(
-                    ConnectedViewerInfo(
-                        sessionId = "debug-session-1",
-                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                        progressCapacityUSDC = 1.0,
-                        connectionType = IceConnectionType.RELAY,
-                        currentBlockNumber = debugState.liveBlockNumber,
-                        networkLabel = debugState.liveNetworkLabel,
-                        originUrl = "https://viewer-1.app",
-                        viewerAddress = DebugAddressHolder.viewerAddress,
-                    ),
-                    ConnectedViewerInfo(
-                        sessionId = "debug-session-2",
-                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                        progressCapacityUSDC = 1.0,
-                        connectionType = IceConnectionType.STUN,
-                        currentBlockNumber = debugState.liveBlockNumber,
-                        networkLabel = debugState.liveNetworkLabel,
-                        originUrl = "https://viewer-2.app",
-                        viewerAddress = DebugAddressHolder.viewerAddress2,
-                    ),
-                    ConnectedViewerInfo(
-                        sessionId = "debug-session-3",
-                        remainingBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                        progressBalanceUSDC = debugState.viewerBalances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                        progressCapacityUSDC = 1.0,
-                        connectionType = IceConnectionType.LOCAL,
-                        currentBlockNumber = debugState.liveBlockNumber,
-                        networkLabel = debugState.liveNetworkLabel,
-                        originUrl = "https://viewer-3.app",
-                        viewerAddress = DebugAddressHolder.viewerAddress3,
-                    ),
-                ).filter { !it.viewerAddress.isNullOrBlank() },
+            viewers = debugState.viewers,
             blockChainLabel = blockChainLabel,
             balanceCurrencySymbol = balanceCurrencySymbol,
             uiState = uiState,
@@ -268,6 +235,8 @@ fun LiquidStreamHostDebugToolScreen(
             }
         }
     }
+    
+    
 }
 
 @Preview

@@ -90,6 +90,7 @@ object EscrowSessionVaultManagerClient {
         signer: MppWalletSigner,
         payerAddress: String = signer.address,
         depositMicroUsdc: Long,
+        channelId: ByteArray? = this.channelId,
     ): Result<String> =
         runCatching {
             require(payerAddress == signer.address) {
@@ -98,7 +99,7 @@ object EscrowSessionVaultManagerClient {
             require(hostAddress != null) {
                 "hostAddress is null. hostAddress is required for session vault deposit"
             }
-            val channelId = channelId ?: error("channelId is null")
+            val resolvedChannelId = channelId ?: error("channelId is null")
             val salt = salt ?: defaultSalt ?: error("salt is null")
 
             submitAssetTransferAndAppCallInternal(
@@ -116,8 +117,8 @@ object EscrowSessionVaultManagerClient {
                     ),
                 boxKeys =
                     listOf(
-                        Pair(appId, channelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, resolvedChannelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + resolvedChannelId),
                     ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,
