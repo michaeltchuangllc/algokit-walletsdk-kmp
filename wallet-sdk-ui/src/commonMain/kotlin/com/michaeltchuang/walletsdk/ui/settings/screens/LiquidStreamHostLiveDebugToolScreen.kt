@@ -84,14 +84,6 @@ fun LiquidStreamHostDebugToolScreen(
         }
     }
 
-    LaunchedEffect(
-        DebugAddressHolder.viewerAddress,
-        DebugAddressHolder.viewerAddress2,
-        DebugAddressHolder.viewerAddress3,
-    ) {
-        debugViewModel.refreshViewerBalances()
-    }
-
     LaunchedEffect(remainingBalanceUsdc) {
         val balance = remainingBalanceUsdc ?: 0.0
         if (balance > progressCapacityUsdc) {
@@ -162,7 +154,7 @@ fun LiquidStreamHostDebugToolScreen(
         LiquidStreamHostLiveScreenContent(
             cameraPreview = cameraPreviewComp,
             creatorUsername = DebugAddressHolder.creatorAddress.toShortenedAddress(),
-            numbersOfViewer = "1",
+            numbersOfViewer = debugState.viewers.size.toString(),
             onSettingsClick = {
                 viewModel.onSettingsClicked()
                 onStatsModalVisibilityChanged(false)

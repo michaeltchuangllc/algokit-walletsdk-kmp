@@ -144,14 +144,16 @@ object MppPayments {
         signer: MppWalletSigner,
         viewerAddress: String,
         authorizedSignerPublicKey: ByteArray = signer.authorizedSignerPublicKey,
+        channelId: ByteArray? = null,
     ): Result<String> {
-        val channelId =
-            EscrowSessionVaultManagerClient.channelId
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
         val result =
             EscrowSessionVaultManagerClient.setAuthorizedSignerPublicKey(
                 signer,
-                channelId,
+                resolvedChannelId,
                 authorizedSignerPublicKey,
             )
         result

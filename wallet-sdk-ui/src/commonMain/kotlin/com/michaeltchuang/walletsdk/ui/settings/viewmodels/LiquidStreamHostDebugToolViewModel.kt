@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -38,6 +39,8 @@ class LiquidStreamHostDebugToolViewModel(
     EventViewModel<LiquidStreamHostDebugToolViewModel.ViewEvent> by eventDelegate {
 
     private val viewerChannelIds = mutableMapOf<String, ByteArray>()
+    private val authorizedSignerViewers = mutableSetOf<String>()
+    private var balanceRefreshJob: Job? = null
 
     init {
         stateDelegate.setDefaultState(ViewState())
@@ -61,9 +64,9 @@ class LiquidStreamHostDebugToolViewModel(
         viewModelScope.launch {
             delay(2.seconds) // Wait for UI to stabilize
             
-            // 1. Initial Deposit to all viewers
-            addAmountToAllSessionVaults(1.0)
-            
+            // 1. Initial deposit must finish before voucher settlement begins.
+            addAmountToAllSessionVaults(1.0).join()
+
             // 2. Periodic Settle Cycle
             while (true) {
                 delay(8.seconds)
@@ -103,7 +106,8 @@ class LiquidStreamHostDebugToolViewModel(
     }
 
     fun refreshViewerBalances() {
-        viewModelScope.launch {
+        if (balanceRefreshJob?.isActive == true) return
+        balanceRefreshJob = viewModelScope.launch {
             try {
                 val vaultContext = getSessionVaultContextUseCase()
                 EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
@@ -160,6 +164,26 @@ class LiquidStreamHostDebugToolViewModel(
             for (viewer in addresses) {
                 val viewerSigner = mppWalletSignerUseCase(viewer) ?: continue
                 val channelId = getOrInitChannelId(viewer, viewerSigner)
+                if (viewer !in authorizedSignerViewers) {
+                    val authorizationResult =
+                        withContext(Dispatchers.Default) {
+                            MppPayments.setAuthorizedSignerForSession(
+                                signer = viewerSigner,
+                                viewerAddress = viewer,
+                                authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                                channelId = channelId,
+                            )
+                        }
+                    if (authorizationResult.isFailure) {
+                        Napier.e(
+                            "[AUTO_SET_AUTH_SIGNER_ERR] viewer=$viewer",
+                            authorizationResult.exceptionOrNull(),
+                            tag = "LiquidStreamHostDebugVM",
+                        )
+                        continue
+                    }
+                    authorizedSignerViewers += viewer
+                }
 
                 // 2. Fetch Snapshot to determine next cumulative amount
                 val snapshot = withContext(Dispatchers.Default) {
@@ -207,7 +231,7 @@ class LiquidStreamHostDebugToolViewModel(
         }
     }
 
-    fun addAmountToAllSessionVaults(amountUsdc: Double = 1.0) {
+    private fun addAmountToAllSessionVaults(amountUsdc: Double = 1.0): Job =
         viewModelScope.launch {
             try {
                 stateDelegate.updateState { it.copy(isLoading = true) }
@@ -241,16 +265,38 @@ class LiquidStreamHostDebugToolViewModel(
                             continue
                         }
 
-                        withContext(Dispatchers.Default) {
-                            MppPayments.openSessionAndDeposit(
-                                signer = signer,
-                                viewerAddress = viewer,
-                                depositAmountMicroUsdc = depositMicroUsdc,
-                                channelId = channelId,
-                            )
-                        }.onSuccess { txId ->
-                            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage("✅ Successfully deposited $amountUsdc USDC to $viewer"))
-                            Napier.d("[AUTO_DEPOSIT_OK] viewer=$viewer txId=$txId", tag = "LiquidStreamHostDebugVM")
+                        val depositResult =
+                            withContext(Dispatchers.Default) {
+                                MppPayments.openSessionAndDeposit(
+                                    signer = signer,
+                                    viewerAddress = viewer,
+                                    depositAmountMicroUsdc = depositMicroUsdc,
+                                    channelId = channelId,
+                                )
+                            }
+                        depositResult.onSuccess { txId ->
+                            val authorizationResult =
+                                withContext(Dispatchers.Default) {
+                                    MppPayments.setAuthorizedSignerForSession(
+                                        signer = signer,
+                                        viewerAddress = viewer,
+                                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                                        channelId = channelId,
+                                    )
+                                }
+                            authorizationResult.onSuccess {
+                                eventDelegate.sendEvent(
+                                    viewModelScope,
+                                    ViewEvent.ShowStatusMessage("✅ Successfully deposited $amountUsdc USDC to $viewer"),
+                                )
+                                Napier.d("[AUTO_DEPOSIT_OK] viewer=$viewer txId=$txId", tag = "LiquidStreamHostDebugVM")
+                            }.onFailure { err ->
+                                eventDelegate.sendEvent(
+                                    viewModelScope,
+                                    ViewEvent.ShowStatusMessage("❌ Failed to register signer for $viewer"),
+                                )
+                                Napier.e("[AUTO_SET_AUTH_SIGNER_ERR] viewer=$viewer", err, tag = "LiquidStreamHostDebugVM")
+                            }
                         }.onFailure { err ->
                             eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowStatusMessage("❌ Failed to deposit $amountUsdc USDC to $viewer"))
                             Napier.e("[AUTO_DEPOSIT_ERR] viewer=$viewer", err, tag = "LiquidStreamHostDebugVM")
@@ -265,7 +311,6 @@ class LiquidStreamHostDebugToolViewModel(
                 stateDelegate.updateState { it.copy(isLoading = false) }
             }
         }
-    }
 
     fun closeAllSessions() {
         applicationScope.launch {
@@ -301,6 +346,11 @@ class LiquidStreamHostDebugToolViewModel(
         }
     }
 
+    private fun channelIdDisplayFor(viewerAddress: String): String =
+        viewerChannelIds[viewerAddress]?.joinToString("") { byte ->
+            (byte.toInt() and 0xFF).toString(16).padStart(2, '0')
+        } ?: "channel-pending"
+
     private fun buildViewersList(
         balances: Map<String, Double>,
         blockNumber: Long?,
@@ -308,29 +358,29 @@ class LiquidStreamHostDebugToolViewModel(
     ): List<ConnectedViewerInfo> {
         return listOf(
             ConnectedViewerInfo(
-                sessionId = "debug-session-1",
+                sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
                 progressCapacityUSDC = 1.0,
-                connectionType = IceConnectionType.RELAY,
+                connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
-                originUrl = "https://viewer-1.app",
+                originUrl = "https://liquid-auth-api.pg.nodely.dev/",
                 viewerAddress = DebugAddressHolder.viewerAddress,
             ),
             ConnectedViewerInfo(
-                sessionId = "debug-session-2",
+                sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress2),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
                 progressCapacityUSDC = 1.0,
-                connectionType = IceConnectionType.STUN,
+                connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
-                originUrl = "https://viewer-2.app",
+                originUrl = "https://liquid-auth-api.pg.nodely.dev/",
                 viewerAddress = DebugAddressHolder.viewerAddress2,
             ),
             ConnectedViewerInfo(
-                sessionId = "debug-session-3",
+                sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress3),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
                 progressCapacityUSDC = 1.0,
