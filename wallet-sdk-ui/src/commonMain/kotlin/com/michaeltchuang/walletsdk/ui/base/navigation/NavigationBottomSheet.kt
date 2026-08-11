@@ -375,7 +375,8 @@ fun NavigationBottomSheetNavHost(
                 ) { backStackEntry ->
                     val accountTypeString =
                         backStackEntry.arguments.stringArgument("accountType", "falcon24")
-                    val scannedMnemonic = backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
+                    val scannedMnemonic =
+                        backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
 
                     val accountType =
                         when {
@@ -490,7 +491,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
-                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -538,7 +539,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
+                                "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("assetId") {
@@ -579,7 +580,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SEND_ASSET_SCREEN.name +
-                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -743,7 +744,8 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
-                    val accountAddress = backStackEntry.arguments.stringArgument("accountAddress") ?: ""
+                    val accountAddress =
+                        backStackEntry.arguments.stringArgument("accountAddress") ?: ""
                     AddAssetScreen(
                         navController = navController,
                         assetId = assetId,
@@ -764,7 +766,8 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val selectedSeedIdsRaw = backStackEntry.arguments.stringArgument("selectedSeedIds")
+                    val selectedSeedIdsRaw =
+                        backStackEntry.arguments.stringArgument("selectedSeedIds")
                     val selectedSeedIds =
                         selectedSeedIdsRaw
                             ?.split(",")
@@ -840,8 +843,8 @@ fun getScreensToBlockDismissal(): List<AlgoKitScreens> {
  * based on the current screen.
  */
 fun getBottomSheetHeightFraction(screenName: String?): Float {
-    return when {
-        screenName?.startsWith(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name) == true -> 1.0f
+    return when (screenName) {
+        AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name -> 1f
         else -> 0.9f
     }
 }

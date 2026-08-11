@@ -244,7 +244,7 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         ) {
             Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
             Text(
-                text = "michaeltchuang.algo",
+                text = viewer.viewerAddress.toShortenedAddress(),
                 color = colors.streamHostTitle,
                 fontSize = 25.sp / 2f,
                 fontWeight = FontWeight.Bold,
@@ -255,9 +255,6 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         MetaRow(label = "ORIGIN:", value = originDisplay)
         MetaRow(label = "TYPE:", value = viewer.connectionType.displayName().uppercase())
         MetaRow(label = "REQUEST ID:", value = shortSessionId)
-        viewer.viewerAddress?.takeIf { it.isNotBlank() }?.let {
-            MetaRow(label = "ACCOUNT:", value = it.toShortenedAddress())
-        }
     }
 }
 
