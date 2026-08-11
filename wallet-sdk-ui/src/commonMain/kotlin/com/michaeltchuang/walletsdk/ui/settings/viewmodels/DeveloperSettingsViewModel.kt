@@ -69,54 +69,52 @@ class DeveloperSettingsViewModel(
         }
     }
 
-    fun checkBalancesAndNavigateToDebugTool() {
-        viewModelScope.launch {
-            try {
-                val currentNetwork = networkNodeSettings.value
-                val usdcAssetId =
-                    when (currentNetwork) {
-                        AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
-                        AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
-                        AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
-                        else -> AssetConstants.USDC_TESTNET_ID
-                    }
-
-                val creatorAddress = DebugAddressHolder.creatorAddress
-                val viewerAddresses =
-                    listOf(
-                        DebugAddressHolder.viewerAddress,
-                        DebugAddressHolder.viewerAddress2,
-                        DebugAddressHolder.viewerAddress3,
-                    ).filter { it.isNotBlank() }
-
-                if (creatorAddress.isBlank() || viewerAddresses.isEmpty()) {
-                    displayError("Please select creator and at least one viewer in Escrow Session Vault Debug Tool first.")
-                    return@launch
+    suspend fun checkBalancesAndNavigateToDebugTool(): Boolean {
+        return try {
+            val currentNetwork = networkNodeSettings.value
+            val usdcAssetId =
+                when (currentNetwork) {
+                    AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                    AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                    AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
+                    else -> AssetConstants.USDC_TESTNET_ID
                 }
 
-                val allAddresses = (viewerAddresses + creatorAddress).distinct()
-                val accountsWithAlgo = WalletSDK.getAccountsWithBalances()
+            val creatorAddress = DebugAddressHolder.creatorAddress
+            val viewerAddresses =
+                listOf(
+                    DebugAddressHolder.viewerAddress,
+                    DebugAddressHolder.viewerAddress2,
+                    DebugAddressHolder.viewerAddress3,
+                ).filter { it.isNotBlank() }
 
-                for (address in allAddresses) {
-                    val account = accountsWithAlgo.find { it.address == address }
-                    val algoBalance = account?.balance?.toLongOrNull() ?: 0L
-                    if (algoBalance < MINIMUM_BALANCE) {
-                        displayError("Account $address needs at least 10 ALGO.")
-                        return@launch
-                    }
-
-                    val usdcBalanceStr = WalletSDK.getAccountASABalance(address, usdcAssetId)
-                    val usdcBalance = usdcBalanceStr?.toLongOrNull() ?: 0L
-                    if (usdcBalance < MINIMUM_BALANCE) {
-                        displayError("Account $address needs at least 10 USDC.")
-                        return@launch
-                    }
-                }
-
-                eventDelegate.sendEvent(ViewEvent.NavigateToDebugTool)
-            } catch (e: Exception) {
-                displayError("Balance check failed: ${e.message}")
+            if (creatorAddress.isBlank() || viewerAddresses.isEmpty()) {
+                displayError("Please select creator and at least one viewer in Escrow Session Vault Debug Tool first.")
+                return false
             }
+
+            val allAddresses = (viewerAddresses + creatorAddress).distinct()
+            val accountsWithAlgo = WalletSDK.getAccountsWithBalances()
+
+            for (address in allAddresses) {
+                val account = accountsWithAlgo.find { it.address == address }
+                val algoBalance = account?.balance?.toLongOrNull() ?: 0L
+                if (algoBalance < MINIMUM_BALANCE) {
+                    displayError("Account $address needs at least 10 ALGO.")
+                    return false
+                }
+
+                val usdcBalanceStr = WalletSDK.getAccountASABalance(address, usdcAssetId)
+                val usdcBalance = usdcBalanceStr?.toLongOrNull() ?: 0L
+                if (usdcBalance < MINIMUM_BALANCE) {
+                    displayError("Account $address needs at least 10 USDC.")
+                    return false
+                }
+            }
+            true
+        } catch (e: Exception) {
+            displayError("Balance check failed: ${e.message}")
+            false
         }
     }
 
@@ -144,7 +142,5 @@ class DeveloperSettingsViewModel(
         data class Error(
             val message: String,
         ) : ViewEvent
-
-        data object NavigateToDebugTool : ViewEvent
     }
 }

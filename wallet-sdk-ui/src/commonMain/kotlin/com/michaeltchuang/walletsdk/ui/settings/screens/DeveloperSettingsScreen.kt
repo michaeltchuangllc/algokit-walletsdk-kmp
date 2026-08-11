@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -30,6 +31,7 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -41,6 +43,7 @@ fun DeveloperSettingsScreen(
     onClick: (message: String) -> Unit,
 ) {
     val viewModel: DeveloperSettingsViewModel = koinViewModel()
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect {
             when (it) {
@@ -53,10 +56,6 @@ fun DeveloperSettingsScreen(
                     Log.d(TAG, it.message)
                     onClick(it.message)
                 }
-
-                is DeveloperSettingsViewModel.ViewEvent.NavigateToDebugTool -> {
-                    navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
-                }
             }
         }
     }
@@ -64,7 +63,13 @@ fun DeveloperSettingsScreen(
     ScreenContent(
         navController = navController,
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
-        onNavigateToDebugTool = { viewModel.checkBalancesAndNavigateToDebugTool() },
+        onNavigateToDebugTool = {
+            coroutineScope.launch {
+                if (viewModel.checkBalancesAndNavigateToDebugTool()){
+                    navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
+                }
+            }
+        },
     )
 }
 

@@ -207,7 +207,7 @@ fun LiquidStreamHostLiveScreenContent(
                 Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 0.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp)
                     .imePadding(),
         ) {
             CreatorTopBar(
