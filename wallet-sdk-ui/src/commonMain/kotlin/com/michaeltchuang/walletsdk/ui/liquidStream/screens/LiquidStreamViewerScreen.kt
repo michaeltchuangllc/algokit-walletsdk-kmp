@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
@@ -243,15 +244,20 @@ private fun LiquidStreamViewerScreenContent(
                     modifier = Modifier.padding(bottom = 250.dp),
                 ) {
                     ConnectedViewersCard(
-                        sessionId = sessionId.ifBlank { "session-pending" },
-                        remainingBalanceUSDC = remainingBalanceUsdc,
-                        connectionType = connectionType,
-                        currentBlockNumber = currentBlockNumber,
-                        networkLabel = networkLabel,
-                        originUrl = originUrl,
-                        viewerAddress = viewerAddress,
-                        progressBalanceUSDC = progressBalanceUsdc,
-                        progressCapacityUSDC = progressCapacityUsdc,
+                        viewers =
+                            listOf(
+                                ConnectedViewerInfo(
+                                    sessionId = sessionId.ifBlank { "session-pending" },
+                                    remainingBalanceUSDC = remainingBalanceUsdc,
+                                    connectionType = connectionType,
+                                    currentBlockNumber = currentBlockNumber,
+                                    networkLabel = networkLabel,
+                                    originUrl = originUrl,
+                                    viewerAddress = viewerAddress,
+                                    progressBalanceUSDC = progressBalanceUsdc,
+                                    progressCapacityUSDC = progressCapacityUsdc,
+                                ),
+                            ),
                     )
                 }
             }
@@ -555,7 +561,7 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                         "${message.amount} ${message.asset}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
+                        fontSize = 12.sp
                     )
                 }
                 Spacer(Modifier.weight(1f))

@@ -105,6 +105,7 @@ fun OnboardingAccountTypeScreen(
                 is ViewEvent.Error -> {
                     Log.d(TAG, it.message)
                 }
+
             }
         }
     }

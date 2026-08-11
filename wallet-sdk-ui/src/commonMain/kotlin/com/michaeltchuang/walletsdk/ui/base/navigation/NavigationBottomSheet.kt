@@ -14,18 +14,24 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.savedstate.SavedState
@@ -127,19 +133,35 @@ fun OnBoardingBottomSheet(
     accounts: Int,
     initialScreen: AlgoKitScreens? = null,
     address: String? = null,
+    screensToBlockDismissal: List<AlgoKitScreens> = emptyList(),
     onAccountDeleted: () -> Unit,
     onAlgoKitEvent: (event: AlgoKitEvent) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var canDismiss by remember { mutableStateOf(false) }
+    var currentScreen by remember { mutableStateOf<String?>(null) }
+    val isDismissBlocked =
+        screensToBlockDismissal.any {
+            currentScreen?.startsWith(it.name) == true
+        }
+
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { targetValue ->
+                targetValue != SheetValue.Hidden || !isDismissBlocked || canDismiss
+            },
+        )
     ModalBottomSheet(
         onDismissRequest = {
-            scope.launch {
-                scope
-                    .async {
-                        sheetState.hide()
-                    }.await()
-                onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
+            if (canDismiss || !isDismissBlocked) {
+                scope.launch {
+                    scope
+                        .async {
+                            sheetState.hide()
+                        }.await()
+                    onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
+                }
             }
         },
         sheetState = sheetState,
@@ -150,11 +172,13 @@ fun OnBoardingBottomSheet(
         NavigationBottomSheetNavHost(
             startDestination = startDestination(accounts, initialScreen),
             address = address,
+            onScreenChanged = { currentScreen = it },
             onAccountDeleted = {
                 onAccountDeleted()
             },
             closeSheet = {
                 scope.launch {
+                    canDismiss = true
                     scope
                         .async {
                             sheetState.hide()
@@ -172,6 +196,7 @@ fun OnBoardingBottomSheet(
 fun NavigationBottomSheetNavHost(
     startDestination: String = AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN.name,
     address: String?,
+    onScreenChanged: (String?) -> Unit,
     closeSheet: () -> Unit,
     onAccountDeleted: () -> Unit,
     onFinish: () -> Unit,
@@ -179,9 +204,16 @@ fun NavigationBottomSheetNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentScreen = navBackStackEntry?.destination?.route
+    val heightFraction = getBottomSheetHeightFraction(currentScreen)
+
+    LaunchedEffect(navBackStackEntry) {
+        onScreenChanged(currentScreen)
+    }
 
     Scaffold(
-        modifier = Modifier.fillMaxHeight(.9f),
+        modifier = Modifier.fillMaxHeight(heightFraction),
         containerColor = AlgoKitTheme.colors.background,
         snackbarHost = {
             SnackbarHost(
@@ -343,7 +375,8 @@ fun NavigationBottomSheetNavHost(
                 ) { backStackEntry ->
                     val accountTypeString =
                         backStackEntry.arguments.stringArgument("accountType", "falcon24")
-                    val scannedMnemonic = backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
+                    val scannedMnemonic =
+                        backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
 
                     val accountType =
                         when {
@@ -458,7 +491,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
-                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -506,7 +539,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
+                                "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("assetId") {
@@ -547,7 +580,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SEND_ASSET_SCREEN.name +
-                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -711,7 +744,8 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
-                    val accountAddress = backStackEntry.arguments.stringArgument("accountAddress") ?: ""
+                    val accountAddress =
+                        backStackEntry.arguments.stringArgument("accountAddress") ?: ""
                     AddAssetScreen(
                         navController = navController,
                         assetId = assetId,
@@ -732,7 +766,8 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val selectedSeedIdsRaw = backStackEntry.arguments.stringArgument("selectedSeedIds")
+                    val selectedSeedIdsRaw =
+                        backStackEntry.arguments.stringArgument("selectedSeedIds")
                     val selectedSeedIds =
                         selectedSeedIdsRaw
                             ?.split(",")
@@ -755,7 +790,9 @@ fun NavigationBottomSheetNavHost(
                     EscrowSessionVaultDebugToolScreen(navController)
                 }
                 composable(route = AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name) {
-                    LiquidStreamHostDebugToolScreen()
+                    LiquidStreamHostDebugToolScreen(
+                        onMinimise = { navController.navigateUp() },
+                    )
                 }
                 composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
                     GithubRepoScreen(navController)
@@ -789,3 +826,25 @@ fun startDestination(
         accounts == 0 -> AlgoKitScreens.INITIAL_REGISTER_INTRO_SCREEN.name
         else -> AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN.name
     }
+
+/**
+ * Returns a list of screens that should block the swipe-to-dismiss gesture
+ * in the AlgoKit wallet bottom sheet.
+ */
+fun getScreensToBlockDismissal(): List<AlgoKitScreens> {
+    return listOf(
+        AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
+        AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
+    )
+}
+
+/**
+ * Returns the height fraction (0.0 to 1.0) for the bottom sheet
+ * based on the current screen.
+ */
+fun getBottomSheetHeightFraction(screenName: String?): Float {
+    return when (screenName) {
+        AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name -> 1f
+        else -> 0.9f
+    }
+}

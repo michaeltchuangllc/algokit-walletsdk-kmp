@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.demo.service.WalletScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet
+import com.michaeltchuang.walletsdk.ui.base.navigation.getScreensToBlockDismissal
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 
 /**
@@ -59,6 +60,7 @@ class WalletOverlayActivity : ComponentActivity() {
                 accounts = accountCount,
                 initialScreen = initialScreen,
                 address = null,
+                screensToBlockDismissal = getScreensToBlockDismissal(),
                 onAccountDeleted = {
                     Log.d(TAG, "Account deleted, finishing")
                     finish()

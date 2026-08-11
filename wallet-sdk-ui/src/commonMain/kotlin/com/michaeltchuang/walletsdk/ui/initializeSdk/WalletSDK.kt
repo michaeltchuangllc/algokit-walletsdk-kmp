@@ -21,6 +21,7 @@ import com.michaeltchuang.walletsdk.ui.base.di.walletSdkUiModules
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.navigation.OnBoardingBottomSheet
+import com.michaeltchuang.walletsdk.ui.base.navigation.getScreensToBlockDismissal
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -188,7 +189,7 @@ object WalletSDK {
      * @param onAccountCreated Callback for when an account is created
      *
      * This composable will show the bottom sheet when the state is visible, and handle
-     * the events for account deletion and creation.functions
+     * the events for account deletion and creation.Functions
      */
     @Composable
     fun ShowAlgoKitWalletBottomSheet(
@@ -212,6 +213,7 @@ object WalletSDK {
                 accounts = accountCount.value,
                 initialScreen = state.initialScreen,
                 address = state.address,
+                screensToBlockDismissal = getScreensToBlockDismissal(),
                 onAccountDeleted = {
                     onAccountDeleted()
                     state.hide()

@@ -32,6 +32,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ChatStack
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CreatorActionRow
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CreatorComposer
@@ -115,16 +116,21 @@ fun LiquidStreamHostLiveScreen(
             onStatsClick()
         },
         onSendClickInternal = { viewModel.onSendClicked() },
-        sessionId = sessionId,
-        progressBalanceUsdc = progressBalanceUsdc,
-        remainingBalanceUsdc = remainingBalanceUsdc,
-        progressCapacityUsdc = progressCapacityUsdc,
-        connectionType = connectionType,
-        currentBlockNumber = currentBlockNumber,
+        viewers =
+            listOf(
+                ConnectedViewerInfo(
+                    sessionId = sessionId ?: "session-pending",
+                    remainingBalanceUSDC = remainingBalanceUsdc,
+                    progressBalanceUSDC = progressBalanceUsdc,
+                    progressCapacityUSDC = progressCapacityUsdc,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    networkLabel = networkLabel,
+                    originUrl = originUrl,
+                ),
+            ),
         blockChainLabel = blockChainLabel,
-        networkLabel = networkLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
-        originUrl = originUrl,
         uiState = uiState,
         onTextChanged = viewModel::onMessageChanged,
         onStatsDismissed = {
@@ -151,16 +157,9 @@ fun LiquidStreamHostLiveScreenContent(
     onRotateCamera: () -> Unit,
     onStatsClick: () -> Unit,
     onSendClickInternal: () -> Unit,
-    sessionId: String?,
-    progressBalanceUsdc: Double?,
-    remainingBalanceUsdc: Double?,
-    progressCapacityUsdc: Double,
-    connectionType: IceConnectionType,
-    currentBlockNumber: Long?,
+    viewers: List<ConnectedViewerInfo>,
     blockChainLabel: String,
-    networkLabel: String,
     balanceCurrencySymbol: String,
-    originUrl: String,
     uiState: LiquidStreamHostViewModel.UiState,
     onTextChanged: (String) -> Unit,
     onStatsDismissed: () -> Unit,
@@ -208,7 +207,7 @@ fun LiquidStreamHostLiveScreenContent(
                 Modifier
                     .fillMaxSize()
                     .statusBarsPadding()
-                    .padding(horizontal = 20.dp, vertical = 0.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 16.dp)
                     .imePadding(),
         ) {
             CreatorTopBar(
@@ -256,16 +255,7 @@ fun LiquidStreamHostLiveScreenContent(
                 Box(
                     modifier = Modifier.padding(bottom = 250.dp),
                 ) {
-                    ConnectedViewersCard(
-                        sessionId = sessionId ?: "session-pending",
-                        remainingBalanceUSDC = remainingBalanceUsdc,
-                        progressBalanceUSDC = progressBalanceUsdc,
-                        progressCapacityUSDC = progressCapacityUsdc,
-                        connectionType = connectionType,
-                        currentBlockNumber = currentBlockNumber,
-                        networkLabel = networkLabel,
-                        originUrl = originUrl,
-                    )
+                    ConnectedViewersCard(viewers = viewers)
                 }
             }
         }
@@ -305,16 +295,21 @@ private fun LiquidStreamHostLiveScreenPreview() {
             onRotateCamera = {},
             onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
             onSendClickInternal = { uiState = uiState.copy(message = "") },
-            sessionId = "session-preview-id",
-            progressBalanceUsdc = 11.9,
-            remainingBalanceUsdc = 12.0,
-            progressCapacityUsdc = 12.0,
-            connectionType = IceConnectionType.UNKNOWN,
-            currentBlockNumber = 38291041L,
+            viewers =
+                listOf(
+                    ConnectedViewerInfo(
+                        sessionId = "session-preview-id",
+                        remainingBalanceUSDC = 12.0,
+                        progressBalanceUSDC = 11.9,
+                        progressCapacityUSDC = 12.0,
+                        connectionType = IceConnectionType.UNKNOWN,
+                        currentBlockNumber = 38291041L,
+                        networkLabel = "TESTNET",
+                        originUrl = "https://example.app",
+                    ),
+                ),
             blockChainLabel = "ALGORAND",
-            networkLabel = "TESTNET",
             balanceCurrencySymbol = "A",
-            originUrl = "https://example.app",
             uiState = uiState,
             onTextChanged = { message -> uiState = uiState.copy(message = message) },
             onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },

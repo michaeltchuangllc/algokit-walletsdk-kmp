@@ -70,6 +70,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
@@ -78,7 +80,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -1514,14 +1515,19 @@ private fun LiquidAuthOfferStreamingDirectPreview() {
                 },
             )
             ConnectedViewersCard(
-                sessionId = "session-direct-12345678",
-                remainingBalanceUSDC = 0.8,
-                connectionType = IceConnectionType.LOCAL,
-                currentBlockNumber = 45123456L,
-                networkLabel = "TESTNET",
-                progressBalanceUSDC = 0.2,
-                originUrl = "michaeltchuang.ngrok.dev",
-                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-direct-12345678",
+                            remainingBalanceUSDC = 0.8,
+                            connectionType = IceConnectionType.LOCAL,
+                            currentBlockNumber = 45123456L,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
@@ -1692,14 +1698,19 @@ private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
                     .padding(vertical = 16.dp),
         ) {
             ConnectedViewersCard(
-                sessionId = "session-preview-12345678",
-                remainingBalanceUSDC = 0.7,
-                connectionType = IceConnectionType.STUN,
-                currentBlockNumber = 45123501L,
-                networkLabel = "TESTNET",
-                progressBalanceUSDC = 0.2,
-                originUrl = "michaeltchuang.ngrok.dev",
-                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-preview-12345678",
+                            remainingBalanceUSDC = 0.7,
+                            connectionType = IceConnectionType.STUN,
+                            currentBlockNumber = 45123501L,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
             )
         }
     }
@@ -1717,13 +1728,18 @@ private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
                     .padding(vertical = 16.dp),
         ) {
             ConnectedViewersCard(
-                sessionId = "session-preview-87654321",
-                remainingBalanceUSDC = 0.7,
-                connectionType = IceConnectionType.STUN,
-                networkLabel = "TESTNET",
-                progressBalanceUSDC = 0.2,
-                originUrl = "michaeltchuang.ngrok.dev",
-                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-preview-87654321",
+                            remainingBalanceUSDC = 0.7,
+                            connectionType = IceConnectionType.STUN,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
             )
         }
     }

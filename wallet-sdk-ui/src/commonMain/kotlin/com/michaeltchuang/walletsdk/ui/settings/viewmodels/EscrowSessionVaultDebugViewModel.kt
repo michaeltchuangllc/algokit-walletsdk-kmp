@@ -9,6 +9,9 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.DebugAddressSelections
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.DebugAddressSelectionsUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -25,6 +28,7 @@ class EscrowSessionVaultDebugViewModel(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
     private val getLocalAccounts: GetLocalAccounts,
     private val getSessionVaultContextUseCase: GetSessionVaultContextUseCase,
+    private val debugAddressSelectionsUseCase: DebugAddressSelectionsUseCase,
 ) : ViewModel(),
     StateViewModel<EscrowSessionVaultDebugViewModel.ViewState> by stateDelegate,
     EventViewModel<EscrowSessionVaultDebugViewModel.ViewEvent> by eventDelegate {
@@ -41,13 +45,31 @@ class EscrowSessionVaultDebugViewModel(
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
         DebugAddressHolder.viewerAddress = address
-        refreshDebugSessionContext()
+        viewModelScope.launch {
+            saveDebugAddressSelections()
+            refreshDebugSessionContext()
+        }
+    }
+
+    fun onViewerAddress2Changed(address: String) {
+        updateContent { it.copy(viewerAddress2 = address) }
+        DebugAddressHolder.viewerAddress2 = address
+        viewModelScope.launch { saveDebugAddressSelections() }
+    }
+
+    fun onViewerAddress3Changed(address: String) {
+        updateContent { it.copy(viewerAddress3 = address) }
+        DebugAddressHolder.viewerAddress3 = address
+        viewModelScope.launch { saveDebugAddressSelections() }
     }
 
     fun onCreatorAddressChanged(address: String) {
         updateContent { it.copy(creatorAddress = address) }
         DebugAddressHolder.creatorAddress = address
-        refreshDebugSessionContext()
+        viewModelScope.launch {
+            saveDebugAddressSelections()
+            refreshDebugSessionContext()
+        }
     }
 
     fun onDepositAmountChanged(amount: String) {
@@ -57,25 +79,36 @@ class EscrowSessionVaultDebugViewModel(
     private fun loadAccountAddresses() {
         viewModelScope.launch {
             runCatching {
-                getLocalAccounts()
-                    .filter {
-                        it is LocalAccount.HdKey ||
-                            it is LocalAccount.Algo25 ||
-                            it is LocalAccount.Falcon24 ||
-                            it is LocalAccount.Falcon25
-                    }.map { it.address }
-            }.onSuccess { addresses ->
+                val addresses =
+                    getLocalAccounts()
+                        .filter {
+                            it is LocalAccount.HdKey ||
+                                it is LocalAccount.Algo25 ||
+                                it is LocalAccount.Falcon24 ||
+                                it is LocalAccount.Falcon25
+                        }.map { it.address }
+                addresses to debugAddressSelectionsUseCase.get()
+            }.onSuccess { (addresses, savedSelections) ->
                 updateContent { current ->
-                    val viewer = current.viewerAddress.ifBlank { addresses.getOrNull(0).orEmpty() }
-                    val creator = current.creatorAddress.ifBlank { addresses.getOrNull(1).orEmpty() }
+                    val viewer = savedSelections.viewerAddress.takeIf(addresses::contains)
+                        ?: addresses.getOrNull(0).orEmpty()
+                    val creator = savedSelections.creatorAddress.takeIf(addresses::contains)
+                        ?: addresses.getOrNull(1).orEmpty()
+                    val viewer2 = savedSelections.viewerAddress2.takeIf(addresses::contains).orEmpty()
+                    val viewer3 = savedSelections.viewerAddress3.takeIf(addresses::contains).orEmpty()
                     DebugAddressHolder.viewerAddress = viewer
+                    DebugAddressHolder.viewerAddress2 = viewer2
+                    DebugAddressHolder.viewerAddress3 = viewer3
                     DebugAddressHolder.creatorAddress = creator
                     current.copy(
                         accountAddresses = addresses,
                         viewerAddress = viewer,
+                        viewerAddress2 = viewer2,
+                        viewerAddress3 = viewer3,
                         creatorAddress = creator,
                     )
                 }
+                saveDebugAddressSelections()
                 refreshDebugSessionContext()
                 if (addresses.size < 2) {
                     sendStatus("❌ At least two signable local Algorand accounts are required.")
@@ -108,7 +141,7 @@ class EscrowSessionVaultDebugViewModel(
             try {
                 val signer = mppWalletSignerUseCase(viewer)
                 if (signer != null) {
-                    refreshDebugSessionContext(signer.authorizedSignerPublicKey)
+                    refreshDebugSessionContext(signer)
 
                     val result =
                         withContext(Dispatchers.Default) {
@@ -120,8 +153,10 @@ class EscrowSessionVaultDebugViewModel(
                         }
                     result
                         .onSuccess { txId ->
-                            sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
-                            Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
+                            if (refreshDebugSessionContext(signer, registerAuthorizedSigner = true)) {
+                                sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
+                                Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
+                            }
                         }.onFailure { err ->
                             showError(PaymentError.Companion.from(err), "ADD_TO_VAULT_ERR", err)
                         }
@@ -146,6 +181,12 @@ class EscrowSessionVaultDebugViewModel(
             setLoading(true)
             sendStatus("Fetching Session Vault balance…")
             try {
+                val viewerSigner =
+                    mppWalletSignerUseCase(viewer) ?: run {
+                        showError(PaymentError.SignerNotFound(viewer), "FETCH_BALANCE_NO_VIEWER_SIGNER")
+                        return@launch
+                    }
+                refreshDebugSessionContext(viewerSigner)
                 val remaining =
                     withContext(Dispatchers.Default) {
                         //  val vaultContext = getSessionVaultContextUseCase()
@@ -186,6 +227,7 @@ class EscrowSessionVaultDebugViewModel(
                         )
                         return@launch
                     }
+                if (!refreshDebugSessionContext(viewerSigner, registerAuthorizedSigner = true)) return@launch
 
                 val snapshot =
                     withContext(Dispatchers.Default) {
@@ -531,22 +573,47 @@ class EscrowSessionVaultDebugViewModel(
         }
     }
 
-    private fun refreshDebugSessionContext(authorizedSignerPublicKey: ByteArray? = null) {
-        if (authorizedSignerPublicKey != null) {
-            configureDebugSessionContext(
-                content = contentState(),
-                authorizedSignerPublicKey = authorizedSignerPublicKey,
-            )
-            return
-        }
+    private suspend fun saveDebugAddressSelections() {
+        debugAddressSelectionsUseCase.save(
+            DebugAddressSelections(
+                creatorAddress = DebugAddressHolder.creatorAddress,
+                viewerAddress = DebugAddressHolder.viewerAddress,
+                viewerAddress2 = DebugAddressHolder.viewerAddress2,
+                viewerAddress3 = DebugAddressHolder.viewerAddress3,
+            ),
+        )
+    }
 
-        viewModelScope.launch {
-            val content = contentState()
-            val viewer = content.viewerAddress.trim()
-            if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return@launch
-            val signer = mppWalletSignerUseCase(viewer) ?: return@launch
-            configureDebugSessionContext(content, signer.authorizedSignerPublicKey)
+    private suspend fun refreshDebugSessionContext(
+        signer: MppWalletSigner? = null,
+        registerAuthorizedSigner: Boolean = false,
+    ): Boolean {
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        if (viewer.isBlank() || viewer == content.creatorAddress.trim()) return false
+        val viewerSigner = signer ?: mppWalletSignerUseCase(viewer) ?: return false
+        configureDebugSessionContext(content, viewerSigner.authorizedSignerPublicKey)
+
+        if (!registerAuthorizedSigner) return true
+
+        val result =
+            withContext(Dispatchers.Default) {
+                MppPayments.setAuthorizedSignerForSession(
+                    signer = viewerSigner,
+                    viewerAddress = viewer,
+                    authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                )
+            }
+        if (result.isFailure) {
+            val error = result.exceptionOrNull()
+            showError(
+                PaymentError.Companion.from(error ?: Exception("Failed to authorize signer")),
+                "SET_AUTHORIZED_SIGNER_ERR",
+                error,
+            )
+            return false
         }
+        return true
     }
 
     private fun configureDebugSessionContext(
@@ -619,6 +686,8 @@ class EscrowSessionVaultDebugViewModel(
         data class Content(
             val accountAddresses: List<String> = emptyList(),
             val viewerAddress: String = "",
+            val viewerAddress2: String = "",
+            val viewerAddress3: String = "",
             val creatorAddress: String = "",
             val depositAmountUsdc: String = "0.1",
             val remainingBalance: Long? = null,
@@ -626,10 +695,12 @@ class EscrowSessionVaultDebugViewModel(
         ) : ViewState {
             val canRunVaultActions: Boolean
                 get() =
-                    accountAddresses.size >= 2 &&
-                        viewerAddress.isNotBlank() &&
-                        creatorAddress.isNotBlank() &&
-                        viewerAddress != creatorAddress
+                    creatorAddress.isNotBlank() &&
+                        (
+                            viewerAddress.isNotBlank() ||
+                                viewerAddress2.isNotBlank() ||
+                                viewerAddress3.isNotBlank()
+                        )
         }
     }
 
