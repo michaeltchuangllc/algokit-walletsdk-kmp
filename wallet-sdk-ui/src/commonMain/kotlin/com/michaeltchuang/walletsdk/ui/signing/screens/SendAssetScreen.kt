@@ -60,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
-import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.toAlgoAmount
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -109,7 +108,6 @@ fun SendAssetScreen(
     ScreenContent(
         senderAddress = senderAddress,
         viewState = viewState,
-        assetId = assetId,
         noteText = noteText,
         onAmountChange = { digit -> viewModel.onDigitPressed(digit) },
         onDeletePressed = { viewModel.onDeletePressed() },
@@ -125,7 +123,6 @@ fun SendAssetScreen(
 fun ScreenContent(
     senderAddress: String,
     viewState: SendAssetViewModel.ViewState,
-    assetId: Long = -7L,
     noteText: MutableState<String>,
     onAmountChange: (String) -> Unit = {},
     onDeletePressed: () -> Unit = {},
@@ -163,7 +160,6 @@ fun ScreenContent(
                 is SendAssetViewModel.ViewState.Content -> {
                     SendAssetContent(
                         state = viewState,
-                        assetId = assetId,
                         noteText = noteText,
                         onAmountChange = onAmountChange,
                         onDeletePressed = onDeletePressed,
@@ -184,7 +180,6 @@ fun ScreenContent(
                 is SendAssetViewModel.ViewState.MinimumBalanceAlert -> {
                     SendAssetContent(
                         state = viewState.toContent(),
-                        assetId = assetId,
                         noteText = noteText,
                         onAmountChange = onAmountChange,
                         onDeletePressed = onDeletePressed,
@@ -271,7 +266,6 @@ private fun SendAssetTopBar(
 @Composable
 private fun SendAssetContent(
     state: SendAssetViewModel.ViewState.Content,
-    assetId: Long,
     noteText: MutableState<String>,
     onAmountChange: (String) -> Unit,
     onDeletePressed: () -> Unit,
@@ -308,7 +302,7 @@ private fun SendAssetContent(
 
         // Asset Selection
         AssetSelectionCard(
-            assetId = assetId,
+            isUsdc = state.isUsdc,
             balance = state.balance,
             usdValue = state.usdValue,
             showUSDAmount = state.showUSDAmount,
@@ -502,12 +496,11 @@ private fun KeypadButton(
 
 @Composable
 private fun AssetSelectionCard(
-    assetId: Long,
+    isUsdc: Boolean,
     balance: String?,
     usdValue: String?,
     showUSDAmount: Boolean,
 ) {
-    val isUsdc = assetId == AssetConstants.USDC_TESTNET_ID || assetId == AssetConstants.USDC_MAINNET_ID
     val assetName = if (isUsdc) "USDC" else "Algo"
     val assetSymbol = if (isUsdc) "USDC" else "ALGO"
     val assetIcon = if (isUsdc) Res.drawable.ic_usdc else Res.drawable.ic_algo_round
@@ -661,7 +654,6 @@ fun PreviewSendAssetScreen() {
                 // Content Preview with mock state
                 SendAssetContent(
                     state = MockSendAssetViewState(),
-                    assetId = -7L,
                     noteText = mutableStateOf(""),
                     onAmountChange = { },
                     onDeletePressed = { },

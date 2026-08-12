@@ -9,11 +9,14 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountA
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMinimumBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.ALGO_ID
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 private const val MICRO_ASSET_DIVISOR = 1_000_000.0
@@ -23,6 +26,7 @@ class SendAssetViewModel(
     private val getAccountASABalance: GetAccountASABalance,
     private val getAccountMinimumBalance: GetAccountMinimumBalance,
     private val getTransactionFeeForAccount: GetTransactionFeeForAccount,
+    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -32,6 +36,7 @@ class SendAssetViewModel(
     private var assetBalance: BigInteger = BigInteger.ZERO
     private var senderAddress: String = ""
     private var assetId: Long = ALGO_ID
+    private var activeNetworkUsdcAssetId: Long? = null
     private val algoUsdPrice: Double = 0.199 // Mock price, should come from a price service
     private val maxDecimalPlaces = 6 // Algorand supports 6 decimal places (microAlgos)
 
@@ -48,6 +53,8 @@ class SendAssetViewModel(
             try {
                 this@SendAssetViewModel.senderAddress = senderAddress
                 this@SendAssetViewModel.assetId = assetId
+                activeNetworkUsdcAssetId =
+                    AssetConstants.usdcIdForNetwork(getCurrentNetworkUseCase().first().displayName)
                 algoBalance = getAccountAlgoBalance(senderAddress) ?: BigInteger.ZERO
                 assetBalance =
                     if (assetId == ALGO_ID) {
@@ -89,9 +96,12 @@ class SendAssetViewModel(
                 usdValue = amountUsdValue,
                 balance = balanceFormatted,
                 assetUsdValue = balanceUsdValue,
+                isUsdc = isUsdc(assetId),
             )
         }
     }
+
+    fun isUsdc(assetId: Long): Boolean = assetId == activeNetworkUsdcAssetId
 
     fun onDigitPressed(digit: String) {
         val currentState = stateDelegate.state.value
@@ -170,6 +180,7 @@ class SendAssetViewModel(
                             previousAmount = currentState.amount,
                             previousBalance = currentState.balance,
                             previousAssetUsdValue = currentState.assetUsdValue,
+                            previousIsUsdc = currentState.isUsdc,
                         )
                     }
                     return@launch
@@ -249,6 +260,7 @@ class SendAssetViewModel(
             val usdValue: String,
             val balance: String?,
             val assetUsdValue: String?,
+            val isUsdc: Boolean = false,
             val showUSDAmount: Boolean = false,
         ) : ViewState
 
@@ -261,6 +273,7 @@ class SendAssetViewModel(
             val previousAmount: String,
             val previousBalance: String?,
             val previousAssetUsdValue: String?,
+            val previousIsUsdc: Boolean,
         ) : ViewState {
             fun toContent(): Content =
                 Content(
@@ -268,6 +281,7 @@ class SendAssetViewModel(
                     usdValue = "$0.00",
                     balance = previousBalance,
                     assetUsdValue = previousAssetUsdValue,
+                    isUsdc = previousIsUsdc,
                     showUSDAmount = false,
                 )
         }
