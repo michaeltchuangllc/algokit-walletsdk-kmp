@@ -245,11 +245,13 @@ object MppPayments {
         signer: MppWalletSigner,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
     ): Result<String> {
-        val channelId =
-            EscrowSessionVaultManagerClient.channelId
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.settle(signer, channelId, cumulativeAmountMicroUsdc, signature)
+        return EscrowSessionVaultManagerClient.settle(signer, resolvedChannelId, cumulativeAmountMicroUsdc, signature)
     }
 
     suspend fun verifySettleSignature(

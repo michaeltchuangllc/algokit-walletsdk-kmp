@@ -195,7 +195,7 @@ class LiquidStreamHostDebugToolViewModel(
                 // Safety check: don't settle more than deposited
                 if (newCumulative > snapshot.totalDepositMicroUsdc) continue
 
-                // 3. Update Voucher On-Chain
+                // 3. Settle the signed voucher directly. This records the voucher and pays the creator in one call.
                 val settleMessage = MppPayments.settleMessage(
                     cumulativeAmountMicroUsdc = newCumulative,
                     channelId = channelId,
@@ -203,26 +203,16 @@ class LiquidStreamHostDebugToolViewModel(
                 val signature = viewerSigner.signMessage(settleMessage)
 
                 withContext(Dispatchers.Default) {
-                    MppPayments.updateVoucherOnChain(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        totalAmountUsedMicroUsdc = newCumulative,
+                    MppPayments.settle(
+                        signer = creatorSigner,
+                        cumulativeAmountMicroUsdc = newCumulative,
                         signature = signature,
                         channelId = channelId,
                     )
                 }.onSuccess { txId ->
-                    Napier.d("[AUTO_VOUCHER_UPDATE_OK] viewer=$viewer txId=$txId newCumulative=$newCumulative", tag = "LiquidStreamHostDebugVM")
-                    
-                    // 4. Settle Latest Voucher to Creator ONLY if voucher update succeeded
-                    withContext(Dispatchers.Default) {
-                        MppPayments.settleLatestVoucher(signer = creatorSigner, channelId = channelId)
-                    }.onSuccess { settleTxId ->
-                        Napier.d("[AUTO_SETTLE_OK] viewer=$viewer txId=$settleTxId", tag = "LiquidStreamHostDebugVM")
-                    }.onFailure { settleErr ->
-                        Napier.e("[AUTO_SETTLE_ERR] viewer=$viewer", settleErr, tag = "LiquidStreamHostDebugVM")
-                    }
+                    Napier.d("[AUTO_SETTLE_OK] viewer=$viewer txId=$txId newCumulative=$newCumulative", tag = "LiquidStreamHostDebugVM")
                 }.onFailure { err ->
-                    Napier.e("[AUTO_VOUCHER_UPDATE_ERR] viewer=$viewer", err, tag = "LiquidStreamHostDebugVM")
+                    Napier.e("[AUTO_SETTLE_ERR] viewer=$viewer", err, tag = "LiquidStreamHostDebugVM")
                 }
             }
             refreshViewerBalances()
