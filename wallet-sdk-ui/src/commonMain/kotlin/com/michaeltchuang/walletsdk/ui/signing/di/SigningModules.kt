@@ -63,6 +63,7 @@ internal val signingModules =
                     get(),
                     get(),
                     get(),
+                    get(),
                 )
             }
             viewModel {
