@@ -7,7 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRep
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -362,6 +362,7 @@ internal class LiquidStreamBlockConsumptionManager(
         viewerAddress: String?,
         creatorAddress: String,
         signatureBase64: String,
+        viewerPublicKeyBase64: String,
         signedTotalAmount: Long,
         localBlocksConsumed: Int,
         voucherBlockNumber: Long? = null,
@@ -434,15 +435,24 @@ internal class LiquidStreamBlockConsumptionManager(
                 } else {
                     @OptIn(ExperimentalEncodingApi::class)
                     val signature = Base64.decode(signatureBase64)
+
+                    // Must be the viewer's (payer's) registered session key — the one their
+                    // settlement LogicSig was compiled and registered on-chain with — not the
+                    // creator's own signer key, since the creator's device is only the one
+                    // submitting this settlement transaction, not the channel's payer.
+                    @OptIn(ExperimentalEncodingApi::class)
+                    val viewerAuthorizedSignerPublicKey = Base64.decode(viewerPublicKeyBase64)
                     val settleResult =
                         try {
                             Result.success(
                                 withTimeout(CHAIN_WRITE_TIMEOUT_MS.milliseconds) {
                                     MppPayments
-                                        .settle(
-                                            signer = signer,
+                                        .settleFromLogicSig(
+                                            funderSigner = signer,
                                             cumulativeAmountMicroUsdc = signedTotalAmount,
-                                            signature = signature,
+                                            voucherSignature = signature,
+                                            authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
+                                            payeeAddress = creatorAddress,
                                             channelId = channelId,
                                             note = note,
                                         ).getOrThrow()
@@ -521,6 +531,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         viewerAddress = voucher.viewerAddress,
                         creatorAddress = voucher.creatorAddress,
                         signatureBase64 = voucher.signatureBase64,
+                        viewerPublicKeyBase64 = voucher.viewerPublicKeyBase64,
                         signedTotalAmount = voucher.totalAmountClaimedMicroUsdc,
                         localBlocksConsumed = 0,
                         voucherBlockNumber = voucher.blockNumber,
@@ -612,7 +623,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     }
 
                     @OptIn(ExperimentalEncodingApi::class)
-                    val currentChannelIdBase64 = EscrowSessionVaultManagerClient.channelId?.let { Base64.encode(it) }
+                    val currentChannelIdBase64 = EscrowSessionVaultHybridManagerClient.channelId?.let { Base64.encode(it) }
                     currentChannelIdBase64?.let { channelId ->
                         // Save latest voucher to DB before settlement
                         val viewModel = getViewModel()
@@ -654,6 +665,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             viewerAddress = viewerAddress,
                             creatorAddress = creatorAddress,
                             signatureBase64 = claimSnapshot.signatureBase64,
+                            viewerPublicKeyBase64 = claimSnapshot.viewerPublicKeyBase64,
                             signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
                             localBlocksConsumed = localBlocksConsumed,
                             voucherBlockNumber = currentBlock,

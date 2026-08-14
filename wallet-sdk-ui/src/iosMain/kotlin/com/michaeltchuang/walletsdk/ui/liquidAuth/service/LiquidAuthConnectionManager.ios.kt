@@ -13,7 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRep
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
@@ -847,7 +847,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 val voucherViewer = voucher.viewerAddress
                 val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
                 voucher.channelId?.let { decodedChannelId ->
-                    EscrowSessionVaultManagerClient.channelId = decodedChannelId
+                    EscrowSessionVaultHybridManagerClient.channelId = decodedChannelId
                     Napier.d("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
                 }
 

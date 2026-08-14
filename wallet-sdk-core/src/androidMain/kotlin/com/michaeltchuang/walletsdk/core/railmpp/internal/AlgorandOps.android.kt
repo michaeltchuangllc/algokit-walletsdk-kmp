@@ -1,6 +1,8 @@
 package com.michaeltchuang.walletsdk.core.railmpp.internal
 
+import android.util.Base64
 import android.util.Log
+import com.algorand.algosdk.account.LogicSigAccount
 import com.algorand.algosdk.crypto.Address
 import com.algorand.algosdk.transaction.AppBoxReference
 import com.algorand.algosdk.transaction.Transaction
@@ -9,6 +11,7 @@ import com.algorand.algosdk.util.Encoder
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
+import com.michaeltchuang.walletsdk.core.network.domain.AndroidContextHolder
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
@@ -21,6 +24,18 @@ private const val TAG = "AlgorandOps"
 private const val APP_CALL_FEE = 12_000L
 private const val DUMMIES_PER_REAL_TXN = 3
 private const val MIN_TXN_FEE = 1_000L
+
+// Hardened LogicSig programs add encoded-byte fee on Futurenet; the teardown-sweep
+// branch grew the settlement LogicSig program, bumping this from 18 to 30 microAlgos.
+private const val LOGIC_SIG_SETTLEMENT_GROUP_FEE = 3_030L
+private const val LOGIC_SIG_MINIMUM_BALANCE = 100_000L
+private const val FALCON_SIGNED_TRANSACTION_GROUP_FEE =
+    MIN_TXN_FEE * (DUMMIES_PER_REAL_TXN + 1)
+private const val SETTLEMENT_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementLogicSig.teal"
+private const val PADDING_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementPaddingLogicSig.teal"
+
+private val SETTLE_FROM_LOGIC_SIG_SELECTOR = byteArrayOf(0x43, 0x9c.toByte(), 0x5f, 0xb1.toByte())
+private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
 
 private val falconLsigAddress: Address by lazy {
     Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
@@ -125,6 +140,122 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     return broadcast(client, signed) ?: appCallTxn.txID()
 }
 
+internal actual suspend fun compileSettlementLogicSigAddressInternal(
+    appId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+): String {
+    val client = algodClient(algodUrl)
+    val settlementProgram = compileSettlementProgram(client, appId, channelId, payeeAddress, authorizedSignerPublicKey)
+    return LogicSigAccount(settlementProgram, emptyList()).address.toString()
+}
+
+private fun compileSettlementProgram(
+    client: AlgodClient,
+    appId: Long,
+    channelId: ByteArray,
+    payeeAddress: String,
+    authorizedSignerPublicKey: ByteArray,
+): ByteArray {
+    require(channelId.size == 32) { "channelId must be 32 bytes" }
+    val encodedChannelId = byteArrayOf(0, channelId.size.toByte()) + channelId
+    val substitutions =
+        mapOf(
+            "TMPL_HYBRID_APP_ID" to appId.toString(),
+            "TMPL_CHANNEL_ID" to encodedChannelId.toTealByteLiteral(),
+            "TMPL_PAYEE" to Address(payeeAddress).getBytes().toTealByteLiteral(),
+            "TMPL_AUTHORIZED_PUBLIC_KEY" to authorizedSignerPublicKey.toTealByteLiteral(),
+        )
+    return client.compileTeal(renderTealTemplate(SETTLEMENT_TEMPLATE_ASSET, substitutions))
+}
+
+internal actual suspend fun submitLogicSigSettlementInternal(
+    payerSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+    note: ByteArray?,
+): String {
+    require(channelId.size == 32) { "channelId must be 32 bytes" }
+    val client = algodClient(algodUrl)
+    val encodedChannelId = byteArrayOf(0, channelId.size.toByte()) + channelId
+    val settlementProgram = compileSettlementProgram(client, appId, channelId, payeeAddress, authorizedSignerPublicKey)
+    val paddingProgram =
+        client.compileTeal(
+            renderTealTemplate(
+                PADDING_TEMPLATE_ASSET,
+                mapOf(
+                    "TMPL_HYBRID_APP_ID" to appId.toString(),
+                    "TMPL_CHANNEL_ID" to encodedChannelId.toTealByteLiteral(),
+                    // The padding LogicSig's teardown sweep returns its unused ALGO fee buffer to
+                    // whoever funds it, which today is the payer (see fundLogicSigIfNeeded below).
+                    "TMPL_SWEEP_DESTINATION" to Address(payerSigner.address).getBytes().toTealByteLiteral(),
+                ),
+            ),
+        )
+    val settlementLogicSig =
+        LogicSigAccount(
+            settlementProgram,
+            listOf(voucherSignature, encodeUint64(cumulativeAmountMicroUsdc)),
+        )
+    val paddingLogicSig = LogicSigAccount(paddingProgram, emptyList())
+    ensureLogicSigSetup(
+        client = client,
+        payerSigner = payerSigner,
+        appId = appId,
+        channelId = channelId,
+        settlementLogicSig = settlementLogicSig,
+        paddingLogicSig = paddingLogicSig,
+    )
+    val params = client.TransactionParams().execute().body()
+    val settlementTxn =
+        Transaction
+            .ApplicationCallTransactionBuilder()
+            .sender(settlementLogicSig.address)
+            .suggestedParams(params)
+            .applicationId(appId)
+            .args(
+                listOf(
+                    SETTLE_FROM_LOGIC_SIG_SELECTOR,
+                    encodedChannelId,
+                    encodeUint64(cumulativeAmountMicroUsdc),
+                ),
+            ).accounts(listOf(Address(payeeAddress)))
+            .boxReferences(
+                listOf(
+                    AppBoxReference(appId, channelId),
+                    AppBoxReference(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                ),
+            ).foreignAssets(listOf(usdcAssetId))
+            .build()
+            .also {
+                it.fee = BigInteger.valueOf(LOGIC_SIG_SETTLEMENT_GROUP_FEE)
+                if (note != null && note.isNotEmpty()) it.note = note
+            }
+    val paddingTxn =
+        Transaction
+            .PaymentTransactionBuilder()
+            .sender(paddingLogicSig.address)
+            .receiver(paddingLogicSig.address)
+            .amount(0)
+            .suggestedParams(params)
+            .build()
+            .also { it.fee = BigInteger.ZERO }
+    TxGroup.assignGroupID(settlementTxn, paddingTxn)
+    val signedSettlement = settlementLogicSig.signLogicSigTransaction(settlementTxn)
+    val signedPadding = paddingLogicSig.signLogicSigTransaction(paddingTxn)
+    val txId = broadcast(client, listOf(Encoder.encodeToMsgPack(signedSettlement), Encoder.encodeToMsgPack(signedPadding)))
+    Log.d(TAG, "[LSIG_SETTLEMENT_OK] txId=$txId appId=$appId cumulativeAmount=$cumulativeAmountMicroUsdc")
+    return txId ?: settlementTxn.txID()
+}
+
 internal actual fun decodeMsgPackAny(bytes: ByteArray): Any? = runCatching { Encoder.decodeFromMsgPack(bytes, Any::class.java) }.getOrNull()
 
 internal actual fun awaitConfirmationDetailsInternal(
@@ -211,6 +342,158 @@ private fun buildFalconDummy(
         .also { it.fee = BigInteger.ZERO }
 
 private fun List<Pair<Long, ByteArray>>.toBoxReferences(): List<AppBoxReference> = map { (id, key) -> AppBoxReference(id, key) }
+
+/** Reads the channel box directly to determine the on-chain payer address (first 32 bytes). */
+private fun getChannelPayerAddress(
+    client: AlgodClient,
+    appId: Long,
+    channelId: ByteArray,
+): String? {
+    val bytes =
+        client
+            .GetApplicationBoxByName(appId)
+            .name("b64:${Encoder.encodeToBase64(channelId)}")
+            .execute()
+            .body()
+            ?.value
+            ?: return null
+    if (bytes.size < 32) return null
+    return encodeAlgorandAddress(bytes.copyOfRange(0, 32))
+}
+
+private suspend fun ensureLogicSigSetup(
+    client: AlgodClient,
+    payerSigner: MppWalletSigner,
+    appId: Long,
+    channelId: ByteArray,
+    settlementLogicSig: LogicSigAccount,
+    paddingLogicSig: LogicSigAccount,
+) {
+    val settlementAddress = settlementLogicSig.address
+    val paddingAddress = paddingLogicSig.address
+    val registeredAddress =
+        runCatching {
+            client
+                .GetApplicationBoxByName(appId)
+                .name("b64:${Encoder.encodeToBase64(SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId)}")
+                .execute()
+                .body()
+                ?.value
+                ?.takeIf { it.size == Address.LEN_BYTES }
+        }.getOrNull()
+    if (registeredAddress == null || !registeredAddress.contentEquals(settlementAddress.getBytes())) {
+        // The contract only accepts setSettlementLogicSig from the channel's actual payer
+        // (assert Txn.sender === data.payer). If the caller submitting settlement isn't the
+        // payer (e.g. the payee auto-settling a viewer's voucher), a self-registration attempt
+        // here would always be rejected on-chain — fail fast with a clear, actionable message
+        // instead. This also catches the common misuse of passing the wrong
+        // authorizedSignerPublicKey (which changes the compiled address and looks like "not
+        // registered yet" even when it actually is).
+        val channelPayer =
+            runCatching { getChannelPayerAddress(client, appId, channelId) }.getOrNull()
+        check(channelPayer != null && channelPayer == payerSigner.address) {
+            "Settlement LogicSig for this channel is not registered on-chain (or was compiled " +
+                "with the wrong authorizedSignerPublicKey — expected the channel payer's " +
+                "session key). The payer must call setSettlementLogicSig/" +
+                "registerSettlementLogicSig with their own signer before settlement can proceed."
+        }
+        val params = client.TransactionParams().execute().body()
+        val registrationTxn =
+            buildAppCallTxn(
+                signer = payerSigner,
+                params = params,
+                appId = appId,
+                args = listOf(SET_SETTLEMENT_LOGIC_SIG_SELECTOR, encodeArc4DynamicBytes(channelId), settlementAddress.getBytes()),
+                boxReferences =
+                    listOf(
+                        AppBoxReference(appId, channelId),
+                        AppBoxReference(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            ).also { transaction ->
+                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner))
+            }
+        val signed = signTxnGroup(payerSigner, listOf(registrationTxn))
+        broadcast(client, signed)
+        Log.d(TAG, "[LSIG_REGISTERED] address=$settlementAddress")
+    }
+    fundLogicSigIfNeeded(client, payerSigner, settlementAddress, LOGIC_SIG_MINIMUM_BALANCE + LOGIC_SIG_SETTLEMENT_GROUP_FEE)
+    fundLogicSigIfNeeded(client, payerSigner, paddingAddress, LOGIC_SIG_MINIMUM_BALANCE)
+}
+
+private suspend fun fundLogicSigIfNeeded(
+    client: AlgodClient,
+    payerSigner: MppWalletSigner,
+    address: Address,
+    targetBalance: Long,
+) {
+    val currentBalance =
+        runCatching {
+            client
+                .AccountInformation(address)
+                .execute()
+                .body()
+                ?.amount ?: 0L
+        }.getOrDefault(0L)
+    val topUpAmount = (targetBalance - currentBalance).coerceAtLeast(0L)
+    if (topUpAmount == 0L) return
+    val params = client.TransactionParams().execute().body()
+    val paymentTxn =
+        Transaction
+            .PaymentTransactionBuilder()
+            .sender(payerSigner.address)
+            .receiver(address)
+            .amount(topUpAmount)
+            .suggestedParams(params)
+            .build()
+            .also { transaction ->
+                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner))
+            }
+    val signed = signTxnGroup(payerSigner, listOf(paymentTxn))
+    broadcast(client, signed)
+    Log.d(TAG, "[LSIG_FUNDED] address=$address topUpMicroAlgos=$topUpAmount targetMicroAlgos=$targetBalance")
+}
+
+private fun pooledFeeFor(signer: MppWalletSigner): Long =
+    when (signer.signerType) {
+        MppWalletSignerType.FALCON_NATIVE,
+        MppWalletSignerType.FALCON_LSIG,
+        -> FALCON_SIGNED_TRANSACTION_GROUP_FEE
+        MppWalletSignerType.ED25519 -> MIN_TXN_FEE
+    }
+
+private fun encodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
+    require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
+    return byteArrayOf(((bytes.size ushr 8) and 0xFF).toByte(), (bytes.size and 0xFF).toByte()) + bytes
+}
+
+private val SET_SETTLEMENT_LOGIC_SIG_SELECTOR = byteArrayOf(0x42, 0xd9.toByte(), 0x75, 0xa6.toByte())
+
+private fun AlgodClient.compileTeal(teal: String): ByteArray {
+    val response = TealCompile().source(teal.encodeToByteArray()).execute()
+    if (!response.isSuccessful) error("LogicSig TEAL compilation failed: ${response.message() ?: "unknown"}")
+    val result = response.body()?.result ?: error("LogicSig TEAL compilation returned no program")
+    return Base64.decode(result, Base64.DEFAULT)
+}
+
+private fun renderTealTemplate(
+    assetPath: String,
+    substitutions: Map<String, String>,
+): String {
+    val context = AndroidContextHolder.applicationContext ?: error("Android application context is required to load $assetPath")
+    var template =
+        context.assets
+            .open(assetPath)
+            .bufferedReader()
+            .use { it.readText() }
+    substitutions.forEach { (name, value) -> template = template.replace(name, value) }
+    require(!TEMPLATE_VARIABLE_PATTERN.containsMatchIn(template)) { "Unresolved LogicSig template variables in $assetPath" }
+    return template
+}
+
+private fun ByteArray.toTealByteLiteral(): String = "0x" + joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
+
+private val TEMPLATE_VARIABLE_PATTERN = Regex("TMPL_[A-Z0-9_]+")
 
 private fun algodClient(url: String): AlgodClient {
     val uri = URI(url.removeSuffix("/"))

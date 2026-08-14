@@ -15,7 +15,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SessionStats
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
@@ -476,7 +476,7 @@ class PaywalledRTCServer
 
             return runCatching {
                 val channelId =
-                    EscrowSessionVaultManagerClient
+                    EscrowSessionVaultHybridManagerClient
                         .initializeChannelId(
                             payerAddress = viewer,
                             payeeAddress = payTo,
@@ -494,7 +494,7 @@ class PaywalledRTCServer
             cachedSaltBase64?.let { return it }
             return runCatching {
                 Base64.encode(
-                    EscrowSessionVaultManagerClient.defaultSalt
+                    EscrowSessionVaultHybridManagerClient.defaultSalt
                         ?: error("defaultSalt is not configured"),
                 )
             }.onFailure {

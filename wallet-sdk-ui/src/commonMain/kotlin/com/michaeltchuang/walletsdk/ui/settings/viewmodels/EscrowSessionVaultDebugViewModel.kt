@@ -13,7 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.DebugAddressSelectionsUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
@@ -36,6 +36,12 @@ class EscrowSessionVaultDebugViewModel(
         private const val TAG = "EscrowSessionVaultDebugViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
     }
+
+    data class PendingVoucher(
+        val cumulativeAmountMicroUsdc: Long,
+        val signature: ByteArray,
+        val authorizedSignerPublicKey: ByteArray,
+    )
 
     init {
         stateDelegate.setDefaultState(ViewState.Content())
@@ -151,7 +157,7 @@ class EscrowSessionVaultDebugViewModel(
         viewModelScope.launch {
             setLoading(true)
             val vaultContext = getSessionVaultContextUseCase()
-            EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+            EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
             sendStatus("Depositing $amountUsdc USDC from viewer to ${vaultContext.networkLabel} Session Vault…")
             Napier.d(
                 "[ADD_TO_VAULT_CONTEXT] viewer=$viewer creator=$creator appId=${vaultContext.appId} usdcAssetId=${vaultContext.usdcAssetId}",
@@ -225,151 +231,79 @@ class EscrowSessionVaultDebugViewModel(
         }
     }
 
+    /** Signs a higher cumulative voucher locally; no on-chain transaction is sent. */
     fun updateVoucher() {
         val content = contentState()
         val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
         val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
-        val requestedIncrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
+        val incrementMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
 
         if (!validateViewerAndCreator(content)) return
 
         viewModelScope.launch {
             setLoading(true)
             try {
-                sendStatus("Preparing voucher update...")
-
                 val viewerSigner =
                     mppWalletSignerUseCase(viewer) ?: run {
-                        showError(
-                            PaymentError.SignerNotFound(viewer),
-                            "UPDATE_VOUCHER_NO_VIEWER_SIGNER",
-                        )
+                        showError(PaymentError.SignerNotFound(viewer), "LOCAL_VOUCHER_NO_VIEWER_SIGNER")
                         return@launch
                     }
-                if (!refreshDebugSessionContext(viewerSigner, registerAuthorizedSigner = true)) return@launch
-
+                if (!refreshDebugSessionContext(viewerSigner)) return@launch
                 val snapshot =
                     withContext(Dispatchers.Default) {
                         MppPayments.getSessionProgressSnapshotFromVault()
                     } ?: run {
-                        showError(PaymentError.SessionNotFound, "UPDATE_VOUCHER_NO_SNAPSHOT")
+                        showError(PaymentError.SessionNotFound, "LOCAL_VOUCHER_NO_SNAPSHOT")
                         return@launch
                     }
-
-                val totalDeposit = snapshot.totalDepositMicroUsdc
-                val lastSettled = snapshot.lastSettledMicroUsdc
-                val latestVoucher = snapshot.latestVoucherAmountMicroUsdc
-
-                Napier.d(
-                    "[SESSION_STATE] totalDeposit=$totalDeposit lastSettled=$lastSettled latestVoucher=$latestVoucher",
-                    tag = TAG,
+                val previousAmount = contentState().pendingVoucher?.cumulativeAmountMicroUsdc ?: snapshot.lastSettledMicroUsdc
+                val cumulativeAmount = previousAmount + incrementMicroUsdc
+                if (cumulativeAmount > snapshot.totalDepositMicroUsdc) {
+                    sendStatus("❌ ${PaymentError.VoucherExceedsDeposit.userMessage}")
+                    return@launch
+                }
+                val channelId =
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "LOCAL_VOUCHER_NO_CHANNEL_ID")
+                        return@launch
+                    }
+                val signature =
+                    viewerSigner.signMessage(
+                        MppPayments.buildLogicSigSettlementVoucher(
+                            channelId = channelId,
+                            cumulativeAmountMicroUsdc = cumulativeAmount,
+                            payeeAddress = creator,
+                        ),
+                    )
+                updateContent {
+                    it.copy(
+                        pendingVoucher =
+                            PendingVoucher(
+                                cumulativeAmountMicroUsdc = cumulativeAmount,
+                                signature = signature,
+                                authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                            ),
+                    )
+                }
+                sendStatus(
+                    "✅ Local voucher updated to ${cumulativeAmount / MICRO_USDC_MULTIPLIER.toDouble()} USDC\nNo on-chain transaction sent.",
                 )
-
-                val newCumulative = latestVoucher + requestedIncrementMicroUsdc
-
-                if (newCumulative > totalDeposit) {
-                    val depositUsdc = totalDeposit / 1_000_000.0
-                    val requestedUsdc = newCumulative / 1_000_000.0
-                    sendStatus(
-                        "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                            "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC",
-                    )
-                    return@launch
-                }
-
-                if (newCumulative <= lastSettled) {
-                    sendStatus("❌ ${PaymentError.NothingToSettle.userMessage}")
-                    return@launch
-                }
-                val channelId = EscrowSessionVaultManagerClient.channelId
-                if (channelId == null) {
-                    Napier.e("channelId is null", tag = TAG)
-                    return@launch
-                }
-                val settleMessage =
-                    MppPayments.settleMessage(
-                        cumulativeAmountMicroUsdc = newCumulative,
-                        channelId = channelId,
-                    )
-
-                val viewerSignature = viewerSigner.signMessage(settleMessage)
-                Napier.d("[SIGNATURE_CREATED] sigLen=${viewerSignature.size}", tag = TAG)
-
-                withContext(Dispatchers.Default) {
-                    MppPayments.updateVoucherOnChain(
-                        signer = viewerSigner,
-                        viewerAddress = viewer,
-                        totalAmountUsedMicroUsdc = newCumulative,
-                        signature = viewerSignature,
-                    )
-                }.onSuccess { txId ->
-                    Napier.d("[UPDATE_VOUCHER_OK] txId=$txId", tag = TAG)
-                    sendStatus("✅ Voucher updated!\nTxId: $txId")
-                }.onFailure { err ->
-                    showError(PaymentError.from(err), "UPDATE_VOUCHER_ERR", err)
-                }
             } catch (e: Exception) {
-                showError(PaymentError.from(e), "UPDATE_VOUCHER_EXCEPTION", e)
+                showError(PaymentError.from(e), "LOCAL_VOUCHER_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
         }
     }
 
-    fun verifyVoucherSignature() {
+    /**
+     * Compiles and registers the viewer's channel-specific settlement LogicSig on-chain, using
+     * the viewer's own ephemeral session key. Must run before [settleAmount] will succeed.
+     */
+    fun registerSettlementLogicSig() {
         val content = contentState()
         val viewer = content.viewerAddress.trim()
-        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
-        val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
-
-        if (!validateViewerAndCreator(content)) return
-
-        viewModelScope.launch {
-            setLoading(true)
-            sendStatus("Verifying voucher signature…")
-            try {
-                val viewerSigner = mppWalletSignerUseCase(viewer)
-                if (viewerSigner != null) {
-                    val channelId = EscrowSessionVaultManagerClient.channelId
-                    if (channelId == null) {
-                        Napier.e("channelId is null", tag = TAG)
-                        return@launch
-                    }
-                    val settleMessage =
-                        MppPayments.settleMessage(
-                            cumulativeAmountMicroUsdc = depositMicroUsdc,
-                            channelId = channelId,
-                        )
-                    val signature = viewerSigner.signMessage(settleMessage)
-
-                    val result =
-                        withContext(Dispatchers.Default) {
-                            MppPayments.verifySettleSignature(
-                                signer = viewerSigner,
-                                cumulativeAmountMicroUsdc = depositMicroUsdc,
-                                signature = signature,
-                            )
-                        }
-                    result
-                        .onSuccess {
-                            sendStatus("✅ Signature verified!")
-                            Napier.d("[VERIFY_SIGNATURE_OK]", tag = TAG)
-                        }.onFailure { err ->
-                            showError(PaymentError.from(err), "VERIFY_SIGNATURE_ERR", err)
-                        }
-                } else {
-                    showError(PaymentError.SignerNotFound(viewer), "VERIFY_SIGNATURE_NO_SIGNER")
-                }
-            } catch (e: Exception) {
-                showError(PaymentError.from(e), "VERIFY_SIGNATURE_EXCEPTION", e)
-            } finally {
-                setLoading(false)
-            }
-        }
-    }
-
-    fun settleAmount() {
-        val content = contentState()
         val creator = content.creatorAddress.trim()
 
         if (!validateViewerAndCreator(content)) return
@@ -377,67 +311,94 @@ class EscrowSessionVaultDebugViewModel(
         viewModelScope.launch {
             setLoading(true)
             try {
-                sendStatus("Preparing settlement...")
-
-                val snapshot =
-                    withContext(Dispatchers.Default) {
-                        MppPayments.getSessionProgressSnapshotFromVault()
-                    } ?: run {
-                        showError(PaymentError.SessionNotFound, "SETTLE_NO_SNAPSHOT")
+                val viewerSigner =
+                    mppWalletSignerUseCase(viewer) ?: run {
+                        showError(PaymentError.SignerNotFound(viewer), "REGISTER_LOGIC_SIG_NO_VIEWER_SIGNER")
                         return@launch
                     }
-
-                val totalDeposit = snapshot.totalDepositMicroUsdc
-                val lastSettled = snapshot.lastSettledMicroUsdc
-                val latestVoucher = snapshot.latestVoucherAmountMicroUsdc
-
-                Napier.d(
-                    "[SESSION_STATE] totalDeposit=$totalDeposit lastSettled=$lastSettled latestVoucher=$latestVoucher",
-                    tag = TAG,
-                )
-
-                if (latestVoucher > totalDeposit) {
-                    val depositUsdc = totalDeposit / 1_000_000.0
-                    val requestedUsdc = latestVoucher / 1_000_000.0
-                    sendStatus(
-                        "❌ ${PaymentError.VoucherExceedsDeposit.userMessage}" +
-                            "\n\nDeposited: $depositUsdc USDC  |  Requested: $requestedUsdc USDC",
-                    )
-                    return@launch
-                }
-
-                if (latestVoucher <= lastSettled) {
-                    sendStatus("❌ ${PaymentError.NothingToSettle.userMessage}")
-                    return@launch
-                }
-
-                val channelId = EscrowSessionVaultManagerClient.channelId
-                if (channelId == null) {
-                    Napier.e("channelId is null", tag = TAG)
-                    return@launch
-                }
-
-                val creatorSigner =
-                    mppWalletSignerUseCase(creator) ?: run {
-                        showError(PaymentError.SignerNotFound(creator), "SETTLE_NO_CREATOR_SIGNER")
+                if (!refreshDebugSessionContext(viewerSigner)) return@launch
+                val channelId =
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "REGISTER_LOGIC_SIG_NO_CHANNEL_ID")
                         return@launch
                     }
-
-                sendStatus("Settling to creator…")
-                val settleResult =
+                sendStatus("Registering settlement LogicSig on-chain…")
+                val result =
                     withContext(Dispatchers.Default) {
-                        MppPayments.settleLatestVoucher(signer = creatorSigner)
+                        MppPayments.registerSettlementLogicSig(
+                            signer = viewerSigner,
+                            payeeAddress = creator,
+                            channelId = channelId,
+                        )
                     }
-
-                settleResult
+                result
                     .onSuccess { txId ->
-                        sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
-                        Napier.d("[SETTLE_OK] txId=$txId", tag = TAG)
+                        sendStatus("✅ Settlement LogicSig registered\n\nTxId:\n$txId")
+                        Napier.d("[REGISTER_LOGIC_SIG_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
-                        showError(PaymentError.from(err), "SETTLE_ERR", err)
+                        showError(PaymentError.from(err), "REGISTER_LOGIC_SIG_ERR", err)
                     }
             } catch (e: Exception) {
-                showError(PaymentError.from(e), "SETTLE_EXCEPTION", e)
+                showError(PaymentError.from(e), "REGISTER_LOGIC_SIG_EXCEPTION", e)
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    /** Submits the latest locally signed voucher through the channel LogicSig. */
+    fun settleAmount() {
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+
+        if (!validateViewerAndCreator(content)) return
+
+        viewModelScope.launch {
+            setLoading(true)
+            try {
+                val viewerSigner =
+                    mppWalletSignerUseCase(viewer) ?: run {
+                        showError(PaymentError.SignerNotFound(viewer), "SETTLE_NO_VIEWER_SIGNER")
+                        return@launch
+                    }
+                if (!refreshDebugSessionContext(viewerSigner)) return@launch
+
+                val pendingVoucher =
+                    contentState().pendingVoucher ?: run {
+                        sendStatus("❌ Update Voucher first to create an off-chain signed voucher.")
+                        return@launch
+                    }
+                val channelId =
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
+                        showError(PaymentError.ChannelNotFound, "SETTLE_NO_CHANNEL_ID")
+                        return@launch
+                    }
+                sendStatus("Settling signed voucher to creator…")
+                val settleResult =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.settleFromLogicSig(
+                            funderSigner = viewerSigner,
+                            cumulativeAmountMicroUsdc = pendingVoucher.cumulativeAmountMicroUsdc,
+                            voucherSignature = pendingVoucher.signature,
+                            authorizedSignerPublicKey = pendingVoucher.authorizedSignerPublicKey,
+                            payeeAddress = creator,
+                            channelId = channelId,
+                        )
+                    }
+                settleResult
+                    .onSuccess { txId ->
+                        updateContent { it.copy(pendingVoucher = null) }
+                        sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
+                        Napier.d(
+                            "[LSIG_SETTLE_OK] txId=$txId cumulativeAmount=${pendingVoucher.cumulativeAmountMicroUsdc}",
+                            tag = TAG,
+                        )
+                    }.onFailure { err ->
+                        showError(PaymentError.from(err), "LSIG_SETTLE_ERR", err)
+                    }
+            } catch (e: Exception) {
+                showError(PaymentError.from(e), "LSIG_SETTLE_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -458,14 +419,14 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.channelId ?: run {
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
                         return@launch
                     }
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        EscrowSessionVaultManagerClient.close(
+                        EscrowSessionVaultHybridManagerClient.close(
                             signer = creatorSigner,
                             channelId = channelId,
                         )
@@ -503,14 +464,14 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.channelId ?: run {
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "CLOSE_NO_CHANNEL_ID")
                         return@launch
                     }
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        EscrowSessionVaultManagerClient.requestClose(
+                        EscrowSessionVaultHybridManagerClient.requestClose(
                             signer = viewerSigner,
                             channelId = channelId,
                         )
@@ -548,14 +509,14 @@ class EscrowSessionVaultDebugViewModel(
                     }
 
                 val channelId =
-                    EscrowSessionVaultManagerClient.channelId ?: run {
+                    EscrowSessionVaultHybridManagerClient.channelId ?: run {
                         showError(PaymentError.ChannelNotFound, "REQUEST_WITHDRAW_NO_CHANNEL_ID")
                         return@launch
                     }
 
                 val result =
                     withContext(Dispatchers.Default) {
-                        EscrowSessionVaultManagerClient.withdraw(
+                        EscrowSessionVaultHybridManagerClient.withdraw(
                             signer = viewerSigner,
                             channelId = channelId,
                         )
@@ -632,6 +593,22 @@ class EscrowSessionVaultDebugViewModel(
             )
             return false
         }
+
+        // Must run after setAuthorizedSignerForSession: the settlement LogicSig is compiled with
+        // this signer's session key, and settlement always fails until it's registered on-chain.
+        val registerResult =
+            withContext(Dispatchers.Default) {
+                MppPayments.registerSettlementLogicSig(signer = viewerSigner)
+            }
+        if (registerResult.isFailure) {
+            val error = registerResult.exceptionOrNull()
+            showError(
+                PaymentError.from(error ?: Exception("Failed to register settlement LogicSig")),
+                "REGISTER_LOGIC_SIG_ERR",
+                error,
+            )
+            return false
+        }
         return true
     }
 
@@ -643,17 +620,17 @@ class EscrowSessionVaultDebugViewModel(
         val creator = content.creatorAddress.trim()
         if (viewer.isBlank() || creator.isBlank() || viewer == creator) return
 
-        EscrowSessionVaultManagerClient.hostAddress = creator
-        EscrowSessionVaultManagerClient.salt = EscrowSessionVaultManagerClient.defaultSalt
-        EscrowSessionVaultManagerClient.initializeChannelId(
+        EscrowSessionVaultHybridManagerClient.hostAddress = creator
+        EscrowSessionVaultHybridManagerClient.salt = EscrowSessionVaultHybridManagerClient.defaultSalt
+        EscrowSessionVaultHybridManagerClient.initializeChannelId(
             payerAddress = viewer,
             payeeAddress = creator,
             authorizedSignerPublicKey = authorizedSignerPublicKey,
         )
         Napier.d(
             "[DEBUG_SESSION_CONTEXT_REFRESHED] viewer=$viewer creator=$creator " +
-                "channelIdLength=${EscrowSessionVaultManagerClient.channelId?.size} " +
-                "saltLength=${EscrowSessionVaultManagerClient.salt?.size}",
+                "channelIdLength=${EscrowSessionVaultHybridManagerClient.channelId?.size} " +
+                "saltLength=${EscrowSessionVaultHybridManagerClient.salt?.size}",
             tag = TAG,
         )
     }
@@ -710,6 +687,7 @@ class EscrowSessionVaultDebugViewModel(
             val creatorAddress: String = "",
             val depositAmountUsdc: String = "0.1",
             val remainingBalance: Long? = null,
+            val pendingVoucher: PendingVoucher? = null,
             val isLoading: Boolean = false,
         ) : ViewState {
             val canRunVaultActions: Boolean

@@ -57,7 +57,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
@@ -103,7 +103,7 @@ fun LiquidStreamViewerScreen(
     val effectiveCreatorAddress =
         creatorAddress
             .ifBlank { creatorUsername.orEmpty() }
-            .ifBlank { EscrowSessionVaultManagerClient.hostAddress.orEmpty() }
+            .ifBlank { EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty() }
 
     LaunchedEffect(effectiveCreatorAddress) {
         if (effectiveCreatorAddress.isNotBlank()) {

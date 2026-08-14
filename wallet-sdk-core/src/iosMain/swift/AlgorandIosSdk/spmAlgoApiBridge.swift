@@ -1291,6 +1291,116 @@ import CommonCrypto
         return result
     }
 
+    // MARK: - Generic LogicSig Support (requires falcon-signatures-mobile-sdk >= 0.0.19,
+    // which exposes AlgoSdkMakeLogicSigAccountEscrow / AlgoSdkSignLogicSigTransaction on top
+    // of the Go mobile SDK's generic LogicSigAccount type.)
+
+    /// Builds an escrow LogicSigAccount for an arbitrary compiled TEAL [programBase64] with
+    /// [argsBase64] LogicSig arguments, returning the account's Algorand address.
+    public func logicSigAddress(programBase64: String, argsBase64: [String]) -> String {
+        guard let programData = Data(base64Encoded: programBase64) else {
+            NSLog("❌ logicSigAddress: failed to decode program")
+            return ""
+        }
+        let argsArray = AlgoSdkBytesArray()
+        for argBase64 in argsBase64 {
+            if let d = Data(base64Encoded: argBase64) {
+                argsArray.append(d)
+            }
+        }
+        var error: NSError?
+        guard let account = AlgoSdkMakeLogicSigAccountEscrow(programData, argsArray, &error) else {
+            NSLog("❌ logicSigAddress: MakeLogicSigAccountEscrow error: \(error?.localizedDescription ?? "unknown")")
+            return ""
+        }
+        var addressError: NSError?
+        let address = account.address(&addressError)
+        if let addressError = addressError {
+            NSLog("❌ logicSigAddress: address() error: \(addressError.localizedDescription)")
+            return ""
+        }
+        return address
+    }
+
+    /// Signs [encodedTxBase64] (an unsigned, msgpack-encoded transaction) with an escrow
+    /// LogicSigAccount built from [programBase64] + [argsBase64]. Returns the signed
+    /// transaction bytes, ready to be concatenated with the rest of the group and broadcast.
+    public func signLogicSigTransaction(programBase64: String, argsBase64: [String], encodedTxBase64: String) -> Data {
+        guard let programData = Data(base64Encoded: programBase64),
+              let txnData = Data(base64Encoded: encodedTxBase64) else {
+            NSLog("❌ signLogicSigTransaction: failed to decode inputs")
+            return Data()
+        }
+        let argsArray = AlgoSdkBytesArray()
+        for argBase64 in argsBase64 {
+            if let d = Data(base64Encoded: argBase64) {
+                argsArray.append(d)
+            }
+        }
+        var error: NSError?
+        guard let account = AlgoSdkMakeLogicSigAccountEscrow(programData, argsArray, &error) else {
+            NSLog("❌ signLogicSigTransaction: MakeLogicSigAccountEscrow error: \(error?.localizedDescription ?? "unknown")")
+            return Data()
+        }
+        var signError: NSError?
+        guard let signed = AlgoSdkSignLogicSigTransaction(account, txnData, &signError) else {
+            NSLog("❌ signLogicSigTransaction: SignLogicSigTransaction error: \(signError?.localizedDescription ?? "unknown")")
+            return Data()
+        }
+        return signed
+    }
+
+    // MARK: - Algod TEAL Compile / Account Balance (Synchronous REST Helpers)
+
+    private func jsonValue(_ jsonString: String, key: String) -> Any? {
+        guard let data = jsonString.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return obj[key]
+    }
+
+    /// Compiles TEAL [source] via algod's `/v2/teal/compile` endpoint, returning the raw
+    /// (non-base64) compiled program bytes, or empty Data on failure.
+    public func compileTealProgram(algodUrl: String, source: String) -> Data {
+        let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/teal/compile"
+        guard let url = URL(string: urlStr) else { return Data() }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("text/plain", forHTTPHeaderField: "Content-Type")
+        request.httpBody = source.data(using: .utf8)
+        let (data, status) = syncRequest(request)
+        guard status == 200, let data = data, let json = String(data: data, encoding: .utf8) else {
+            if let data = data, let msg = String(data: data, encoding: .utf8) {
+                NSLog("❌ compileTealProgram failed status=\(status) body=\(msg.prefix(300))")
+            } else {
+                NSLog("❌ compileTealProgram failed status=\(status) (no body)")
+            }
+            return Data()
+        }
+        guard let resultB64 = jsonValue(json, key: "result") as? String,
+              let programData = Data(base64Encoded: resultB64) else {
+            NSLog("❌ compileTealProgram: no 'result' in response: \(json.prefix(300))")
+            return Data()
+        }
+        return programData
+    }
+
+    /// Returns the current microAlgo balance for [address] via algod's `/v2/accounts` endpoint,
+    /// or 0 on failure (e.g. the account has never been funded).
+    public func syncGetAccountBalance(algodUrl: String, address: String) -> Int64 {
+        let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/accounts/\(address)"
+        guard let url = URL(string: urlStr) else { return 0 }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, status) = syncRequest(request)
+        guard status == 200, let data = data, let json = String(data: data, encoding: .utf8) else { return 0 }
+        if let amount = jsonValue(json, key: "amount") as? NSNumber {
+            return amount.int64Value
+        }
+        return 0
+    }
+
     public func attachSignatureToTxn(signatureBase64: String, txnBase64: String) -> String {
         guard let sigData = Data(base64Encoded: signatureBase64),
               let txnData = Data(base64Encoded: txnBase64) else {

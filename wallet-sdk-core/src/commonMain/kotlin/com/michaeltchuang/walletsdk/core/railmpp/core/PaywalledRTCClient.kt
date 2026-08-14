@@ -15,7 +15,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendSummary
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.internal.ensureCryptoProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -240,7 +240,7 @@ class PaywalledRTCClient(
                     val request = paymentRequestFromJson(merged)
                     captureChannelId(request.channelId)
                     captureSalt(request.salt)
-                    EscrowSessionVaultManagerClient.hostAddress = request.payTo
+                    EscrowSessionVaultHybridManagerClient.hostAddress = request.payTo
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network}" +
@@ -409,7 +409,7 @@ class PaywalledRTCClient(
         runCatching { Base64.decode(encoded) }
             .onSuccess { decoded ->
                 if (decoded.isNotEmpty()) {
-                    EscrowSessionVaultManagerClient.channelId = decoded
+                    EscrowSessionVaultHybridManagerClient.channelId = decoded
                     Napier.d("[VIEWER_CHANNEL_ID_CAPTURED] len=${decoded.size}", tag = TAG)
                 }
             }.onFailure {
@@ -423,7 +423,7 @@ class PaywalledRTCClient(
         runCatching { Base64.decode(encoded) }
             .onSuccess { decoded ->
                 if (decoded.isNotEmpty()) {
-                    EscrowSessionVaultManagerClient.salt = decoded
+                    EscrowSessionVaultHybridManagerClient.salt = decoded
                     Napier.d("[VIEWER_SALT_CAPTURED] len=${decoded.size}", tag = TAG)
                 }
             }.onFailure {

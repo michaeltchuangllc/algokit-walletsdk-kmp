@@ -8,7 +8,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -33,7 +33,7 @@ object MppPayments {
     @OptIn(ExperimentalEncodingApi::class)
     fun createVoucherJson(
         sessionId: String,
-        appId: Long = EscrowSessionVaultManagerClient.appId,
+        appId: Long = EscrowSessionVaultHybridManagerClient.appId,
         viewerAddress: String,
         viewerPublicKey: ByteArray,
         creatorAddress: String,
@@ -43,7 +43,7 @@ object MppPayments {
         signatureBase64: String? = null,
     ): String {
         val channelId =
-            EscrowSessionVaultManagerClient.channelId
+            EscrowSessionVaultHybridManagerClient.channelId
                 ?.let(Base64::encode)
 
         return PaymentVoucher(
@@ -78,14 +78,14 @@ object MppPayments {
 
     suspend fun getRemainingBalanceFromSessionVault(
         viewerAddress: String,
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
     ): Long {
         val baseContext = "viewer=$viewerAddress"
         val resolvedChannelId = channelId ?: return 0L
         val result = getRemainingBalanceFromSessionVaultByChannelId(resolvedChannelId, logContext = baseContext)
         Napier.e("[SESSION_VAULT_REMAINING_BALANCE_CHECK] result=${result ?: "null"}", tag = TAG)
         if (result != null) return result
-        Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=${EscrowSessionVaultManagerClient.appId} $baseContext", tag = TAG)
+        Napier.d("[SESSION_VAULT_REMAINING_MISS] appId=${EscrowSessionVaultHybridManagerClient.appId} $baseContext", tag = TAG)
         return 0L
     }
 
@@ -96,13 +96,13 @@ object MppPayments {
         withContext(Dispatchers.IO) {
             runCatching {
                 val data =
-                    EscrowSessionVaultManagerClient
+                    EscrowSessionVaultHybridManagerClient
                         .getSessionDynamicData(channelId)
                         .getOrThrow()
                 (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
             }.onFailure {
                 Napier.e(
-                    "[SESSION_VAULT_REMAINING_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",
+                    "[SESSION_VAULT_REMAINING_ERR] appId=${EscrowSessionVaultHybridManagerClient.appId} context=${logContext.orEmpty()}",
                     it,
                     tag = TAG,
                 )
@@ -113,17 +113,17 @@ object MppPayments {
         signer: MppWalletSigner,
         viewerAddress: String,
         depositAmountMicroUsdc: Long = DEPOSIT_MICRO_USDC_LONG,
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
     ): Result<String> {
         require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
         require(signer.address == viewerAddress) {
             "Session vault deposit signer must match viewerAddress"
         }
         Napier.d(
-            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress appId=${EscrowSessionVaultManagerClient.appId} usdcAssetId=${EscrowSessionVaultManagerClient.usdcAssetId} algodUrl=${EscrowSessionVaultManagerClient.algodUrl}",
+            "[OPEN_SESSION_DEPOSIT] viewer=$viewerAddress appId=${EscrowSessionVaultHybridManagerClient.appId} usdcAssetId=${EscrowSessionVaultHybridManagerClient.usdcAssetId} algodUrl=${EscrowSessionVaultHybridManagerClient.algodUrl}",
             tag = TAG,
         )
-        return EscrowSessionVaultManagerClient.openAndDeposit(
+        return EscrowSessionVaultHybridManagerClient.openAndDeposit(
             signer = signer,
             payerAddress = viewerAddress,
             depositMicroUsdc = depositAmountMicroUsdc,
@@ -136,9 +136,9 @@ object MppPayments {
         additionalDepositMicroUsdc: Long,
     ): Result<String> {
         val channelId =
-            EscrowSessionVaultManagerClient.channelId
+            EscrowSessionVaultHybridManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.topUp(signer, channelId, additionalDepositMicroUsdc)
+        return EscrowSessionVaultHybridManagerClient.topUp(signer, channelId, additionalDepositMicroUsdc)
     }
 
     suspend fun setAuthorizedSignerForSession(
@@ -149,19 +149,19 @@ object MppPayments {
     ): Result<String> {
         val resolvedChannelId =
             channelId
-                ?: EscrowSessionVaultManagerClient.channelId
+                ?: EscrowSessionVaultHybridManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
         val result =
-            EscrowSessionVaultManagerClient.setAuthorizedSignerPublicKey(
+            EscrowSessionVaultHybridManagerClient.setAuthorizedSignerPublicKey(
                 signer,
                 resolvedChannelId,
                 authorizedSignerPublicKey,
             )
         result
-            .onSuccess { Napier.d("[VIEWER_SET_AUTH_SIGNER_OK] appId=${EscrowSessionVaultManagerClient.appId} txId=$it", tag = TAG) }
+            .onSuccess { Napier.d("[VIEWER_SET_AUTH_SIGNER_OK] appId=${EscrowSessionVaultHybridManagerClient.appId} txId=$it", tag = TAG) }
             .onFailure {
                 Napier.e(
-                    "[VIEWER_SET_AUTH_SIGNER_ERR] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress",
+                    "[VIEWER_SET_AUTH_SIGNER_ERR] appId=${EscrowSessionVaultHybridManagerClient.appId} viewer=$viewerAddress",
                     it,
                     tag = TAG,
                 )
@@ -191,92 +191,131 @@ object MppPayments {
         return isKnownSettleAssert && isKnownProgramCounter
     }
 
+    /** Registers the payer-created settlement LogicSig for a channel. */
+    suspend fun setSettlementLogicSig(
+        signer: MppWalletSigner,
+        logicSigAddress: String,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): Result<String> {
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultHybridManagerClient.channelId
+                ?: return Result.failure(IllegalStateException("channelId is null"))
+        return EscrowSessionVaultHybridManagerClient.setSettlementLogicSig(signer, resolvedChannelId, logicSigAddress)
+    }
+
+    /**
+     * Compiles and registers the channel's settlement LogicSig, authorized with [signer]'s own
+     * ephemeral session key. Must be called by the channel's payer (typically the viewer, right
+     * after opening/topping-up the channel) — the contract asserts `Txn.sender === payer`.
+     * Without this, [settleFromLogicSig] always fails with "not registered on-chain".
+     */
+    suspend fun registerSettlementLogicSig(
+        signer: MppWalletSigner,
+        payeeAddress: String = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): Result<String> {
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultHybridManagerClient.channelId
+                ?: return Result.failure(IllegalStateException("channelId is null"))
+        if (payeeAddress.isBlank()) return Result.failure(IllegalStateException("payeeAddress is null/blank"))
+        val result =
+            EscrowSessionVaultHybridManagerClient.registerSettlementLogicSig(signer, resolvedChannelId, payeeAddress)
+        result
+            .onSuccess {
+                Napier.d(
+                    "[VIEWER_REGISTER_LOGIC_SIG_OK] appId=${EscrowSessionVaultHybridManagerClient.appId} txId=$it",
+                    tag = TAG,
+                )
+            }.onFailure {
+                Napier.e(
+                    "[VIEWER_REGISTER_LOGIC_SIG_ERR] appId=${EscrowSessionVaultHybridManagerClient.appId} payee=$payeeAddress",
+                    it,
+                    tag = TAG,
+                )
+            }
+        return result
+    }
+
+    /**
+     * Emergency stop: payer immediately revokes the channel's registered settlement LogicSig
+     * (e.g. if the ephemeral Falcon session key is suspected compromised) without closing the
+     * channel or losing the deposit. [settleFromLogicSig] will fail until the payer registers a
+     * fresh LogicSig via [setSettlementLogicSig].
+     */
+    suspend fun revokeSettlementLogicSig(
+        signer: MppWalletSigner,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): Result<String> {
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultHybridManagerClient.channelId
+                ?: return Result.failure(IllegalStateException("channelId is null"))
+        return EscrowSessionVaultHybridManagerClient.revokeSettlementLogicSig(signer, resolvedChannelId)
+    }
+
+    /**
+     * Settles a viewer-signed voucher through the channel's registered custom LogicSig.
+     * [voucherSignature] must sign [buildLogicSigSettlementVoucher] with the viewer's authorized
+     * signer key; the payee only supplies the signed voucher and never needs that private key.
+     */
+    suspend fun settleFromLogicSig(
+        funderSigner: MppWalletSigner,
+        cumulativeAmountMicroUsdc: Long,
+        voucherSignature: ByteArray,
+        authorizedSignerPublicKey: ByteArray,
+        payeeAddress: String,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+        note: String = "N/A",
+    ): Result<String> {
+        val resolvedChannelId =
+            channelId
+                ?: EscrowSessionVaultHybridManagerClient.channelId
+                ?: return Result.failure(IllegalStateException("channelId is null"))
+        return EscrowSessionVaultHybridManagerClient.settleFromLogicSig(
+            funderSigner = funderSigner,
+            channelId = resolvedChannelId,
+            cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+            voucherSignature = voucherSignature,
+            authorizedSignerPublicKey = authorizedSignerPublicKey,
+            payeeAddress = payeeAddress,
+            note = note,
+        )
+    }
+
+    fun buildLogicSigSettlementVoucher(
+        channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+        payeeAddress: String,
+    ): ByteArray =
+        encodeUint64(EscrowSessionVaultHybridManagerClient.appId) +
+            channelId +
+            encodeUint64(cumulativeAmountMicroUsdc) +
+            com.michaeltchuang.walletsdk.core.railmpp.internal
+                .decodeAlgorandAddressPublicKey(payeeAddress) +
+            "settle-lsig-v1".encodeToByteArray()
+
+    @Deprecated("The hybrid contract no longer has updateVoucher; use the LogicSig settlement flow.")
     suspend fun updateVoucherOnChain(
         signer: MppWalletSigner,
         viewerAddress: String,
         totalAmountUsedMicroUsdc: Long,
         signature: ByteArray,
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
-    ): Result<String> {
-        val resolvedChannelId =
-            channelId
-                ?: EscrowSessionVaultManagerClient.channelId
-                ?: return Result.failure(Exception("channelId is null"))
-        val channelIdHash = hashHex(resolvedChannelId).take(16)
-        Napier.d(
-            "[VIEWER_UPDATE_VOUCHER_ATTEMPT] appId=${EscrowSessionVaultManagerClient.appId} viewer=$viewerAddress  claimedMicroUsdc=$totalAmountUsedMicroUsdc channelIdHash=$channelIdHash",
-            tag = TAG,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): Result<String> =
+        Result.failure(
+            UnsupportedOperationException(
+                "updateVoucher is not available on EscrowSessionVaultHybridManager; " +
+                    "register a settlement LogicSig and use settleFromLogicSig instead.",
+            ),
         )
-        val result =
-            EscrowSessionVaultManagerClient.updateVoucher(
-                signer,
-                resolvedChannelId,
-                totalAmountUsedMicroUsdc,
-                signature,
-            )
-        result
-            .onSuccess { Napier.d("[VIEWER_UPDATE_VOUCHER_OK] txId=$it channelIdHash=$channelIdHash", tag = TAG) }
-            .onFailure { throwable ->
-                val err = throwable.message.orEmpty()
-                val isDuplicate = isDuplicateVoucherUpdateError(err)
-                if (isDuplicate) {
-                    Napier.e(
-                        "[VIEWER_UPDATE_VOUCHER_DUPLICATE_SKIP] channelIdHash=$channelIdHash reason=already_recorded_onchain",
-                        tag = TAG,
-                    )
-                } else {
-                    Napier.e("[VIEWER_UPDATE_VOUCHER_ERR] channelIdHash=$channelIdHash", throwable, tag = TAG)
-                }
-            }
-        return result
-    }
-
-    suspend fun settleLatestVoucher(
-        signer: MppWalletSigner,
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
-    ): Result<String> {
-        val resolvedChannelId =
-            channelId
-                ?: EscrowSessionVaultManagerClient.channelId
-                ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.settleLatest(signer, resolvedChannelId)
-    }
-
-    suspend fun settle(
-        signer: MppWalletSigner,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
-        note: String = "N/A",
-    ): Result<String> {
-        val resolvedChannelId =
-            channelId
-                ?: EscrowSessionVaultManagerClient.channelId
-                ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.settle(signer, resolvedChannelId, cumulativeAmountMicroUsdc, signature, note)
-    }
-
-    suspend fun verifySettleSignature(
-        signer: MppWalletSigner,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
-    ): Result<String> {
-        val channelId =
-            EscrowSessionVaultManagerClient.channelId
-                ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.verifySettleSignature(signer, channelId, cumulativeAmountMicroUsdc, signature)
-    }
-
-    fun settleMessage(
-        cumulativeAmountMicroUsdc: Long,
-        channelId: ByteArray,
-    ): ByteArray = EscrowSessionVaultManagerClient.settleMessage(channelId, cumulativeAmountMicroUsdc)
 
     suspend fun closeSessionVault(
         signer: MppWalletSigner,
         channelId: ByteArray,
     ): Result<String> =
-        EscrowSessionVaultManagerClient.close(
+        EscrowSessionVaultHybridManagerClient.close(
             signer = signer,
             channelId = channelId,
         )
@@ -314,14 +353,16 @@ object MppPayments {
     }
 
     suspend fun getSessionProgressSnapshotFromVault(
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
     ): SessionProgressSnapshot? {
         val data = getSessionDynamicDataFromVault(channelId) ?: return null
         return computeSessionProgressSnapshot(data)
     }
 
-    suspend fun getSessionDynamicDataFromVault(channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId): SessionDynamicData? {
-        val resolvedChannelId = channelId ?: EscrowSessionVaultManagerClient.channelId ?: return null
+    suspend fun getSessionDynamicDataFromVault(
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): SessionDynamicData? {
+        val resolvedChannelId = channelId ?: EscrowSessionVaultHybridManagerClient.channelId ?: return null
         val channelIdCandidates = listOf(resolvedChannelId)
         channelIdCandidates.forEachIndexed { index, candidate ->
             val result = getSessionDynamicDataFromVaultByChannelId(candidate, "candidate=$index")
@@ -336,8 +377,8 @@ object MppPayments {
     ): SessionDynamicData? =
         withContext(Dispatchers.IO) {
             runCatching {
-                val data = EscrowSessionVaultManagerClient.getSessionDynamicData(channelId).getOrThrow()
-                val staticData = EscrowSessionVaultManagerClient.getSessionStaticData(channelId).getOrThrow()
+                val data = EscrowSessionVaultHybridManagerClient.getSessionDynamicData(channelId).getOrThrow()
+                val staticData = EscrowSessionVaultHybridManagerClient.getSessionStaticData(channelId).getOrThrow()
                 SessionDynamicData(
                     totalDeposit = data.totalDeposit,
                     lastSettled = data.lastSettled,
@@ -346,7 +387,7 @@ object MppPayments {
                 )
             }.onFailure {
                 Napier.e(
-                    "[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",
+                    "[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultHybridManagerClient.appId} context=${logContext.orEmpty()}",
                     it,
                     tag = TAG,
                 )
@@ -357,7 +398,7 @@ object MppPayments {
         channelId: ByteArray,
         totalAmountClaimedMicroUsdc: Long,
     ): ByteArray =
-        encodeUint64(EscrowSessionVaultManagerClient.appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) +
+        encodeUint64(EscrowSessionVaultHybridManagerClient.appId) + channelId + encodeUint64(totalAmountClaimedMicroUsdc) +
             "settle".encodeToByteArray()
 
     @OptIn(ExperimentalEncodingApi::class)
@@ -374,7 +415,7 @@ object MppPayments {
     fun awaitTransactionConfirmation(
         txId: String,
         maxRounds: Int = 10,
-    ): Boolean = awaitConfirmationInternal(txId, EscrowSessionVaultManagerClient.algodUrl, maxRounds)
+    ): Boolean = awaitConfirmationInternal(txId, EscrowSessionVaultHybridManagerClient.algodUrl, maxRounds)
 }
 
 sealed class MppPaymentVerificationResult {

@@ -207,11 +207,11 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
         }
 
         Button(
-            onClick = viewModel::verifyVoucherSignature,
+            onClick = viewModel::registerSettlementLogicSig,
             enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Verify Voucher")
+            Text("Register Settlement LogicSig")
         }
 
         Button(
@@ -219,7 +219,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             enabled = !isLoading && canRunVaultActions,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Text("Settle Amount to Creator")
+            Text("Settle Amount")
         }
 
         Button(
