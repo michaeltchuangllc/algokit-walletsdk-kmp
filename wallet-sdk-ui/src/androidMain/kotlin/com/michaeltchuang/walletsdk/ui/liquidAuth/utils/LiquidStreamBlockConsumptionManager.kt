@@ -1,6 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
+import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -24,6 +26,7 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getActiveCreatorAddress: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
+    private val voucherRepository: MppVoucherRepository,
 ) {
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -93,6 +96,8 @@ internal class LiquidStreamBlockConsumptionManager(
 
         currentSessionId = sessionId
         blocksConsumed.set(0)
+
+        processPendingSettlements()
 
         viewModel.monitorBlockchainBlocks()
         viewModel.startRealtimeBlockNumberUpdates()
@@ -272,49 +277,17 @@ internal class LiquidStreamBlockConsumptionManager(
         sessionId: String,
         viewerAddress: String?,
         creatorAddress: String,
-        used: Long,
+        signatureBase64: String,
+        signedTotalAmount: Long,
         localBlocksConsumed: Int,
     ) {
         Log.e(
             tag,
             "[SESSION_VAULT_CLAIM_ATTEMPT] " +
                 "session=$sessionId " +
+                "viewer=$viewerAddress " +
                 "blocks=$localBlocksConsumed",
         )
-
-        val claimSnapshot =
-            getCreatorVoucherClaimSnapshot() ?: run {
-                Log.e(
-                    tag,
-                    "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing",
-                )
-
-                return
-            }
-
-        if (claimSnapshot.sessionId != sessionId) {
-            Log.e(
-                tag,
-                "[SESSION_VAULT_CLAIM_SKIP] " +
-                    "reason=session_mismatch",
-            )
-
-            return
-        }
-
-        if (claimSnapshot.viewerAddress != viewerAddress) {
-            Log.e(
-                tag,
-                "[SESSION_VAULT_CLAIM_SKIP] " +
-                    "reason=viewer_mismatch",
-            )
-
-            return
-        }
-
-        val signedTotalAmount =
-            claimSnapshot.totalAmountClaimedMicroUsdc
-                .coerceAtLeast(0L)
 
         val settlementResult =
             try {
@@ -349,7 +322,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     Result.success("nothing_to_settle")
                 } else {
                     @OptIn(ExperimentalEncodingApi::class)
-                    val signature = Base64.decode(claimSnapshot.signatureBase64)
+                    val signature = Base64.decode(signatureBase64)
                     val settleResult =
                         try {
                             Result.success(
@@ -403,22 +376,43 @@ internal class LiquidStreamBlockConsumptionManager(
 
         settlementResult
             .onSuccess { txId ->
-
                 Log.e(
                     tag,
                     "[SESSION_VAULT_CLAIM_OK] " +
                         "txId=$txId " +
                         "blocks=$localBlocksConsumed " +
-                        "used=$used",
+                        "session=$sessionId",
                 )
+                // Delete voucher from DB after successful settlement
+                voucherRepository.deleteVoucherBySessionId(sessionId)
             }.onFailure {
                 Log.e(
                     tag,
                     "[SESSION_VAULT_CLAIM_ERR] " +
-                        "blocks=$localBlocksConsumed",
+                        "blocks=$localBlocksConsumed " +
+                        "session=$sessionId",
                     it,
                 )
             }
+    }
+
+    fun processPendingSettlements() {
+        scope.launch {
+            val vouchers = voucherRepository.getAllVouchers()
+            if (vouchers.isNotEmpty()) {
+                Log.d(tag, "🔄 processing ${vouchers.size} pending settlements")
+                vouchers.forEach { voucher ->
+                    startSettlement(
+                        sessionId = voucher.sessionId,
+                        viewerAddress = voucher.viewerAddress,
+                        creatorAddress = voucher.creatorAddress,
+                        signatureBase64 = voucher.signatureBase64,
+                        signedTotalAmount = voucher.totalAmountClaimedMicroUsdc,
+                        localBlocksConsumed = 0,
+                    )
+                }
+            }
+        }
     }
 
     fun triggerSettlementFromViewerVoucher(sessionId: String) {
@@ -445,8 +439,26 @@ internal class LiquidStreamBlockConsumptionManager(
             return
         }
 
+        val claimSnapshot =
+            getCreatorVoucherClaimSnapshot() ?: run {
+                Log.e(
+                    tag,
+                    "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing",
+                )
+                settlementMutex.unlock()
+                return
+            }
+
+        if (claimSnapshot.sessionId != sessionId) {
+            Log.e(
+                tag,
+                "[SESSION_VAULT_CLAIM_SKIP] reason=session_mismatch",
+            )
+            settlementMutex.unlock()
+            return
+        }
+
         val localBlocksConsumed = blocksConsumed.get().coerceAtLeast(0)
-        val used = MppPayments.computeVoucherMicroUsdcUsage(localBlocksConsumed)
         val job =
             scope.launch {
                 val currentJob = coroutineContext[Job]
@@ -460,11 +472,24 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@launch
                     }
 
+                    // Save latest voucher to DB before settlement
+                    voucherRepository.upsertVoucher(
+                        MppVoucherEntity(
+                            sessionId = sessionId,
+                            viewerAddress = viewerAddress.orEmpty(),
+                            viewerPublicKeyBase64 = claimSnapshot.viewerPublicKeyBase64,
+                            signatureBase64 = claimSnapshot.signatureBase64,
+                            totalAmountClaimedMicroUsdc = claimSnapshot.totalAmountClaimedMicroUsdc,
+                            creatorAddress = creatorAddress,
+                        ),
+                    )
+
                     startSettlement(
                         sessionId = sessionId,
                         viewerAddress = viewerAddress,
                         creatorAddress = creatorAddress,
-                        used = used,
+                        signatureBase64 = claimSnapshot.signatureBase64,
+                        signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
                         localBlocksConsumed = localBlocksConsumed,
                     )
                 } finally {

@@ -22,6 +22,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -68,6 +69,8 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
+    private val voucherRepository: MppVoucherRepository =
+        koin.get(clazz = MppVoucherRepository::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
     private val platformServices: LiquidAuthPlatformServices = KoinJavaComponent.get(LiquidAuthPlatformServices::class.java)
     private var signalService: SignalService? = null
@@ -116,12 +119,14 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            voucherRepository = voucherRepository,
         )
 
     actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         Log.d(TAG, "🔌 initialize() called with viewModel=$viewModel")
         this.viewModel = viewModel
         Log.d(TAG, "🔌 viewModel set, this.viewModel=${this.viewModel}")
+        blockConsumptionManager.processPendingSettlements()
     }
 
     /**
