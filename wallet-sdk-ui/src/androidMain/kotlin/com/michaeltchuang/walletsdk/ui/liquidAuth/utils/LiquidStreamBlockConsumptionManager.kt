@@ -1,10 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
-import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CancellationException
@@ -16,16 +13,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
 
 internal class LiquidStreamBlockConsumptionManager(
     private val tag: String,
     private val getViewModel: () -> LiquidAuthOfferViewModel?,
     private val getActiveViewerAddress: () -> String?,
     private val getActiveCreatorAddress: () -> String?,
-    private val getActivePaymentNetwork: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
-    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase,
 ) {
     data class CreatorVoucherClaimSnapshot(
         val sessionId: String,
@@ -70,8 +68,8 @@ internal class LiquidStreamBlockConsumptionManager(
         )
 
         if (
-            currentSessionId == sessionId &&
-            blockDrivenConsumptionJob?.isActive == true
+            (currentSessionId == sessionId) &&
+            (blockDrivenConsumptionJob?.isActive == true)
         ) {
             Log.e(
                 tag,
@@ -233,7 +231,6 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         val localBlocksConsumed = blocksConsumed.incrementAndGet()
-        val sessionVaultAppId = getSessionVaultConfigUseCase(getActivePaymentNetwork().toAlgorandNetwork()).appId
 
         val viewerAddress =
             getActiveViewerAddress()
@@ -244,7 +241,7 @@ internal class LiquidStreamBlockConsumptionManager(
                 null
             } else {
                 try {
-                    withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                    withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
                         MppPayments.getSessionProgressSnapshotFromVault()
                     }
                 } catch (ce: CancellationException) {
@@ -318,7 +315,6 @@ internal class LiquidStreamBlockConsumptionManager(
         val signedTotalAmount =
             claimSnapshot.totalAmountClaimedMicroUsdc
                 .coerceAtLeast(0L)
-        val sessionVaultAppId = getSessionVaultConfigUseCase(getActivePaymentNetwork().toAlgorandNetwork()).appId
 
         val settlementResult =
             try {
@@ -334,48 +330,35 @@ internal class LiquidStreamBlockConsumptionManager(
                         ?: error("Unsupported creator account")
 
                 val refreshed =
-                    withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                    withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
                         MppPayments.getSessionDynamicDataFromVault()
                     }
-
-                val refreshedLatest =
-                    refreshed?.latestVoucherAmount ?: 0L
 
                 val refreshedSettled =
                     refreshed?.lastSettled ?: 0L
 
-                val refreshedUnclaimed =
-                    (refreshedLatest - refreshedSettled)
-                        .coerceAtLeast(0L)
-
-                if (refreshedUnclaimed <= 0L) {
-                    // Creator is payee: only settle on-chain voucher amounts.
-                    // Viewer (payer) is responsible for updateVoucher transactions.
-                    if (signedTotalAmount > refreshedLatest) {
-                        Log.e(
-                            tag,
-                            "[SESSION_VAULT_CLAIM_SKIP] " +
-                                "reason=viewer_update_pending " +
-                                "signedTotal=$signedTotalAmount " +
-                                "onChainLatest=$refreshedLatest",
-                        )
-                    }
-
+                if (signedTotalAmount <= refreshedSettled) {
                     Log.e(
                         tag,
                         "[SESSION_VAULT_CLAIM_SKIP] " +
-                            "reason=nothing_to_settle",
+                            "reason=nothing_to_settle " +
+                            "signedTotal=$signedTotalAmount " +
+                            "onChainSettled=$refreshedSettled",
                     )
 
                     Result.success("nothing_to_settle")
                 } else {
+                    @OptIn(ExperimentalEncodingApi::class)
+                    val signature = Base64.decode(claimSnapshot.signatureBase64)
                     val settleResult =
                         try {
                             Result.success(
-                                withTimeout(CHAIN_WRITE_TIMEOUT_MS) {
+                                withTimeout(CHAIN_WRITE_TIMEOUT_MS.milliseconds) {
                                     MppPayments
-                                        .settleLatestVoucher(
+                                        .settle(
                                             signer = signer,
+                                            cumulativeAmountMicroUsdc = signedTotalAmount,
+                                            signature = signature,
                                         ).getOrThrow()
                                 },
                             )
@@ -392,20 +375,19 @@ internal class LiquidStreamBlockConsumptionManager(
                         val nothingToSettleAssert = MppPayments.isNothingToSettleError(err?.message.orEmpty())
                         val postFailureData =
                             if (nothingToSettleAssert) {
-                                withTimeout(CHAIN_READ_TIMEOUT_MS) {
+                                withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
                                     MppPayments.getSessionDynamicDataFromVault()
                                 }
                             } else {
                                 null
                             }
-                        val postFailureLatest = postFailureData?.latestVoucherAmount ?: 0L
                         val postFailureSettled = postFailureData?.lastSettled ?: 0L
-                        val nothingLeftToSettle = postFailureLatest <= postFailureSettled
+                        val nothingLeftToSettle = signedTotalAmount <= postFailureSettled
 
                         if (nothingToSettleAssert && nothingLeftToSettle) {
                             Log.e(
                                 tag,
-                                "[SESSION_VAULT_CLAIM_SKIP] reason=already_settled latest=$postFailureLatest settled=$postFailureSettled",
+                                "[SESSION_VAULT_CLAIM_SKIP] reason=already_settled signedTotal=$signedTotalAmount settled=$postFailureSettled",
                             )
                             Result.success("already_settled")
                         } else {
@@ -439,15 +421,6 @@ internal class LiquidStreamBlockConsumptionManager(
             }
     }
 
-    private fun String?.toAlgorandNetwork(): AlgorandNetwork =
-        when {
-            this == MppNetworks.ALGORAND_MAINNET || orEmpty().contains("mainnet", ignoreCase = true) -> AlgorandNetwork.MAINNET
-            this == MppNetworks.ALGORAND_FUTURENET ||
-                orEmpty().contains("futurenet", ignoreCase = true) ||
-                orEmpty().contains("fnet", ignoreCase = true) -> AlgorandNetwork.FUTURENET
-            else -> AlgorandNetwork.TESTNET
-        }
-
     fun triggerSettlementFromViewerVoucher(sessionId: String) {
         val creatorAddress = getActiveCreatorAddress()
         val viewerAddress = getActiveViewerAddress()
@@ -456,7 +429,7 @@ internal class LiquidStreamBlockConsumptionManager(
             Log.e(tag, "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=creator_missing session=$sessionId")
             return
         }
-        if (activeSession.isNullOrBlank() || activeSession != sessionId) {
+        if (activeSession.isNullOrBlank() || (activeSession != sessionId)) {
             Log.e(
                 tag,
                 "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$activeSession",

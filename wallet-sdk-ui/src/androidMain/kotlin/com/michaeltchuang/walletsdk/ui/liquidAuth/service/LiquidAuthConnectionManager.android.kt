@@ -23,7 +23,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -69,8 +68,6 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
-    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase =
-        koin.get(clazz = GetSessionVaultConfigUseCase::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
     private val platformServices: LiquidAuthPlatformServices = KoinJavaComponent.get(LiquidAuthPlatformServices::class.java)
     private var signalService: SignalService? = null
@@ -117,10 +114,8 @@ actual class LiquidAuthConnectionManager actual constructor(
             getViewModel = { viewModel },
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
-            getActivePaymentNetwork = { activePaymentNetwork },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
-            getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
         )
 
     actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
