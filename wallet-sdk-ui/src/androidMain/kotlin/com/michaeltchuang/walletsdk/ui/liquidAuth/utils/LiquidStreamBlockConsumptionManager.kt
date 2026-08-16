@@ -481,6 +481,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             signatureBase64 = claimSnapshot.signatureBase64,
                             totalAmountClaimedMicroUsdc = claimSnapshot.totalAmountClaimedMicroUsdc,
                             creatorAddress = creatorAddress,
+                            note = "N/A",
                         ),
                     )
 

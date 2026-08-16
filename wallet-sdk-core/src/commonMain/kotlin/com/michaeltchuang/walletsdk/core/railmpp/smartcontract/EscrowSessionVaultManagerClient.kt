@@ -202,6 +202,7 @@ object EscrowSessionVaultManagerClient {
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
+        note:String= "N/A"
     ): Result<String> =
         runCatching {
             submitAppCallInternal(

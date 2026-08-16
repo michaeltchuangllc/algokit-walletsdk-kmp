@@ -174,7 +174,8 @@ val MIGRATION_7_8 =
                     viewer_public_key_base64 TEXT NOT NULL,
                     signature_base64 TEXT NOT NULL,
                     total_amount_claimed_micro_usdc INTEGER NOT NULL,
-                    creator_address TEXT NOT NULL
+                    creator_address TEXT NOT NULL,
+                    note TEXT NOT NULL DEFAULT 'N/A'
                 )
                 """.trimIndent(),
             )
