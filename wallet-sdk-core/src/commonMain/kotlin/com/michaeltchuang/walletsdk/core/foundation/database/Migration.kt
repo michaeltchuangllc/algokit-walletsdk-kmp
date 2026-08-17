@@ -175,6 +175,8 @@ val MIGRATION_7_8 =
                     signature_base64 TEXT NOT NULL,
                     total_amount_claimed_micro_usdc INTEGER NOT NULL,
                     creator_address TEXT NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    channel_id_base64 TEXT,
                     note TEXT NOT NULL DEFAULT 'N/A'
                 )
                 """.trimIndent(),
