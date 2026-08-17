@@ -19,6 +19,10 @@ data class MppVoucherEntity(
     val totalAmountClaimedMicroUsdc: Long,
     @ColumnInfo("creator_address")
     val creatorAddress: String,
+    @ColumnInfo("block_number")
+    val blockNumber: Long,
+    @ColumnInfo("channel_id_base64")
+    val channelIdBase64: String?,
     @ColumnInfo("note")
     val note: String,
 )

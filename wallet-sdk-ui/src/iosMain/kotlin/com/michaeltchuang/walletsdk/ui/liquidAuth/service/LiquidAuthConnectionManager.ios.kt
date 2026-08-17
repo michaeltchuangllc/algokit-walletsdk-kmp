@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
+import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
@@ -27,6 +29,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform.getKoin
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
 
@@ -100,6 +105,7 @@ private const val TAG = "IOSLiquidAuthCM"
 
 /** Polling interval for the host-side on-chain balance during paid streaming (ms). */
 private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
+private const val MAX_BLOCK_DIFF_FOR_SETTLEMENT = 888
 
 actual class LiquidAuthConnectionManager actual constructor(
     @Suppress("UNUSED_PARAMETER") platformContext: Any,
@@ -170,6 +176,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         getKoin().get()
+    private val voucherRepository: MppVoucherRepository = getKoin().get()
     private val platformServices = LiquidAuthPlatformServices()
     private val scope = CoroutineScope(Dispatchers.Default)
 
@@ -191,12 +198,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         val viewerPublicKeyBase64: String,
         val signatureBase64: String,
         val totalAmountClaimedMicroUsdc: Long,
+        val blockNumber: Long? = null,
     )
 
     actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         this.viewModel = viewModel
         activeIOSBroadcastConnectionManager = this
         println("$TAG: initialize() viewModel=$viewModel")
+        processPendingSettlements()
     }
 
     actual fun startListening(
@@ -533,7 +542,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                         )
                     }
 
-                    delay(HOST_BALANCE_POLL_INTERVAL_MS)
+                    delay(HOST_BALANCE_POLL_INTERVAL_MS.milliseconds)
                 }
             }
     }
@@ -893,37 +902,16 @@ actual class LiquidAuthConnectionManager actual constructor(
                             )
                             startBlockConsumption(voucherSessionId)
 
-                            // Trigger on-chain settlement (update lastSettled in session vault).
-                            // Swift must set iosBroadcastClaimVoucherHandler to call
-                            // MppPayments.claimVoucherFromViewer() with the host wallet signer.
-                            val hostAddr = activePaymentRecipient
-                            val claimHandler = iosBroadcastClaimVoucherHandler
-                            if (hostAddr != null && claimHandler != null) {
-                                println(
-                                    "$TAG: [VOUCHER_CLAIM_TRIGGER] session=$voucherSessionId " +
-                                        "viewer=$voucherViewer host=$hostAddr claimed=$claimedAmount",
-                                )
-                                scope.launch {
-                                    runCatching {
-                                        claimHandler(
-                                            voucherSessionId,
-                                            voucherViewer,
-                                            hostAddr,
-                                            claimedAmount,
-                                            signature,
-                                            voucherViewerPublicKey,
-                                            voucherChannelId,
-                                        )
-                                    }.onFailure { e ->
-                                        println("$TAG: [VOUCHER_CLAIM_ERROR] $e")
-                                    }
-                                }
-                            } else {
-                                println(
-                                    "$TAG: [VOUCHER_CLAIM_SKIP] hostAddr=$hostAddr " +
-                                        "handler=${claimHandler != null} — set iosBroadcastClaimVoucherHandler",
-                                )
-                            }
+                            triggerVoucherSettlement(
+                                sessionId = voucherSessionId,
+                                viewerAddress = voucherViewer,
+                                hostAddress = activePaymentRecipient,
+                                claimedAmount = claimedAmount,
+                                signature = signature,
+                                viewerPublicKeyBase64 = voucherViewerPublicKey,
+                                channelIdBase64 = voucherChannelId,
+                                isPending = false
+                            )
                         }
                     }
                 }
@@ -937,6 +925,108 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
         }.onFailure { e ->
             Napier.e("$TAG: tryCaptureViewerAddressFromMessage error: $e")
+        }
+    }
+
+    private fun processPendingSettlements() {
+        scope.launch {
+            val vouchers = voucherRepository.getAllVouchers()
+            if (vouchers.isNotEmpty()) {
+                println("$TAG: processing ${vouchers.size} pending settlements")
+                vouchers.forEach { voucher ->
+                    triggerVoucherSettlement(
+                        sessionId = voucher.sessionId,
+                        viewerAddress = voucher.viewerAddress,
+                        hostAddress = voucher.creatorAddress,
+                        claimedAmount = voucher.totalAmountClaimedMicroUsdc,
+                        signature = voucher.signatureBase64,
+                        viewerPublicKeyBase64 = voucher.viewerPublicKeyBase64,
+                        channelIdBase64 = voucher.channelIdBase64,
+                        isPending = true,
+                        voucherBlockNumber = voucher.blockNumber
+                    )
+                }
+            }
+        }
+    }
+
+    private fun triggerVoucherSettlement(
+        sessionId: String,
+        viewerAddress: String,
+        hostAddress: String?,
+        claimedAmount: Long,
+        signature: String,
+        viewerPublicKeyBase64: String,
+        channelIdBase64: String?,
+        isPending: Boolean,
+        voucherBlockNumber: Long? = null,
+    ) {
+        val hostAddr = hostAddress ?: activePaymentRecipient
+        val claimHandler = iosBroadcastClaimVoucherHandler
+
+        if (hostAddr != null && claimHandler != null) {
+            val logTag = if (isPending) "[PENDING_VOUCHER_CLAIM_TRIGGER]" else "[VOUCHER_CLAIM_TRIGGER]"
+            println("$TAG: $logTag session=$sessionId viewer=$viewerAddress host=$hostAddr claimed=$claimedAmount")
+
+            scope.launch {
+                runCatching {
+                    val currentBlock = viewModel?.currentBlockNumber?.value
+                    // If we have a saved block number (pending), use it. 
+                    // Otherwise (live), use current block as the "receipt" time.
+                    val effectiveVoucherBlock = voucherBlockNumber ?: currentBlock ?: 0L
+
+                    @OptIn(ExperimentalEncodingApi::class)
+                    val currentChannelIdBase64 = EscrowSessionVaultManagerClient.channelId?.let { Base64.encode(it) }
+                    val effectiveChannelIdBase64 = channelIdBase64 ?: currentChannelIdBase64
+
+                    if (currentBlock != null && effectiveVoucherBlock > 0) {
+                        val diff = (currentBlock - effectiveVoucherBlock).let { if (it < 0) -it else it }
+                        if (diff > MAX_BLOCK_DIFF_FOR_SETTLEMENT) {
+                            println(
+                                "$TAG: [VOUCHER_CLAIM_SKIP] " +
+                                    "reason=block_diff_too_high " +
+                                    "session=$sessionId " +
+                                    "diff=$diff " +
+                                    "current=$currentBlock " +
+                                    "voucher=$effectiveVoucherBlock",
+                            )
+                            voucherRepository.deleteVoucherBySessionId(sessionId)
+                            return@launch
+                        }
+                    }
+
+                    // Save latest voucher to DB before settlement (unless it was already stale and deleted above)
+                    voucherRepository.upsertVoucher(
+                        MppVoucherEntity(
+                            sessionId = sessionId,
+                            viewerAddress = viewerAddress,
+                            viewerPublicKeyBase64 = viewerPublicKeyBase64,
+                            signatureBase64 = signature,
+                            totalAmountClaimedMicroUsdc = claimedAmount,
+                            creatorAddress = hostAddr,
+                            blockNumber = effectiveVoucherBlock,
+                            channelIdBase64 = effectiveChannelIdBase64,
+                            note = "N/A",
+                        ),
+                    )
+
+                    claimHandler(
+                        sessionId,
+                        viewerAddress,
+                        hostAddr,
+                        claimedAmount,
+                        signature,
+                        viewerPublicKeyBase64,
+                        effectiveChannelIdBase64,
+                    )
+                }.onFailure { e ->
+                    val errorTag = if (isPending) "[PENDING_VOUCHER_CLAIM_ERROR]" else "[VOUCHER_CLAIM_ERROR]"
+                    println("$TAG: $errorTag $e")
+                }
+            }
+        } else {
+            val skipTag = if (isPending) "[PENDING_VOUCHER_CLAIM_SKIP]" else "[VOUCHER_CLAIM_SKIP]"
+            println("$TAG: $skipTag hostAddr=$hostAddr handler=${claimHandler != null}")
         }
     }
 
