@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import android.content.Context
 import android.content.ServiceConnection
+import android.os.Handler
+import android.os.Looper
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
@@ -31,11 +33,15 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.OkHttpClient
 import org.json.JSONObject
 import org.webrtc.DataChannel
+import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.milliseconds
 
 actual class LiquidAuthPlatformServices(
     val addNewPasskey: AddNewPasskey,
@@ -96,7 +102,39 @@ actual class LiquidAuthPlatformServices(
         return service?.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service?.createDataChannel(PAYMENT_CHANNEL_LABEL)
     }
 
-    fun createHostPaymentWebRtcDataChannel(dataChannel: DataChannel): WebRtcDataChannel = WebRtcDataChannel(dataChannel)
+    fun wrapPaymentDataChannel(dataChannel: DataChannel): WebRtcDataChannel = WebRtcDataChannel(dataChannel)
+
+    /**
+     * Awaits the payment data channel on the viewer side, where the channel is created by the
+     * remote host peer asynchronously (unlike the host, which can create it locally on demand).
+     * Polls briefly, then falls back to a longer-lived listener-based wait.
+     */
+    suspend fun awaitViewerPaymentDataChannel(service: SignalService): DataChannel? {
+        service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+        repeat(20) {
+            service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { channel -> return channel }
+            delay(100L.milliseconds)
+        }
+        service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+
+        return suspendCancellableCoroutine { continuation ->
+            val handler = Handler(Looper.getMainLooper())
+            val poll =
+                object : Runnable {
+                    override fun run() {
+                        val channel = service.getDataChannel(PAYMENT_CHANNEL_LABEL)
+                        if (!continuation.isActive) return
+                        if (channel != null) {
+                            continuation.resume(channel)
+                        } else {
+                            handler.postDelayed(this, 100L)
+                        }
+                    }
+                }
+            handler.postDelayed(poll, 100L)
+            continuation.invokeOnCancellation { handler.removeCallbacks(poll) }
+        }
+    }
 
     fun sendHostMessage(
         service: SignalService?,

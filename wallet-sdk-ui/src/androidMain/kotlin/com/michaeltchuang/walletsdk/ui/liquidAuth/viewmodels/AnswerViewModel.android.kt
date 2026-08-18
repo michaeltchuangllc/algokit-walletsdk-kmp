@@ -51,6 +51,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import org.json.JSONObject
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.encoding.Base64
 
 actual open class AnswerViewModel actual constructor(
@@ -337,19 +338,50 @@ actual open class AnswerViewModel actual constructor(
         )
 
     fun setupMppPaymentViewer(viewerAddress: String?) {
-        setupMppPaymentViewerUseCase(
-            SetupMppPaymentViewerUseCase.Params(
-                signalService = signalService.value,
-                viewerAddress = viewerAddress,
-                scope = viewModelScope,
-                buildMppWalletSigner = ::buildMppWalletSigner,
-                resolveMppClientNetwork = ::resolveMppClientNetwork,
-                requestMppConsent = ::requestMppConsentFromUi,
-                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
-                signFido2Challenge = ::signFido2Challenge,
-                onChatMessageReceived = ::onChatMessageReceived,
-            ),
-        )
+        val address = viewerAddress?.takeIf { it.isNotBlank() } ?: return
+        val service = signalService.value
+        if (service?.peerConnection == null) {
+            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                // Unlike iOS — where Swift hands Kotlin an already-ready data channel — Android's
+                // payment channel is created by the remote host peer, so we must wait for it
+                // (and resolve the signer/network) before the shared use case can run.
+                val paymentChannel =
+                    platformServices.awaitViewerPaymentDataChannel(service)
+                        ?: run {
+                            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$address")
+                            return@launch
+                        }
+                val signer =
+                    buildMppWalletSigner(address)
+                        ?: run {
+                            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$address")
+                            return@launch
+                        }
+                val mppNetwork = resolveMppClientNetwork(address)
+
+                setupMppPaymentViewerUseCase(
+                    SetupMppPaymentViewerUseCase.Params(
+                        dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
+                        viewerAddress = address,
+                        scope = viewModelScope,
+                        signer = signer,
+                        mppNetwork = mppNetwork,
+                        requestMppConsent = ::requestMppConsentFromUi,
+                        setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+                        signFido2Challenge = ::signFido2Challenge,
+                        onChatMessageReceived = ::onChatMessageReceived,
+                    ),
+                )
+            } catch (_: CancellationException) {
+                Log.w(TAG, "[VIEWER_MPP_SETUP_CANCELLED] viewer=$address")
+            } catch (e: Exception) {
+                Log.e(TAG, "[VIEWER_MPP_SETUP_FAILED] viewer=$address", e)
+            }
+        }
     }
 
     suspend fun processBiometricTransactionSigning(

@@ -231,7 +231,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
+                        dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                         rtpSenders = emptyList(),
                         mppServerConfig =
                             MppServerConfig(
@@ -362,7 +362,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             current?.terminate("replaced")
             val creator =
                 LiquidStreamCreator(
-                    dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
+                    dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                     rtpSenders = emptyList(),
                     mppServerConfig =
                         MppServerConfig(
