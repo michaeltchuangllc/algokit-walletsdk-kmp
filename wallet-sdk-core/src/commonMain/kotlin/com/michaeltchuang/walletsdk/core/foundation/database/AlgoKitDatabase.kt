@@ -81,7 +81,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
     abstract fun mppVoucherDao(): MppVoucherDao
 
     companion object Companion {
-        const val DATABASE_VERSION = 8
+        const val DATABASE_VERSION = 9
         const val DATABASE_NAME = "algokit_database"
     }
 }

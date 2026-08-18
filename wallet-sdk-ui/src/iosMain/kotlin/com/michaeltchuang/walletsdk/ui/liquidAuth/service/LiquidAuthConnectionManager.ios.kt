@@ -1,17 +1,20 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
@@ -105,7 +108,6 @@ private const val TAG = "IOSLiquidAuthCM"
 
 /** Polling interval for the host-side on-chain balance during paid streaming (ms). */
 private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
-private const val MAX_BLOCK_DIFF_FOR_SETTLEMENT = 888
 
 actual class LiquidAuthConnectionManager actual constructor(
     @Suppress("UNUSED_PARAMETER") platformContext: Any,
@@ -191,15 +193,6 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var activeGatingConfig: GatingConfig? = null
 
     private val viewerReady = MutableStateFlow(false)
-
-    data class CreatorVoucherClaimSnapshot(
-        val sessionId: String,
-        val viewerAddress: String,
-        val viewerPublicKeyBase64: String,
-        val signatureBase64: String,
-        val totalAmountClaimedMicroUsdc: Long,
-        val blockNumber: Long? = null,
-    )
 
     actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         this.viewModel = viewModel
@@ -979,36 +972,40 @@ actual class LiquidAuthConnectionManager actual constructor(
                     val currentChannelIdBase64 = EscrowSessionVaultManagerClient.channelId?.let { Base64.encode(it) }
                     val effectiveChannelIdBase64 = channelIdBase64 ?: currentChannelIdBase64
 
-                    if (currentBlock != null && effectiveVoucherBlock > 0) {
-                        val diff = (currentBlock - effectiveVoucherBlock).let { if (it < 0) -it else it }
-                        if (diff > MAX_BLOCK_DIFF_FOR_SETTLEMENT) {
-                            println(
-                                "$TAG: [VOUCHER_CLAIM_SKIP] " +
-                                    "reason=block_diff_too_high " +
-                                    "session=$sessionId " +
-                                    "diff=$diff " +
-                                    "current=$currentBlock " +
-                                    "voucher=$effectiveVoucherBlock",
-                            )
-                            voucherRepository.deleteVoucherBySessionId(sessionId)
-                            return@launch
-                        }
+                    if (VoucherSettlementPolicy.isTooStaleToSettle(currentBlock, effectiveVoucherBlock)) {
+                        println(
+                            "$TAG: [VOUCHER_CLAIM_SKIP] " +
+                                "reason=block_diff_too_high " +
+                                "session=$sessionId " +
+                                "current=$currentBlock " +
+                                "voucher=$effectiveVoucherBlock",
+                        )
+                        voucherRepository.deleteVoucher(sessionId, viewerAddress, effectiveChannelIdBase64)
+                        return@launch
                     }
 
-                    // Save latest voucher to DB before settlement (unless it was already stale and deleted above)
-                    voucherRepository.upsertVoucher(
-                        MppVoucherEntity(
-                            sessionId = sessionId,
-                            viewerAddress = viewerAddress,
-                            viewerPublicKeyBase64 = viewerPublicKeyBase64,
-                            signatureBase64 = signature,
-                            totalAmountClaimedMicroUsdc = claimedAmount,
-                            creatorAddress = hostAddr,
-                            blockNumber = effectiveVoucherBlock,
-                            channelIdBase64 = effectiveChannelIdBase64,
-                            note = "N/A",
-                        ),
-                    )
+                    // channel_id_base64 is the primary key; skip persistence when it can't be
+                    // resolved yet rather than writing an incomplete/unsettleable row.
+                    if (effectiveChannelIdBase64 == null) {
+                        println(
+                            "$TAG: [VOUCHER_SAVE_SKIP] reason=missing_channel_id session=$sessionId viewer=$viewerAddress",
+                        )
+                    } else {
+                        // Save latest voucher to DB before settlement (unless it was already stale and deleted above)
+                        voucherRepository.upsertVoucher(
+                            MppVoucherEntity(
+                                channelIdBase64 = effectiveChannelIdBase64,
+                                sessionId = sessionId,
+                                viewerAddress = viewerAddress,
+                                viewerPublicKeyBase64 = viewerPublicKeyBase64,
+                                signatureBase64 = signature,
+                                totalAmountClaimedMicroUsdc = claimedAmount,
+                                creatorAddress = hostAddr,
+                                blockNumber = effectiveVoucherBlock,
+                                note = "N/A",
+                            ),
+                        )
+                    }
 
                     claimHandler(
                         sessionId,
