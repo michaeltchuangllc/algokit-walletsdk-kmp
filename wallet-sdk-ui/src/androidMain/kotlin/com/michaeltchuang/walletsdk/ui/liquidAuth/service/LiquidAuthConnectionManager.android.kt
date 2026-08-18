@@ -20,10 +20,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -34,7 +35,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import io.github.aakira.napier.Napier
 import io.github.algorandecosystem.sdk.BytesArray
@@ -69,8 +69,8 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
-    private val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase =
-        koin.get(clazz = GetSessionVaultConfigUseCase::class)
+    private val voucherRepository: MppVoucherRepository =
+        koin.get(clazz = MppVoucherRepository::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
     private val platformServices: LiquidAuthPlatformServices = KoinJavaComponent.get(LiquidAuthPlatformServices::class.java)
     private var signalService: SignalService? = null
@@ -117,16 +117,16 @@ actual class LiquidAuthConnectionManager actual constructor(
             getViewModel = { viewModel },
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
-            getActivePaymentNetwork = { activePaymentNetwork },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
-            getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
+            voucherRepository = voucherRepository,
         )
 
     actual fun initialize(viewModel: LiquidAuthOfferViewModel) {
         Log.d(TAG, "🔌 initialize() called with viewModel=$viewModel")
         this.viewModel = viewModel
         Log.d(TAG, "🔌 viewModel set, this.viewModel=${this.viewModel}")
+        blockConsumptionManager.processPendingSettlements()
     }
 
     /**
@@ -231,7 +231,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 current?.terminate("replaced")
                 val creator =
                     LiquidStreamCreator(
-                        dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
+                        dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                         rtpSenders = emptyList(),
                         mppServerConfig =
                             MppServerConfig(
@@ -362,7 +362,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             current?.terminate("replaced")
             val creator =
                 LiquidStreamCreator(
-                    dataChannel = platformServices.createHostPaymentWebRtcDataChannel(paymentChannel),
+                    dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                     rtpSenders = emptyList(),
                     mppServerConfig =
                         MppServerConfig(

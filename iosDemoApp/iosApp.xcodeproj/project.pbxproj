@@ -936,8 +936,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/algorandecosystem/falcon-signatures-mobile";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = exactVersion;
+				version = 0.0.18;
 			};
 		};
 		C291B1E02F292EC700AA5CA6 /* XCRemoteSwiftPackageReference "socket.io-client-swift" */ = {

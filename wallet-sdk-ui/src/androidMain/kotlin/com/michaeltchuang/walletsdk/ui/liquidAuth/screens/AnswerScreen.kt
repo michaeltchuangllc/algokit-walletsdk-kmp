@@ -131,6 +131,11 @@ fun AnswerScreen(
                 WebRtcVideoRenderer(
                     eglBaseContext = eglBaseContext,
                     videoTrack = track,
+                    // The Android host's front camera capturer (WebRTC Camera2Session) bakes a
+                    // horizontal mirror into the transmitted frame. Undo it here so the viewer
+                    // sees the same (correctly oriented) footage as the host's own self-preview,
+                    // matching the equivalent fix in the iOS viewer (LiquidAuthService.swift).
+                    mirror = true,
                 )
             }
         }

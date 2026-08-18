@@ -162,3 +162,87 @@ val MIGRATION_6_7 =
             )
         }
     }
+
+val MIGRATION_7_8 =
+    object : Migration(7, 8) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mpp_vouchers (
+                    session_id TEXT PRIMARY KEY NOT NULL,
+                    viewer_address TEXT NOT NULL,
+                    viewer_public_key_base64 TEXT NOT NULL,
+                    signature_base64 TEXT NOT NULL,
+                    total_amount_claimed_micro_usdc INTEGER NOT NULL,
+                    creator_address TEXT NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    channel_id_base64 TEXT,
+                    note TEXT NOT NULL DEFAULT 'N/A'
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// channel_id_base64 (deterministic per viewer+creator+signer-key) becomes the primary key so
+// reconnects from the same viewer/creator pair collapse onto a single row instead of
+// accumulating one row per session_id. session_id is no longer unique on its own since
+// multiple viewers may in the future share a liquid-auth requestId (and therefore a
+// fallback session_id); uniqueness is instead enforced on the (session_id, viewer_address)
+// pair. Rows without a resolved channel_id_base64 are dropped since they can no longer
+// satisfy the new NOT NULL primary key.
+val MIGRATION_8_9 =
+    object : Migration(8, 9) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mpp_vouchers_new (
+                    channel_id_base64 TEXT PRIMARY KEY NOT NULL,
+                    session_id TEXT NOT NULL,
+                    viewer_address TEXT NOT NULL,
+                    viewer_public_key_base64 TEXT NOT NULL,
+                    signature_base64 TEXT NOT NULL,
+                    total_amount_claimed_micro_usdc INTEGER NOT NULL,
+                    creator_address TEXT NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    note TEXT NOT NULL DEFAULT 'N/A'
+                )
+                """.trimIndent(),
+            )
+
+            connection.execSQL(
+                """
+                INSERT OR IGNORE INTO mpp_vouchers_new (
+                    channel_id_base64,
+                    session_id,
+                    viewer_address,
+                    viewer_public_key_base64,
+                    signature_base64,
+                    total_amount_claimed_micro_usdc,
+                    creator_address,
+                    block_number,
+                    note
+                )
+                SELECT
+                    channel_id_base64,
+                    session_id,
+                    viewer_address,
+                    viewer_public_key_base64,
+                    signature_base64,
+                    total_amount_claimed_micro_usdc,
+                    creator_address,
+                    block_number,
+                    note
+                FROM mpp_vouchers
+                WHERE channel_id_base64 IS NOT NULL
+                """.trimIndent(),
+            )
+
+            connection.execSQL("DROP TABLE mpp_vouchers")
+            connection.execSQL("ALTER TABLE mpp_vouchers_new RENAME TO mpp_vouchers")
+            connection.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_mpp_vouchers_session_id_viewer_address " +
+                    "ON mpp_vouchers(session_id, viewer_address)",
+            )
+        }
+    }
