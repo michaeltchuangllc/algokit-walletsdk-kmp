@@ -1,8 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
-import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
-import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
@@ -13,11 +11,12 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
@@ -25,16 +24,10 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtc
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.koin.mp.KoinPlatform.getKoin
-import kotlin.io.encoding.Base64
-import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.time.Duration.Companion.milliseconds
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
 
@@ -61,18 +54,6 @@ var iosBroadcastVideoViewProvider: (() -> Any?)? = null
 
 var iosBroadcastIsConnectedHandler: (() -> Boolean)? = null
 var iosBroadcastDetectConnectionTypeHandler: (() -> String)? = null
-
-var iosBroadcastClaimVoucherHandler: (
-    (
-        sessionId: String,
-        viewerAddress: String,
-        hostAddress: String,
-        claimedMicroUsdc: Long,
-        signatureBase64: String,
-        viewerPublicKeyBase64: String,
-        channelIdBase64: String?,
-    ) -> Unit
-)? = null
 
 var iosBroadcastMppSecretKey: String = "ios-host-mpp-secret"
 
@@ -106,9 +87,6 @@ var iosViewerFetchBalanceHandler: (
 
 private const val TAG = "IOSLiquidAuthCM"
 
-/** Polling interval for the host-side on-chain balance during paid streaming (ms). */
-private const val HOST_BALANCE_POLL_INTERVAL_MS = 5_000L
-
 actual class LiquidAuthConnectionManager actual constructor(
     @Suppress("UNUSED_PARAMETER") platformContext: Any,
 ) {
@@ -138,7 +116,6 @@ actual class LiquidAuthConnectionManager actual constructor(
             },
             onStop = { _viewerConnectionType.value = IceConnectionType.UNKNOWN },
         )
-    private var blockConsumptionJob: Job? = null
     private var viewerPaymentRailSetupKey: String? = null
 
     private val pendingViewerPaymentMessages = mutableListOf<String>()
@@ -179,8 +156,20 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         getKoin().get()
     private val voucherRepository: MppVoucherRepository = getKoin().get()
+    private val mppWalletSignerUseCase: MppWalletSignerUseCase = getKoin().get()
     private val platformServices = LiquidAuthPlatformServices()
     private val scope = CoroutineScope(Dispatchers.Default)
+
+    private val blockConsumptionManager =
+        LiquidStreamBlockConsumptionManager(
+            tag = TAG,
+            getViewModel = { viewModel },
+            getActiveViewerAddress = { activeViewerAddressForVault },
+            getActiveCreatorAddress = { activePaymentRecipient },
+            getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
+            buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            voucherRepository = voucherRepository,
+        )
 
     // ── LiquidStreamCreator (host payment channel) ────────────────────────────
 
@@ -198,7 +187,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         this.viewModel = viewModel
         activeIOSBroadcastConnectionManager = this
         println("$TAG: initialize() viewModel=$viewModel")
-        processPendingSettlements()
+        blockConsumptionManager.processPendingSettlements()
     }
 
     actual fun startListening(
@@ -478,72 +467,19 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     /**
-     * Start polling the on-chain session-vault balance for the active viewer.
-     * Calls [LiquidAuthOfferViewModel.consumeBlock] on each poll tick so the host
-     * UI reflects the live remaining balance.
+     * Start the block-driven on-chain session-vault consumption + settlement loop for
+     * the active viewer, delegated to the shared [LiquidStreamBlockConsumptionManager]
+     * (identical implementation used by Android).
      */
     actual fun startBlockConsumption(sessionId: String) {
-        if (blockConsumptionJob?.isActive == true) {
-            println("$TAG: startBlockConsumption — already running (session=$sessionId)")
-            return
-        }
-        val targetSession = activePaymentSessionId ?: sessionId
-        println("$TAG: startBlockConsumption session=$targetSession")
-
-        var hostTick = 0
-        blockConsumptionJob =
-            scope.launch {
-                while (isActive) {
-                    hostTick++
-                    val viewerAddr = activeViewerAddressForVault
-                    val hostAddr = activePaymentRecipient
-                    val signerKey = activeViewerAuthorizedSignerKey
-
-                    if (!viewerAddr.isNullOrBlank() && !hostAddr.isNullOrBlank() && signerKey != null) {
-                        runCatching {
-                            val remaining =
-                                getRemainingBalanceUseCase(
-                                    GetRemainingSessionVaultBalanceUseCase.Params(
-                                        viewerAddress = viewerAddr,
-                                        appId = EscrowSessionVaultManagerClient.appId,
-                                        authorizedSignerPublicKey = signerKey,
-                                    ),
-                                ).getOrDefault(0L)
-
-                            println(
-                                "$TAG: HOST_BALANCE_TICK #$hostTick -> ${remaining / 1_000_000.0} USDC " +
-                                    "viewer=$viewerAddr host=$hostAddr session=$activePaymentSessionId",
-                            )
-                            viewModel?.consumeBlock(
-                                onChainRemainingMicroUsdc = remaining,
-                                progressBarBalanceMicroUsdc = remaining,
-                            )
-                        }.onFailure { e ->
-                            println("$TAG: HOST_BALANCE_ERR tick=$hostTick: $e viewer=$viewerAddr host=$hostAddr")
-                        }
-                    } else {
-                        val missingWhat =
-                            when {
-                                viewerAddr.isNullOrBlank() -> "viewer-hello-message"
-                                signerKey == null -> "viewer-signer-key"
-                                else -> "host-address"
-                            }
-                        println(
-                            "$TAG: HOST_BALANCE_WAITING tick=$hostTick — " +
-                                "viewer='$viewerAddr' host='$hostAddr' signerKey=${signerKey != null} " +
-                                "NEED: $missingWhat",
-                        )
-                    }
-
-                    delay(HOST_BALANCE_POLL_INTERVAL_MS.milliseconds)
-                }
-            }
+        val targetSessionId = activePaymentSessionId ?: sessionId
+        println("$TAG: startBlockConsumption session=$targetSessionId")
+        blockConsumptionManager.start(targetSessionId)
     }
 
     actual fun stopBlockConsumption() {
         println("$TAG: stopBlockConsumption")
-        blockConsumptionJob?.cancel()
-        blockConsumptionJob = null
+        blockConsumptionManager.stop()
     }
 
     actual fun setupCreator(
@@ -822,10 +758,8 @@ actual class LiquidAuthConnectionManager actual constructor(
 
                 if (!helloViewer.isNullOrBlank() && activeViewerAuthorizedSignerKey != null) {
                     val sessionForPoll = activePaymentSessionId ?: ""
-                    if (blockConsumptionJob?.isActive != true) {
-                        println("$TAG: [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
-                        startBlockConsumption(sessionForPoll)
-                    }
+                    println("$TAG: [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
+                    startBlockConsumption(sessionForPoll)
                 }
             }
 
@@ -835,7 +769,6 @@ actual class LiquidAuthConnectionManager actual constructor(
                 val voucherSessionId = voucher.sessionId
                 val voucherViewer = voucher.viewerAddress
                 val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
-                val voucherChannelId = voucher.channelIdBase64
                 voucher.channelId?.let { decodedChannelId ->
                     EscrowSessionVaultManagerClient.channelId = decodedChannelId
                     Napier.d("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
@@ -894,17 +827,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                     "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
                             )
                             startBlockConsumption(voucherSessionId)
-
-                            triggerVoucherSettlement(
-                                sessionId = voucherSessionId,
-                                viewerAddress = voucherViewer,
-                                hostAddress = activePaymentRecipient,
-                                claimedAmount = claimedAmount,
-                                signature = signature,
-                                viewerPublicKeyBase64 = voucherViewerPublicKey,
-                                channelIdBase64 = voucherChannelId,
-                                isPending = false
-                            )
+                            blockConsumptionManager.triggerSettlementFromViewerVoucher(voucherSessionId)
                         }
                     }
                 }
@@ -918,112 +841,6 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
         }.onFailure { e ->
             Napier.e("$TAG: tryCaptureViewerAddressFromMessage error: $e")
-        }
-    }
-
-    private fun processPendingSettlements() {
-        scope.launch {
-            val vouchers = voucherRepository.getAllVouchers()
-            if (vouchers.isNotEmpty()) {
-                println("$TAG: processing ${vouchers.size} pending settlements")
-                vouchers.forEach { voucher ->
-                    triggerVoucherSettlement(
-                        sessionId = voucher.sessionId,
-                        viewerAddress = voucher.viewerAddress,
-                        hostAddress = voucher.creatorAddress,
-                        claimedAmount = voucher.totalAmountClaimedMicroUsdc,
-                        signature = voucher.signatureBase64,
-                        viewerPublicKeyBase64 = voucher.viewerPublicKeyBase64,
-                        channelIdBase64 = voucher.channelIdBase64,
-                        isPending = true,
-                        voucherBlockNumber = voucher.blockNumber
-                    )
-                }
-            }
-        }
-    }
-
-    private fun triggerVoucherSettlement(
-        sessionId: String,
-        viewerAddress: String,
-        hostAddress: String?,
-        claimedAmount: Long,
-        signature: String,
-        viewerPublicKeyBase64: String,
-        channelIdBase64: String?,
-        isPending: Boolean,
-        voucherBlockNumber: Long? = null,
-    ) {
-        val hostAddr = hostAddress ?: activePaymentRecipient
-        val claimHandler = iosBroadcastClaimVoucherHandler
-
-        if (hostAddr != null && claimHandler != null) {
-            val logTag = if (isPending) "[PENDING_VOUCHER_CLAIM_TRIGGER]" else "[VOUCHER_CLAIM_TRIGGER]"
-            println("$TAG: $logTag session=$sessionId viewer=$viewerAddress host=$hostAddr claimed=$claimedAmount")
-
-            scope.launch {
-                runCatching {
-                    val currentBlock = viewModel?.currentBlockNumber?.value
-                    // If we have a saved block number (pending), use it. 
-                    // Otherwise (live), use current block as the "receipt" time.
-                    val effectiveVoucherBlock = voucherBlockNumber ?: currentBlock ?: 0L
-
-                    @OptIn(ExperimentalEncodingApi::class)
-                    val currentChannelIdBase64 = EscrowSessionVaultManagerClient.channelId?.let { Base64.encode(it) }
-                    val effectiveChannelIdBase64 = channelIdBase64 ?: currentChannelIdBase64
-
-                    if (VoucherSettlementPolicy.isTooStaleToSettle(currentBlock, effectiveVoucherBlock)) {
-                        println(
-                            "$TAG: [VOUCHER_CLAIM_SKIP] " +
-                                "reason=block_diff_too_high " +
-                                "session=$sessionId " +
-                                "current=$currentBlock " +
-                                "voucher=$effectiveVoucherBlock",
-                        )
-                        voucherRepository.deleteVoucher(sessionId, viewerAddress, effectiveChannelIdBase64)
-                        return@launch
-                    }
-
-                    // channel_id_base64 is the primary key; skip persistence when it can't be
-                    // resolved yet rather than writing an incomplete/unsettleable row.
-                    if (effectiveChannelIdBase64 == null) {
-                        println(
-                            "$TAG: [VOUCHER_SAVE_SKIP] reason=missing_channel_id session=$sessionId viewer=$viewerAddress",
-                        )
-                    } else {
-                        // Save latest voucher to DB before settlement (unless it was already stale and deleted above)
-                        voucherRepository.upsertVoucher(
-                            MppVoucherEntity(
-                                channelIdBase64 = effectiveChannelIdBase64,
-                                sessionId = sessionId,
-                                viewerAddress = viewerAddress,
-                                viewerPublicKeyBase64 = viewerPublicKeyBase64,
-                                signatureBase64 = signature,
-                                totalAmountClaimedMicroUsdc = claimedAmount,
-                                creatorAddress = hostAddr,
-                                blockNumber = effectiveVoucherBlock,
-                                note = "N/A",
-                            ),
-                        )
-                    }
-
-                    claimHandler(
-                        sessionId,
-                        viewerAddress,
-                        hostAddr,
-                        claimedAmount,
-                        signature,
-                        viewerPublicKeyBase64,
-                        effectiveChannelIdBase64,
-                    )
-                }.onFailure { e ->
-                    val errorTag = if (isPending) "[PENDING_VOUCHER_CLAIM_ERROR]" else "[VOUCHER_CLAIM_ERROR]"
-                    println("$TAG: $errorTag $e")
-                }
-            }
-        } else {
-            val skipTag = if (isPending) "[PENDING_VOUCHER_CLAIM_SKIP]" else "[VOUCHER_CLAIM_SKIP]"
-            println("$TAG: $skipTag hostAddr=$hostAddr handler=${claimHandler != null}")
         }
     }
 

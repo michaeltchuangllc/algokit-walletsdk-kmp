@@ -2,15 +2,10 @@ package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
-import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
-import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastClaimVoucherHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
@@ -22,10 +17,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHa
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
 import io.github.aakira.napier.DebugAntilog
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import org.koin.core.Koin
 import org.koin.core.context.loadKoinModules
 import org.koin.mp.KoinPlatform
@@ -588,142 +579,6 @@ fun setIosBroadcastPaymentSendHandler(handler: (String) -> Unit) {
     println("[BroadcastHandlers] iosBroadcastPaymentDCSendMessageHandler set (payment DC ready)")
 }
 
-/** Coroutine scope used by on-chain host settlement calls. Lives as long as the app. */
-private val broadcastSettlementScope = CoroutineScope(Dispatchers.Default)
-
-/**
- * Builds an [MppWalletSigner] for the iOS HOST account (broadcaster).
- * Builds a host-side MPP wallet signer for the demo app.
- */
-private fun buildHostMppWalletSigner(hostAddress: String): MppWalletSigner? {
-    val localAccount =
-        getLocalAccount(hostAddress) ?: run {
-            Napier.e("[HOST_SIGNER_BUILD_SKIP] reason=account_not_found host=$hostAddress")
-            return null
-        }
-    if (localAccount is LocalAccount.SeedVault) return null
-
-    val authorizedSignerPublicKey: ByteArray =
-        when (localAccount) {
-            is LocalAccount.HdKey -> localAccount.publicKey
-            is LocalAccount.Falcon24 -> localAccount.publicKey
-            is LocalAccount.Falcon25 -> localAccount.publicKey
-            is LocalAccount.Algo25 -> {
-                val secretKey =
-                    runCatching {
-                        val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
-                            KoinPlatform.getKoin().get()
-                        runBlocking { repo.getSecretKey(hostAddress) }
-                    }.getOrNull()
-                if (secretKey != null && secretKey.size == 64) secretKey.copyOfRange(32, 64) else ByteArray(0)
-            }
-            else -> ByteArray(0)
-        }
-
-    val signerType =
-        when (localAccount) {
-            is LocalAccount.Falcon24 -> MppWalletSignerType.FALCON_LSIG
-            is LocalAccount.Falcon25 -> MppWalletSignerType.FALCON_NATIVE
-            else -> MppWalletSignerType.ED25519
-        }
-
-    return object : MppWalletSigner {
-        override val address: String = hostAddress
-        override val authorizedSignerPublicKey: ByteArray = authorizedSignerPublicKey
-        override val signerType: MppWalletSignerType = signerType
-
-        override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray {
-            return try {
-                when (localAccount) {
-                    is LocalAccount.Algo25 -> {
-                        val repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Algo25AccountRepository =
-                            KoinPlatform.getKoin().get()
-                        val secretKey = repo.getSecretKey(hostAddress) ?: return ByteArray(0)
-                        com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction(
-                            secretKey = secretKey,
-                            transactionByteArray = txnMsgpack,
-                        ) ?: ByteArray(0)
-                    }
-                    is LocalAccount.HdKey -> {
-                        val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
-                            KoinPlatform.getKoin().get()
-                        val seed = hdSeedRepo.getSeed(localAccount.seedId) ?: return ByteArray(0)
-                        com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
-                            transactionByteArray = txnMsgpack,
-                            seed = seed,
-                            account = localAccount.account,
-                            change = localAccount.change,
-                            key = localAccount.keyIndex,
-                        ) ?: ByteArray(0)
-                    }
-                    is LocalAccount.Falcon24 -> {
-                        val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
-                            KoinPlatform.getKoin().get()
-                        val privateKey = falcon24Repo.getSecretKey(hostAddress) ?: return ByteArray(0)
-                        com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction(
-                            transactionByteArray = txnMsgpack,
-                            publicKey = localAccount.publicKey,
-                            privateKey = privateKey,
-                        ) ?: ByteArray(0)
-                    }
-                    is LocalAccount.Falcon25 -> {
-                        val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
-                            KoinPlatform.getKoin().get()
-                        val seed = falcon25Repo.getSeed(hostAddress) ?: return ByteArray(0)
-                        com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
-                            transactionByteArray = txnMsgpack,
-                            seed = seed,
-                        ) ?: ByteArray(0)
-                    }
-                    else -> ByteArray(0)
-                }
-            } catch (t: Throwable) {
-                Napier.e("[HOST_SIGN_TXN_ERR] host=$hostAddress: ${t.message}", t)
-                ByteArray(0)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalEncodingApi::class)
-suspend fun settleHostVoucherOnChain(
-    hostAddress: String,
-    viewerAddress: String,
-    viewerSignerKeyBase64: String,
-    channelIdBase64: String?,
-) {
-    channelIdBase64
-        ?.let { runCatching { Base64.decode(it) }.getOrNull() }
-        ?.let { channelId ->
-            EscrowSessionVaultManagerClient.channelId = channelId
-            Napier.d("[HOST_SETTLE_CHANNEL_ID_CAPTURED] len=${channelId.size}")
-        }
-    Napier.d("[HOST_SETTLE_START] host=$hostAddress viewer=$viewerAddress")
-    val signer = buildHostMppWalletSigner(hostAddress)
-    if (signer == null) {
-        Napier.e("[HOST_SETTLE_SKIP] reason=no_host_signer host=$hostAddress")
-        return
-    }
-
-    try {
-        val result =
-            MppPayments.settleLatestVoucher(signer = signer)
-        result
-            .onSuccess { txId ->
-                Napier.d("[HOST_SETTLE_OK] txId=$txId host=$hostAddress viewer=$viewerAddress")
-            }.onFailure { e ->
-                val msg = e.message.orEmpty()
-                if (msg.contains("pc=", ignoreCase = true)) {
-                    Napier.d("[HOST_SETTLE_SKIP_NOOP] host=$hostAddress viewer=$viewerAddress reason=$msg")
-                } else {
-                    Napier.e("[HOST_SETTLE_ERR] host=$hostAddress viewer=$viewerAddress", e)
-                }
-            }
-    } catch (t: Throwable) {
-        Napier.e("[HOST_SETTLE_EXCEPTION] host=$hostAddress viewer=$viewerAddress", t)
-    }
-}
-
 fun registerBroadcastHandlers(
     startHandler: (String, String) -> Unit,
     stopHandler: () -> Unit,
@@ -737,21 +592,9 @@ fun registerBroadcastHandlers(
     iosBroadcastIsConnectedHandler = { isBroadcastChannelOpen }
     iosBroadcastDetectConnectionTypeHandler = { broadcastConnectionTypeString }
 
-    // Wire the on-chain host settlement: when Android viewer sends a new voucher,
-    // call settleLatestVoucher() on Algorand so lastSettled is updated.
-    iosBroadcastClaimVoucherHandler = { sessionId, viewerAddress, hostAddress, _, _, viewerPublicKeyBase64, channelIdBase64 ->
-        broadcastSettlementScope.launch {
-            Napier.d(
-                "[HOST_CLAIM_HANDLER] session=$sessionId viewer=$viewerAddress host=$hostAddress channelIdPresent=${channelIdBase64 != null}",
-            )
-            settleHostVoucherOnChain(
-                hostAddress = hostAddress,
-                viewerAddress = viewerAddress,
-                viewerSignerKeyBase64 = viewerPublicKeyBase64,
-                channelIdBase64 = channelIdBase64,
-            )
-        }
-    }
+    // Host-side voucher settlement (block consumption + on-chain settle via
+    // MppWalletSignerUseCase) is now handled entirely in shared Kotlin by
+    // LiquidStreamBlockConsumptionManager — no Swift callback needed.
     println("iOS broadcast handlers registered")
 }
 
