@@ -2,9 +2,12 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
@@ -30,20 +33,9 @@ internal class LiquidStreamBlockConsumptionManager(
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
     private val voucherRepository: MppVoucherRepository,
 ) {
-    data class CreatorVoucherClaimSnapshot(
-        val sessionId: String,
-        val viewerAddress: String,
-        val viewerPublicKeyBase64: String,
-        val signatureBase64: String,
-        val totalAmountClaimedMicroUsdc: Long,
-        val channelIdBase64: String? = null,
-        val blockNumber: Long? = null,
-    )
-
     companion object {
-        private const val CHAIN_READ_TIMEOUT_MS = 10_000L
-        private const val CHAIN_WRITE_TIMEOUT_MS = 15_000L
-        private const val MAX_BLOCK_DIFF_FOR_SETTLEMENT = 888
+        private const val CHAIN_READ_TIMEOUT_MS = VoucherSettlementPolicy.CHAIN_READ_TIMEOUT_MS
+        private const val CHAIN_WRITE_TIMEOUT_MS = VoucherSettlementPolicy.CHAIN_WRITE_TIMEOUT_MS
     }
 
     /**
@@ -301,22 +293,18 @@ internal class LiquidStreamBlockConsumptionManager(
         val viewModel = getViewModel()
         val currentBlock = viewModel?.currentBlockNumber?.value
 
-        if (currentBlock != null && voucherBlockNumber != null && voucherBlockNumber > 0) {
-            val diff = (currentBlock - voucherBlockNumber).let { if (it < 0) -it else it }
-            if (diff > MAX_BLOCK_DIFF_FOR_SETTLEMENT) {
-                Napier.d(
-                    "[SESSION_VAULT_CLAIM_SKIP] " +
-                            "reason=block_diff_too_high " +
-                            "session=$sessionId " +
-                            "diff=$diff " +
-                            "current=$currentBlock " +
-                            "voucher=$voucherBlockNumber",
-                    tag = tag,
-                )
-                // Delete voucher from DB immediately as requested
-                voucherRepository.deleteVoucherBySessionId(sessionId)
-                return
-            }
+        if (VoucherSettlementPolicy.isTooStaleToSettle(currentBlock, voucherBlockNumber)) {
+            Napier.d(
+                "[SESSION_VAULT_CLAIM_SKIP] " +
+                        "reason=block_diff_too_high " +
+                        "session=$sessionId " +
+                        "current=$currentBlock " +
+                        "voucher=$voucherBlockNumber",
+                tag = tag,
+            )
+            // Delete voucher from DB immediately as requested
+            voucherRepository.deleteVoucher(sessionId, viewerAddress, channelIdBase64)
+            return
         }
 
         val settlementResult =
@@ -420,7 +408,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             "session=$sessionId",
                 )
                 // Delete voucher from DB after successful settlement
-                voucherRepository.deleteVoucherBySessionId(sessionId)
+                voucherRepository.deleteVoucher(sessionId, viewerAddress, channelIdBase64)
             }.onFailure {
                 Log.e(
                     tag,

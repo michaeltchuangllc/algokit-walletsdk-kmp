@@ -25,15 +25,11 @@ import platform.AVFoundation.AVAuthorizationStatusAuthorized
 import platform.AVFoundation.AVAuthorizationStatusNotDetermined
 import platform.AVFoundation.AVCaptureDevice
 import platform.AVFoundation.AVCaptureDeviceInput
-import platform.AVFoundation.AVCaptureDevicePositionBack
 import platform.AVFoundation.AVCaptureSession
 import platform.AVFoundation.AVCaptureVideoOrientationPortrait
 import platform.AVFoundation.AVCaptureVideoPreviewLayer
 import platform.AVFoundation.AVLayerVideoGravityResizeAspectFill
 import platform.AVFoundation.AVMediaTypeVideo
-import platform.AVFoundation.authorizationStatusForMediaType
-import platform.AVFoundation.position
-import platform.AVFoundation.requestAccessForMediaType
 import platform.Foundation.NSData
 import platform.QuartzCore.CATransaction
 import platform.UIKit.UIScreen
@@ -89,16 +85,16 @@ actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
                         session.beginConfiguration()
                         session.addInput(input)
                         previewLayer.videoGravity = AVLayerVideoGravityResizeAspectFill
-                        
+
                         // Explicitly set portrait orientation if possible
                         previewLayer.connection?.let { conn ->
                             if (conn.isVideoOrientationSupported()) {
                                 conn.videoOrientation = AVCaptureVideoOrientationPortrait
                             }
                         }
-                        
+
                         session.commitConfiguration()
-                        
+
                         Napier.d("StandaloneCamera: Input and configuration complete (Device: ${device.localizedName})", tag = "CameraPreview")
 
                         dispatch_async(
@@ -125,10 +121,10 @@ actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
                     cameraView.backgroundColor = platform.UIKit.UIColor.blackColor
                     cameraView.layer.masksToBounds = true
                     cameraView.layer.addSublayer(previewLayer)
-                    
+
                     // Set a default non-zero frame immediately
                     previewLayer.frame = UIScreen.mainScreen.bounds
-                    
+
                     cameraView
                 },
                 modifier = Modifier.fillMaxSize(),

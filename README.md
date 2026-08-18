@@ -296,14 +296,14 @@ erDiagram
         String account_name
     }
     mpp_vouchers {
-        String session_id PK
-        String viewer_address
+        String channel_id_base64 PK
+        String session_id UK
+        String viewer_address UK
         String viewer_public_key_base64
         String signature_base64
         Long total_amount_claimed_micro_usdc
         String creator_address
         Long block_number
-        String channel_id_base64
         String note
     }
     custom_hd_seed_info }|--|| hd_seeds : link
