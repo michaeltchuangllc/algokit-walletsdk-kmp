@@ -8,7 +8,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_minimise
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_user
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,6 +65,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUp
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
+import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -351,7 +354,13 @@ private fun Header(
                             .clip(CircleShape)
                             .border(1.dp, Color(0xFF3FD2EF), CircleShape)
                             .background(Color(0x29FFFFFF)),
-                )
+                ) {
+                    Image(
+                        painter = painterResource(Res.drawable.ic_user),
+                        contentDescription = null,
+                        modifier = Modifier.size(38.dp),
+                    )
+                }
                 Box(
                     modifier =
                         Modifier

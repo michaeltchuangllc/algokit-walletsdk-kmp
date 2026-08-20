@@ -57,8 +57,10 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     companion object {
         private const val TAG = "LiquidAuthViewerState"
 
-        // 10 seconds without frames = stream ended.
-        private const val STREAM_TIMEOUT_MS = 10_000L
+        // No frames for this long = stream ended. Tune this to trade off responsiveness
+        // (lower = viewer disconnects faster after the host stops) vs. tolerance for
+        // transient frame gaps/hiccups (higher = fewer false-positive disconnects).
+        private const val STREAM_TIMEOUT_MS = 2_000L
 
         private const val BASE58_ALPHABET =
             "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -194,7 +196,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     onStreamTimeout(reason)
                 }
 
-                delay(500) // Check every 500ms
+                delay(200) // Poll frequently relative to STREAM_TIMEOUT_MS for prompt detection
             }
         }
     }
@@ -279,6 +281,26 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
             hasReceivedAtLeastOneFrame = true
             hasTimedOutCurrentStream = false
         }
+    }
+
+    /**
+     * Lightweight heartbeat for native WebRTC media tracks (as opposed to the legacy
+     * `liquid:video:frame` JSON-message path handled by [setVideoFrame]).
+     *
+     * Platforms that render the remote video track natively (e.g. Android's
+     * `SurfaceViewRenderer`/`VideoSink`, iOS's `RTCMTLVideoView`) have no reason to decode
+     * frame bytes just to keep the stream-timeout watchdog alive — they can call this
+     * whenever a frame is actually rendered/delivered to mark the stream as active without
+     * the overhead of allocating/storing [VideoFrameData].
+     *
+     * Once frames stop arriving (e.g. the host stops or disconnects), the existing watchdog
+     * started in the class initializer will fire [onStreamTimeout] after [STREAM_TIMEOUT_MS],
+     * tearing down the viewer connection automatically.
+     */
+    fun markStreamFrameReceived() {
+        _lastFrameTimestamp.value = currentTimeMillis()
+        hasReceivedAtLeastOneFrame = true
+        hasTimedOutCurrentStream = false
     }
 
     /** Returns whether a frame was received within the timeout window. */

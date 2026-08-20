@@ -18,6 +18,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.FrameHeartbeatThrottle
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
@@ -97,6 +98,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private var viewModel: LiquidAuthOfferViewModel? = null
     private var answerViewModel: AnswerViewModel? = null
+    private val viewerFrameHeartbeatThrottle = FrameHeartbeatThrottle()
     private var activeRequestId: String? = null
     private var activeViewerOrigin: String? = null
     private var activeViewerRequestId: String? = null
@@ -313,6 +315,26 @@ actual class LiquidAuthConnectionManager actual constructor(
         startViewerOnChainRefreshIfReady()
         maybeSetupViewerPaymentRail()
         answerViewModel?.openViewerPaymentRail()
+    }
+
+    /**
+     * Swift should call this whenever a frame is actually rendered on the remote video view
+     * returned by [iosViewerVideoViewProvider] (e.g. from the `RTCVideoRenderer.renderFrame`
+     * delegate callback backing that view). This keeps the shared stream-timeout watchdog in
+     * [AnswerViewModel] (via `LiquidAuthViewerStateHolder`) alive while the host is actively
+     * streaming, mirroring the Android native-track heartbeat. If the host stops streaming and
+     * frames stop arriving, the watchdog fires after `STREAM_TIMEOUT_MS` and tears the viewer
+     * down automatically.
+     *
+     * Safe to call on every single frame - [viewerFrameHeartbeatThrottle] (the same shared
+     * throttle used by Android's `StreamHeartbeatVideoSink`) downsamples it to a low-rate
+     * heartbeat, so Swift doesn't need to do its own throttling.
+     */
+    @Suppress("unused")
+    fun notifyViewerVideoFrameReceived() {
+        if (viewerFrameHeartbeatThrottle.onSignal()) {
+            answerViewModel?.markStreamFrameReceived()
+        }
     }
 
     @Suppress("unused")
