@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -29,6 +30,7 @@ import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import org.webrtc.EglBase
 import org.webrtc.VideoTrack
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Answer Screen for Liquid Auth Client
@@ -55,16 +57,20 @@ fun AnswerScreen(
     val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
     var deliveredMessageCount by remember { mutableIntStateOf(0) }
-
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-
-    // Native WebRTC remote track (host camera + mic) received on the viewer side.
-    // The peer connection (and its EGL context / tracks) is created asynchronously inside
-    // `service.peer()`, so poll until it becomes available instead of resolving once — otherwise
-    // we race the peerClient creation and end up with a null context/track (audio-only).
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
+    val viewerBottomSheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = {it != SheetValue.Hidden },
+        )
+
+    var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
+    val hasError = errorMessage != null
+    val isConnected = message != null && session != SESSION_LOGGED_OUT && !hasError
+    val isPasskeyAuthenticated = session == LIQUID_AUTH_SESSION
+    val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
 
     LaunchedEffect(signalService) {
         val service = signalService ?: return@LaunchedEffect
@@ -83,21 +89,15 @@ fun AnswerScreen(
             if (track == null) {
                 service.setOnRemoteVideoTrack { t -> remoteVideoTrack = t }
             }
-            delay(300)
+            delay(300.milliseconds)
         }
     }
 
-    var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
-    val hasError = errorMessage != null
-    val isConnected = message != null && session != SESSION_LOGGED_OUT && !hasError
-    val isPasskeyAuthenticated = session == LIQUID_AUTH_SESSION
-    val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
-
     LaunchedEffect(viewModel) {
         viewModel.startRealtimeBlockNumberUpdates()
-        Log.d("AnswerScreen", "🎭 Starting to collect view events...")
+        Log.d("AnswerScreen", "Starting to collect view events...")
         viewModel.viewEvent.collect { event ->
-            Log.d("AnswerScreen", "🎭 View event received: ${event::class.simpleName}")
+            Log.d("AnswerScreen", "View event received: ${event::class.simpleName}")
             when (event) {
                 is AnswerViewModel.ViewEvent.StreamDisconnected -> {
                     Log.w("AnswerScreen", "Viewer stream disconnected: ${event.reason}")
@@ -120,26 +120,6 @@ fun AnswerScreen(
         }
     }
 
-    val viewerBottomSheetState =
-        rememberModalBottomSheetState(
-            skipPartiallyExpanded = true,
-        )
-
-    val viewerCameraPreview: (@Composable () -> Unit)? =
-        remoteVideoTrack?.let { track ->
-            {
-                WebRtcVideoRenderer(
-                    eglBaseContext = eglBaseContext,
-                    videoTrack = track,
-                    // The Android host's front camera capturer (WebRTC Camera2Session) bakes a
-                    // horizontal mirror into the transmitted frame. Undo it here so the viewer
-                    // sees the same (correctly oriented) footage as the host's own self-preview,
-                    // matching the equivalent fix in the iOS viewer (LiquidAuthService.swift).
-                    mirror = true,
-                )
-            }
-        }
-
     LaunchedEffect(viewModel) {
         viewModel.chatMessages.collect { messages ->
             if (messages.size > deliveredMessageCount) {
@@ -150,6 +130,17 @@ fun AnswerScreen(
             }
         }
     }
+
+    val viewerCameraPreview: (@Composable () -> Unit)? =
+        remoteVideoTrack?.let { track ->
+            {
+                WebRtcVideoRenderer(
+                    eglBaseContext = eglBaseContext,
+                    videoTrack = track,
+                    mirror = true,
+                )
+            }
+        }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (shouldShowViewerSheet) {
