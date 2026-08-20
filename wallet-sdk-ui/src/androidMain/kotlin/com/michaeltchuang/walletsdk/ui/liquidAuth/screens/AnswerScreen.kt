@@ -8,6 +8,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.SheetValue
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.StreamHeartbeatVideoSink
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
@@ -90,6 +92,20 @@ fun AnswerScreen(
                 service.setOnRemoteVideoTrack { t -> remoteVideoTrack = t }
             }
             delay(300.milliseconds)
+        }
+    }
+
+    // Detect when the host stops streaming: mark the shared stream-timeout watchdog active
+    // whenever a real frame is delivered on the native remote video track. If the host stops
+    // its camera/ends the stream and frames stop arriving, the existing STREAM_TIMEOUT_MS watchdog in
+    // LiquidAuthViewerStateHolder fires onStreamTimeout -> StreamDisconnected, tearing down
+    // the viewer session automatically (handled below).
+    DisposableEffect(remoteVideoTrack) {
+        val track = remoteVideoTrack
+        val heartbeatSink = StreamHeartbeatVideoSink(onHeartbeat = { viewModel.markStreamFrameReceived() })
+        runCatching { track?.addSink(heartbeatSink) }
+        onDispose {
+            runCatching { track?.removeSink(heartbeatSink) }
         }
     }
 
