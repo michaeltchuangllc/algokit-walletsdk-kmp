@@ -451,7 +451,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "if [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedDemoApp:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "if [ \"$ACTION\" = \"indexbuild\" ]; then\n  echo \"Skipping Gradle build task invocation during Xcode indexing build\"\n  exit 0\nfi\nif [ \"YES\" = \"$OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED\" ]; then\n  echo \"Skipping Gradle build task invocation due to OVERRIDE_KOTLIN_BUILD_IDE_SUPPORTED environment variable set to \\\"YES\\\"\"\n  exit 0\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  JAVA_HOME=$(/usr/libexec/java_home 2>/dev/null || true)\nfi\nif [ -z \"$JAVA_HOME\" ]; then\n  if [ -d \"/Applications/Android Studio.app/Contents/jbr/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jbr/Contents/Home\"\n  elif [ -d \"/Applications/Android Studio.app/Contents/jre/Contents/Home\" ]; then\n    JAVA_HOME=\"/Applications/Android Studio.app/Contents/jre/Contents/Home\"\n  fi\nfi\nif [ -n \"$JAVA_HOME\" ]; then\n  export JAVA_HOME\n  export PATH=\"$JAVA_HOME/bin:$PATH\"\nelse\n  echo \"JAVA_HOME is not set and no JDK was found. Install a JDK (e.g., Temurin 21) or set JAVA_HOME, then rebuild.\" >&2\n  exit 1\nfi\ncd \"$SRCROOT/..\"\n./gradlew :sharedDemoApp:embedAndSignAppleFrameworkForXcode\n";
 		};
 		C2F9B5322F28360000E5B9C2 /* Copy Compose Resources */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -465,7 +465,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Determine the architecture based on SDK\nif [[ \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  if [[ \"$ARCHS\" == *\"arm64\"* ]] || [[ \"$(uname -m)\" == \"arm64\" ]]; then\n    ARCH_DIR=\"iosSimulatorArm64Main\"\n  else\n    ARCH_DIR=\"iosX64Main\"\n  fi\nelse\n  ARCH_DIR=\"iosArm64Main\"\nfi\n\n# List of modules with Compose resources\nMODULES=(\"sharedDemoApp\" \"wallet-sdk-ui\" \"wallet-sdk-core\")\n\n# Destination path (note: includes composeResources subdirectory)\nRESOURCE_DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/compose-resources/composeResources\"\n\necho \"📦 Copying Compose resources for architecture: $ARCH_DIR\"\n\n# Create the destination directory if it doesn't exist\nmkdir -p \"$RESOURCE_DEST\"\n\n# Copy resources from each module\nfor MODULE in \"${MODULES[@]}\"; do\n  RESOURCE_SRC=\"$SRCROOT/../$MODULE/build/generated/compose/resourceGenerator/assembledResources/$ARCH_DIR/composeResources\"\n  \n  if [ -d \"$RESOURCE_SRC\" ]; then\n    echo \"  ✅ Copying resources from $MODULE\"\n    cp -R \"$RESOURCE_SRC/\"* \"$RESOURCE_DEST/\" 2>/dev/null || true\n  else\n    echo \"  ℹ️  No resources found for $MODULE (this is OK if module has no resources)\"\n  fi\ndone\n\necho \"📦 Compose resources copy complete\"\n";
+			shellScript = "if [ \"$ACTION\" = \"indexbuild\" ]; then\n  echo \"Skipping Compose resources copy during Xcode indexing build\"\n  exit 0\nfi\n# Determine the architecture based on SDK\nif [[ \"$PLATFORM_NAME\" == \"iphonesimulator\" ]]; then\n  if [[ \"$ARCHS\" == *\"arm64\"* ]] || [[ \"$(uname -m)\" == \"arm64\" ]]; then\n    ARCH_DIR=\"iosSimulatorArm64Main\"\n  else\n    ARCH_DIR=\"iosX64Main\"\n  fi\nelse\n  ARCH_DIR=\"iosArm64Main\"\nfi\n\n# List of modules with Compose resources\nMODULES=(\"sharedDemoApp\" \"wallet-sdk-ui\" \"wallet-sdk-core\")\n\n# Destination path (note: includes composeResources subdirectory)\nRESOURCE_DEST=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH/compose-resources/composeResources\"\n\necho \"📦 Copying Compose resources for architecture: $ARCH_DIR\"\n\n# Create the destination directory if it doesn't exist\nmkdir -p \"$RESOURCE_DEST\"\n\n# Copy resources from each module\nfor MODULE in \"${MODULES[@]}\"; do\n  RESOURCE_SRC=\"$SRCROOT/../$MODULE/build/generated/compose/resourceGenerator/assembledResources/$ARCH_DIR/composeResources\"\n  \n  if [ -d \"$RESOURCE_SRC\" ]; then\n    echo \"  ✅ Copying resources from $MODULE\"\n    cp -R \"$RESOURCE_SRC/\"* \"$RESOURCE_DEST/\" 2>/dev/null || true\n  else\n    echo \"  ℹ️  No resources found for $MODULE (this is OK if module has no resources)\"\n  fi\ndone\n\necho \"📦 Compose resources copy complete\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -657,7 +657,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = "3.202603.3 ";
+				MARKETING_VERSION = 3.202603.3;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo;
 				PRODUCT_NAME = "WalletSDK Demo";
@@ -701,7 +701,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = "3.202603.3 ";
+				MARKETING_VERSION = 3.202603.3;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.michaeltchuang.walletsdk.demo;
 				PRODUCT_NAME = "WalletSDK Demo";
