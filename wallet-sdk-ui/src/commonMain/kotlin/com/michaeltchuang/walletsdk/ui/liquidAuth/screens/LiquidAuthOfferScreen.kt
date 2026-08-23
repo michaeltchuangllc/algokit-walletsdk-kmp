@@ -65,10 +65,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
@@ -82,6 +84,9 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -231,6 +236,8 @@ fun LiquidAuthOfferScreen(
     val remainingBalanceOnChainMicroUsdc by viewModel.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
     val progressBarBalanceMicroUsdc by viewModel.progressBarBalanceMicroUsdc.collectAsStateWithLifecycle()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
+    val lastSettledMicroUsdc by viewModel.lastSettledMicroUsdc.collectAsStateWithLifecycle()
+    val lastSettledUsdc = lastSettledMicroUsdc?.let { it / 1_000_000.0 }
     val currentNetworkLabel by viewModel.currentNetworkLabel.collectAsStateWithLifecycle()
     val creatorAsaBalance by viewModel.creatorAsaBalance.collectAsStateWithLifecycle()
     val isCheckingCreatorAsaBalance by viewModel.isCheckingCreatorAsaBalance.collectAsStateWithLifecycle()
@@ -419,12 +426,45 @@ fun LiquidAuthOfferScreen(
                     }
                 }
 
+                is LiquidAuthOfferViewModel.OfferEvent.BalanceUpdated -> {
+                    // Update hostViewModel with startRound if available
+                    event.startRound?.let { startRound ->
+                        hostViewModel.updateMetrics(startRound = startRound)
+                    }
+                }
+
                 is LiquidAuthOfferViewModel.OfferEvent.ChatMessageReceived -> {
                     hostViewModel.receivedChatMessage(event.message)
                 }
 
                 else -> { // other events
                 }
+            }
+        }
+    }
+
+    LaunchedEffect(hostViewModel) {
+        hostViewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> {
+                    viewModel.currentCostPerBlockMicroUsdc = event.costMicroUsdc
+                    println("💰 Stream cost changed to ${event.costMicroUsdc} micro-units")
+                    val isPaid = event.costMicroUsdc > 0L
+                    viewModel.setStreamingPaid(isPaid)
+                    connectionManager?.setIsPaidStreaming(isPaid)
+                    connectionManager?.setStreamCost(event.costMicroUsdc)
+
+                    // Notify client of cost update via data channel
+                    val update = StreamCostUpdate(costMicroUsdc = event.costMicroUsdc)
+                    val envelope =
+                        buildJsonObject {
+                            put("type", DCMessageType.STREAM_COST_UPDATE.value)
+                            put("sessionId", viewModel.getCurrentSessionId() ?: "")
+                            put("payload", Json.encodeToJsonElement(StreamCostUpdate.serializer(), update))
+                        }
+                    connectionManager?.sendMessage(envelope.toString())
+                }
+                else -> { /* other host events */ }
             }
         }
     }
@@ -463,6 +503,7 @@ fun LiquidAuthOfferScreen(
         creatorAsaBalance = creatorAsaBalance,
         isCheckingCreatorAsaBalance = isCheckingCreatorAsaBalance,
         requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
+        lastSettledUsdc = lastSettledUsdc,
     )
 }
 
@@ -493,6 +534,7 @@ fun LiquidAuthOfferScreenContent(
     creatorAsaBalance: String? = null,
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
+    lastSettledUsdc: Double? = null,
 ) {
     Column(
         modifier =
@@ -594,6 +636,7 @@ fun LiquidAuthOfferScreenContent(
             originUrl = originUrl,
             onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
             hostViewModel = hostViewModel,
+            lastSettledUsdc = lastSettledUsdc,
         )
     }
 }
@@ -618,6 +661,7 @@ private fun StreamHostBottomSheet(
     originUrl: String,
     onStatsModalVisibilityChanged: (Boolean) -> Unit,
     hostViewModel: LiquidStreamHostViewModel,
+    lastSettledUsdc: Double? = null,
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -646,6 +690,7 @@ private fun StreamHostBottomSheet(
                 networkLabel = networkLabel,
                 balanceCurrencySymbol = balanceCurrencySymbol,
                 originUrl = originUrl,
+                lastSettledUsdc = lastSettledUsdc,
                 onSendClick = { text ->
                     connectionManager?.sendChatMessage(
                         ChatMessage(
@@ -702,6 +747,7 @@ private fun StreamHostBottomSheet(
                     networkLabel = networkLabel,
                     balanceCurrencySymbol = balanceCurrencySymbol,
                     originUrl = originUrl,
+                    lastSettledUsdc = lastSettledUsdc,
                     onSendClick = { text ->
                         connectionManager?.sendChatMessage(
                             ChatMessage(

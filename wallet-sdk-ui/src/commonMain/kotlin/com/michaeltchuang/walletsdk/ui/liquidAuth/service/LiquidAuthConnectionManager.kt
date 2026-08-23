@@ -100,6 +100,12 @@ expect class LiquidAuthConnectionManager(
     fun setAudioEnabled(enabled: Boolean)
 
     fun setVideoEnabled(enabled: Boolean)
+
+    fun setIsPaidStreaming(enabled: Boolean)
+
+    fun setStreamCost(cost: Long)
+
+    fun setPayoutFrequency(tabId: String)
 }
 
 const val LIQUID_AUTH_CONNECTION_TYPE_POLL_INTERVAL_MS = 1000L

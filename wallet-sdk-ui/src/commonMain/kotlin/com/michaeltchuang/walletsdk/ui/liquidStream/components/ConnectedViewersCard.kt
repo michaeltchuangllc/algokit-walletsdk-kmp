@@ -49,11 +49,14 @@ data class ConnectedViewerInfo(
     val remainingBalanceUSDC: Double?,
     val progressBalanceUSDC: Double?,
     val progressCapacityUSDC: Double? = null,
+    val revenueCapacityUSDC: Double? = null,
     val connectionType: IceConnectionType,
     val currentBlockNumber: Long? = null,
     val networkLabel: String = "TESTNET",
     val originUrl: String = "-",
     val viewerAddress: String? = null,
+    val lastSettledUSDC: Double? = null,
+    val startRound: Long? = null,
 )
 
 @Composable

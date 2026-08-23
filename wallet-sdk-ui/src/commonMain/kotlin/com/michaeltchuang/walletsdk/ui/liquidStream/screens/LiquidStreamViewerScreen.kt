@@ -87,13 +87,21 @@ fun LiquidStreamViewerScreen(
 ) {
     val viewModel: LiquidAuthViewerViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
-    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+    var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
+    var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
+    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
 
     LaunchedEffect(remainingBalanceUsdc) {
-        if (remainingBalanceUsdc > progressCapacityUsdc) {
+        if (remainingBalanceUsdc > prevRemainingBalanceUsdc) {
+            revenueCapacityUsdc += (remainingBalanceUsdc - prevRemainingBalanceUsdc)
             progressCapacityUsdc = remainingBalanceUsdc
         }
+        prevRemainingBalanceUsdc = remainingBalanceUsdc
     }
+
+    val calculatedRevenue = (revenueCapacityUsdc - remainingBalanceUsdc).coerceAtLeast(0.0)
+    val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
+    val blockNumberLabel = currentBlockNumber?.let { "#$it" } ?: "-"
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -116,6 +124,9 @@ fun LiquidStreamViewerScreen(
         remainingBalanceUsdc = remainingBalanceUsdc,
         progressBalanceUsdc = progressBalanceUsdc,
         progressCapacityUsdc = progressCapacityUsdc,
+        revenueCapacityUsdc = revenueCapacityUsdc,
+        streamRevenue = streamRevenueLabel,
+        blockNumberLabel = blockNumberLabel,
         uiState = uiState,
         onSettingsClick = viewModel::onSettingsClicked,
         onAnalyticsClick = viewModel::onAnalyticsClicked,
@@ -147,6 +158,9 @@ private fun LiquidStreamViewerScreenContent(
     remainingBalanceUsdc: Double,
     progressBalanceUsdc: Double,
     progressCapacityUsdc: Double,
+    revenueCapacityUsdc: Double,
+    streamRevenue: String,
+    blockNumberLabel: String,
     uiState: LiquidAuthViewerViewModel.UiState,
     onSettingsClick: () -> Unit,
     onAnalyticsClick: () -> Unit,
@@ -259,6 +273,7 @@ private fun LiquidStreamViewerScreenContent(
                                     viewerAddress = viewerAddress,
                                     progressBalanceUSDC = progressBalanceUsdc,
                                     progressCapacityUSDC = progressCapacityUsdc,
+                                    revenueCapacityUSDC = revenueCapacityUsdc,
                                 ),
                             ),
                     )
@@ -271,9 +286,9 @@ private fun LiquidStreamViewerScreenContent(
                 selectedPayoutFrequencyTabId = uiState.selectedPayoutFrequencyTabId,
                 willingToBeRelayerEnabled = uiState.willingToBeRelayerEnabled,
                 realTimeRate = uiState.realTimeRate,
-                streamRevenue = uiState.streamRevenue,
+                streamRevenue = streamRevenue,
                 securedViaLabel = "Secured via Algorand ${networkLabel.lowercase().replaceFirstChar { it.titlecase() }}",
-                blockNumberLabel = uiState.blockNumberLabel,
+                blockNumberLabel = blockNumberLabel,
                 onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
                 onWillingToBeRelayerChanged = onWillingToBeRelayerChanged,
                 onDismiss = onViewerSettingsDismissed,
@@ -831,6 +846,9 @@ private fun LiquidAuthViewerScreenPreview() {
             onSendClick = { uiState = uiState.copy(message = "") },
             progressBalanceUsdc = 0.2,
             progressCapacityUsdc = 12.34,
+            revenueCapacityUsdc = 12.34,
+            streamRevenue = "+1.402.15",
+            blockNumberLabel = "#38291041",
         )
     }
 }

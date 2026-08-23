@@ -22,6 +22,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.FrameHeartbeatThrot
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.BroadcastRtcRtpSender
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport.CallbackRtcDataChannel
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -154,6 +156,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var activePaymentAmount: String? = null
     private var activePaymentNetwork: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
+    private var isPaidStreamingEnabled: Boolean = true
 
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         getKoin().get()
@@ -455,7 +458,9 @@ actual class LiquidAuthConnectionManager actual constructor(
             // Sync activePaymentSessionId to the PaywalledRTCServer's actual session.
             activePaymentSessionId = receipt.sessionId
             viewModel?.startVideoStreaming()
-            startBlockConsumption(receipt.sessionId)
+            if (isPaidStreamingEnabled) {
+                startBlockConsumption(receipt.sessionId)
+            }
         }
         creator.rtcServer.onPaymentRejected = { reason ->
             println("$TAG: [Creator] onPaymentRejected reason=$reason")
@@ -502,6 +507,49 @@ actual class LiquidAuthConnectionManager actual constructor(
     actual fun stopBlockConsumption() {
         println("$TAG: stopBlockConsumption")
         blockConsumptionManager.stop()
+    }
+
+    actual fun setIsPaidStreaming(enabled: Boolean) {
+        println("$TAG: 💰 setIsPaidStreaming: $enabled")
+        isPaidStreamingEnabled = enabled
+        if (!enabled) {
+            setStreamCost(0L)
+            stopBlockConsumption()
+            // Clear any stale claim snapshot so we don't settle old vouchers when resuming to Paid.
+            activeCreatorVoucherClaimSnapshot = null
+            activePaymentSessionId?.let { sessionId ->
+                scope.launch {
+                    try {
+                        voucherRepository.deleteVoucherBySessionId(sessionId)
+                        println("$TAG: 💰 Cleared pending vouchers for session $sessionId during switch to Free")
+                    } catch (e: Exception) {
+                        println("$TAG: ❌ Failed to clear vouchers: $e")
+                    }
+                }
+            }
+        } else {
+            // Resume if we have a session
+            activePaymentSessionId?.let { startBlockConsumption(it) }
+        }
+    }
+
+    actual fun setStreamCost(cost: Long) {
+        println("$TAG: 💰 setStreamCost: $cost")
+        activePaymentAmount = cost.toString()
+        streamCreator?.let {
+            updateCreatorViewerSignerConfig(activeViewerAddressForVault, activeViewerAuthorizedSignerKey ?: ByteArray(0))
+        }
+    }
+
+    actual fun setPayoutFrequency(tabId: String) {
+        val blocks =
+            if (tabId == PAYOUT_EVERY_256_BLOCKS_TAB_ID) {
+                PAYOUT_BATCH_BLOCK_COUNT
+            } else {
+                1
+            }
+        println("$TAG: 💰 setPayoutFrequency: tab=$tabId blocks=$blocks")
+        blockConsumptionManager.payoutFrequencyBlocks = blocks
     }
 
     actual fun setupCreator(
@@ -848,8 +896,34 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
                                     "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
                             )
-                            startBlockConsumption(voucherSessionId)
-                            blockConsumptionManager.triggerSettlementFromViewerVoucher(voucherSessionId)
+                            if (isPaidStreamingEnabled) {
+                                activeCreatorVoucherClaimSnapshot =
+                                    CreatorVoucherClaimSnapshot(
+                                        sessionId = voucherSessionId,
+                                        viewerAddress = voucherViewer,
+                                        viewerPublicKeyBase64 = voucherViewerPublicKey,
+                                        signatureBase64 = signature,
+                                        totalAmountClaimedMicroUsdc = claimedAmount,
+                                    )
+                                if (voucherViewer != activeViewerAddressForVault) {
+                                    activeViewerAddressForVault = voucherViewer
+                                    Napier.d("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
+                                }
+                                if (activeViewerAuthorizedSignerKey == null) {
+                                    val voucherSignerKey = voucher.viewerPublicKey
+                                    if (voucherSignerKey != null) {
+                                        activeViewerAuthorizedSignerKey = voucherSignerKey
+                                        Napier.d(
+                                            "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=$voucherViewer " +
+                                                "keyLen=${voucherSignerKey.size}",
+                                        )
+                                    }
+                                }
+                                startBlockConsumption(voucherSessionId)
+                                blockConsumptionManager.triggerSettlementFromViewerVoucher(voucherSessionId)
+                            } else {
+                                println("$TAG: [VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
+                            }
                         }
                     }
                 }

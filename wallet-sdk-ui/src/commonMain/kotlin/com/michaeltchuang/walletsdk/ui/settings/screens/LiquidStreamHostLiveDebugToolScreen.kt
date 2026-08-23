@@ -65,7 +65,9 @@ fun LiquidStreamHostDebugToolScreen(
     val cameraPreviewComp = rememberStandaloneCameraPreview()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
-    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+    var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
+    var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
+    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(debugViewModel) {
@@ -85,11 +87,18 @@ fun LiquidStreamHostDebugToolScreen(
     }
 
     LaunchedEffect(remainingBalanceUsdc) {
-        val balance = remainingBalanceUsdc ?: 0.0
-        if (balance > progressCapacityUsdc) {
-            progressCapacityUsdc = balance
+        val current = remainingBalanceUsdc ?: 0.0
+        val previous = prevRemainingBalanceUsdc
+        if (current > previous) {
+            revenueCapacityUsdc += (current - previous)
+            progressCapacityUsdc = current
         }
+        prevRemainingBalanceUsdc = current
     }
+
+    val calculatedRevenue = (revenueCapacityUsdc - (remainingBalanceUsdc ?: 0.0)).coerceAtLeast(0.0)
+    val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
+    val blockNumberLabelLabel = uiState.currentBlockNumber?.let { "#$it" } ?: "-"
 
     LaunchedEffect(Unit) {
         Napier.d("Viewer 1 Address: ${DebugAddressHolder.viewerAddress}", tag = "LiquidStreamHostDebug")
@@ -146,6 +155,8 @@ fun LiquidStreamHostDebugToolScreen(
                 is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
                 is LiquidStreamHostViewModel.ViewEvent.ToggleMic -> onMicClick(event.isMuted)
                 is LiquidStreamHostViewModel.ViewEvent.ToggleCamera -> onCameraClick(event.isEnabled)
+                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> Unit
+                is LiquidStreamHostViewModel.ViewEvent.PayoutFrequencyChanged -> Unit
             }
         }
     }
@@ -172,9 +183,11 @@ fun LiquidStreamHostDebugToolScreen(
                 onStatsClick()
             },
             onSendClickInternal = { viewModel.onSendClicked() },
-            viewers = debugState.viewers,
+            viewers = debugState.viewers.map { it.copy(revenueCapacityUSDC = revenueCapacityUsdc, progressCapacityUSDC = progressCapacityUsdc) },
             blockChainLabel = blockChainLabel,
             balanceCurrencySymbol = balanceCurrencySymbol,
+            streamRevenue = streamRevenueLabel,
+            blockNumberLabel = blockNumberLabelLabel,
             uiState = uiState,
             onTextChanged = viewModel::onMessageChanged,
             onStatsDismissed = {
@@ -280,6 +293,7 @@ fun LiquidStreamHostDebugScreenPreview() {
                         remainingBalanceUSDC = 12.0,
                         progressBalanceUSDC = 11.9,
                         progressCapacityUSDC = 12.0,
+                        revenueCapacityUSDC = 12.0,
                         connectionType = IceConnectionType.UNKNOWN,
                         currentBlockNumber = 38291041L,
                         networkLabel = "TESTNET",
@@ -288,6 +302,8 @@ fun LiquidStreamHostDebugScreenPreview() {
                 ),
             blockChainLabel = "ALGORAND",
             balanceCurrencySymbol = "A",
+            streamRevenue = "+0.00",
+            blockNumberLabel = "#38291041",
             uiState = uiState,
             onTextChanged = { message -> uiState = uiState.copy(message = message) },
             onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },

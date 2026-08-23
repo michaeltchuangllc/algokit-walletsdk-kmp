@@ -66,6 +66,11 @@ internal class LiquidStreamBlockConsumptionManager(
     @Volatile
     private var currentSessionId: String? = null
 
+    @Volatile
+    var payoutFrequencyBlocks: Int = 1
+
+    private var lastSettledBlockCount: Int = 0
+
     fun start(sessionId: String) {
         Napier.e(
             "[SESSION_VAULT_BLOCK_LOOP_START_REQUEST] " +
@@ -101,6 +106,7 @@ internal class LiquidStreamBlockConsumptionManager(
 
         currentSessionId = sessionId
         blocksConsumed = 0
+        lastSettledBlockCount = 0
 
         processPendingSettlements()
 
@@ -139,14 +145,14 @@ internal class LiquidStreamBlockConsumptionManager(
                     if (claimSnapshot == null) {
                         lastObservedBlock = blockNumber
                         Napier.e(
-                            "[SESSION_VAULT_BLOCK_WAITING_FOR_CLAIM_SNAPSHOT] " +
-                                "session=$sessionId block=$blockNumber",
+                            "[SESSION_VAULT_BLOCK_NO_VOUCHER_YET] " +
+                                "session=$sessionId block=$blockNumber — " +
+                                "proceeding to update UI with on-chain balance",
                             tag = tag,
                         )
-                        return@collect
                     }
 
-                    if (claimSnapshot.sessionId != sessionId) {
+                    if (claimSnapshot != null && claimSnapshot.sessionId != sessionId) {
                         lastObservedBlock = blockNumber
                         Napier.e(
                             "[SESSION_VAULT_BLOCK_WAITING_FOR_SESSION_VOUCHER] " +
@@ -203,6 +209,13 @@ internal class LiquidStreamBlockConsumptionManager(
                 "active=${blockDrivenConsumptionJob?.isActive == true}",
             tag = tag,
         )
+
+        val sessionId = currentSessionId
+        if (sessionId != null) {
+            scope.launch {
+                triggerSettlementFromViewerVoucher(sessionId, force = true)
+            }
+        }
 
         blockDrivenConsumptionJob?.cancel()
         blockDrivenConsumptionJob = null
@@ -268,9 +281,15 @@ internal class LiquidStreamBlockConsumptionManager(
         val progressBarBalanceMicroUsdc =
             progressSnapshot?.progressBalanceMicroUsdc ?: 0L
 
+        val lastSettledMicroUsdc =
+            progressSnapshot?.lastSettledMicroUsdc ?: 0L
+        val startRound =
+            progressSnapshot?.startRound ?: 0L
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = remainingVaultBalance,
             progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
+            lastSettledMicroUsdc = lastSettledMicroUsdc,
+            startRound = startRound,
         )
     }
 
@@ -446,7 +465,10 @@ internal class LiquidStreamBlockConsumptionManager(
         }
     }
 
-    fun triggerSettlementFromViewerVoucher(sessionId: String) {
+    fun triggerSettlementFromViewerVoucher(
+        sessionId: String,
+        force: Boolean = false,
+    ) {
         val creatorAddress = getActiveCreatorAddress()
         val viewerAddress = getActiveViewerAddress()
         val activeSession = currentSessionId
@@ -457,12 +479,28 @@ internal class LiquidStreamBlockConsumptionManager(
             )
             return
         }
-        if (activeSession.isNullOrBlank() || (activeSession != sessionId)) {
+        if (!force && (activeSession.isNullOrBlank() || (activeSession != sessionId))) {
             Napier.e(
                 "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$activeSession",
                 tag = tag,
             )
             return
+        }
+
+        val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
+
+        if (!force) {
+            val blocksSinceLastSettle = localBlocksConsumed - lastSettledBlockCount
+            if (blocksSinceLastSettle < payoutFrequencyBlocks) {
+                Napier.d(
+                    "[SESSION_VAULT_SETTLEMENT_TRIGGER_DEFERRED] " +
+                        "reason=frequency_not_met " +
+                        "blocksSinceLast=$blocksSinceLastSettle " +
+                        "frequency=$payoutFrequencyBlocks",
+                    tag = tag,
+                )
+                return
+            }
         }
 
         if (!settlementMutex.tryLock()) {
@@ -492,13 +530,12 @@ internal class LiquidStreamBlockConsumptionManager(
             return
         }
 
-        val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
         val job =
             scope.launch {
                 val currentJob = coroutineContext[Job]
 
                 try {
-                    if (sessionId != currentSessionId) {
+                    if (!force && sessionId != currentSessionId) {
                         Napier.e(
                             "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$currentSessionId",
                             tag = tag,
@@ -536,6 +573,7 @@ internal class LiquidStreamBlockConsumptionManager(
                             voucherBlockNumber = currentBlock,
                             channelIdBase64 = channelId,
                         )
+                        lastSettledBlockCount = localBlocksConsumed
                     }
                 } finally {
                     settlementMutex.unlock()

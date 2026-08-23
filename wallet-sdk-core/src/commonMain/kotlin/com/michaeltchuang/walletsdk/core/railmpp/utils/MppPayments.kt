@@ -284,6 +284,7 @@ object MppPayments {
         val totalDeposit: Long,
         val lastSettled: Long,
         val latestVoucherAmount: Long,
+        val startRound: Long,
     ) {
         val unclaimedVoucherAmount: Long get() = (latestVoucherAmount - lastSettled).coerceAtLeast(0L)
     }
@@ -294,6 +295,7 @@ object MppPayments {
         val progressBalanceMicroUsdc: Long,
         val lastSettledMicroUsdc: Long,
         val latestVoucherAmountMicroUsdc: Long,
+        val startRound: Long,
     )
 
     fun computeSessionProgressSnapshot(dynamicData: SessionDynamicData): SessionProgressSnapshot {
@@ -306,6 +308,7 @@ object MppPayments {
             progressBalanceMicroUsdc = (total - maxOf(settled, voucher)).coerceAtLeast(0L),
             lastSettledMicroUsdc = settled,
             latestVoucherAmountMicroUsdc = voucher,
+            startRound = dynamicData.startRound,
         )
     }
 
@@ -335,7 +338,13 @@ object MppPayments {
         withContext(Dispatchers.IO) {
             runCatching {
                 val data = EscrowSessionVaultManagerClient.getSessionDynamicData(channelId).getOrThrow()
-                SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
+                val staticData = EscrowSessionVaultManagerClient.getSessionStaticData(channelId).getOrThrow()
+                SessionDynamicData(
+                    totalDeposit = data.totalDeposit,
+                    lastSettled = data.lastSettled,
+                    latestVoucherAmount = data.latestVoucherAmount,
+                    startRound = staticData.startRound
+                )
             }.onFailure {
                 Napier.e(
                     "[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",

@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -45,6 +46,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsFoo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsMetricsCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsPayoutFrequencyBlock
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsTopSquareIconButton
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -61,7 +63,7 @@ private val streamCostTabs =
         SegmentedTabItem(
             id = STREAM_COST_PAID_TAB_ID,
             icon = Res.drawable.ic_usdc,
-            title = "8 micro-USDC",
+            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC/100000} micro-USDC",
         ),
     )
 
@@ -268,7 +270,7 @@ private fun PayoutFrequencyBlock(
     StreamSettingsPayoutFrequencyBlock(
         selectedTabId = selectedTabId,
         onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
-        footnoteText = "Batching payouts every 256 blocks saves you ~ $4,000 USD/year\nin transaction fees compared to every block.",
+        footnoteText = "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year\nin transaction fees compared to every block.",
     )
 }
 

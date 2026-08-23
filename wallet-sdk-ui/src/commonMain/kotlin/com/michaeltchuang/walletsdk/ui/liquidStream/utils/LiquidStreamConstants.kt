@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.StreamMetricsCa
 
 internal const val PAYOUT_EVERY_BLOCK_TAB_ID = "every_block"
 internal const val PAYOUT_EVERY_256_BLOCKS_TAB_ID = "every_256_blocks"
+internal const val PAYOUT_BATCH_BLOCK_COUNT = 3
 
 const val LIQUID_AUTH_SESSION = "LiquidAuth"
 const val SESSION_LOGGED_OUT = "Logged Out"
@@ -38,7 +39,7 @@ val payoutFrequencyTabs =
         SegmentedTabItem(
             id = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
             icon = Res.drawable.ic_every_block,
-            title = "Every 256 Blocks",
+            title = "Every $PAYOUT_BATCH_BLOCK_COUNT blocks",
             subtitle = "(~12 mins)",
         ),
     )

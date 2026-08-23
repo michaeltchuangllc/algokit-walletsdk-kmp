@@ -61,6 +61,7 @@ class MppPaymentViewerManager(
     private var viewerVoucherClaimedMicroUsdc: Long = 0L
     private var viewerVoucherCapLoggedSessionId: String? = null
     private var pendingPayment: Boolean = false
+    private var currentStreamCostMicroUsdc: Long? = null
 
 
     fun markPaymentPending() {
@@ -75,6 +76,11 @@ class MppPaymentViewerManager(
 
     fun sendChatMessage(message: ChatMessage) {
         liquidStreamViewer?.sendChatMessage(message)
+    }
+
+    fun updateStreamCost(cost: Long) {
+        currentStreamCostMicroUsdc = cost
+        Napier.d("[VIEWER_STREAM_COST_UPDATED] cost=$cost", tag = TAG)
     }
 
     fun start(params: StartParams) {
@@ -333,7 +339,7 @@ class MppPaymentViewerManager(
         signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
         setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
     ) {
-        val debit = receiptAmount.toLongOrNull() ?: 0L
+        val debit = currentStreamCostMicroUsdc ?: receiptAmount.toLongOrNull() ?: 0L
         val receiptViewerAddress = receiptPayFrom.ifBlank { viewerAddress }
         if (viewerVoucherSessionId != receiptSessionId) {
             viewerVoucherSessionId = receiptSessionId
