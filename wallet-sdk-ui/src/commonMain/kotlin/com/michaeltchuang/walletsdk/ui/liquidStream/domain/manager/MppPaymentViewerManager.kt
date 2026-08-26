@@ -58,6 +58,8 @@ class MppPaymentViewerManager(
     private var viewerAuthorizedSignerPublicKey: ByteArray? = null
     private var viewerVoucherSessionId: String? = null
     private var viewerVoucherBlocksConsumed: Int = 0
+    private var viewerPaidBlocksConsumed: Int = 0
+    private var viewerFreeBlocksConsumed: Int = 0
     private var viewerVoucherClaimedMicroUsdc: Long = 0L
     private var viewerVoucherCapLoggedSessionId: String? = null
     private var pendingPayment: Boolean = false
@@ -93,6 +95,8 @@ class MppPaymentViewerManager(
         liquidStreamViewer?.terminate()
         viewerVoucherSessionId = null
         viewerVoucherBlocksConsumed = 0
+        viewerPaidBlocksConsumed = 0
+        viewerFreeBlocksConsumed = 0
         viewerVoucherClaimedMicroUsdc = 0L
         viewerVoucherCapLoggedSessionId = null
         clearPendingPayment()
@@ -321,6 +325,8 @@ class MppPaymentViewerManager(
         viewerAuthorizedSignerPublicKey = null
         viewerVoucherSessionId = null
         viewerVoucherBlocksConsumed = 0
+        viewerPaidBlocksConsumed = 0
+        viewerFreeBlocksConsumed = 0
         viewerVoucherClaimedMicroUsdc = 0L
         viewerVoucherCapLoggedSessionId = null
         clearPendingPayment()
@@ -344,10 +350,37 @@ class MppPaymentViewerManager(
         if (viewerVoucherSessionId != receiptSessionId) {
             viewerVoucherSessionId = receiptSessionId
             viewerVoucherBlocksConsumed = 0
+            viewerPaidBlocksConsumed = 0
+            viewerFreeBlocksConsumed = 0
             viewerVoucherClaimedMicroUsdc = 0L
             viewerVoucherCapLoggedSessionId = null
         }
-        viewerVoucherBlocksConsumed += 1
+
+        val progressSnapshot =
+            safeApiCall("getSessionProgressSnapshot.onReceipt") {
+                MppPayments.getSessionProgressSnapshotFromVault()
+            }
+        val currentBalance = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
+
+        if (currentBalance > 0) {
+            if (debit > 0) {
+                viewerPaidBlocksConsumed++
+            } else {
+                viewerFreeBlocksConsumed++
+            }
+            viewerVoucherBlocksConsumed += 1
+
+            Napier.d(
+                "[VIEWER_BLOCK_CONSUMED] session=$receiptSessionId paid=$viewerPaidBlocksConsumed free=$viewerFreeBlocksConsumed total=$viewerVoucherBlocksConsumed debit=$debit",
+                tag = TAG,
+            )
+        } else {
+            Napier.w(
+                "[VIEWER_BLOCK_CONSUMED_SKIPPED_ZERO_BALANCE] session=$receiptSessionId balance=$currentBalance",
+                tag = TAG,
+            )
+        }
+
         val blocksConsumed = viewerVoucherBlocksConsumed.coerceAtLeast(0)
         val voucherIncrement = debit.coerceAtLeast(0L)
 
@@ -367,7 +400,12 @@ class MppPaymentViewerManager(
             val hasOnChainSessionData = (preUpdateDynamicData != null) && (preUpdateTotalDeposit > 0L)
             val voucherBase = maxOf(viewerVoucherClaimedMicroUsdc, preUpdateLatestVoucher)
             val voucherClaimedRaw = (voucherBase + voucherIncrement).coerceAtLeast(0L)
-            val minRequiredCumulative = maxOf(preUpdateLatestVoucher, preUpdateLastSettled) + 1L
+            val minRequiredCumulative =
+                if (voucherIncrement > 0) {
+                    maxOf(preUpdateLatestVoucher, preUpdateLastSettled) + 1L
+                } else {
+                    maxOf(preUpdateLatestVoucher, preUpdateLastSettled)
+                }
             val maxAllowedCumulative = if (hasOnChainSessionData) preUpdateTotalDeposit else Long.MAX_VALUE
             val voucherClaimed = voucherClaimedRaw.coerceAtLeast(minRequiredCumulative).coerceAtMost(maxAllowedCumulative)
 
@@ -416,10 +454,6 @@ class MppPaymentViewerManager(
             }
         }
 
-        val progressSnapshot =
-            safeApiCall("getSessionProgressSnapshot.onReceipt") {
-                MppPayments.getSessionProgressSnapshotFromVault()
-            }
         setViewerSessionVaultProgress(
             progressSnapshot?.remainingSettledMicroUsdc ?: 0L,
             progressSnapshot?.progressBalanceMicroUsdc ?: 0L,

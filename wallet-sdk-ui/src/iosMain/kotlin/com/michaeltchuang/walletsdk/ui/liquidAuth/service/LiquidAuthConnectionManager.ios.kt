@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -160,6 +161,8 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private val getRemainingBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         getKoin().get()
+    private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase =
+        getKoin().get()
     private val voucherRepository: MppVoucherRepository = getKoin().get()
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = getKoin().get()
     private val platformServices = LiquidAuthPlatformServices()
@@ -172,7 +175,9 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
+            getIsPaidStreaming = { isPaidStreamingEnabled },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
         )
 

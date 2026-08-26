@@ -24,6 +24,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClai
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -71,6 +72,8 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
+    private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase =
+        koin.get(clazz = GetMppVoucherNoteUseCase::class)
     private val voucherRepository: MppVoucherRepository =
         koin.get(clazz = MppVoucherRepository::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
@@ -121,7 +124,9 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
+            getIsPaidStreaming = { isPaidStreamingEnabled },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
         )
 
@@ -162,7 +167,6 @@ actual class LiquidAuthConnectionManager actual constructor(
         isPaidStreamingEnabled = enabled
         if (!enabled) {
             setStreamCost(0L)
-            stopBlockConsumption()
             // Clear any stale claim snapshot so we don't settle old vouchers when resuming to Paid.
             activeCreatorVoucherClaimSnapshot = null
             activePaymentSessionId?.let { sessionId ->

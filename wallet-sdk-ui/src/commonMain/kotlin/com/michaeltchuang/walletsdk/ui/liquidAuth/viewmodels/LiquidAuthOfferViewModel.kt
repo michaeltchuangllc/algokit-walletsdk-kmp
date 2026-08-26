@@ -509,6 +509,8 @@ class LiquidAuthOfferViewModel(
         progressBarBalanceMicroUsdc: Long? = null,
         lastSettledMicroUsdc: Long? = null,
         startRound: Long? = null,
+        paidBlocks: Int = 0,
+        freeBlocks: Int = 0,
     ) {
         val onChainRemaining =
             onChainRemainingMicroUsdc ?: run {
@@ -532,18 +534,20 @@ class LiquidAuthOfferViewModel(
                     PaymentState.StreamingWithBalance(
                         initialDepositMicroUsdc = onChainRemaining,
                         remainingMicroUsdc = progressBalance,
-                        blocksWatched = 0,
+                        blocksWatched = paidBlocks,
+                        freeBlocksWatched = freeBlocks,
                     )
                 updateStreamingPaymentStatus(StreamingPaymentStatus.Active)
             }
             return
         }
 
-        val newBlocksWatched = currentPaymentState.blocksWatched + 1
+        val newBlocksWatched = paidBlocks.coerceAtLeast(currentPaymentState.blocksWatched)
+        val newFreeBlocksWatched = freeBlocks.coerceAtLeast(currentPaymentState.freeBlocksWatched)
 
         if (progressBalance <= 0) {
             // Funds depleted - stop streaming immediately
-            println("💰⛽ BALANCE DEPLETED! Stopping video stream...")
+            println("💰⛽ BALANCE DEPLETED! Stopping video stream... paid=$newBlocksWatched free=$newFreeBlocksWatched")
 
             // Stop the video streaming
             val currentState = state.value
@@ -562,6 +566,7 @@ class LiquidAuthOfferViewModel(
             _paymentState.value =
                 PaymentState.Depleted(
                     totalBlocksWatched = newBlocksWatched,
+                    totalFreeBlocksWatched = newFreeBlocksWatched,
                     totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroUsdc,
                 )
             _remainingBalanceMicroUsdc.value = 0
@@ -573,6 +578,7 @@ class LiquidAuthOfferViewModel(
                 eventDelegate.sendEvent(
                     OfferEvent.FundsDepleted(
                         totalBlocksWatched = newBlocksWatched,
+                        totalFreeBlocksWatched = newFreeBlocksWatched,
                         totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroUsdc,
                     ),
                 )
@@ -583,6 +589,7 @@ class LiquidAuthOfferViewModel(
                 currentPaymentState.copy(
                     remainingMicroUsdc = progressBalance,
                     blocksWatched = newBlocksWatched,
+                    freeBlocksWatched = newFreeBlocksWatched,
                 )
             // Source-of-truth on-chain remaining from Session Vault smart contract.
             _remainingBalanceMicroUsdc.value = onChainRemainingMicroUsdc
@@ -730,11 +737,21 @@ class LiquidAuthOfferViewModel(
             }
         }
 
+        val (existingPaid, existingFree) =
+            if (currentPaymentState is PaymentState.StreamingWithBalance) {
+                currentPaymentState.blocksWatched to currentPaymentState.freeBlocksWatched
+            } else if (currentPaymentState is PaymentState.Depleted) {
+                currentPaymentState.totalBlocksWatched to currentPaymentState.totalFreeBlocksWatched
+            } else {
+                0 to 0
+            }
+
         _paymentState.value =
             PaymentState.StreamingWithBalance(
                 initialDepositMicroUsdc = DEPOSIT_AMOUNT_MICRO_USDC,
                 remainingMicroUsdc = 0,
-                blocksWatched = 0,
+                blocksWatched = existingPaid,
+                freeBlocksWatched = existingFree,
             )
         _remainingBalanceMicroUsdc.value = null
         _progressBarBalanceMicroUsdc.value = null
@@ -873,6 +890,7 @@ class LiquidAuthOfferViewModel(
             val initialDepositMicroUsdc: Long,
             val remainingMicroUsdc: Long,
             val blocksWatched: Int,
+            val freeBlocksWatched: Int = 0,
         ) : PaymentState
 
         data class Rejected(
@@ -885,6 +903,7 @@ class LiquidAuthOfferViewModel(
 
         data class Depleted(
             val totalBlocksWatched: Int,
+            val totalFreeBlocksWatched: Int = 0,
             val totalConsumedMicroAlgos: Long,
         ) : PaymentState
     }
@@ -1008,6 +1027,7 @@ class LiquidAuthOfferViewModel(
          */
         data class FundsDepleted(
             val totalBlocksWatched: Int,
+            val totalFreeBlocksWatched: Int = 0,
             val totalConsumedMicroAlgos: Long,
         ) : OfferEvent
 

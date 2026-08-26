@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.RailMppDataRe
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.SessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.DebugAddressSelectionsUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRailMppChannelSaltUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
@@ -22,6 +23,7 @@ val railMppModule =
         single<RailMppDataRepository> { RailMppDataRepositoryImpl() }
         single<SessionVaultBalanceRepository> { SessionVaultBalanceRepositoryImpl() }
         singleOf(::DebugAddressSelectionsUseCase)
+        singleOf(::GetMppVoucherNoteUseCase)
         singleOf(::GetRailMppChannelSaltUseCase)
         singleOf(::GetRemainingSessionVaultBalanceUseCase)
         singleOf(::GetSessionVaultConfigUseCase)

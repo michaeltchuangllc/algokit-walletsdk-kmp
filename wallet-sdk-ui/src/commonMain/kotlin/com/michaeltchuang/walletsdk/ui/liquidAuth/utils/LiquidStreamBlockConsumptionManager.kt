@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClai
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
@@ -36,7 +37,9 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getActiveViewerAddress: () -> String?,
     private val getActiveCreatorAddress: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
+    private val getIsPaidStreaming: () -> Boolean,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
+    private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase,
     private val voucherRepository: MppVoucherRepository,
 ) {
     companion object {
@@ -44,31 +47,25 @@ internal class LiquidStreamBlockConsumptionManager(
         private const val CHAIN_WRITE_TIMEOUT_MS = VoucherSettlementPolicy.CHAIN_WRITE_TIMEOUT_MS
     }
 
-    /**
-     * Single managed scope.
-     * Prevents leaked coroutines from anonymous CoroutineScope().
-     */
-    private val scope =
-        CoroutineScope(
-            SupervisorJob() + Dispatchers.IO,
-        )
-
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val settlementMutex = Mutex()
-
     private var blockDrivenConsumptionJob: Job? = null
-
     @Volatile
     private var settlementJob: Job? = null
-
     @Volatile
     private var blocksConsumed: Int = 0
-
+    @Volatile
+    private var paidBlocksConsumed: Int = 0
+    @Volatile
+    private var freeBlocksConsumed: Int = 0
     @Volatile
     private var currentSessionId: String? = null
-
+    @Volatile
+    private var startRound: Long = 0L
+    @Volatile
+    private var lastSettledMicroUsdc: Long = 0L
     @Volatile
     var payoutFrequencyBlocks: Int = 1
-
     private var lastSettledBlockCount: Int = 0
 
     fun start(sessionId: String) {
@@ -104,9 +101,14 @@ internal class LiquidStreamBlockConsumptionManager(
                 return
             }
 
+        val isNewSession = currentSessionId != sessionId
+        if (isNewSession) {
+            blocksConsumed = 0
+            paidBlocksConsumed = 0
+            freeBlocksConsumed = 0
+            lastSettledBlockCount = 0
+        }
         currentSessionId = sessionId
-        blocksConsumed = 0
-        lastSettledBlockCount = 0
 
         processPendingSettlements()
 
@@ -222,8 +224,6 @@ internal class LiquidStreamBlockConsumptionManager(
 
         getViewModel()?.stopRealtimeBlockNumberUpdates()
 
-        currentSessionId = null
-        blocksConsumed = 0
         val jobToCancel = settlementJob
         settlementJob = null
         jobToCancel?.cancel()
@@ -249,8 +249,6 @@ internal class LiquidStreamBlockConsumptionManager(
             return
         }
 
-        val localBlocksConsumed = ++blocksConsumed
-
         val viewerAddress =
             getActiveViewerAddress()
                 ?.takeIf { it.isNotBlank() }
@@ -267,7 +265,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     throw ce
                 } catch (t: Throwable) {
                     Napier.e(
-                        "[SESSION_VAULT_PROGRESS_FETCH_TIMEOUT_OR_ERR] session=$sessionId blocks=$localBlocksConsumed viewer=$viewerAddress creator=$creatorAddress timeoutMs=$CHAIN_READ_TIMEOUT_MS",
+                        "[SESSION_VAULT_PROGRESS_FETCH_TIMEOUT_OR_ERR] session=$sessionId viewer=$viewerAddress creator=$creatorAddress timeoutMs=$CHAIN_READ_TIMEOUT_MS",
                         t,
                         tag = tag,
                     )
@@ -281,15 +279,45 @@ internal class LiquidStreamBlockConsumptionManager(
         val progressBarBalanceMicroUsdc =
             progressSnapshot?.progressBalanceMicroUsdc ?: 0L
 
-        val lastSettledMicroUsdc =
+        if (progressBarBalanceMicroUsdc > 0) {
+            val isPaid = getIsPaidStreaming()
+            if (isPaid) {
+                paidBlocksConsumed++
+            } else {
+                freeBlocksConsumed++
+            }
+            blocksConsumed++
+
+            Napier.e(
+                "[BLOCK_CONSUMED] session=$sessionId " +
+                    "paid=$paidBlocksConsumed " +
+                    "free=$freeBlocksConsumed " +
+                    "total=$blocksConsumed" +
+                    " isPaidStreaming=$isPaid",
+                tag = tag,
+            )
+        } else {
+            Napier.w(
+                "[BLOCK_CONSUMED_SKIPPED_ZERO_BALANCE] session=$sessionId balance=$progressBarBalanceMicroUsdc",
+                tag = tag,
+            )
+        }
+
+        val lastSettled =
             progressSnapshot?.lastSettledMicroUsdc ?: 0L
-        val startRound =
+        val start =
             progressSnapshot?.startRound ?: 0L
+
+        lastSettledMicroUsdc = lastSettled
+        startRound = start
+
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = remainingVaultBalance,
             progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
-            lastSettledMicroUsdc = lastSettledMicroUsdc,
-            startRound = startRound,
+            lastSettledMicroUsdc = lastSettled,
+            startRound = start,
+            paidBlocks = paidBlocksConsumed,
+            freeBlocks = freeBlocksConsumed,
         )
     }
 
@@ -302,6 +330,7 @@ internal class LiquidStreamBlockConsumptionManager(
         localBlocksConsumed: Int,
         voucherBlockNumber: Long? = null,
         channelIdBase64: String? = null,
+        note: String
     ) {
         Napier.d(
             "[SESSION_VAULT_CLAIM_ATTEMPT] " +
@@ -379,6 +408,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                             cumulativeAmountMicroUsdc = signedTotalAmount,
                                             signature = signature,
                                             channelId = channelId,
+                                            note = note
                                         ).getOrThrow()
                                 },
                             )
@@ -459,6 +489,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         localBlocksConsumed = 0,
                         voucherBlockNumber = voucher.blockNumber,
                         channelIdBase64 = voucher.channelIdBase64,
+                        note = voucher.note
                     )
                 }
             }
@@ -488,9 +519,10 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
+        val localPaidBlocksConsumed = paidBlocksConsumed.coerceAtLeast(0)
 
         if (!force) {
-            val blocksSinceLastSettle = localBlocksConsumed - lastSettledBlockCount
+            val blocksSinceLastSettle = localPaidBlocksConsumed - lastSettledBlockCount
             if (blocksSinceLastSettle < payoutFrequencyBlocks) {
                 Napier.d(
                     "[SESSION_VAULT_SETTLEMENT_TRIGGER_DEFERRED] " +
@@ -549,6 +581,20 @@ internal class LiquidStreamBlockConsumptionManager(
                         // Save latest voucher to DB before settlement
                         val viewModel = getViewModel()
                         val currentBlock = viewModel?.currentBlockNumber?.value ?: 0L
+
+                        val noteJson = getMppVoucherNoteUseCase(
+                            GetMppVoucherNoteUseCase.Params(
+                                channelId = channelId,
+                                startBlock = startRound,
+                                currentBlock = currentBlock,
+                                freeBlocks = freeBlocksConsumed.toLong(),
+                                paidBlocks = paidBlocksConsumed.toLong(),
+                                costPerPaidBlock = viewModel?.currentCostPerBlockMicroUsdc ?: 0L,
+                                settledAmount = lastSettledMicroUsdc,
+                                totalCumulativeAmount = claimSnapshot.totalAmountClaimedMicroUsdc
+                            )
+                        )
+
                         voucherRepository.upsertVoucher(
                             MppVoucherEntity(
                                 sessionId = sessionId,
@@ -559,10 +605,9 @@ internal class LiquidStreamBlockConsumptionManager(
                                 creatorAddress = creatorAddress,
                                 blockNumber = currentBlock,
                                 channelIdBase64 = channelId,
-                                note = "N/A",
+                                note = noteJson,
                             ),
                         )
-
                         startSettlement(
                             sessionId = sessionId,
                             viewerAddress = viewerAddress,
@@ -572,8 +617,9 @@ internal class LiquidStreamBlockConsumptionManager(
                             localBlocksConsumed = localBlocksConsumed,
                             voucherBlockNumber = currentBlock,
                             channelIdBase64 = channelId,
+                            note = noteJson,
                         )
-                        lastSettledBlockCount = localBlocksConsumed
+                        lastSettledBlockCount = localPaidBlocksConsumed
                     }
                 } finally {
                     settlementMutex.unlock()
