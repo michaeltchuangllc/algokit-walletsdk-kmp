@@ -50,7 +50,7 @@ fun LiquidStreamHostDebugToolScreen(
     debugViewModel: LiquidStreamHostDebugToolViewModel = koinViewModel(),
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
-    onWalletClick: () -> Unit = {}, 
+    onWalletClick: () -> Unit = {},
     onCameraClick: (isEnabled: Boolean) -> Unit = {},
     onMicClick: (isMuted: Boolean) -> Unit = {},
     onRotateCamera: () -> Unit = {},
@@ -183,7 +183,13 @@ fun LiquidStreamHostDebugToolScreen(
                 onStatsClick()
             },
             onSendClickInternal = { viewModel.onSendClicked() },
-            viewers = debugState.viewers.map { it.copy(revenueCapacityUSDC = revenueCapacityUsdc, progressCapacityUSDC = progressCapacityUsdc) },
+            viewers =
+                debugState.viewers.map {
+                    it.copy(
+                        revenueCapacityUSDC = revenueCapacityUsdc,
+                        progressCapacityUSDC = progressCapacityUsdc,
+                    )
+                },
             blockChainLabel = blockChainLabel,
             balanceCurrencySymbol = balanceCurrencySymbol,
             streamRevenue = streamRevenueLabel,
@@ -240,8 +246,6 @@ fun LiquidStreamHostDebugToolScreen(
             }
         }
     }
-    
-    
 }
 
 @Preview

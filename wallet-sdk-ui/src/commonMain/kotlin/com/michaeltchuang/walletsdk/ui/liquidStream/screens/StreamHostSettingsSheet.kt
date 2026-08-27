@@ -63,7 +63,7 @@ private val streamCostTabs =
         SegmentedTabItem(
             id = STREAM_COST_PAID_TAB_ID,
             icon = Res.drawable.ic_usdc,
-            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC/100000} micro-USDC",
+            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC / 100000} micro-USDC",
         ),
     )
 
@@ -270,7 +270,9 @@ private fun PayoutFrequencyBlock(
     StreamSettingsPayoutFrequencyBlock(
         selectedTabId = selectedTabId,
         onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
-        footnoteText = "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year\nin transaction fees compared to every block.",
+        footnoteText =
+            "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year\n" +
+                "in transaction fees compared to every block.",
     )
 }
 

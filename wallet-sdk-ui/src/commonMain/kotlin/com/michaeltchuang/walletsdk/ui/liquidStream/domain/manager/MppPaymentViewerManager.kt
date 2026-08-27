@@ -65,7 +65,6 @@ class MppPaymentViewerManager(
     private var pendingPayment: Boolean = false
     private var currentStreamCostMicroUsdc: Long? = null
 
-
     fun markPaymentPending() {
         pendingPayment = true
         Napier.d("[PAYMENT_PENDING_SET] pendingPayment=$pendingPayment", tag = TAG)

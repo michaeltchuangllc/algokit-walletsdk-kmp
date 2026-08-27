@@ -60,9 +60,7 @@ data class ConnectedViewerInfo(
 )
 
 @Composable
-internal fun ConnectedViewersCard(
-    viewers: List<ConnectedViewerInfo>,
-) {
+internal fun ConnectedViewersCard(viewers: List<ConnectedViewerInfo>) {
     if (viewers.isEmpty()) return
 
     val colors = AlgoKitTheme.colors
@@ -260,7 +258,6 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         MetaRow(label = "REQUEST ID:", value = shortSessionId)
     }
 }
-
 
 @Composable
 private fun MetricBlock(

@@ -21,6 +21,7 @@ import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 
 const val MINIMUM_BALANCE = 10_000_0L // 10 ALGO/USDC
+
 class DeveloperSettingsViewModel(
     private val algo25AccountTypeMapper: Algo25AccountTypeMapper,
     private val hdSeedRepository: HdSeedRepository,

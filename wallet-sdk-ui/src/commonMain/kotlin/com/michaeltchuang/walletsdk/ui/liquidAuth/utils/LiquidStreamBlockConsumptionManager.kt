@@ -50,20 +50,28 @@ internal class LiquidStreamBlockConsumptionManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val settlementMutex = Mutex()
     private var blockDrivenConsumptionJob: Job? = null
+
     @Volatile
     private var settlementJob: Job? = null
+
     @Volatile
     private var blocksConsumed: Int = 0
+
     @Volatile
     private var paidBlocksConsumed: Int = 0
+
     @Volatile
     private var freeBlocksConsumed: Int = 0
+
     @Volatile
     private var currentSessionId: String? = null
+
     @Volatile
     private var startRound: Long = 0L
+
     @Volatile
     private var lastSettledMicroUsdc: Long = 0L
+
     @Volatile
     var payoutFrequencyBlocks: Int = 1
     private var lastSettledBlockCount: Int = 0
@@ -330,7 +338,7 @@ internal class LiquidStreamBlockConsumptionManager(
         localBlocksConsumed: Int,
         voucherBlockNumber: Long? = null,
         channelIdBase64: String? = null,
-        note: String
+        note: String,
     ) {
         Napier.d(
             "[SESSION_VAULT_CLAIM_ATTEMPT] " +
@@ -408,7 +416,7 @@ internal class LiquidStreamBlockConsumptionManager(
                                             cumulativeAmountMicroUsdc = signedTotalAmount,
                                             signature = signature,
                                             channelId = channelId,
-                                            note = note
+                                            note = note,
                                         ).getOrThrow()
                                 },
                             )
@@ -489,7 +497,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         localBlocksConsumed = 0,
                         voucherBlockNumber = voucher.blockNumber,
                         channelIdBase64 = voucher.channelIdBase64,
-                        note = voucher.note
+                        note = voucher.note,
                     )
                 }
             }
@@ -582,18 +590,19 @@ internal class LiquidStreamBlockConsumptionManager(
                         val viewModel = getViewModel()
                         val currentBlock = viewModel?.currentBlockNumber?.value ?: 0L
 
-                        val noteJson = getMppVoucherNoteUseCase(
-                            GetMppVoucherNoteUseCase.Params(
-                                channelId = channelId,
-                                startBlock = startRound,
-                                currentBlock = currentBlock,
-                                freeBlocks = freeBlocksConsumed.toLong(),
-                                paidBlocks = paidBlocksConsumed.toLong(),
-                                costPerPaidBlock = viewModel?.currentCostPerBlockMicroUsdc ?: 0L,
-                                settledAmount = lastSettledMicroUsdc,
-                                totalCumulativeAmount = claimSnapshot.totalAmountClaimedMicroUsdc
+                        val noteJson =
+                            getMppVoucherNoteUseCase(
+                                GetMppVoucherNoteUseCase.Params(
+                                    channelId = channelId,
+                                    startBlock = startRound,
+                                    currentBlock = currentBlock,
+                                    freeBlocks = freeBlocksConsumed.toLong(),
+                                    paidBlocks = paidBlocksConsumed.toLong(),
+                                    costPerPaidBlock = viewModel?.currentCostPerBlockMicroUsdc ?: 0L,
+                                    settledAmount = lastSettledMicroUsdc,
+                                    totalCumulativeAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
+                                ),
                             )
-                        )
 
                         voucherRepository.upsertVoucher(
                             MppVoucherEntity(

@@ -84,7 +84,6 @@ fun LiquidStreamHostLiveScreen(
         prevRemainingBalanceUsdc = current
     }
 
-
     val viewers =
         remember(
             sessionId,

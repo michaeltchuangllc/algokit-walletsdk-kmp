@@ -80,9 +80,9 @@ class LiquidAuthOfferViewModel(
     val currentBlockNumber: StateFlow<Long?> = _currentBlockNumber
 
     // Current network label for UI display
-    private val _currentNetwork = MutableStateFlow(AlgorandNetwork.TESTNET)
+    private val currentNetworkFlow = MutableStateFlow(AlgorandNetwork.TESTNET)
     val currentNetworkLabel: StateFlow<String> =
-        _currentNetwork
+        currentNetworkFlow
             .map { network ->
                 network.displayName.uppercase()
             }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "TESTNET")
@@ -776,7 +776,7 @@ class LiquidAuthOfferViewModel(
     private fun observeCurrentNetwork() {
         viewModelScope.launch {
             getCurrentNetworkUseCase().collect { network ->
-                _currentNetwork.value = network
+                currentNetworkFlow.value = network
             }
         }
     }

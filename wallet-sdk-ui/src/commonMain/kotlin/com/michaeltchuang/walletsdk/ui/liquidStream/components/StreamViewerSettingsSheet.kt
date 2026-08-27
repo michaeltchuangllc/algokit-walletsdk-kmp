@@ -179,7 +179,9 @@ private fun ViewerPayoutFrequencyBlock(
     StreamSettingsPayoutFrequencyBlock(
         selectedTabId = selectedTabId,
         onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
-        footnoteText = "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year in transaction fees compared to every block.",
+        footnoteText =
+            "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year " +
+                "in transaction fees compared to every block.",
         footnoteStarTopPadding = 0.dp,
     )
 }

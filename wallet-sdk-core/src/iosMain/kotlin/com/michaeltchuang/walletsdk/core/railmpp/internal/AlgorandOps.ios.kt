@@ -138,6 +138,7 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
             lastRound = params.lastRoundValid,
             genesisHashBase64 = params.genesisHashBase64,
             genesisID = params.genesisID,
+            noteBase64 = null,
         )
     if (appCallBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
 

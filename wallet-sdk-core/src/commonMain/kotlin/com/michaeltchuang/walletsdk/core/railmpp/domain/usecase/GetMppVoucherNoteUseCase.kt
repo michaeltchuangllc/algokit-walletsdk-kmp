@@ -22,41 +22,43 @@ class GetMppVoucherNoteUseCase {
 
     operator fun invoke(params: Params): String {
         val paidTotal = params.paidBlocks * params.costPerPaidBlock
-        
-        val items = listOf(
-            MppVoucherNoteItem(
-                sku = MppVoucherNoteSku.SUB_FREE,
-                name = "Free Subscription",
-                quantity = params.freeBlocks,
-                total = 0,
-            ),
-            MppVoucherNoteItem(
-                sku = MppVoucherNoteSku.SUB_TIER_1,
-                name = "Subscription (${params.costPerPaidBlock} micro-USDC/block)",
-                quantity = params.paidBlocks,
-                total = paidTotal,
-            ),
-            MppVoucherNoteItem(
-                sku = MppVoucherNoteSku.CHAT_FREE,
-                name = "Free Chat Message",
-                quantity = params.freeChatCount,
-                total = 0,
-            ),
-            MppVoucherNoteItem(
-                sku = MppVoucherNoteSku.CHAT_TIP,
-                name = "Chat With Tip (Superchat)",
-                quantity = params.tipChatCount,
-                total = params.tipChatTotal,
-            ),
-        )
 
-        val note = MppVoucherNote(
-            v = 1,
-            channel = params.channelId,
-            range = listOf(params.startBlock, params.currentBlock),
-            items = items,
-            cumulative_total = params.totalCumulativeAmount,
-        )
+        val items =
+            listOf(
+                MppVoucherNoteItem(
+                    sku = MppVoucherNoteSku.SUB_FREE,
+                    name = "Free Subscription",
+                    quantity = params.freeBlocks,
+                    total = 0,
+                ),
+                MppVoucherNoteItem(
+                    sku = MppVoucherNoteSku.SUB_TIER_1,
+                    name = "Subscription (${params.costPerPaidBlock} micro-USDC/block)",
+                    quantity = params.paidBlocks,
+                    total = paidTotal,
+                ),
+                MppVoucherNoteItem(
+                    sku = MppVoucherNoteSku.CHAT_FREE,
+                    name = "Free Chat Message",
+                    quantity = params.freeChatCount,
+                    total = 0,
+                ),
+                MppVoucherNoteItem(
+                    sku = MppVoucherNoteSku.CHAT_TIP,
+                    name = "Chat With Tip (Superchat)",
+                    quantity = params.tipChatCount,
+                    total = params.tipChatTotal,
+                ),
+            )
+
+        val note =
+            MppVoucherNote(
+                v = 1,
+                channel = params.channelId,
+                range = listOf(params.startBlock, params.currentBlock),
+                items = items,
+                cumulative_total = params.totalCumulativeAmount,
+            )
 
         val json = Json { encodeDefaults = true }
         return json.encodeToString(MppVoucherNote.serializer(), note)

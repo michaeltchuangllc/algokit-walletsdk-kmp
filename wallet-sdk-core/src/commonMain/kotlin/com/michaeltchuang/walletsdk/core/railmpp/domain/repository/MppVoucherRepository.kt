@@ -4,12 +4,16 @@ import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherE
 
 interface MppVoucherRepository {
     suspend fun upsertVoucher(voucher: MppVoucherEntity)
+
     suspend fun getAllVouchers(): List<MppVoucherEntity>
+
     suspend fun deleteVoucherByChannelId(channelIdBase64: String)
+
     suspend fun deleteVoucherBySessionAndViewer(
         sessionId: String,
         viewerAddress: String,
     )
+
     suspend fun deleteVoucherBySessionId(sessionId: String)
 }
 

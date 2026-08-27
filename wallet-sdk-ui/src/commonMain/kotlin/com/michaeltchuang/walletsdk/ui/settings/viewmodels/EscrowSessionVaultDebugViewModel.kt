@@ -8,10 +8,10 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
-import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.DebugAddressSelections
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.DebugAddressSelectionsUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
@@ -90,10 +90,12 @@ class EscrowSessionVaultDebugViewModel(
                 addresses to debugAddressSelectionsUseCase.get()
             }.onSuccess { (addresses, savedSelections) ->
                 updateContent { current ->
-                    val viewer = savedSelections.viewerAddress.takeIf(addresses::contains)
-                        ?: addresses.getOrNull(0).orEmpty()
-                    val creator = savedSelections.creatorAddress.takeIf(addresses::contains)
-                        ?: addresses.getOrNull(1).orEmpty()
+                    val viewer =
+                        savedSelections.viewerAddress.takeIf(addresses::contains)
+                            ?: addresses.getOrNull(0).orEmpty()
+                    val creator =
+                        savedSelections.creatorAddress.takeIf(addresses::contains)
+                            ?: addresses.getOrNull(1).orEmpty()
                     val viewer2 = savedSelections.viewerAddress2.takeIf(addresses::contains).orEmpty()
                     val viewer3 = savedSelections.viewerAddress3.takeIf(addresses::contains).orEmpty()
                     DebugAddressHolder.viewerAddress = viewer

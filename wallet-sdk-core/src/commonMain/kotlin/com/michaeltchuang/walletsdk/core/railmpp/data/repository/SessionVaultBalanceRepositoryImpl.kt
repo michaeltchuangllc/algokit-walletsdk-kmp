@@ -11,7 +11,7 @@ class SessionVaultBalanceRepositoryImpl : SessionVaultBalanceRepository {
         runCatching {
             withContext(Dispatchers.IO) {
                 MppPayments.getRemainingBalanceFromSessionVault(
-                    viewerAddress = params.viewerAddress
+                    viewerAddress = params.viewerAddress,
                 )
             }
         }
