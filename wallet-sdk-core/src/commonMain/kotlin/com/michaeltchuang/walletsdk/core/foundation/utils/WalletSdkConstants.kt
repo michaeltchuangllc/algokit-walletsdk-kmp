@@ -39,4 +39,8 @@ object WalletSdkConstants {
     const val PERA_API_MAINNET_BASE_URL = "https://api.perawallet.app"
     const val PERA_API_TESTNET_BASE_URL = "https://testnet.api.perawallet.app"
     const val PERA_API_FUTURENET_BASE_URL = "https://fnet.api.perawallet.app"
+
+    // NFD (Non-Fungible Domains) only supports MainNet and TestNet, there is no FutureNet API.
+    const val NFD_MAINNET_BASE_URL = "https://api.nf.domains"
+    const val NFD_TESTNET_BASE_URL = "https://api.testnet.nf.domains"
 }

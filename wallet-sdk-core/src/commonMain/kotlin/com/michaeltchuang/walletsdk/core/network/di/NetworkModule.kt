@@ -14,7 +14,11 @@ import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiSe
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiServiceImpl
 import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiService
 import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.service.NfdApiService
+import com.michaeltchuang.walletsdk.core.network.service.NfdApiServiceImpl
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddressUseCase
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
@@ -83,4 +87,11 @@ val networkModule =
                 httpClient = get(),
             )
         }
+
+        single<NfdApiService> {
+            NfdApiServiceImpl(
+                httpClient = get(),
+            )
+        }
+        single<GetNfdProfileForAddress> { GetNfdProfileForAddressUseCase(get()) }
     }
