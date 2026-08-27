@@ -53,12 +53,14 @@ internal actual suspend fun submitAppCallInternal(
     boxKeys: List<Pair<Long, ByteArray>>,
     foreignAssets: List<Long>,
     foreignAccounts: List<String>,
+    note: ByteArray?,
 ): String {
     val params = fetchTxParams(algodUrl)
 
     val argsB64 = args.map { Base64.encode(it) }
     val boxRefAppIds = boxKeys.map { it.first }
     val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
+    val noteB64 = note?.takeIf { it.isNotEmpty() }?.let { Base64.encode(it) }
 
     // Swift: buildAppCallTxn(senderAddress:appId:...) → Kotlin: buildAppCallTxnWithSenderAddress
     // close()/withdraw() refund the counterparty via inner asset transfers, so the payer/payee
@@ -78,6 +80,7 @@ internal actual suspend fun submitAppCallInternal(
             lastRound = params.lastRoundValid,
             genesisHashBase64 = params.genesisHashBase64,
             genesisID = params.genesisID,
+            noteBase64 = noteB64,
         )
     if (txnBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
 
@@ -135,6 +138,7 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
             lastRound = params.lastRoundValid,
             genesisHashBase64 = params.genesisHashBase64,
             genesisID = params.genesisID,
+            noteBase64 = null,
         )
     if (appCallBytes.length == 0UL) error("iOS: buildAppCallTxn returned empty")
 

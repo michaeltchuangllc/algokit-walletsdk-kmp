@@ -63,9 +63,10 @@ fun AnswerScreen(
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
-    val viewerBottomSheetState = rememberModalBottomSheetState(
+    val viewerBottomSheetState =
+        rememberModalBottomSheetState(
             skipPartiallyExpanded = true,
-            confirmValueChange = {it != SheetValue.Hidden },
+            confirmValueChange = { it != SheetValue.Hidden },
         )
 
     var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }

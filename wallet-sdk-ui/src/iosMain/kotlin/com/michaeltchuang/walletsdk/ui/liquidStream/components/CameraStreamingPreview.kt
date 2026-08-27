@@ -78,10 +78,12 @@ actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
             DisposableEffect(Unit) {
                 Napier.d("StandaloneCamera: Initializing session", tag = "CameraPreview")
 
-                val device = AVCaptureDevice.devicesWithMediaType(AVMediaTypeVideo)
-                    .mapNotNull { it as? AVCaptureDevice }
-                    .firstOrNull { it.position == AVCaptureDevicePositionBack }
-                    ?: AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)
+                val device =
+                    AVCaptureDevice
+                        .devicesWithMediaType(AVMediaTypeVideo)
+                        .mapNotNull { it as? AVCaptureDevice }
+                        .firstOrNull { it.position == AVCaptureDevicePositionBack }
+                        ?: AVCaptureDevice.defaultDeviceWithMediaType(AVMediaTypeVideo)
 
                 if (device != null) {
                     val input = AVCaptureDeviceInput.deviceInputWithDevice(device, null)
@@ -99,7 +101,10 @@ actual fun rememberStandaloneCameraPreview(): @Composable () -> Unit =
 
                         session.commitConfiguration()
 
-                        Napier.d("StandaloneCamera: Input and configuration complete (Device: ${device.localizedName})", tag = "CameraPreview")
+                        Napier.d(
+                            "StandaloneCamera: Input and configuration complete (Device: ${device.localizedName})",
+                            tag = "CameraPreview",
+                        )
 
                         dispatch_async(
                             dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT.toLong(), 0UL),

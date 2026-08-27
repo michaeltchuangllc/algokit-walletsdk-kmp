@@ -32,6 +32,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -178,7 +179,9 @@ private fun ViewerPayoutFrequencyBlock(
     StreamSettingsPayoutFrequencyBlock(
         selectedTabId = selectedTabId,
         onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
-        footnoteText = "Batching payouts every 256 blocks saves you ~ $4,000 USD/year in transaction fees compared to every block.",
+        footnoteText =
+            "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year " +
+                "in transaction fees compared to every block.",
         footnoteStarTopPadding = 0.dp,
     )
 }

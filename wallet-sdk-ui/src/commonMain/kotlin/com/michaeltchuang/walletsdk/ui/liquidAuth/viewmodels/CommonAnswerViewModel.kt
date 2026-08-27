@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
@@ -173,6 +174,15 @@ open class CommonAnswerViewModel(
                 Napier.d(tag = TAG, message = "Core protocol JSON message: ${msgType.value}")
             }
 
+            DCMessageType.STREAM_COST_UPDATE -> {
+                val payload = jsonObject["payload"]?.jsonObject
+                if (payload != null) {
+                    val update = json.decodeFromJsonElement(StreamCostUpdate.serializer(), payload)
+                    Napier.d(tag = TAG, message = "Received stream cost update: ${update.costMicroUsdc} micro-USDC")
+                    mppPaymentViewerManager.updateStreamCost(update.costMicroUsdc)
+                }
+            }
+
             else -> {
                 Napier.w(tag = TAG, message = "Unknown JSON DataChannel message type: $type")
             }
@@ -241,10 +251,14 @@ open class CommonAnswerViewModel(
         onPaymentMessage: (message: String) -> Boolean,
         onHostDiscovered: (hostAddress: String?) -> Unit = {},
     ) {
-        when (message.jsonOptString("reference")) {
-            "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
-            "ping" -> onPongRequested()
-            null -> handleViewerPaymentMessage(message, onPaymentMessage, onHostDiscovered)
+        val reference = message.jsonOptString("reference")
+        val type = message.jsonOptString("type")
+
+        when {
+            reference == "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
+            reference == "ping" -> onPongRequested()
+            type == DCMessageType.STREAM_COST_UPDATE.value -> handleMessages(message)
+            reference == null -> handleViewerPaymentMessage(message, onPaymentMessage, onHostDiscovered)
             else -> Unit
         }
     }

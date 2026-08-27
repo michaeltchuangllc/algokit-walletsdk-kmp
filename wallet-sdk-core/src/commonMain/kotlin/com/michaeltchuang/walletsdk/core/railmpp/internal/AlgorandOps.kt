@@ -22,6 +22,7 @@ internal expect suspend fun submitAppCallInternal(
     boxKeys: List<Pair<Long, ByteArray>>,
     foreignAssets: List<Long>,
     foreignAccounts: List<String> = emptyList(),
+    note: ByteArray? = null,
 ): String
 
 /**

@@ -15,6 +15,7 @@ enum class DCMessageType(
     SEGMENT_HANDSHAKE("segment:handshake"),
     SEGMENT_VOUCHER("segment:voucher"),
     CHAT_MESSAGE("chat:message"),
+    STREAM_COST_UPDATE("stream:cost:update"),
     ;
 
     companion object {

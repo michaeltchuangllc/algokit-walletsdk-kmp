@@ -153,8 +153,6 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             onAddressSelected = viewModel::onViewerAddress3Changed,
         )
 
-
-
         OutlinedTextField(
             value = depositAmount,
             onValueChange = viewModel::onDepositAmountChanged,

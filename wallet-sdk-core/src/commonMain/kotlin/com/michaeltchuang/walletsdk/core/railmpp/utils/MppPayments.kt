@@ -22,6 +22,7 @@ object MppPayments {
     private const val DEPOSIT_MICRO_USDC_LONG = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
     private const val COST_PER_BLOCK_MICRO_USDC = LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
     private const val VOUCHER_SETTLE_EVERY_BLOCKS = 1
+
     fun usdcAssetIdForAppId(appId: Long): Long =
         when (appId) {
             RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID -> AssetConstants.USDC_MAINNET_ID
@@ -246,13 +247,13 @@ object MppPayments {
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
-        note: String= "N/A"
+        note: String = "N/A",
     ): Result<String> {
         val resolvedChannelId =
             channelId
                 ?: EscrowSessionVaultManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
-        return EscrowSessionVaultManagerClient.settle(signer, resolvedChannelId, cumulativeAmountMicroUsdc, signature,note)
+        return EscrowSessionVaultManagerClient.settle(signer, resolvedChannelId, cumulativeAmountMicroUsdc, signature, note)
     }
 
     suspend fun verifySettleSignature(
@@ -284,6 +285,7 @@ object MppPayments {
         val totalDeposit: Long,
         val lastSettled: Long,
         val latestVoucherAmount: Long,
+        val startRound: Long,
     ) {
         val unclaimedVoucherAmount: Long get() = (latestVoucherAmount - lastSettled).coerceAtLeast(0L)
     }
@@ -294,6 +296,7 @@ object MppPayments {
         val progressBalanceMicroUsdc: Long,
         val lastSettledMicroUsdc: Long,
         val latestVoucherAmountMicroUsdc: Long,
+        val startRound: Long,
     )
 
     fun computeSessionProgressSnapshot(dynamicData: SessionDynamicData): SessionProgressSnapshot {
@@ -306,19 +309,18 @@ object MppPayments {
             progressBalanceMicroUsdc = (total - maxOf(settled, voucher)).coerceAtLeast(0L),
             lastSettledMicroUsdc = settled,
             latestVoucherAmountMicroUsdc = voucher,
+            startRound = dynamicData.startRound,
         )
     }
 
     suspend fun getSessionProgressSnapshotFromVault(
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId
+        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
     ): SessionProgressSnapshot? {
         val data = getSessionDynamicDataFromVault(channelId) ?: return null
         return computeSessionProgressSnapshot(data)
     }
 
-    suspend fun getSessionDynamicDataFromVault(
-        channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId
-    ): SessionDynamicData? {
+    suspend fun getSessionDynamicDataFromVault(channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId): SessionDynamicData? {
         val resolvedChannelId = channelId ?: EscrowSessionVaultManagerClient.channelId ?: return null
         val channelIdCandidates = listOf(resolvedChannelId)
         channelIdCandidates.forEachIndexed { index, candidate ->
@@ -335,7 +337,13 @@ object MppPayments {
         withContext(Dispatchers.IO) {
             runCatching {
                 val data = EscrowSessionVaultManagerClient.getSessionDynamicData(channelId).getOrThrow()
-                SessionDynamicData(data.totalDeposit, data.lastSettled, data.latestVoucherAmount)
+                val staticData = EscrowSessionVaultManagerClient.getSessionStaticData(channelId).getOrThrow()
+                SessionDynamicData(
+                    totalDeposit = data.totalDeposit,
+                    lastSettled = data.lastSettled,
+                    latestVoucherAmount = data.latestVoucherAmount,
+                    startRound = staticData.startRound,
+                )
             }.onFailure {
                 Napier.e(
                     "[SESSION_VAULT_DYNAMIC_ERR] appId=${EscrowSessionVaultManagerClient.appId} context=${logContext.orEmpty()}",

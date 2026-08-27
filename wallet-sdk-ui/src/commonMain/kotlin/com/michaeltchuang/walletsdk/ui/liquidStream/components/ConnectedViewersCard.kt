@@ -49,17 +49,18 @@ data class ConnectedViewerInfo(
     val remainingBalanceUSDC: Double?,
     val progressBalanceUSDC: Double?,
     val progressCapacityUSDC: Double? = null,
+    val revenueCapacityUSDC: Double? = null,
     val connectionType: IceConnectionType,
     val currentBlockNumber: Long? = null,
     val networkLabel: String = "TESTNET",
     val originUrl: String = "-",
     val viewerAddress: String? = null,
+    val lastSettledUSDC: Double? = null,
+    val startRound: Long? = null,
 )
 
 @Composable
-internal fun ConnectedViewersCard(
-    viewers: List<ConnectedViewerInfo>,
-) {
+internal fun ConnectedViewersCard(viewers: List<ConnectedViewerInfo>) {
     if (viewers.isEmpty()) return
 
     val colors = AlgoKitTheme.colors
@@ -257,7 +258,6 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         MetaRow(label = "REQUEST ID:", value = shortSessionId)
     }
 }
-
 
 @Composable
 private fun MetricBlock(

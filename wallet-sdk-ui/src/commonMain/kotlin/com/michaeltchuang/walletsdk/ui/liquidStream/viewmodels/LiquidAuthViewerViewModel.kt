@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
 import kotlinx.coroutines.launch
 
 class LiquidAuthViewerViewModel(
@@ -118,7 +119,7 @@ class LiquidAuthViewerViewModel(
         val showTopUpSheet: Boolean = false,
         val showGiftSupportSheet: Boolean = false,
         val giftAmountTag: String = "0.88",
-        val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
+        val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
         val willingToBeRelayerEnabled: Boolean = false,
         val message: String = "",
         val realTimeRate: String = "0.42",
@@ -132,7 +133,6 @@ class LiquidAuthViewerViewModel(
     }
 
     companion object {
-        const val PAYOUT_EVERY_256_BLOCKS_TAB_ID = "every_256_blocks"
         private const val ZERO_GIFT_AMOUNT = "0.00"
     }
 

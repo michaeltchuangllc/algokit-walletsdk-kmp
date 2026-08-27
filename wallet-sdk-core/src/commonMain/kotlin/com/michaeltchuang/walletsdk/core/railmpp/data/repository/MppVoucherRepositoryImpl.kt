@@ -11,9 +11,7 @@ internal class MppVoucherRepositoryImpl(
         mppVoucherDao.upsertVoucher(voucher)
     }
 
-    override suspend fun getAllVouchers(): List<MppVoucherEntity> {
-        return mppVoucherDao.getAllVouchers()
-    }
+    override suspend fun getAllVouchers(): List<MppVoucherEntity> = mppVoucherDao.getAllVouchers()
 
     override suspend fun deleteVoucherByChannelId(channelIdBase64: String) {
         mppVoucherDao.deleteVoucherByChannelId(channelIdBase64)

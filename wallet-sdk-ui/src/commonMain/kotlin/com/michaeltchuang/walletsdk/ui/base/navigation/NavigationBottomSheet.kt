@@ -491,7 +491,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
-                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -539,7 +539,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                                "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
+                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("assetId") {
@@ -580,7 +580,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SEND_ASSET_SCREEN.name +
-                                "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -831,20 +831,18 @@ fun startDestination(
  * Returns a list of screens that should block the swipe-to-dismiss gesture
  * in the AlgoKit wallet bottom sheet.
  */
-fun getScreensToBlockDismissal(): List<AlgoKitScreens> {
-    return listOf(
+fun getScreensToBlockDismissal(): List<AlgoKitScreens> =
+    listOf(
         AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
         AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
     )
-}
 
 /**
  * Returns the height fraction (0.0 to 1.0) for the bottom sheet
  * based on the current screen.
  */
-fun getBottomSheetHeightFraction(screenName: String?): Float {
-    return when (screenName) {
+fun getBottomSheetHeightFraction(screenName: String?): Float =
+    when (screenName) {
         AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name -> 1f
         else -> 0.9f
     }
-}

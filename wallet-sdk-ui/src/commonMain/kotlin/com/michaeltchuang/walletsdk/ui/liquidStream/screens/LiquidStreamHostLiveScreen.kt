@@ -67,15 +67,66 @@ fun LiquidStreamHostLiveScreen(
     originUrl: String = "-",
     creatorUsername: String = "michaeltchuang.algo",
     numbersOfViewer: String = "1",
+    lastSettledUsdc: Double? = null,
 ) {
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
-    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(0.0) }
+    var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
+    var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
+    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
 
     LaunchedEffect(remainingBalanceUsdc) {
-        val balance = remainingBalanceUsdc ?: 0.0
-        if (balance > progressCapacityUsdc) {
-            progressCapacityUsdc = balance
+        val current = remainingBalanceUsdc ?: 0.0
+        val previous = prevRemainingBalanceUsdc
+        if (current > previous) {
+            revenueCapacityUsdc += (current - previous)
+            progressCapacityUsdc = current
         }
+        prevRemainingBalanceUsdc = current
+    }
+
+    val viewers =
+        remember(
+            sessionId,
+            remainingBalanceUsdc,
+            progressBalanceUsdc,
+            progressCapacityUsdc,
+            revenueCapacityUsdc,
+            connectionType,
+            currentBlockNumber,
+            networkLabel,
+            originUrl,
+            lastSettledUsdc,
+        ) {
+            listOf(
+                ConnectedViewerInfo(
+                    sessionId = sessionId ?: "session-pending",
+                    remainingBalanceUSDC = remainingBalanceUsdc,
+                    progressBalanceUSDC = progressBalanceUsdc,
+                    progressCapacityUSDC = progressCapacityUsdc,
+                    revenueCapacityUSDC = revenueCapacityUsdc,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    networkLabel = networkLabel,
+                    originUrl = originUrl,
+                    lastSettledUSDC = lastSettledUsdc,
+                ),
+            )
+        }
+
+    LaunchedEffect(
+        currentBlockNumber,
+        blockChainLabel,
+        networkLabel,
+        numbersOfViewer,
+        viewers,
+    ) {
+        viewModel.updateMetrics(
+            currentBlockNumber = currentBlockNumber,
+            blockChainLabel = blockChainLabel,
+            networkLabel = networkLabel,
+            numbersOfViewer = numbersOfViewer,
+            viewers = viewers,
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -90,6 +141,10 @@ fun LiquidStreamHostLiveScreen(
                 is LiquidStreamHostViewModel.ViewEvent.ToggleCamera -> {
                     connectionManager?.setVideoEnabled(event.isEnabled)
                     onCameraClick(event.isEnabled)
+                }
+                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> Unit
+                is LiquidStreamHostViewModel.ViewEvent.PayoutFrequencyChanged -> {
+                    connectionManager?.setPayoutFrequency(event.tabId)
                 }
             }
         }
@@ -116,21 +171,11 @@ fun LiquidStreamHostLiveScreen(
             onStatsClick()
         },
         onSendClickInternal = { viewModel.onSendClicked() },
-        viewers =
-            listOf(
-                ConnectedViewerInfo(
-                    sessionId = sessionId ?: "session-pending",
-                    remainingBalanceUSDC = remainingBalanceUsdc,
-                    progressBalanceUSDC = progressBalanceUsdc,
-                    progressCapacityUSDC = progressCapacityUsdc,
-                    connectionType = connectionType,
-                    currentBlockNumber = currentBlockNumber,
-                    networkLabel = networkLabel,
-                    originUrl = originUrl,
-                ),
-            ),
+        viewers = viewers,
         blockChainLabel = blockChainLabel,
         balanceCurrencySymbol = balanceCurrencySymbol,
+        streamRevenue = uiState.streamRevenue,
+        blockNumberLabel = uiState.blockNumberLabel,
         uiState = uiState,
         onTextChanged = viewModel::onMessageChanged,
         onStatsDismissed = {
@@ -160,6 +205,8 @@ fun LiquidStreamHostLiveScreenContent(
     viewers: List<ConnectedViewerInfo>,
     blockChainLabel: String,
     balanceCurrencySymbol: String,
+    streamRevenue: String,
+    blockNumberLabel: String,
     uiState: LiquidStreamHostViewModel.UiState,
     onTextChanged: (String) -> Unit,
     onStatsDismissed: () -> Unit,
@@ -266,9 +313,9 @@ fun LiquidStreamHostLiveScreenContent(
                 selectedPayoutFrequencyTabId = uiState.selectedPayoutFrequencyTabId,
                 subsidizeViewerFeesEnabled = uiState.subsidizeViewerFeesEnabled,
                 realTimeRate = uiState.realTimeRate,
-                streamRevenue = uiState.streamRevenue,
+                streamRevenue = streamRevenue,
                 securedViaLabel = uiState.securedViaLabel,
-                blockNumberLabel = uiState.blockNumberLabel,
+                blockNumberLabel = blockNumberLabel,
                 onStreamCostTabSelected = onStreamCostTabSelected,
                 onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
                 onSubsidizeViewerFeesChanged = onSubsidizeViewerFeesChanged,
@@ -302,6 +349,7 @@ private fun LiquidStreamHostLiveScreenPreview() {
                         remainingBalanceUSDC = 12.0,
                         progressBalanceUSDC = 11.9,
                         progressCapacityUSDC = 12.0,
+                        revenueCapacityUSDC = 12.0,
                         connectionType = IceConnectionType.UNKNOWN,
                         currentBlockNumber = 38291041L,
                         networkLabel = "TESTNET",
@@ -310,6 +358,8 @@ private fun LiquidStreamHostLiveScreenPreview() {
                 ),
             blockChainLabel = "ALGORAND",
             balanceCurrencySymbol = "A",
+            streamRevenue = "+0.00",
+            blockNumberLabel = "#38291041",
             uiState = uiState,
             onTextChanged = { message -> uiState = uiState.copy(message = message) },
             onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },

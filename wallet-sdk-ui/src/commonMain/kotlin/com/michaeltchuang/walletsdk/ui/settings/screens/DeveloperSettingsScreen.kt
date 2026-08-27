@@ -65,7 +65,7 @@ fun DeveloperSettingsScreen(
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
         onNavigateToDebugTool = {
             coroutineScope.launch {
-                if (viewModel.checkBalancesAndNavigateToDebugTool()){
+                if (viewModel.checkBalancesAndNavigateToDebugTool()) {
                     navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
                 }
             }

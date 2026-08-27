@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitLightColor
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -45,6 +46,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsFoo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsMetricsCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsPayoutFrequencyBlock
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsTopSquareIconButton
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -61,7 +63,7 @@ private val streamCostTabs =
         SegmentedTabItem(
             id = STREAM_COST_PAID_TAB_ID,
             icon = Res.drawable.ic_usdc,
-            title = "8 micro-USDC",
+            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC / 100000} micro-USDC",
         ),
     )
 
@@ -229,34 +231,34 @@ private fun StreamCostBlock(
 
         StreamSettingsFootnoteText(text = "Est. 1 Million blocks/month. 8 micro-USDC is ~$8 USDC monthly.")
 
-        if (selectedTabId == STREAM_COST_PAID_TAB_ID) {
-            Surface(shape = RoundedCornerShape(16.dp), color = colors.streamHostCardBackground) {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        LiquidRingToggle(
-                            checked = subsidizeViewerFeesEnabled,
-                            onCheckedChange = onSubsidizeViewerFeesChanged,
-                        )
-                        Text(
-                            text = "Subsidize viewer transaction fees",
-                            fontSize = 16.sp,
-                            color = colors.streamHostCardHeading,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "The streamer covers 0.001 ALGO gas fee,\nso viewers can enjoy streams without\nworrying about costs.",
-                        fontSize = 12.sp,
-                        color = colors.streamHostCardBody,
-                        lineHeight = 20.sp,
-                    )
-                }
-            }
-        }
+//        if (selectedTabId == STREAM_COST_PAID_TAB_ID) {
+//            Surface(shape = RoundedCornerShape(16.dp), color = colors.streamHostCardBackground) {
+//                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 16.dp)) {
+//                    Row(
+//                        verticalAlignment = Alignment.CenterVertically,
+//                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+//                    ) {
+//                        LiquidRingToggle(
+//                            checked = subsidizeViewerFeesEnabled,
+//                            onCheckedChange = onSubsidizeViewerFeesChanged,
+//                        )
+//                        Text(
+//                            text = "Subsidize viewer transaction fees",
+//                            fontSize = 16.sp,
+//                            color = colors.streamHostCardHeading,
+//                            fontWeight = FontWeight.SemiBold,
+//                        )
+//                    }
+//                    Spacer(modifier = Modifier.height(8.dp))
+//                    Text(
+//                        text = "The streamer covers 0.001 ALGO gas fee,\nso viewers can enjoy streams without\nworrying about costs.",
+//                        fontSize = 12.sp,
+//                        color = colors.streamHostCardBody,
+//                        lineHeight = 20.sp,
+//                    )
+//                }
+//            }
+//        }
     }
 }
 
@@ -268,7 +270,9 @@ private fun PayoutFrequencyBlock(
     StreamSettingsPayoutFrequencyBlock(
         selectedTabId = selectedTabId,
         onPayoutFrequencyTabSelected = onPayoutFrequencyTabSelected,
-        footnoteText = "Batching payouts every 256 blocks saves you ~ $4,000 USD/year\nin transaction fees compared to every block.",
+        footnoteText =
+            "Batching payouts every $PAYOUT_BATCH_BLOCK_COUNT blocks saves you ~ $4,000 USD/year\n" +
+                "in transaction fees compared to every block.",
     )
 }
 
@@ -284,8 +288,8 @@ private fun StreamHostSettingsSheetPaidDarkPreview() {
                 selectedStreamCostTabId = STREAM_COST_PAID_TAB_ID,
                 selectedPayoutFrequencyTabId = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
                 subsidizeViewerFeesEnabled = false,
-                realTimeRate = "0.42",
-                streamRevenue = "+1.402.15",
+                realTimeRate = "0.88",
+                streamRevenue = "888.00",
                 securedViaLabel = "Secured via Algorand Mainnet",
                 blockNumberLabel = "#38291041",
                 onStreamCostTabSelected = {},
@@ -309,8 +313,8 @@ private fun StreamHostSettingsSheetPaidLightPreview() {
                 selectedStreamCostTabId = STREAM_COST_PAID_TAB_ID,
                 selectedPayoutFrequencyTabId = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
                 subsidizeViewerFeesEnabled = false,
-                realTimeRate = "0.42",
-                streamRevenue = "+1.402.15",
+                realTimeRate = "0.88",
+                streamRevenue = "888.00",
                 securedViaLabel = "Secured via Algorand Mainnet",
                 blockNumberLabel = "#38291041",
                 onStreamCostTabSelected = {},
@@ -334,8 +338,8 @@ private fun StreamHostSettingsSheetFreeDarkPreview() {
                 selectedStreamCostTabId = STREAM_COST_FREE_TAB_ID,
                 selectedPayoutFrequencyTabId = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
                 subsidizeViewerFeesEnabled = false,
-                realTimeRate = "0.42",
-                streamRevenue = "+1.402.15",
+                realTimeRate = "0.88",
+                streamRevenue = "888.00",
                 securedViaLabel = "Secured via Algorand Mainnet",
                 blockNumberLabel = "#38291041",
                 onStreamCostTabSelected = {},
@@ -359,8 +363,8 @@ private fun StreamHostSettingsSheetFreeLightPreview() {
                 selectedStreamCostTabId = STREAM_COST_FREE_TAB_ID,
                 selectedPayoutFrequencyTabId = PAYOUT_EVERY_256_BLOCKS_TAB_ID,
                 subsidizeViewerFeesEnabled = false,
-                realTimeRate = "0.42",
-                streamRevenue = "+1.402.15",
+                realTimeRate = "0.88",
+                streamRevenue = "888.0",
                 securedViaLabel = "Secured via Algorand Mainnet",
                 blockNumberLabel = "#38291041",
                 onStreamCostTabSelected = {},

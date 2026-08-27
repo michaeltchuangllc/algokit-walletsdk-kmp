@@ -18,12 +18,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
@@ -36,6 +37,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import io.github.aakira.napier.Napier
 import io.github.algorandecosystem.sdk.BytesArray
 import io.github.algorandecosystem.sdk.Sdk
@@ -69,6 +72,8 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase = koin.get(clazz = MppWalletSignerUseCase::class)
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase =
         koin.get(clazz = GetRemainingSessionVaultBalanceUseCase::class)
+    private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase =
+        koin.get(clazz = GetMppVoucherNoteUseCase::class)
     private val voucherRepository: MppVoucherRepository =
         koin.get(clazz = MppVoucherRepository::class)
     private var viewModel: LiquidAuthOfferViewModel? = null
@@ -96,6 +101,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var activePaymentNetwork: String? = null
     private var activeViewerAddressForVault: String? = null
     private var activeCreatorVoucherClaimSnapshot: CreatorVoucherClaimSnapshot? = null
+    private var isPaidStreamingEnabled: Boolean = true
 
     /**
      * Viewer's authorized-signer public key received via the early [segment:handshake]
@@ -118,7 +124,9 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveViewerAddress = { activeViewerAddressForVault },
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
+            getIsPaidStreaming = { isPaidStreamingEnabled },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
+            getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
         )
 
@@ -152,6 +160,48 @@ actual class LiquidAuthConnectionManager actual constructor(
      */
     actual fun stopBlockConsumption() {
         blockConsumptionManager.stop()
+    }
+
+    actual fun setIsPaidStreaming(enabled: Boolean) {
+        Log.d(TAG, "💰 setIsPaidStreaming: $enabled")
+        isPaidStreamingEnabled = enabled
+        if (!enabled) {
+            setStreamCost(0L)
+            // Clear any stale claim snapshot so we don't settle old vouchers when resuming to Paid.
+            activeCreatorVoucherClaimSnapshot = null
+            activePaymentSessionId?.let { sessionId ->
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        voucherRepository.deleteVoucherBySessionId(sessionId)
+                        Log.d(TAG, "💰 Cleared pending vouchers for session $sessionId during switch to Free")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "❌ Failed to clear vouchers", e)
+                    }
+                }
+            }
+        } else {
+            // Resume if we have a session
+            activePaymentSessionId?.let { startBlockConsumption(it) }
+        }
+    }
+
+    actual fun setStreamCost(cost: Long) {
+        Log.d(TAG, "💰 setStreamCost: $cost")
+        activePaymentAmount = cost.toString()
+        liquidStreamCreator?.let {
+            updateCreatorViewerSignerConfig(activeViewerAuthorizedSignerKey)
+        }
+    }
+
+    actual fun setPayoutFrequency(tabId: String) {
+        val blocks =
+            if (tabId == PAYOUT_EVERY_256_BLOCKS_TAB_ID) {
+                PAYOUT_BATCH_BLOCK_COUNT
+            } else {
+                1
+            }
+        Log.d(TAG, "💰 setPayoutFrequency: tab=$tabId blocks=$blocks")
+        blockConsumptionManager.payoutFrequencyBlocks = blocks
     }
 
     /**
@@ -269,7 +319,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     viewModel?.onMppPaymentSettled(receipt.txId)
 
                     val targetSession = activePaymentSessionId ?: receipt.sessionId
-                    if (targetSession.isNotBlank()) {
+                    if (targetSession.isNotBlank() && isPaidStreamingEnabled) {
                         Log.e(
                             TAG,
                             "[SESSION_VAULT_FORCE_START_BLOCK] txId=${receipt.txId} targetSession=$targetSession",
@@ -278,7 +328,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     } else {
                         Log.e(
                             TAG,
-                            "[SESSION_VAULT_FORCE_START_BLOCK_SKIP] reason=missing_session txId=${receipt.txId}",
+                            "[SESSION_VAULT_FORCE_START_BLOCK_SKIP] reason=missing_session_or_free txId=${receipt.txId} isPaid=$isPaidStreamingEnabled",
                         )
                     }
                 }
@@ -306,7 +356,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                 // Notify the viewer of the creator's payment address + session so it can
                 // set up its payment flow (replaces the old `liquid:video:frame` piggyback).
                 sendCreatorSessionInfo(recipient, resolvedSessionId)
-                startBlockConsumption(resolvedSessionId)
+                if (isPaidStreamingEnabled) {
+                    startBlockConsumption(resolvedSessionId)
+                }
             } else {
                 current.updateConfig(serverConfig)
                 activePaymentSessionId = resolvedSessionId
@@ -318,7 +370,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                     "[SESSION_VAULT_BOOTSTRAP_START_BLOCK] source=creator_reused session=$resolvedSessionId viewer=$activeViewerAddressForVault recipient=$recipient",
                 )
                 sendCreatorSessionInfo(recipient, resolvedSessionId)
-                startBlockConsumption(resolvedSessionId)
+                if (isPaidStreamingEnabled) {
+                    startBlockConsumption(resolvedSessionId)
+                }
             }
         } catch (e: Exception) {
             Log.e(TAG, "💰 Failed to initialize MPP creator", e)
@@ -696,24 +750,30 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 "[SESSION_VAULT_VIEWER_VOUCHER_SIG_STALE_SKIP] session=$voucherSessionId claimedAmountMicroUsdc=$claimedAmount previousClaimedAmountMicroUsdc=$previousClaimedAmount",
                             )
                         } else {
-                            activeCreatorVoucherClaimSnapshot =
-                                CreatorVoucherClaimSnapshot(
-                                    sessionId = voucherSessionId,
-                                    viewerAddress = voucherViewer,
-                                    viewerPublicKeyBase64 = voucherViewerPublicKey,
-                                    signatureBase64 = signature,
-                                    totalAmountClaimedMicroUsdc = claimedAmount,
+                            if (isPaidStreamingEnabled) {
+                                activeCreatorVoucherClaimSnapshot =
+                                    CreatorVoucherClaimSnapshot(
+                                        sessionId = voucherSessionId,
+                                        viewerAddress = voucherViewer,
+                                        viewerPublicKeyBase64 = voucherViewerPublicKey,
+                                        signatureBase64 = signature,
+                                        totalAmountClaimedMicroUsdc = claimedAmount,
+                                    )
+                                val signerKey = voucher.viewerPublicKey
+                                updateCreatorViewerSignerConfig(signerKey)
+                                Log.e(
+                                    TAG,
+                                    "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
                                 )
-                            val signerKey = voucher.viewerPublicKey
-                            updateCreatorViewerSignerConfig(signerKey)
-                            Log.e(
-                                TAG,
-                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
-                            )
-                            startBlockConsumption(voucherSessionId)
-                            blockConsumptionManager.triggerSettlementFromViewerVoucher(
-                                voucherSessionId,
-                            )
+                                startBlockConsumption(voucherSessionId)
+                                blockConsumptionManager.triggerSettlementFromViewerVoucher(
+                                    voucherSessionId,
+                                )
+                            } else {
+                                Log.d(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
+                                // Still update signer config if provided, but don't save voucher or settle
+                                voucher.viewerPublicKey?.let { updateCreatorViewerSignerConfig(it) }
+                            }
                         }
                     }
                 }

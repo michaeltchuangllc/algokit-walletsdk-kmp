@@ -7,8 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.RailMppDataRe
 class RailMppDataRepositoryImpl : RailMppDataRepository {
     override suspend fun getOrCreateChannelSalt(): ByteArray = RailMppDataStore.getOrCreateChannelSalt()
 
-    override suspend fun getDebugAddressSelections(): DebugAddressSelections =
-        RailMppDataStore.getDebugAddressSelections()
+    override suspend fun getDebugAddressSelections(): DebugAddressSelections = RailMppDataStore.getDebugAddressSelections()
 
     override suspend fun saveDebugAddressSelections(selections: DebugAddressSelections) {
         RailMppDataStore.saveDebugAddressSelections(selections)
