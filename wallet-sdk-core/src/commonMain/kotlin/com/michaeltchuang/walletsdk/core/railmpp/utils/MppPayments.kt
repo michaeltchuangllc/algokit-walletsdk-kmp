@@ -246,7 +246,7 @@ object MppPayments {
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
         channelId: ByteArray? = EscrowSessionVaultManagerClient.channelId,
-        note: String= "N/A"
+        note: String = "N/A"
     ): Result<String> {
         val resolvedChannelId =
             channelId

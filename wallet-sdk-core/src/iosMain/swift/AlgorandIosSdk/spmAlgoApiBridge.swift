@@ -857,7 +857,8 @@ import CommonCrypto
         firstRound: Int64,
         lastRound: Int64,
         genesisHashBase64: String,
-        genesisID: String
+        genesisID: String,
+        noteBase64: String? = nil
     ) -> Data {
         guard let genesisHashData = Data(base64Encoded: genesisHashBase64) else {
             NSLog("❌ buildAppCallTxn: bad genesisHash")
@@ -906,9 +907,11 @@ import CommonCrypto
             accountsArray.append(accountAddress)
         }
 
+        let noteData: Data? = noteBase64.flatMap { Data(base64Encoded: $0) }
+
         var error: NSError?
         guard let rawTxnData = AlgoSdkMakeApplicationNoOpTx(
-            appId, argsArray, accountsArray, foreignAppsArray, assetsArray, boxRefs, params, senderAddress, nil, &error
+            appId, argsArray, accountsArray, foreignAppsArray, assetsArray, boxRefs, params, senderAddress, noteData, &error
         ) else {
             NSLog("❌ buildAppCallTxn SDK error: \(error?.localizedDescription ?? "unknown")")
             return Data()

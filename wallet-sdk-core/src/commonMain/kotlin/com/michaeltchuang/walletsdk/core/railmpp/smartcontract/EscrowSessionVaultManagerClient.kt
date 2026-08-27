@@ -202,7 +202,7 @@ object EscrowSessionVaultManagerClient {
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         signature: ByteArray,
-        note:String= "N/A"
+        note: String = "N/A",
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -223,6 +223,7 @@ object EscrowSessionVaultManagerClient {
                         Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
                     ),
                 foreignAssets = listOf(usdcAssetId),
+                note = note.encodeToByteArray(),
             )
         }
 
