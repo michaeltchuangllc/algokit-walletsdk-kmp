@@ -165,7 +165,8 @@ fun LiquidStreamHostDebugToolScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LiquidStreamHostLiveScreenContent(
             cameraPreview = cameraPreviewComp,
-            creatorUsername = DebugAddressHolder.creatorAddress.toShortenedAddress(),
+            creatorUsername = debugState.creatorNfdName ?: DebugAddressHolder.creatorAddress.toShortenedAddress(),
+            creatorAvatarUrl = debugState.creatorNfdAvatarUrl,
             numbersOfViewer = debugState.viewers.size.toString(),
             onSettingsClick = {
                 viewModel.onSettingsClicked()

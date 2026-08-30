@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
@@ -39,6 +40,7 @@ class LiquidStreamHostDebugToolViewModel(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
     private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase,
     private val voucherRepository: MppVoucherRepository,
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
     private val applicationScope: CoroutineScope,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
@@ -62,6 +64,25 @@ class LiquidStreamHostDebugToolViewModel(
         startLivePolling()
         refreshViewerBalances()
         startAutomation()
+        loadCreatorNfdProfile()
+    }
+
+    private fun loadCreatorNfdProfile() {
+        val creatorAddress = DebugAddressHolder.creatorAddress
+        if (creatorAddress.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(creatorAddress)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile", e, tag = "LiquidStreamHostDebugVM")
+            }
+        }
     }
 
     private fun getOrInitChannelId(
@@ -535,6 +556,8 @@ class LiquidStreamHostDebugToolViewModel(
         val viewers: List<ConnectedViewerInfo> = emptyList(),
         val isLoading: Boolean = false,
         val totalRevenueMicroUsdc: Long = 0L,
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
     )
 
     sealed interface ViewEvent {

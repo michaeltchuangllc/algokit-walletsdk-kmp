@@ -21,13 +21,25 @@ internal class NfdApiServiceImpl(
                 httpClient.get("${getNfdBaseUrl()}/nfd/lookup") {
                     parameter("address", address)
                     parameter("view", "thumbnail")
+                    // Only match addresses that are cryptographically verified (caAlgo) on the
+                    // NFD - simply owning/purchasing a domain isn't enough, since anyone could
+                    // buy an NFD without ever proving control of the address it's displayed for.
                     parameter("allowUnverified", "false")
                 }
 
             when {
                 response.status.isSuccess() -> {
-                    val nfdLookupResponse = response.body<NfdLookupResponse>()
-                    ApiResult.Success(nfdLookupResponse.toNfdProfile(address))
+                    // /nfd/lookup always returns results keyed by the queried address (even for
+                    // a single address), e.g. {"<address>": {"name": "example.algo", ...}}.
+                    val nfdLookupResponse = response.body<Map<String, NfdLookupResponse>>()[address]
+                    if (nfdLookupResponse != null) {
+                        ApiResult.Success(nfdLookupResponse.toNfdProfile(address))
+                    } else {
+                        ApiResult.Error(
+                            code = response.status.value,
+                            message = "No NFD found for address: $address",
+                        )
+                    }
                 }
 
                 response.status == HttpStatusCode.NotFound -> {
@@ -41,7 +53,7 @@ internal class NfdApiServiceImpl(
                     val errorMessage =
                         try {
                             response.body<String>()
-                        } catch (e: Exception) {
+                        } catch (_: Exception) {
                             "HTTP ${response.status.value}: ${response.status.description}"
                         }
 

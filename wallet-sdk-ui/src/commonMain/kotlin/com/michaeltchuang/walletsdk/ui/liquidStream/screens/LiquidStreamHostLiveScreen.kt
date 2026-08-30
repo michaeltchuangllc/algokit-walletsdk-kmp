@@ -66,6 +66,7 @@ fun LiquidStreamHostLiveScreen(
     balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
     creatorUsername: String = "michaeltchuang.algo",
+    creatorAvatarUrl: String? = null,
     numbersOfViewer: String = "1",
     lastSettledUsdc: Double? = null,
 ) {
@@ -153,6 +154,7 @@ fun LiquidStreamHostLiveScreen(
     LiquidStreamHostLiveScreenContent(
         cameraPreview = cameraPreview,
         creatorUsername = creatorUsername,
+        creatorAvatarUrl = creatorAvatarUrl,
         numbersOfViewer = numbersOfViewer,
         onSettingsClick = {
             viewModel.onSettingsClicked()
@@ -194,6 +196,7 @@ fun LiquidStreamHostLiveScreen(
 fun LiquidStreamHostLiveScreenContent(
     cameraPreview: @Composable (() -> Unit)?,
     creatorUsername: String?,
+    creatorAvatarUrl: String? = null,
     numbersOfViewer: String?,
     onSettingsClick: () -> Unit,
     onMinimise: () -> Unit,
@@ -261,6 +264,7 @@ fun LiquidStreamHostLiveScreenContent(
         ) {
             CreatorTopBar(
                 creatorUsername = creatorUsername,
+                creatorAvatarUrl = creatorAvatarUrl,
                 numbersOfViewers = numbersOfViewer,
                 onSettingsClick = onSettingsClick,
                 onMinimise = onMinimise,
