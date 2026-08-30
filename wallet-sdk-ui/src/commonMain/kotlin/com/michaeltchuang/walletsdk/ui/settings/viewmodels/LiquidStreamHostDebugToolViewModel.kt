@@ -263,23 +263,11 @@ class LiquidStreamHostDebugToolViewModel(
                 val currentFree = automatedFreeBlocksConsumed[viewer] ?: 0L
                 val newCumulative = (currentPaid * incrementMicroUsdc).coerceAtLeast(snapshot.latestVoucherAmountMicroUsdc)
 
-                // 5. No-progress check: skip settling if cumulative amount hasn't increased since last settle
-                if (newCumulative <= snapshot.latestVoucherAmountMicroUsdc) {
-                    Napier.d(
-                        "[AUTO_SETTLE_SKIP] reason=no-progress viewer=$viewer " +
-                            "newCumulative=$newCumulative last=${snapshot.latestVoucherAmountMicroUsdc}",
-                    )
-                    continue
-                }
-
-                // 6. Safety check: don't settle more than deposited
-                if (newCumulative > snapshot.totalDepositMicroUsdc) continue
-
                 val channelIdBase64 = Base64.encode(channelId)
                 val currentBlock = state.value.liveBlockNumber ?: 0L
                 val startRound = snapshot.startRound
 
-                // 7. Generate Note
+                // 5. Generate Note (always, so the receipt is visible even when settlement is skipped below)
                 val noteJson =
                     getMppVoucherNoteUseCase(
                         GetMppVoucherNoteUseCase.Params(
@@ -295,6 +283,19 @@ class LiquidStreamHostDebugToolViewModel(
                     )
                 Napier.d { "[AUTO_SETTLE_NOTE] newCumulative=$newCumulative" }
                 Napier.d { "[AUTO_SETTLE_NOTE] viewer=$viewer note=$noteJson" }
+
+                // 6. No-progress check: skip settling if cumulative amount hasn't increased since last settle
+                if (newCumulative <= snapshot.latestVoucherAmountMicroUsdc) {
+                    Napier.d(
+                        "[AUTO_SETTLE_SKIP] reason=no-progress viewer=$viewer " +
+                            "newCumulative=$newCumulative last=${snapshot.latestVoucherAmountMicroUsdc}",
+                    )
+                    continue
+                }
+
+                // 7. Safety check: don't settle more than deposited
+                if (newCumulative > snapshot.totalDepositMicroUsdc) continue
+
                 // 8. Settle
                 val settleMessage =
                     MppPayments.settleMessage(

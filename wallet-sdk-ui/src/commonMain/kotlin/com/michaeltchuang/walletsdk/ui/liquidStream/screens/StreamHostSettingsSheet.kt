@@ -61,7 +61,7 @@ private val streamCostTabs =
         SegmentedTabItem(
             id = STREAM_COST_PAID_TAB_ID,
             icon = Res.drawable.ic_usdc,
-            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC / 100000} micro-USDC",
+            title = "${LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC} micro-USDC",
         ),
     )
 

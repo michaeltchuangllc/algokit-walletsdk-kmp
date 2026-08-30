@@ -34,7 +34,7 @@ class GetMppVoucherNoteUseCase {
                 ),
                 MppVoucherNoteItem(
                     sku = MppVoucherNoteSku.SUB_TIER_1,
-                    name = "Subscription (${params.costPerPaidBlock} micro-USDC/block)",
+                    name = "Subscription ($COST_PER_BLOCK_MICRO_USDC micro-USDC/block)",
                     quantity = params.paidBlocks,
                     total = paidTotal,
                 ),
