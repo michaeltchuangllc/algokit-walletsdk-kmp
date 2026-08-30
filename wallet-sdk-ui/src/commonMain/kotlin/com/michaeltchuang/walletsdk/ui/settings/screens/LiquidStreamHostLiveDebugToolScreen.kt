@@ -16,7 +16,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +33,8 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.rememberStandalon
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreenContent
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
 import io.github.aakira.napier.Napier
@@ -57,17 +58,12 @@ fun LiquidStreamHostDebugToolScreen(
     onStatsClick: () -> Unit = {},
     onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
     onSendClick: (String) -> Unit = {},
-    sessionId: String? = "debug-session-id",
-    remainingBalanceUsdc: Double? = 25.0,
     blockChainLabel: String = "ALGORAND",
     balanceCurrencySymbol: String = "¦",
 ) {
     val cameraPreviewComp = rememberStandaloneCameraPreview()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
-    var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
-    var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
-    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
 
     DisposableEffect(debugViewModel) {
@@ -86,19 +82,14 @@ fun LiquidStreamHostDebugToolScreen(
         }
     }
 
-    LaunchedEffect(remainingBalanceUsdc) {
-        val current = remainingBalanceUsdc ?: 0.0
-        val previous = prevRemainingBalanceUsdc
-        if (current > previous) {
-            revenueCapacityUsdc += (current - previous)
-            progressCapacityUsdc = current
+    val streamRevenueLabel =
+        if (debugState.totalRevenueMicroUsdc > 0) {
+            "+${(debugState.totalRevenueMicroUsdc / 1_000_000.0 * 100).toLong() / 100.0}"
+        } else {
+            "0.00"
         }
-        prevRemainingBalanceUsdc = current
-    }
-
-    val calculatedRevenue = (revenueCapacityUsdc - (remainingBalanceUsdc ?: 0.0)).coerceAtLeast(0.0)
-    val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
-    val blockNumberLabelLabel = uiState.currentBlockNumber?.let { "#$it" } ?: "-"
+    val blockNumberLabelLabel = debugState.liveBlockNumber?.let { "#$it" } ?: "-"
+    val securedViaLabel = debugState.liveNetworkLabel
 
     LaunchedEffect(Unit) {
         Napier.d("Viewer 1 Address: ${DebugAddressHolder.viewerAddress}", tag = "LiquidStreamHostDebug")
@@ -155,8 +146,18 @@ fun LiquidStreamHostDebugToolScreen(
                 is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
                 is LiquidStreamHostViewModel.ViewEvent.ToggleMic -> onMicClick(event.isMuted)
                 is LiquidStreamHostViewModel.ViewEvent.ToggleCamera -> onCameraClick(event.isEnabled)
-                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> Unit
-                is LiquidStreamHostViewModel.ViewEvent.PayoutFrequencyChanged -> Unit
+                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> {
+                    debugViewModel.setStreamCost(event.costMicroUsdc)
+                }
+                is LiquidStreamHostViewModel.ViewEvent.PayoutFrequencyChanged -> {
+                    val blocks =
+                        if (event.tabId == PAYOUT_EVERY_256_BLOCKS_TAB_ID) {
+                            PAYOUT_BATCH_BLOCK_COUNT
+                        } else {
+                            1
+                        }
+                    debugViewModel.setPayoutFrequency(blocks)
+                }
             }
         }
     }
@@ -183,17 +184,12 @@ fun LiquidStreamHostDebugToolScreen(
                 onStatsClick()
             },
             onSendClickInternal = { viewModel.onSendClicked() },
-            viewers =
-                debugState.viewers.map {
-                    it.copy(
-                        revenueCapacityUSDC = revenueCapacityUsdc,
-                        progressCapacityUSDC = progressCapacityUsdc,
-                    )
-                },
+            viewers = debugState.viewers,
             blockChainLabel = blockChainLabel,
             balanceCurrencySymbol = balanceCurrencySymbol,
             streamRevenue = streamRevenueLabel,
             blockNumberLabel = blockNumberLabelLabel,
+            securedViaLabel = securedViaLabel,
             uiState = uiState,
             onTextChanged = viewModel::onMessageChanged,
             onStatsDismissed = {
@@ -205,6 +201,11 @@ fun LiquidStreamHostDebugToolScreen(
             onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
             onSettingsDismissed = viewModel::onSettingsDismissed,
         )
+
+        LaunchedEffect(uiState.selectedStreamCostTabId) {
+            val isPaid = uiState.selectedStreamCostTabId == LiquidStreamHostViewModel.STREAM_COST_PAID_TAB_ID
+            debugViewModel.setIsPaidStreaming(isPaid)
+        }
 
         // Floating Debug Status Info
         Column(
