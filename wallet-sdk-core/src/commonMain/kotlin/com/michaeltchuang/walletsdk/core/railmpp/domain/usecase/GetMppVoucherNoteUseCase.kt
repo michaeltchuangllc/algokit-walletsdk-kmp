@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.core.railmpp.domain.usecase
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.notes.MppVoucherNote
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.notes.MppVoucherNoteItem
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.notes.MppVoucherNoteSku
@@ -21,7 +22,7 @@ class GetMppVoucherNoteUseCase {
     )
 
     operator fun invoke(params: Params): String {
-        val paidTotal = params.paidBlocks * params.costPerPaidBlock
+        val paidTotal = params.paidBlocks * COST_PER_BLOCK_MICRO_USDC
 
         val items =
             listOf(
@@ -33,7 +34,7 @@ class GetMppVoucherNoteUseCase {
                 ),
                 MppVoucherNoteItem(
                     sku = MppVoucherNoteSku.SUB_TIER_1,
-                    name = "Subscription (${params.costPerPaidBlock} micro-USDC/block)",
+                    name = "Subscription ($COST_PER_BLOCK_MICRO_USDC micro-USDC/block)",
                     quantity = params.paidBlocks,
                     total = paidTotal,
                 ),
@@ -57,7 +58,7 @@ class GetMppVoucherNoteUseCase {
                 channel = params.channelId,
                 range = listOf(params.startBlock, params.currentBlock),
                 items = items,
-                cumulative_total = params.totalCumulativeAmount,
+                cumulative_total = items.sumOf { it.total },
             )
 
         val json = Json { encodeDefaults = true }

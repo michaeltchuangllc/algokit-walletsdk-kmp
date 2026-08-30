@@ -165,6 +165,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     actual fun setIsPaidStreaming(enabled: Boolean) {
         Log.d(TAG, "💰 setIsPaidStreaming: $enabled")
         isPaidStreamingEnabled = enabled
+        // NO stopBlockConsumption() here — keep tracking in both modes.
         if (!enabled) {
             setStreamCost(0L)
             // Clear any stale claim snapshot so we don't settle old vouchers when resuming to Paid.
