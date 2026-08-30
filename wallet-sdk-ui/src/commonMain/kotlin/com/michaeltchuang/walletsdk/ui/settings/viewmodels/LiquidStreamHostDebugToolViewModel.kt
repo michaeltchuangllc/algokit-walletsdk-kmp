@@ -263,14 +263,23 @@ class LiquidStreamHostDebugToolViewModel(
                 val currentFree = automatedFreeBlocksConsumed[viewer] ?: 0L
                 val newCumulative = (currentPaid * incrementMicroUsdc).coerceAtLeast(snapshot.latestVoucherAmountMicroUsdc)
 
-                // Safety check: don't settle more than deposited
+                // 5. No-progress check: skip settling if cumulative amount hasn't increased since last settle
+                if (newCumulative <= snapshot.latestVoucherAmountMicroUsdc) {
+                    Napier.d(
+                        "[AUTO_SETTLE_SKIP] reason=no-progress viewer=$viewer " +
+                            "newCumulative=$newCumulative last=${snapshot.latestVoucherAmountMicroUsdc}",
+                    )
+                    continue
+                }
+
+                // 6. Safety check: don't settle more than deposited
                 if (newCumulative > snapshot.totalDepositMicroUsdc) continue
 
                 val channelIdBase64 = Base64.encode(channelId)
                 val currentBlock = state.value.liveBlockNumber ?: 0L
                 val startRound = snapshot.startRound
 
-                // 5. Generate Note
+                // 7. Generate Note
                 val noteJson =
                     getMppVoucherNoteUseCase(
                         GetMppVoucherNoteUseCase.Params(
@@ -286,7 +295,7 @@ class LiquidStreamHostDebugToolViewModel(
                     )
                 Napier.d { "[AUTO_SETTLE_NOTE] newCumulative=$newCumulative" }
                 Napier.d { "[AUTO_SETTLE_NOTE] viewer=$viewer note=$noteJson" }
-                // 6. Settle
+                // 8. Settle
                 val settleMessage =
                     MppPayments.settleMessage(
                         cumulativeAmountMicroUsdc = newCumulative,
