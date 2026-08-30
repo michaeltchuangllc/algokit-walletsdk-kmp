@@ -6,8 +6,10 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
@@ -39,6 +41,7 @@ class LiquidStreamHostDebugToolViewModel(
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
     private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase,
     private val voucherRepository: MppVoucherRepository,
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
     private val applicationScope: CoroutineScope,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
@@ -62,6 +65,55 @@ class LiquidStreamHostDebugToolViewModel(
         startLivePolling()
         refreshViewerBalances()
         startAutomation()
+        loadCreatorNfdProfile()
+        loadViewerNfdProfiles()
+    }
+
+    private fun loadCreatorNfdProfile() {
+        val creatorAddress = DebugAddressHolder.creatorAddress
+        if (creatorAddress.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(creatorAddress)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile", e, tag = "LiquidStreamHostDebugVM")
+            }
+        }
+    }
+
+    private fun loadViewerNfdProfiles() {
+        val addresses =
+            listOf(
+                DebugAddressHolder.viewerAddress,
+                DebugAddressHolder.viewerAddress2,
+                DebugAddressHolder.viewerAddress3,
+            ).filter { it.isNotBlank() }
+        if (addresses.isEmpty()) return
+
+        viewModelScope.launch {
+            addresses.forEach { address ->
+                try {
+                    val nfdProfile = getNfdProfileForAddress(address)
+                    if (nfdProfile?.name != null) {
+                        stateDelegate.updateState {
+                            val updatedNfdNames = it.viewerNfdNames + (address to nfdProfile.name)
+                            it.copy(
+                                viewerNfdNames = updatedNfdNames,
+                                viewers = buildViewersList(it.viewerBalances, it.liveBlockNumber, it.liveNetworkLabel, updatedNfdNames),
+                            )
+                        }
+                    }
+                } catch (e: Exception) {
+                    Napier.e("Failed to fetch viewer NFD profile for $address", e, tag = "LiquidStreamHostDebugVM")
+                }
+            }
+        }
     }
 
     private fun getOrInitChannelId(
@@ -101,7 +153,13 @@ class LiquidStreamHostDebugToolViewModel(
                 stateDelegate.updateState {
                     it.copy(
                         liveNetworkLabel = network.displayName.uppercase(),
-                        viewers = buildViewersList(it.viewerBalances, it.liveBlockNumber, network.displayName.uppercase()),
+                        viewers =
+                            buildViewersList(
+                                it.viewerBalances,
+                                it.liveBlockNumber,
+                                network.displayName.uppercase(),
+                                it.viewerNfdNames,
+                            ),
                     )
                 }
             } catch (e: Exception) {
@@ -114,7 +172,7 @@ class LiquidStreamHostDebugToolViewModel(
                         stateDelegate.updateState {
                             it.copy(
                                 liveBlockNumber = result.data,
-                                viewers = buildViewersList(it.viewerBalances, result.data, it.liveNetworkLabel),
+                                viewers = buildViewersList(it.viewerBalances, result.data, it.liveNetworkLabel, it.viewerNfdNames),
                             )
                         }
                     }
@@ -179,7 +237,7 @@ class LiquidStreamHostDebugToolViewModel(
                     stateDelegate.updateState {
                         it.copy(
                             viewerBalances = newBalances,
-                            viewers = buildViewersList(newBalances, it.liveBlockNumber, it.liveNetworkLabel),
+                            viewers = buildViewersList(newBalances, it.liveBlockNumber, it.liveNetworkLabel, it.viewerNfdNames),
                         )
                     }
                 } catch (e: Exception) {
@@ -482,6 +540,7 @@ class LiquidStreamHostDebugToolViewModel(
         balances: Map<String, Double>,
         blockNumber: Long?,
         networkLabel: String,
+        viewerNfdNames: Map<String, String>,
     ): List<ConnectedViewerInfo> =
         listOf(
             ConnectedViewerInfo(
@@ -496,7 +555,9 @@ class LiquidStreamHostDebugToolViewModel(
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
                 originUrl = "https://liquid-auth-api.pg.nodely.dev/",
-                viewerAddress = DebugAddressHolder.viewerAddress,
+                viewerAddress =
+                    viewerNfdNames[DebugAddressHolder.viewerAddress]
+                        ?: DebugAddressHolder.viewerAddress.toShortenedAddress(),
             ),
             ConnectedViewerInfo(
                 sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress2),
@@ -510,7 +571,9 @@ class LiquidStreamHostDebugToolViewModel(
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
                 originUrl = "https://liquid-auth-api.pg.nodely.dev/",
-                viewerAddress = DebugAddressHolder.viewerAddress2,
+                viewerAddress =
+                    viewerNfdNames[DebugAddressHolder.viewerAddress2]
+                        ?: DebugAddressHolder.viewerAddress2.toShortenedAddress(),
             ),
             ConnectedViewerInfo(
                 sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress3),
@@ -524,7 +587,9 @@ class LiquidStreamHostDebugToolViewModel(
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
                 originUrl = "https://viewer-3.app",
-                viewerAddress = DebugAddressHolder.viewerAddress3,
+                viewerAddress =
+                    viewerNfdNames[DebugAddressHolder.viewerAddress3]
+                        ?: DebugAddressHolder.viewerAddress3.toShortenedAddress(),
             ),
         ).filter { !it.viewerAddress.isNullOrBlank() }
 
@@ -535,6 +600,9 @@ class LiquidStreamHostDebugToolViewModel(
         val viewers: List<ConnectedViewerInfo> = emptyList(),
         val isLoading: Boolean = false,
         val totalRevenueMicroUsdc: Long = 0L,
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
+        val viewerNfdNames: Map<String, String> = emptyMap(),
     )
 
     sealed interface ViewEvent {

@@ -6,6 +6,8 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.EXP
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.INDEXER_FUTURENET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.INDEXER_MAINNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.INDEXER_TESTNET_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NFD_MAINNET_BASE_URL
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NFD_TESTNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_FUTURENET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_MAINNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.NODE_TESTNET_BASE_URL
@@ -61,5 +63,20 @@ suspend fun getPeraWalletBaseUrl(): String =
                 AlgorandNetwork.FUTURENET -> PERA_API_FUTURENET_BASE_URL
                 AlgorandNetwork.TESTNET -> PERA_API_TESTNET_BASE_URL
                 AlgorandNetwork.MAINNET -> PERA_API_MAINNET_BASE_URL
+            }
+        }.await()
+
+/**
+ * NFD (Non-Fungible Domains) only runs on Algorand MainNet and TestNet - there is no FutureNet
+ * NFD API. FutureNet is mapped to the TestNet NFD API since it's the closest non-production
+ * network with NFD support.
+ */
+suspend fun getNfdBaseUrl(): String =
+    CoroutineScope(Dispatchers.IO)
+        .async {
+            val networkType = provideNodePreferenceRepository().getSavedNodePreferenceFlow().first()
+            when (networkType) {
+                AlgorandNetwork.MAINNET -> NFD_MAINNET_BASE_URL
+                AlgorandNetwork.TESTNET, AlgorandNetwork.FUTURENET -> NFD_TESTNET_BASE_URL
             }
         }.await()

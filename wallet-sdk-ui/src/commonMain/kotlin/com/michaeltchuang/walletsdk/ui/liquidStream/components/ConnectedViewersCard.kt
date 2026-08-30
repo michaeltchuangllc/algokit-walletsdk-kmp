@@ -245,7 +245,7 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         ) {
             Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
             Text(
-                text = viewer.viewerAddress.toShortenedAddress(),
+                text = viewer.viewerAddress.orEmpty(),
                 color = colors.streamHostTitle,
                 fontSize = 25.sp / 2f,
                 fontWeight = FontWeight.Bold,
@@ -378,17 +378,17 @@ private fun ConnectedViewersCardLightPreview() {
                                 networkLabel = "TESTNET",
                                 progressBalanceUSDC = 0.2,
                                 originUrl = "michaeltchuang.ngrok.dev",
-                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U".toShortenedAddress(),
                             ),
                             ConnectedViewerInfo(
                                 sessionId = "session-2",
                                 remainingBalanceUSDC = 5.0,
-                                connectionType = IceConnectionType.STUN,
+                                connectionType = IceConnectionType.LOCAL,
                                 currentBlockNumber = 12345L,
-                                networkLabel = "MAINNET",
-                                progressBalanceUSDC = 0.5,
-                                originUrl = "another-origin.com",
-                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                                networkLabel = "TESTNET",
+                                progressBalanceUSDC = 0.1,
+                                originUrl = "liquid-auth.pg.nodely.dev",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U".toShortenedAddress(),
                             ),
                         ),
                 )
@@ -419,7 +419,7 @@ private fun ConnectedViewersCardDarkPreview() {
                                 networkLabel = "MAINNET",
                                 progressBalanceUSDC = 0.2,
                                 originUrl = "michaeltchuang.ngrok.dev",
-                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                                viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U".toShortenedAddress(),
                             ),
                         ),
                 )
