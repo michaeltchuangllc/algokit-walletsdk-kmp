@@ -487,8 +487,10 @@ class LiquidStreamHostDebugToolViewModel(
                 sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                progressCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress] ?: balances[DebugAddressHolder.viewerAddress] ?: 0.0,
-                revenueCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress] ?: balances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                progressCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress] ?: balances[DebugAddressHolder.viewerAddress] ?: 0.0,
+                revenueCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress] ?: balances[DebugAddressHolder.viewerAddress] ?: 0.0,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
@@ -499,8 +501,10 @@ class LiquidStreamHostDebugToolViewModel(
                 sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress2),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                progressCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress2] ?: balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
-                revenueCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress2] ?: balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                progressCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress2] ?: balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
+                revenueCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress2] ?: balances[DebugAddressHolder.viewerAddress2] ?: 0.0,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
@@ -511,8 +515,10 @@ class LiquidStreamHostDebugToolViewModel(
                 sessionId = channelIdDisplayFor(DebugAddressHolder.viewerAddress3),
                 remainingBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
                 progressBalanceUSDC = balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                progressCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress3] ?: balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
-                revenueCapacityUSDC = viewerMaxBalances[DebugAddressHolder.viewerAddress3] ?: balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                progressCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress3] ?: balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
+                revenueCapacityUSDC =
+                    viewerMaxBalances[DebugAddressHolder.viewerAddress3] ?: balances[DebugAddressHolder.viewerAddress3] ?: 0.0,
                 connectionType = IceConnectionType.LOCAL,
                 currentBlockNumber = blockNumber,
                 networkLabel = networkLabel,
