@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -82,10 +83,11 @@ fun LiquidStreamViewerScreen(
     onMinimize: () -> Unit = {},
     onSendClick: (String) -> Unit = {},
     onTopUpConfirm: (String) -> Unit = {},
-    viewerAddress: String = "-",
-    creatorUsername: String = "michaeltchuang.algo",
+    viewerAddress: String = "",
+    creatorUsername: String? = null,
     creatorAvatarUrl: String? = null,
-    creatorAddress: String? = null,
+    creatorAddress: String = "",
+    numbersOfViewer: String = "1",
     originUrl: String = "-",
     currentBlockNumber: Long? = null,
     remainingBalanceUsdc: Double = 0.0,
@@ -97,15 +99,19 @@ fun LiquidStreamViewerScreen(
     var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
 
-    LaunchedEffect(creatorAddress, creatorUsername) {
-        val addrToLoad = creatorAddress ?: creatorUsername.takeIf { it.length >= 32 }
-        if (!addrToLoad.isNullOrBlank()) {
-            viewModel.loadCreatorNfdProfile(addrToLoad)
+    val effectiveCreatorAddress =
+        creatorAddress
+            .ifBlank { creatorUsername.orEmpty() }
+            .ifBlank { EscrowSessionVaultManagerClient.hostAddress.orEmpty() }
+
+    LaunchedEffect(effectiveCreatorAddress) {
+        if (effectiveCreatorAddress.isNotBlank()) {
+            viewModel.loadCreatorNfdProfile(effectiveCreatorAddress)
         }
     }
 
     LaunchedEffect(viewerAddress) {
-        if (viewerAddress.isNotBlank() && viewerAddress != "-") {
+        if (viewerAddress.isNotBlank()) {
             viewModel.loadViewerNfdProfile(viewerAddress)
         }
     }
@@ -120,17 +126,14 @@ fun LiquidStreamViewerScreen(
 
     val resolvedCreatorUsername =
         uiState.creatorNfdName
-            ?: creatorAddress?.toShortenedAddress()
-            ?: creatorUsername.takeIf { it.isNotBlank() }
-            ?: "michaeltchuang.algo"
+            ?: effectiveCreatorAddress.toShortenedAddress().ifBlank { creatorUsername.orEmpty() }
 
     val resolvedCreatorAvatarUrl =
         uiState.creatorNfdAvatarUrl ?: creatorAvatarUrl
 
     val resolvedViewerAddress =
         uiState.viewerNfdName
-            ?: viewerAddress.takeIf { it.isNotBlank() && it != "-" }?.toShortenedAddress()
-            ?: "Viewer"
+            ?: viewerAddress.toShortenedAddress()
 
     val calculatedRevenue = (revenueCapacityUsdc - remainingBalanceUsdc).coerceAtLeast(0.0)
     val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
@@ -153,6 +156,7 @@ fun LiquidStreamViewerScreen(
         viewerAddress = resolvedViewerAddress,
         creatorUsername = resolvedCreatorUsername,
         creatorAvatarUrl = resolvedCreatorAvatarUrl,
+        numbersOfViewer = numbersOfViewer,
         originUrl = originUrl,
         networkLabel = uiState.networkLabel,
         currentBlockNumber = currentBlockNumber,
@@ -187,8 +191,9 @@ private fun LiquidStreamViewerScreenContent(
     cameraPreview: @Composable (() -> Unit)?,
     onMinimize: () -> Unit,
     viewerAddress: String,
-    creatorUsername: String = "michaeltchuang.algo",
+    creatorUsername: String? = null,
     creatorAvatarUrl: String? = null,
+    numbersOfViewer: String = "1",
     originUrl: String,
     networkLabel: String,
     currentBlockNumber: Long?,
@@ -255,6 +260,7 @@ private fun LiquidStreamViewerScreenContent(
             Header(
                 creatorUsername = creatorUsername,
                 creatorAvatarUrl = creatorAvatarUrl,
+                numbersOfViewers = numbersOfViewer,
                 onSettingsClick = onSettingsClick,
                 onMinimize = onMinimize,
             )
@@ -388,8 +394,9 @@ private fun StreamStatusRow(
 
 @Composable
 private fun Header(
-    creatorUsername: String = "michaeltchuang.algo",
+    creatorUsername: String? = null,
     creatorAvatarUrl: String? = null,
+    numbersOfViewers: String = "1",
     onSettingsClick: () -> Unit,
     onMinimize: () -> Unit,
 ) {
@@ -437,7 +444,7 @@ private fun Header(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = creatorUsername.takeIf { it.isNotBlank() } ?: "michaeltchuang.algo",
+                    text = creatorUsername.orEmpty(),
                     color = Color.White,
                     fontSize = 20.sp / 1.5f,
                     fontWeight = FontWeight.Bold,
@@ -453,7 +460,7 @@ private fun Header(
                         modifier = Modifier.size(14.dp),
                     )
                     Text(
-                        text = "# of VIEWERS",
+                        text = "${numbersOfViewers.ifBlank { "1" }} # of VIEWERS",
                         color = Color(0xFFB8CDD7),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,

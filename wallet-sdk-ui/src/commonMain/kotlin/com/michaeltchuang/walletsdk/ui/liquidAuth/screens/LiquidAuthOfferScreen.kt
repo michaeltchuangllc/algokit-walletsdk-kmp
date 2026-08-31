@@ -84,7 +84,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerIn
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
-import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder.creatorAddress
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -505,6 +504,7 @@ fun LiquidAuthOfferScreen(
         isCheckingCreatorAsaBalance = isCheckingCreatorAsaBalance,
         requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
         lastSettledUsdc = lastSettledUsdc,
+        creatorAddress = creatorAddress.orEmpty(),
     )
 }
 
@@ -536,6 +536,7 @@ fun LiquidAuthOfferScreenContent(
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
     lastSettledUsdc: Double? = null,
+    creatorAddress: String = "",
 ) {
     Column(
         modifier =
@@ -641,7 +642,7 @@ fun LiquidAuthOfferScreenContent(
             hostViewModel = hostViewModel,
             lastSettledUsdc = lastSettledUsdc,
             creatorAddress = creatorAddress,
-            viewerAddress = activeViewerAddress,
+            viewerAddress = activeViewerAddress.orEmpty(),
         )
     }
 }
@@ -667,8 +668,8 @@ private fun StreamHostBottomSheet(
     onStatsModalVisibilityChanged: (Boolean) -> Unit,
     hostViewModel: LiquidStreamHostViewModel,
     lastSettledUsdc: Double? = null,
-    creatorAddress: String? = null,
-    viewerAddress: String? = null,
+    creatorAddress: String = "",
+    viewerAddress: String = "",
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {

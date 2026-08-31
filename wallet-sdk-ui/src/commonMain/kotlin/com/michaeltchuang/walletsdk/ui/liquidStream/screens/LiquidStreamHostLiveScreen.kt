@@ -66,10 +66,10 @@ fun LiquidStreamHostLiveScreen(
     networkLabel: String = "TESTNET",
     balanceCurrencySymbol: String = "¦",
     originUrl: String = "-",
-    creatorUsername: String = "michaeltchuang.algo",
+    creatorUsername: String? = null,
     creatorAvatarUrl: String? = null,
-    creatorAddress: String? = null,
-    viewerAddress: String? = null,
+    creatorAddress: String = "",
+    viewerAddress: String = "",
     numbersOfViewer: String = "1",
     lastSettledUsdc: Double? = null,
 ) {
@@ -79,14 +79,14 @@ fun LiquidStreamHostLiveScreen(
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
 
     LaunchedEffect(creatorAddress, creatorUsername) {
-        val addrToLoad = creatorAddress ?: creatorUsername.takeIf { it.length >= 32 }
-        if (!addrToLoad.isNullOrBlank()) {
+        val addrToLoad = creatorAddress.ifBlank { creatorUsername.orEmpty() }
+        if (addrToLoad.isNotBlank()) {
             viewModel.loadCreatorNfdProfile(addrToLoad)
         }
     }
 
     LaunchedEffect(viewerAddress) {
-        if (!viewerAddress.isNullOrBlank()) {
+        if (viewerAddress.isNotBlank()) {
             viewModel.loadViewerNfdProfile(viewerAddress)
         }
     }
@@ -103,15 +103,15 @@ fun LiquidStreamHostLiveScreen(
 
     val resolvedCreatorUsername =
         uiState.creatorNfdName
-            ?: creatorAddress?.toShortenedAddress()
-            ?: creatorUsername.takeIf { it.isNotBlank() }
-            ?: "michaeltchuang.algo"
+            ?: creatorAddress.toShortenedAddress()
 
     val resolvedCreatorAvatarUrl =
         uiState.creatorNfdAvatarUrl ?: creatorAvatarUrl
 
     val displayViewerAddress =
-        viewerAddress?.let { uiState.viewerNfdNames[it] ?: it.toShortenedAddress() }
+        viewerAddress.let { addr ->
+            uiState.viewerNfdNames[addr] ?: addr.toShortenedAddress()
+        }
 
     val viewers =
         remember(

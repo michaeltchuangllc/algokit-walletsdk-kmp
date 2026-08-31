@@ -245,7 +245,7 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
         ) {
             Box(modifier = Modifier.weight(1f).height(1.dp).background(colors.streamHostDivider))
             Text(
-                text = viewer.viewerAddress.takeIf { !it.isNullOrBlank() } ?: "Viewer",
+                text = viewer.viewerAddress.orEmpty(),
                 color = colors.streamHostTitle,
                 fontSize = 25.sp / 2f,
                 fontWeight = FontWeight.Bold,

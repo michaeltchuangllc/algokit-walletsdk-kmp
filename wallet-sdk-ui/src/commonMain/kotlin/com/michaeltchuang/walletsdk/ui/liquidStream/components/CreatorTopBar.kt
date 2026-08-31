@@ -43,7 +43,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 @Composable
 fun CreatorTopBar(
     modifier: Modifier = Modifier,
-    creatorUsername: String? = "michaeltchuang.algo",
+    creatorUsername: String? = null,
     creatorAvatarUrl: String? = null,
     numbersOfViewers: String? = "1",
     onSettingsClick: () -> Unit,
@@ -94,7 +94,7 @@ fun CreatorTopBar(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
-                        text = creatorUsername.takeIf { !it.isNullOrBlank() } ?: "michaeltchuang.algo",
+                        text = creatorUsername.orEmpty(),
                         style =
                             TextStyle(
                                 fontSize = 18.sp,
