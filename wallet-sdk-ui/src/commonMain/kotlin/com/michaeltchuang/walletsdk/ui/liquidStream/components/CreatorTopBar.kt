@@ -94,7 +94,7 @@ fun CreatorTopBar(
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
-                        text = creatorUsername ?: "michaeltchuang.algo",
+                        text = creatorUsername.takeIf { !it.isNullOrBlank() } ?: "michaeltchuang.algo",
                         style =
                             TextStyle(
                                 fontSize = 18.sp,

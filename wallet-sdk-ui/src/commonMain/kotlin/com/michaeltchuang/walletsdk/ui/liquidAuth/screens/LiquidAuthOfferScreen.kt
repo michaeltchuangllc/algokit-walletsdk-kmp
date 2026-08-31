@@ -84,6 +84,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerIn
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder.creatorAddress
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -612,6 +613,8 @@ fun LiquidAuthOfferScreenContent(
                 else -> null
             }
 
+        val activeViewerAddress by connectionManager?.viewerAddress?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(null) }
+
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
             connectionManager = connectionManager,
@@ -637,6 +640,8 @@ fun LiquidAuthOfferScreenContent(
             onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
             hostViewModel = hostViewModel,
             lastSettledUsdc = lastSettledUsdc,
+            creatorAddress = creatorAddress,
+            viewerAddress = activeViewerAddress,
         )
     }
 }
@@ -662,6 +667,8 @@ private fun StreamHostBottomSheet(
     onStatsModalVisibilityChanged: (Boolean) -> Unit,
     hostViewModel: LiquidStreamHostViewModel,
     lastSettledUsdc: Double? = null,
+    creatorAddress: String? = null,
+    viewerAddress: String? = null,
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -691,6 +698,8 @@ private fun StreamHostBottomSheet(
                 balanceCurrencySymbol = balanceCurrencySymbol,
                 originUrl = originUrl,
                 lastSettledUsdc = lastSettledUsdc,
+                creatorAddress = creatorAddress,
+                viewerAddress = viewerAddress,
                 onSendClick = { text ->
                     connectionManager?.sendChatMessage(
                         ChatMessage(
@@ -748,6 +757,8 @@ private fun StreamHostBottomSheet(
                     balanceCurrencySymbol = balanceCurrencySymbol,
                     originUrl = originUrl,
                     lastSettledUsdc = lastSettledUsdc,
+                    creatorAddress = creatorAddress,
+                    viewerAddress = viewerAddress,
                     onSendClick = { text ->
                         connectionManager?.sendChatMessage(
                             ChatMessage(

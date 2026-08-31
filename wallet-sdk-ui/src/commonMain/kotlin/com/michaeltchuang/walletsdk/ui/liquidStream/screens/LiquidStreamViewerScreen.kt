@@ -48,11 +48,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -80,6 +83,9 @@ fun LiquidStreamViewerScreen(
     onSendClick: (String) -> Unit = {},
     onTopUpConfirm: (String) -> Unit = {},
     viewerAddress: String = "-",
+    creatorUsername: String = "michaeltchuang.algo",
+    creatorAvatarUrl: String? = null,
+    creatorAddress: String? = null,
     originUrl: String = "-",
     currentBlockNumber: Long? = null,
     remainingBalanceUsdc: Double = 0.0,
@@ -91,6 +97,19 @@ fun LiquidStreamViewerScreen(
     var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
 
+    LaunchedEffect(creatorAddress, creatorUsername) {
+        val addrToLoad = creatorAddress ?: creatorUsername.takeIf { it.length >= 32 }
+        if (!addrToLoad.isNullOrBlank()) {
+            viewModel.loadCreatorNfdProfile(addrToLoad)
+        }
+    }
+
+    LaunchedEffect(viewerAddress) {
+        if (viewerAddress.isNotBlank() && viewerAddress != "-") {
+            viewModel.loadViewerNfdProfile(viewerAddress)
+        }
+    }
+
     LaunchedEffect(remainingBalanceUsdc) {
         if (remainingBalanceUsdc > prevRemainingBalanceUsdc) {
             revenueCapacityUsdc += (remainingBalanceUsdc - prevRemainingBalanceUsdc)
@@ -98,6 +117,20 @@ fun LiquidStreamViewerScreen(
         }
         prevRemainingBalanceUsdc = remainingBalanceUsdc
     }
+
+    val resolvedCreatorUsername =
+        uiState.creatorNfdName
+            ?: creatorAddress?.toShortenedAddress()
+            ?: creatorUsername.takeIf { it.isNotBlank() }
+            ?: "michaeltchuang.algo"
+
+    val resolvedCreatorAvatarUrl =
+        uiState.creatorNfdAvatarUrl ?: creatorAvatarUrl
+
+    val resolvedViewerAddress =
+        uiState.viewerNfdName
+            ?: viewerAddress.takeIf { it.isNotBlank() && it != "-" }?.toShortenedAddress()
+            ?: "Viewer"
 
     val calculatedRevenue = (revenueCapacityUsdc - remainingBalanceUsdc).coerceAtLeast(0.0)
     val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
@@ -117,7 +150,9 @@ fun LiquidStreamViewerScreen(
         connectionType = connectionType,
         cameraPreview = cameraPreview,
         onMinimize = onMinimize,
-        viewerAddress = viewerAddress,
+        viewerAddress = resolvedViewerAddress,
+        creatorUsername = resolvedCreatorUsername,
+        creatorAvatarUrl = resolvedCreatorAvatarUrl,
         originUrl = originUrl,
         networkLabel = uiState.networkLabel,
         currentBlockNumber = currentBlockNumber,
@@ -152,6 +187,8 @@ private fun LiquidStreamViewerScreenContent(
     cameraPreview: @Composable (() -> Unit)?,
     onMinimize: () -> Unit,
     viewerAddress: String,
+    creatorUsername: String = "michaeltchuang.algo",
+    creatorAvatarUrl: String? = null,
     originUrl: String,
     networkLabel: String,
     currentBlockNumber: Long?,
@@ -216,6 +253,8 @@ private fun LiquidStreamViewerScreenContent(
         ) {
             Spacer(Modifier.height(14.dp))
             Header(
+                creatorUsername = creatorUsername,
+                creatorAvatarUrl = creatorAvatarUrl,
                 onSettingsClick = onSettingsClick,
                 onMinimize = onMinimize,
             )
@@ -349,6 +388,8 @@ private fun StreamStatusRow(
 
 @Composable
 private fun Header(
+    creatorUsername: String = "michaeltchuang.algo",
+    creatorAvatarUrl: String? = null,
     onSettingsClick: () -> Unit,
     onMinimize: () -> Unit,
 ) {
@@ -370,11 +411,20 @@ private fun Header(
                             .border(1.dp, Color(0xFF3FD2EF), CircleShape)
                             .background(Color(0x29FFFFFF)),
                 ) {
-                    Image(
-                        painter = painterResource(Res.drawable.ic_user),
-                        contentDescription = null,
-                        modifier = Modifier.size(38.dp),
-                    )
+                    if (creatorAvatarUrl.isNullOrBlank()) {
+                        Image(
+                            painter = painterResource(Res.drawable.ic_user),
+                            contentDescription = null,
+                            modifier = Modifier.size(38.dp),
+                        )
+                    } else {
+                        AsyncImage(
+                            model = creatorAvatarUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.size(38.dp).clip(CircleShape),
+                        )
+                    }
                 }
                 Box(
                     modifier =
@@ -387,7 +437,7 @@ private fun Header(
             }
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    text = "michaeltchuang.algo",
+                    text = creatorUsername.takeIf { it.isNotBlank() } ?: "michaeltchuang.algo",
                     color = Color.White,
                     fontSize = 20.sp / 1.5f,
                     fontWeight = FontWeight.Bold,

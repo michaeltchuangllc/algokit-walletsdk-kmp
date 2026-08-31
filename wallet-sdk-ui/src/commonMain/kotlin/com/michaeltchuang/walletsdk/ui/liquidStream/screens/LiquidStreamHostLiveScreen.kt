@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
@@ -67,6 +68,8 @@ fun LiquidStreamHostLiveScreen(
     originUrl: String = "-",
     creatorUsername: String = "michaeltchuang.algo",
     creatorAvatarUrl: String? = null,
+    creatorAddress: String? = null,
+    viewerAddress: String? = null,
     numbersOfViewer: String = "1",
     lastSettledUsdc: Double? = null,
 ) {
@@ -74,6 +77,19 @@ fun LiquidStreamHostLiveScreen(
     var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
+
+    LaunchedEffect(creatorAddress, creatorUsername) {
+        val addrToLoad = creatorAddress ?: creatorUsername.takeIf { it.length >= 32 }
+        if (!addrToLoad.isNullOrBlank()) {
+            viewModel.loadCreatorNfdProfile(addrToLoad)
+        }
+    }
+
+    LaunchedEffect(viewerAddress) {
+        if (!viewerAddress.isNullOrBlank()) {
+            viewModel.loadViewerNfdProfile(viewerAddress)
+        }
+    }
 
     LaunchedEffect(remainingBalanceUsdc) {
         val current = remainingBalanceUsdc ?: 0.0
@@ -84,6 +100,18 @@ fun LiquidStreamHostLiveScreen(
         }
         prevRemainingBalanceUsdc = current
     }
+
+    val resolvedCreatorUsername =
+        uiState.creatorNfdName
+            ?: creatorAddress?.toShortenedAddress()
+            ?: creatorUsername.takeIf { it.isNotBlank() }
+            ?: "michaeltchuang.algo"
+
+    val resolvedCreatorAvatarUrl =
+        uiState.creatorNfdAvatarUrl ?: creatorAvatarUrl
+
+    val displayViewerAddress =
+        viewerAddress?.let { uiState.viewerNfdNames[it] ?: it.toShortenedAddress() }
 
     val viewers =
         remember(
@@ -97,6 +125,8 @@ fun LiquidStreamHostLiveScreen(
             networkLabel,
             originUrl,
             lastSettledUsdc,
+            displayViewerAddress,
+            uiState.viewerNfdNames,
         ) {
             listOf(
                 ConnectedViewerInfo(
@@ -109,6 +139,7 @@ fun LiquidStreamHostLiveScreen(
                     currentBlockNumber = currentBlockNumber,
                     networkLabel = networkLabel,
                     originUrl = originUrl,
+                    viewerAddress = displayViewerAddress,
                     lastSettledUSDC = lastSettledUsdc,
                 ),
             )
@@ -153,8 +184,8 @@ fun LiquidStreamHostLiveScreen(
 
     LiquidStreamHostLiveScreenContent(
         cameraPreview = cameraPreview,
-        creatorUsername = creatorUsername,
-        creatorAvatarUrl = creatorAvatarUrl,
+        creatorUsername = resolvedCreatorUsername,
+        creatorAvatarUrl = resolvedCreatorAvatarUrl,
         numbersOfViewer = numbersOfViewer,
         onSettingsClick = {
             viewModel.onSettingsClicked()

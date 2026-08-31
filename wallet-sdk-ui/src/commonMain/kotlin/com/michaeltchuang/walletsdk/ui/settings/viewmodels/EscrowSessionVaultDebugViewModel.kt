@@ -90,14 +90,31 @@ class EscrowSessionVaultDebugViewModel(
                 addresses to debugAddressSelectionsUseCase.get()
             }.onSuccess { (addresses, savedSelections) ->
                 updateContent { current ->
+                    val used = mutableSetOf<String>()
                     val viewer =
-                        savedSelections.viewerAddress.takeIf(addresses::contains)
-                            ?: addresses.getOrNull(0).orEmpty()
+                        savedSelections.viewerAddress
+                            .takeIf { it in addresses && it !in used }
+                            ?: addresses.firstOrNull { it !in used }.orEmpty()
+                    if (viewer.isNotBlank()) used.add(viewer)
+
                     val creator =
-                        savedSelections.creatorAddress.takeIf(addresses::contains)
-                            ?: addresses.getOrNull(1).orEmpty()
-                    val viewer2 = savedSelections.viewerAddress2.takeIf(addresses::contains).orEmpty()
-                    val viewer3 = savedSelections.viewerAddress3.takeIf(addresses::contains).orEmpty()
+                        savedSelections.creatorAddress
+                            .takeIf { it in addresses && it !in used }
+                            ?: addresses.firstOrNull { it !in used }.orEmpty()
+                    if (creator.isNotBlank()) used.add(creator)
+
+                    val viewer2 =
+                        savedSelections.viewerAddress2
+                            .takeIf { it in addresses && it !in used }
+                            .orEmpty()
+                    if (viewer2.isNotBlank()) used.add(viewer2)
+
+                    val viewer3 =
+                        savedSelections.viewerAddress3
+                            .takeIf { it in addresses && it !in used }
+                            .orEmpty()
+                    if (viewer3.isNotBlank()) used.add(viewer3)
+
                     DebugAddressHolder.viewerAddress = viewer
                     DebugAddressHolder.viewerAddress2 = viewer2
                     DebugAddressHolder.viewerAddress3 = viewer3
@@ -160,13 +177,13 @@ class EscrowSessionVaultDebugViewModel(
                                 Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
                             }
                         }.onFailure { err ->
-                            showError(PaymentError.Companion.from(err), "ADD_TO_VAULT_ERR", err)
+                            showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
                         }
                 } else {
                     showError(PaymentError.SignerNotFound(viewer), "ADD_TO_VAULT_NO_SIGNER")
                 }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "ADD_TO_VAULT_EXCEPTION", e)
+                showError(PaymentError.from(e), "ADD_TO_VAULT_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -201,7 +218,7 @@ class EscrowSessionVaultDebugViewModel(
                 sendStatus("✅ Remaining balance: $usdc USDC\n($remaining microUSDC)")
                 Napier.d("[FETCH_BALANCE_OK] remaining=$remaining", tag = TAG)
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "FETCH_BALANCE_ERR", e)
+                showError(PaymentError.from(e), "FETCH_BALANCE_ERR", e)
             } finally {
                 setLoading(false)
             }
@@ -289,10 +306,10 @@ class EscrowSessionVaultDebugViewModel(
                     Napier.d("[UPDATE_VOUCHER_OK] txId=$txId", tag = TAG)
                     sendStatus("✅ Voucher updated!\nTxId: $txId")
                 }.onFailure { err ->
-                    showError(PaymentError.Companion.from(err), "UPDATE_VOUCHER_ERR", err)
+                    showError(PaymentError.from(err), "UPDATE_VOUCHER_ERR", err)
                 }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "UPDATE_VOUCHER_EXCEPTION", e)
+                showError(PaymentError.from(e), "UPDATE_VOUCHER_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -338,13 +355,13 @@ class EscrowSessionVaultDebugViewModel(
                             sendStatus("✅ Signature verified!")
                             Napier.d("[VERIFY_SIGNATURE_OK]", tag = TAG)
                         }.onFailure { err ->
-                            showError(PaymentError.Companion.from(err), "VERIFY_SIGNATURE_ERR", err)
+                            showError(PaymentError.from(err), "VERIFY_SIGNATURE_ERR", err)
                         }
                 } else {
                     showError(PaymentError.SignerNotFound(viewer), "VERIFY_SIGNATURE_NO_SIGNER")
                 }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "VERIFY_SIGNATURE_EXCEPTION", e)
+                showError(PaymentError.from(e), "VERIFY_SIGNATURE_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -417,10 +434,10 @@ class EscrowSessionVaultDebugViewModel(
                         sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
                         Napier.d("[SETTLE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
-                        showError(PaymentError.Companion.from(err), "SETTLE_ERR", err)
+                        showError(PaymentError.from(err), "SETTLE_ERR", err)
                     }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "SETTLE_EXCEPTION", e)
+                showError(PaymentError.from(e), "SETTLE_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -459,10 +476,10 @@ class EscrowSessionVaultDebugViewModel(
                         sendStatus("✅ Session vault closed\n\nTxId:\n$txId")
                         Napier.d("[CLOSE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
-                        showError(PaymentError.Companion.from(err), "CLOSE_ERR", err)
+                        showError(PaymentError.from(err), "CLOSE_ERR", err)
                     }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "CLOSE_EXCEPTION", e)
+                showError(PaymentError.from(e), "CLOSE_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -504,10 +521,10 @@ class EscrowSessionVaultDebugViewModel(
                         sendStatus("✅ Requested for close of Session Vault\n\nTxId:\n$txId")
                         Napier.d("[REQUEST_CLOSE_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
-                        showError(PaymentError.Companion.from(err), "REQUEST_CLOSE_ERR", err)
+                        showError(PaymentError.from(err), "REQUEST_CLOSE_ERR", err)
                     }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "REQUEST_CLOSE_EXCEPTION", e)
+                showError(PaymentError.from(e), "REQUEST_CLOSE_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -549,7 +566,7 @@ class EscrowSessionVaultDebugViewModel(
                         sendStatus("✅ Requested withdraw from Session Vault\n\nTxId:\n$txId")
                         Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
                     }.onFailure { err ->
-                        val parsed = PaymentError.Companion.from(err)
+                        val parsed = PaymentError.from(err)
                         if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
                             sendStatus(
                                 "❌ Withdraw was rejected by the contract.\n\n" +
@@ -568,7 +585,7 @@ class EscrowSessionVaultDebugViewModel(
                         }
                     }
             } catch (e: Exception) {
-                showError(PaymentError.Companion.from(e), "REQUEST_WITHDRAW_EXCEPTION", e)
+                showError(PaymentError.from(e), "REQUEST_WITHDRAW_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
@@ -609,7 +626,7 @@ class EscrowSessionVaultDebugViewModel(
         if (result.isFailure) {
             val error = result.exceptionOrNull()
             showError(
-                PaymentError.Companion.from(error ?: Exception("Failed to authorize signer")),
+                PaymentError.from(error ?: Exception("Failed to authorize signer")),
                 "SET_AUTHORIZED_SIGNER_ERR",
                 error,
             )

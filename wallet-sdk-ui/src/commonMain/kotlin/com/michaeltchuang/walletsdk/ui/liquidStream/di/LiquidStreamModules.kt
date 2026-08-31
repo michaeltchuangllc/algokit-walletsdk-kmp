@@ -12,12 +12,14 @@ internal val liquidStreamModules =
         module {
             viewModel {
                 LiquidStreamHostViewModel(
+                    getNfdProfileForAddress = get(),
                     stateDelegate = StateDelegate(),
                     eventDelegate = get(),
                 )
             }
             viewModel {
                 LiquidAuthViewerViewModel(
+                    getNfdProfileForAddress = get(),
                     stateDelegate = StateDelegate(),
                     eventDelegate = get(),
                     getCurrentNetworkUseCase = get<GetCurrentNetworkUseCase>(),

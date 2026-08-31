@@ -8,11 +8,14 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
 
 class LiquidAuthViewerViewModel(
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
     private val stateDelegate: StateDelegate<UiState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
@@ -22,6 +25,39 @@ class LiquidAuthViewerViewModel(
     init {
         stateDelegate.setDefaultState(UiState())
         observeNetwork()
+    }
+
+    fun loadCreatorNfdProfile(address: String) {
+        if (address.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile for $address", e, tag = "LiquidAuthViewerVM")
+            }
+        }
+    }
+
+    fun loadViewerNfdProfile(address: String) {
+        if (address.isBlank() || address == "-") return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                if (nfdProfile?.name != null) {
+                    stateDelegate.updateState {
+                        it.copy(viewerNfdName = nfdProfile.name)
+                    }
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch viewer NFD profile for $address", e, tag = "LiquidAuthViewerVM")
+            }
+        }
     }
 
     fun onSettingsClicked() {
@@ -127,6 +163,9 @@ class LiquidAuthViewerViewModel(
         val blockNumberLabel: String = "#--------",
         val network: AlgorandNetwork = AlgorandNetwork.TESTNET,
         val chatMessages: List<ChatUiMessage> = emptyList(),
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
+        val viewerNfdName: String? = null,
     ) {
         val networkLabel: String
             get() = network.name

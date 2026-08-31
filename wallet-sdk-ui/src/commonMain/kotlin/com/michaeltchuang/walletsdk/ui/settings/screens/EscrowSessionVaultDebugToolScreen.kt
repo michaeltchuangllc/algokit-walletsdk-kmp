@@ -61,7 +61,10 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
     val remainingBalance = content.remainingBalance
     val isLoading = content.isLoading
     val canRunVaultActions = content.canRunVaultActions
-
+    val selectedAddresses =
+        listOf(creatorAddress, viewerAddress, viewerAddress2, viewerAddress3)
+            .filter { it.isNotBlank() }
+            .toSet()
     LaunchedEffect(viewModel) {
         viewModel.viewEvent.collect { event ->
             when (event) {
@@ -113,11 +116,12 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             fontWeight = FontWeight.SemiBold,
             color = AlgoKitTheme.colors.textMain,
         )
+
         AddressDropdownField(
             label = "Creator Address",
             placeholder = "Select the creator (payee)",
             selectedAddress = creatorAddress,
-            accountAddresses = accountAddresses.filterNot { it == viewerAddress },
+            accountAddresses = accountAddresses.filterNot { it in (selectedAddresses - creatorAddress) },
             enabled = !isLoading,
             colors = textFieldColors,
             onAddressSelected = viewModel::onCreatorAddressChanged,
@@ -127,7 +131,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             label = "Viewer 1 Address",
             placeholder = "Select the viewer 1 (payer)",
             selectedAddress = viewerAddress,
-            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            accountAddresses = accountAddresses.filterNot { it in (selectedAddresses - viewerAddress) },
             enabled = !isLoading,
             colors = textFieldColors,
             onAddressSelected = viewModel::onViewerAddressChanged,
@@ -137,7 +141,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             label = "Viewer 2 Address",
             placeholder = "Select the viewer 2",
             selectedAddress = viewerAddress2,
-            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            accountAddresses = accountAddresses.filterNot { it in (selectedAddresses - viewerAddress2) },
             enabled = !isLoading,
             colors = textFieldColors,
             onAddressSelected = viewModel::onViewerAddress2Changed,
@@ -147,7 +151,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
             label = "Viewer 3 Address",
             placeholder = "Select the viewer 3",
             selectedAddress = viewerAddress3,
-            accountAddresses = accountAddresses.filterNot { it == creatorAddress },
+            accountAddresses = accountAddresses.filterNot { it in (selectedAddresses - viewerAddress3) },
             enabled = !isLoading,
             colors = textFieldColors,
             onAddressSelected = viewModel::onViewerAddress3Changed,
@@ -327,7 +331,7 @@ private fun AddressDropdownField(
             value = selectedAddress,
             onValueChange = {},
             label = { Text(label) },
-            placeholder = { Text(if (accountAddresses.isEmpty()) "No signable local accounts found" else placeholder) },
+            placeholder = { Text(if (accountAddresses.isEmpty() && selectedAddress.isBlank()) "No available accounts" else placeholder) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             readOnly = true,
@@ -342,13 +346,20 @@ private fun AddressDropdownField(
                 Modifier
                     .fillMaxWidth()
                     .height(64.dp)
-                    .clickable(enabled = enabled && accountAddresses.isNotEmpty()) { expanded = true },
+                    .clickable(enabled = enabled) { expanded = true },
         )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             modifier = Modifier.fillMaxWidth(),
         ) {
+            DropdownMenuItem(
+                text = { Text("None") },
+                onClick = {
+                    onAddressSelected("")
+                    expanded = false
+                },
+            )
             accountAddresses.forEach { address ->
                 DropdownMenuItem(
                     text = { Text(address) },
