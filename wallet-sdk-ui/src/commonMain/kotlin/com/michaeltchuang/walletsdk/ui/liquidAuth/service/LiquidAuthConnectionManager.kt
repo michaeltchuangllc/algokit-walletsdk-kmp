@@ -37,6 +37,11 @@ expect class LiquidAuthConnectionManager(
     val connectionType: StateFlow<IceConnectionType>
 
     /**
+     * Flow of connected viewer's Algorand address.
+     */
+    val viewerAddress: StateFlow<String?>
+
+    /**
      * Initialize the connection manager with the ViewModel.
      * Call this before starting the connection.
      */

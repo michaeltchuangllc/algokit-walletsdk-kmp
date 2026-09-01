@@ -504,6 +504,7 @@ fun LiquidAuthOfferScreen(
         isCheckingCreatorAsaBalance = isCheckingCreatorAsaBalance,
         requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
         lastSettledUsdc = lastSettledUsdc,
+        creatorAddress = creatorAddress.orEmpty(),
     )
 }
 
@@ -535,6 +536,7 @@ fun LiquidAuthOfferScreenContent(
     isCheckingCreatorAsaBalance: Boolean = false,
     requiresCreatorAsaOptIn: Boolean = false,
     lastSettledUsdc: Double? = null,
+    creatorAddress: String = "",
 ) {
     Column(
         modifier =
@@ -612,6 +614,8 @@ fun LiquidAuthOfferScreenContent(
                 else -> null
             }
 
+        val activeViewerAddress by connectionManager?.viewerAddress?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(null) }
+
         StreamHostBottomSheet(
             cameraPreview = cameraPreview,
             connectionManager = connectionManager,
@@ -637,6 +641,8 @@ fun LiquidAuthOfferScreenContent(
             onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
             hostViewModel = hostViewModel,
             lastSettledUsdc = lastSettledUsdc,
+            creatorAddress = creatorAddress,
+            viewerAddress = activeViewerAddress.orEmpty(),
         )
     }
 }
@@ -662,6 +668,8 @@ private fun StreamHostBottomSheet(
     onStatsModalVisibilityChanged: (Boolean) -> Unit,
     hostViewModel: LiquidStreamHostViewModel,
     lastSettledUsdc: Double? = null,
+    creatorAddress: String = "",
+    viewerAddress: String = "",
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -691,6 +699,8 @@ private fun StreamHostBottomSheet(
                 balanceCurrencySymbol = balanceCurrencySymbol,
                 originUrl = originUrl,
                 lastSettledUsdc = lastSettledUsdc,
+                creatorAddress = creatorAddress,
+                viewerAddress = viewerAddress,
                 onSendClick = { text ->
                     connectionManager?.sendChatMessage(
                         ChatMessage(
@@ -748,6 +758,8 @@ private fun StreamHostBottomSheet(
                     balanceCurrencySymbol = balanceCurrencySymbol,
                     originUrl = originUrl,
                     lastSettledUsdc = lastSettledUsdc,
+                    creatorAddress = creatorAddress,
+                    viewerAddress = viewerAddress,
                     onSendClick = { text ->
                         connectionManager?.sendChatMessage(
                             ChatMessage(

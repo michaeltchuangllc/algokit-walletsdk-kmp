@@ -117,6 +117,14 @@ actual class LiquidAuthConnectionManager actual constructor(
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     actual val connectionType: StateFlow<IceConnectionType> = _connectionType
 
+    private val _viewerAddress = MutableStateFlow<String?>(null)
+    actual val viewerAddress: StateFlow<String?> = _viewerAddress
+
+    private fun setActiveViewerAddress(address: String?) {
+        activeViewerAddressForVault = address
+        _viewerAddress.value = address
+    }
+
     private val blockConsumptionManager =
         LiquidStreamBlockConsumptionManager(
             tag = TAG,
@@ -310,7 +318,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                     "[SESSION_VAULT_VIEWER_SET_FROM_RECEIPT] viewer=$it txId=${receipt.txId}",
                                 )
                             }
-                            activeViewerAddressForVault = it
+                            setActiveViewerAddress(it)
                         }
 
                     Log.e(
@@ -701,7 +709,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 val signerKey = hello.viewerPublicKey
                 if (signerKey != null) {
                     if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
-                        activeViewerAddressForVault = helloViewer
+                        setActiveViewerAddress(helloViewer)
                         Log.e(TAG, "[SESSION_VAULT_VIEWER_HELLO_ADDR] viewer=$helloViewer")
                     }
                     activeViewerAuthorizedSignerKey = signerKey
@@ -782,7 +790,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
             val candidate = parsed.address
             if (candidate != null && candidate != activeViewerAddressForVault) {
-                activeViewerAddressForVault = candidate
+                setActiveViewerAddress(candidate)
                 Log.d(TAG, "🔑 Captured viewer address from LiquidAuth message: $candidate")
             }
         }
@@ -822,7 +830,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         activePaymentRecipient = null
         activePaymentAmount = null
         activePaymentNetwork = null
-        activeViewerAddressForVault = null
+        setActiveViewerAddress(null)
         activeCreatorVoucherClaimSnapshot = null
         activeViewerAuthorizedSignerKey = null
         serviceConnection?.let {

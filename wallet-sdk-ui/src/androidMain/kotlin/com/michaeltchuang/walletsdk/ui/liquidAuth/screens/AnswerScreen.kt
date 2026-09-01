@@ -53,6 +53,7 @@ fun AnswerScreen(
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
+    val hostAddress by viewModel.hostAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
     val signalService by viewModel.signalService.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
@@ -175,6 +176,7 @@ fun AnswerScreen(
                     sessionId = session,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
+                    creatorAddress = hostAddress,
                     originUrl = message?.origin.orEmpty().ifBlank { "-" },
                     currentBlockNumber = currentBlockNumber,
                     remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,

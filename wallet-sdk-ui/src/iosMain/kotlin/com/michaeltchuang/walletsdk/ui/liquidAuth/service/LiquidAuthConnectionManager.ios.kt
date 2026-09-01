@@ -140,10 +140,9 @@ actual class LiquidAuthConnectionManager actual constructor(
     @Suppress("unused")
     val viewerSessionId: StateFlow<String> = _viewerSessionId
 
-    private val _viewerAddress = MutableStateFlow("")
+    private val _viewerAddress = MutableStateFlow<String?>(null)
 
-    @Suppress("unused")
-    val viewerAddress: StateFlow<String> = _viewerAddress
+    actual val viewerAddress: StateFlow<String?> = _viewerAddress
 
     private val _hostAddress = MutableStateFlow("")
 
@@ -747,7 +746,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private fun maybeSetupViewerPaymentRail() {
         val viewModel = answerViewModel ?: return
-        val viewer = _viewerAddress.value
+        val viewer = _viewerAddress.value.orEmpty()
         val host = _hostAddress.value
         if (viewer.isBlank() || host.isBlank()) return
         val setupKey = "$viewer:$host"
@@ -799,7 +798,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val viewModel = answerViewModel ?: return
         val viewer = _viewerAddress.value
         val host = _hostAddress.value
-        if (viewer.isNotBlank() && host.isNotBlank()) {
+        if (viewer?.isNotBlank() == true && host.isNotBlank()) {
             viewModel.startViewerOnChainRefresh(viewer)
         }
     }

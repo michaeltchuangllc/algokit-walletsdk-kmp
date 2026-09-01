@@ -7,14 +7,19 @@ import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatRevenueLabel
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatTwoDecimals
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.launch
 import kotlin.time.Clock
 
 class LiquidStreamHostViewModel(
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
     private val stateDelegate: StateDelegate<UiState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
@@ -22,6 +27,52 @@ class LiquidStreamHostViewModel(
     EventViewModel<LiquidStreamHostViewModel.ViewEvent> by eventDelegate {
     init {
         stateDelegate.setDefaultState(UiState())
+    }
+
+    fun loadCreatorNfdProfile(address: String) {
+        if (address.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile for $address", e, tag = "LiquidStreamHostVM")
+            }
+        }
+    }
+
+    fun loadViewerNfdProfile(address: String) {
+        if (address.isBlank() || state.value.viewerNfdNames.containsKey(address)) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                if (nfdProfile?.name != null) {
+                    stateDelegate.updateState { currentState ->
+                        val updatedNfdNames = currentState.viewerNfdNames + (address to nfdProfile.name)
+                        val updatedViewers =
+                            currentState.viewers.map { viewer ->
+                                val rawAddr = viewer.viewerAddress.orEmpty()
+                                if (rawAddr == address || rawAddr == address.toShortenedAddress()) {
+                                    viewer.copy(viewerAddress = nfdProfile.name)
+                                } else {
+                                    viewer
+                                }
+                            }
+                        currentState.copy(
+                            viewerNfdNames = updatedNfdNames,
+                            viewers = updatedViewers,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch viewer NFD profile for $address", e, tag = "LiquidStreamHostVM")
+            }
+        }
     }
 
     fun onMessageChanged(message: String) {
@@ -121,11 +172,21 @@ class LiquidStreamHostViewModel(
             val chain = blockChainLabel ?: currentState.blockChainLabel
             val net = networkLabel ?: currentState.networkLabel
             val viewerCount = numbersOfViewer ?: currentState.numbersOfViewer
-            val currentViewers =
+            val rawViewers =
                 if (startRound != null && viewers == null) {
                     currentState.viewers.map { it.copy(startRound = startRound) }
                 } else {
                     viewers ?: currentState.viewers
+                }
+
+            val currentViewers =
+                rawViewers.map { viewer ->
+                    val rawAddress = viewer.viewerAddress
+                    if (rawAddress != null && currentState.viewerNfdNames.containsKey(rawAddress)) {
+                        viewer.copy(viewerAddress = currentState.viewerNfdNames[rawAddress])
+                    } else {
+                        viewer
+                    }
                 }
 
             val baseState =
@@ -205,6 +266,9 @@ class LiquidStreamHostViewModel(
         val numbersOfViewer: String = "0",
         val totalRevenue: Double = 0.0,
         val viewers: List<ConnectedViewerInfo> = emptyList(),
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
+        val viewerNfdNames: Map<String, String> = emptyMap(),
     )
 
     companion object {

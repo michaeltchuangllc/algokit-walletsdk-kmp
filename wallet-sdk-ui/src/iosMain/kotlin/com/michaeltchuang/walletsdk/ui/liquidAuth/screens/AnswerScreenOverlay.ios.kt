@@ -46,6 +46,7 @@ import platform.Foundation.NSLog
 import platform.UIKit.UIView
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val TAG = "AnswerScreenOverlayiOS"
 
@@ -113,6 +114,7 @@ actual fun AnswerScreenOverlay() {
     val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
     val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
     val sessionId by stateHolder.session.collectAsStateWithLifecycle()
+    val hostAddress by stateHolder.hostAddress.collectAsStateWithLifecycle()
     var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
@@ -170,7 +172,7 @@ actual fun AnswerScreenOverlay() {
         // Swift WebRTC service can create its RTCMTLVideoView renderer.
         while (remoteVideoView == null) {
             remoteVideoView = iosViewerVideoViewProvider?.invoke() as? UIView
-            if (remoteVideoView == null) kotlinx.coroutines.delay(300)
+            if (remoteVideoView == null) kotlinx.coroutines.delay(300.milliseconds)
         }
     }
 
@@ -229,6 +231,7 @@ actual fun AnswerScreenOverlay() {
                     connectionType = connType,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = address.ifBlank { "-" },
+                    creatorAddress = hostAddress,
                     originUrl = origin.ifBlank { "-" },
                     remainingBalanceUsdc = remainingBalance / 1_000_000.0,
                     progressBalanceUsdc = progressBalance / 1_000_000.0,
