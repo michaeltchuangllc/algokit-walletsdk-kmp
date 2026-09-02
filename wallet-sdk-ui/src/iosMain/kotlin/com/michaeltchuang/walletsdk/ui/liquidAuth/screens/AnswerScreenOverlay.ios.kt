@@ -240,8 +240,8 @@ actual fun AnswerScreenOverlay() {
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized
                     },
-                    onSendClick = { text ->
-                        stateHolder.sendChatMessage(text)
+                    onSendClick = { text, amount, asset ->
+                        stateHolder.sendChatMessage(text, amount, asset)
                     },
                 )
             }

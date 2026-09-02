@@ -25,6 +25,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.encoding.Base64
+import kotlin.math.roundToLong
 import kotlin.time.Duration.Companion.milliseconds
 
 class MppPaymentViewerManager(
@@ -64,6 +65,7 @@ class MppPaymentViewerManager(
     private var viewerVoucherCapLoggedSessionId: String? = null
     private var pendingPayment: Boolean = false
     private var currentStreamCostMicroUsdc: Long? = null
+    private var activeStartParams: StartParams? = null
 
     fun markPaymentPending() {
         pendingPayment = true
@@ -77,6 +79,13 @@ class MppPaymentViewerManager(
 
     fun sendChatMessage(message: ChatMessage) {
         liquidStreamViewer?.sendChatMessage(message)
+        val amt = message.amount
+        if (amt != null) {
+            val giftUsdc = amt.toDoubleOrNull()
+            if (giftUsdc != null && giftUsdc > 0.0) {
+                processGiftVoucher(giftUsdc)
+            }
+        }
     }
 
     fun updateStreamCost(cost: Long) {
@@ -89,6 +98,7 @@ class MppPaymentViewerManager(
         val signer = params.signer
         val sessionVaultAppId = params.sessionVaultAppId
 
+        activeStartParams = params
         viewerAuthorizedSignerPublicKey = signer.authorizedSignerPublicKey
         stopViewerOnChainRefresh()
         liquidStreamViewer?.terminate()
@@ -328,7 +338,89 @@ class MppPaymentViewerManager(
         viewerFreeBlocksConsumed = 0
         viewerVoucherClaimedMicroUsdc = 0L
         viewerVoucherCapLoggedSessionId = null
+        activeStartParams = null
         clearPendingPayment()
+    }
+
+    fun processGiftVoucher(giftUsdc: Double) {
+        val params = activeStartParams ?: run {
+            Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_active_params", tag = TAG)
+            return
+        }
+        val giftMicroUsdc = (giftUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
+        params.scope.launch {
+            handleGiftVoucher(
+                giftMicroUsdc = giftMicroUsdc,
+                params = params,
+            )
+        }
+    }
+
+    private suspend fun handleGiftVoucher(
+        giftMicroUsdc: Long,
+        params: StartParams,
+    ) {
+        val viewerAddress = params.viewerAddress
+        val sessionVaultAppId = params.sessionVaultAppId
+        val signer = params.signer
+
+        val preUpdateDynamicData =
+            safeApiCall("getSessionDynamicData.gift") {
+                MppPayments.getSessionDynamicDataFromVault()
+            }
+        val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
+        val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
+        val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
+        val hasOnChainSessionData = (preUpdateDynamicData != null) && (preUpdateTotalDeposit > 0L)
+
+        val voucherBase = maxOf(viewerVoucherClaimedMicroUsdc, preUpdateLatestVoucher)
+        val voucherClaimedRaw = (voucherBase + giftMicroUsdc).coerceAtLeast(0L)
+        val minRequiredCumulative =
+            if (giftMicroUsdc > 0) {
+                maxOf(preUpdateLatestVoucher, preUpdateLastSettled) + 1L
+            } else {
+                maxOf(preUpdateLatestVoucher, preUpdateLastSettled)
+            }
+        val maxAllowedCumulative = if (hasOnChainSessionData) preUpdateTotalDeposit else Long.MAX_VALUE
+        val voucherClaimed = voucherClaimedRaw.coerceAtLeast(minRequiredCumulative).coerceAtMost(maxAllowedCumulative)
+
+        viewerVoucherClaimedMicroUsdc = voucherClaimed
+        val channelId = EscrowSessionVaultManagerClient.channelId
+        if (channelId == null) {
+            Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_channel_id", tag = TAG)
+            return
+        }
+
+        val voucherSignature =
+            runCatching {
+                val message =
+                    MppPayments.buildClaimMessage(
+                        totalAmountClaimedMicroUsdc = voucherClaimed,
+                        channelId = channelId,
+                    )
+                params.signFido2Challenge(message, viewerAddress)
+            }.getOrNull()
+
+        if (voucherSignature != null && voucherSignature.isNotEmpty()) {
+            val blocksConsumed = viewerVoucherBlocksConsumed.coerceAtLeast(0)
+            updateAndSendVoucher(
+                receiptSessionId = viewerVoucherSessionId.orEmpty(),
+                receiptSegmentIndex = 0,
+                receiptViewerAddress = viewerAddress,
+                receiptPayTo = EscrowSessionVaultManagerClient.hostAddress.orEmpty(),
+                sessionVaultAppId = sessionVaultAppId,
+                signer = signer,
+                voucherClaimed = voucherClaimed,
+                voucherSignature = voucherSignature,
+                blocksConsumed = blocksConsumed,
+            )
+            Napier.d(
+                "[GIFT_VOUCHER_SENT] giftMicroUsdc=$giftMicroUsdc totalVoucherClaimed=$voucherClaimed viewer=$viewerAddress",
+                tag = TAG,
+            )
+        } else {
+            Napier.e("[GIFT_VOUCHER_SIGN_FAILED] viewer=$viewerAddress", tag = TAG)
+        }
     }
 
     private suspend fun handlePaymentReceipt(

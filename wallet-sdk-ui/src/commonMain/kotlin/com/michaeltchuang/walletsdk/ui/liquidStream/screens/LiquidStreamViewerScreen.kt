@@ -61,6 +61,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ChatStack
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
@@ -81,7 +82,7 @@ fun LiquidStreamViewerScreen(
     connectionType: IceConnectionType = IceConnectionType.UNKNOWN,
     cameraPreview: @Composable (() -> Unit)? = null,
     onMinimize: () -> Unit = {},
-    onSendClick: (String) -> Unit = {},
+    onSendClick: (message: String, amount: String?, asset: String?) -> Unit = { _, _, _ -> },
     onTopUpConfirm: (String) -> Unit = {},
     viewerAddress: String = "",
     creatorUsername: String? = null,
@@ -142,7 +143,7 @@ fun LiquidStreamViewerScreen(
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
             when (event) {
-                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick(event.message)
+                is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick(event.message, event.amount, event.asset)
                 is LiquidAuthViewerViewModel.ViewEvent.ShowError -> Unit
             }
         }
@@ -180,6 +181,7 @@ fun LiquidStreamViewerScreen(
         onGiftSupportClick = viewModel::onGiftSupportClicked,
         onGiftSupportDismissed = viewModel::onGiftSupportDismissed,
         onGiftAmountSelected = viewModel::onGiftAmountSelected,
+        onGiftConfirm = { amount -> viewModel.onGiftConfirm(amount, remainingBalanceUsdc) },
         onSendClick = { viewModel.onSendClicked() },
     )
 }
@@ -217,6 +219,7 @@ private fun LiquidStreamViewerScreenContent(
     onGiftSupportClick: () -> Unit,
     onGiftSupportDismissed: () -> Unit,
     onGiftAmountSelected: (String) -> Unit,
+    onGiftConfirm: (String) -> Unit,
     onSendClick: (String) -> Unit,
 ) {
     Box(
@@ -268,6 +271,7 @@ private fun LiquidStreamViewerScreenContent(
             // GiftTickerCard()
             Spacer(Modifier.weight(1f))
             ChatStack(messages = uiState.chatMessages)
+            //ChatStack(messages = uiState.chatMessages)
             Spacer(Modifier.height(16.dp))
             FloatingButtons(
                 onTopUpClick = onTopUpClick,
@@ -354,14 +358,13 @@ private fun LiquidStreamViewerScreenContent(
         }
 
         if (uiState.showGiftSupportSheet) {
+            val sessionVaultBalanceLabel = ((round(remainingBalanceUsdc * 100) / 100)).toString()
             StreamViewerGiftSupportModal(
-                initialSelectedAmount = uiState.giftAmountTag,
+                balanceLabel = sessionVaultBalanceLabel,
+                initialSelectedAmount = uiState.giftAmountTag.takeIf { it.toDoubleOrNull()?.let { d -> d > 0.0 } == true } ?: "0.888",
                 onDismiss = onGiftSupportDismissed,
                 onSelectedAmountChanged = onGiftAmountSelected,
-                onConfirm = {
-                    onGiftAmountSelected(it)
-                    onGiftSupportDismissed()
-                },
+                onConfirm = onGiftConfirm,
             )
         }
     }
@@ -900,6 +903,7 @@ private fun LiquidAuthViewerScreenPreview() {
             onGiftSupportClick = { uiState = uiState.copy(showGiftSupportSheet = true) },
             onGiftSupportDismissed = { uiState = uiState.copy(showGiftSupportSheet = false) },
             onGiftAmountSelected = { amount -> uiState = uiState.copy(giftAmountTag = amount) },
+            onGiftConfirm = { amount -> uiState = uiState.copy(giftAmountTag = amount, showGiftSupportSheet = false) },
             onSendClick = { uiState = uiState.copy(message = "") },
             progressBalanceUsdc = 0.2,
             progressCapacityUsdc = 12.34,

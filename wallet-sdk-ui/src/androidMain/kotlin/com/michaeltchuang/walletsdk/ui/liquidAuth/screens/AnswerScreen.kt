@@ -189,8 +189,8 @@ fun AnswerScreen(
                         onMinimizeToPip()
                     },
                     onTopUpConfirm = onViewerTopUpConfirm,
-                    onSendClick = { text ->
-                        viewModel.sendChatMessage(text)
+                    onSendClick = { text, amount, asset ->
+                        viewModel.sendChatMessage(text, amount, asset)
                     },
                 )
             }

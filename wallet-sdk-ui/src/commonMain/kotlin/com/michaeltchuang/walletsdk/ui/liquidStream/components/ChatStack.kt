@@ -80,6 +80,7 @@ private fun ChatMessageItem(message: ChatUiMessage) {
         Text(
             text = "@${message.sender.uppercase()}",
             color = Color(0xFFB4D2DB).copy(alpha = 0.9f),
+            maxLines = 1,
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,

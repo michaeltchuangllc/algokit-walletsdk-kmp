@@ -93,6 +93,35 @@ class LiquidAuthViewerViewModel(
         stateDelegate.updateState { it.copy(giftAmountTag = amount) }
     }
 
+    fun onGiftConfirm(amount: String, availableBalance: Double = Double.MAX_VALUE) {
+        val giftAmount = amount.toDoubleOrNull()?.takeIf { it > 0.0 }
+        if (giftAmount == null) {
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Please enter a valid gift amount"))
+            return
+        }
+        if (giftAmount > availableBalance) {
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Insufficient balance for gift"))
+            return
+        }
+
+        stateDelegate.updateState {
+            it.copy(
+                giftAmountTag = amount,
+                showGiftSupportSheet = false,
+            )
+        }
+        val messageText = state.value.message.trim().ifEmpty { "Gift Support" }
+        eventDelegate.sendEvent(
+            viewModelScope,
+            ViewEvent.SendMessage(
+                message = messageText,
+                amount = amount,
+                asset = "USDC",
+            ),
+        )
+        stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
+    }
+
     fun onAnalyticsClicked() {
         stateDelegate.updateState { it.copy(showAnalyticsModal = !it.showAnalyticsModal) }
     }
@@ -115,13 +144,26 @@ class LiquidAuthViewerViewModel(
 
     fun onSendClicked() {
         val messageText = state.value.message.trim()
-        if (messageText.isEmpty()) {
+        val giftAmount = state.value.giftAmountTag.toDoubleOrNull()?.takeIf { it > 0.0 }
+
+        if (messageText.isEmpty() && giftAmount == null) {
             stateDelegate.updateState { it.copy(giftAmountTag = ZERO_GIFT_AMOUNT) }
             eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Message cannot be empty"))
             return
         }
 
-        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
+        val text = messageText.ifEmpty { "Gift Support" }
+        val amountStr = giftAmount?.let { state.value.giftAmountTag }
+        val assetStr = if (amountStr != null) "USDC" else null
+
+        eventDelegate.sendEvent(
+            viewModelScope,
+            ViewEvent.SendMessage(
+                message = text,
+                amount = amountStr,
+                asset = assetStr,
+            ),
+        )
         stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
     }
 
@@ -154,7 +196,7 @@ class LiquidAuthViewerViewModel(
         val showViewerSettingsSheet: Boolean = false,
         val showTopUpSheet: Boolean = false,
         val showGiftSupportSheet: Boolean = false,
-        val giftAmountTag: String = "0.88",
+        val giftAmountTag: String = ZERO_GIFT_AMOUNT,
         val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
         val willingToBeRelayerEnabled: Boolean = false,
         val message: String = "",
@@ -178,6 +220,8 @@ class LiquidAuthViewerViewModel(
     sealed interface ViewEvent {
         data class SendMessage(
             val message: String,
+            val amount: String? = null,
+            val asset: String? = null,
         ) : ViewEvent
 
         data class ShowError(

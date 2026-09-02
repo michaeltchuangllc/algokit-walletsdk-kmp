@@ -350,6 +350,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     viewModel?.onMppPaymentRejected(e.message ?: "MPP creator error")
                 }
                 creator.onChatMessageReceived = { message ->
+                    blockConsumptionManager.recordChatMessage(message)
                     viewModel?.onChatMessageReceived(message)
                 }
                 creator.start()
@@ -438,6 +439,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 )
 
             creator.onChatMessageReceived = { message ->
+                blockConsumptionManager.recordChatMessage(message)
                 viewModel?.onChatMessageReceived(message)
             }
 
@@ -759,7 +761,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 "[SESSION_VAULT_VIEWER_VOUCHER_SIG_STALE_SKIP] session=$voucherSessionId claimedAmountMicroUsdc=$claimedAmount previousClaimedAmountMicroUsdc=$previousClaimedAmount",
                             )
                         } else {
-                            if (isPaidStreamingEnabled) {
+                            if (isPaidStreamingEnabled || claimedAmount > 0L) {
                                 activeCreatorVoucherClaimSnapshot =
                                     CreatorVoucherClaimSnapshot(
                                         sessionId = voucherSessionId,
@@ -777,6 +779,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 startBlockConsumption(voucherSessionId)
                                 blockConsumptionManager.triggerSettlementFromViewerVoucher(
                                     voucherSessionId,
+                                    force = true,
                                 )
                             } else {
                                 Log.d(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
@@ -876,6 +879,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun sendChatMessage(message: ChatMessage) {
+        blockConsumptionManager.recordChatMessage(message)
         liquidStreamCreator?.sendChatMessage(message)
     }
 
