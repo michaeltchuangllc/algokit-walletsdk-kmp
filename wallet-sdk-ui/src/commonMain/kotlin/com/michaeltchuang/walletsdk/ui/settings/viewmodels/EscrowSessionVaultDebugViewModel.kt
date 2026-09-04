@@ -44,7 +44,7 @@ class EscrowSessionVaultDebugViewModel(
 
     fun onViewerAddressChanged(address: String) {
         updateContent { it.copy(viewerAddress = address) }
-        DebugAddressHolder.viewerAddress = address
+        DebugAddressHolder.setViewerAddress(0, address)
         viewModelScope.launch {
             saveDebugAddressSelections()
             refreshDebugSessionContext()
@@ -53,13 +53,13 @@ class EscrowSessionVaultDebugViewModel(
 
     fun onViewerAddress2Changed(address: String) {
         updateContent { it.copy(viewerAddress2 = address) }
-        DebugAddressHolder.viewerAddress2 = address
+        DebugAddressHolder.setViewerAddress(1, address)
         viewModelScope.launch { saveDebugAddressSelections() }
     }
 
     fun onViewerAddress3Changed(address: String) {
         updateContent { it.copy(viewerAddress3 = address) }
-        DebugAddressHolder.viewerAddress3 = address
+        DebugAddressHolder.setViewerAddress(2, address)
         viewModelScope.launch { saveDebugAddressSelections() }
     }
 
@@ -115,9 +115,9 @@ class EscrowSessionVaultDebugViewModel(
                             .orEmpty()
                     if (viewer3.isNotBlank()) used.add(viewer3)
 
-                    DebugAddressHolder.viewerAddress = viewer
-                    DebugAddressHolder.viewerAddress2 = viewer2
-                    DebugAddressHolder.viewerAddress3 = viewer3
+                    DebugAddressHolder.setViewerAddress(0, viewer)
+                    DebugAddressHolder.setViewerAddress(1, viewer2)
+                    DebugAddressHolder.setViewerAddress(2, viewer3)
                     DebugAddressHolder.creatorAddress = creator
                     current.copy(
                         accountAddresses = addresses,
@@ -596,9 +596,9 @@ class EscrowSessionVaultDebugViewModel(
         debugAddressSelectionsUseCase.save(
             DebugAddressSelections(
                 creatorAddress = DebugAddressHolder.creatorAddress,
-                viewerAddress = DebugAddressHolder.viewerAddress,
-                viewerAddress2 = DebugAddressHolder.viewerAddress2,
-                viewerAddress3 = DebugAddressHolder.viewerAddress3,
+                viewerAddress = DebugAddressHolder.getViewerAddress(0),
+                viewerAddress2 = DebugAddressHolder.getViewerAddress(1),
+                viewerAddress3 = DebugAddressHolder.getViewerAddress(2),
             ),
         )
     }

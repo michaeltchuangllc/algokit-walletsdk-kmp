@@ -1,8 +1,17 @@
 package com.michaeltchuang.walletsdk.ui.settings.domain
 
 object DebugAddressHolder {
-    var viewerAddress: String = ""
-    var viewerAddress2: String = ""
-    var viewerAddress3: String = ""
+    var viewerAddresses: ArrayList<String> = arrayListOf("", "", "")
     var creatorAddress: String = ""
+
+    fun getViewerAddress(index: Int): String {
+        return viewerAddresses.getOrNull(index).orEmpty()
+    }
+
+    fun setViewerAddress(index: Int, address: String) {
+        while (viewerAddresses.size <= index) {
+            viewerAddresses.add("")
+        }
+        viewerAddresses[index] = address
+    }
 }

@@ -82,12 +82,7 @@ class DeveloperSettingsViewModel(
                 }
 
             val creatorAddress = DebugAddressHolder.creatorAddress
-            val viewerAddresses =
-                listOf(
-                    DebugAddressHolder.viewerAddress,
-                    DebugAddressHolder.viewerAddress2,
-                    DebugAddressHolder.viewerAddress3,
-                ).filter { it.isNotBlank() }
+            val viewerAddresses = DebugAddressHolder.viewerAddresses.filter { it.isNotBlank() }
 
             if (creatorAddress.isBlank() || viewerAddresses.isEmpty()) {
                 displayError("Please select creator and at least one viewer in Escrow Session Vault Debug Tool first.")
