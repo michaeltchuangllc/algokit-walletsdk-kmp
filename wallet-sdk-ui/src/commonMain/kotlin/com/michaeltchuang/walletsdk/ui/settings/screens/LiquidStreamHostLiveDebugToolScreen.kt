@@ -25,7 +25,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
-import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
@@ -37,12 +36,9 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
-import io.github.aakira.napier.Napier
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.random.Random
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
@@ -78,6 +74,9 @@ fun LiquidStreamHostDebugToolScreen(
                 is LiquidStreamHostDebugToolViewModel.ViewEvent.ShowStatusMessage -> {
                     statusMessage = event.message
                 }
+                is LiquidStreamHostDebugToolViewModel.ViewEvent.ChatMessageGenerated -> {
+                    viewModel.receivedChatMessage(event.message)
+                }
             }
         }
     }
@@ -90,54 +89,6 @@ fun LiquidStreamHostDebugToolScreen(
         }
     val blockNumberLabelLabel = debugState.liveBlockNumber?.let { "#$it" } ?: "-"
     val securedViaLabel = debugState.liveNetworkLabel
-
-    LaunchedEffect(Unit) {
-        Napier.d("Viewer 1 Address: ${DebugAddressHolder.viewerAddress}", tag = "LiquidStreamHostDebug")
-        Napier.d("Viewer 2 Address: ${DebugAddressHolder.viewerAddress2}", tag = "LiquidStreamHostDebug")
-        Napier.d("Viewer 3 Address: ${DebugAddressHolder.viewerAddress3}", tag = "LiquidStreamHostDebug")
-        Napier.d("Creator Address: ${DebugAddressHolder.creatorAddress}", tag = "LiquidStreamHostDebug")
-
-        // Auto-generated message pump for testing
-        val randomNames = listOf("alice.algo", "bob.algo", "charlie.algo", "dave.algo", "eve.algo")
-        val randomTexts =
-            listOf(
-                "Hello world!",
-                "This stream is awesome!",
-                "Keep it up!",
-                "Love the content!",
-                "Wow, very informative.",
-                "Testing 1 2 3",
-                "Liquid Stream is the future!",
-            )
-
-        while (true) {
-            delay(2000.milliseconds)
-            val isGift = Random.nextBoolean()
-            val sender = randomNames.random()
-            val text = randomTexts.random()
-            val timestamp = Clock.System.now().toEpochMilliseconds()
-
-            if (isGift) {
-                viewModel.receivedChatMessage(
-                    ChatMessage(
-                        sender = sender,
-                        text = "Gifting support: $text",
-                        timestamp = timestamp,
-                        amount = Random.nextInt(1, 100).toString(),
-                        asset = "USDC",
-                    ),
-                )
-            } else {
-                viewModel.receivedChatMessage(
-                    ChatMessage(
-                        sender = sender,
-                        text = text,
-                        timestamp = timestamp,
-                    ),
-                )
-            }
-        }
-    }
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->

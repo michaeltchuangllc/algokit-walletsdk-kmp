@@ -164,6 +164,7 @@ fun ScreenContent(
                         onAccountSelected = onAccountSelected,
                         onClipboardTapped = onClipboardTapped,
                         onNextPressed = onNextPressed,
+                        modifier = Modifier.weight(1f),
                     )
                 }
 
@@ -191,8 +192,9 @@ private fun SelectReceiverContent(
     onAccountSelected: (String) -> Unit,
     onClipboardTapped: (String) -> Unit,
     onNextPressed: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         // Search Field
         SearchField(
             searchText = state.searchText,
@@ -216,11 +218,12 @@ private fun SelectReceiverContent(
             AccountSection(
                 accounts = state.accounts,
                 onAccountSelected = onAccountSelected,
+                modifier = Modifier.weight(1f),
             )
         } else if (state.searchText.isNotEmpty()) {
             // Show "No accounts found" message when searching
             Box(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -233,7 +236,7 @@ private fun SelectReceiverContent(
         } else {
             // Show empty state when no accounts available
             Box(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 32.dp),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -245,7 +248,7 @@ private fun SelectReceiverContent(
             }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(16.dp))
 
         AlgoKitPrimaryButton(
             onClick = onNextPressed,
@@ -380,8 +383,9 @@ private fun ClipboardSection(
 private fun AccountSection(
     accounts: List<AccountLite>,
     onAccountSelected: (String) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Column {
+    Column(modifier = modifier) {
         Text(
             text = localizedStringResource(Res.string.my_accounts),
             style = typography.body.regular.sansMedium,
@@ -390,6 +394,7 @@ private fun AccountSection(
         )
 
         LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(accounts) { account ->

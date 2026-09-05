@@ -258,6 +258,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun sendChatMessage(message: ChatMessage) {
+        blockConsumptionManager.recordChatMessage(message)
         streamCreator?.sendChatMessage(message)
     }
 
@@ -479,6 +480,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             println("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
         }
         creator.rtcServer.onChatMessageReceived = { message ->
+            blockConsumptionManager.recordChatMessage(message)
             viewModel?.onChatMessageReceived(message)
         }
         creator.rtcServer.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
@@ -601,6 +603,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             )
 
         creator.onChatMessageReceived = { message ->
+            blockConsumptionManager.recordChatMessage(message)
             viewModel?.onChatMessageReceived(message)
         }
 
@@ -900,7 +903,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
                                     "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
                             )
-                            if (isPaidStreamingEnabled) {
+                            if (isPaidStreamingEnabled || claimedAmount > 0L) {
                                 activeCreatorVoucherClaimSnapshot =
                                     CreatorVoucherClaimSnapshot(
                                         sessionId = voucherSessionId,
@@ -924,7 +927,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                                     }
                                 }
                                 startBlockConsumption(voucherSessionId)
-                                blockConsumptionManager.triggerSettlementFromViewerVoucher(voucherSessionId)
+                                blockConsumptionManager.triggerSettlementFromViewerVoucher(
+                                    voucherSessionId,
+                                    force = true,
+                                )
                             } else {
                                 println("$TAG: [VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
                             }

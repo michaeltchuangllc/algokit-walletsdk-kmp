@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -23,6 +24,7 @@ import kotlinx.coroutines.withTimeout
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.math.roundToLong
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -64,7 +66,30 @@ internal class LiquidStreamBlockConsumptionManager(
     private var freeBlocksConsumed: Int = 0
 
     @Volatile
+    private var freeChatCount: Long = 0L
+
+    @Volatile
+    private var tipChatCount: Long = 0L
+
+    @Volatile
+    private var tipChatTotalMicroUsdc: Long = 0L
+
+    @Volatile
     private var currentSessionId: String? = null
+
+    fun recordChatMessage(message: ChatMessage) {
+        val amountStr = message.amount
+        val giftUsdc = amountStr?.toDoubleOrNull()
+        if (giftUsdc != null && giftUsdc > 0.0) {
+            tipChatCount++
+            val giftMicroUsdc = (giftUsdc * 1_000_000.0).roundToLong()
+            tipChatTotalMicroUsdc += giftMicroUsdc
+            Napier.d("[SUPERCHAT_RECORDED] tipCount=$tipChatCount tipTotalMicroUsdc=$tipChatTotalMicroUsdc amount=$giftUsdc", tag = tag)
+        } else {
+            freeChatCount++
+            Napier.d("[FREE_CHAT_RECORDED] freeCount=$freeChatCount", tag = tag)
+        }
+    }
 
     @Volatile
     private var startRound: Long = 0L
@@ -115,6 +140,9 @@ internal class LiquidStreamBlockConsumptionManager(
             paidBlocksConsumed = 0
             freeBlocksConsumed = 0
             lastSettledBlockCount = 0
+            freeChatCount = 0L
+            tipChatCount = 0L
+            tipChatTotalMicroUsdc = 0L
         }
         currentSessionId = sessionId
 
@@ -601,8 +629,12 @@ internal class LiquidStreamBlockConsumptionManager(
                                     costPerPaidBlock = viewModel?.currentCostPerBlockMicroUsdc ?: 0L,
                                     settledAmount = lastSettledMicroUsdc,
                                     totalCumulativeAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
+                                    freeChatCount = freeChatCount,
+                                    tipChatCount = tipChatCount,
+                                    tipChatTotal = tipChatTotalMicroUsdc,
                                 ),
                             )
+                        Napier.d { "Generated voucher note: $noteJson" }
 
                         voucherRepository.upsertVoucher(
                             MppVoucherEntity(

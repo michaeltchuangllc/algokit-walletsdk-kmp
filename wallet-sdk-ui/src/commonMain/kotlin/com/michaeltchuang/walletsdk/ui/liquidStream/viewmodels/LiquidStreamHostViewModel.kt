@@ -100,18 +100,31 @@ class LiquidStreamHostViewModel(
     }
 
     fun receivedChatMessage(message: ChatMessage) {
-        stateDelegate.updateState {
-            it.copy(
-                chatMessages =
-                    it.chatMessages +
-                        ChatUiMessage(
-                            sender = message.sender,
-                            text = message.text,
-                            timestamp = message.timestamp,
-                            amount = message.amount,
-                            asset = message.asset,
-                        ),
-            )
+        val amountStr = message.amount
+        val giftUsdc = amountStr?.toDoubleOrNull()
+        val isTip = giftUsdc != null && giftUsdc > 0.0
+
+        stateDelegate.updateState { currentState ->
+            val newFreeCount = if (isTip) currentState.freeChatCount else currentState.freeChatCount + 1
+            val newTipCount = if (isTip) currentState.tipChatCount + 1 else currentState.tipChatCount
+            val newTipTotal = if (isTip) currentState.tipChatTotalUsdc + giftUsdc else currentState.tipChatTotalUsdc
+
+            val baseState =
+                currentState.copy(
+                    chatMessages =
+                        currentState.chatMessages +
+                            ChatUiMessage(
+                                sender = message.sender,
+                                text = message.text,
+                                timestamp = message.timestamp,
+                                amount = message.amount,
+                                asset = message.asset,
+                            ),
+                    freeChatCount = newFreeCount,
+                    tipChatCount = newTipCount,
+                    tipChatTotalUsdc = newTipTotal,
+                )
+            calculateMetrics(baseState)
         }
     }
 
@@ -203,7 +216,8 @@ class LiquidStreamHostViewModel(
     }
 
     private fun calculateMetrics(currentState: UiState): UiState {
-        val calculatedRevenue = currentState.viewers.mapNotNull { it.lastSettledUSDC }.sum()
+        val subscriptionRevenue = currentState.viewers.mapNotNull { it.lastSettledUSDC }.sum()
+        val calculatedRevenue = subscriptionRevenue + currentState.tipChatTotalUsdc
         val startRound = currentState.viewers.mapNotNull { it.startRound }.firstOrNull() ?: 0L
         val currentBlock = currentState.currentBlockNumber ?: 0L
 
@@ -211,7 +225,7 @@ class LiquidStreamHostViewModel(
         val rate =
             if (isPaid) {
                 if (currentBlock > startRound && startRound > 0) {
-                    formatTwoDecimals(calculatedRevenue / (currentBlock - startRound))
+                    formatTwoDecimals(subscriptionRevenue / (currentBlock - startRound))
                 } else {
                     formatTwoDecimals(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC / 1_000_000.0)
                 }
@@ -219,7 +233,7 @@ class LiquidStreamHostViewModel(
                 "0.00"
             }
         val revenueLabel =
-            if (isPaid) {
+            if (isPaid || currentState.tipChatTotalUsdc > 0.0) {
                 formatRevenueLabel(calculatedRevenue)
             } else {
                 "0.00"
@@ -269,6 +283,9 @@ class LiquidStreamHostViewModel(
         val creatorNfdName: String? = null,
         val creatorNfdAvatarUrl: String? = null,
         val viewerNfdNames: Map<String, String> = emptyMap(),
+        val freeChatCount: Long = 0L,
+        val tipChatCount: Long = 0L,
+        val tipChatTotalUsdc: Double = 0.0,
     )
 
     companion object {

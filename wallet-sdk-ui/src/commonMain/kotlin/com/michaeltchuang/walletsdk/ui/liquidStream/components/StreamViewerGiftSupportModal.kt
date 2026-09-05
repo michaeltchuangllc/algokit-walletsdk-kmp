@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -31,9 +32,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +46,9 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.GiftAmountValidation
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.sanitizeGiftAmountInput
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.validateGiftAmount
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
@@ -59,6 +65,7 @@ fun StreamViewerGiftSupportModal(
         mutableStateOf(quickAmounts.find { it == initialSelectedAmount } ?: quickAmounts.firstOrNull().orEmpty())
     }
     var customAmount by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val amountToSend = customAmount.ifBlank { selectedAmount }
     val colors = AlgoKitTheme.colors
 
@@ -84,27 +91,52 @@ fun StreamViewerGiftSupportModal(
         ) {
             Column(
                 modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 20.dp, bottom = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
                 GiftSupportHeader(balanceLabel = balanceLabel)
                 GiftQuickAmounts(
                     amounts = quickAmounts,
                     selectedAmount = selectedAmount,
+                    isCustomActive = customAmount.isNotBlank(),
                     onAmountSelected = {
                         selectedAmount = it
                         customAmount = ""
+                        errorMessage = null
                         onSelectedAmountChanged(it)
                     },
                 )
                 GiftAmountInput(
                     amount = customAmount,
-                    onAmountChange = { customAmount = it },
+                    onAmountChange = {
+                        customAmount = it
+                        errorMessage = null
+                        if (it.isNotBlank()) {
+                            selectedAmount = ""
+                            onSelectedAmountChanged(it)
+                        }
+                    },
                 )
+                if (!errorMessage.isNullOrBlank()) {
+                    Text(
+                        text = errorMessage.orEmpty(),
+                        color = Color(0xFFEC4242),
+                        style =
+                            AlgoKitTheme.typography.caption.sansMedium
+                                .copy(fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(horizontal = 4.dp),
+                    )
+                }
                 GiftActions(
                     amountToSend = amountToSend,
                     onDismiss = onDismiss,
                     onConfirm = {
-                        if (amountToSend.isNotBlank()) onConfirm(amountToSend)
+                        when (val validation = validateGiftAmount(amountToSend, balanceLabel)) {
+                            is GiftAmountValidation.Error -> errorMessage = validation.message
+                            is GiftAmountValidation.Valid -> {
+                                errorMessage = null
+                                onConfirm(amountToSend)
+                            }
+                        }
                     },
                 )
             }
@@ -171,6 +203,7 @@ private fun GiftSupportHeader(balanceLabel: String) {
 private fun GiftQuickAmounts(
     amounts: List<String>,
     selectedAmount: String,
+    isCustomActive: Boolean,
     onAmountSelected: (String) -> Unit,
 ) {
     val colors = AlgoKitTheme.colors
@@ -188,7 +221,7 @@ private fun GiftQuickAmounts(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             amounts.forEach { amount ->
-                val selected = amount == selectedAmount
+                val selected = !isCustomActive && amount == selectedAmount
                 Surface(
                     modifier =
                         Modifier
@@ -258,23 +291,28 @@ private fun GiftAmountInput(
         ) {
             BasicTextField(
                 value = amount,
-                onValueChange = { value -> onAmountChange(value.filter { it.isDigit() || it == '.' }.take(7)) },
+                onValueChange = { value ->
+                    onAmountChange(sanitizeGiftAmountInput(value))
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
                 textStyle =
                     AlgoKitTheme.typography.body.regular.sansMedium
                         .copy(color = colors.streamHostTitle, fontSize = 14.sp),
                 modifier = Modifier.weight(1f),
                 decorationBox = { innerTextField ->
-                    if (amount.isBlank()) {
-                        Text(
-                            text = "Enter amount",
-                            color = colors.streamHostCaption,
-                            style =
-                                AlgoKitTheme.typography.body.regular.sansMedium
-                                    .copy(fontSize = 14.sp),
-                        )
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (amount.isBlank()) {
+                            Text(
+                                text = "Enter amount",
+                                color = colors.streamHostCaption,
+                                style =
+                                    AlgoKitTheme.typography.body.regular.sansMedium
+                                        .copy(fontSize = 14.sp),
+                            )
+                        }
+                        innerTextField()
                     }
-                    innerTextField()
                 },
             )
             Text(
