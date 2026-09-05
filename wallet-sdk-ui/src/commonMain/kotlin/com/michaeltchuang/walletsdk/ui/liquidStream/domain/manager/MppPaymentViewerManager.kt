@@ -343,10 +343,11 @@ class MppPaymentViewerManager(
     }
 
     fun processGiftVoucher(giftUsdc: Double) {
-        val params = activeStartParams ?: run {
-            Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_active_params", tag = TAG)
-            return
-        }
+        val params =
+            activeStartParams ?: run {
+                Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_active_params", tag = TAG)
+                return
+            }
         val giftMicroUsdc = (giftUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
         params.scope.launch {
             handleGiftVoucher(

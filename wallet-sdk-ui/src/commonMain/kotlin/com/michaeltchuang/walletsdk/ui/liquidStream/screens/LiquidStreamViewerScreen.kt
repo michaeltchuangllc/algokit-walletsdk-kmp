@@ -54,10 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
@@ -271,7 +271,7 @@ private fun LiquidStreamViewerScreenContent(
             // GiftTickerCard()
             Spacer(Modifier.weight(1f))
             ChatStack(messages = uiState.chatMessages)
-            //ChatStack(messages = uiState.chatMessages)
+            // ChatStack(messages = uiState.chatMessages)
             Spacer(Modifier.height(16.dp))
             FloatingButtons(
                 onTopUpClick = onTopUpClick,

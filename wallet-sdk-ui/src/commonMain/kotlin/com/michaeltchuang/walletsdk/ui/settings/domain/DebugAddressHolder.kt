@@ -4,11 +4,12 @@ object DebugAddressHolder {
     var viewerAddresses: ArrayList<String> = arrayListOf("", "", "")
     var creatorAddress: String = ""
 
-    fun getViewerAddress(index: Int): String {
-        return viewerAddresses.getOrNull(index).orEmpty()
-    }
+    fun getViewerAddress(index: Int): String = viewerAddresses.getOrNull(index).orEmpty()
 
-    fun setViewerAddress(index: Int, address: String) {
+    fun setViewerAddress(
+        index: Int,
+        address: String,
+    ) {
         while (viewerAddresses.size <= index) {
             viewerAddresses.add("")
         }

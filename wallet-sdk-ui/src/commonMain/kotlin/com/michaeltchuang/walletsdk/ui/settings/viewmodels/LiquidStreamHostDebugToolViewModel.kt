@@ -106,13 +106,14 @@ class LiquidStreamHostDebugToolViewModel(
 
                 val activeViewers =
                     if (realViewerAddresses.isNotEmpty()) {
-                        realViewerAddresses.map { address ->
-                            val name =
-                                currentState.viewerNfdNames[address]
-                                    ?.takeIf { it.isNotBlank() }
-                                    ?: address.toShortenedAddress()
-                            address to name
-                        }.filter { it.second.isNotBlank() }
+                        realViewerAddresses
+                            .map { address ->
+                                val name =
+                                    currentState.viewerNfdNames[address]
+                                        ?.takeIf { it.isNotBlank() }
+                                        ?: address.toShortenedAddress()
+                                address to name
+                            }.filter { it.second.isNotBlank() }
                     } else {
                         currentState.viewers
                             .mapNotNull { info ->
@@ -299,7 +300,10 @@ class LiquidStreamHostDebugToolViewModel(
         return (totalDepositMicroUsdc - totalCommitted).coerceAtLeast(0L)
     }
 
-    fun settleGiftFromViewer(viewerAddress: String, amountUsdc: Double) {
+    fun settleGiftFromViewer(
+        viewerAddress: String,
+        amountUsdc: Double,
+    ) {
         val giftMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong()
         if (giftMicroUsdc <= 0) return
 
@@ -398,7 +402,9 @@ class LiquidStreamHostDebugToolViewModel(
                 // 2. Increment Block Count (only on block ticks, and only if enough balance remains for a block)
                 if (isBlockTick) {
                     if (remainingLocal < incrementMicroUsdc) {
-                        Napier.d("[AUTO_SETTLE_SKIP] reason=insufficient_for_block viewer=$viewer remaining=$remainingLocal required=$incrementMicroUsdc")
+                        Napier.d(
+                            "[AUTO_SETTLE_SKIP] reason=insufficient_for_block viewer=$viewer remaining=$remainingLocal required=$incrementMicroUsdc",
+                        )
                         continue
                     }
                     val totalBlocks = (viewerBlockCounts[viewer] ?: 0) + 1
@@ -449,7 +455,11 @@ class LiquidStreamHostDebugToolViewModel(
                 val tipTotal = viewerTipChatTotalMicroUsdc[viewer] ?: 0L
 
                 val calculatedTotal = (currentPaid * incrementMicroUsdc) + tipTotal
-                val newCumulative = calculatedTotal.coerceAtMost(snapshot.totalDepositMicroUsdc).coerceAtLeast(snapshot.latestVoucherAmountMicroUsdc)
+                val newCumulative =
+                    calculatedTotal
+                        .coerceAtMost(
+                            snapshot.totalDepositMicroUsdc,
+                        ).coerceAtLeast(snapshot.latestVoucherAmountMicroUsdc)
 
                 val channelIdBase64 = Base64.encode(channelId)
                 val currentBlock = state.value.liveBlockNumber ?: 0L
@@ -472,8 +482,7 @@ class LiquidStreamHostDebugToolViewModel(
                             tipChatTotal = tipTotal,
                         ),
                     )
-               // Napier.d { "[AUTO_SETTLE_NOTE] newCumulative=$newCumulative" }
-
+                // Napier.d { "[AUTO_SETTLE_NOTE] newCumulative=$newCumulative" }
 
                 // 6. No-progress check: skip settling if cumulative amount hasn't increased since last settle
                 if (newCumulative <= snapshot.latestVoucherAmountMicroUsdc) {
@@ -675,25 +684,26 @@ class LiquidStreamHostDebugToolViewModel(
         networkLabel: String,
         viewerNfdNames: Map<String, String>,
     ): List<ConnectedViewerInfo> =
-        DebugAddressHolder.viewerAddresses.mapIndexed { index, address ->
-            val originUrl = if (index == 2) "https://viewer-3.app" else "https://liquid-auth-api.pg.nodely.dev/"
-            ConnectedViewerInfo(
-                sessionId = channelIdDisplayFor(address),
-                remainingBalanceUSDC = balances[address] ?: 0.0,
-                progressBalanceUSDC = balances[address] ?: 0.0,
-                progressCapacityUSDC =
-                    viewerMaxBalances[address] ?: balances[address] ?: 0.0,
-                revenueCapacityUSDC =
-                    viewerMaxBalances[address] ?: balances[address] ?: 0.0,
-                connectionType = IceConnectionType.LOCAL,
-                currentBlockNumber = blockNumber,
-                networkLabel = networkLabel,
-                originUrl = originUrl,
-                viewerAddress =
-                    viewerNfdNames[address]
-                        ?: address.toShortenedAddress(),
-            )
-        }.filter { !it.viewerAddress.isNullOrBlank() }
+        DebugAddressHolder.viewerAddresses
+            .mapIndexed { index, address ->
+                val originUrl = if (index == 2) "https://viewer-3.app" else "https://liquid-auth-api.pg.nodely.dev/"
+                ConnectedViewerInfo(
+                    sessionId = channelIdDisplayFor(address),
+                    remainingBalanceUSDC = balances[address] ?: 0.0,
+                    progressBalanceUSDC = balances[address] ?: 0.0,
+                    progressCapacityUSDC =
+                        viewerMaxBalances[address] ?: balances[address] ?: 0.0,
+                    revenueCapacityUSDC =
+                        viewerMaxBalances[address] ?: balances[address] ?: 0.0,
+                    connectionType = IceConnectionType.LOCAL,
+                    currentBlockNumber = blockNumber,
+                    networkLabel = networkLabel,
+                    originUrl = originUrl,
+                    viewerAddress =
+                        viewerNfdNames[address]
+                            ?: address.toShortenedAddress(),
+                )
+            }.filter { !it.viewerAddress.isNullOrBlank() }
 
     data class ViewState(
         val liveBlockNumber: Long? = null,

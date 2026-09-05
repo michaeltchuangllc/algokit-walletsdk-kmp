@@ -26,10 +26,16 @@ fun formatTwoDecimals(value: Double): String {
 
 sealed interface GiftAmountValidation {
     object Valid : GiftAmountValidation
-    data class Error(val message: String) : GiftAmountValidation
+
+    data class Error(
+        val message: String,
+    ) : GiftAmountValidation
 }
 
-fun sanitizeGiftAmountInput(input: String, maxLength: Int = 7): String {
+fun sanitizeGiftAmountInput(
+    input: String,
+    maxLength: Int = 7,
+): String {
     var filtered = input.filter { it.isDigit() || it == '.' }
     if (filtered.startsWith(".")) {
         filtered = "0$filtered"
@@ -44,7 +50,10 @@ fun sanitizeGiftAmountInput(input: String, maxLength: Int = 7): String {
     return sanitized.take(maxLength)
 }
 
-fun validateGiftAmount(amountToSend: String, balanceLabel: String): GiftAmountValidation {
+fun validateGiftAmount(
+    amountToSend: String,
+    balanceLabel: String,
+): GiftAmountValidation {
     val sendVal = amountToSend.toDoubleOrNull()
     val availableBalance = balanceLabel.toDoubleOrNull() ?: 0.0
     return when {

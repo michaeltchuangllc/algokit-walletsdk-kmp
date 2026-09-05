@@ -126,9 +126,9 @@ timeline
              : ✅ Liquid Stream - Add in audio and muting functionality
              : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
              : ✅ Settings - Add Fnet network support
-             : 🔄 Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand
-             : 🔄 Liquid Stream - Add in chat and super-chat functionality
-             : 🔄 Testing - Add debug host mode for liquid stream (with multiple bot viewers)
+             : ✅ Liquid Stream - Add in chat and super-chat functionality
+             : ✅ Testing - Add debug host mode for liquid stream (with multiple bot viewers)
+             : 🔄 Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand          
              
     section Future 🔮
     2026Q4   
