@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRep
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.internal.compileSettlementLogicSigAddressInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
@@ -16,27 +17,27 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
+import com.michaeltchuang.walletsdk.core.railmpp.internal.submitLogicSigSettlementInternal
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
-/** Kotlin client for the EscrowSessionVaultManager ARC-56 contract. */
-object EscrowSessionVaultManagerClient {
+/** Kotlin client for the EscrowSessionVaultHybridManager ARC-56 contract. */
+object EscrowSessionVaultHybridManagerClient {
     private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
+    private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
 
     private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
     private val ABI_TOP_UP = byteArrayOf(0xbd.toByte(), 0xcf.toByte(), 0xac.toByte(), 0x58)
     private val ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY = byteArrayOf(0x4b, 0x1d, 0xbb.toByte(), 0x67)
-    private val ABI_UPDATE_VOUCHER = byteArrayOf(0xa9.toByte(), 0x8d.toByte(), 0x82.toByte(), 0xda.toByte())
-    private val ABI_SETTLE = byteArrayOf(0xf7.toByte(), 0xdf.toByte(), 0x8d.toByte(), 0xe2.toByte())
-    private val ABI_SETTLE_LATEST = byteArrayOf(0x6e, 0x87.toByte(), 0x27, 0x89.toByte())
+    private val ABI_SET_SETTLEMENT_LOGIC_SIG = byteArrayOf(0x42, 0xd9.toByte(), 0x75, 0xa6.toByte())
+    private val ABI_REVOKE_SETTLEMENT_LOGIC_SIG = byteArrayOf(0x20, 0xb9.toByte(), 0xbe.toByte(), 0x9b.toByte())
     private val ABI_CLOSE = byteArrayOf(0xe8.toByte(), 0x6a, 0xe9.toByte(), 0xe9.toByte())
     private val ABI_REQUEST_CLOSE = byteArrayOf(0x34, 0x68, 0x50, 0x50)
     private val ABI_WITHDRAW = byteArrayOf(0x59, 0x05, 0xd4.toByte(), 0xf4.toByte())
     private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
     private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
-    private val ABI_VERIFY_SETTLE_SIGNATURE = byteArrayOf(0x27, 0x04, 0x92.toByte(), 0x89.toByte())
 
     var appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID
     var usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID
@@ -62,6 +63,9 @@ object EscrowSessionVaultManagerClient {
         }
     }
 
+    /**
+     * Matches the hybrid contract's channel ID derivation, which commits to the signer key hash.
+     */
     fun deriveChannelId(
         payerAddress: String,
         payeeAddress: String,
@@ -169,11 +173,36 @@ object EscrowSessionVaultManagerClient {
             )
         }
 
-    suspend fun updateVoucher(
+    /**
+     * Computes the address of the channel's settlement LogicSig, compiled with [signer]'s own
+     * ephemeral session key as `TMPL_AUTHORIZED_PUBLIC_KEY`, then registers it on-chain via
+     * [setSettlementLogicSig]. Must be called by the channel's payer — the contract asserts
+     * `Txn.sender === payer` — typically once, right after opening/topping-up the channel
+     * (mirrors `setAuthorizedSignerForSession`). The payee later settles vouchers signed by this
+     * same session key without ever needing the payer's real wallet key again.
+     */
+    suspend fun registerSettlementLogicSig(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
+        payeeAddress: String,
+    ): Result<String> =
+        runCatching {
+            val logicSigAddress =
+                compileSettlementLogicSigAddressInternal(
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    channelId = channelId,
+                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                    payeeAddress = payeeAddress,
+                )
+            setSettlementLogicSig(signer, channelId, logicSigAddress).getOrThrow()
+        }
+
+    /** Registers the channel-specific settlement LogicSig address. */
+    suspend fun setSettlementLogicSig(
+        signer: MppWalletSigner,
+        channelId: ByteArray,
+        logicSigAddress: String,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -183,26 +212,28 @@ object EscrowSessionVaultManagerClient {
                 algodUrl = algodUrl,
                 args =
                     listOf(
-                        ABI_UPDATE_VOUCHER,
+                        ABI_SET_SETTLEMENT_LOGIC_SIG,
                         encodeArc4DynamicBytes(channelId),
-                        encodeUint64(cumulativeAmountMicroUsdc),
-                        encodeArc4DynamicBytes(signature),
+                        decodeAlgorandAddressPublicKey(logicSigAddress),
                     ),
                 boxKeys =
                     listOf(
                         Pair(appId, channelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
                     ),
                 foreignAssets = emptyList(),
             )
         }
 
-    suspend fun settle(
+    /**
+     * Emergency stop: payer immediately revokes the registered settlement LogicSig for a
+     * channel (e.g. if the ephemeral Falcon session key is suspected compromised), without
+     * closing the channel or losing the deposit. [settleFromLogicSig] will fail until the payer
+     * registers a fresh LogicSig via [setSettlementLogicSig].
+     */
+    suspend fun revokeSettlementLogicSig(
         signer: MppWalletSigner,
         channelId: ByteArray,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
-        note: String = "N/A",
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -210,36 +241,56 @@ object EscrowSessionVaultManagerClient {
                 appId = appId,
                 usdcAssetId = usdcAssetId,
                 algodUrl = algodUrl,
-                args =
-                    listOf(
-                        ABI_SETTLE,
-                        encodeArc4DynamicBytes(channelId),
-                        encodeUint64(cumulativeAmountMicroUsdc),
-                        encodeArc4DynamicBytes(signature),
-                    ),
+                args = listOf(ABI_REVOKE_SETTLEMENT_LOGIC_SIG, encodeArc4DynamicBytes(channelId)),
                 boxKeys =
                     listOf(
                         Pair(appId, channelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
                     ),
-                foreignAssets = listOf(usdcAssetId),
-                note = note.encodeToByteArray(),
+                foreignAssets = emptyList(),
             )
         }
 
-    suspend fun settleLatest(
-        signer: MppWalletSigner,
+    /**
+     * Submits the hybrid contract's required two-LogicSig settlement group. The viewer's
+     * [voucherSignature] becomes a settlement-program argument and is verified by AVM Falcon
+     * logic; [payeeAddress] is part of the signed voucher domain.
+     *
+     * The settlement group is authorized entirely by the two LogicSigs (settlement + padding) —
+     * neither the payer's nor the payee's wallet key ever signs it. [funderSigner] is only used
+     * to (a) fund both LogicSig accounts if their balance is low and (b) sanity-check that the
+     * settlement LogicSig is already registered on-chain; in production this is typically the
+     * *payee*, who is settling the viewer's voucher and paying the group fee. It does **not**
+     * need to be the channel's payer. [authorizedSignerPublicKey] must be the *payer's* ephemeral
+     * session key (whatever was passed to [registerSettlementLogicSig]/[setSettlementLogicSig]),
+     * not the funder's — passing the wrong key compiles a different LogicSig address and this
+     * call fails with a clear "not registered" error.
+     */
+    suspend fun settleFromLogicSig(
+        funderSigner: MppWalletSigner,
         channelId: ByteArray,
+        cumulativeAmountMicroUsdc: Long,
+        voucherSignature: ByteArray,
+        authorizedSignerPublicKey: ByteArray,
+        payeeAddress: String,
+        note: String = "N/A",
     ): Result<String> =
         runCatching {
-            submitAppCallInternal(
-                signer = signer,
+            require(channelId.size == 32) { "channelId must be 32 bytes" }
+            require(cumulativeAmountMicroUsdc > 0) { "cumulativeAmountMicroUsdc must be positive" }
+            require(voucherSignature.isNotEmpty()) { "voucherSignature must not be empty" }
+            require(authorizedSignerPublicKey.isNotEmpty()) { "authorizedSignerPublicKey must not be empty" }
+            submitLogicSigSettlementInternal(
+                payerSigner = funderSigner,
                 appId = appId,
                 usdcAssetId = usdcAssetId,
                 algodUrl = algodUrl,
-                args = listOf(ABI_SETTLE_LATEST, encodeArc4DynamicBytes(channelId)),
-                boxKeys = listOf(Pair(appId, channelId)),
-                foreignAssets = listOf(usdcAssetId),
+                channelId = channelId,
+                cumulativeAmountMicroUsdc = cumulativeAmountMicroUsdc,
+                voucherSignature = voucherSignature,
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+                payeeAddress = payeeAddress,
+                note = note.encodeToByteArray(),
             )
         }
 
@@ -255,7 +306,12 @@ object EscrowSessionVaultManagerClient {
                 usdcAssetId = usdcAssetId,
                 algodUrl = algodUrl,
                 args = listOf(ABI_CLOSE, encodeArc4DynamicBytes(channelId)),
-                boxKeys = listOf(Pair(appId, channelId)),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                    ),
                 foreignAssets = listOf(usdcAssetId),
                 foreignAccounts = getChannelParticipants(channelId),
             )
@@ -289,7 +345,12 @@ object EscrowSessionVaultManagerClient {
                 usdcAssetId = usdcAssetId,
                 algodUrl = algodUrl,
                 args = listOf(ABI_WITHDRAW, encodeArc4DynamicBytes(channelId)),
-                boxKeys = listOf(Pair(appId, channelId)),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
+                        Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                    ),
                 foreignAssets = listOf(usdcAssetId),
                 foreignAccounts = getChannelParticipants(channelId),
             )
@@ -323,41 +384,6 @@ object EscrowSessionVaultManagerClient {
                 foreignAssets = listOf(usdcAssetId),
             )
         }
-
-    suspend fun verifySettleSignatureOnChain(
-        signer: MppWalletSigner,
-        channelId: ByteArray,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
-    ): Result<String> =
-        runCatching {
-            submitAppCallInternal(
-                signer = signer,
-                appId = appId,
-                usdcAssetId = usdcAssetId,
-                algodUrl = algodUrl,
-                args =
-                    listOf(
-                        ABI_VERIFY_SETTLE_SIGNATURE,
-                        encodeArc4DynamicBytes(channelId),
-                        encodeUint64(cumulativeAmountMicroUsdc),
-                        encodeArc4DynamicBytes(signature),
-                    ),
-                boxKeys =
-                    listOf(
-                        Pair(appId, channelId),
-                        Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
-                    ),
-                foreignAssets = emptyList(),
-            )
-        }
-
-    suspend fun verifySettleSignature(
-        signer: MppWalletSigner,
-        channelId: ByteArray,
-        cumulativeAmountMicroUsdc: Long,
-        signature: ByteArray,
-    ): Result<String> = verifySettleSignatureOnChain(signer, channelId, cumulativeAmountMicroUsdc, signature)
 
     data class SessionStaticData(
         val startRound: Long,

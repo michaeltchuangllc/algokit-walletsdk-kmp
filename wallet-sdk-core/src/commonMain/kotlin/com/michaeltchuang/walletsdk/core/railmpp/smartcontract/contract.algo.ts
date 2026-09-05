@@ -9,14 +9,12 @@ import {
   assert,
   itxn,
   op,
-  Bytes,
   clone,
   TemplateVar,
-  ensureBudget,
-  OpUpFeeSource,
   gtxn,
 } from '@algorandfoundation/algorand-typescript'
-import { falconVerify, sha512_256 } from '@algorandfoundation/algorand-typescript/op'
+import { sha512_256 } from '@algorandfoundation/algorand-typescript/op'
+import { abimethod } from '@algorandfoundation/algorand-typescript/arc4'
 
 /**
  * Compile-time network-specific USDC ASA id.
@@ -41,9 +39,10 @@ export interface ChannelInfo {
   closeRequestedAt: uint64
 }
 
-export class EscrowSessionVaultManager extends Contract {
+export class EscrowSessionVaultHybridManager extends Contract {
   /**
-   * BoxMap for channel data, keyed by channelId bytes.
+   * BoxMap for channel data, keyed by channelId bytes. latestVoucherAmount is
+   * the replay-protection watermark and is atomically advanced on settlement.
    */
   channels = BoxMap<bytes, ChannelInfo>({ keyPrefix: '' })
 
@@ -51,6 +50,11 @@ export class EscrowSessionVaultManager extends Contract {
    * Full authorized signer public key storage, keyed by channelId.
    */
   authorizedSignerPublicKey = BoxMap<bytes, bytes>({ keyPrefix: 'p' })
+
+  /**
+   * Address of the channel-specific Falcon-verifying LogicSig, keyed by channelId.
+   */
+  settlementLogicSig = BoxMap<bytes, Account>({ keyPrefix: 'l' })
 
   /**
    * Opens a channel with initial USDC deposit and returns derived channelId.
@@ -134,77 +138,54 @@ export class EscrowSessionVaultManager extends Contract {
   }
 
   /**
-   * Stores latest cumulative voucher amount on-chain.
+   * Registers the channel-specific LogicSig used for Falcon-authorized settlement.
+   * The payer compiles it with this app id, channel id, payee, and the public key
+   * whose sha512_256 hash is stored on the channel.
    */
-  updateVoucher(channelId: bytes, cumulativeAmount: uint64, signature: bytes): void {
+  setSettlementLogicSig(channelId: bytes, logicSig: Account): void {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
 
     const data = clone(channel.value)
+    assert(Txn.sender === data.payer, 'Only payer can set LogicSig')
+    assert(logicSig !== Account(), 'LogicSig account required')
 
-    assert(Txn.sender === data.payer, 'Only payer can update voucher')
-    assert(cumulativeAmount >= data.lastSettled, 'Voucher below settled amount')
-    assert(cumulativeAmount > data.latestVoucherAmount, 'Voucher not increasing')
-    assert(cumulativeAmount <= data.totalDeposit, 'Voucher exceeds deposit')
-
-    this.verifySettleSignature(channelId, cumulativeAmount, signature)
-
-    data.latestVoucherAmount = cumulativeAmount
-    channel.value = clone(data)
+    this.settlementLogicSig(channelId).value = logicSig
   }
 
   /**
-   * Payee settles signed voucher funds, with support for partial settlement.
-   * Also advances latestVoucherAmount when the submitted signed voucher is newer.
+   * Emergency stop: payer immediately revokes the AI agent's settlement authority
+   * (e.g. if the ephemeral Falcon session key is suspected compromised) without
+   * closing the channel or losing the deposit. settleFromLogicSig will fail until
+   * the payer registers a fresh LogicSig via setSettlementLogicSig.
    */
-  settle(channelId: bytes, cumulativeAmount: uint64, signature: bytes): void {
+  revokeSettlementLogicSig(channelId: bytes): void {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
 
     const data = clone(channel.value)
+    assert(Txn.sender === data.payer, 'Only payer can revoke LogicSig')
 
-    assert(Txn.sender === data.payee, 'Only payee can settle')
-    assert(cumulativeAmount > data.lastSettled, 'Nothing new to settle')
-    assert(cumulativeAmount <= data.totalDeposit, 'Voucher exceeds deposit')
-
-    this.verifySettleSignature(channelId, cumulativeAmount, signature)
-
-    const payout: uint64 = cumulativeAmount - data.lastSettled
-
-    itxn.assetTransfer({
-      xferAsset: Asset(USDC_ASSET_ID),
-      assetReceiver: data.payee,
-      assetAmount: payout,
-    }).submit()
-
-    data.lastSettled = cumulativeAmount
-    if (cumulativeAmount > data.latestVoucherAmount) {
-      data.latestVoucherAmount = cumulativeAmount
-    }
-    channel.value = clone(data)
+    const logicSig = this.settlementLogicSig(channelId)
+    assert(logicSig.exists, 'Settlement LogicSig not set')
+    logicSig.delete()
   }
 
   /**
-   * Helper for payee: settle all currently unclaimed voucher amount.
+   * Settle through the registered LogicSig. Falcon verification occurs in the
+   * LogicSig program; this call binds that authorization to the channel box and
+   * advances its voucher watermark, preventing voucher replay.
    */
-  settleLatest(channelId: bytes): void {
+  settleFromLogicSig(channelId: bytes, cumulativeAmount: uint64): void {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
 
     const data = clone(channel.value)
+    const logicSig = this.settlementLogicSig(channelId)
+    assert(logicSig.exists, 'Settlement LogicSig not set')
+    assert(Txn.sender === logicSig.value, 'Only settlement LogicSig can settle')
 
-    assert(Txn.sender === data.payee, 'Only payee can settle')
-    assert(data.latestVoucherAmount > data.lastSettled, 'Nothing new to settle')
-
-    const payout: uint64 = data.latestVoucherAmount - data.lastSettled
-
-    itxn.assetTransfer({
-      xferAsset: Asset(USDC_ASSET_ID),
-      assetReceiver: data.payee,
-      assetAmount: payout,
-    }).submit()
-
-    data.lastSettled = data.latestVoucherAmount
+    this.applySettlement(data, cumulativeAmount)
     channel.value = clone(data)
   }
 
@@ -281,6 +262,7 @@ export class EscrowSessionVaultManager extends Contract {
    * Returns latest session static data tuple:
    * [startRound, startTimestamp]
    */
+  @abimethod({ readonly: true })
   getSessionStaticData(channelId: bytes): [uint64, uint64] {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
@@ -291,64 +273,26 @@ export class EscrowSessionVaultManager extends Contract {
 
   /**
    * Returns latest session dynamic data tuple:
-   * [totalDeposit, lastSettled, latestVoucherAmount]
+   * [totalDeposit, lastSettled, latestVoucherAmount, settlementLogicSig]
+   * settlementLogicSig is the zero address (Account()) if none is currently
+   * registered (never set, or revoked via revokeSettlementLogicSig) — callers
+   * can use that to detect when setSettlementLogicSig needs to be (re)called.
    */
-  getSessionDynamicData(channelId: bytes): [uint64, uint64, uint64] {
+  @abimethod({ readonly: true })
+  getSessionDynamicData(channelId: bytes): [uint64, uint64, uint64, Account] {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
 
     const data = clone(channel.value)
-    return [data.totalDeposit, data.lastSettled, data.latestVoucherAmount]
-  }
-
-  /**
-   * Backwards-compatible alias for deterministic channelId derivation.
-   * authorizedSigner must be signer pubkey hash (32 bytes).
-   */
-  computeChannelId(payer: Account, payee: Account, authorizedSigner: bytes, salt: bytes): bytes {
-    return this.deriveChannelId(payer, payee, authorizedSigner, salt)
-  }
-
-  /**
-   * Read-only helper for clients: exact bytes signed for settle/updateVoucher.
-   */
-  settleMessage(channelId: bytes, cumulativeAmount: uint64): bytes {
-    return this.getSettleMessage(channelId, cumulativeAmount)
-  }
-
-  /**
-   * Read-only helper for clients: verifies settle authorization exactly as settle/updateVoucher do.
-   * Uses full authorized signer public key stored in a box for the channel.
-   */
-  verifySettleSignature(channelId: bytes, cumulativeAmount: uint64, signature: bytes): void {
-    const channel = this.getChannel(channelId)
-    assert(channel.exists, 'Channel does not exist')
-
-    const data = clone(channel.value)
-    const message = this.getSettleMessage(channelId, cumulativeAmount)
-
-    const authorizedSignerPublicKey = this.authorizedSignerPublicKey(channelId)
-    assert(authorizedSignerPublicKey.exists, 'Authorized signer public key not set yet')
-
-    const authorizedSigner = authorizedSignerPublicKey.value
-
-    ensureBudget(5000, OpUpFeeSource.AppAccount)
-    assert(sha512_256(authorizedSigner) === data.authorizedSigner, 'Invalid signer pubkey')
-
-    if (signature.length > 64) {
-      falconVerify(message, signature, authorizedSigner)
-      return
-    }
-
-    assert(signature.length === 64, 'Invalid Ed25519 signature length')
-    const signatureIsValid = op.ed25519verifyBare(message, signature, authorizedSigner)
-    assert(signatureIsValid, 'Invalid signature')
+    const logicSig = this.settlementLogicSig(channelId)
+    return [data.totalDeposit, data.lastSettled, data.latestVoucherAmount, logicSig.exists ? logicSig.value : Account()]
   }
 
   /**
    * Read-only helper for clients: deterministic channelId derivation.
    * authorizedSigner must be signer pubkey hash (32 bytes).
    */
+  @abimethod({ readonly: true })
   deriveChannelId(payer: Account, payee: Account, authorizedSigner: bytes, salt: bytes): bytes {
     // Algorand channel-id derivation:
     // sha256(payer || payee || assetId || salt || authorizedSignerHash)
@@ -359,6 +303,28 @@ export class EscrowSessionVaultManager extends Contract {
 
   private getChannel(channelId: bytes) {
     return this.channels(channelId)
+  }
+
+  /**
+   * LogicSig-authorized settlement state transition. lastSettled is the
+   * on-chain replay watermark; a previously settled or lower
+   * cumulative voucher cannot produce another transfer.
+   */
+  private applySettlement(data: ChannelInfo, cumulativeAmount: uint64): void {
+    assert(cumulativeAmount > data.lastSettled, 'Nothing new to settle')
+    assert(cumulativeAmount <= data.totalDeposit, 'Voucher exceeds deposit')
+
+    const payout: uint64 = cumulativeAmount - data.lastSettled
+    itxn.assetTransfer({
+      xferAsset: Asset(USDC_ASSET_ID),
+      assetReceiver: data.payee,
+      assetAmount: payout,
+    }).submit()
+
+    data.lastSettled = cumulativeAmount
+    if (cumulativeAmount > data.latestVoucherAmount) {
+      data.latestVoucherAmount = cumulativeAmount
+    }
   }
 
   private applyTopUp(data: ChannelInfo, cumulativeAmount: gtxn.AssetTransferTxn): void {
@@ -394,6 +360,14 @@ export class EscrowSessionVaultManager extends Contract {
     }
 
     this.channels(channelId).delete()
+    const signerPublicKey = this.authorizedSignerPublicKey(channelId)
+    if (signerPublicKey.exists) {
+      signerPublicKey.delete()
+    }
+    const logicSig = this.settlementLogicSig(channelId)
+    if (logicSig.exists) {
+      logicSig.delete()
+    }
   }
 
   private setAuthorizedSignerPublicKeyIfProvided(
@@ -406,13 +380,5 @@ export class EscrowSessionVaultManager extends Contract {
       const authorizedSignerKey = this.authorizedSignerPublicKey(channelId)
       authorizedSignerKey.value = authorizedSignerPublicKey
     }
-  }
-
-  private getSettleMessage(channelId: bytes, cumulativeAmount: uint64): bytes {
-    return op
-      .itob(op.Global.currentApplicationId.id)
-      .concat(channelId)
-      .concat(op.itob(cumulativeAmount))
-      .concat(Bytes('settle'))
   }
 }

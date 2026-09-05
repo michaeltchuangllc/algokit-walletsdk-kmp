@@ -8,7 +8,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +49,7 @@ class SetupMppPaymentViewerUseCase(
                     return
                 }
         val sessionVaultNetwork = params.mppNetwork.toAlgorandNetwork()
-        EscrowSessionVaultManagerClient.configureForNetwork(sessionVaultNetwork)
+        EscrowSessionVaultHybridManagerClient.configureForNetwork(sessionVaultNetwork)
         val sessionVaultConfig = getSessionVaultConfigUseCase(sessionVaultNetwork)
         viewerManager.start(
             MppPaymentViewerManager.StartParams(

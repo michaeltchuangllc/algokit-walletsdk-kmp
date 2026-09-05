@@ -19,7 +19,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import io.github.aakira.napier.Napier
@@ -836,7 +836,7 @@ class LiquidAuthOfferViewModel(
             Napier.e("Skipping session vault close: creatorAddress is missing")
             return
         }
-        val channelId = EscrowSessionVaultManagerClient.channelId
+        val channelId = EscrowSessionVaultHybridManagerClient.channelId
         if (channelId == null) {
             Napier.e("Skipping session vault close: channelId is missing")
             return

@@ -17,7 +17,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultContextUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
@@ -215,7 +215,7 @@ class LiquidStreamHostDebugToolViewModel(
     ): ByteArray {
         viewerChannelIds[viewerAddress]?.let { return it }
         val derived =
-            EscrowSessionVaultManagerClient.deriveChannelId(
+            EscrowSessionVaultHybridManagerClient.deriveChannelId(
                 payerAddress = viewerAddress,
                 payeeAddress = DebugAddressHolder.creatorAddress,
                 authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
@@ -334,7 +334,7 @@ class LiquidStreamHostDebugToolViewModel(
             viewModelScope.launch {
                 try {
                     val vaultContext = getSessionVaultContextUseCase()
-                    EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+                    EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
 
                     val addresses = DebugAddressHolder.viewerAddresses.filter { it.isNotBlank() }
 
@@ -379,10 +379,11 @@ class LiquidStreamHostDebugToolViewModel(
     private suspend fun performAutomatedConsumptionAndSettlement(isBlockTick: Boolean = true) {
         try {
             val vaultContext = getSessionVaultContextUseCase()
-            EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+            EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
 
             val creator = DebugAddressHolder.creatorAddress
-            val creatorSigner = mppWalletSignerUseCase(creator) ?: return
+            // Ensure the creator has a valid signer configured before settling any viewer channels.
+            mppWalletSignerUseCase(creator) ?: return
 
             val addresses = DebugAddressHolder.viewerAddresses.filter { it.isNotBlank() }
 
@@ -429,6 +430,19 @@ class LiquidStreamHostDebugToolViewModel(
                             )
                         }
                     if (authorizationResult.isFailure) continue
+
+                    // Must run after setAuthorizedSignerForSession: the settlement LogicSig is
+                    // compiled with this signer's session key, and settlement always fails until
+                    // it's registered on-chain.
+                    val registerResult =
+                        withContext(Dispatchers.Default) {
+                            MppPayments.registerSettlementLogicSig(
+                                signer = viewerSigner,
+                                payeeAddress = creator,
+                                channelId = channelId,
+                            )
+                        }
+                    if (registerResult.isFailure) continue
                     authorizedSignerViewers += viewer
                 }
 
@@ -503,14 +517,14 @@ class LiquidStreamHostDebugToolViewModel(
                     continue
                 }
 
-                // 8. Settle
-                val settleMessage =
-                    MppPayments.settleMessage(
-                        cumulativeAmountMicroUsdc = newCumulative,
+                // 8. Sign the hybrid voucher, then submit it through the registered LogicSig.
+                val voucher =
+                    MppPayments.buildLogicSigSettlementVoucher(
                         channelId = channelId,
+                        cumulativeAmountMicroUsdc = newCumulative,
+                        payeeAddress = creator,
                     )
-                val signature = viewerSigner.signMessage(settleMessage)
-                val signatureBase64 = Base64.encode(signature)
+                val voucherSignature = viewerSigner.signMessage(voucher)
 
                 voucherRepository.upsertVoucher(
                     MppVoucherEntity(
@@ -518,7 +532,7 @@ class LiquidStreamHostDebugToolViewModel(
                         sessionId = "debug-session-$viewer",
                         viewerAddress = viewer,
                         viewerPublicKeyBase64 = Base64.encode(viewerSigner.authorizedSignerPublicKey),
-                        signatureBase64 = signatureBase64,
+                        signatureBase64 = Base64.encode(voucherSignature),
                         totalAmountClaimedMicroUsdc = newCumulative,
                         creatorAddress = creator,
                         blockNumber = currentBlock,
@@ -527,10 +541,12 @@ class LiquidStreamHostDebugToolViewModel(
                 )
 
                 withContext(Dispatchers.Default) {
-                    MppPayments.settle(
-                        signer = creatorSigner,
+                    MppPayments.settleFromLogicSig(
+                        funderSigner = viewerSigner,
                         cumulativeAmountMicroUsdc = newCumulative,
-                        signature = signature,
+                        voucherSignature = voucherSignature,
+                        authorizedSignerPublicKey = viewerSigner.authorizedSignerPublicKey,
+                        payeeAddress = creator,
                         channelId = channelId,
                         note = noteJson,
                     )
@@ -566,7 +582,7 @@ class LiquidStreamHostDebugToolViewModel(
             try {
                 stateDelegate.updateState { it.copy(isLoading = true) }
                 val vaultContext = getSessionVaultContextUseCase()
-                EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+                EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
 
                 val addresses = DebugAddressHolder.viewerAddresses.filter { it.isNotBlank() }
 
@@ -614,11 +630,36 @@ class LiquidStreamHostDebugToolViewModel(
                                     }
                                 authorizationResult
                                     .onSuccess {
-                                        eventDelegate.sendEvent(
-                                            viewModelScope,
-                                            ViewEvent.ShowStatusMessage("✅ Successfully deposited $amountUsdc USDC to $viewer"),
-                                        )
-                                        Napier.d("[AUTO_DEPOSIT_OK] viewer=$viewer txId=$txId", tag = "LiquidStreamHostDebugVM")
+                                        // Must run after setAuthorizedSignerForSession: the
+                                        // settlement LogicSig is compiled with this signer's
+                                        // session key, and settlement always fails until it's
+                                        // registered on-chain.
+                                        val registerResult =
+                                            withContext(Dispatchers.Default) {
+                                                MppPayments.registerSettlementLogicSig(
+                                                    signer = signer,
+                                                    payeeAddress = DebugAddressHolder.creatorAddress,
+                                                    channelId = channelId,
+                                                )
+                                            }
+                                        registerResult
+                                            .onSuccess {
+                                                eventDelegate.sendEvent(
+                                                    viewModelScope,
+                                                    ViewEvent.ShowStatusMessage("✅ Successfully deposited $amountUsdc USDC to $viewer"),
+                                                )
+                                                Napier.d("[AUTO_DEPOSIT_OK] viewer=$viewer txId=$txId", tag = "LiquidStreamHostDebugVM")
+                                            }.onFailure { err ->
+                                                eventDelegate.sendEvent(
+                                                    viewModelScope,
+                                                    ViewEvent.ShowStatusMessage("❌ Failed to register settlement LogicSig for $viewer"),
+                                                )
+                                                Napier.e(
+                                                    "[AUTO_REGISTER_LOGIC_SIG_ERR] viewer=$viewer",
+                                                    err,
+                                                    tag = "LiquidStreamHostDebugVM",
+                                                )
+                                            }
                                     }.onFailure { err ->
                                         eventDelegate.sendEvent(
                                             viewModelScope,
@@ -648,7 +689,7 @@ class LiquidStreamHostDebugToolViewModel(
         applicationScope.launch {
             try {
                 val vaultContext = getSessionVaultContextUseCase()
-                EscrowSessionVaultManagerClient.configureForNetwork(vaultContext.network)
+                EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
 
                 val addresses = DebugAddressHolder.viewerAddresses.filter { it.isNotBlank() }
                 val signer = mppWalletSignerUseCase(DebugAddressHolder.creatorAddress)

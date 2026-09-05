@@ -27,7 +27,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRep
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
@@ -728,7 +728,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
             parsed.paymentVoucher?.let { voucher ->
                 voucher.channelIdBase64?.let { Napier.e("channelId=$it", tag = TAG) }
-                voucher.channelId?.let { EscrowSessionVaultManagerClient.channelId = it }
+                voucher.channelId?.let { EscrowSessionVaultHybridManagerClient.channelId = it }
                 val signature = voucher.signatureBase64
                 val claimedAmount = voucher.totalAmountClaimedMicroUsdc?.takeIf { it >= 0L }
                 val voucherSessionId = voucher.sessionId

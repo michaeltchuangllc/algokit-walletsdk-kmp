@@ -40,6 +40,38 @@ internal expect suspend fun submitAssetTransferAndAppCallInternal(
     depositAmountMicroUsdc: Long,
 ): String
 
+/**
+ * Compiles the channel-specific settlement LogicSig template and returns its resulting address,
+ * without registering or funding it. [authorizedSignerPublicKey] must be the *payer's* ephemeral
+ * session key — the payer uses this to learn the address before calling
+ * [com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient.setSettlementLogicSig].
+ */
+internal expect suspend fun compileSettlementLogicSigAddressInternal(
+    appId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+): String
+
+/**
+ * Compiles the channel-specific settlement and padding LogicSig templates, then submits their
+ * required two-transaction settlement group. The voucher signature is passed to the settlement
+ * program as a LogicSig argument; it is never used as an account transaction signature.
+ */
+internal expect suspend fun submitLogicSigSettlementInternal(
+    payerSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+    note: ByteArray? = null,
+): String
+
 /** Decodes msgpack bytes to a generic map/object; returns null on failure. */
 internal expect fun decodeMsgPackAny(bytes: ByteArray): Any?
 

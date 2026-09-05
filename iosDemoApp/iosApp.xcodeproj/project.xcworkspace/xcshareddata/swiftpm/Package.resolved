@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/algorandecosystem/falcon-signatures-mobile",
       "state" : {
-        "revision" : "f3d9cda39ae79c92d93389ed7300e4b201af9e7e",
-        "version" : "0.0.18"
+        "revision" : "cf0162160f9497db5ec5ef089bea93472baa5b2d",
+        "version" : "0.0.19"
       }
     },
     {

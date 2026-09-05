@@ -12,7 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
@@ -386,7 +386,7 @@ class MppPaymentViewerManager(
         val voucherClaimed = voucherClaimedRaw.coerceAtLeast(minRequiredCumulative).coerceAtMost(maxAllowedCumulative)
 
         viewerVoucherClaimedMicroUsdc = voucherClaimed
-        val channelId = EscrowSessionVaultManagerClient.channelId
+        val channelId = EscrowSessionVaultHybridManagerClient.channelId
         if (channelId == null) {
             Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_channel_id", tag = TAG)
             return
@@ -395,9 +395,10 @@ class MppPaymentViewerManager(
         val voucherSignature =
             runCatching {
                 val message =
-                    MppPayments.buildClaimMessage(
-                        totalAmountClaimedMicroUsdc = voucherClaimed,
+                    MppPayments.buildLogicSigSettlementVoucher(
                         channelId = channelId,
+                        cumulativeAmountMicroUsdc = voucherClaimed,
+                        payeeAddress = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
                     )
                 params.signFido2Challenge(message, viewerAddress)
             }.getOrNull()
@@ -408,7 +409,7 @@ class MppPaymentViewerManager(
                 receiptSessionId = viewerVoucherSessionId.orEmpty(),
                 receiptSegmentIndex = 0,
                 receiptViewerAddress = viewerAddress,
-                receiptPayTo = EscrowSessionVaultManagerClient.hostAddress.orEmpty(),
+                receiptPayTo = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
                 sessionVaultAppId = sessionVaultAppId,
                 signer = signer,
                 voucherClaimed = voucherClaimed,
@@ -510,13 +511,14 @@ class MppPaymentViewerManager(
             }
 
             viewerVoucherClaimedMicroUsdc = voucherClaimed
-            val channelId = EscrowSessionVaultManagerClient.channelId ?: return
+            val channelId = EscrowSessionVaultHybridManagerClient.channelId ?: return
             val voucherSignature =
                 runCatching {
                     val message =
-                        MppPayments.buildClaimMessage(
-                            totalAmountClaimedMicroUsdc = voucherClaimed,
+                        MppPayments.buildLogicSigSettlementVoucher(
                             channelId = channelId,
+                            cumulativeAmountMicroUsdc = voucherClaimed,
+                            payeeAddress = receiptPayTo,
                         )
                     signFido2Challenge(message, viewerAddress)
                 }.getOrNull()
@@ -669,14 +671,17 @@ class MppPaymentViewerManager(
                 }
             }
         if (existingSessionData != null) {
-            return VaultFundingResult(
-                result =
-                    MppPayments.topUpSessionVault(
-                        signer = signer,
-                        additionalDepositMicroUsdc = depositMicroUsdc,
-                    ),
-                openedSession = false,
-            )
+            val topUpResult =
+                MppPayments.topUpSessionVault(
+                    signer = signer,
+                    additionalDepositMicroUsdc = depositMicroUsdc,
+                )
+            // The channel may already exist on-chain (e.g. from an earlier session/app run)
+            // without ever having had its settlement LogicSig registered — this is idempotent
+            // and cheap, so just always ensure it's set up rather than tracking whether this
+            // particular signer/channel already did so.
+            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
+            return VaultFundingResult(result = topUpResult, openedSession = false)
         }
 
         val openResult =
@@ -686,20 +691,40 @@ class MppPaymentViewerManager(
                 depositAmountMicroUsdc = depositMicroUsdc,
             )
         openResult.onSuccess {
-            MppPayments
-                .setAuthorizedSignerForSession(
-                    signer = signer,
-                    viewerAddress = viewerAddress,
-                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                ).onFailure { err ->
-                    Napier.e(
-                        "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress",
-                        err,
-                        tag = TAG,
-                    )
-                }
+            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
         }
         return VaultFundingResult(result = openResult, openedSession = true)
+    }
+
+    private suspend fun ensureAuthorizedSignerAndSettlementLogicSig(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+    ) {
+        MppPayments
+            .setAuthorizedSignerForSession(
+                signer = signer,
+                viewerAddress = viewerAddress,
+                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+            ).onSuccess {
+                // Must run after setAuthorizedSignerForSession: the settlement LogicSig is
+                // compiled with this signer's session key, and the payee can't settle any
+                // voucher until it's registered on-chain (see ensureLogicSigSetup).
+                MppPayments
+                    .registerSettlementLogicSig(signer = signer)
+                    .onFailure { err ->
+                        Napier.e(
+                            "[VIEWER_REGISTER_LOGIC_SIG_ERR] viewer=$viewerAddress",
+                            err,
+                            tag = TAG,
+                        )
+                    }
+            }.onFailure { err ->
+                Napier.e(
+                    "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress",
+                    err,
+                    tag = TAG,
+                )
+            }
     }
 
     private fun stopViewerOnChainRefresh() {
