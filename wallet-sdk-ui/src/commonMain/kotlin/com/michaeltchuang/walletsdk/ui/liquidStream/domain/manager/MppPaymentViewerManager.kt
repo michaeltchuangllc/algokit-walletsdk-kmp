@@ -395,9 +395,10 @@ class MppPaymentViewerManager(
         val voucherSignature =
             runCatching {
                 val message =
-                    MppPayments.buildClaimMessage(
-                        totalAmountClaimedMicroUsdc = voucherClaimed,
+                    MppPayments.buildLogicSigSettlementVoucher(
                         channelId = channelId,
+                        cumulativeAmountMicroUsdc = voucherClaimed,
+                        payeeAddress = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
                     )
                 params.signFido2Challenge(message, viewerAddress)
             }.getOrNull()
@@ -514,9 +515,10 @@ class MppPaymentViewerManager(
             val voucherSignature =
                 runCatching {
                     val message =
-                        MppPayments.buildClaimMessage(
-                            totalAmountClaimedMicroUsdc = voucherClaimed,
+                        MppPayments.buildLogicSigSettlementVoucher(
                             channelId = channelId,
+                            cumulativeAmountMicroUsdc = voucherClaimed,
+                            payeeAddress = receiptPayTo,
                         )
                     signFido2Challenge(message, viewerAddress)
                 }.getOrNull()
