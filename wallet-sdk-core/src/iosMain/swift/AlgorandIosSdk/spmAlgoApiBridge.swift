@@ -1484,6 +1484,35 @@ import CommonCrypto
         return String(data: data, encoding: .utf8) ?? ""
     }
 
+    /// Posts a pre-built, msgpack-encoded `SimulateRequest` body (see Kotlin's
+    /// `buildSimulateRequestMsgpack`) to algod's `/v2/transactions/simulate` endpoint and
+    /// returns the raw JSON response body. On a non-2xx response, the body is returned prefixed
+    /// with `"SIMULATE_ERROR:"` (mirroring `syncBroadcastTxns`) so callers can surface the real
+    /// Algorand error instead of silently failing.
+    public func syncSimulateTransaction(algodUrl: String, requestBytesBase64: String) -> String {
+        let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/transactions/simulate"
+        guard let url = URL(string: urlStr),
+              let bodyData = Data(base64Encoded: requestBytesBase64) else { return "" }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        // Matches algosdk's Client.executeCall: request bodies are always raw msgpack, regardless
+        // of the `?format=` query param (which only controls the *response* encoding — we omit it
+        // here to get a JSON response, which is trivial to parse with the existing jsonValue/regex
+        // helpers without needing a msgpack decoder on the Swift side).
+        request.setValue("application/x-binary", forHTTPHeaderField: "Content-Type")
+        request.httpBody = bodyData
+        let (data, status) = syncRequest(request)
+        guard status == 200, let data = data else {
+            if let data = data, let msg = String(data: data, encoding: .utf8) {
+                NSLog("❌ syncSimulateTransaction failed status=\(status) body=\(msg.prefix(400))")
+                return "SIMULATE_ERROR:\(msg)"
+            }
+            NSLog("❌ syncSimulateTransaction failed status=\(status) (no body)")
+            return ""
+        }
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
     public func syncGetPendingTxn(algodUrl: String, txId: String) -> String {
         let urlStr = "\(algodUrl.trimmingCharacters(in: CharacterSet(charactersIn: "/")))/v2/transactions/pending/\(txId)"
         guard let url = URL(string: urlStr) else { return "" }

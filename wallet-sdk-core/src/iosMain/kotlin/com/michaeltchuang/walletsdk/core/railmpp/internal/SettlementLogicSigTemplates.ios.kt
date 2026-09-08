@@ -385,13 +385,3 @@ main_after_if_else@2:
     return
 """
 
-/** Replaces every `TMPL_*` placeholder in [template] with its value from [substitutions]. */
-internal fun renderTealTemplate(
-    template: String,
-    substitutions: Map<String, String>,
-): String {
-    var rendered = template
-    substitutions.forEach { (name, value) -> rendered = rendered.replace(name, value) }
-    require(!Regex("TMPL_[A-Z0-9_]+").containsMatchIn(rendered)) { "Unresolved LogicSig template variables" }
-    return rendered
-}

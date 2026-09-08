@@ -76,6 +76,26 @@ internal expect suspend fun submitLogicSigSettlementInternal(
 internal expect fun decodeMsgPackAny(bytes: ByteArray): Any?
 
 /**
+ * Simulates a readonly ABI method call against Algod (no signature and no real fee required —
+ * mirrors how the TypeScript reference script reads `getSessionStaticData`/`getSessionDynamicData`
+ * via `appClient.send.*`, which algokit-utils transparently resolves through `/v2/transactions/simulate`
+ * for `readonly: true` ARC-56 methods). [selector] is the 4-byte ABI method selector; [args] are the
+ * ABI-encoded method arguments (selector is prepended automatically). [boxKeys] is a list of
+ * (appId, boxKey) pairs for AVM box references.
+ *
+ * Returns the raw ABI return-value bytes with the 4-byte "return log" prefix (`0x151f7c75`) already
+ * stripped, or `null` if simulation isn't supported on this platform yet, or the call failed for any
+ * reason — callers should fall back to decoding raw box bytes directly in that case.
+ */
+internal expect fun simulateReadonlyMethodInternal(
+    appId: Long,
+    algodUrl: String,
+    selector: ByteArray,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): ByteArray?
+
+/**
  * Polls Algod until [txId] is confirmed or [maxRounds] exhausted.
  * Returns (confirmedRound, logCount).
  */

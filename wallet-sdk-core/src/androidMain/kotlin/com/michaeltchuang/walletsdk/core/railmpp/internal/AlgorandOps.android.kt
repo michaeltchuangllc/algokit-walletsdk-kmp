@@ -4,13 +4,18 @@ import android.util.Base64
 import android.util.Log
 import com.algorand.algosdk.account.LogicSigAccount
 import com.algorand.algosdk.crypto.Address
+import com.algorand.algosdk.crypto.Signature
 import com.algorand.algosdk.transaction.AppBoxReference
+import com.algorand.algosdk.transaction.SignedTransaction
 import com.algorand.algosdk.transaction.Transaction
 import com.algorand.algosdk.transaction.TxGroup
 import com.algorand.algosdk.util.Encoder
 import com.algorand.algosdk.v2.client.common.AlgodClient
 import com.algorand.algosdk.v2.client.common.Response
 import com.algorand.algosdk.v2.client.model.PostTransactionsResponse
+import com.algorand.algosdk.v2.client.model.SimulateRequest
+import com.algorand.algosdk.v2.client.model.SimulateRequestTransactionGroup
+import com.algorand.algosdk.v2.client.model.TransactionParametersResponse
 import com.michaeltchuang.walletsdk.core.network.domain.AndroidContextHolder
 import com.michaeltchuang.walletsdk.core.railmpp.AndroidMppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
@@ -21,21 +26,13 @@ import java.math.BigInteger
 import java.net.URI
 
 private const val TAG = "AlgorandOps"
-private const val APP_CALL_FEE = 12_000L
-private const val DUMMIES_PER_REAL_TXN = 3
-private const val MIN_TXN_FEE = 1_000L
-
-// Hardened LogicSig programs add encoded-byte fee on Futurenet; the teardown-sweep
-// branch grew the settlement LogicSig program, bumping this from 18 to 30 microAlgos.
-private const val LOGIC_SIG_SETTLEMENT_GROUP_FEE = 3_030L
-private const val LOGIC_SIG_MINIMUM_BALANCE = 100_000L
-private const val FALCON_SIGNED_TRANSACTION_GROUP_FEE =
-    MIN_TXN_FEE * (DUMMIES_PER_REAL_TXN + 1)
 private const val SETTLEMENT_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementLogicSig.teal"
 private const val PADDING_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementPaddingLogicSig.teal"
 
-private val SETTLE_FROM_LOGIC_SIG_SELECTOR = byteArrayOf(0x43, 0x9c.toByte(), 0x5f, 0xb1.toByte())
-private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
+// Shared fee/selector/box-prefix constants live in commonMain's AlgorandUtils.kt
+// (APP_CALL_FEE, MIN_TXN_FEE, DUMMIES_PER_REAL_TXN, FALCON_SIGNED_TRANSACTION_GROUP_FEE,
+// LOGIC_SIG_SETTLEMENT_GROUP_FEE, LOGIC_SIG_MINIMUM_BALANCE, SETTLE_FROM_LOGIC_SIG_SELECTOR,
+// SET_SETTLEMENT_LOGIC_SIG_SELECTOR, SETTLEMENT_LOGIC_SIG_BOX_PREFIX) — same package, no import needed.
 
 private val falconLsigAddress: Address by lazy {
     Address(GoMobileDispatcher.runOnGoThread { Sdk.getFalconLsigAddress() })
@@ -51,6 +48,65 @@ internal actual fun getSessionBoxBytesInternal(
     val response = client.GetApplicationBoxByName(appId).name("b64:$boxNameB64").execute()
     if (!response.isSuccessful) error("Box fetch failed: ${response.message() ?: "unknown"}")
     return response.body()?.value ?: error("Empty box value")
+}
+
+internal actual fun simulateReadonlyMethodInternal(
+    appId: Long,
+    algodUrl: String,
+    selector: ByteArray,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): ByteArray? =
+    try {
+        val client = algodClient(algodUrl)
+        val params = client.TransactionParams().execute().body() ?: return null
+        val txn = buildReadonlySimulateTxn(params, appId, selector, args, boxKeys.toBoxReferences())
+        val signedTxn = SignedTransaction(txn, Signature(), txn.txID())
+        val request =
+            SimulateRequest().apply {
+                allowEmptySignatures = true
+                allowUnnamedResources = true
+                txnGroups = listOf(SimulateRequestTransactionGroup().apply { txns = listOf(signedTxn) })
+            }
+        val response = client.SimulateTransaction().request(request).execute()
+        if (!response.isSuccessful) {
+            Log.w(TAG, "[SIMULATE_READONLY_HTTP_ERROR] appId=$appId reason=${response.message() ?: "unknown"}")
+            return null
+        }
+        val groupResult = response.body()?.txnGroups?.firstOrNull() ?: return null
+        if (!groupResult.failureMessage.isNullOrEmpty()) {
+            Log.w(TAG, "[SIMULATE_READONLY_FAILED] appId=$appId reason=${groupResult.failureMessage}")
+            return null
+        }
+        val logs = groupResult.txnResults.firstOrNull()?.txnResult?.logs.orEmpty()
+        val returnLog =
+            logs.lastOrNull {
+                it.size >= ABI_RETURN_LOG_PREFIX.size &&
+                    it.copyOfRange(0, ABI_RETURN_LOG_PREFIX.size).contentEquals(ABI_RETURN_LOG_PREFIX)
+            } ?: return null
+        returnLog.copyOfRange(ABI_RETURN_LOG_PREFIX.size, returnLog.size)
+    } catch (t: Throwable) {
+        Log.w(TAG, "[SIMULATE_READONLY_ERROR] appId=$appId error=${t.message}")
+        null
+    }
+
+/** Builds an unsigned, fee-bearing readonly ABI app-call transaction for use with [simulateReadonlyMethodInternal]. */
+private fun buildReadonlySimulateTxn(
+    params: TransactionParametersResponse,
+    appId: Long,
+    selector: ByteArray,
+    args: List<ByteArray>,
+    boxReferences: List<AppBoxReference>,
+): Transaction {
+    val builder =
+        Transaction
+            .ApplicationCallTransactionBuilder()
+            .sender(Address.forApplication(appId))
+            .suggestedParams(params)
+            .applicationId(appId)
+            .args(listOf(selector) + args)
+    if (boxReferences.isNotEmpty()) builder.boxReferences(boxReferences)
+    return builder.build().also { it.fee = BigInteger.valueOf(MIN_TXN_FEE) }
 }
 
 internal actual suspend fun submitAppCallInternal(
@@ -305,7 +361,7 @@ private suspend fun signTxnGroup(
 
 private fun buildAppCallTxn(
     signer: MppWalletSigner,
-    params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
+    params: TransactionParametersResponse,
     appId: Long,
     args: List<ByteArray>,
     boxReferences: List<AppBoxReference>,
@@ -328,7 +384,7 @@ private fun buildAppCallTxn(
 }
 
 private fun buildFalconDummy(
-    params: com.algorand.algosdk.v2.client.model.TransactionParametersResponse,
+    params: TransactionParametersResponse,
     index: Int,
 ): Transaction =
     Transaction
@@ -357,8 +413,7 @@ private fun getChannelPayerAddress(
             .body()
             ?.value
             ?: return null
-    if (bytes.size < 32) return null
-    return encodeAlgorandAddress(bytes.copyOfRange(0, 32))
+    return decodeChannelPayerAddress(bytes)
 }
 
 private suspend fun ensureLogicSigSetup(
@@ -411,7 +466,7 @@ private suspend fun ensureLogicSigSetup(
                     ),
                 foreignAssets = emptyList(),
             ).also { transaction ->
-                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner))
+                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner.signerType))
             }
         val signed = signTxnGroup(payerSigner, listOf(registrationTxn))
         broadcast(client, signed)
@@ -447,27 +502,15 @@ private suspend fun fundLogicSigIfNeeded(
             .suggestedParams(params)
             .build()
             .also { transaction ->
-                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner))
+                transaction.fee = BigInteger.valueOf(pooledFeeFor(payerSigner.signerType))
             }
     val signed = signTxnGroup(payerSigner, listOf(paymentTxn))
     broadcast(client, signed)
     Log.d(TAG, "[LSIG_FUNDED] address=$address topUpMicroAlgos=$topUpAmount targetMicroAlgos=$targetBalance")
 }
 
-private fun pooledFeeFor(signer: MppWalletSigner): Long =
-    when (signer.signerType) {
-        MppWalletSignerType.FALCON_NATIVE,
-        MppWalletSignerType.FALCON_LSIG,
-        -> FALCON_SIGNED_TRANSACTION_GROUP_FEE
-        MppWalletSignerType.ED25519 -> MIN_TXN_FEE
-    }
-
-private fun encodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
-    require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
-    return byteArrayOf(((bytes.size ushr 8) and 0xFF).toByte(), (bytes.size and 0xFF).toByte()) + bytes
-}
-
-private val SET_SETTLEMENT_LOGIC_SIG_SELECTOR = byteArrayOf(0x42, 0xd9.toByte(), 0x75, 0xa6.toByte())
+// pooledFeeFor, encodeArc4DynamicBytes, and the settlement/box-prefix selector constants now
+// live in commonMain's AlgorandUtils.kt (shared with iOS) — same package, no import needed.
 
 private fun AlgodClient.compileTeal(teal: String): ByteArray {
     val response = TealCompile().source(teal.encodeToByteArray()).execute()
@@ -476,24 +519,22 @@ private fun AlgodClient.compileTeal(teal: String): ByteArray {
     return Base64.decode(result, Base64.DEFAULT)
 }
 
+/** Loads the asset text and delegates `TMPL_*` substitution to the shared commonMain helper. */
 private fun renderTealTemplate(
     assetPath: String,
     substitutions: Map<String, String>,
 ): String {
     val context = AndroidContextHolder.applicationContext ?: error("Android application context is required to load $assetPath")
-    var template =
+    val template =
         context.assets
             .open(assetPath)
             .bufferedReader()
             .use { it.readText() }
-    substitutions.forEach { (name, value) -> template = template.replace(name, value) }
-    require(!TEMPLATE_VARIABLE_PATTERN.containsMatchIn(template)) { "Unresolved LogicSig template variables in $assetPath" }
-    return template
+    return runCatching { substituteTealTemplate(template, substitutions) }
+        .getOrElse { error("Unresolved LogicSig template variables in $assetPath") }
 }
 
-private fun ByteArray.toTealByteLiteral(): String = "0x" + joinToString(separator = "") { "%02x".format(it.toInt() and 0xff) }
-
-private val TEMPLATE_VARIABLE_PATTERN = Regex("TMPL_[A-Z0-9_]+")
+// toTealByteLiteral() now lives in commonMain's AlgorandUtils.kt (shared with iOS).
 
 private fun algodClient(url: String): AlgodClient {
     val uri = URI(url.removeSuffix("/"))

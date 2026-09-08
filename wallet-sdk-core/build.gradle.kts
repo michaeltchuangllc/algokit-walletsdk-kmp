@@ -128,7 +128,7 @@ kotlin {
                         libs.versions.falcon.sdk
                             .get(),
                 )
-                remotePackageBranch(
+                remotePackageVersion(
                     url = uri("https://github.com/algorandecosystem/algokit-core-swift.git"),
                     products = {
                         add("AlgoKitTransact")
@@ -136,7 +136,12 @@ kotlin {
                         add("AlgoKitComposer")
                         add("AlgoKitUtils")
                     },
-                    branch = "main",
+                    // Pinned to the same release Android uses (`algokit-core` in
+                    // libs.versions.toml) so both platforms build against identical
+                    // algokit-core Rust logic instead of iOS silently tracking `main`.
+                    version =
+                        libs.versions.algokit.core
+                            .get(),
                 )
             }
         }

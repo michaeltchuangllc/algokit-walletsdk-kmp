@@ -11,10 +11,12 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.internal.compileSettlementLogicSigAddressInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
+import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeArc4DynamicBytes
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
 import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
+import com.michaeltchuang.walletsdk.core.railmpp.internal.simulateReadonlyMethodInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitLogicSigSettlementInternal
@@ -38,6 +40,8 @@ object EscrowSessionVaultHybridManagerClient {
     private val ABI_WITHDRAW = byteArrayOf(0x59, 0x05, 0xd4.toByte(), 0xf4.toByte())
     private val ABI_FUND_MBR_POOL = byteArrayOf(0xaa.toByte(), 0x14, 0xc4.toByte(), 0xf9.toByte())
     private val ABI_OPT_IN_USDC = byteArrayOf(0x7e, 0x3f, 0x4a, 0x68)
+    private val ABI_GET_SESSION_STATIC_DATA = byteArrayOf(0xa8.toByte(), 0x70, 0x49, 0x03)
+    private val ABI_GET_SESSION_DYNAMIC_DATA = byteArrayOf(0xcc.toByte(), 0xde.toByte(), 0x9f.toByte(), 0xb6.toByte())
 
     var appId: Long = RailMppConstants.MPP_SESSION_VAULT_APP_ID
     var usdcAssetId: Long = AssetConstants.USDC_TESTNET_ID
@@ -396,33 +400,54 @@ object EscrowSessionVaultHybridManagerClient {
         val latestVoucherAmount: Long,
     )
 
-    private data class SessionInfoOffsets(
-        val totalDepositOffset: Int,
-        val lastSettledOffset: Int,
-        val latestVoucherAmountOffset: Int,
-    )
-
+    /**
+     * Reads the channel's `(startRound, startTimestamp)` tuple via a free readonly ABI simulate
+     * call against algod (mirrors the TypeScript reference script's
+     * `appClient.send.getSessionStaticData`, which algokit-utils resolves via
+     * `/v2/transactions/simulate` since the ARC-56 method is marked `readonly: true` — no fee,
+     * no real signature required), so the return value is decoded exactly as the contract
+     * computed it. No box-byte fallback: `allow-empty-signatures`/`allow-unnamed-resources`
+     * simulate support is universal across current algod versions, and silently guessing at the
+     * box's raw byte layout risks returning wrong-but-plausible-looking data instead of a clear
+     * error.
+     */
     fun getSessionStaticData(channelId: ByteArray): Result<SessionStaticData> =
         runCatching {
-            val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
+            val simulated =
+                simulateReadonlyMethodInternal(
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    selector = ABI_GET_SESSION_STATIC_DATA,
+                    args = listOf(encodeArc4DynamicBytes(channelId)),
+                    boxKeys = listOf(Pair(appId, channelId)),
+                ) ?: error("getSessionStaticData: readonly simulate call failed for appId=$appId")
+            check(simulated.size >= 16) { "getSessionStaticData: unexpected return size=${simulated.size}" }
             SessionStaticData(
-                startRound = decodeUint64BigEndian(bytes, 90),
-                startTimestamp = decodeUint64BigEndian(bytes, 98),
+                startRound = decodeUint64BigEndian(simulated, 0),
+                startTimestamp = decodeUint64BigEndian(simulated, 8),
             )
         }
 
+    /**
+     * Reads the channel's `(totalDeposit, lastSettled, latestVoucherAmount)` tuple via a free
+     * readonly ABI simulate call against algod (see [getSessionStaticData] doc for details); the
+     * simulated return value is a plain fixed-width ARC-4 tuple `(uint64,uint64,uint64,address)`.
+     */
     fun getSessionDynamicData(channelId: ByteArray): Result<SessionDynamicData> =
         runCatching {
-            val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
-            val offsets = decodeSessionInfoOffsets(bytes)
+            val simulated =
+                simulateReadonlyMethodInternal(
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    selector = ABI_GET_SESSION_DYNAMIC_DATA,
+                    args = listOf(encodeArc4DynamicBytes(channelId)),
+                    boxKeys = listOf(Pair(appId, channelId)),
+                ) ?: error("getSessionDynamicData: readonly simulate call failed for appId=$appId")
+            check(simulated.size >= 24) { "getSessionDynamicData: unexpected return size=${simulated.size}" }
             SessionDynamicData(
-                totalDeposit = decodeUint64BigEndian(bytes, offsets.totalDepositOffset),
-                lastSettled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset),
-                latestVoucherAmount =
-                    decodeUint64BigEndian(
-                        bytes,
-                        offsets.latestVoucherAmountOffset,
-                    ),
+                totalDeposit = decodeUint64BigEndian(simulated, 0),
+                lastSettled = decodeUint64BigEndian(simulated, 8),
+                latestVoucherAmount = decodeUint64BigEndian(simulated, 16),
             )
         }
 
@@ -448,36 +473,6 @@ object EscrowSessionVaultHybridManagerClient {
         return listOf(payer, payee)
     }
 
-    private fun decodeSessionInfoOffsets(bytes: ByteArray): SessionInfoOffsets {
-        if (bytes.size < 98) error("Invalid session box payload size=${bytes.size}")
-        val markerAt64 = ((bytes[64].toInt() and 0xFF) shl 8) or (bytes[65].toInt() and 0xFF)
-        val arc4Offsets = SessionInfoOffsets(66, 74, 82)
-        if (isPlausibleSessionLayout(bytes, arc4Offsets)) return arc4Offsets
-        val signerLen = markerAt64
-        val totalsOffset = 66 + signerLen
-        if (bytes.size >= totalsOffset + 24) {
-            val legacyOffsets =
-                SessionInfoOffsets(totalsOffset, totalsOffset + 8, totalsOffset + 16)
-            if (isPlausibleSessionLayout(bytes, legacyOffsets)) return legacyOffsets
-            return legacyOffsets
-        }
-        if (markerAt64 in 98..bytes.size) return arc4Offsets
-        error("Invalid session box payload (markerAt64=$markerAt64 size=${bytes.size})")
-    }
-
-    private fun isPlausibleSessionLayout(
-        bytes: ByteArray,
-        offsets: SessionInfoOffsets,
-    ): Boolean {
-        if (offsets.latestVoucherAmountOffset + 8 > bytes.size) return false
-        return runCatching {
-            val total = decodeUint64BigEndian(bytes, offsets.totalDepositOffset)
-            val settled = decodeUint64BigEndian(bytes, offsets.lastSettledOffset)
-            val voucher = decodeUint64BigEndian(bytes, offsets.latestVoucherAmountOffset)
-            total >= settled && total >= voucher && voucher >= settled
-        }.getOrDefault(false)
-    }
-
     private fun decodeUint64BigEndian(
         bytes: ByteArray,
         offset: Int,
@@ -485,14 +480,6 @@ object EscrowSessionVaultHybridManagerClient {
         var out = 0L
         for (i in 0 until 8) out = (out shl 8) or (bytes[offset + i].toLong() and 0xFF)
         return out
-    }
-
-    private fun encodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
-        require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
-        return byteArrayOf(
-            ((bytes.size ushr 8) and 0xFF).toByte(),
-            (bytes.size and 0xFF).toByte(),
-        ) + bytes
     }
 
     fun configureForNetwork(network: AlgorandNetwork) {

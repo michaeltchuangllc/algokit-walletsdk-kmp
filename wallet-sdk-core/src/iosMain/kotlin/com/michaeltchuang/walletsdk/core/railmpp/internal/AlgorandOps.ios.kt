@@ -13,19 +13,11 @@ import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 private const val TAG = "AlgorandOps.ios"
-private const val APP_CALL_FEE = 12_000L
-private const val MIN_TXN_FEE = 1_000L
-private const val DUMMIES_PER_REAL_TXN = 3
-private const val FALCON_SIGNED_TRANSACTION_GROUP_FEE = MIN_TXN_FEE * (DUMMIES_PER_REAL_TXN + 1)
 
-// Hardened LogicSig programs add encoded-byte fee on Futurenet; the teardown-sweep
-// branch grew the settlement LogicSig program, bumping this from 18 to 30 microAlgos.
-private const val LOGIC_SIG_SETTLEMENT_GROUP_FEE = 3_030L
-private const val LOGIC_SIG_MINIMUM_BALANCE = 100_000L
-
-private val SETTLE_FROM_LOGIC_SIG_SELECTOR = byteArrayOf(0x43, 0x9c.toByte(), 0x5f, 0xb1.toByte())
-private val SET_SETTLEMENT_LOGIC_SIG_SELECTOR = byteArrayOf(0x42, 0xd9.toByte(), 0x75, 0xa6.toByte())
-private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
+// Shared fee/selector/box-prefix constants live in commonMain's AlgorandUtils.kt
+// (APP_CALL_FEE, MIN_TXN_FEE, DUMMIES_PER_REAL_TXN, FALCON_SIGNED_TRANSACTION_GROUP_FEE,
+// LOGIC_SIG_SETTLEMENT_GROUP_FEE, LOGIC_SIG_MINIMUM_BALANCE, SETTLE_FROM_LOGIC_SIG_SELECTOR,
+// SET_SETTLEMENT_LOGIC_SIG_SELECTOR, SETTLEMENT_LOGIC_SIG_BOX_PREFIX) — same package, no import needed.
 
 @OptIn(ExperimentalForeignApi::class)
 private val bridge by lazy { spmAlgoApiBridge() }
@@ -220,7 +212,7 @@ internal actual suspend fun compileSettlementLogicSigAddressInternal(
         bridge
             .compileTealProgramWithAlgodUrl(
                 algodUrl = algodUrl,
-                source = renderTealTemplate(SETTLEMENT_LOGIC_SIG_TEAL_TEMPLATE, settlementSubstitutions),
+                source = substituteTealTemplate(SETTLEMENT_LOGIC_SIG_TEAL_TEMPLATE, settlementSubstitutions),
             ).toKotlinByteArray()
     if (settlementProgramBytes.isEmpty()) error("iOS: settlement TEAL compile returned empty")
     val settlementProgramB64 = Base64.encode(settlementProgramBytes)
@@ -267,14 +259,14 @@ internal actual suspend fun submitLogicSigSettlementInternal(
         bridge
             .compileTealProgramWithAlgodUrl(
                 algodUrl = algodUrl,
-                source = renderTealTemplate(SETTLEMENT_LOGIC_SIG_TEAL_TEMPLATE, settlementSubstitutions),
+                source = substituteTealTemplate(SETTLEMENT_LOGIC_SIG_TEAL_TEMPLATE, settlementSubstitutions),
             ).toKotlinByteArray()
     if (settlementProgramBytes.isEmpty()) error("iOS: settlement TEAL compile returned empty")
     val paddingProgramBytes =
         bridge
             .compileTealProgramWithAlgodUrl(
                 algodUrl = algodUrl,
-                source = renderTealTemplate(PADDING_LOGIC_SIG_TEAL_TEMPLATE, paddingSubstitutions),
+                source = substituteTealTemplate(PADDING_LOGIC_SIG_TEAL_TEMPLATE, paddingSubstitutions),
             ).toKotlinByteArray()
     if (paddingProgramBytes.isEmpty()) error("iOS: padding TEAL compile returned empty")
     val settlementProgramB64 = Base64.encode(settlementProgramBytes)
@@ -379,6 +371,79 @@ internal actual suspend fun submitLogicSigSettlementInternal(
 }
 
 internal actual fun decodeMsgPackAny(bytes: ByteArray): Any? = null
+
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+internal actual fun simulateReadonlyMethodInternal(
+    appId: Long,
+    algodUrl: String,
+    selector: ByteArray,
+    args: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): ByteArray? =
+    try {
+        val params = fetchTxParams(algodUrl)
+        // Readonly ABI getters don't need a real sender — algod's `allow-empty-signatures` +
+        // `allow-unnamed-resources` let the app's own address stand in, mirroring the Android
+        // path's `Address.forApplication(appId)`.
+        val senderAddress = appIdToAlgorandAddress(appId)
+        val argsB64 = (listOf(selector) + args).map { Base64.encode(it) }
+        val boxRefAppIds = boxKeys.map { it.first }
+        val boxRefNamesB64 = boxKeys.map { Base64.encode(it.second) }
+
+        // Swift: buildAppCallTxn(senderAddress:...) → Kotlin: buildAppCallTxnWithSenderAddress
+        val txnBytes =
+            bridge.buildAppCallTxnWithSenderAddress(
+                senderAddress = senderAddress,
+                appId = appId,
+                appArgsBase64 = argsB64,
+                boxRefAppIds = boxRefAppIds,
+                boxRefNamesBase64 = boxRefNamesB64,
+                foreignAssets = emptyList<Long>(),
+                foreignAccountAddresses = emptyList<String>(),
+                fee = MIN_TXN_FEE,
+                firstRound = params.firstRoundValid,
+                lastRound = params.lastRoundValid,
+                genesisHashBase64 = params.genesisHashBase64,
+                genesisID = params.genesisID,
+                noteBase64 = null,
+            )
+        if (txnBytes.length == 0UL) {
+            Napier.w("[iOS_SIMULATE_READONLY_ERROR] appId=$appId reason=buildAppCallTxn returned empty", tag = TAG)
+            return null
+        }
+
+        // Shared envelope-building logic (commonMain) — same request bytes Android would send.
+        val requestBytes = buildSimulateRequestMsgpack(txnBytes.toKotlinByteArray())
+        val requestB64 = Base64.encode(requestBytes)
+
+        // Swift: syncSimulateTransaction(algodUrl:requestBytesBase64:) → Kotlin: syncSimulateTransactionWithAlgodUrl
+        val responseJson =
+            bridge.syncSimulateTransactionWithAlgodUrl(algodUrl = algodUrl, requestBytesBase64 = requestB64)
+        if (responseJson.isEmpty()) return null
+        if (responseJson.startsWith("SIMULATE_ERROR:")) {
+            Napier.w(
+                "[iOS_SIMULATE_READONLY_HTTP_ERROR] appId=$appId body=${responseJson.removePrefix("SIMULATE_ERROR:").take(300)}",
+                tag = TAG,
+            )
+            return null
+        }
+        parseJsonString(responseJson, "failure-message")?.let { failureMessage ->
+            Napier.w("[iOS_SIMULATE_READONLY_FAILED] appId=$appId reason=$failureMessage", tag = TAG)
+            return null
+        }
+        val logsB64 = parseJsonStringArray(responseJson, "logs") ?: return null
+        val returnLog =
+            logsB64
+                .mapNotNull { runCatching { Base64.decode(normalizeBase64(it)) }.getOrNull() }
+                .lastOrNull {
+                    it.size >= ABI_RETURN_LOG_PREFIX.size &&
+                        it.copyOfRange(0, ABI_RETURN_LOG_PREFIX.size).contentEquals(ABI_RETURN_LOG_PREFIX)
+                } ?: return null
+        returnLog.copyOfRange(ABI_RETURN_LOG_PREFIX.size, returnLog.size)
+    } catch (t: Throwable) {
+        Napier.w("[iOS_SIMULATE_READONLY_ERROR] appId=$appId error=${t.message}", tag = TAG)
+        null
+    }
 
 @OptIn(ExperimentalForeignApi::class)
 internal actual fun awaitConfirmationDetailsInternal(
@@ -521,7 +586,7 @@ private suspend fun ensureLogicSigSetup(
                 boxRefNamesBase64 = listOf(channelIdB64, lsigBoxNameB64),
                 foreignAssets = emptyList<Long>(),
                 foreignAccountAddresses = emptyList<String>(),
-                fee = pooledFeeFor(payerSigner),
+                fee = pooledFeeFor(payerSigner.signerType),
                 firstRound = params.firstRoundValid,
                 lastRound = params.lastRoundValid,
                 genesisHashBase64 = params.genesisHashBase64,
@@ -548,8 +613,7 @@ private fun getChannelPayerAddress(
     if (json.isEmpty()) return null
     val valueB64 = parseJsonString(json, "value") ?: return null
     val bytes = Base64.decode(normalizeBase64(valueB64))
-    if (bytes.size < 32) return null
-    return encodeAlgorandAddress(bytes.copyOfRange(0, 32))
+    return decodeChannelPayerAddress(bytes)
 }
 
 /** Tops up [address] with a payer-signed payment if its balance is below [targetBalance]. */
@@ -570,7 +634,7 @@ private suspend fun fundLogicSigIfNeeded(
             senderAddress = payerSigner.address,
             receiverAddress = address,
             amountMicroAlgo = topUpAmount,
-            fee = pooledFeeFor(payerSigner),
+            fee = pooledFeeFor(payerSigner.signerType),
             firstRound = params.firstRoundValid,
             lastRound = params.lastRoundValid,
             genesisHashBase64 = params.genesisHashBase64,
@@ -604,28 +668,8 @@ private suspend fun signAndBroadcastSingle(
     return broadcastAndGetTxId(algodUrl, Base64.encode(allSignedBytes))
 }
 
-/** Fee-pool budget required for a single-transaction submission by [signer]'s signing scheme. */
-private fun pooledFeeFor(signer: MppWalletSigner): Long =
-    when (signer.signerType) {
-        MppWalletSignerType.FALCON_NATIVE, MppWalletSignerType.FALCON_LSIG -> FALCON_SIGNED_TRANSACTION_GROUP_FEE
-        MppWalletSignerType.ED25519 -> MIN_TXN_FEE
-    }
-
-/** ARC4 dynamic `byte[]` ABI encoding: a 2-byte big-endian length prefix followed by the bytes. */
-private fun encodeArc4DynamicBytes(bytes: ByteArray): ByteArray {
-    require(bytes.size <= 0xFFFF) { "byte[] too long for ARC4 dynamic bytes" }
-    return byteArrayOf(((bytes.size ushr 8) and 0xFF).toByte(), (bytes.size and 0xFF).toByte()) + bytes
-}
-
-private const val TEAL_HEX_CHARS = "0123456789abcdef"
-
-/** Renders [this] as a TEAL `0x...` byte literal (avoids `String.format`, unavailable on K/N). */
-private fun ByteArray.toTealByteLiteral(): String =
-    "0x" +
-        joinToString("") {
-            val v = it.toInt() and 0xFF
-            "${TEAL_HEX_CHARS[v ushr 4]}${TEAL_HEX_CHARS[v and 0xF]}"
-        }
+// pooledFeeFor, encodeArc4DynamicBytes, and ByteArray.toTealByteLiteral() now live in
+// commonMain's AlgorandUtils.kt (shared with Android).
 
 /** Normalises URL-safe base64 to standard base64 with padding. */
 private fun normalizeBase64(s: String): String {
@@ -662,6 +706,21 @@ private fun parseJsonInt(
     json: String,
     key: String,
 ): Int? = parseJsonLong(json, key)?.toInt()
+
+/**
+ * Extracts a JSON array-of-strings value for [key] (e.g. `"logs":["abc==","def=="]`), returning
+ * the unquoted elements, or `null` if [key] isn't found. Good enough for algod's simulate
+ * response, where log entries are plain base64 strings with no nested structure or escaping.
+ */
+private fun parseJsonStringArray(
+    json: String,
+    key: String,
+): List<String>? {
+    val match = Regex(""""$key"\s*:\s*\[(.*?)]""", RegexOption.DOT_MATCHES_ALL).find(json) ?: return null
+    val inner = match.groupValues[1].trim()
+    if (inner.isEmpty()) return emptyList()
+    return inner.split(",").map { it.trim().trim('"') }
+}
 
 /** Extension: converts NSData to KotlinByteArray. */
 @OptIn(ExperimentalForeignApi::class)
