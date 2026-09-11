@@ -1,7 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
@@ -27,7 +25,6 @@ import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDeb
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
-import kotlin.io.encoding.Base64
 
 val liquidAuthUIModule =
     module {
@@ -45,19 +42,12 @@ val liquidAuthUIModule =
         single { SetupMppPaymentViewerUseCase(get(), get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
-            val decodeUnsignedTransaction: (String) -> Transaction? = { s ->
-                Encoder.decodeFromMsgPack(
-                    Base64.decode(s),
-                    Transaction::class.java,
-                )
-            }
             ProcessSignTransactionsUseCase(
                 getLocalAccount = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
                 getFalcon25Seed = get(),
                 getSeed = get(),
-                decodeUnsignedTransaction = decodeUnsignedTransaction,
             )
         }
         single { AttestationIntentLauncherUseCase(get()) }

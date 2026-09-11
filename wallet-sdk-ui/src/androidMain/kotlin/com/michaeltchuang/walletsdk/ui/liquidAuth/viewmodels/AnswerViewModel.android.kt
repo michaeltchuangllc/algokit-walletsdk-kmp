@@ -10,7 +10,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewModelScope
-import com.algorand.algosdk.transaction.Transaction
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
@@ -252,11 +251,6 @@ actual open class AnswerViewModel actual constructor(
 
     // --- Mnemonic Helpers ---
     suspend fun getMnemonic(address: String): String? = platformServices.getMnemonic(address)
-
-    // --- AVM & DataChannel Message Logic ---
-    private fun decodeUnsignedTransaction(unsignedTxn: String): Transaction? =
-        com.algorand.algosdk.util.Encoder
-            .decodeFromMsgPack(Base64.Default.decode(unsignedTxn), Transaction::class.java)
 
     fun handleMessages(
         msgStr: String,

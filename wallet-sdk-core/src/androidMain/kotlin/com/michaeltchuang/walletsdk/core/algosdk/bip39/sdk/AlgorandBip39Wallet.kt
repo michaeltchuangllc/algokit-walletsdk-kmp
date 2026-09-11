@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.core.algosdk.bip39.sdk
 
 import cash.z.ecc.android.bip39.Mnemonics
 import cash.z.ecc.android.bip39.toSeed
-import com.algorand.algosdk.crypto.Address
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Entropy
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Mnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.bip39.model.Bip39Seed
@@ -19,6 +18,7 @@ import uniffi.algokit_crypto_ffi.XhdDerivedAccount
 import uniffi.algokit_crypto_ffi.XhdKeyContext
 import uniffi.algokit_crypto_ffi.xhdDerive
 import uniffi.algokit_crypto_ffi.xhdRootKeyFromSeed
+import uniffi.algokit_transact_ffi.addressFromPublicKey
 import java.security.Security
 
 internal class AlgorandBip39Wallet internal constructor(
@@ -41,7 +41,7 @@ internal class AlgorandBip39Wallet internal constructor(
     override fun generateAddress(index: HdKeyAddressIndex): HdKeyAddress {
         val publicKey = generatePublicKey(index)
         return HdKeyAddress(
-            address = Address(publicKey).toString(),
+            address = addressFromPublicKey(publicKey),
             index = index,
             publicKey = publicKey,
             privateKey = generatePrivateKey(index),
@@ -52,7 +52,7 @@ internal class AlgorandBip39Wallet internal constructor(
     override fun generateAddressLite(index: HdKeyAddressIndex): HdKeyAddressLite {
         val publicKey = generatePublicKey(index)
         return HdKeyAddressLite(
-            address = Address(publicKey).toString(),
+            address = addressFromPublicKey(publicKey),
             index = index,
         )
     }

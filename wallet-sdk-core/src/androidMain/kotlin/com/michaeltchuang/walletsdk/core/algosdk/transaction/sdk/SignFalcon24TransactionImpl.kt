@@ -1,14 +1,14 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk
 
 import android.util.Base64
-import com.algorand.algosdk.transaction.SignedTransaction
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.algorandecosystem.sdk.BytesArray
 import io.github.algorandecosystem.sdk.Sdk
-import java.math.BigInteger
+import uniffi.algokit_transact_ffi.Transaction
+import uniffi.algokit_transact_ffi.TransactionType
+import uniffi.algokit_transact_ffi.decodeSignedTransaction
+import uniffi.algokit_transact_ffi.decodeTransaction
 
 private val TX_PREFIX = "TX".encodeToByteArray()
 
@@ -42,7 +42,7 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             require(privateKey.isNotEmpty()) { "privateKey must not be empty" }
 
             val unsignedTxnBytes = transactionByteArray.withoutTxPrefix()
-            val expectedTxn = Encoder.decodeFromMsgPack(unsignedTxnBytes, Transaction::class.java)
+            val expectedTxn = decodeTransaction(unsignedTxnBytes)
             val resultCsv =
                 GoMobileDispatcher.runOnGoThread {
                     val transactionList = BytesArray()
@@ -66,9 +66,8 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
             val containsExpectedTxn =
                 decodedResults.any { bytes ->
                     try {
-                        val signed = Encoder.decodeFromMsgPack(bytes, SignedTransaction::class.java)
-                        val transaction = signed.tx ?: return@any false
-                        matchesExpectedTransaction(expectedTxn, transaction)
+                        val signed = decodeSignedTransaction(bytes)
+                        matchesExpectedTransaction(expectedTxn, signed.transaction)
                     } catch (_: Exception) {
                         false
                     }
@@ -115,17 +114,17 @@ internal class SignFalcon24TransactionImpl : SignFalcon24Transaction {
         expected: Transaction,
         actual: Transaction,
     ): Boolean {
-        if (expected.type != actual.type) return false
-        if (expected.sender?.toString() != actual.sender?.toString()) return false
-        return when (expected.type?.toString()) {
-            "pay" -> {
-                expected.receiver?.toString() == actual.receiver?.toString() &&
-                    (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
+        if (expected.transactionType != actual.transactionType) return false
+        if (expected.sender != actual.sender) return false
+        return when (expected.transactionType) {
+            TransactionType.PAYMENT -> {
+                expected.payment?.receiver == actual.payment?.receiver &&
+                    (expected.payment?.amount ?: 0uL) == (actual.payment?.amount ?: 0uL)
             }
-            "axfer" -> {
-                expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                    (expected.assetAmount ?: BigInteger.ZERO) == (actual.assetAmount ?: BigInteger.ZERO) &&
-                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
+            TransactionType.ASSET_TRANSFER -> {
+                expected.assetTransfer?.receiver == actual.assetTransfer?.receiver &&
+                    (expected.assetTransfer?.amount ?: 0uL) == (actual.assetTransfer?.amount ?: 0uL) &&
+                    expected.assetTransfer?.assetId == actual.assetTransfer?.assetId
             }
             else -> true
         }
