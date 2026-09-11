@@ -1291,63 +1291,53 @@ import CommonCrypto
         return result
     }
 
-    // MARK: - Generic LogicSig Support (requires falcon-signatures-mobile-sdk >= 0.0.19,
-    // which exposes AlgoSdkMakeLogicSigAccountEscrow / AlgoSdkSignLogicSigTransaction on top
-    // of the Go mobile SDK's generic LogicSigAccount type.)
+    // MARK: - Generic LogicSig Support (via AlgoKitTransact — the same algokit-core Rust
+    // library already used for every other transaction encode/sign/group operation in this
+    // bridge. This intentionally avoids falcon-signatures-mobile-sdk's Go/gomobile
+    // AlgoSdkMakeLogicSigAccountEscrow / AlgoSdkSignLogicSigTransaction, whose Kotlin/Native →
+    // Swift → Go boundary was traced to a settlement LogicSig program-bytes corruption bug
+    // that only reproduced on iOS.)
 
-    /// Builds an escrow LogicSigAccount for an arbitrary compiled TEAL [programBase64] with
-    /// [argsBase64] LogicSig arguments, returning the account's Algorand address.
+    /// Hex-dumps up to [limit] bytes from the head of [data], for corruption-tracing NSLogs.
+    private func hexPrefix(_ data: Data, limit: Int = 24) -> String {
+        data.prefix(limit).map { String(format: "%02x", $0) }.joined(separator: " ")
+    }
+
+    /// Returns the escrow ("contract account") address that a compiled TEAL [programBase64]
+    /// program authorizes as when it is not delegated to a signing account.
     public func logicSigAddress(programBase64: String, argsBase64: [String]) -> String {
         guard let programData = Data(base64Encoded: programBase64) else {
             NSLog("❌ logicSigAddress: failed to decode program")
             return ""
         }
-        let argsArray = AlgoSdkBytesArray()
-        for argBase64 in argsBase64 {
-            if let d = Data(base64Encoded: argBase64) {
-                argsArray.append(d)
-            }
-        }
-        var error: NSError?
-        guard let account = AlgoSdkMakeLogicSigAccountEscrow(programData, argsArray, &error) else {
-            NSLog("❌ logicSigAddress: MakeLogicSigAccountEscrow error: \(error?.localizedDescription ?? "unknown")")
+        do {
+            return try getLogicSignatureAddress(logic: programData)
+        } catch {
+            NSLog("❌ logicSigAddress: getLogicSignatureAddress error: \(error.localizedDescription)")
             return ""
         }
-        var addressError: NSError?
-        let address = account.address(&addressError)
-        if let addressError = addressError {
-            NSLog("❌ logicSigAddress: address() error: \(addressError.localizedDescription)")
-            return ""
-        }
-        return address
     }
 
-    /// Signs [encodedTxBase64] (an unsigned, msgpack-encoded transaction) with an escrow
-    /// LogicSigAccount built from [programBase64] + [argsBase64]. Returns the signed
-    /// transaction bytes, ready to be concatenated with the rest of the group and broadcast.
+    /// Signs [encodedTxBase64] (an unsigned, msgpack-encoded transaction) as an escrow LogicSig
+    /// using the compiled TEAL [programBase64] + [argsBase64] LogicSig arguments. Returns the
+    /// signed transaction bytes, ready to be concatenated with the rest of the group and
+    /// broadcast.
     public func signLogicSigTransaction(programBase64: String, argsBase64: [String], encodedTxBase64: String) -> Data {
         guard let programData = Data(base64Encoded: programBase64),
               let txnData = Data(base64Encoded: encodedTxBase64) else {
             NSLog("❌ signLogicSigTransaction: failed to decode inputs")
             return Data()
         }
-        let argsArray = AlgoSdkBytesArray()
-        for argBase64 in argsBase64 {
-            if let d = Data(base64Encoded: argBase64) {
-                argsArray.append(d)
-            }
-        }
-        var error: NSError?
-        guard let account = AlgoSdkMakeLogicSigAccountEscrow(programData, argsArray, &error) else {
-            NSLog("❌ signLogicSigTransaction: MakeLogicSigAccountEscrow error: \(error?.localizedDescription ?? "unknown")")
+        let args = argsBase64.compactMap { Data(base64Encoded: $0) }
+        do {
+            let transaction = try decodeTransaction(encodedTx: txnData)
+            let logicSignature = LogicSignature(logic: programData, args: args.isEmpty ? nil : args)
+            let signedTransaction = SignedTransaction(transaction: transaction, logicSignature: logicSignature)
+            return try encodeSignedTransaction(signedTransaction: signedTransaction)
+        } catch {
+            NSLog("❌ signLogicSigTransaction: AlgoKitTransact error: \(error.localizedDescription)")
             return Data()
         }
-        var signError: NSError?
-        guard let signed = AlgoSdkSignLogicSigTransaction(account, txnData, &signError) else {
-            NSLog("❌ signLogicSigTransaction: SignLogicSigTransaction error: \(signError?.localizedDescription ?? "unknown")")
-            return Data()
-        }
-        return signed
     }
 
     // MARK: - Algod TEAL Compile / Account Balance (Synchronous REST Helpers)
@@ -1383,6 +1373,10 @@ import CommonCrypto
             NSLog("❌ compileTealProgram: no 'result' in response: \(json.prefix(300))")
             return Data()
         }
+        NSLog(
+            "🔍 [DEBUG_LOGICSIG_BYTES] compileTealProgram: resultB64.count=%d programData.count=%d head=%@",
+            resultB64.count, programData.count, hexPrefix(programData)
+        )
         return programData
     }
 

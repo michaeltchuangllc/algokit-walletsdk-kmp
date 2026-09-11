@@ -290,6 +290,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         platformServices.stopViewerConnection()
         activeViewerOrigin = null
         activeViewerRequestId = null
+        _hostAddress.value = ""
         _viewerConnectionState.value = ViewerConnectionState.DISCONNECTED
         _viewerConnectionType.value = IceConnectionType.UNKNOWN
         _viewerSessionId.value = ""
@@ -298,6 +299,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel?.clearViewerConsent()
         viewerPaymentRailSetupKey = null
         pendingViewerPaymentMessages.clear()
+        EscrowSessionVaultHybridManagerClient.channelId = null
+        EscrowSessionVaultHybridManagerClient.hostAddress = null
         answerViewModel?.closeViewerPaymentRail()
     }
 
@@ -312,6 +315,11 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     fun attachAnswerViewModel(viewModel: AnswerViewModel?) {
         answerViewModel = viewModel
+        if (viewModel != null) {
+            viewerPaymentRailSetupKey = null
+            EscrowSessionVaultHybridManagerClient.channelId = null
+            EscrowSessionVaultHybridManagerClient.hostAddress = null
+        }
         maybeSetupViewerPaymentRail()
     }
 
@@ -653,7 +661,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     @Suppress("unused")
     fun notifyMessageReceived(message: String) {
-        if (answerViewModel != null) {
+        if (activeIOSViewerConnectionManager === this || answerViewModel != null) {
             notifyViewerMessageReceived(message)
             return
         }
@@ -669,16 +677,24 @@ actual class LiquidAuthConnectionManager actual constructor(
                     "preview=${message.take(160)}",
             )
         }
-        answerViewModel?.handleViewerTransportMessage(
-            message = message,
-            onPongRequested = { sendViewerMessage("""{"reference":"pong"}""") },
-            onPaymentMessage = { paymentMessage -> deliverViewerPaymentMessage(paymentMessage) },
-            onHostDiscovered = { host ->
-                if (!host.isNullOrBlank() && _hostAddress.value != host) setViewerHostAddress(host)
-                startViewerOnChainRefreshIfReady()
-                maybeSetupViewerPaymentRail()
-            },
-        ) ?: println("$TAG: message dropped — AnswerViewModel not attached")
+        val viewModel = answerViewModel
+        if (viewModel != null) {
+            viewModel.handleViewerTransportMessage(
+                message = message,
+                onPongRequested = { sendViewerMessage("""{"reference":"pong"}""") },
+                onPaymentMessage = { paymentMessage -> deliverViewerPaymentMessage(paymentMessage) },
+                onHostDiscovered = { host ->
+                    if (!host.isNullOrBlank() && _hostAddress.value != host) setViewerHostAddress(host)
+                    startViewerOnChainRefreshIfReady()
+                    maybeSetupViewerPaymentRail()
+                },
+            )
+        } else {
+            println("$TAG: VIEWER_MSG_BUFFERED (AnswerViewModel not yet attached) preview=${message.take(120)}")
+            val parsed = parseLiquidAuthHostTransportMessage(message)
+            parsed.address?.let { if (it.isNotBlank()) setViewerHostAddress(it) }
+            deliverViewerPaymentMessage(message)
+        }
     }
 
     private fun notifyHostMessageReceived(message: String) {
@@ -744,15 +760,22 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (address.isBlank()) return
         _hostAddress.value = address
         answerViewModel?.setHostAddress(address)
+        EscrowSessionVaultHybridManagerClient.hostAddress = address
         maybeSetupViewerPaymentRail()
+    }
+
+    fun onPaymentDataChannelReady() {
+        println("$TAG: onPaymentDataChannelReady -> opening viewer payment rail")
+        answerViewModel?.openViewerPaymentRail()
+        flushPendingViewerPaymentMessages()
     }
 
     private fun maybeSetupViewerPaymentRail() {
         val viewModel = answerViewModel ?: return
         val viewer = _viewerAddress.value.orEmpty()
         val host = _hostAddress.value
-        if (viewer.isBlank() || host.isBlank()) return
-        val setupKey = "$viewer:$host"
+        if (viewer.isBlank()) return
+        val setupKey = viewer
         if (viewerPaymentRailSetupKey == setupKey) return
         viewerPaymentRailSetupKey = setupKey
         scope.launch {
@@ -764,9 +787,11 @@ actual class LiquidAuthConnectionManager actual constructor(
                 )
             if (!configured) {
                 viewerPaymentRailSetupKey = null
-            } else {
+            } else if (iosViewerPaymentDCSendMessageHandler != null) {
                 viewModel.openViewerPaymentRail()
                 flushPendingViewerPaymentMessages()
+            } else {
+                println("$TAG: setupViewerPaymentRail complete — waiting for iosViewerPaymentDCSendMessageHandler")
             }
         }
     }

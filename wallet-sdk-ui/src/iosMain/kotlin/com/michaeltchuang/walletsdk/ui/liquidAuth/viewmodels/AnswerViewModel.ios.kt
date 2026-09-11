@@ -64,10 +64,10 @@ actual open class AnswerViewModel actual constructor(
 
     suspend fun setupViewerPaymentRail(
         viewerAddress: String,
-        hostAddress: String,
+        hostAddress: String = "",
         scope: CoroutineScope,
     ): Boolean {
-        if (viewerAddress.isBlank() || hostAddress.isBlank()) return false
+        if (viewerAddress.isBlank()) return false
         val signer = buildMppWalletSigner(viewerAddress) ?: return false
         platformServices.closeViewerPaymentDataChannel()
         val dataChannel = platformServices.createViewerPaymentDataChannel()

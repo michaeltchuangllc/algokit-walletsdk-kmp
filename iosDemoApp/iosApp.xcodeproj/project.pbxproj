@@ -928,8 +928,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/algorandecosystem/algokit-core-swift";
 			requirement = {
-				branch = main;
-				kind = branch;
+				kind = exactVersion;
+				version = "1.0.0-alpha.85";
 			};
 		};
 		BA8BABF22FE355F6008683F7 /* XCRemoteSwiftPackageReference "falcon-signatures-mobile" */ = {

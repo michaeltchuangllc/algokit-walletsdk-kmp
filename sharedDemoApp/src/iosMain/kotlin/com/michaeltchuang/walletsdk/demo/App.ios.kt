@@ -565,6 +565,9 @@ fun setViewerStopHandler(handler: () -> Unit) {
 fun setViewerPaymentSendMessageHandler(handler: ((String) -> Unit)?) {
     iosViewerPaymentDCSendMessageHandler = handler
     println("[ViewerHandlers] iosViewerPaymentDCSendMessageHandler ${if (handler != null) "set (payment DC ready)" else "cleared"}")
+    if (handler != null) {
+        activeIOSViewerConnectionManager?.onPaymentDataChannelReady()
+    }
 }
 
 var iosStreamingCleanupHandler: (() -> Unit)? = null

@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_analytics
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_dark_setting
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_minimise

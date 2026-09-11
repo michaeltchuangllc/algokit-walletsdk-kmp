@@ -6,8 +6,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/algorandecosystem/algokit-core-swift",
       "state" : {
-        "branch" : "main",
-        "revision" : "e035fdcc0da78f4965a1954ff3f08dd46d1544a9"
+        "revision" : "2abf00396ef314d72eec47905cf982494f18a6ed",
+        "version" : "1.0.0-alpha.85"
       }
     },
     {

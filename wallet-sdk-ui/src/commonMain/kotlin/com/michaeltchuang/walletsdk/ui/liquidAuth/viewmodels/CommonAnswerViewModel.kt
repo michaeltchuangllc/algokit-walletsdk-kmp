@@ -563,7 +563,7 @@ open class CommonAnswerViewModel(
         }
     }
 
-    fun stopMppPaymentViewer() {
+    override fun stopMppPaymentViewer() {
         mppPaymentViewerManager.stop()
     }
 

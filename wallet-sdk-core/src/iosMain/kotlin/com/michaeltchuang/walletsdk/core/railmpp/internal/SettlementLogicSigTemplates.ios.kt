@@ -384,4 +384,3 @@ main_after_if_else@2:
     intc_0 // 1
     return
 """
-

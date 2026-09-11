@@ -243,7 +243,7 @@ public class LiquidAuthViewController: UIViewController {
             statusLabel.text = "Connected!\n\nStarting video stream…"
             statusLabel.textColor = .systemGreen
 
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
                 guard let self = self else { return }
 
                 let capturedCallback  = self.onStreamingConnected

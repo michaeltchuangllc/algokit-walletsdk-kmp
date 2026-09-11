@@ -39,17 +39,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun LiquidAuthSessionVaultModal(
     onDismiss: () -> Unit,
+    onClose: () -> Unit = onDismiss,
     onTopUpAndStream: (String) -> Unit = { _ -> },
     initialAmount: String = "2.22",
     quickAmounts: List<String> = listOf("0.888", "8.88"),
@@ -57,13 +59,11 @@ fun LiquidAuthSessionVaultModal(
     isProcessing: Boolean = false,
     isDismissible: Boolean = true,
 ) {
-    var topUpAmount by remember(initialAmount) { mutableStateOf(initialAmount) }
-
     val canDismiss = isDismissible && !isProcessing
 
     Dialog(
         onDismissRequest = {
-            if (canDismiss) onDismiss()
+            if (canDismiss) onClose()
         },
         properties =
             DialogProperties(
@@ -72,267 +72,293 @@ fun LiquidAuthSessionVaultModal(
                 usePlatformDefaultWidth = false,
             ),
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            Box(
-                modifier =
-                    Modifier
-                        .fillMaxSize()
-                        .background(Color(0x66001423))
-                        .clickable(enabled = canDismiss) {
-                            if (canDismiss) onDismiss()
-                        },
-            )
+        LiquidAuthSessionVaultModalContent(
+            onDismiss = onDismiss,
+            onClose = onClose,
+            onTopUpAndStream = onTopUpAndStream,
+            initialAmount = initialAmount,
+            quickAmounts = quickAmounts,
+            currencyLabel = currencyLabel,
+            isProcessing = isProcessing,
+            isDismissible = isDismissible,
+        )
+    }
+}
 
+@Composable
+fun LiquidAuthSessionVaultModalContent(
+    onDismiss: () -> Unit,
+    onClose: () -> Unit = onDismiss,
+    onTopUpAndStream: (String) -> Unit = { _ -> },
+    initialAmount: String = "2.22",
+    quickAmounts: List<String> = listOf("0.888", "8.88"),
+    currencyLabel: String = "USDC",
+    isProcessing: Boolean = false,
+    isDismissible: Boolean = true,
+) {
+    var topUpAmount by remember(initialAmount) { mutableStateOf(initialAmount) }
+    val canDismiss = isDismissible && !isProcessing
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(Color(0x66001423))
+                    .clickable(enabled = canDismiss) {
+                        if (canDismiss) onClose()
+                    },
+        )
+
+        Box(
+            modifier =
+                Modifier
+                    .align(Alignment.Center)
+                    .padding(horizontal = 11.dp)
+                    .fillMaxWidth()
+                    .widthIn(max = 356.dp),
+        ) {
             Box(
                 modifier =
                     Modifier
-                        .align(Alignment.Center)
-                        .padding(horizontal = 11.dp)
                         .fillMaxWidth()
-                        .widthIn(max = 356.dp),
+                        .clip(RoundedCornerShape(20.dp))
+                        .border(1.dp, Color(0x4DB5E6E8), RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(Color(0xFF2A3B4E), Color(0xFF0D2A46), Color(0xFF001423)),
+                            ),
+                        ),
             ) {
-                Box(
+                Column(
                     modifier =
                         Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .border(1.dp, Color(0x4DB5E6E8), RoundedCornerShape(20.dp))
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color(0xFF2A3B4E), Color(0xFF0D2A46), Color(0xFF001423)),
-                                ),
-                            ),
+                            .padding(start = 24.dp, end = 24.dp, top = 52.dp, bottom = 0.dp),
                 ) {
-                    Column(
+                    Text(
+                        text = "Session Vault Locked",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 38.sp / 1.5f,
+                        letterSpacing = (-0.8).sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "Estimated 30 secs of watch time: ~1 $currencyLabel.",
+                        color = Color(0xFFB5CFD4),
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(22.dp))
+
+                    Row(
                         modifier =
                             Modifier
                                 .fillMaxWidth()
-                                .padding(start = 24.dp, end = 24.dp, top = 52.dp, bottom = 0.dp),
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color(0x1AF12D2D))
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            text = "Session Vault Locked",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 38.sp / 1.5f,
-                            letterSpacing = (-0.8).sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "Estimated 30 secs of watch time: ~1 $currencyLabel.",
-                            color = Color(0xFFB5CFD4),
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        Spacer(Modifier.height(22.dp))
-
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(Color(0x1AF12D2D))
-                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Box(
-                                modifier =
-                                    Modifier
-                                        .size(20.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFF12D2D)),
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text("!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-                            Text(
-                                text = "Your Session Vault is empty.\nTop up now for exclusive features!",
-                                color = Color.White,
-                                fontSize = 14.sp,
-                                lineHeight = 17.sp,
-                            )
-                        }
-
-                        Spacer(Modifier.height(22.dp))
-                        Text(
-                            text = "QUICK AMOUNTS",
-                            color = Color(0xFFB9EFEF),
-                            fontSize = 10.sp,
-                            letterSpacing = 1.sp,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            QuickAmountButton(
-                                modifier = Modifier.weight(1f),
-                                value = quickAmounts.getOrElse(0) { "0.888" },
-                                currencyLabel = currencyLabel,
-                                selected = topUpAmount == quickAmounts.getOrElse(0) { "0.888" },
-                                onClick = { topUpAmount = quickAmounts.getOrElse(0) { "0.888" } },
-                                enabled = !isProcessing,
-                            )
-                            QuickAmountButton(
-                                modifier = Modifier.weight(1f),
-                                value = quickAmounts.getOrElse(1) { "8.88" },
-                                currencyLabel = currencyLabel,
-                                selected = topUpAmount == quickAmounts.getOrElse(1) { "8.88" },
-                                onClick = { topUpAmount = quickAmounts.getOrElse(1) { "8.88" } },
-                                enabled = !isProcessing,
-                            )
-                        }
-
-                        Spacer(Modifier.height(22.dp))
-                        Text(
-                            text = "TOP UP AMOUNT",
-                            color = Color(0xFFB9EFEF),
-                            fontSize = 10.sp,
-                            letterSpacing = 1.sp,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier =
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(64.dp)
-                                    .clip(RoundedCornerShape(20.dp))
-                                    .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
-                                    .background(Color(0x33FFFFFF))
-                                    .padding(horizontal = 15.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            BasicTextField(
-                                value = topUpAmount,
-                                onValueChange = { topUpAmount = it },
-                                enabled = !isProcessing,
-                                singleLine = true,
-                                textStyle =
-                                    TextStyle(
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 42.sp / 1.5f,
-                                        letterSpacing = (-1).sp,
-                                    ),
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text(
-                                text = currencyLabel,
-                                color = Color(0xFFB9EFEF),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 12.sp,
-                            )
-                        }
-
-                        Spacer(Modifier.height(24.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(15.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            if (canDismiss) {
-                                Box(
-                                    modifier =
-                                        Modifier
-                                            .size(55.dp)
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
-                                            .background(Color(0x1AFFFFFF))
-                                            .clickable(onClick = onDismiss),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        vectorResource(Res.drawable.ic_cross),
-                                        contentDescription = null,
-                                        tint = Color(0xFFB9EFEF),
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                            }
-
-                            Row(
-                                modifier =
-                                    Modifier
-                                        .weight(1f)
-                                        .height(55.dp)
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(Color(0xFF2D2DF1))
-                                        .clickable(enabled = !isProcessing, onClick = { onTopUpAndStream(topUpAmount) }),
-                                horizontalArrangement = Arrangement.Center,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                if (isProcessing) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        strokeWidth = 2.dp,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        text = "Signing...",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        letterSpacing = (-0.2).sp,
-                                    )
-                                } else {
-                                    Box(
-                                        modifier =
-                                            Modifier
-                                                .size(19.dp)
-                                                .clip(CircleShape)
-                                                .border(2.dp, Color(0xFFB9EFEF), CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Text("v", color = Color(0xFFB9EFEF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        text = "Top-Up & Stream",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 18.sp,
-                                        letterSpacing = (-0.2).sp,
-                                    )
-                                }
-                            }
-                        }
-                        Spacer(Modifier.height(22.dp))
                         Box(
                             modifier =
                                 Modifier
-                                    .fillMaxWidth()
-                                    .height(46.dp)
-                                    .background(Color(0xFF001423)),
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFF12D2D)),
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(
-                                text = "SECURED BY ALGORAND BLOCKCHAIN LAYER",
-                                color = Color(0xFFB9EFEF),
-                                fontSize = 10.sp,
-                                letterSpacing = 2.sp,
-                            )
+                            Text("!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                        Text(
+                            text = "Your Session Vault is empty.\nTop up now for exclusive features!",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            lineHeight = 17.sp,
+                        )
+                    }
+
+                    Spacer(Modifier.height(22.dp))
+                    Text(
+                        text = "QUICK AMOUNTS",
+                        color = Color(0xFFB9EFEF),
+                        fontSize = 10.sp,
+                        letterSpacing = 1.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        QuickAmountButton(
+                            modifier = Modifier.weight(1f),
+                            value = quickAmounts.getOrElse(0) { "0.888" },
+                            currencyLabel = currencyLabel,
+                            selected = topUpAmount == quickAmounts.getOrElse(0) { "0.888" },
+                            onClick = { topUpAmount = quickAmounts.getOrElse(0) { "0.888" } },
+                            enabled = !isProcessing,
+                        )
+                        QuickAmountButton(
+                            modifier = Modifier.weight(1f),
+                            value = quickAmounts.getOrElse(1) { "8.88" },
+                            currencyLabel = currencyLabel,
+                            selected = topUpAmount == quickAmounts.getOrElse(1) { "8.88" },
+                            onClick = { topUpAmount = quickAmounts.getOrElse(1) { "8.88" } },
+                            enabled = !isProcessing,
+                        )
+                    }
+
+                    Spacer(Modifier.height(22.dp))
+                    Text(
+                        text = "TOP UP AMOUNT",
+                        color = Color(0xFFB9EFEF),
+                        fontSize = 10.sp,
+                        letterSpacing = 1.sp,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(64.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                                .background(Color(0x33FFFFFF))
+                                .padding(horizontal = 15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        BasicTextField(
+                            value = topUpAmount,
+                            onValueChange = { topUpAmount = it },
+                            enabled = !isProcessing,
+                            singleLine = true,
+                            textStyle =
+                                TextStyle(
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 42.sp / 1.5f,
+                                    letterSpacing = (-1).sp,
+                                ),
+                        )
+                        Spacer(modifier = Modifier.weight(1f))
+                        Text(
+                            text = currencyLabel,
+                            color = Color(0xFFB9EFEF),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
+                        )
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(15.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (!isProcessing) {
+                            Box(
+                                modifier =
+                                    Modifier
+                                        .size(55.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
+                                        .background(Color(0x1AFFFFFF))
+                                        .clickable(onClick = onClose),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(
+                                    vectorResource(Res.drawable.ic_cross),
+                                    contentDescription = "Close",
+                                    tint = Color(0xFFB9EFEF),
+                                    modifier = Modifier.size(22.dp),
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .height(55.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(Color(0xFF2D2DF1))
+                                    .clickable(enabled = !isProcessing, onClick = { onTopUpAndStream(topUpAmount) }),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (isProcessing) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    strokeWidth = 2.dp,
+                                    modifier = Modifier.size(18.dp),
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Signing...",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    letterSpacing = (-0.2).sp,
+                                )
+                            } else {
+                                Box(
+                                    modifier =
+                                        Modifier
+                                            .size(19.dp)
+                                            .clip(CircleShape)
+                                            .border(2.dp, Color(0xFFB9EFEF), CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text("v", color = Color(0xFFB9EFEF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    text = "Top-Up & Stream",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp,
+                                    letterSpacing = (-0.2).sp,
+                                )
+                            }
                         }
                     }
+                    Spacer(Modifier.height(22.dp))
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .height(46.dp)
+                                .background(Color(0xFF001423)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "SECURED BY ALGORAND BLOCKCHAIN LAYER",
+                            color = Color(0xFFB9EFEF),
+                            fontSize = 10.sp,
+                            letterSpacing = 2.sp,
+                        )
+                    }
                 }
+            }
 
-                Box(
-                    modifier =
-                        Modifier
-                            .align(Alignment.TopCenter)
-                            .offset(y = (-24).dp)
-                            .size(52.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Image(
-                        painter = painterResource(Res.drawable.ic_lock),
-                        contentDescription = null,
-                        modifier = Modifier.fillMaxSize(),
-                    )
-                }
+            Box(
+                modifier =
+                    Modifier
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-24).dp)
+                        .size(52.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = painterResource(Res.drawable.ic_lock),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
     }
@@ -377,17 +403,21 @@ private fun QuickAmountButton(
 @Preview
 @Composable
 private fun LiquidAuthSessionVaultModalPreviewDismissible() {
-    LiquidAuthSessionVaultModal(
-        onDismiss = {},
-        isDismissible = true,
-    )
+    AlgoKitTheme {
+        LiquidAuthSessionVaultModalContent(
+            onDismiss = {},
+            isDismissible = true,
+        )
+    }
 }
 
 @Preview
 @Composable
 private fun LiquidAuthSessionVaultModalPreviewLocked() {
-    LiquidAuthSessionVaultModal(
-        onDismiss = {},
-        isDismissible = false,
-    )
+    AlgoKitTheme {
+        LiquidAuthSessionVaultModalContent(
+            onDismiss = {},
+            isDismissible = false,
+        )
+    }
 }

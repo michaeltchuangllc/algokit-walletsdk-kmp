@@ -369,7 +369,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         )
     }
 
-    fun rejectMppConsent() {
+    open fun rejectMppConsent() {
         Napier.d(tag = TAG, message = "[VIEWER_MPP_CONSENT_REJECTED]")
         pendingMppConsentContinuation?.complete(
             ConsentApproval(
@@ -381,9 +381,13 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         _isViewerPaymentProcessing.value = false
     }
 
-    fun rejectViewerConsent() {
+    open fun rejectViewerConsent() {
         rejectMppConsent()
+        stopMppPaymentViewer()
+        onStreamTimeout("Stream closed by viewer")
     }
+
+    open fun stopMppPaymentViewer() {}
 
     fun setViewerPaymentProcessing(isProcessing: Boolean) {
         _isViewerPaymentProcessing.value = isProcessing

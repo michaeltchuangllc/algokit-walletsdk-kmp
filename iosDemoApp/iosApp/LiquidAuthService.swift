@@ -758,7 +758,11 @@ public class LiquidAuthService {
             onMessage: { [weak self] message in
                 guard let self = self else { return }
 
-                self.messageForwardingHandler?(message)
+                if let handler = self.messageForwardingHandler {
+                    handler(message)
+                } else {
+                    App_iosKt.forwardMessageToActiveViewer(message: message)
+                }
 
                 if Data(base64Encoded: message) != nil {
                     // Looks like a Base64/CBOR payload → could be a signing request
