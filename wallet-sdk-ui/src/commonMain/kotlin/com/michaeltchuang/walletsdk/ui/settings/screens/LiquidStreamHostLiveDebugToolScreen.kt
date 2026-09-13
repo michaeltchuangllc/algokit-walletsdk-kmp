@@ -47,7 +47,7 @@ fun LiquidStreamHostDebugToolScreen(
     debugViewModel: LiquidStreamHostDebugToolViewModel = koinViewModel(),
     onSettingsClick: () -> Unit = {},
     onMinimise: () -> Unit = {},
-    onWalletClick: () -> Unit = {},
+    onQRClick: () -> Unit = {},
     onCameraClick: (isEnabled: Boolean) -> Unit = {},
     onMicClick: (isMuted: Boolean) -> Unit = {},
     onRotateCamera: () -> Unit = {},
@@ -125,7 +125,6 @@ fun LiquidStreamHostDebugToolScreen(
                 onSettingsClick()
             },
             onMinimise = onMinimise,
-            onWalletClick = onWalletClick,
             onCameraClick = viewModel::onCameraClicked,
             onMicClick = viewModel::onMicClicked,
             onRotateCamera = onRotateCamera,
@@ -135,6 +134,14 @@ fun LiquidStreamHostDebugToolScreen(
                 onStatsModalVisibilityChanged(isStatsVisible)
                 onStatsClick()
             },
+            onQrClick = {
+                viewModel.onQrClicked()
+                onQRClick()
+            },
+            onQrDismissed = viewModel::onQrDismissed,
+            requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
+            liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
+            showQrButton = false,
             onSendClickInternal = { viewModel.onSendClicked() },
             viewers = debugState.viewers,
             blockChainLabel = blockChainLabel,
@@ -235,13 +242,17 @@ fun LiquidStreamHostDebugScreenPreview() {
             cameraPreview = null,
             creatorUsername = "michaeltchuang.algo",
             numbersOfViewer = "1",
-            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false) },
+            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false, isQrModalVisible = false) },
             onMinimise = {},
-            onWalletClick = {},
             onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
             onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
-            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
+            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible, isSettingsModalVisible = false, isQrModalVisible = false) },
+            onQrClick = { uiState = uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false) },
+            onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
+            requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
+            liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
+            showQrButton = false,
             onSendClickInternal = { uiState = uiState.copy(message = "") },
             viewers =
                 listOf(

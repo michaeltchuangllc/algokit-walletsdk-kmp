@@ -1511,4 +1511,13 @@
     <string name="provider">Fornitore</string>
     <string name="close_popup">Chiudi popup</string>
     <string name="asa_balance">Saldo ASA</string>
+
+    <!-- Liquid Stream QR Modal -->
+    <string name="stream_is_live">STREAM IN DIRETTA</string>
+    <string name="invite_viewers">Invita spettatori</string>
+    <string name="scan_qr_to_join_stream">Scansiona questo codice QR con un altro\ndispositivo per unirti a questo stream.</string>
+    <string name="session_id_label">ID SESSIONE:</string>
+    <string name="secured_by_algorand_testnet">Protetto da Algorand Testnet</string>
+    <string name="copy_session_id">Copia ID Sessione</string>
+    <string name="stream_qr_code">Codice QR Stream</string>
 </resources>

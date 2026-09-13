@@ -3,11 +3,11 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.components
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_analytics
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_camera_flip
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_liquid_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic_off
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera_off
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,13 +35,14 @@ import org.jetbrains.compose.resources.vectorResource
 
 @Composable
 fun CreatorActionRow(
-    onWalletClick: () -> Unit,
+    onQRClick: () -> Unit,
     onCameraClick: () -> Unit,
     onMicClick: () -> Unit,
     onRotateCamera: () -> Unit,
     onStatsClick: () -> Unit,
     isMicMuted: Boolean = false,
     isCameraEnabled: Boolean = true,
+    showQrButton: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -49,14 +50,18 @@ fun CreatorActionRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OuterActionContainer {
-            InnerActionButton(
-                icon = Res.drawable.ic_wallet,
-                onClick = onWalletClick,
-                backgroundColor = Color(0xFFAEEFF2),
-                iconTint = Color(0xFF0B203B),
-                showPlusBadge = true,
-            )
+        if (showQrButton) {
+            OuterActionContainer {
+                InnerActionButton(
+                    icon = Res.drawable.ic_liquid_qr,
+                    onClick = onQRClick,
+                    backgroundColor = Color(0xFFAEEFF2),
+                    iconTint = Color(0xFF0B203B),
+                    showPlusBadge = false,
+                )
+            }
+        } else {
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(67.dp))
         }
 
         Box(
