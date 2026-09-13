@@ -1648,4 +1648,13 @@
     <string name="provider">Provider</string>
     <string name="close_popup">Close popup</string>
     <string name="asa_balance">ASA Balance</string>
+
+    <!-- Liquid Stream QR Modal -->
+    <string name="stream_is_live">STREAM IS LIVE</string>
+    <string name="invite_viewers">Invite viewers</string>
+    <string name="scan_qr_to_join_stream">Scan this QR code with another\ndevice to join this stream.</string>
+    <string name="session_id_label">SESSION ID:</string>
+    <string name="secured_by_algorand_testnet">Secured by Algorand Testnet</string>
+    <string name="copy_session_id">Copy Session ID</string>
+    <string name="stream_qr_code">Stream QR Code</string>
 </resources>

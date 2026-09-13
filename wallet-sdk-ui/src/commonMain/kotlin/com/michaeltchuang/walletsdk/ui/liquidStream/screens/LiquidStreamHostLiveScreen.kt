@@ -39,6 +39,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.CreatorActionRow
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CreatorComposer
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CreatorTopBar
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.HomeIndicator
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.LiquidStreamHostQrModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
@@ -72,6 +73,8 @@ fun LiquidStreamHostLiveScreen(
     viewerAddress: String = "",
     numbersOfViewer: String = "1",
     lastSettledUsdc: Double? = null,
+    requestId: String = "",
+    liquidAuthUrl: String = "",
 ) {
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
@@ -193,7 +196,6 @@ fun LiquidStreamHostLiveScreen(
             onSettingsClick()
         },
         onMinimise = onMinimise,
-        onWalletClick = onWalletClick,
         onCameraClick = viewModel::onCameraClicked,
         onMicClick = viewModel::onMicClicked,
         onRotateCamera = onRotateCamera,
@@ -220,6 +222,10 @@ fun LiquidStreamHostLiveScreen(
         onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
         onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
         onSettingsDismissed = viewModel::onSettingsDismissed,
+        onQrClick = viewModel::onQrClicked,
+        onQrDismissed = viewModel::onQrDismissed,
+        requestId = requestId,
+        liquidAuthUrl = liquidAuthUrl,
     )
 }
 
@@ -231,7 +237,6 @@ fun LiquidStreamHostLiveScreenContent(
     numbersOfViewer: String?,
     onSettingsClick: () -> Unit,
     onMinimise: () -> Unit,
-    onWalletClick: () -> Unit,
     onCameraClick: () -> Unit,
     onMicClick: () -> Unit,
     onRotateCamera: () -> Unit,
@@ -250,6 +255,10 @@ fun LiquidStreamHostLiveScreenContent(
     onPayoutFrequencyTabSelected: (String) -> Unit,
     onSubsidizeViewerFeesChanged: (Boolean) -> Unit,
     onSettingsDismissed: () -> Unit,
+    onQrClick: () -> Unit = {},
+    onQrDismissed: () -> Unit = {},
+    requestId: String = "",
+    liquidAuthUrl: String = "",
 ) {
     Box(
         modifier =
@@ -298,13 +307,13 @@ fun LiquidStreamHostLiveScreenContent(
                 creatorAvatarUrl = creatorAvatarUrl,
                 numbersOfViewers = numbersOfViewer,
                 onSettingsClick = onSettingsClick,
-                onMinimise = onMinimise,
+                onMinimise = onMinimise
             )
             Spacer(Modifier.weight(1f))
             ChatStack(uiState.chatMessages)
             Spacer(Modifier.height(18.dp))
             CreatorActionRow(
-                onWalletClick = onWalletClick,
+                onQRClick = onQrClick,
                 onCameraClick = onCameraClick,
                 onMicClick = onMicClick,
                 onRotateCamera = onRotateCamera,
@@ -359,6 +368,15 @@ fun LiquidStreamHostLiveScreenContent(
                 onDismiss = onSettingsDismissed,
             )
         }
+
+        if (uiState.isQrModalVisible) {
+            LiquidStreamHostQrModal(
+                requestId = requestId,
+                qrUrl = liquidAuthUrl,
+                securedViaLabel = securedViaLabel,
+                onDismiss = onQrDismissed,
+            )
+        }
     }
 }
 
@@ -371,13 +389,14 @@ private fun LiquidStreamHostLiveScreenPreview() {
             cameraPreview = null,
             creatorUsername = "michaeltchuang.algo",
             numbersOfViewer = "1",
-            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false) },
+            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false, isQrModalVisible = false) },
             onMinimise = {},
-            onWalletClick = {},
             onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
             onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
-            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible) },
+            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible, isSettingsModalVisible = false, isQrModalVisible = false) },
+            onQrClick = { uiState = uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false) },
+            onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
             onSendClickInternal = { uiState = uiState.copy(message = "") },
             viewers =
                 listOf(

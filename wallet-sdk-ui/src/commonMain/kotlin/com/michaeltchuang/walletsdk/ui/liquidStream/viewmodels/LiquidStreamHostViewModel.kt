@@ -133,6 +133,7 @@ class LiquidStreamHostViewModel(
             it.copy(
                 isSettingsModalVisible = true,
                 isStatsModalVisible = false,
+                isQrModalVisible = false,
             )
         }
     }
@@ -142,11 +143,31 @@ class LiquidStreamHostViewModel(
     }
 
     fun onStatsClicked() {
-        stateDelegate.updateState { it.copy(isStatsModalVisible = !it.isStatsModalVisible) }
+        stateDelegate.updateState {
+            it.copy(
+                isStatsModalVisible = !it.isStatsModalVisible,
+                isSettingsModalVisible = false,
+                isQrModalVisible = false,
+            )
+        }
     }
 
     fun onStatsDismissed() {
         stateDelegate.updateState { it.copy(isStatsModalVisible = false) }
+    }
+
+    fun onQrClicked() {
+        stateDelegate.updateState {
+            it.copy(
+                isQrModalVisible = !it.isQrModalVisible,
+                isSettingsModalVisible = false,
+                isStatsModalVisible = false,
+            )
+        }
+    }
+
+    fun onQrDismissed() {
+        stateDelegate.updateState { it.copy(isQrModalVisible = false) }
     }
 
     fun onStreamCostTabSelected(tabId: String) {
@@ -264,6 +285,7 @@ class LiquidStreamHostViewModel(
         val message: String = "",
         val isStatsModalVisible: Boolean = false,
         val isSettingsModalVisible: Boolean = false,
+        val isQrModalVisible: Boolean = false,
         val selectedStreamCostTabId: String = STREAM_COST_PAID_TAB_ID,
         val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
         val subsidizeViewerFeesEnabled: Boolean = false,

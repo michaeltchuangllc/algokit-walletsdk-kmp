@@ -614,6 +614,15 @@ fun LiquidAuthOfferScreenContent(
                 else -> null
             }
 
+        val (currentRequestId, currentLiquidAuthUrl) =
+            when (state) {
+                is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> state.requestId to state.liquidAuthUrl
+                is LiquidAuthOfferViewModel.OfferState.Connected -> state.requestId to state.liquidAuthUrl
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.requestId to state.liquidAuthUrl
+                is LiquidAuthOfferViewModel.OfferState.Streaming -> state.requestId to state.liquidAuthUrl
+                else -> "" to ""
+            }
+
         val activeViewerAddress by connectionManager?.viewerAddress?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(null) }
 
         StreamHostBottomSheet(
@@ -643,6 +652,8 @@ fun LiquidAuthOfferScreenContent(
             lastSettledUsdc = lastSettledUsdc,
             creatorAddress = creatorAddress,
             viewerAddress = activeViewerAddress.orEmpty(),
+            requestId = currentRequestId,
+            liquidAuthUrl = currentLiquidAuthUrl,
         )
     }
 }
@@ -670,6 +681,8 @@ private fun StreamHostBottomSheet(
     lastSettledUsdc: Double? = null,
     creatorAddress: String = "",
     viewerAddress: String = "",
+    requestId: String = "",
+    liquidAuthUrl: String = "",
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -701,6 +714,8 @@ private fun StreamHostBottomSheet(
                 lastSettledUsdc = lastSettledUsdc,
                 creatorAddress = creatorAddress,
                 viewerAddress = viewerAddress,
+                requestId = requestId,
+                liquidAuthUrl = liquidAuthUrl,
                 onSendClick = { text ->
                     connectionManager?.sendChatMessage(
                         ChatMessage(
@@ -760,6 +775,8 @@ private fun StreamHostBottomSheet(
                     lastSettledUsdc = lastSettledUsdc,
                     creatorAddress = creatorAddress,
                     viewerAddress = viewerAddress,
+                    requestId = requestId,
+                    liquidAuthUrl = liquidAuthUrl,
                     onSendClick = { text ->
                         connectionManager?.sendChatMessage(
                             ChatMessage(

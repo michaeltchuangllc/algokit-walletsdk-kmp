@@ -1648,4 +1648,13 @@
     <string name="provider">प्रदाता</string>
     <string name="close_popup">पॉपअप बंद करें</string>
     <string name="asa_balance">एएसए बैलेंस</string>
+
+    <!-- Liquid Stream QR Modal -->
+    <string name="stream_is_live">स्ट्रीम लाइव है</string>
+    <string name="invite_viewers">दर्शकों को आमंत्रित करें</string>
+    <string name="scan_qr_to_join_stream">इस स्ट्रीम में शामिल होने के लिए\nदूसरे डिवाइस से इस QR कोड को स्कैन करें।</string>
+    <string name="session_id_label">सेशन आईडी:</string>
+    <string name="secured_by_algorand_testnet">एल्गोरैंड टेस्टनेट द्वारा सुरक्षित</string>
+    <string name="copy_session_id">सेशन आईडी कॉपी करें</string>
+    <string name="stream_qr_code">स्ट्रीम QR कोड</string>
 </resources>

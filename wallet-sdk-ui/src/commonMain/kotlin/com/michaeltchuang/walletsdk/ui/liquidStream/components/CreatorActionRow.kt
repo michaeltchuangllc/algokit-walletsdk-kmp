@@ -3,11 +3,11 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.components
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_analytics
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_camera_flip
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_liquid_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_mic_off
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_video_camera_off
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +35,7 @@ import org.jetbrains.compose.resources.vectorResource
 
 @Composable
 fun CreatorActionRow(
-    onWalletClick: () -> Unit,
+    onQRClick: () -> Unit,
     onCameraClick: () -> Unit,
     onMicClick: () -> Unit,
     onRotateCamera: () -> Unit,
@@ -51,11 +51,11 @@ fun CreatorActionRow(
     ) {
         OuterActionContainer {
             InnerActionButton(
-                icon = Res.drawable.ic_wallet,
-                onClick = onWalletClick,
+                icon = Res.drawable.ic_liquid_qr,
+                onClick = onQRClick,
                 backgroundColor = Color(0xFFAEEFF2),
                 iconTint = Color(0xFF0B203B),
-                showPlusBadge = true,
+                showPlusBadge = false,
             )
         }
 
