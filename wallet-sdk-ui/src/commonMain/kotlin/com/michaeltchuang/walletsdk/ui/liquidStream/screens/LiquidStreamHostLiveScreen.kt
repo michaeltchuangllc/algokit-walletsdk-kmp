@@ -226,6 +226,7 @@ fun LiquidStreamHostLiveScreen(
         onQrDismissed = viewModel::onQrDismissed,
         requestId = requestId,
         liquidAuthUrl = liquidAuthUrl,
+        showQrButton = false,
     )
 }
 
@@ -259,6 +260,7 @@ fun LiquidStreamHostLiveScreenContent(
     onQrDismissed: () -> Unit = {},
     requestId: String = "",
     liquidAuthUrl: String = "",
+    showQrButton: Boolean = false,
 ) {
     Box(
         modifier =
@@ -320,6 +322,7 @@ fun LiquidStreamHostLiveScreenContent(
                 onStatsClick = onStatsClick,
                 isMicMuted = uiState.isMicMuted,
                 isCameraEnabled = uiState.isCameraEnabled,
+                showQrButton = showQrButton,
             )
             Spacer(Modifier.height(18.dp))
             CreatorComposer(

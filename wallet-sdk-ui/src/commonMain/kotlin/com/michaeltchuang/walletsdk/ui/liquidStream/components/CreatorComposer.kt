@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,7 +19,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -45,25 +43,6 @@ fun CreatorComposer(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(
-            modifier =
-                Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color(0xFF3CD2E4), Color(0xFF2A34F7)),
-                        ),
-                    ),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                vectorResource(Res.drawable.ic_gift),
-                contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(16.dp),
-            )
-        }
         BasicTextField(
             value = text,
             onValueChange = onTextChanged,

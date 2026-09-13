@@ -141,6 +141,7 @@ fun LiquidStreamHostDebugToolScreen(
             onQrDismissed = viewModel::onQrDismissed,
             requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
             liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
+            showQrButton = false,
             onSendClickInternal = { viewModel.onSendClicked() },
             viewers = debugState.viewers,
             blockChainLabel = blockChainLabel,
@@ -251,6 +252,7 @@ fun LiquidStreamHostDebugScreenPreview() {
             onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
             requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
             liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
+            showQrButton = false,
             onSendClickInternal = { uiState = uiState.copy(message = "") },
             viewers =
                 listOf(

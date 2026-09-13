@@ -42,6 +42,7 @@ fun CreatorActionRow(
     onStatsClick: () -> Unit,
     isMicMuted: Boolean = false,
     isCameraEnabled: Boolean = true,
+    showQrButton: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -49,14 +50,18 @@ fun CreatorActionRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        OuterActionContainer {
-            InnerActionButton(
-                icon = Res.drawable.ic_liquid_qr,
-                onClick = onQRClick,
-                backgroundColor = Color(0xFFAEEFF2),
-                iconTint = Color(0xFF0B203B),
-                showPlusBadge = false,
-            )
+        if (showQrButton) {
+            OuterActionContainer {
+                InnerActionButton(
+                    icon = Res.drawable.ic_liquid_qr,
+                    onClick = onQRClick,
+                    backgroundColor = Color(0xFFAEEFF2),
+                    iconTint = Color(0xFF0B203B),
+                    showPlusBadge = false,
+                )
+            }
+        } else {
+            androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(67.dp))
         }
 
         Box(
