@@ -132,25 +132,27 @@ timeline
              
     section Future 🔮
     2026Q4   
-             : Liquid Gossip mobile POC
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-             : Liquid Stream - Website showing latest escrow session vault activity
-             : Liquid Stream - Decouple feature to it's own repo and app
-             : Seed Vault - Escrow Session Vault for Solana accounts 
-             : Research - React Native sample app talking to service
-             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+             : Onboarding - PQ Passkeys
+             : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
+             : Liquid Stream - Liquid Stream demo app (own repo)
+             : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
+             : Research - React Native sample app talking to seed vault
+             : Liquid Gossip mobile POC
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
-             : TBD
+             : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
+             : Liquid Stream - Improve bot commenting in demo mode
+
     Backlog
+            : Liquid Stream - Website showing latest escrow session vault activity
             : Onboarding - Rekey flow
             : Onboarding - Liquid Auth (Rekeyed Accounts)
-            : Onboarding - PQ Passkeys
             : Onboarding - Ledger flow
-            : Account Details - Asset Inbox
-            : Onboarding - Multi-sig flow
             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
+            : Seed Vault - Escrow Session Vault for Solana accounts
             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
+            : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+            : TBD
 
 ```
 
