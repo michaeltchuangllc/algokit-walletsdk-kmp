@@ -1,6 +1,5 @@
 [versions]
 agp = "9.2.1"
-algoSdk = "2.10.1"
 algokit-walletSdk = "3.202603.4"
 algokit-core = "1.0.0-alpha.85"
 algorand-foundation = "0.1.0"
@@ -175,7 +174,6 @@ compose-webview-multiplatform = { module = "io.github.kevinnzou:compose-webview-
 webview-multiplatform-mobile = { module = "io.github.final-class:webview-multiplatform-mobile", version.ref = "webviewMultiplatform" }
 
 # Wallet SDK - Security / Blockchain / Crypto
-algosdk = { module = "com.algorand:algosdk", version.ref = "algoSdk" }
 algokit-composer = { group = "io.github.algorandecosystem", name = "algokit-composer", version.ref = "algokit-core" }
 algokit-crypto = { group = "io.github.algorandecosystem", name = "algokit-crypto", version.ref = "algokit-core" }
 algokit-transact = { group = "io.github.algorandecosystem", name = "algokit-transact", version.ref = "algokit-core" }

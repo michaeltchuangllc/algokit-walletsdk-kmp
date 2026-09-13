@@ -2,7 +2,6 @@
 
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
-import com.algorand.algosdk.transaction.Transaction
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
@@ -18,7 +17,11 @@ import foundation.algorand.provider.avm.models.SignTransactionsResult
 import io.github.aakira.napier.Napier
 import io.github.algorandecosystem.sdk.BytesArray
 import io.github.algorandecosystem.sdk.Sdk
+import uniffi.algokit_transact_ffi.decodeTransaction
+import uniffi.algokit_transact_ffi.encodeTransactionRaw
 import kotlin.io.encoding.Base64
+
+private val TX_PREFIX = "TX".encodeToByteArray()
 
 class ProcessSignTransactionsUseCase(
     private val getLocalAccount: GetLocalAccount,
@@ -26,7 +29,6 @@ class ProcessSignTransactionsUseCase(
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
     private val getFalcon25Seed: GetFalcon25Seed,
     private val getSeed: GetHdSeed,
-    private val decodeUnsignedTransaction: (String) -> Transaction?,
 ) {
     suspend operator fun invoke(
         params: SignTransactionsParams,
@@ -93,18 +95,18 @@ class ProcessSignTransactionsUseCase(
                 Napier.d(tag = TAG, message = "Signing transaction ${index + 1}/${params.txns.size}")
 
                 val transactionBytes = Base64.UrlSafe.withPadding(Base64.PaddingOption.ABSENT).decode(txn.txn!!)
-                val unsignedTransaction = decodeUnsignedTransaction(Base64.encode(transactionBytes))
+                val bytesToSign = TX_PREFIX + encodeTransactionRaw(decodeTransaction(transactionBytes))
 
                 when (localAccount) {
                     is LocalAccount.Algo25 -> {
                         val secretKey = getAlgo25SecretKey(accountAddress)!!
-                        val signature = signAlgo25ArbitraryData(unsignedTransaction!!.bytesToSign(), secretKey)!!
+                        val signature = signAlgo25ArbitraryData(bytesToSign, secretKey)!!
                         signedTxns.add(Base64.UrlSafe.encode(signature))
                     }
                     is LocalAccount.HdKey -> {
                         val signature =
                             signHdKeyData(
-                                data = unsignedTransaction!!.bytesToSign(),
+                                data = bytesToSign,
                                 seed = getSeed(localAccount.seedId)!!,
                                 account = localAccount.account,
                                 change = localAccount.change,

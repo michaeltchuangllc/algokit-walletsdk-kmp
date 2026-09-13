@@ -153,7 +153,6 @@ kotlin {
             implementation(libs.algokit.crypto)
             implementation(libs.algokit.transact)
 
-            implementation(libs.algosdk)
             implementation(libs.algorand.falcon)
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)

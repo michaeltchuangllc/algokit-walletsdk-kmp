@@ -10,9 +10,6 @@ import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import com.algorand.algosdk.transaction.SignedTransaction
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
@@ -29,7 +26,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
-import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
@@ -40,8 +36,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferView
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import io.github.aakira.napier.Napier
-import io.github.algorandecosystem.sdk.BytesArray
-import io.github.algorandecosystem.sdk.Sdk
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,7 +43,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.koin.java.KoinJavaComponent
-import java.math.BigInteger
 import kotlin.io.encoding.Base64
 
 /**
@@ -917,200 +910,6 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     actual fun setVideoEnabled(enabled: Boolean) {
         signalService?.setVideoEnabled(enabled)
-    }
-
-    private suspend fun signFalconTxnFromBundle(
-        txn: Transaction,
-        publicKey: ByteArray,
-        privateKey: ByteArray,
-    ): ByteArray =
-        signFalconTxnGroupFromBundle(
-            txns = listOf(txn),
-            publicKey = publicKey,
-            privateKey = privateKey,
-        ).first()
-
-    private fun decodeFalconBundlePiece(encoded: String): ByteArray? {
-        val trimmed = encoded.trim()
-        if (trimmed.isEmpty()) return null
-
-        fun addPadding(s: String): String {
-            val rem = s.length % 4
-            return if (rem == 0) s else s + "=".repeat(4 - rem)
-        }
-
-        val candidates =
-            listOf(trimmed, addPadding(trimmed))
-                .flatMap { value ->
-                    listOf(value, value.replace('+', '-').replace('/', '_'))
-                }.distinct()
-
-        candidates.forEach { candidate ->
-            runCatching { Base64.decode(candidate) }.getOrNull()?.let { return it }
-            runCatching { Base64.decode(candidate) }.getOrNull()?.let { return it }
-        }
-        return null
-    }
-
-    private fun matchesExpectedTransaction(
-        expected: Transaction,
-        actual: Transaction,
-    ): Boolean {
-        if (expected.type?.toString() != actual.type?.toString()) return false
-        if (expected.sender?.toString() != actual.sender?.toString()) return false
-
-        return when (expected.type?.toString()) {
-            "pay" -> {
-                expected.receiver?.toString() == actual.receiver?.toString() &&
-                    (expected.amount ?: BigInteger.ZERO) == (actual.amount ?: BigInteger.ZERO)
-            }
-
-            "axfer" -> {
-                expected.assetReceiver?.toString() == actual.assetReceiver?.toString() &&
-                    (expected.assetAmount ?: BigInteger.ZERO) == (
-                        actual.assetAmount
-                            ?: BigInteger.ZERO
-                    ) &&
-                    expected.assetIndex.toLong() == actual.assetIndex.toLong()
-            }
-
-            "appl" -> {
-                expected.applicationId.toLong() == actual.applicationId.toLong() &&
-                    (
-                        expected.applicationArgs
-                            ?: emptyList<ByteArray>()
-                    ) == (
-                        actual.applicationArgs
-                            ?: emptyList<ByteArray>()
-                    )
-            }
-
-            else -> true
-        }
-    }
-
-    private suspend fun signFalconTxnGroupFromBundle(
-        txns: List<Transaction>,
-        publicKey: ByteArray,
-        privateKey: ByteArray,
-    ): List<ByteArray> {
-        if (txns.isEmpty()) return emptyList()
-        if (publicKey.isEmpty() || privateKey.isEmpty()) {
-            Log.e(
-                TAG,
-                "[FALCON_BUNDLE_SKIP] reason=empty_key publicKeyLen=${publicKey.size} privateKeyLen=${privateKey.size}",
-            )
-            return emptyList()
-        }
-
-        Log.e(
-            TAG,
-            "[FALCON_BUNDLE_TRACE] inputTxnCount=${txns.size} firstGroup=${txns.firstOrNull()?.group}",
-        )
-
-        return GoMobileDispatcher.withGoThread {
-            val expectedTxns = txns.map { Encoder.encodeToMsgPack(it) }
-            val expectedTxIds = txns.map { it.txID() }
-            val txnList = BytesArray().apply { expectedTxns.forEach { append(it.copyOf()) } }
-            val resultCsv =
-                try {
-                    Sdk.signFalconLsigBundle(
-                        txnList,
-                        publicKey.copyOf(),
-                        privateKey.copyOf(),
-                    )
-                } catch (t: Throwable) {
-                    Log.e(TAG, "[FALCON_BUNDLE_SIGN_FAILED] error=${t.message}", t)
-                    return@withGoThread emptyList()
-                }
-
-            val rawSigned =
-                resultCsv
-                    .split(",")
-                    .filter { it.isNotBlank() }
-                    .mapNotNull { decodeFalconBundlePiece(it) }
-
-            val decodedSigned =
-                rawSigned
-                    .mapNotNull { signedBytes ->
-                        runCatching {
-                            val signed =
-                                Encoder.decodeFromMsgPack(
-                                    signedBytes,
-                                    SignedTransaction::class.java,
-                                )
-                            val signedTxn = signed.tx ?: return@runCatching null
-                            Triple(signedTxn.txID(), signedTxn, signedBytes)
-                        }.getOrNull()
-                    }
-
-            val expectedFirstGroup = txns.firstOrNull()?.group?.toString()
-            val decodedFirstGroup =
-                decodedSigned
-                    .firstOrNull()
-                    ?.second
-                    ?.group
-                    ?.toString()
-            val decodedAllGrouped =
-                decodedSigned.all {
-                    it.second.group != null &&
-                        it.second.group
-                            .toString()
-                            .isNotBlank()
-                }
-
-            Log.e(
-                TAG,
-                "[FALCON_BUNDLE_TRACE] rawSignedCount=${rawSigned.size} decodedSignedCount=${decodedSigned.size} expectedTxnCount=${txns.size} expectedFirstGroup=$expectedFirstGroup decodedFirstGroup=$decodedFirstGroup decodedAllGrouped=$decodedAllGrouped",
-            )
-
-            if (txns.firstOrNull()?.group == null ||
-                txns
-                    .firstOrNull()
-                    ?.group
-                    .toString()
-                    .isBlank()
-            ) {
-                if (rawSigned.size > txns.size) {
-                    Log.e(
-                        TAG,
-                        "[FALCON_BUNDLE_TRACE] returningRawSigned=true returnedCount=${rawSigned.size}",
-                    )
-                    return@withGoThread rawSigned
-                }
-            }
-
-            val remaining = decodedSigned.toMutableList()
-            val out = mutableListOf<ByteArray>()
-
-            expectedTxIds.forEachIndexed { index, expectedTxId ->
-                val txIdMatchIndex = remaining.indexOfFirst { it.first == expectedTxId }
-                if (txIdMatchIndex >= 0) {
-                    out += remaining.removeAt(txIdMatchIndex).third
-                } else {
-                    val expectedTxn = txns[index]
-                    val semanticMatchIndex =
-                        remaining.indexOfFirst { (_, actualTxn, _) ->
-                            matchesExpectedTransaction(expectedTxn, actualTxn)
-                        }
-                    if (semanticMatchIndex >= 0) {
-                        out += remaining.removeAt(semanticMatchIndex).third
-                    } else {
-                        Log.e(
-                            TAG,
-                            "[FALCON_BUNDLE_TRACE] missing signed txn for txId=$expectedTxId",
-                        )
-                        return@withGoThread emptyList()
-                    }
-                }
-            }
-
-            Log.e(
-                TAG,
-                "[FALCON_BUNDLE_TRACE] returningFiltered=true returnedCount=${out.size} filteredOut=${rawSigned.size - out.size}",
-            )
-            out
-        }
     }
 }
 

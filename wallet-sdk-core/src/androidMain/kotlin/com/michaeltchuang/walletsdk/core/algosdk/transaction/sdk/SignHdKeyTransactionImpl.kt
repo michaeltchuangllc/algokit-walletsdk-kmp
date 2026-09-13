@@ -1,8 +1,5 @@
 package com.michaeltchuang.walletsdk.core.algosdk.transaction.sdk
 
-import com.algorand.algosdk.crypto.Address
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.algorandecosystem.sdk.Sdk
 import uniffi.algokit_crypto_ffi.XhdDerivedAccount
@@ -10,6 +7,8 @@ import uniffi.algokit_crypto_ffi.XhdKeyContext
 import uniffi.algokit_crypto_ffi.xhdDerive
 import uniffi.algokit_crypto_ffi.xhdRawSign
 import uniffi.algokit_crypto_ffi.xhdRootKeyFromSeed
+import uniffi.algokit_transact_ffi.addressFromPublicKey
+import uniffi.algokit_transact_ffi.decodeTransaction
 import java.nio.charset.StandardCharsets
 
 private val TX_PREFIX = "TX".toByteArray(StandardCharsets.UTF_8)
@@ -31,18 +30,18 @@ internal class SignHdKeyTransactionImpl : SignHdKeyTransaction {
     ): ByteArray? {
         return try {
             val unsignedTxnBytes = transactionByteArray.withoutTxPrefix()
-            val tx = Encoder.decodeFromMsgPack(unsignedTxnBytes, Transaction::class.java)
+            val tx = decodeTransaction(unsignedTxnBytes)
 
             val derivedAccount = deriveAccount(seed, account, change, key)
             val signedTxn = xhdRawSign(derivedAccount.extendedPrivateKey, rawTransactionBytesToSign(unsignedTxnBytes))
-            val pkAddress = Address(derivedAccount.publicKey)
+            val pkAddress = addressFromPublicKey(derivedAccount.publicKey)
 
             // attachSignature/attachSignatureWithSigner must run on the dedicated Go-mobile
             // OS thread to prevent concurrent GC races with signFalconBundle
             // ("bulkBarrierPreWrite: unaligned arguments").
             return GoMobileDispatcher.runOnGoThread {
                 if (tx.sender != pkAddress) {
-                    Sdk.attachSignatureWithSigner(signedTxn, unsignedTxnBytes, pkAddress.toString())
+                    Sdk.attachSignatureWithSigner(signedTxn, unsignedTxnBytes, pkAddress)
                 } else {
                     Sdk.attachSignature(signedTxn, unsignedTxnBytes)
                 }
