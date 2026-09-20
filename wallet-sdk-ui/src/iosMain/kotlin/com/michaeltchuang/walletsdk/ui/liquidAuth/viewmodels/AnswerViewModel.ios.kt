@@ -86,6 +86,7 @@ actual open class AnswerViewModel actual constructor(
                 signer = signer,
                 mppNetwork = mppNetwork,
                 requestMppConsent = ::requestMppConsentFromUi,
+                setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 signFido2Challenge = { challenge, challengeAddress ->
                     signer.takeIf { it.address == challengeAddress }?.signMessage(challenge)
@@ -93,6 +94,7 @@ actual open class AnswerViewModel actual constructor(
                         ?: signFido2Challenge(challenge, challengeAddress)
                 },
                 onChatMessageReceived = ::onChatMessageReceived,
+                getHostAddress = { this.hostAddress.value.ifBlank { hostAddress } },
             ),
         )
         return true

@@ -411,6 +411,13 @@ private suspend fun handleWebRTCSetup(
         val enableMedia = msg.appId == AppId.LIQUID_AUTH_STREAM.name
         viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers, enableMedia)
         var viewerSetupDone = false
+        var credentialSent = false
+        fun sendCredentialWhenOpen() {
+            val service = viewModel.signalService.value ?: return
+            if (credentialSent || service.dataChannel?.state() != org.webrtc.DataChannel.State.OPEN) return
+            credentialSent = true
+            service.send(viewModel.getCredentialMessage(address, credential).toString())
+        }
         viewModel.signalService.value?.handleMessages(
             activity = activity,
             onMessage = { peerMsg ->
@@ -426,14 +433,15 @@ private suspend fun handleWebRTCSetup(
             },
             onStateChange = { state ->
                 if (state == "OPEN") {
-                    val credentialMessage = viewModel.getCredentialMessage(address, credential).toString()
-                    viewModel.signalService.value?.send(credentialMessage)
+                    sendCredentialWhenOpen()
                 }
             },
             notificationBuilder = viewModel.createNotificationBuilder(activity),
             notificationId = AnswerViewModel.SERVICE_NOTIFICATION_ID,
             activityClass = null,
         )
+        // OPEN can occur between applying the answer and attaching the observer.
+        sendCredentialWhenOpen()
     } else {
         Toast.makeText(activity, "Couldn't find service", Toast.LENGTH_LONG).show()
     }

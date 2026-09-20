@@ -72,6 +72,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
@@ -231,6 +232,10 @@ fun LiquidAuthOfferScreen(
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val hostViewModel: LiquidStreamHostViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val pendingMeshOffer by viewModel.pendingMeshOffer.collectAsStateWithLifecycle()
+    val meshViewerIds by viewModel.meshViewerIds.collectAsStateWithLifecycle()
+    val meshViewerDetails by viewModel.meshViewerDetails.collectAsStateWithLifecycle()
+    var managerInitialized by remember(connectionManager, viewModel) { mutableStateOf(false) }
     val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
     val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
     val remainingBalanceOnChainMicroUsdc by viewModel.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
@@ -252,6 +257,7 @@ fun LiquidAuthOfferScreen(
         viewModel.stopVideoStreaming()
         connectionManager?.stopBlockConsumption()
         connectionManager?.stopListening()
+        viewModel.clearMeshHosting()
         streamHostUiMode.value = StreamHostUiMode.Hidden
         viewModel.regenerateOffer(origin)
     }
@@ -262,9 +268,9 @@ fun LiquidAuthOfferScreen(
     val remainingBalanceUsdc = remainingBalanceOnChainMicroUsdc?.let { it / 1_000_000.0 }
     val progressBalanceUsdc = progressBarBalanceMicroUsdc?.let { it / 1_000_000.0 }
 
-    // Auto-generate offer on first composition
-    LaunchedEffect(origin) {
-        viewModel.generateOffer(origin)
+    // Wait for initialize() to set the platform's mesh opt-in before generating.
+    LaunchedEffect(origin, managerInitialized) {
+        if (managerInitialized) viewModel.generateOffer(origin)
     }
 
     LaunchedEffect(creatorAddress, creatorAssetId, requiresCreatorAsaOptIn) {
@@ -281,6 +287,18 @@ fun LiquidAuthOfferScreen(
             println("🔗 Initializing connection manager with viewModel")
             connectionManager.initialize(viewModel)
             println("🔗 Connection manager initialized")
+        }
+        managerInitialized = true
+    }
+
+    // Invitations have their own lifecycle: accepting/refreshing one never restarts live state.
+    LaunchedEffect(pendingMeshOffer, connectionManager, managerInitialized) {
+        if (!managerInitialized || !viewModel.meshHostingEnabled) return@LaunchedEffect
+        pendingMeshOffer?.let { invitation ->
+            connectionManager?.startListening(
+                origin = invitation.origin,
+                requestId = invitation.requestId,
+            )
         }
     }
 
@@ -304,6 +322,9 @@ fun LiquidAuthOfferScreen(
                 }
             }
             else -> {
+                if (viewModel.meshHostingEnabled && state is LiquidAuthOfferViewModel.OfferState.Loading) {
+                    return@LaunchedEffect
+                }
                 viewModel.stopRealtimeBlockNumberUpdates()
                 connectionManager?.stopBlockConsumption()
             }
@@ -311,14 +332,17 @@ fun LiquidAuthOfferScreen(
     }
 
     // Start listening after initialization
-    LaunchedEffect(state, connectionManager) {
+    LaunchedEffect(state, connectionManager, managerInitialized) {
+        if (!managerInitialized) return@LaunchedEffect
         // Ensure connectionManager is initialized before starting
         if (connectionManager == null) {
             println("⚠️ Cannot start listening - connectionManager is null")
             return@LaunchedEffect
         }
 
-        val currentState = state
+        // Startup generation can run earlier in this frame; don't stop a newly
+        // initialized manager using an Idle snapshot from the previous composition.
+        val currentState = viewModel.state.value
         println(
             "🔗 State changed to: ${currentState::class.simpleName}, " +
                 "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
@@ -354,6 +378,10 @@ fun LiquidAuthOfferScreen(
             }
 
             else -> {
+                // Mesh invitation generation must never tear down active peers.
+                if (viewModel.meshHostingEnabled && currentState is LiquidAuthOfferViewModel.OfferState.Loading) {
+                    return@LaunchedEffect
+                }
                 println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
                 viewModel.stopRealtimeBlockNumberUpdates()
                 connectionManager.stopListening()
@@ -475,6 +503,7 @@ fun LiquidAuthOfferScreen(
             viewModel.stopRealtimeBlockNumberUpdates()
             connectionManager?.stopListening()
             connectionManager?.stopBlockConsumption()
+            viewModel.clearMeshHosting()
         }
     }
 
@@ -505,6 +534,15 @@ fun LiquidAuthOfferScreen(
         requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
         lastSettledUsdc = lastSettledUsdc,
         creatorAddress = creatorAddress.orEmpty(),
+        pendingMeshOffer = pendingMeshOffer,
+        meshViewerIds = if (viewModel.meshHostingEnabled) meshViewerIds else null,
+        meshViewerDetails = meshViewerDetails,
+        onRefreshInvitation =
+            if (viewModel.meshHostingEnabled) {
+                { viewModel.refreshMeshInvitation(origin) }
+            } else {
+                null
+            },
     )
 }
 
@@ -537,6 +575,10 @@ fun LiquidAuthOfferScreenContent(
     requiresCreatorAsaOptIn: Boolean = false,
     lastSettledUsdc: Double? = null,
     creatorAddress: String = "",
+    pendingMeshOffer: LiquidAuthOfferViewModel.OfferState.WaitingForConnection? = null,
+    meshViewerIds: List<String>? = null,
+    onRefreshInvitation: (() -> Unit)? = null,
+    meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
 ) {
     Column(
         modifier =
@@ -615,12 +657,17 @@ fun LiquidAuthOfferScreenContent(
             }
 
         val (currentRequestId, currentLiquidAuthUrl) =
-            when (state) {
-                is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> state.requestId to state.liquidAuthUrl
-                is LiquidAuthOfferViewModel.OfferState.Connected -> state.requestId to state.liquidAuthUrl
-                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.requestId to state.liquidAuthUrl
-                is LiquidAuthOfferViewModel.OfferState.Streaming -> state.requestId to state.liquidAuthUrl
-                else -> "" to ""
+            if (meshViewerIds != null) {
+                // Never re-display the accepted invitation while waiting for its replacement.
+                pendingMeshOffer?.let { it.requestId to it.liquidAuthUrl } ?: ("" to "")
+            } else {
+                when (state) {
+                    is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.Connected -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.Streaming -> state.requestId to state.liquidAuthUrl
+                    else -> "" to ""
+                }
             }
 
         val activeViewerAddress by connectionManager?.viewerAddress?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(null) }
@@ -654,6 +701,9 @@ fun LiquidAuthOfferScreenContent(
             viewerAddress = activeViewerAddress.orEmpty(),
             requestId = currentRequestId,
             liquidAuthUrl = currentLiquidAuthUrl,
+            meshViewerIds = meshViewerIds,
+            meshViewerDetails = meshViewerDetails,
+            onRefreshInvitation = onRefreshInvitation,
         )
     }
 }
@@ -683,6 +733,9 @@ private fun StreamHostBottomSheet(
     viewerAddress: String = "",
     requestId: String = "",
     liquidAuthUrl: String = "",
+    meshViewerIds: List<String>? = null,
+    onRefreshInvitation: (() -> Unit)? = null,
+    meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
@@ -716,6 +769,9 @@ private fun StreamHostBottomSheet(
                 viewerAddress = viewerAddress,
                 requestId = requestId,
                 liquidAuthUrl = liquidAuthUrl,
+                meshViewerIds = meshViewerIds,
+                meshViewerDetails = meshViewerDetails,
+                onRefreshInvitation = onRefreshInvitation,
                 onSendClick = { text ->
                     connectionManager?.sendChatMessage(
                         ChatMessage(
@@ -777,6 +833,9 @@ private fun StreamHostBottomSheet(
                     viewerAddress = viewerAddress,
                     requestId = requestId,
                     liquidAuthUrl = liquidAuthUrl,
+                    meshViewerIds = meshViewerIds,
+                    meshViewerDetails = meshViewerDetails,
+                    onRefreshInvitation = onRefreshInvitation,
                     onSendClick = { text ->
                         connectionManager?.sendChatMessage(
                             ChatMessage(

@@ -14,6 +14,14 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat.Builder
 import androidx.core.app.ServiceCompat
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.HostPeerRegistry
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
@@ -51,6 +59,17 @@ class SignalService : Service() {
     var paymentDataChannel: DataChannel? = null
     var peerConnection: PeerConnection? = null
 
+    private val hostScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val hostPeers = HostPeerRegistry<HostViewerSession>()
+    private var hostMedia: SharedBroadcastMedia? = null
+    private var hostOrigin: String? = null
+    private var hostHttpClient: OkHttpClient? = null
+    private var primaryHostPeerId: String? = null
+    private var hostGeneration = 0L
+
+    /** Snapshot only; mutations and callbacks are confined to the main dispatcher. */
+    val hostViewerSessions: Map<String, HostViewerSession> get() = hostPeers.snapshot
+
     // Simple service binding
     inner class LocalBinder : Binder() {
         fun getServerInstance(): SignalService = this@SignalService
@@ -70,6 +89,7 @@ class SignalService : Service() {
     fun startForeground(
         notificationBuilder: Builder,
         notificationId: Int,
+        captureMedia: Boolean = false,
     ) {
         try {
             ServiceCompat.startForeground(
@@ -78,7 +98,11 @@ class SignalService : Service() {
                 notificationBuilder
                     .build(),
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    if (captureMedia) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    } else {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    }
                 } else {
                     0
                 },
@@ -90,6 +114,7 @@ class SignalService : Service() {
             ) {
                 Log.e(TAG, "Foreground service not allowed")
             }
+            if (captureMedia) throw e
         }
     }
 
@@ -119,6 +144,7 @@ class SignalService : Service() {
         notificationId: Int,
         activityClass: Class<out Activity>?,
     ) {
+        check(hostOrigin == null) { "Stop hosting before starting a viewer session" }
         val builder =
             activityClass?.let {
                 createPendingIntent(it, 0)?.let { pendingIntent ->
@@ -134,9 +160,170 @@ class SignalService : Service() {
     }
 
     /**
+     * Start the broadcast once. Adding invitations must never call [start], which is the
+     * legacy replacement API. Capture remains alive until the host explicitly stops.
+     */
+    fun startHost(
+        url: String,
+        httpClient: OkHttpClient,
+        notificationBuilder: Builder,
+        notificationId: Int,
+        activityClass: Class<out Activity>?,
+    ) {
+        if (hostOrigin != null) {
+            check(hostOrigin == url) { "Stop the broadcast before changing its origin" }
+            return
+        }
+        check(signalClient == null) { "A viewer session is already active" }
+        activityClass?.let { createPendingIntent(it)?.let(notificationBuilder::setContentIntent) }
+        startForeground(notificationBuilder, notificationId, captureMedia = true)
+        val media = SharedBroadcastMedia(applicationContext)
+        try {
+            checkNotNull(media.startCapture()) { "Camera capture could not start. Check camera permissions and availability." }
+        } catch (error: Exception) {
+            media.dispose()
+            throw error
+        }
+        hostMedia = media
+        hostOrigin = url
+        hostHttpClient = httpClient
+        hostGeneration++
+    }
+
+    /**
+     * One socket/request ID per viewer, using the existing one-to-one server protocol.
+     * A new invitation does not replace any pending or established connection.
+     */
+    fun addHostViewer(
+        requestId: String,
+        iceServers: List<PeerConnection.IceServer>,
+        onConnected: (HostViewerSession) -> Unit,
+        onMessage: (HostViewerSession, String) -> Unit,
+        onDisconnected: (String) -> Unit,
+        onError: (String, Throwable) -> Unit,
+    ) {
+        val origin = checkNotNull(hostOrigin) { "Call startHost first" }
+        if (hostPeers.snapshot.containsKey(requestId)) return
+        check(hostPeers.snapshot.values.count { !it.connected } < 8) {
+            "Too many pending invitations. Wait for an invitation to expire before refreshing."
+        }
+        val client = SignalClient(origin, this, checkNotNull(hostHttpClient), checkNotNull(hostMedia))
+        val session = HostViewerSession(requestId, client)
+        hostPeers.add(requestId, session)
+        session.onDisconnected = onDisconnected
+        val generation = hostGeneration
+        fun isCurrent() = generation == hostGeneration && hostPeers.contains(requestId, session)
+        client.onFailure = { error ->
+            if (isCurrent()) {
+                removeHostViewer(requestId)
+                onError(requestId, error)
+            }
+        }
+        fun connected() {
+            if (!isCurrent() || session.connected || session.dataChannel?.state() != DataChannel.State.OPEN) return
+            session.connected = true
+            session.invitationExpiry?.cancel()
+            session.invitationExpiry = null
+            // Compatibility projection for the original payment flow. Never retarget it when
+            // another viewer joins; all additional peers are accessed through their session.
+            if (primaryHostPeerId == null) {
+                primaryHostPeerId = requestId
+                peerClient = session.peer
+                peerConnection = session.peer?.peerConnection
+                dataChannel = session.dataChannel
+            }
+            onConnected(session)
+        }
+        session.invitationExpiry = hostScope.launch {
+            delay(5 * 60 * 1000L)
+            if (isCurrent() && !session.connected) {
+                removeHostViewer(requestId)
+                onError(requestId, IllegalStateException("Invitation expired. Generate a new QR code."))
+            }
+        }
+        session.job = hostScope.launch {
+            try {
+                val channel = checkNotNull(client.peer(requestId, "offer", iceServers, enableMedia = true))
+                if (!isCurrent()) return@launch
+                session.dataChannel = channel
+                channel.registerObserver(
+                    object : DataChannel.Observer {
+                        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+                        override fun onStateChange() {
+                            hostScope.launch {
+                                if (!isCurrent()) return@launch
+                                when (channel.state()) {
+                                    DataChannel.State.OPEN -> connected()
+                                    DataChannel.State.CLOSED, DataChannel.State.CLOSING -> removeHostViewer(requestId)
+                                    else -> Unit
+                                }
+                            }
+                        }
+
+                        override fun onMessage(buffer: DataChannel.Buffer) {
+                            if (buffer.binary) return
+                            val bytes = ByteArray(buffer.data.remaining())
+                            buffer.data.get(bytes)
+                            val message = bytes.toString(Charsets.UTF_8)
+                            hostScope.launch {
+                                if (isCurrent()) {
+                                    connected()
+                                    onMessage(session, message)
+                                }
+                            }
+                        }
+                    },
+                )
+                session.peer?.onIceConnectionStateChange = { state ->
+                    if (state == PeerConnection.IceConnectionState.FAILED) {
+                        hostScope.launch {
+                            if (isCurrent()) removeHostViewer(requestId)
+                        }
+                    }
+                }
+                connected()
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                if (isCurrent()) {
+                    removeHostViewer(requestId)
+                    onError(requestId, error)
+                }
+            }
+        }
+    }
+
+    /** Closing viewer B never closes viewer A or the camera. */
+    fun removeHostViewer(requestId: String) {
+        val session = hostPeers.remove(requestId) ?: return
+        val callback = session.onDisconnected
+        if (primaryHostPeerId == requestId) {
+            peerClient = null
+            peerConnection = null
+            dataChannel = null
+            paymentDataChannel = null
+            // Keep primaryHostPeerId reserved: legacy payment state must not switch wallets.
+        }
+        session.close()
+        callback?.invoke(requestId)
+    }
+
+    private fun stopHost() {
+        hostGeneration++
+        hostPeers.drain().forEach { it.close() }
+        hostMedia?.dispose()
+        hostMedia = null
+        hostOrigin = null
+        hostHttpClient = null
+        primaryHostPeerId = null
+    }
+
+    /**
      * Stop the Liquid WebRTC Service
      */
     fun stop() {
+        stopHost()
         signalClient?.disconnect() // peerClient.destroy() already closes/disposes all channels & peerConnection
         signalClient = null
         peerConnection = null
@@ -145,6 +332,18 @@ class SignalService : Service() {
         peerClient = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        stopHost()
+        signalClient?.disconnect()
+        signalClient = null
+        peerClient = null
+        peerConnection = null
+        dataChannel = null
+        paymentDataChannel = null
+        hostScope.cancel()
+        super.onDestroy()
     }
 
     /**
@@ -164,11 +363,11 @@ class SignalService : Service() {
 
     /** Shared EGL context for rendering local/remote video tracks. */
     val eglBaseContext: org.webrtc.EglBase.Context?
-        get() = peerClient?.eglBaseContext
+        get() = hostMedia?.eglBaseContext ?: peerClient?.eglBaseContext
 
     /** Creator/host local camera track for self-preview. */
     val localVideoTrack: org.webrtc.VideoTrack?
-        get() = peerClient?.localVideoTrack
+        get() = hostMedia?.localVideoTrack ?: peerClient?.localVideoTrack
 
     /** Remote camera track received from the peer (viewer side). */
     val remoteVideoTrack: org.webrtc.VideoTrack?
@@ -183,15 +382,15 @@ class SignalService : Service() {
 
     /** Toggle the creator/host camera between front and back. */
     fun switchCamera() {
-        peerClient?.switchCamera()
+        hostMedia?.switchCamera() ?: peerClient?.switchCamera()
     }
 
     fun setAudioEnabled(enabled: Boolean) {
-        peerClient?.setAudioEnabled(enabled)
+        hostMedia?.setAudioEnabled(enabled) ?: peerClient?.setAudioEnabled(enabled)
     }
 
     fun setVideoEnabled(enabled: Boolean) {
-        peerClient?.setVideoEnabled(enabled)
+        hostMedia?.setVideoEnabled(enabled) ?: peerClient?.setVideoEnabled(enabled)
     }
 
     fun createDataChannel(label: String): DataChannel? = peerClient?.createAdditionalDataChannel(label)

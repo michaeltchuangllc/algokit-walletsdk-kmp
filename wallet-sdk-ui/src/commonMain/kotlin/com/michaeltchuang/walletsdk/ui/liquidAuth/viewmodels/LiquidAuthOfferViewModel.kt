@@ -21,8 +21,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -31,6 +34,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -52,6 +56,27 @@ class LiquidAuthOfferViewModel(
     // ICE Connection type for UI quality indicators and billing (x402)
     private val _connectionType = MutableStateFlow(IceConnectionType.UNKNOWN)
     val connectionType: StateFlow<IceConnectionType> = _connectionType
+
+    // Android opts in during manager initialization. iOS keeps the single-peer path.
+    var meshHostingEnabled: Boolean = false
+
+    // The initial invitation stays in OfferState; subsequent invitations must not replace
+    // Connected/WaitingForPayment/Streaming or their singleton payment session.
+    private val _pendingMeshOffer = MutableStateFlow<OfferState.WaitingForConnection?>(null)
+    val pendingMeshOffer: StateFlow<OfferState.WaitingForConnection?> = _pendingMeshOffer.asStateFlow()
+
+    private val _meshViewerIds = MutableStateFlow<List<String>>(emptyList())
+    val meshViewerIds: StateFlow<List<String>> = _meshViewerIds.asStateFlow()
+
+    private val _meshViewerDetails = MutableStateFlow<Map<String, HostViewerDetails>>(emptyMap())
+    private val meshViewerProgress = mutableMapOf<String, HostViewerProgress>()
+    val meshViewerDetails: StateFlow<Map<String, HostViewerDetails>> = _meshViewerDetails.asStateFlow()
+
+    private val _meshError = MutableStateFlow<String?>(null)
+    val meshError: StateFlow<String?> = _meshError.asStateFlow()
+
+    private var hasMeshViewerConnected = false
+    private var offerGenerationJob: Job? = null
 
     // X402 Payment state
     private val _paymentState = MutableStateFlow<PaymentState>(PaymentState.NoPayment)
@@ -116,8 +141,14 @@ class LiquidAuthOfferViewModel(
      * Generate a new liquid auth offer with QR code data
      */
     fun generateOffer(origin: String) {
+        // Re-entering the screen or refreshing an invitation must not reset a live host.
+        if (meshHostingEnabled && (hasMeshViewerConnected || getCurrentSessionId() != null)) {
+            if (_pendingMeshOffer.value == null) refreshMeshInvitation(origin)
+            return
+        }
+        offerGenerationJob?.cancel()
         stateDelegate.updateState { OfferState.Loading }
-        viewModelScope.launch {
+        offerGenerationJob = viewModelScope.launch {
             try {
                 val offer = generateOfferUseCase.generateOffer(origin)
                 stateDelegate.updateState {
@@ -128,6 +159,8 @@ class LiquidAuthOfferViewModel(
                     )
                 }
                 eventDelegate.sendEvent(OfferEvent.OfferGenerated(offer.requestId))
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 stateDelegate.updateState {
                     OfferState.Error(e.message ?: "Failed to generate offer")
@@ -136,6 +169,112 @@ class LiquidAuthOfferViewModel(
                     OfferEvent.ShowError(e.message ?: "Failed to generate offer"),
                 )
             }
+        }
+    }
+
+    /**
+     * One new invitation per viewer. Only the first viewer enters the legacy
+     * connection/payment state machine; later viewers never replace its session.
+     * Like the legacy callbacks, these methods are called on the UI thread.
+     */
+    fun onMeshViewerConnected(requestId: String) {
+        if (!meshHostingEnabled || requestId.isBlank() || requestId in _meshViewerIds.value) return
+        val origin = _pendingMeshOffer.value?.origin ?: getCurrentOffer()?.origin
+        _meshViewerIds.value = _meshViewerIds.value + requestId
+        if (!hasMeshViewerConnected) {
+            hasMeshViewerConnected = true
+            offerGenerationJob?.cancel()
+            onClientConnected(requestId)
+        }
+        if (_pendingMeshOffer.value?.requestId == requestId) {
+            _pendingMeshOffer.value = null
+        }
+        origin?.let(::refreshMeshInvitation)
+    }
+
+    /** A peer leaving, including the last peer, does not stop the host or close its vault. */
+    fun onMeshViewerDisconnected(requestId: String) {
+        if (!meshHostingEnabled) return
+        _meshViewerIds.value = _meshViewerIds.value.filterNot { it == requestId }
+        _meshViewerDetails.value = _meshViewerDetails.value - requestId
+        meshViewerProgress.remove(requestId)
+    }
+
+    /**
+     * Replace the full snapshot for a connected request, on the UI thread like membership callbacks.
+     * Managers should copy meshViewerDetails.value[requestId] to preserve fields from other callbacks.
+     * Late updates after disconnect/shutdown are ignored.
+     */
+    fun updateMeshViewerDetails(
+        requestId: String,
+        details: HostViewerDetails,
+    ) {
+        if (requestId !in _meshViewerIds.value) return
+        val updated = meshViewerProgress.getOrPut(requestId) { HostViewerProgress() }.update(details)
+        _meshViewerDetails.value = _meshViewerDetails.value + (requestId to updated)
+    }
+
+    /**
+     * Surface invitation/extra-viewer payment failures without interrupting the host.
+     * Legacy vault billing remains primary-only; the manager supplies the limitation
+     * message for unsupported additional viewers instead of silently failing video.
+     */
+    fun onMeshViewerError(message: String) {
+        _meshError.value = message.ifBlank { "Unable to connect this viewer. Please try a new invitation." }
+    }
+
+    /**
+     * Invalidate only the failed invitation, never a newer replacement or a live peer.
+     * The UI hides the failed QR and keeps manual Refresh available; do not auto-retry.
+     */
+    fun onMeshInvitationFailed(
+        requestId: String,
+        message: String,
+    ) {
+        val pending = _pendingMeshOffer.value
+        if (pending?.requestId == requestId) {
+            _pendingMeshOffer.compareAndSet(pending, null)
+        }
+        onMeshViewerError(message)
+    }
+
+    fun dismissMeshError() {
+        _meshError.value = null
+    }
+
+    /**
+     * Refresh only the invitation, never the live offer/payment state.
+     * This is deliberately not generateOffer(): no Loading state or legacy OfferGenerated
+     * event is emitted. The screen listens to pendingMeshOffer independently.
+     */
+    fun refreshMeshInvitation(origin: String) {
+        if (!meshHostingEnabled) return
+        try {
+            // The use case generates a fresh UUID and matching URL on every call.
+            val offer = generateOfferUseCase.generateOffer(origin)
+            _pendingMeshOffer.value =
+                OfferState.WaitingForConnection(
+                    requestId = offer.requestId,
+                    liquidAuthUrl = offer.liquidAuthUrl,
+                    origin = offer.origin,
+                )
+        } catch (e: Exception) {
+            onMeshViewerError(e.message ?: "Failed to generate invitation")
+        }
+    }
+
+    /** Called on host shutdown, not on peer disconnect. Retains the platform opt-in. */
+    fun clearMeshHosting() {
+        offerGenerationJob?.cancel()
+        offerGenerationJob = null
+        _pendingMeshOffer.value = null
+        _meshViewerIds.value = emptyList()
+        _meshViewerDetails.value = emptyMap()
+        meshViewerProgress.clear()
+        dismissMeshError()
+        hasMeshViewerConnected = false
+        if (meshHostingEnabled) {
+            stateDelegate.updateState { OfferState.Idle }
         }
     }
 
@@ -346,7 +485,11 @@ class LiquidAuthOfferViewModel(
      * Regenerate the offer (creates new requestId)
      */
     fun regenerateOffer(origin: String) {
-        generateOffer(origin)
+        if (meshHostingEnabled && (hasMeshViewerConnected || getCurrentSessionId() != null)) {
+            refreshMeshInvitation(origin)
+        } else {
+            generateOffer(origin)
+        }
     }
 
     /**

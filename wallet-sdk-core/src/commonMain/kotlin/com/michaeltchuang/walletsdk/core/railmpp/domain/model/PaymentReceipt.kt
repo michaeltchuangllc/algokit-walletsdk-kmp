@@ -16,4 +16,8 @@ data class PaymentReceipt(
     val network: String,
     val timestamp: Long,
     val channelId: String? = null,
+    val salt: String? = null,
+    val billingMode: String? = null,
+    /** A budget/consumption acknowledgement, not proof of on-chain settlement. */
+    val settlementDeferred: Boolean = false,
 )

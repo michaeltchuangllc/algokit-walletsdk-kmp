@@ -1,71 +1,56 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
 import android.content.Context
-import android.media.AudioManager
 import android.util.Log
-import org.webrtc.AudioSource
-import org.webrtc.AudioTrack
-import org.webrtc.Camera2Enumerator
-import org.webrtc.CameraVideoCapturer
 import org.webrtc.DataChannel
-import org.webrtc.DefaultVideoDecoderFactory
-import org.webrtc.DefaultVideoEncoderFactory
 import org.webrtc.EglBase
 import org.webrtc.IceCandidate
 import org.webrtc.MediaConstraints
 import org.webrtc.MediaStream
 import org.webrtc.MediaStreamTrack
 import org.webrtc.PeerConnection
-import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
 import org.webrtc.RtpTransceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
-import org.webrtc.SurfaceTextureHelper
-import org.webrtc.VideoSource
 import org.webrtc.VideoTrack
 import java.nio.ByteBuffer
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
-class PeerApi(
+/**
+ * Owns a single connection and its data channels. With [sharedMedia], media resources are borrowed
+ * from the service and are never released by [destroy]. Without it, media is privately owned.
+ * Serialize connection lifecycle calls on the service's thread, outside WebRTC observer callbacks.
+ */
+class PeerApi @JvmOverloads constructor(
     context: Context,
+    sharedMedia: SharedBroadcastMedia? = null,
 ) {
     companion object {
         const val TAG = "connect.PeerApi"
-
-        private const val LOCAL_VIDEO_TRACK_ID = "local_video"
-        private const val LOCAL_AUDIO_TRACK_ID = "local_audio"
-        private const val LOCAL_MEDIA_STREAM_ID = "liquid_stream"
-        private const val DEFAULT_CAPTURE_WIDTH = 1280
-        private const val DEFAULT_CAPTURE_HEIGHT = 720
-        private const val DEFAULT_CAPTURE_FPS = 30
     }
 
-    // Application context, used for camera capture.
-    private val appContext: Context = context.applicationContext
+    private val ownsMedia = sharedMedia == null
+    private val media = sharedMedia ?: SharedBroadcastMedia(context)
+
+    @Volatile
+    private var destroyed = false
+
+    @Volatile
+    private var connectionGeneration = 0
 
     // Data Channel to send and receive messages
+    @Volatile
     private var dataChannel: DataChannel? = null
+    private val dataChannelLock = Any()
     private val additionalDataChannels: MutableMap<String, DataChannel> = mutableMapOf()
+    private val ownedDataChannels: MutableSet<DataChannel> = mutableSetOf()
 
-    // Shared EGL context for hardware video encode/decode + rendering.
-    private val eglBase: EglBase = EglBase.create()
-    val eglBaseContext: EglBase.Context get() = eglBase.eglBaseContext
-
-    // Create the Peer Connection Factory
-    private var peerConnectionFactory: PeerConnectionFactory
-
-    // ── Media tracks (native WebRTC video/audio streaming) ──────────────────────
-    private var videoCapturer: CameraVideoCapturer? = null
-    private var videoSource: VideoSource? = null
-    private var audioSource: AudioSource? = null
-    private var surfaceTextureHelper: SurfaceTextureHelper? = null
+    val eglBaseContext: EglBase.Context get() = media.eglBaseContext
 
     /** Local camera track, used by the creator/host for preview + sending. */
-    var localVideoTrack: VideoTrack? = null
-        private set
-    private var localAudioTrack: AudioTrack? = null
+    val localVideoTrack: VideoTrack? get() = if (destroyed) null else media.localVideoTrack
 
     /** Remote camera track received from the peer, used by the viewer for rendering. */
     var remoteVideoTrack: VideoTrack? = null
@@ -74,26 +59,11 @@ class PeerApi(
     /** Invoked on the signaling thread whenever a remote video track arrives. */
     var onRemoteVideoTrack: ((VideoTrack?) -> Unit)? = null
 
-    init {
-        PeerConnectionFactory.initialize(
-            PeerConnectionFactory.InitializationOptions
-                .builder(context)
-                .setEnableInternalTracer(true)
-                .createInitializationOptions(),
-        )
-        peerConnectionFactory =
-            PeerConnectionFactory
-                .builder()
-                .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
-                .setVideoEncoderFactory(
-                    DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true),
-                ).setOptions(
-                    PeerConnectionFactory.Options().apply {
-                        disableEncryption = false
-                        disableNetworkMonitor = false
-                    },
-                ).createPeerConnectionFactory()
-    }
+    /**
+     * Per-peer notification on WebRTC's signaling thread; never tears down media automatically.
+     * Post any destroy/reconnect work to the service thread, rather than disposing in this callback.
+     */
+    var onIceConnectionStateChange: ((PeerConnection.IceConnectionState) -> Unit)? = null
 
     // Current Peer Connection
     var peerConnection: PeerConnection? = null
@@ -111,9 +81,9 @@ class PeerApi(
                     .createIceServer(),
             ),
     ) {
-        if (peerConnection !== null) {
-            peerConnection?.close()
-        }
+        check(!destroyed) { "PeerApi is destroyed" }
+        releasePeerConnection()
+        val generation = connectionGeneration
 
         val rtcConfig =
             PeerConnection
@@ -123,10 +93,11 @@ class PeerApi(
                 }
 
         peerConnection =
-            peerConnectionFactory.createPeerConnection(
+            media.factory.createPeerConnection(
                 rtcConfig,
                 object : PeerConnection.Observer {
                     override fun onIceCandidate(p0: IceCandidate?) {
+                        if (destroyed || generation != connectionGeneration) return
                         p0?.let {
                             onIceCandidate(it)
                         }
@@ -135,20 +106,35 @@ class PeerApi(
                     override fun onDataChannel(p0: DataChannel?) {
                         Log.d(TAG, "onDataChannel($p0)")
                         val incomingChannel = p0 ?: return
-                        val label = incomingChannel.label()
-                        if (label == "liquid" || dataChannel == null) {
-                            dataChannel = incomingChannel
-                        } else {
-                            additionalDataChannels[label] = incomingChannel
+                        val accepted =
+                            synchronized(dataChannelLock) {
+                                if (destroyed || generation != connectionGeneration) {
+                                    false
+                                } else {
+                                    ownedDataChannels.add(incomingChannel)
+                                    val label = incomingChannel.label()
+                                    if (label == "liquid" || dataChannel == null) {
+                                        dataChannel = incomingChannel
+                                    } else {
+                                        additionalDataChannels[label] = incomingChannel
+                                    }
+                                    true
+                                }
+                            }
+                        if (!accepted) {
+                            disposeDataChannel(incomingChannel)
+                            return
                         }
                         onDataChannel(incomingChannel)
                     }
 
                     override fun onIceConnectionChange(p0: PeerConnection.IceConnectionState?) {
+                        if (destroyed || generation != connectionGeneration) return
                         Log.d(TAG, "onIceConnectionChange($p0)")
                         if (p0 === PeerConnection.IceConnectionState.FAILED) {
                             Log.e(TAG, "ICE Connection Failed")
                         }
+                        p0?.let { onIceConnectionStateChange?.invoke(it) }
                     }
 
                     override fun onIceConnectionReceivingChange(p0: Boolean) {
@@ -183,11 +169,13 @@ class PeerApi(
                         p0: RtpReceiver?,
                         p1: Array<out MediaStream>?,
                     ) {
+                        if (destroyed || generation != connectionGeneration) return
                         Log.d(TAG, "onAddTrack($p0, $p1)")
                         (p0?.track() as? VideoTrack)?.let { handleRemoteVideoTrack(it) }
                     }
 
                     override fun onTrack(transceiver: RtpTransceiver?) {
+                        if (destroyed || generation != connectionGeneration) return
                         val track = transceiver?.receiver?.track()
                         Log.d(TAG, "onTrack(${track?.kind()})")
                         (track as? VideoTrack)?.let { handleRemoteVideoTrack(it) }
@@ -371,10 +359,12 @@ class PeerApi(
         if (peerConnection === null) {
             throw Exception("peerConnection is null")
         }
-        dataChannel?.close()
-        additionalDataChannels.clear()
+        disposeDataChannels()
         val channel = peerConnection?.createDataChannel(label, DataChannel.Init())
-        dataChannel = channel
+        synchronized(dataChannelLock) {
+            dataChannel = channel
+            channel?.let { ownedDataChannels.add(it) }
+        }
         return channel
     }
 
@@ -384,12 +374,16 @@ class PeerApi(
         }
         val channel = peerConnection?.createDataChannel(label, DataChannel.Init())
         if (channel != null) {
-            additionalDataChannels[label] = channel
+            synchronized(dataChannelLock) {
+                ownedDataChannels.add(channel)
+                additionalDataChannels[label] = channel
+            }
         }
         return channel
     }
 
-    fun getAdditionalDataChannel(label: String): DataChannel? = additionalDataChannels[label]
+    fun getAdditionalDataChannel(label: String): DataChannel? =
+        synchronized(dataChannelLock) { additionalDataChannels[label] }
 
     fun send(message: String) {
         val channel = dataChannel
@@ -411,52 +405,21 @@ class PeerApi(
 
     // ── Native WebRTC media tracks ──────────────────────────────────────────────
 
+    /** Starts (or reuses) capture and attaches it to this connection before SDP negotiation. */
     fun startLocalCapture(
-        width: Int = DEFAULT_CAPTURE_WIDTH,
-        height: Int = DEFAULT_CAPTURE_HEIGHT,
-        fps: Int = DEFAULT_CAPTURE_FPS,
+        width: Int = SharedBroadcastMedia.DEFAULT_CAPTURE_WIDTH,
+        height: Int = SharedBroadcastMedia.DEFAULT_CAPTURE_HEIGHT,
+        fps: Int = SharedBroadcastMedia.DEFAULT_CAPTURE_FPS,
     ): VideoTrack? {
+        check(!destroyed) { "PeerApi is destroyed" }
         val pc =
             peerConnection ?: run {
                 Log.w(TAG, "startLocalCapture skipped: peerConnection is null")
                 return null
             }
-        if (localVideoTrack != null || localAudioTrack != null) {
-            Log.d(TAG, "startLocalCapture skipped: capture already started")
-            return localVideoTrack
-        }
-        configureAudioForStreaming()
-
-        // Video capture
-        val capturer = createCameraCapturer()
-        if (capturer != null) {
-            videoCapturer = capturer
-            val helper = SurfaceTextureHelper.create("CaptureThread", eglBase.eglBaseContext)
-            surfaceTextureHelper = helper
-            val source = peerConnectionFactory.createVideoSource(capturer.isScreencast)
-            videoSource = source
-            capturer.initialize(helper, appContext, source.capturerObserver)
-            runCatching { capturer.startCapture(width, height, fps) }
-                .onFailure { Log.e(TAG, "Failed to start camera capture", it) }
-            val track = peerConnectionFactory.createVideoTrack(LOCAL_VIDEO_TRACK_ID, source)
-            track.setEnabled(true)
-            localVideoTrack = track
-            pc.addTrack(track, listOf(LOCAL_MEDIA_STREAM_ID))
-            Log.d(TAG, "Local video track added")
-        } else {
-            Log.w(TAG, "No camera available for local capture")
-        }
-
-        // Audio capture
-        val aSource = peerConnectionFactory.createAudioSource(MediaConstraints())
-        audioSource = aSource
-        val aTrack = peerConnectionFactory.createAudioTrack(LOCAL_AUDIO_TRACK_ID, aSource)
-        aTrack.setEnabled(true)
-        localAudioTrack = aTrack
-        pc.addTrack(aTrack, listOf(LOCAL_MEDIA_STREAM_ID))
-        Log.d(TAG, "Local audio track added")
-
-        return localVideoTrack
+        val track = media.startCapture(width, height, fps)
+        media.attachTracks(pc)
+        return track
     }
 
     fun addReceiveOnlyMediaTransceivers() {
@@ -471,98 +434,64 @@ class PeerApi(
             )
         pc.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_VIDEO, init)
         pc.addTransceiver(MediaStreamTrack.MediaType.MEDIA_TYPE_AUDIO, init)
-        configureAudioForStreaming()
+        media.configureAudioForStreaming()
         Log.d(TAG, "Added recv-only video + audio transceivers")
     }
 
-    /** Toggle between front/back cameras (creator side). */
+    /** Toggle front/back cameras for all peers using this media owner (creator side). */
     fun switchCamera() {
-        videoCapturer?.switchCamera(null)
+        if (!destroyed) media.switchCamera()
     }
 
     fun setAudioEnabled(enabled: Boolean) {
-        localAudioTrack?.setEnabled(enabled)
-        Log.d(TAG, "Local audio track enabled: $enabled")
+        if (!destroyed) media.setAudioEnabled(enabled)
     }
 
     fun setVideoEnabled(enabled: Boolean) {
-        localVideoTrack?.setEnabled(enabled)
-        Log.d(TAG, "Local video track enabled: $enabled")
+        if (!destroyed) media.setVideoEnabled(enabled)
     }
 
-    private fun createCameraCapturer(): CameraVideoCapturer? {
-        val enumerator = Camera2Enumerator(appContext)
-        // Prefer the front camera, fall back to the back camera.
-        enumerator.deviceNames.firstOrNull { enumerator.isFrontFacing(it) }?.let {
-            return enumerator.createCapturer(it, null)
-        }
-        enumerator.deviceNames.firstOrNull { enumerator.isBackFacing(it) }?.let {
-            return enumerator.createCapturer(it, null)
-        }
-        return enumerator.deviceNames.firstOrNull()?.let { enumerator.createCapturer(it, null) }
+    private fun disposeDataChannel(channel: DataChannel) {
+        runCatching { channel.unregisterObserver() }
+            .onFailure { Log.w(TAG, "Failed to unregister data channel observer", it) }
+        runCatching { channel.close() }
+            .onFailure { Log.w(TAG, "Failed to close data channel", it) }
+        runCatching { channel.dispose() }
+            .onFailure { Log.w(TAG, "Failed to dispose data channel", it) }
     }
 
-    private fun stopLocalCapture() {
-        runCatching { videoCapturer?.stopCapture() }
-        videoCapturer?.dispose()
-        videoCapturer = null
-        surfaceTextureHelper?.dispose()
-        surfaceTextureHelper = null
-        localVideoTrack = null
-        localAudioTrack = null
-        runCatching { videoSource?.dispose() }
-        videoSource = null
-        runCatching { audioSource?.dispose() }
-        audioSource = null
+    private fun disposeDataChannels() {
+        val channels =
+            synchronized(dataChannelLock) {
+                ownedDataChannels.toList().also {
+                    ownedDataChannels.clear()
+                    dataChannel = null
+                    additionalDataChannels.clear()
+                }
+            }
+        channels.forEach { disposeDataChannel(it) }
     }
 
-    // ── Audio routing ─────────────────────────────────────────────────────────────
-
-    // null = audio not yet configured; non-null = saved original mode to restore on destroy().
-    private var savedAudioMode: Int? = null
-    private var savedSpeakerphoneOn: Boolean = false
-
-    /**
-     * Route audio to the loudspeaker for media streaming.
-     *
-     * WebRTC uses `AudioAttributes.USAGE_VOICE_COMMUNICATION` internally, which Android routes to
-     * the earpiece by default. Calling this with `MODE_IN_COMMUNICATION + speakerphoneOn = true`
-     * overrides that so viewers and creators both hear through the loudspeaker.
-     */
-    @Suppress("DEPRECATION")
-    private fun configureAudioForStreaming() {
-        if (savedAudioMode != null) return // already configured
-        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        savedAudioMode = am.mode
-        savedSpeakerphoneOn = am.isSpeakerphoneOn
-        am.mode = AudioManager.MODE_IN_COMMUNICATION
-        am.isSpeakerphoneOn = true
-        Log.d(TAG, "Audio routed to loudspeaker (was mode=$savedAudioMode, speaker=$savedSpeakerphoneOn)")
-    }
-
-    @Suppress("DEPRECATION")
-    private fun restoreAudioMode() {
-        val previousMode = savedAudioMode ?: return
-        savedAudioMode = null
-        val am = appContext.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        am.isSpeakerphoneOn = savedSpeakerphoneOn
-        am.mode = previousMode
-        Log.d(TAG, "Audio mode restored to $previousMode, speaker=$savedSpeakerphoneOn")
-    }
-
-    fun destroy() {
-        restoreAudioMode()
-        stopLocalCapture()
-        remoteVideoTrack = null
-        onRemoteVideoTrack = null
-        dataChannel?.close()
-//        dataChannel?.dispose()
-        additionalDataChannels.values.forEach { it.close() }
-        additionalDataChannels.clear()
-        peerConnection?.close()
-        peerConnection?.dispose()
+    private fun releasePeerConnection() {
+        // Invalidate callbacks from the previous connection before native close/dispose.
+        connectionGeneration++
+        val connection = peerConnection
         peerConnection = null
-        dataChannel = null
-        runCatching { eglBase.release() }
+        remoteVideoTrack = null
+        disposeDataChannels()
+        // dispose() closes the connection and releases its senders/receivers/transceivers.
+        // Do not separately dispose remote tracks or the media owner's local track wrappers.
+        runCatching { connection?.dispose() }
+            .onFailure { Log.w(TAG, "Failed to dispose peer connection", it) }
+    }
+
+    /** Terminal and idempotent. Must not be called synchronously from a WebRTC observer. */
+    fun destroy() {
+        if (destroyed) return
+        destroyed = true
+        onRemoteVideoTrack = null
+        onIceConnectionStateChange = null
+        releasePeerConnection()
+        if (ownsMedia) media.dispose()
     }
 }

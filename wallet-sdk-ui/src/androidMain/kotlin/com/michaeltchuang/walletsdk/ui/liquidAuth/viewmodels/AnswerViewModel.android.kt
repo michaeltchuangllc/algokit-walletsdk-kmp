@@ -361,13 +361,16 @@ actual open class AnswerViewModel actual constructor(
                     SetupMppPaymentViewerUseCase.Params(
                         dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                         viewerAddress = address,
+                        hostAddress = hostAddress.value,
                         scope = viewModelScope,
                         signer = signer,
                         mppNetwork = mppNetwork,
                         requestMppConsent = ::requestMppConsentFromUi,
+                        setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                         setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                         signFido2Challenge = ::signFido2Challenge,
                         onChatMessageReceived = ::onChatMessageReceived,
+                        getHostAddress = { hostAddress.value },
                     ),
                 )
             } catch (_: CancellationException) {

@@ -7,11 +7,14 @@ import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastHostChatSendHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastViewerStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosMeshHostingIntegrated
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
@@ -578,6 +581,11 @@ var isBroadcastChannelOpen: Boolean = false
 var broadcastConnectionTypeString: String = "unknown"
 
 fun setIosBroadcastPaymentSendHandler(handler: (String) -> Unit) {
+    // An unkeyed setter cannot tell primary from an additional viewer.
+    if (iosMeshHostingIntegrated) {
+        println("[BroadcastHandlers] ignored unkeyed mesh payment sender; use setIosBroadcastViewerPaymentSendHandler")
+        return
+    }
     iosBroadcastPaymentDCSendMessageHandler = handler
     println("[BroadcastHandlers] iosBroadcastPaymentDCSendMessageHandler set (payment DC ready)")
 }
@@ -588,7 +596,11 @@ fun registerBroadcastHandlers(
     sendMessageHandler: (String) -> Unit,
 ) {
     iosBroadcastStartHandler = startHandler
-    iosBroadcastStopHandler = stopHandler
+    iosBroadcastStopHandler = {
+        isBroadcastChannelOpen = false
+        broadcastConnectionTypeString = "unknown"
+        stopHandler()
+    }
     iosBroadcastSendMessageHandler = sendMessageHandler
     // is-connected and connection-type are driven by Kotlin vars to avoid
     // () -> Boolean / () -> String interop complications on the Swift side.
@@ -599,6 +611,44 @@ fun registerBroadcastHandlers(
     // MppWalletSignerUseCase) is now handled entirely in shared Kotlin by
     // LiquidStreamBlockConsumptionManager — no Swift callback needed.
     println("iOS broadcast handlers registered")
+}
+
+/**
+ * Install a stop-one-invitation callback. It must never stop shared capture or other peers.
+ * All invitation callbacks/registrations must be delivered on the main thread.
+ */
+fun setIosBroadcastViewerStopHandler(handler: (String) -> Unit) {
+    iosBroadcastViewerStopHandler = handler
+}
+
+/**
+ * Optional fanout of explicit host chat JSON to all viewers, including the primary, exactly once.
+ * Never use this handler for arbitrary session, payment, voucher, or identity envelopes.
+ */
+fun setIosBroadcastHostChatSendHandler(handler: (String) -> Unit) {
+    iosBroadcastHostChatSendHandler = handler
+}
+
+fun setIosBroadcastViewerPaymentSendHandler(
+    requestId: String,
+    handler: (String) -> Unit,
+) {
+    activeIOSBroadcastConnectionManager?.setBroadcastViewerPaymentSendHandler(requestId, handler)
+}
+
+/**
+ * Call once Swift's invitation-keyed transport, stable shared capture/preview, and callbacks
+ * are integrated, before starting a host. Legacy registerBroadcastHandlers alone does NOT opt in.
+ * startHandler adds an invitation; stopHandler stops ALL invitations and shared capture.
+ * Legacy general send remains primary-only; payment senders and inbound messages MUST be keyed.
+ */
+fun enableIosMeshHosting() {
+    if (iosBroadcastStartHandler == null || iosBroadcastStopHandler == null || iosBroadcastViewerStopHandler == null) {
+        println("[BroadcastHandlers] mesh opt-in deferred: install start, stop-all and stop-viewer handlers first")
+        return
+    }
+    iosMeshHostingIntegrated = true
+    activeIOSBroadcastConnectionManager?.enableMeshHosting()
 }
 
 fun registerIosNativeMediaHandlers(
@@ -621,8 +671,45 @@ fun notifyBroadcastClientDisconnected() {
     activeIOSBroadcastConnectionManager?.notifyClientDisconnected()
 }
 
+fun notifyBroadcastViewerConnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastViewerConnected(requestId)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+fun notifyBroadcastViewerDisconnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastViewerDisconnected(requestId)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+/** Invitation-keyed, selected-pair ICE statistics; call on the main thread. */
+fun notifyBroadcastViewerConnectionType(requestId: String, type: String) {
+    activeIOSBroadcastConnectionManager?.notifyBroadcastViewerConnectionType(requestId, type)
+}
+
+fun notifyBroadcastInvitationFailed(
+    requestId: String,
+    message: String,
+) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastInvitationFailed(requestId, message)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+/** Use this for BOTH general and payment data-channel messages from an identified host peer. */
+fun notifyBroadcastViewerMessageReceived(
+    requestId: String,
+    message: String,
+) {
+    activeIOSBroadcastConnectionManager?.notifyBroadcastViewerMessageReceived(requestId, message)
+}
+
 fun notifyBroadcastMessageReceived(message: String) {
-    activeIOSBroadcastConnectionManager?.notifyMessageReceived(message)
+    activeIOSBroadcastConnectionManager?.notifyLegacyBroadcastMessageReceived(message)
 }
 
 fun getBroadcastCaptureSession(): Any? = com.michaeltchuang.walletsdk.ui.liquidStream.components.iosBroadcastCaptureSession

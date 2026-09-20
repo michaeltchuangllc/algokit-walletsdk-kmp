@@ -166,6 +166,14 @@ kotlin {
             }
         }
 
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.mockk)
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.junit)
+            }
+        }
+
         val androidDeviceTest by getting {
             dependencies {
                 implementation(compose.uiTooling)

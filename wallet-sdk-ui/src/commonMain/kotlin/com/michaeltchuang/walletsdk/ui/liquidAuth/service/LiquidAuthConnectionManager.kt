@@ -161,6 +161,8 @@ data class ResolvedLiquidAuthPaymentRequest(
 class LiquidAuthViewerHelloMessage(
     val viewerAddress: String?,
     val viewerPublicKey: ByteArray?,
+    /** Optional actual vault channel, independent of voucher/payment session metadata. */
+    val channelId: ByteArray? = null,
 )
 
 class LiquidAuthPaymentVoucherMessage(
@@ -234,6 +236,7 @@ fun parseLiquidAuthHostTransportMessage(message: String): LiquidAuthHostTranspor
             LiquidAuthViewerHelloMessage(
                 viewerAddress = message.jsonOptString("viewer"),
                 viewerPublicKey = viewerPublicKeyBase64?.decodeLiquidAuthBase64OrNull(),
+                channelId = message.jsonOptString("channelId")?.decodeLiquidAuthBase64OrNull(),
             )
         } else {
             null

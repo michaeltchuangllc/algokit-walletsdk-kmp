@@ -173,6 +173,7 @@ fun AnswerScreen(
                 },
             ) {
                 LiquidStreamViewerScreen(
+                    viewModel = viewerViewModel,
                     sessionId = session,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,

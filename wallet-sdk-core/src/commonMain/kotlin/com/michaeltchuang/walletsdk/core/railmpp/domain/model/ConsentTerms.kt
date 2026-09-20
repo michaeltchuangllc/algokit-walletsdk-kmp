@@ -8,4 +8,5 @@ data class ConsentTerms(
     val segmentDuration: Int? = null,
     val segmentBytes: Long? = null,
     val suggestedBudgetCap: String? = null,
+    val billingMode: String? = null,
 )

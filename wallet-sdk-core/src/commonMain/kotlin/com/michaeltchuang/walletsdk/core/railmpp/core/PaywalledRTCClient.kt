@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.railmpp.core
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BillingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
@@ -17,6 +18,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.ensureCryptoProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -46,6 +48,7 @@ class PaywalledRTCClient(
     private val paymentRail: PaymentRail,
     private val consent: ConsentHandler,
     private val config: ClientConfig = ClientConfig(),
+    private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private companion object {
         const val TAG = "PaywalledRTCClient"
@@ -72,6 +75,10 @@ class PaywalledRTCClient(
     private var consentApproval: ConsentApproval? = null
     private var started = false
     private var disposed = false
+    private var vaultOnlySession = false
+    private var vaultRequest: PaymentRequest? = null
+    private var vaultIdentity: Triple<String, String, String>? = null
+    private val consumedVaultSegments = mutableSetOf<Pair<String, Int>>()
 
     val spend = SpendSummary()
 
@@ -158,7 +165,14 @@ class PaywalledRTCClient(
         sendDC(
             buildJsonObject {
                 put(DCFieldKey.TYPE, DCMessageType.VIEWER_VAULT_FUNDED.value)
-                put(DCFieldKey.SESSION_ID, sessionId)
+                val request = vaultRequest
+                put(DCFieldKey.SESSION_ID, request?.sessionId ?: sessionId)
+                if (vaultOnlySession && request != null) {
+                    put("billingMode", BillingMode.SESSION_VAULT)
+                    put("nonce", request.nonce)
+                    put("channelId", request.channelId)
+                    put("salt", request.salt)
+                }
             },
         )
     }
@@ -224,6 +238,14 @@ class PaywalledRTCClient(
             val msgType = DCMessageType.fromStringOrNull(rawType)
             Napier.d("[DC_MESSAGE_RECEIVED] type=$rawType bytes=${msgStr.length}", tag = TAG)
             when (msgType) {
+                DCMessageType.SEGMENT_HANDSHAKE -> {
+                    if (msg["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT &&
+                        msg["requestViewerIdentity"]?.jsonPrimitive?.content == "true"
+                    ) {
+                        acceptBillingMode(BillingMode.SESSION_VAULT)
+                        onDataChannelOpen?.invoke()
+                    }
+                }
                 DCMessageType.SEGMENT_REQUEST -> {
                     val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
                     // Merge envelope fields if not present in the payload.
@@ -238,6 +260,11 @@ class PaywalledRTCClient(
                             }
                         }
                     val request = paymentRequestFromJson(merged)
+                    acceptBillingMode(request.billingMode)
+                    if (vaultOnlySession) {
+                        validateVaultIdentity(request.sessionId, request.channelId, request.salt)
+                        vaultRequest = request
+                    }
                     captureChannelId(request.channelId)
                     captureSalt(request.salt)
                     EscrowSessionVaultHybridManagerClient.hostAddress = request.payTo
@@ -254,6 +281,36 @@ class PaywalledRTCClient(
                 DCMessageType.SEGMENT_ACCEPTED -> {
                     val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
                     val receipt = receiptDecodeJson.decodeFromJsonElement<PaymentReceipt>(payload)
+                    acceptBillingMode(receipt.billingMode)
+                    if (vaultOnlySession) {
+                        require(receipt.settlementDeferred) { "Session-vault receipt must defer settlement" }
+                        require(BigInteger.parseString(receipt.amount) >= BigInteger.ZERO)
+                        validateVaultIdentity(receipt.sessionId, receipt.channelId, receipt.salt)
+                        val key = receipt.sessionId to receipt.segmentIndex
+                        if (key in consumedVaultSegments) return
+                        val newTotal = BigInteger.parseString(spend.totalAmount) + BigInteger.parseString(receipt.amount)
+                        consentApproval?.budgetCap?.let { cap ->
+                            if (newTotal > BigInteger.parseString(cap.amount)) {
+                                onBudgetExceeded?.invoke(spend)
+                                onStreamGated?.invoke("Budget exceeded")
+                                return
+                            }
+                        }
+                        consumedVaultSegments.add(key)
+                        spend.asset = receipt.asset
+                        spend.segmentsPaid++
+                        spend.totalAmount = newTotal.toString()
+                        spend.transactions.add(
+                            SpendTransaction(
+                                txId = receipt.txId,
+                                amount = receipt.amount,
+                                segmentIndex = receipt.segmentIndex,
+                                timestamp = receipt.timestamp,
+                            ),
+                        )
+                        captureSalt(receipt.salt)
+                        EscrowSessionVaultHybridManagerClient.hostAddress = receipt.payTo
+                    }
                     captureChannelId(receipt.channelId)
                     onPaymentReceipt?.invoke(receipt)
                 }
@@ -285,7 +342,7 @@ class PaywalledRTCClient(
         onPaymentRequested?.invoke(request)
 
         // Auto-pay configured + usage payment (not access gate) → skip consent entirely.
-        if (consentApproval == null &&
+        if (!vaultOnlySession && consentApproval == null &&
             config.autoPaySegments &&
             request.meta.gatingMode != GatingMode.WHOLE_STREAM
         ) {
@@ -300,7 +357,8 @@ class PaywalledRTCClient(
         }
 
         // Request consent if: first payment and no auto-approval, OR auto-pay is off.
-        val needsConsent = consentApproval == null || !consentApproval!!.autoPaySegments
+        // Vault requests mean the host needs funding, not another direct auto-payment.
+        val needsConsent = vaultOnlySession || consentApproval == null || !consentApproval!!.autoPaySegments
 
         if (needsConsent) {
             val terms =
@@ -311,6 +369,7 @@ class PaywalledRTCClient(
                     network = request.network,
                     segmentDuration = request.meta.segmentDuration,
                     segmentBytes = request.meta.segmentBytes,
+                    billingMode = request.billingMode,
                 )
             onConsentRequested?.invoke(terms)
             val approval =
@@ -359,10 +418,18 @@ class PaywalledRTCClient(
             }
         }
 
+        if (vaultOnlySession) {
+            // Consent funds the vault. A notification is not a signed transfer and cannot
+            // authorize settlement; the host must independently validate on-chain funding.
+            notifyVaultFunded(request.sessionId)
+            return
+        }
+
         // Create and sign payment via the rail.
         try {
             val railPayment =
-                withContext(Dispatchers.Default) {
+                withContext(workDispatcher) {
+                    check(!vaultOnlySession) { "Direct payments are disabled for session-vault billing" }
                     ensureCryptoProvider()
                     paymentRail.createRailPayment(request)
                 }
@@ -401,6 +468,24 @@ class PaywalledRTCClient(
             onError?.invoke(e)
             onStreamGated?.invoke("Payment failed: ${e.message}")
         }
+    }
+
+    private fun acceptBillingMode(mode: String?) {
+        require(mode == null || mode == BillingMode.SESSION_VAULT) { "Unsupported billing mode" }
+        require(!vaultOnlySession || mode == BillingMode.SESSION_VAULT) { "Billing mode downgrade rejected" }
+        if (mode == BillingMode.SESSION_VAULT) vaultOnlySession = true
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    private fun validateVaultIdentity(sessionId: String, channelId: String?, salt: String?) {
+        require(sessionId.isNotBlank()) { "Invalid vault session" }
+        val channel = Base64.decode(requireNotNull(channelId))
+        val channelSalt = Base64.decode(requireNotNull(salt))
+        require(channel.size == 32) { "Invalid vault channel" }
+        require(channelSalt.isNotEmpty()) { "Invalid vault salt" }
+        val identity = Triple(sessionId, Base64.encode(channel), Base64.encode(channelSalt))
+        require(vaultIdentity == null || vaultIdentity == identity) { "Vault identity changed" }
+        vaultIdentity = identity
     }
 
     @OptIn(ExperimentalEncodingApi::class)

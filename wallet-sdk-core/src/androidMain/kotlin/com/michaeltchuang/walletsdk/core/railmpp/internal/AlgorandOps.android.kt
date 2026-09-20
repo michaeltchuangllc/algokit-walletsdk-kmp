@@ -17,6 +17,7 @@ import uniffi.algokit_transact_ffi.PaymentTransactionFields
 import uniffi.algokit_transact_ffi.SignedTransaction
 import uniffi.algokit_transact_ffi.Transaction
 import uniffi.algokit_transact_ffi.TransactionType
+import uniffi.algokit_transact_ffi.decodeTransaction
 import uniffi.algokit_transact_ffi.encodeSignedTransaction
 import uniffi.algokit_transact_ffi.encodeTransactionRaw
 import uniffi.algokit_transact_ffi.getLogicSignatureAddress
@@ -237,6 +238,62 @@ internal actual suspend fun submitLogicSigSettlementInternal(
     authorizedSignerPublicKey: ByteArray,
     payeeAddress: String,
     note: ByteArray?,
+): String = executeLogicSigSettlement(
+    payerSigner, appId, usdcAssetId, algodUrl, channelId, cumulativeAmountMicroUsdc,
+    voucherSignature, authorizedSignerPublicKey, payeeAddress, note,
+)
+
+internal actual suspend fun validateLogicSigSettlementInternal(
+    funderSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+) {
+    val signature = voucherSignature.copyOf()
+    val source = buildVoucherVerifierTeal(
+        appId, channelId, cumulativeAmountMicroUsdc, signature, authorizedSignerPublicKey, payeeAddress,
+    )
+    val program = algodCompileTeal(algodUrl, source)
+    require(program.isNotEmpty()) { "Voucher verifier compile returned empty" }
+    val verifierAddress = getLogicSignatureAddress(program)
+    val params = fetchTxParams(algodUrl)
+    val envelopes = buildVoucherValidationGroup(
+        program, signature, funderSigner.address, verifierAddress, params.minFee, params.feePerByte,
+        object : VoucherValidationTransactions {
+            override fun payment(sender: String, receiver: String, amount: Long, fee: Long, note: ByteArray): ByteArray =
+                encodeTransactionRaw(buildPaymentTxn(sender, receiver, amount, fee, params).copy(note = note))
+
+            override fun group(transactions: List<ByteArray>): List<ByteArray> =
+                groupTransactions(transactions.map { decodeTransaction(it) }).map { encodeTransactionRaw(it) }
+
+            override fun logicSign(program: ByteArray, signature: ByteArray, transaction: ByteArray): ByteArray =
+                signWithLogicSig(program, listOf(signature), decodeTransaction(transaction))
+        },
+    )
+    val response = httpRequest(
+        algodUrl, "/v2/transactions/simulate", "POST", "application/msgpack",
+        buildVoucherValidationRequest(envelopes),
+    )
+    check(response.code in 200..299) { "Voucher simulation HTTP ${response.code}: ${response.body.take(300)}" }
+    requireVerifiedVoucherSimulation(response.body, envelopes.size, signature.size)
+}
+
+private suspend fun executeLogicSigSettlement(
+    payerSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+    note: ByteArray?,
 ): String {
     require(channelId.size == 32) { "channelId must be 32 bytes" }
     val encodedChannelId = byteArrayOf(0, channelId.size.toByte()) + channelId
@@ -339,6 +396,7 @@ private data class AlgodTxParams(
     val genesisHash: ByteArray,
     val genesisId: String,
     val minFee: Long,
+    val feePerByte: Long,
 )
 
 private fun fetchTxParams(algodUrl: String): AlgodTxParams {
@@ -351,6 +409,7 @@ private fun fetchTxParams(algodUrl: String): AlgodTxParams {
         genesisHash = Base64.decode(genesisHashB64, Base64.DEFAULT),
         genesisId = json.optString("genesis-id", "testnet-v1.0"),
         minFee = json.optLong("min-fee", MIN_TXN_FEE),
+        feePerByte = json.optLong("fee", 0L),
     )
 }
 
