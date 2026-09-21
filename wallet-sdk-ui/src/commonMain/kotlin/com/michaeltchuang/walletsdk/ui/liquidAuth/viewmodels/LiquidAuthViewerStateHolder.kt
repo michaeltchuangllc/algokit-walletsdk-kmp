@@ -68,7 +68,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         // No frames for this long = stream ended. Tune this to trade off responsiveness
         // (lower = viewer disconnects faster after the host stops) vs. tolerance for
         // transient frame gaps/hiccups (higher = fewer false-positive disconnects).
-        private const val STREAM_TIMEOUT_MS = 2_000L
+        private const val STREAM_TIMEOUT_MS = 10_000L
 
         private const val BASE58_ALPHABET =
             "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -199,7 +199,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     _session.value = SESSION_LOGGED_OUT
                     _authMessage.value = null
                     val reason =
-                        "Stream disconnected because no video frames were received for a few seconds. " +
+                        "Stream disconnected because no video frames were received for 10 seconds. " +
                             "Please reconnect to continue watching."
                     _error.value = reason
                     onStreamTimeout(reason)
