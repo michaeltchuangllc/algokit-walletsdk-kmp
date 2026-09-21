@@ -15,8 +15,9 @@ class ValidateSettlementVoucherTest {
         val channel = ByteArray(32) { it.toByte() }
         val key = ByteArray(32) { (it + 32).toByte() }
         val teal = buildVoucherVerifierTeal(123, channel, 456, ByteArray(64), key, payee)
-        val expectedMessage = encodeUint64(123) + channel + encodeUint64(456) +
-            ByteArray(32) + "settle-lsig-v1".encodeToByteArray()
+        val expectedMessage =
+            encodeUint64(123) + channel + encodeUint64(456) +
+                ByteArray(32) + "settle-lsig-v1".encodeToByteArray()
         assertEquals(
             listOf(
                 "#pragma version 7",
@@ -72,7 +73,13 @@ class ValidateSettlementVoucherTest {
             assertTrue(fake.payments.drop(2).all { it.sender == "sponsor" && it.receiver == "sponsor" })
             assertEquals("verifier", fake.payments[1].sender)
             assertEquals("verifier", fake.payments[1].receiver)
-            assertEquals(expectedCount, fake.payments.map { it.note.single() }.toSet().size)
+            assertEquals(
+                expectedCount,
+                fake.payments
+                    .map { it.note.single() }
+                    .toSet()
+                    .size,
+            )
             assertEquals(1, fake.logicSignCalls)
             assertContentEquals(signature, fake.signedSignature)
             assertContentEquals(program, fake.signedProgram)
@@ -92,11 +99,19 @@ class ValidateSettlementVoucherTest {
     fun `EXPECT the group to rebuild with the encoded byte fee and preserve the Falcon minimum WHEN a per-byte fee is supplied`() {
         val fake = RecordingTransactions()
         val envelopes = buildVoucherValidationGroup(ByteArray(1900), ByteArray(1232), "sponsor", "verifier", 1000, 10, fake)
-        val required = envelopes.mapIndexed { index, bytes ->
-            maxOf(if (index == 1) 3000L else 1000L, (bytes.size + if (index != 1) 75 else 0) * 10L)
-        }.sum()
+        val required =
+            envelopes
+                .mapIndexed { index, bytes ->
+                    maxOf(if (index == 1) 3000L else 1000L, (bytes.size + if (index != 1) 75 else 0) * 10L)
+                }.sum()
         assertTrue(fake.logicSignCalls > 1)
-        assertEquals(required, fake.payments.takeLast(4).first().fee)
+        assertEquals(
+            required,
+            fake.payments
+                .takeLast(4)
+                .first()
+                .fee,
+        )
         assertTrue(required > 6000)
     }
 
@@ -124,7 +139,9 @@ class ValidateSettlementVoucherTest {
         for (forbidden in listOf("fix-signers", "accounts", "sources", "extra-opcode-budget", "allow-unnamed-resources")) {
             assertFalse(forbidden in text)
         }
-        val prefix = "83b6616c6c6f772d656d7074792d7369676e617475726573c3b1657865632d74726163652d636f6e66696781a6656e61626c65c3aa74786e2d67726f7570739181a474786e7392"
+        val prefix =
+            "83b6616c6c6f772d656d7074792d7369676e617475726573c3b1657865632d74726163652d636f6e66696781a6656e" +
+                "61626c65c3aa74786e2d67726f7570739181a474786e7392"
         assertContentEquals(hex(prefix) + envelopes[0] + envelopes[1], request)
         assertFails { buildVoucherValidationRequest(emptyList()) }
         assertFails { buildVoucherValidationRequest(listOf(byteArrayOf(), byteArrayOf(1))) }
@@ -163,11 +180,18 @@ class ValidateSettlementVoucherTest {
     }
 
     private val success =
-        """{"txn-groups":[{"txn-results":[{"txn-result":{}},{"txn-result":{},"logic-sig-budget-consumed":1904,"exec-trace":{"logic-sig-trace":[{"pc":1}]}}]}]}"""
+        """{"txn-groups":[{"txn-results":[{"txn-result":{}},{"txn-result":{},"logic-sig-budget-consumed":1904,""" +
+            """"exec-trace":{"logic-sig-trace":[{"pc":1}]}}]}]}"""
 
     private fun hex(value: String) = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-    private class Payment(val sender: String, val receiver: String, val amount: Long, val fee: Long, val note: ByteArray)
+    private class Payment(
+        val sender: String,
+        val receiver: String,
+        val amount: Long,
+        val fee: Long,
+        val note: ByteArray,
+    )
 
     private class RecordingTransactions(
         val emptySignature: Boolean = false,
@@ -181,7 +205,13 @@ class ValidateSettlementVoucherTest {
         var signedTransaction = byteArrayOf()
         var signedEnvelope = byteArrayOf()
 
-        override fun payment(sender: String, receiver: String, amount: Long, fee: Long, note: ByteArray): ByteArray {
+        override fun payment(
+            sender: String,
+            receiver: String,
+            amount: Long,
+            fee: Long,
+            note: ByteArray,
+        ): ByteArray {
             payments += Payment(sender, receiver, amount, fee, note)
             return "$sender:$receiver:$amount:$fee:".encodeToByteArray() + note
         }
@@ -191,7 +221,11 @@ class ValidateSettlementVoucherTest {
             return grouped
         }
 
-        override fun logicSign(program: ByteArray, signature: ByteArray, transaction: ByteArray): ByteArray {
+        override fun logicSign(
+            program: ByteArray,
+            signature: ByteArray,
+            transaction: ByteArray,
+        ): ByteArray {
             logicSignCalls++
             signedProgram = program
             signedSignature = signature

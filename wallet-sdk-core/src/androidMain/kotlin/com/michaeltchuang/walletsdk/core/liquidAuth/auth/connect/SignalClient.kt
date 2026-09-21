@@ -318,9 +318,10 @@ class SignalClient
                                     } else {
                                         withTimeout(EXCHANGE_TIMEOUT_MS) {
                                             if (enableMedia) peer.addReceiveOnlyMediaTransceivers()
-                                            val channel = checkNotNull(peer.createDataChannel("liquid")) {
-                                                "Failed to create primary data channel"
-                                            }
+                                            val channel =
+                                                checkNotNull(peer.createDataChannel("liquid")) {
+                                                    "Failed to create primary data channel"
+                                                }
                                             val offer = createDescription(pc, offer = true)
                                             setLocalDescription(pc, offer)
                                             current.emit("offer-description", offer.description)
@@ -487,9 +488,11 @@ class SignalClient
             suspendCancellableCoroutine { continuation ->
                 val finished = AtomicBoolean(false)
                 continuation.invokeOnCancellation { finished.set(true) }
+
                 fun finish(result: Result<SessionDescription>) {
                     if (finished.compareAndSet(false, true)) continuation.resumeWith(result)
                 }
+
                 fun fail(message: String?) {
                     finish(Result.failure(IllegalStateException("$operation failed: $message")))
                 }

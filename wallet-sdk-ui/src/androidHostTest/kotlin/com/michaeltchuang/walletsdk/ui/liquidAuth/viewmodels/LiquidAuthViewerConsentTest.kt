@@ -227,6 +227,5 @@ class LiquidAuthViewerConsentTest {
             }
         }
 
-    private fun TestScope.request(requestTerms: ConsentTerms) =
-        async { holder.requestMppConsentFromUi(requestTerms) }.also { runCurrent() }
+    private fun TestScope.request(requestTerms: ConsentTerms) = async { holder.requestMppConsentFromUi(requestTerms) }.also { runCurrent() }
 }

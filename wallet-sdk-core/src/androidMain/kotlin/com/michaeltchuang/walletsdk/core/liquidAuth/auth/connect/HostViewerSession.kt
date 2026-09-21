@@ -16,8 +16,7 @@ class HostViewerSession(
     internal var connected = false
     internal var onDisconnected: ((String) -> Unit)? = null
 
-    fun createDataChannel(label: String): DataChannel? =
-        peer?.getAdditionalDataChannel(label) ?: peer?.createAdditionalDataChannel(label)
+    fun createDataChannel(label: String): DataChannel? = peer?.getAdditionalDataChannel(label) ?: peer?.createAdditionalDataChannel(label)
 
     fun send(message: String) {
         peer?.send(message)

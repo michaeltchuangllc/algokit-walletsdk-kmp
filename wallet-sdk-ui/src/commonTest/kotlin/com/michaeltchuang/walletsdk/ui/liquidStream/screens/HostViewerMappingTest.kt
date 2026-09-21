@@ -15,18 +15,21 @@ class HostViewerMappingTest {
     fun `EXPECT the first funded snapshot to start full and then decrease WHEN there was a previous settlement`() {
         val progress = HostViewerProgress()
         assertNull(progress.update(HostViewerDetails()).progressCapacityMicroUsdc)
-        val snapshot = HostViewerDetails(
-            viewerAddress = "secondary-wallet",
-            totalDepositMicroUsdc = 2_000_000,
-            remainingBalanceMicroUsdc = 800_000,
-            lastSettledMicroUsdc = 1_200_000,
-            progressBalanceMicroUsdc = 600_000,
-        )
-        fun map(details: HostViewerDetails) = mapHostViewers(
-            primary,
-            listOf("primary-request", "secondary-request"),
-            mapOf("secondary-request" to progress.update(details)),
-        ).also { assertEquals(primary, it.first()) }.last()
+        val snapshot =
+            HostViewerDetails(
+                viewerAddress = "secondary-wallet",
+                totalDepositMicroUsdc = 2_000_000,
+                remainingBalanceMicroUsdc = 800_000,
+                lastSettledMicroUsdc = 1_200_000,
+                progressBalanceMicroUsdc = 600_000,
+            )
+
+        fun map(details: HostViewerDetails) =
+            mapHostViewers(
+                primary,
+                listOf("primary-request", "secondary-request"),
+                mapOf("secondary-request" to progress.update(details)),
+            ).also { assertEquals(primary, it.first()) }.last()
 
         val first = map(snapshot)
         assertEquals(1.0, first.progressBalanceUSDC!! / first.progressCapacityUSDC!!)
@@ -50,24 +53,32 @@ class HostViewerMappingTest {
     @Test
     fun `EXPECT only secondary progress to reset without resetting revenue WHEN top-ups repeat`() {
         val progress = HostViewerProgress()
-        fun update(total: Long, settled: Long, available: Long = total - settled): ConnectedViewerInfo {
-            val details = progress.update(
-                HostViewerDetails(
-                    viewerAddress = "secondary-wallet",
-                    totalDepositMicroUsdc = total,
-                    remainingBalanceMicroUsdc = total - settled,
-                    lastSettledMicroUsdc = settled,
-                    progressBalanceMicroUsdc = available,
-                ),
-            )
-            val viewers = mapHostViewers(
-                primary,
-                listOf("primary-request", "secondary-request"),
-                mapOf("secondary-request" to details),
-            )
+
+        fun update(
+            total: Long,
+            settled: Long,
+            available: Long = total - settled,
+        ): ConnectedViewerInfo {
+            val details =
+                progress.update(
+                    HostViewerDetails(
+                        viewerAddress = "secondary-wallet",
+                        totalDepositMicroUsdc = total,
+                        remainingBalanceMicroUsdc = total - settled,
+                        lastSettledMicroUsdc = settled,
+                        progressBalanceMicroUsdc = available,
+                    ),
+                )
+            val viewers =
+                mapHostViewers(
+                    primary,
+                    listOf("primary-request", "secondary-request"),
+                    mapOf("secondary-request" to details),
+                )
             assertEquals(primary, viewers.first())
             return viewers.last()
         }
+
         fun fraction(viewer: ConnectedViewerInfo) = viewer.progressBalanceUSDC!! / viewer.progressCapacityUSDC!!
 
         assertEquals(1.0, fraction(update(1_000_000, 0)))
@@ -86,10 +97,11 @@ class HostViewerMappingTest {
     @Test
     fun `EXPECT the top-up baseline to survive WHEN a read is unavailable or a snapshot repeats`() {
         val progress = HostViewerProgress()
-        val initial = HostViewerDetails(
-            totalDepositMicroUsdc = 1_000_000,
-            progressBalanceMicroUsdc = 200_000,
-        )
+        val initial =
+            HostViewerDetails(
+                totalDepositMicroUsdc = 1_000_000,
+                progressBalanceMicroUsdc = 200_000,
+            )
         progress.update(initial)
         val toppedUp = initial.copy(totalDepositMicroUsdc = 2_000_000, progressBalanceMicroUsdc = 1_200_000)
         assertEquals(1_200_000L, progress.update(toppedUp).progressCapacityMicroUsdc)
@@ -169,6 +181,7 @@ class HostViewerMappingTest {
                 progressBalanceMicroUsdc = 1_000_000L,
                 totalDepositMicroUsdc = 2_000_000L,
             )
+
         fun map(details: HostViewerDetails) =
             mapHostViewers(primary, listOf("secondary-request"), mapOf("secondary-request" to details)).single()
 

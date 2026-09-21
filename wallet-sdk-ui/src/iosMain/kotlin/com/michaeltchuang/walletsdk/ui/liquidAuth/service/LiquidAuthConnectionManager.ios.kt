@@ -1,7 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
-import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.relayHostChat
-
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
@@ -24,6 +22,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.ViewerVaultBillingSession
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.relayHostChat
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.FrameHeartbeatThrottle
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -130,16 +129,24 @@ actual class LiquidAuthConnectionManager actual constructor(
     private var answerViewModel: AnswerViewModel? = null
     private val viewerFrameHeartbeatThrottle = FrameHeartbeatThrottle()
     private var activeRequestId: String? = null
+
     // The first connected mesh viewer owns the legacy payment rail for the host lifetime.
     // Never promote another viewer into its vault/session, even after it disconnects.
     private val hostInvitations = mutableSetOf<String>()
     private val retiredHostInvitations = mutableSetOf<String>()
     private val connectedHostViewers = mutableSetOf<String>()
     private val hostPaymentSenders = mutableMapOf<String, (String) -> Unit>()
-    private class HostViewerIdentity(val address: String, val signerKey: ByteArray?, val channelId: ByteArray? = null)
+
+    private class HostViewerIdentity(
+        val address: String,
+        val signerKey: ByteArray?,
+        val channelId: ByteArray? = null,
+    )
+
     private val hostViewerIdentities = mutableMapOf<String, HostViewerIdentity>()
     private val hostViewerDetails = mutableMapOf<String, HostViewerDetails>()
     private val hostViewerBalanceJobs = mutableMapOf<String, Job>()
+
     private class AdditionalHostViewer {
         var creator: LiquidStreamCreator? = null
         var dataChannel: CallbackRtcDataChannel? = null
@@ -148,6 +155,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val pendingMessages = mutableListOf<String>()
         val voucherJobs = mutableSetOf<Job>()
     }
+
     private val additionalHostViewers = mutableMapOf<String, AdditionalHostViewer>()
     private val hostBillingScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var additionalViewerBlockJob: Job? = null
@@ -249,7 +257,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         this.viewModel = viewModel
         viewModel.meshHostingEnabled = iosMeshHostingIntegrated
         activeIOSBroadcastConnectionManager = this
-        println("$TAG: initialize() viewModel=$viewModel")
+        Napier.d("$TAG: initialize() viewModel=$viewModel")
         blockConsumptionManager.processPendingSettlements()
     }
 
@@ -263,20 +271,20 @@ actual class LiquidAuthConnectionManager actual constructor(
     ) {
         val handler = iosBroadcastStartHandler
         if (handler == null) {
-            println("$TAG: iosBroadcastStartHandler not set!")
+            Napier.d("$TAG: iosBroadcastStartHandler not set!")
             return
         }
         if (viewModel == null) {
-            println("$TAG: viewModel is null — call initialize() first")
+            Napier.d("$TAG: viewModel is null — call initialize() first")
             return
         }
         if (requestId.isBlank() || requestId in retiredHostInvitations || requestId in hostInvitations) return
         if (!meshHostingEnabled && activeRequestId != null && activeRequestId != requestId) {
-            println("$TAG: requestId changed ($activeRequestId -> $requestId), restarting")
+            Napier.d("$TAG: requestId changed ($activeRequestId -> $requestId), restarting")
             stopListening()
         }
         hostInvitations.add(requestId)
-        println("$TAG: startListening() origin=$origin requestId=$requestId")
+        Napier.d("$TAG: startListening() origin=$origin requestId=$requestId")
         if (!meshHostingEnabled) activeRequestId = requestId
         try {
             // Swift adds one invitation to the existing host; it must not replace shared capture.
@@ -287,7 +295,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun stopListening() {
-        println("$TAG: stopListening() (activeRequestId=$activeRequestId)")
+        Napier.d("$TAG: stopListening() (activeRequestId=$activeRequestId)")
         additionalHostViewers.keys.toList().forEach { closeAdditionalViewer(it, "stopListening") }
         additionalViewerBlockJob?.cancel()
         additionalViewerBlockJob = null
@@ -336,11 +344,12 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (meshHostingEnabled) {
             // Swift may retain host configuration even after the primary transport has gone.
             // This is NOT permission to fan out the primary's session envelope verbatim.
-            val isHostConfiguration = runCatching {
-                val envelope = Json.parseToJsonElement(message).jsonObject
-                envelope["reference"]?.jsonPrimitive?.content == "liquid:stream:info" ||
-                    envelope["type"]?.jsonPrimitive?.content == DCMessageType.STREAM_COST_UPDATE.value
-            }.getOrDefault(false)
+            val isHostConfiguration =
+                runCatching {
+                    val envelope = Json.parseToJsonElement(message).jsonObject
+                    envelope["reference"]?.jsonPrimitive?.content == "liquid:stream:info" ||
+                        envelope["type"]?.jsonPrimitive?.content == DCMessageType.STREAM_COST_UPDATE.value
+                }.getOrDefault(false)
             if (isHostConfiguration) {
                 // Rebuild each extra viewer's metadata with its own ID, never the primary ID.
                 refreshAdditionalViewerInfo()
@@ -350,16 +359,17 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
         }
         if (!platformServices.sendHostMessage(message)) {
-            println("$TAG: sendMessage skipped — iosBroadcastSendMessageHandler not set")
+            Napier.d("$TAG: sendMessage skipped — iosBroadcastSendMessageHandler not set")
         }
     }
 
     actual fun sendChatMessage(message: ChatMessage) {
         blockConsumptionManager.recordChatMessage(message)
-        val envelope = buildJsonObject {
-            put("type", DCMessageType.CHAT_MESSAGE.value)
-            put("payload", Json.encodeToJsonElement(ChatMessage.serializer(), message))
-        }.toString()
+        val envelope =
+            buildJsonObject {
+                put("type", DCMessageType.CHAT_MESSAGE.value)
+                put("payload", Json.encodeToJsonElement(ChatMessage.serializer(), message))
+            }.toString()
         val fanout = iosBroadcastHostChatSendHandler.takeIf { meshHostingEnabled }
         if (fanout != null) {
             // No primary session ID in a host-wide chat envelope. Never fan out session/payment messages.
@@ -369,22 +379,26 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-    private fun relayViewerChat(message: ChatMessage, source: LiquidStreamCreator? = null) {
-        val recipients = listOfNotNull(streamCreator) +
-            additionalHostViewers.toList()
-                .filter { (requestId, _) -> requestId in connectedHostViewers }
-                .mapNotNull { (_, viewer) -> viewer.creator }
+    private fun relayViewerChat(
+        message: ChatMessage,
+        source: LiquidStreamCreator? = null,
+    ) {
+        val recipients =
+            listOfNotNull(streamCreator) +
+                additionalHostViewers
+                    .toList()
+                    .filter { (requestId, _) -> requestId in connectedHostViewers }
+                    .mapNotNull { (_, viewer) -> viewer.creator }
         relayHostChat(
             message = message,
             recipients = recipients,
             source = source,
             send = { creator, chat -> creator.sendChatMessage(chat) },
-            onFailure = { println("$TAG: Failed to relay chat: $it") },
+            onFailure = { Napier.d("$TAG: Failed to relay chat: $it") },
         )
     }
 
-    actual fun isConnected(): Boolean =
-        if (meshHostingEnabled) connectedHostViewers.isNotEmpty() else platformServices.isHostConnected()
+    actual fun isConnected(): Boolean = if (meshHostingEnabled) connectedHostViewers.isNotEmpty() else platformServices.isHostConnected()
 
     // ── Viewer connection lifecycle ───────────────────────────────────────────
 
@@ -399,14 +413,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         activeViewerRequestId = requestId
         if (viewerAddress.isNotBlank()) setViewerAddress(viewerAddress)
         _viewerConnectionState.value = ViewerConnectionState.CONNECTING
-        println("$TAG: connectViewer() origin=$origin requestId=$requestId")
+        Napier.d("$TAG: connectViewer() origin=$origin requestId=$requestId")
         if (!platformServices.startViewerConnection(origin, requestId)) {
-            println("$TAG: iosViewerStartHandler not set")
+            Napier.d("$TAG: iosViewerStartHandler not set")
         }
     }
 
     fun disconnectViewer() {
-        println("$TAG: disconnectViewer()")
+        Napier.d("$TAG: disconnectViewer()")
         stopViewerConnectionTypePolling()
         answerViewModel?.stopMppPaymentViewer()
         platformServices.stopViewerConnection()
@@ -431,7 +445,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     fun sendViewerMessage(message: String) {
         if (!platformServices.sendViewerMessage(message)) {
-            println("$TAG: sendViewerMessage skipped — handler not set")
+            Napier.d("$TAG: sendViewerMessage skipped — handler not set")
         }
     }
 
@@ -447,7 +461,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     @Suppress("unused")
     fun notifyViewerConnected() {
-        println("$TAG: notifyViewerConnected")
+        Napier.d("$TAG: notifyViewerConnected")
         _viewerConnectionState.value = ViewerConnectionState.CONNECTED
         startViewerConnectionTypePolling()
         startViewerOnChainRefreshIfReady()
@@ -477,7 +491,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     @Suppress("unused")
     fun notifyViewerDisconnected() {
-        println("$TAG: notifyViewerDisconnected")
+        Napier.d("$TAG: notifyViewerDisconnected")
         stopViewerConnectionTypePolling()
         answerViewModel?.stopMppPaymentViewer()
         _viewerConnectionState.value = ViewerConnectionState.DISCONNECTED
@@ -491,7 +505,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (address.isBlank()) return
         _viewerAddress.value = address
         answerViewModel?.setViewerAddress(address)
-        println("$TAG: VIEWER_ADDR_SET addr=$address")
+        Napier.d("$TAG: VIEWER_ADDR_SET addr=$address")
     }
 
     fun startViewerBalancePollingSafe(
@@ -501,13 +515,13 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (viewerAddress.isNotBlank()) setViewerAddress(viewerAddress)
         if (hostAddress.isNotBlank()) setViewerHostAddress(hostAddress)
 
-        println(
+        Napier.d(
             "$TAG: startViewerBalancePollingSafe viewer=$viewerAddress host=$hostAddress " +
                 "_viewerAddress='${_viewerAddress.value}' _hostAddress='${_hostAddress.value}'",
         )
 
         if (viewerAddress.isBlank() || hostAddress.isBlank()) {
-            println("$TAG: startViewerBalancePollingSafe — polling deferred (host address not yet known)")
+            Napier.d("$TAG: startViewerBalancePollingSafe — polling deferred (host address not yet known)")
             return
         }
         startViewerOnChainRefreshIfReady()
@@ -522,7 +536,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
         refreshAdditionalViewerInfo()
         if (meshHostingEnabled && activeRequestId !in connectedHostViewers) return
-        println(
+        Napier.d(
             "$TAG: 💰 sendPaymentRequest — session=${paymentRequest.id} " +
                 "amount=${paymentRequest.amount} payTo=${paymentRequest.payTo}",
         )
@@ -534,19 +548,20 @@ actual class LiquidAuthConnectionManager actual constructor(
         activePaymentAmount = paymentRequest.amount
         paymentRequestJob?.cancel()
         val generation = hostGeneration
-        paymentRequestJob = scope.launch(Dispatchers.Main) {
-            viewerReady.first { it }
-            if (generation == hostGeneration &&
-                (!meshHostingEnabled || activeRequestId in connectedHostViewers)
-            ) {
-                startPaywalledRTCServer(paymentRequest)
+        paymentRequestJob =
+            scope.launch(Dispatchers.Main) {
+                viewerReady.first { it }
+                if (generation == hostGeneration &&
+                    (!meshHostingEnabled || activeRequestId in connectedHostViewers)
+                ) {
+                    startPaywalledRTCServer(paymentRequest)
+                }
             }
-        }
     }
 
     private fun startPaywalledRTCServer(paymentRequest: PaymentRequest) {
         if (streamCreator != null) {
-            println("$TAG: LiquidStreamCreator already active — skipping duplicate")
+            Napier.d("$TAG: LiquidStreamCreator already active — skipping duplicate")
             return
         }
 
@@ -587,7 +602,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             )
 
         creator.rtcServer.onSessionStarted = { sid ->
-            println("$TAG: [Creator] onSessionStarted session=$sid")
+            Napier.d("$TAG: [Creator] onSessionStarted session=$sid")
         }
         creator.rtcServer.onViewerHello = { viewer, viewerPublicKeyBase64 ->
             val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
@@ -597,11 +612,11 @@ actual class LiquidAuthConnectionManager actual constructor(
             if (streamCreator === creator) tryCaptureViewerAddressFromMessage(voucherJson)
         }
         creator.rtcServer.onPaymentRequested = { req ->
-            println("$TAG: [Creator] onPaymentRequested segment=${req.segmentIndex} amount=${req.amount}")
+            Napier.d("$TAG: [Creator] onPaymentRequested segment=${req.segmentIndex} amount=${req.amount}")
         }
         creator.rtcServer.onPaymentSettled = settled@{ receipt ->
             if (streamCreator !== creator) return@settled
-            println("$TAG: [Creator] onPaymentSettled session=${receipt.sessionId} segment=${receipt.segmentIndex}")
+            Napier.d("$TAG: [Creator] onPaymentSettled session=${receipt.sessionId} segment=${receipt.segmentIndex}")
             // Sync activePaymentSessionId to the PaywalledRTCServer's actual session.
             activePaymentSessionId = receipt.sessionId
             viewModel?.startVideoStreaming()
@@ -610,16 +625,16 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
         }
         creator.rtcServer.onPaymentRejected = { reason ->
-            println("$TAG: [Creator] onPaymentRejected reason=$reason")
+            Napier.d("$TAG: [Creator] onPaymentRejected reason=$reason")
         }
-        creator.rtcServer.onSegmentStarted = { idx -> println("$TAG: [Creator] onSegmentStarted idx=$idx") }
+        creator.rtcServer.onSegmentStarted = { idx -> Napier.d("$TAG: [Creator] onSegmentStarted idx=$idx") }
         creator.rtcServer.onSegmentGated = { idx ->
             if (streamCreator === creator) isVideoGated = true
-            println("$TAG: [Creator] onSegmentGated idx=$idx — frame sending paused")
+            Napier.d("$TAG: [Creator] onSegmentGated idx=$idx — frame sending paused")
         }
         creator.rtcServer.onSegmentResumed = { idx ->
             if (streamCreator === creator) isVideoGated = false
-            println("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
+            Napier.d("$TAG: [Creator] onSegmentResumed idx=$idx — frame sending resumed")
         }
         creator.rtcServer.onChatMessageReceived = { message ->
             if (streamCreator === creator) {
@@ -628,16 +643,16 @@ actual class LiquidAuthConnectionManager actual constructor(
                 relayViewerChat(message, creator)
             }
         }
-        creator.rtcServer.onSessionTerminated = { sid -> println("$TAG: [Creator] onSessionTerminated session=$sid") }
-        creator.rtcServer.onError = { err -> println("$TAG: [Creator] error: $err") }
+        creator.rtcServer.onSessionTerminated = { sid -> Napier.d("$TAG: [Creator] onSessionTerminated session=$sid") }
+        creator.rtcServer.onError = { err -> Napier.d("$TAG: [Creator] error: $err") }
 
         streamCreator = creator
-        println("$TAG: LiquidStreamCreator created — calling start()")
+        Napier.d("$TAG: LiquidStreamCreator created — calling start()")
         creator.start()
         // Sync activePaymentSessionId to the PaywalledRTCServer's session ID right away.
         activePaymentSessionId = creator.sessionId
         refreshAdditionalViewerInfo()
-        println("$TAG: Creator session=${creator.sessionId} (synced to activePaymentSessionId)")
+        Napier.d("$TAG: Creator session=${creator.sessionId} (synced to activePaymentSessionId)")
 
         // If DC is already open (viewer connected before sendPaymentRequest), open immediately.
         if ((!meshHostingEnabled && isConnected()) ||
@@ -655,18 +670,18 @@ actual class LiquidAuthConnectionManager actual constructor(
     actual fun startBlockConsumption(sessionId: String) {
         if (meshHostingEnabled && activeRequestId !in connectedHostViewers) return
         val targetSessionId = activePaymentSessionId ?: sessionId
-        println("$TAG: startBlockConsumption session=$targetSessionId")
+        Napier.d("$TAG: startBlockConsumption session=$targetSessionId")
         blockConsumptionManager.start(targetSessionId)
     }
 
     actual fun stopBlockConsumption() {
-        println("$TAG: stopBlockConsumption")
+        Napier.d("$TAG: stopBlockConsumption")
         blockConsumptionManager.stop()
         if (additionalHostViewers.values.any { it.billing != null }) startAdditionalViewerBlocks()
     }
 
     actual fun setIsPaidStreaming(enabled: Boolean) {
-        println("$TAG: 💰 setIsPaidStreaming: $enabled")
+        Napier.d("$TAG: 💰 setIsPaidStreaming: $enabled")
         isPaidStreamingEnabled = enabled
         if (!enabled) {
             setStreamCost(0L)
@@ -677,9 +692,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                 scope.launch {
                     try {
                         voucherRepository.deleteVoucherBySessionId(sessionId)
-                        println("$TAG: 💰 Cleared pending vouchers for session $sessionId during switch to Free")
+                        Napier.d("$TAG: 💰 Cleared pending vouchers for session $sessionId during switch to Free")
                     } catch (e: Exception) {
-                        println("$TAG: ❌ Failed to clear vouchers: $e")
+                        Napier.e("$TAG: ❌ Failed to clear vouchers: $e")
                     }
                 }
             }
@@ -691,7 +706,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun setStreamCost(cost: Long) {
-        println("$TAG: 💰 setStreamCost: $cost")
+        Napier.d("$TAG: 💰 setStreamCost: $cost")
         activePaymentAmount = cost.toString()
         streamCreator?.let {
             updateCreatorViewerSignerConfig(activeViewerAddressForVault, activeViewerAuthorizedSignerKey ?: ByteArray(0))
@@ -707,7 +722,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             } else {
                 1
             }
-        println("$TAG: 💰 setPayoutFrequency: tab=$tabId blocks=$blocks")
+        Napier.d("$TAG: 💰 setPayoutFrequency: tab=$tabId blocks=$blocks")
         blockConsumptionManager.payoutFrequencyBlocks = blocks
         payoutFrequencyBlocks = blocks
         additionalHostViewers.values.forEach { it.billing?.updatePayoutFrequencyBlocks(blocks) }
@@ -786,20 +801,22 @@ actual class LiquidAuthConnectionManager actual constructor(
         activePaymentSessionId = sessionId
         if (activeRequestId in connectedHostViewers &&
             (!meshHostingEnabled || activeRequestId in hostPaymentSenders)
-        ) dataChannel.notifyOpen()
+        ) {
+            dataChannel.notifyOpen()
+        }
         refreshAdditionalViewerInfo()
 
-        println("$TAG: 💬 Chat initialized for creator=$creatorAddress")
+        Napier.d("$TAG: 💬 Chat initialized for creator=$creatorAddress")
     }
 
     actual fun setAudioEnabled(enabled: Boolean) {
         iosBroadcastSetAudioEnabledHandler?.invoke(enabled)
-            ?: println("$TAG: setAudioEnabled($enabled) skipped — Swift media handler not set")
+            ?: Napier.d("$TAG: setAudioEnabled($enabled) skipped — Swift media handler not set")
     }
 
     actual fun setVideoEnabled(enabled: Boolean) {
         iosBroadcastSetVideoEnabledHandler?.invoke(enabled)
-            ?: println("$TAG: setVideoEnabled($enabled) skipped — Swift media handler not set")
+            ?: Napier.d("$TAG: setVideoEnabled($enabled) skipped — Swift media handler not set")
     }
 
     @Suppress("unused")
@@ -810,7 +827,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
         if (requestId != activeRequestId || requestId !in hostInvitations) return
         connectedHostViewers.add(requestId)
-        println("$TAG: notifyClientConnected requestId=$requestId")
+        Napier.d("$TAG: notifyClientConnected requestId=$requestId")
         viewModel?.onClientConnected(requestId)
         startConnectionTypePolling()
         // Open the host DC so LiquidStreamCreator (if already started) begins the handshake.
@@ -821,10 +838,10 @@ actual class LiquidAuthConnectionManager actual constructor(
     fun notifyClientDisconnected() {
         if (meshHostingEnabled) {
             // Unkeyed callbacks cannot identify which peer left. Swift must use the keyed API.
-            println("$TAG: ignored unkeyed mesh disconnect")
+            Napier.d("$TAG: ignored unkeyed mesh disconnect")
             return
         }
-        println("$TAG: notifyClientDisconnected")
+        Napier.d("$TAG: notifyClientDisconnected")
         connectedHostViewers.clear()
         paymentRequestJob?.cancel()
         viewerReady.value = false
@@ -898,7 +915,9 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (requestId !in hostInvitations) return
         val initialInvitationFailed =
             !meshHostingEnabled &&
-                requestId == activeRequestId && requestId !in connectedHostViewers && activePaymentSessionId == null
+                requestId == activeRequestId &&
+                requestId !in connectedHostViewers &&
+                activePaymentSessionId == null
         notifyBroadcastViewerDisconnected(requestId)
         if (initialInvitationFailed) activeRequestId = null
         viewModel?.onMeshInvitationFailed(requestId, message)
@@ -940,7 +959,10 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     /** Invitation-local identity; never feeds an extra viewer into the primary payment rail. */
-    private fun captureHostViewerIdentity(requestId: String, message: String) {
+    private fun captureHostViewerIdentity(
+        requestId: String,
+        message: String,
+    ) {
         if (!meshHostingEnabled || requestId !in connectedHostViewers || requestId !in hostInvitations) return
         runCatching {
             val envelope = Json.parseToJsonElement(message).jsonObject
@@ -964,32 +986,51 @@ actual class LiquidAuthConnectionManager actual constructor(
             // In particular, do not interpret vouchers as instructions to update global escrow.
             if (parsed.viewerHello == null && parsed.type != "credential" && parsed.type != null) return
             if (parsed.reference != null) return
-            val address = (
-                if (parsed.viewerHello != null) envelope["viewer"] else envelope["address"]
-            )?.jsonPrimitive?.content
-                ?.takeIf { it.isNotBlank() } ?: return
-            val incomingKey = (
-                parsed.viewerHello?.viewerPublicKey
-                    ?: if (parsed.viewerHello == null) envelope["publicKey"]?.jsonPrimitive?.content?.decodeLiquidAuthBase64OrNull() else null
-            )?.takeIf { it.isNotEmpty() }
+            val address =
+                (
+                    if (parsed.viewerHello != null) envelope["viewer"] else envelope["address"]
+                )?.jsonPrimitive
+                    ?.content
+                    ?.takeIf { it.isNotBlank() } ?: return
+            val incomingKey =
+                (
+                    parsed.viewerHello?.viewerPublicKey
+                        ?: if (parsed.viewerHello ==
+                            null
+                        ) {
+                            envelope["publicKey"]?.jsonPrimitive?.content?.decodeLiquidAuthBase64OrNull()
+                        } else {
+                            null
+                        }
+                )?.takeIf { it.isNotEmpty() }
             val signerKey = incomingKey ?: previous?.takeIf { it.address == address }?.signerKey
             // The payment DC and credential DC both arrive through this keyed handler.
             // A hello can advertise the actual vault without a voucher, receipt or session ID.
-            val channelId = parsed.viewerHello?.channelId?.takeIf { it.size == 32 }
-                ?: previous?.channelId
+            val channelId =
+                parsed.viewerHello?.channelId?.takeIf { it.size == 32 }
+                    ?: previous?.channelId
             updateHostViewerIdentity(requestId, address, signerKey, channelId)
         }.onFailure { Napier.w("$TAG: ignored malformed viewer identity: $requestId") }
     }
 
-    private fun updateHostViewerIdentity(requestId: String, address: String, signerKey: ByteArray?, channelId: ByteArray?) {
+    private fun updateHostViewerIdentity(
+        requestId: String,
+        address: String,
+        signerKey: ByteArray?,
+        channelId: ByteArray?,
+    ) {
         val previous = hostViewerIdentities[requestId]
         // Lock identity across all metadata transports for this invitation. A channel hint
         // remains untrusted: readChannel validates its on-chain parties and signer.
         if (previous != null && previous.address != address) return
         if (previous?.signerKey != null && !previous.signerKey.contentEquals(signerKey)) return
-        if (previous != null && previous.address == address &&
-            previous.signerKey.contentEquals(signerKey) && previous.channelId.contentEquals(channelId)
-        ) return
+        if (previous != null &&
+            previous.address == address &&
+            previous.signerKey.contentEquals(signerKey) &&
+            previous.channelId.contentEquals(channelId)
+        ) {
+            return
+        }
         hostViewerBalanceJobs.remove(requestId)?.cancel()
         hostViewerIdentities[requestId] = HostViewerIdentity(address, signerKey?.copyOf(), channelId?.copyOf())
         val details = hostViewerDetails[requestId] ?: HostViewerDetails()
@@ -1010,7 +1051,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-    private fun publishHostViewerDetails(requestId: String, details: HostViewerDetails) {
+    private fun publishHostViewerDetails(
+        requestId: String,
+        details: HostViewerDetails,
+    ) {
         if (!meshHostingEnabled || requestId !in connectedHostViewers || requestId !in hostInvitations) return
         hostViewerDetails[requestId] = details
         viewModel?.updateMeshViewerDetails(requestId, details)
@@ -1023,91 +1067,102 @@ actual class LiquidAuthConnectionManager actual constructor(
         val signerKey = identity.signerKey ?: return
         val channelId = identity.channelId
         val generation = hostGeneration
-        hostViewerBalanceJobs[requestId] = scope.launch(Dispatchers.Main) {
-            var previousCreator: String? = null
-            var previousNetwork: String? = null
-            var previousSalt: ByteArray? = null
-            while (isActive && generation == hostGeneration &&
-                requestId in connectedHostViewers && hostViewerIdentities[requestId] === identity
-            ) {
-                val peerConfig = additionalHostViewers[requestId]?.config
-                val creator = (peerConfig?.gating?.payTo ?: activePaymentRecipient)?.takeIf { it.isNotBlank() }
-                val network = (peerConfig?.gating?.network ?: activePaymentNetwork)?.takeIf { it.isNotBlank() }
-                val salt = if (channelId == null) EscrowSessionVaultHybridManagerClient.defaultSalt?.copyOf() else null
-                if (creator != previousCreator || network != previousNetwork || !salt.contentEquals(previousSalt)) {
-                    val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
-                    publishHostViewerDetails(
-                        requestId,
-                        details.copy(
-                            remainingBalanceMicroUsdc = null,
-                            lastSettledMicroUsdc = null,
-                            progressBalanceMicroUsdc = null,
-                            totalDepositMicroUsdc = null,
-                        ),
-                    )
-                    previousCreator = creator
-                    previousNetwork = network
-                    previousSalt = salt
-                }
-                if (creator != null && network != null && (channelId != null || salt != null)) {
-                    try {
-                        val snapshot = withTimeoutOrNull(10_000L) {
-                            val result = if (channelId != null) {
-                                HostViewerVaultReader.readChannel(
-                                    channelId = channelId.copyOf(),
-                                    viewerAddress = identity.address,
-                                    creatorAddress = creator,
-                                    authorizedSignerPublicKey = signerKey.copyOf(),
-                                    network = network,
-                                )
-                            } else {
-                                HostViewerVaultReader.read(
-                                    viewerAddress = identity.address,
-                                    creatorAddress = creator,
-                                    authorizedSignerPublicKey = signerKey.copyOf(),
-                                    network = network,
-                                    salt = checkNotNull(salt),
+        hostViewerBalanceJobs[requestId] =
+            scope.launch(Dispatchers.Main) {
+                var previousCreator: String? = null
+                var previousNetwork: String? = null
+                var previousSalt: ByteArray? = null
+                while (isActive &&
+                    generation == hostGeneration &&
+                    requestId in connectedHostViewers &&
+                    hostViewerIdentities[requestId] === identity
+                ) {
+                    val peerConfig = additionalHostViewers[requestId]?.config
+                    val creator = (peerConfig?.gating?.payTo ?: activePaymentRecipient)?.takeIf { it.isNotBlank() }
+                    val network = (peerConfig?.gating?.network ?: activePaymentNetwork)?.takeIf { it.isNotBlank() }
+                    val salt = if (channelId == null) EscrowSessionVaultHybridManagerClient.defaultSalt?.copyOf() else null
+                    if (creator != previousCreator || network != previousNetwork || !salt.contentEquals(previousSalt)) {
+                        val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
+                        publishHostViewerDetails(
+                            requestId,
+                            details.copy(
+                                remainingBalanceMicroUsdc = null,
+                                lastSettledMicroUsdc = null,
+                                progressBalanceMicroUsdc = null,
+                                totalDepositMicroUsdc = null,
+                            ),
+                        )
+                        previousCreator = creator
+                        previousNetwork = network
+                        previousSalt = salt
+                    }
+                    if (creator != null && network != null && (channelId != null || salt != null)) {
+                        try {
+                            val snapshot =
+                                withTimeoutOrNull(10_000L) {
+                                    val result =
+                                        if (channelId != null) {
+                                            HostViewerVaultReader.readChannel(
+                                                channelId = channelId.copyOf(),
+                                                viewerAddress = identity.address,
+                                                creatorAddress = creator,
+                                                authorizedSignerPublicKey = signerKey.copyOf(),
+                                                network = network,
+                                            )
+                                        } else {
+                                            HostViewerVaultReader.read(
+                                                viewerAddress = identity.address,
+                                                creatorAddress = creator,
+                                                authorizedSignerPublicKey = signerKey.copyOf(),
+                                                network = network,
+                                                salt = checkNotNull(salt),
+                                            )
+                                        }
+                                    result.getOrNull()
+                                }
+                            // A suspended read may outlive removal, stop, identity/key replacement,
+                            // or a host/network/salt change. Never publish it into another vault.
+                            if (!isActive ||
+                                generation != hostGeneration ||
+                                requestId !in connectedHostViewers ||
+                                hostViewerIdentities[requestId] !== identity
+                            ) {
+                                return@launch
+                            }
+                            val currentConfig = additionalHostViewers[requestId]?.config
+                            if (snapshot != null &&
+                                creator == (currentConfig?.gating?.payTo ?: activePaymentRecipient) &&
+                                network == (currentConfig?.gating?.network ?: activePaymentNetwork) &&
+                                (channelId != null || salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt))
+                            ) {
+                                val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
+                                publishHostViewerDetails(
+                                    requestId,
+                                    details.copy(
+                                        remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+                                        lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+                                        progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+                                        totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
+                                    ),
                                 )
                             }
-                            result.getOrNull()
+                        } catch (cancelled: CancellationException) {
+                            throw cancelled
+                        } catch (_: Exception) {
+                            // An unavailable read is not an empty vault: keep unknown/last-known.
+                            Napier.w("$TAG: extra-viewer vault read unavailable: $requestId")
                         }
-                        // A suspended read may outlive removal, stop, identity/key replacement,
-                        // or a host/network/salt change. Never publish it into another vault.
-                        if (!isActive || generation != hostGeneration ||
-                            requestId !in connectedHostViewers ||
-                            hostViewerIdentities[requestId] !== identity
-                        ) return@launch
-                        val currentConfig = additionalHostViewers[requestId]?.config
-                        if (snapshot != null &&
-                            creator == (currentConfig?.gating?.payTo ?: activePaymentRecipient) &&
-                            network == (currentConfig?.gating?.network ?: activePaymentNetwork) &&
-                            (channelId != null || salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt))
-                        ) {
-                            val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
-                            publishHostViewerDetails(
-                                requestId,
-                                details.copy(
-                                    remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
-                                    lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
-                                    progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
-                                    totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
-                                ),
-                            )
-                        }
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (_: Exception) {
-                        // An unavailable read is not an empty vault: keep unknown/last-known.
-                        Napier.w("$TAG: extra-viewer vault read unavailable: $requestId")
                     }
+                    delay(3_000L)
                 }
-                delay(3_000L)
             }
-        }
     }
 
     /** Swift delivers selected-pair stats for this invitation on the main thread. */
-    fun notifyBroadcastViewerConnectionType(requestId: String, type: String) {
+    fun notifyBroadcastViewerConnectionType(
+        requestId: String,
+        type: String,
+    ) {
         if (requestId !in connectedHostViewers || requestId !in hostInvitations) return
         publishHostViewerDetails(
             requestId,
@@ -1117,7 +1172,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     fun notifyLegacyBroadcastMessageReceived(message: String) {
         if (meshHostingEnabled) {
-            println("$TAG: ignored unkeyed mesh message")
+            Napier.d("$TAG: ignored unkeyed mesh message")
             return
         }
         if (activeRequestId != null) notifyHostMessageReceived(message)
@@ -1143,47 +1198,62 @@ actual class LiquidAuthConnectionManager actual constructor(
         connectedHostViewers.toList().filter { it != activeRequestId }.forEach(::sendAdditionalViewerInfo)
     }
 
-    private fun ensureAdditionalViewerCreator(requestId: String, peer: AdditionalHostViewer) {
+    private fun ensureAdditionalViewerCreator(
+        requestId: String,
+        peer: AdditionalHostViewer,
+    ) {
         if (peer.creator != null || requestId !in connectedHostViewers || requestId !in hostPaymentSenders) return
         val recipient = activePaymentRecipient?.takeIf { it.isNotBlank() } ?: return
         val network = activePaymentNetwork ?: return
         val identity = hostViewerIdentities[requestId]
         val cost = if (isPaidStreamingEnabled) activePaymentAmount ?: "0" else "0"
-        val config = ServerConfig(
-            sessionId = "mesh-free-$requestId",
-            gating = (activeGatingConfig ?: GatingConfig(
-                mode = GatingMode.PARTIAL_TIME,
-                amount = cost,
-                asset = "USDC",
-                network = network,
-                payTo = recipient,
-            )).copy(amount = cost, network = network, payTo = recipient),
-            viewerAddress = identity?.address,
-            viewerAuthorizedSignerPublicKey = identity?.signerKey?.copyOf(),
-            skipPaymentRequestWhenSessionFunded = true,
-            vaultOnlyBilling = true,
-        )
+        val config =
+            ServerConfig(
+                sessionId = "mesh-free-$requestId",
+                gating =
+                    (
+                        activeGatingConfig ?: GatingConfig(
+                            mode = GatingMode.PARTIAL_TIME,
+                            amount = cost,
+                            asset = "USDC",
+                            network = network,
+                            payTo = recipient,
+                        )
+                    ).copy(amount = cost, network = network, payTo = recipient),
+                viewerAddress = identity?.address,
+                viewerAuthorizedSignerPublicKey = identity?.signerKey?.copyOf(),
+                skipPaymentRequestWhenSessionFunded = true,
+                vaultOnlyBilling = true,
+            )
         val generation = hostGeneration
-        val channel = CallbackRtcDataChannel(
-            sendMessageProvider = {
-                if (generation == hostGeneration && additionalHostViewers[requestId] === peer &&
-                    requestId in connectedHostViewers
-                ) hostPaymentSenders[requestId] else null
-            },
-            logTag = "IOSViewerPaymentDc",
-        )
-        val creator = LiquidStreamCreator(
-            dataChannel = channel,
-            // Peer billing must not gate shared capture.
-            rtpSenders = emptyList(),
-            mppServerConfig = MppServerConfig(
-                network = network,
-                recipient = recipient,
-                secretKey = iosBroadcastMppSecretKey,
-            ),
-            serverConfig = config,
-            getRemainingSessionVaultBalanceUseCase = getRemainingBalanceUseCase,
-        )
+        val channel =
+            CallbackRtcDataChannel(
+                sendMessageProvider = {
+                    if (generation == hostGeneration &&
+                        additionalHostViewers[requestId] === peer &&
+                        requestId in connectedHostViewers
+                    ) {
+                        hostPaymentSenders[requestId]
+                    } else {
+                        null
+                    }
+                },
+                logTag = "IOSViewerPaymentDc",
+            )
+        val creator =
+            LiquidStreamCreator(
+                dataChannel = channel,
+                // Peer billing must not gate shared capture.
+                rtpSenders = emptyList(),
+                mppServerConfig =
+                    MppServerConfig(
+                        network = network,
+                        recipient = recipient,
+                        secretKey = iosBroadcastMppSecretKey,
+                    ),
+                serverConfig = config,
+                getRemainingSessionVaultBalanceUseCase = getRemainingBalanceUseCase,
+            )
         peer.config = config
         peer.dataChannel = channel
         peer.creator = creator
@@ -1203,50 +1273,58 @@ actual class LiquidAuthConnectionManager actual constructor(
         pending.forEach { deliverAdditionalViewerMessage(requestId, peer, it) }
     }
 
-    private fun updateAdditionalViewerConfig(requestId: String, peer: AdditionalHostViewer) {
+    private fun updateAdditionalViewerConfig(
+        requestId: String,
+        peer: AdditionalHostViewer,
+    ) {
         val previous = peer.config ?: return
         val identity = hostViewerIdentities[requestId]
         val cost = if (isPaidStreamingEnabled) activePaymentAmount ?: "0" else "0"
-        val config = previous.copy(
-            gating = previous.gating.copy(amount = cost),
-            viewerAddress = identity?.address,
-            viewerAuthorizedSignerPublicKey = identity?.signerKey?.copyOf(),
-        )
+        val config =
+            previous.copy(
+                gating = previous.gating.copy(amount = cost),
+                viewerAddress = identity?.address,
+                viewerAuthorizedSignerPublicKey = identity?.signerKey?.copyOf(),
+            )
         peer.config = config
         peer.creator?.updateConfig(config)
     }
 
-    private fun ensureAdditionalViewerBilling(requestId: String, peer: AdditionalHostViewer) {
+    private fun ensureAdditionalViewerBilling(
+        requestId: String,
+        peer: AdditionalHostViewer,
+    ) {
         if (peer.billing != null || additionalHostViewers[requestId] !== peer) return
         val creator = peer.creator ?: return
         val config = peer.config ?: return
         val identity = hostViewerIdentities[requestId] ?: return
         val signer = identity.signerKey?.takeIf { it.isNotEmpty() } ?: return
-        peer.billing = ViewerVaultBillingSession(
-            scope = hostBillingScope,
-            sessionId = creator.sessionId,
-            viewerAddress = identity.address,
-            creatorAddress = config.gating.payTo,
-            network = config.gating.network,
-            signerPublicKey = signer.copyOf(),
-            buildCreatorWalletSigner = { mppWalletSignerUseCase(it) },
-            onSnapshot = { snapshot ->
-                if (additionalHostViewers[requestId] === peer) {
-                    val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
-                    publishHostViewerDetails(
-                        requestId,
-                        details.copy(
-                            remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
-                            lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
-                            progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
-                            totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
-                        ),
-                    )
-                }
-            },
-            onError = { error -> Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}") },
-            payoutFrequencyBlocks = payoutFrequencyBlocks,
-        )
+        peer.billing =
+            ViewerVaultBillingSession(
+                scope = hostBillingScope,
+                sessionId = creator.sessionId,
+                viewerAddress = identity.address,
+                creatorAddress = config.gating.payTo,
+                network = config.gating.network,
+                signerPublicKey = signer.copyOf(),
+                buildCreatorWalletSigner = { mppWalletSignerUseCase(it) },
+                onSnapshot = { snapshot ->
+                    if (additionalHostViewers[requestId] === peer) {
+                        val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
+                        publishHostViewerDetails(
+                            requestId,
+                            details.copy(
+                                remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+                                lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+                                progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+                                totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
+                            ),
+                        )
+                    }
+                },
+                onError = { error -> Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}") },
+                payoutFrequencyBlocks = payoutFrequencyBlocks,
+            )
         startAdditionalViewerBlocks()
         viewModel?.currentBlockNumber?.value?.let { peer.billing?.onBlock(it) }
     }
@@ -1255,29 +1333,38 @@ actual class LiquidAuthConnectionManager actual constructor(
         val vm = viewModel ?: return
         vm.startRealtimeBlockNumberUpdates()
         if (additionalViewerBlockJob?.isActive == true) return
-        additionalViewerBlockJob = hostBillingScope.launch {
-            vm.currentBlockNumber.collect { block ->
-                if (block != null) additionalHostViewers.values.toList().forEach { it.billing?.onBlock(block) }
+        additionalViewerBlockJob =
+            hostBillingScope.launch {
+                vm.currentBlockNumber.collect { block ->
+                    if (block != null) additionalHostViewers.values.toList().forEach { it.billing?.onBlock(block) }
+                }
             }
-        }
     }
 
-    private fun deliverAdditionalViewerMessage(requestId: String, peer: AdditionalHostViewer, message: String) {
+    private fun deliverAdditionalViewerMessage(
+        requestId: String,
+        peer: AdditionalHostViewer,
+        message: String,
+    ) {
         if (additionalHostViewers[requestId] !== peer) return
         val parsed = parseLiquidAuthHostTransportMessage(message)
         ensureAdditionalViewerBilling(requestId, peer)
         parsed.paymentVoucher?.let { voucher ->
             val billing = peer.billing ?: return@let
-            val job = hostBillingScope.launch(start = CoroutineStart.UNDISPATCHED) {
-                billing.acceptVoucher(voucher)
-            }
+            val job =
+                hostBillingScope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    billing.acceptVoucher(voucher)
+                }
             peer.voucherJobs.add(job)
             job.invokeOnCompletion { hostBillingScope.launch { peer.voucherJobs.remove(job) } }
         }
         if (parsed.type != null) peer.dataChannel?.notifyMessage(message)
     }
 
-    private fun closeAdditionalViewer(requestId: String, reason: String) {
+    private fun closeAdditionalViewer(
+        requestId: String,
+        reason: String,
+    ) {
         val peer = additionalHostViewers.remove(requestId) ?: return
         peer.pendingMessages.clear()
         peer.creator?.terminate(reason)
@@ -1310,7 +1397,10 @@ actual class LiquidAuthConnectionManager actual constructor(
         sendAdditionalViewerMetadata(requestId, peer)
     }
 
-    private fun sendAdditionalViewerMetadata(requestId: String, peer: AdditionalHostViewer) {
+    private fun sendAdditionalViewerMetadata(
+        requestId: String,
+        peer: AdditionalHostViewer,
+    ) {
         val sender = hostPaymentSenders[requestId] ?: return
         val config = peer.config ?: return
         val recipient = config.gating.payTo
@@ -1332,7 +1422,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     fun notifyViewerMessageReceived(message: String) {
         val ref = parseLiquidAuthHostTransportMessage(message).reference ?: "(no-ref)"
         if (ref != "liquid:video:frame") {
-            println(
+            Napier.d(
                 "$TAG: VIEWER_MSG_RECV ref=$ref len=${message.length} " +
                     "viewer='${_viewerAddress.value}' host='${_hostAddress.value}' " +
                     "preview=${message.take(160)}",
@@ -1361,7 +1451,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 },
             )
         } else {
-            println("$TAG: VIEWER_MSG_BUFFERED (AnswerViewModel not yet attached) preview=${message.take(120)}")
+            Napier.d("$TAG: VIEWER_MSG_BUFFERED (AnswerViewModel not yet attached) preview=${message.take(120)}")
             val parsed = parseLiquidAuthHostTransportMessage(message)
             parsed.address?.let { if (it.isNotBlank()) setViewerHostAddress(it) }
             deliverViewerPaymentMessage(message)
@@ -1372,7 +1462,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val parsed = parseLiquidAuthHostTransportMessage(message)
         val ref = parsed.reference ?: "(no-ref)"
         val msgType = parsed.type
-        println(
+        Napier.d(
             "$TAG: HOST_MSG_RECV ref=$ref type=$msgType len=${message.length} " +
                 "viewer='$activeViewerAddressForVault' host='$activePaymentRecipient' " +
                 "session='$activePaymentSessionId' preview=${message.take(160)}",
@@ -1383,7 +1473,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
         // Route `"type"`-keyed messages (PaywalledRTCClient protocol) to LiquidStreamCreator.
         if (msgType != null && streamCreator != null) {
-            println("$TAG: routing type-keyed DC msg to LiquidStreamCreator (type=$msgType)")
+            Napier.d("$TAG: routing type-keyed DC msg to LiquidStreamCreator (type=$msgType)")
             streamCreatorDataChannel?.notifyMessage(message)
             return
         }
@@ -1404,7 +1494,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val type = parseIceConnectionType(typeString)
         if (_connectionType.value != type) {
             _connectionType.value = type
-            println("$TAG: connection type -> ${type.displayName()}")
+            Napier.d("$TAG: connection type -> ${type.displayName()}")
             viewModel?.onConnectionTypeChanged(type)
         }
     }
@@ -1415,14 +1505,14 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (_viewerConnectionType.value != type) {
             _viewerConnectionType.value = type
             answerViewModel?.setConnectionType(type)
-            println("$TAG: viewer connection type -> ${type.displayName()}")
+            Napier.d("$TAG: viewer connection type -> ${type.displayName()}")
         }
     }
 
     @Suppress("unused")
     fun updateRemainingBalance(microUsdc: Long) {
         answerViewModel?.setViewerSessionVaultBalance(microUsdc)
-        println("$TAG: viewer balance updated -> ${microUsdc / 1_000_000.0} USDC")
+        Napier.d("$TAG: viewer balance updated -> ${microUsdc / 1_000_000.0} USDC")
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
@@ -1436,7 +1526,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     fun onPaymentDataChannelReady() {
-        println("$TAG: onPaymentDataChannelReady -> opening viewer payment rail")
+        Napier.d("$TAG: onPaymentDataChannelReady -> opening viewer payment rail")
         answerViewModel?.openViewerPaymentRail()
         flushPendingViewerPaymentMessages()
     }
@@ -1462,7 +1552,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 viewModel.openViewerPaymentRail()
                 flushPendingViewerPaymentMessages()
             } else {
-                println("$TAG: setupViewerPaymentRail complete — waiting for iosViewerPaymentDCSendMessageHandler")
+                Napier.d("$TAG: setupViewerPaymentRail complete — waiting for iosViewerPaymentDCSendMessageHandler")
             }
         }
     }
@@ -1471,7 +1561,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val delivered = answerViewModel?.handlePlatformPaymentMessage(message) == true
         if (!delivered) {
             pendingViewerPaymentMessages.add(message)
-            println(
+            Napier.d(
                 "$TAG: viewer payment rail not ready — buffered payment message " +
                     "(pending=${pendingViewerPaymentMessages.size}) preview=${message.take(120)}",
             )
@@ -1532,7 +1622,7 @@ actual class LiquidAuthConnectionManager actual constructor(
 
                 if (!helloViewer.isNullOrBlank() && activeViewerAuthorizedSignerKey != null) {
                     val sessionForPoll = activePaymentSessionId ?: ""
-                    println("$TAG: [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
+                    Napier.d("$TAG: [VIEWER_HELLO] starting balance polling viewer=$helloViewer session=$sessionForPoll")
                     startBlockConsumption(sessionForPoll)
                 }
             }
@@ -1599,7 +1689,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 force = true,
                             )
                         } else {
-                            println("$TAG: [VOUCHER_IGNORE] reason=free_mode session=${decision.snapshot.sessionId}")
+                            Napier.d("$TAG: [VOUCHER_IGNORE] reason=free_mode session=${decision.snapshot.sessionId}")
                         }
                     }
                 }
@@ -1609,7 +1699,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             if (candidate != null && candidate != activeViewerAddressForVault) {
                 activeViewerAddressForVault = candidate
                 viewerReady.value = true
-                println("$TAG: viewer address captured from message: $candidate")
+                Napier.d("$TAG: viewer address captured from message: $candidate")
             }
         }.onFailure { e ->
             Napier.e("$TAG: tryCaptureViewerAddressFromMessage error: $e")

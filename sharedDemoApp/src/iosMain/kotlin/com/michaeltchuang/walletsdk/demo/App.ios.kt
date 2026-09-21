@@ -6,8 +6,6 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidateMes
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidatePairStat
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceTransportStat
-import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType as classifyIceConnectionTypeShared
-import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.parseIceCandidateMessage as parseIceCandidateMessageShared
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
@@ -31,6 +29,8 @@ import org.koin.core.context.loadKoinModules
 import org.koin.mp.KoinPlatform
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType as classifyIceConnectionTypeShared
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.parseIceCandidateMessage as parseIceCandidateMessageShared
 
 // iOS-specific implementations
 object IosApp
@@ -692,7 +692,10 @@ fun notifyBroadcastViewerDisconnected(requestId: String) {
 }
 
 /** Invitation-keyed, selected-pair ICE statistics; call on the main thread. */
-fun notifyBroadcastViewerConnectionType(requestId: String, type: String) {
+fun notifyBroadcastViewerConnectionType(
+    requestId: String,
+    type: String,
+) {
     activeIOSBroadcastConnectionManager?.notifyBroadcastViewerConnectionType(requestId, type)
 }
 

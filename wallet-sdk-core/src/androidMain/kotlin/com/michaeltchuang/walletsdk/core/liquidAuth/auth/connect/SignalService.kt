@@ -214,6 +214,7 @@ class SignalService : Service() {
         hostPeers.add(requestId, session)
         session.onDisconnected = onDisconnected
         val generation = hostGeneration
+
         fun isCurrent() = generation == hostGeneration && hostPeers.contains(requestId, session)
         client.onFailure = { error ->
             if (isCurrent()) {
@@ -221,6 +222,7 @@ class SignalService : Service() {
                 onError(requestId, error)
             }
         }
+
         fun connected() {
             if (!isCurrent() || session.connected || session.dataChannel?.state() != DataChannel.State.OPEN) return
             session.connected = true
@@ -236,64 +238,66 @@ class SignalService : Service() {
             }
             onConnected(session)
         }
-        session.invitationExpiry = hostScope.launch {
-            delay(5 * 60 * 1000L)
-            if (isCurrent() && !session.connected) {
-                removeHostViewer(requestId)
-                onError(requestId, IllegalStateException("Invitation expired. Generate a new QR code."))
+        session.invitationExpiry =
+            hostScope.launch {
+                delay(5 * 60 * 1000L)
+                if (isCurrent() && !session.connected) {
+                    removeHostViewer(requestId)
+                    onError(requestId, IllegalStateException("Invitation expired. Generate a new QR code."))
+                }
             }
-        }
-        session.job = hostScope.launch {
-            try {
-                val channel = checkNotNull(client.peer(requestId, "offer", iceServers, enableMedia = true))
-                if (!isCurrent()) return@launch
-                session.dataChannel = channel
-                channel.registerObserver(
-                    object : DataChannel.Observer {
-                        override fun onBufferedAmountChange(previousAmount: Long) = Unit
+        session.job =
+            hostScope.launch {
+                try {
+                    val channel = checkNotNull(client.peer(requestId, "offer", iceServers, enableMedia = true))
+                    if (!isCurrent()) return@launch
+                    session.dataChannel = channel
+                    channel.registerObserver(
+                        object : DataChannel.Observer {
+                            override fun onBufferedAmountChange(previousAmount: Long) = Unit
 
-                        override fun onStateChange() {
-                            hostScope.launch {
-                                if (!isCurrent()) return@launch
-                                when (channel.state()) {
-                                    DataChannel.State.OPEN -> connected()
-                                    DataChannel.State.CLOSED, DataChannel.State.CLOSING -> removeHostViewer(requestId)
-                                    else -> Unit
+                            override fun onStateChange() {
+                                hostScope.launch {
+                                    if (!isCurrent()) return@launch
+                                    when (channel.state()) {
+                                        DataChannel.State.OPEN -> connected()
+                                        DataChannel.State.CLOSED, DataChannel.State.CLOSING -> removeHostViewer(requestId)
+                                        else -> Unit
+                                    }
                                 }
                             }
-                        }
 
-                        override fun onMessage(buffer: DataChannel.Buffer) {
-                            if (buffer.binary) return
-                            val bytes = ByteArray(buffer.data.remaining())
-                            buffer.data.get(bytes)
-                            val message = bytes.toString(Charsets.UTF_8)
-                            hostScope.launch {
-                                if (isCurrent()) {
-                                    connected()
-                                    onMessage(session, message)
+                            override fun onMessage(buffer: DataChannel.Buffer) {
+                                if (buffer.binary) return
+                                val bytes = ByteArray(buffer.data.remaining())
+                                buffer.data.get(bytes)
+                                val message = bytes.toString(Charsets.UTF_8)
+                                hostScope.launch {
+                                    if (isCurrent()) {
+                                        connected()
+                                        onMessage(session, message)
+                                    }
                                 }
                             }
-                        }
-                    },
-                )
-                session.peer?.onIceConnectionStateChange = { state ->
-                    if (state == PeerConnection.IceConnectionState.FAILED) {
-                        hostScope.launch {
-                            if (isCurrent()) removeHostViewer(requestId)
+                        },
+                    )
+                    session.peer?.onIceConnectionStateChange = { state ->
+                        if (state == PeerConnection.IceConnectionState.FAILED) {
+                            hostScope.launch {
+                                if (isCurrent()) removeHostViewer(requestId)
+                            }
                         }
                     }
-                }
-                connected()
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                if (isCurrent()) {
-                    removeHostViewer(requestId)
-                    onError(requestId, error)
+                    connected()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (isCurrent()) {
+                        removeHostViewer(requestId)
+                        onError(requestId, error)
+                    }
                 }
             }
-        }
     }
 
     /** Closing viewer B never closes viewer A or the camera. */

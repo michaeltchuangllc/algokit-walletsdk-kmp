@@ -238,10 +238,19 @@ internal actual suspend fun submitLogicSigSettlementInternal(
     authorizedSignerPublicKey: ByteArray,
     payeeAddress: String,
     note: ByteArray?,
-): String = executeLogicSigSettlement(
-    payerSigner, appId, usdcAssetId, algodUrl, channelId, cumulativeAmountMicroUsdc,
-    voucherSignature, authorizedSignerPublicKey, payeeAddress, note,
-)
+): String =
+    executeLogicSigSettlement(
+        payerSigner,
+        appId,
+        usdcAssetId,
+        algodUrl,
+        channelId,
+        cumulativeAmountMicroUsdc,
+        voucherSignature,
+        authorizedSignerPublicKey,
+        payeeAddress,
+        note,
+    )
 
 internal actual suspend fun validateLogicSigSettlementInternal(
     funderSigner: MppWalletSigner,
@@ -255,30 +264,54 @@ internal actual suspend fun validateLogicSigSettlementInternal(
     payeeAddress: String,
 ) {
     val signature = voucherSignature.copyOf()
-    val source = buildVoucherVerifierTeal(
-        appId, channelId, cumulativeAmountMicroUsdc, signature, authorizedSignerPublicKey, payeeAddress,
-    )
+    val source =
+        buildVoucherVerifierTeal(
+            appId,
+            channelId,
+            cumulativeAmountMicroUsdc,
+            signature,
+            authorizedSignerPublicKey,
+            payeeAddress,
+        )
     val program = algodCompileTeal(algodUrl, source)
     require(program.isNotEmpty()) { "Voucher verifier compile returned empty" }
     val verifierAddress = getLogicSignatureAddress(program)
     val params = fetchTxParams(algodUrl)
-    val envelopes = buildVoucherValidationGroup(
-        program, signature, funderSigner.address, verifierAddress, params.minFee, params.feePerByte,
-        object : VoucherValidationTransactions {
-            override fun payment(sender: String, receiver: String, amount: Long, fee: Long, note: ByteArray): ByteArray =
-                encodeTransactionRaw(buildPaymentTxn(sender, receiver, amount, fee, params).copy(note = note))
+    val envelopes =
+        buildVoucherValidationGroup(
+            program,
+            signature,
+            funderSigner.address,
+            verifierAddress,
+            params.minFee,
+            params.feePerByte,
+            object : VoucherValidationTransactions {
+                override fun payment(
+                    sender: String,
+                    receiver: String,
+                    amount: Long,
+                    fee: Long,
+                    note: ByteArray,
+                ): ByteArray = encodeTransactionRaw(buildPaymentTxn(sender, receiver, amount, fee, params).copy(note = note))
 
-            override fun group(transactions: List<ByteArray>): List<ByteArray> =
-                groupTransactions(transactions.map { decodeTransaction(it) }).map { encodeTransactionRaw(it) }
+                override fun group(transactions: List<ByteArray>): List<ByteArray> =
+                    groupTransactions(transactions.map { decodeTransaction(it) }).map { encodeTransactionRaw(it) }
 
-            override fun logicSign(program: ByteArray, signature: ByteArray, transaction: ByteArray): ByteArray =
-                signWithLogicSig(program, listOf(signature), decodeTransaction(transaction))
-        },
-    )
-    val response = httpRequest(
-        algodUrl, "/v2/transactions/simulate", "POST", "application/msgpack",
-        buildVoucherValidationRequest(envelopes),
-    )
+                override fun logicSign(
+                    program: ByteArray,
+                    signature: ByteArray,
+                    transaction: ByteArray,
+                ): ByteArray = signWithLogicSig(program, listOf(signature), decodeTransaction(transaction))
+            },
+        )
+    val response =
+        httpRequest(
+            algodUrl,
+            "/v2/transactions/simulate",
+            "POST",
+            "application/msgpack",
+            buildVoucherValidationRequest(envelopes),
+        )
     check(response.code in 200..299) { "Voucher simulation HTTP ${response.code}: ${response.body.take(300)}" }
     requireVerifiedVoucherSimulation(response.body, envelopes.size, signature.size)
 }

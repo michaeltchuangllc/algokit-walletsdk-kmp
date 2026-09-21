@@ -242,13 +242,30 @@ fun LiquidStreamHostDebugScreenPreview() {
             cameraPreview = null,
             creatorUsername = "michaeltchuang.algo",
             numbersOfViewer = "1",
-            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false, isQrModalVisible = false) },
+            onSettingsClick = {
+                uiState =
+                    uiState.copy(
+                        isSettingsModalVisible = true,
+                        isStatsModalVisible = false,
+                        isQrModalVisible = false,
+                    )
+            },
             onMinimise = {},
             onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
             onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
-            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible, isSettingsModalVisible = false, isQrModalVisible = false) },
-            onQrClick = { uiState = uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false) },
+            onStatsClick = {
+                uiState =
+                    uiState.copy(
+                        isStatsModalVisible = !uiState.isStatsModalVisible,
+                        isSettingsModalVisible = false,
+                        isQrModalVisible = false,
+                    )
+            },
+            onQrClick = {
+                uiState =
+                    uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false)
+            },
             onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
             requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
             liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",

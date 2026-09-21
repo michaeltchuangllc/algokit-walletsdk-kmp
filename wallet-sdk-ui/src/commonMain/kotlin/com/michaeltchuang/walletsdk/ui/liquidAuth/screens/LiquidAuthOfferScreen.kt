@@ -85,6 +85,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerIn
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import io.github.aakira.napier.Napier
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -284,9 +285,9 @@ fun LiquidAuthOfferScreen(
     // Wire up connection manager to ViewModel - CRITICAL: must happen before listening
     LaunchedEffect(connectionManager, viewModel) {
         if (connectionManager != null) {
-            println("🔗 Initializing connection manager with viewModel")
+            Napier.d("🔗 Initializing connection manager with viewModel")
             connectionManager.initialize(viewModel)
-            println("🔗 Connection manager initialized")
+            Napier.d("🔗 Connection manager initialized")
         }
         managerInitialized = true
     }
@@ -336,21 +337,21 @@ fun LiquidAuthOfferScreen(
         if (!managerInitialized) return@LaunchedEffect
         // Ensure connectionManager is initialized before starting
         if (connectionManager == null) {
-            println("⚠️ Cannot start listening - connectionManager is null")
+            Napier.w("⚠️ Cannot start listening - connectionManager is null")
             return@LaunchedEffect
         }
 
         // Startup generation can run earlier in this frame; don't stop a newly
         // initialized manager using an Idle snapshot from the previous composition.
         val currentState = viewModel.state.value
-        println(
+        Napier.d(
             "🔗 State changed to: ${currentState::class.simpleName}, " +
                 "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
         )
 
         when (currentState) {
             is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
-                println("🔗 Starting listening for requestId: ${currentState.requestId}")
+                Napier.d("🔗 Starting listening for requestId: ${currentState.requestId}")
                 connectionManager.startListening(
                     origin = currentState.origin,
                     requestId = currentState.requestId,
@@ -360,7 +361,7 @@ fun LiquidAuthOfferScreen(
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             -> {
-                println("🔗 Connection established - service handling")
+                Napier.d("🔗 Connection established - service handling")
                 if (isAnalyticsModalVisible.value) {
                     viewModel.startRealtimeBlockNumberUpdates()
                 } else {
@@ -369,7 +370,7 @@ fun LiquidAuthOfferScreen(
             }
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
-                println("🔗 Waiting for payment - keeping connection open")
+                Napier.d("🔗 Waiting for payment - keeping connection open")
                 if (isAnalyticsModalVisible.value) {
                     viewModel.startRealtimeBlockNumberUpdates()
                 } else {
@@ -382,7 +383,7 @@ fun LiquidAuthOfferScreen(
                 if (viewModel.meshHostingEnabled && currentState is LiquidAuthOfferViewModel.OfferState.Loading) {
                     return@LaunchedEffect
                 }
-                println("🔗 Stopping listening - state: ${currentState::class.simpleName}")
+                Napier.d("🔗 Stopping listening - state: ${currentState::class.simpleName}")
                 viewModel.stopRealtimeBlockNumberUpdates()
                 connectionManager.stopListening()
             }
@@ -402,17 +403,17 @@ fun LiquidAuthOfferScreen(
                     // Capture values in local variables for smart cast
                     val canRequestPayment = currentEnablePaidStreaming
                     val address = currentCreatorAddress
-                    println("💰 ClientConnected event received! enablePaidStreaming=$canRequestPayment, creatorAddress=$address")
+                    Napier.d("💰 ClientConnected event received! enablePaidStreaming=$canRequestPayment, creatorAddress=$address")
                     // Auto-request payment when paid streaming is enabled
                     if (canRequestPayment && address != null) {
-                        println("💰 Requesting payment from client...")
+                        Napier.d("💰 Requesting payment from client...")
                         val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
                         viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     } else if (address != null) {
-                        println("💬 Initializing chat only (no payment)...")
+                        Napier.d("💬 Initializing chat only (no payment)...")
                         connectionManager?.setupCreator(address, network = blockChainLabel)
                     } else {
-                        println(
+                        Napier.d(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
                         )
                     }
@@ -421,20 +422,20 @@ fun LiquidAuthOfferScreen(
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
                     // Send payment request to client via data channel
                     val connected = currentConnectionManager?.isConnected()
-                    println("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
+                    Napier.d("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
                     currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
-                    println("💰 Payment request sent: ${event.paymentRequest.amount} micro-units")
+                    Napier.d("💰 Payment request sent: ${event.paymentRequest.amount} micro-units")
                 }
 
                 is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
                     // Start block consumption when payment received
-                    println("💰 PaymentReceived event received!")
+                    Napier.d("💰 PaymentReceived event received!")
                     // Ensure only one block poller is active (<= 1 network call per second)
                     viewModel.stopRealtimeBlockNumberUpdates()
                     val sessionId = viewModel.getCurrentSessionId()
                     if (sessionId != null) {
                         currentConnectionManager?.startBlockConsumption(sessionId)
-                        println("💰 Payment received! Starting block consumption")
+                        Napier.d("💰 Payment received! Starting block consumption")
                     }
                 }
 
@@ -442,13 +443,13 @@ fun LiquidAuthOfferScreen(
                     // Stop billing loop, but keep host UI mounted so stream screen doesn't close/reopen.
                     currentConnectionManager?.stopBlockConsumption()
                     viewModel.stopVideoStreaming() // Transition to Connected while keeping live host UI visible
-                    println("💰 Funds depleted! Stopping stream and block consumption")
-                    println("💰 Viewer must pay again to resume streaming")
+                    Napier.d("💰 Funds depleted! Stopping stream and block consumption")
+                    Napier.d("💰 Viewer must pay again to resume streaming")
                     if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
                         streamHostUiMode.value = StreamHostUiMode.Expanded
                     }
                     currentCreatorAddress?.let { address ->
-                        println("💰 Requesting additional payment from viewer...")
+                        Napier.d("💰 Requesting additional payment from viewer...")
                         val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
                         viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     }
@@ -476,7 +477,7 @@ fun LiquidAuthOfferScreen(
             when (event) {
                 is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> {
                     viewModel.currentCostPerBlockMicroUsdc = event.costMicroUsdc
-                    println("💰 Stream cost changed to ${event.costMicroUsdc} micro-units")
+                    Napier.d("💰 Stream cost changed to ${event.costMicroUsdc} micro-units")
                     val isPaid = event.costMicroUsdc > 0L
                     viewModel.setStreamingPaid(isPaid)
                     connectionManager?.setIsPaidStreaming(isPaid)

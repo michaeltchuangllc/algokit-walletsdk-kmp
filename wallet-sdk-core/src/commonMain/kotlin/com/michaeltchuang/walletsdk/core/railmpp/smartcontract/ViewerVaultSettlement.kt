@@ -16,7 +16,15 @@ class ViewerVaultSettlement internal constructor(
     private val readBox: (Long, ByteArray, String) -> ByteArray,
     private val simulate: (Long, String, ByteArray, List<ByteArray>, List<Pair<Long, ByteArray>>) -> ByteArray?,
     private val validateSignature: suspend (
-        MppWalletSigner, Long, Long, String, ByteArray, Long, ByteArray, ByteArray, String,
+        MppWalletSigner,
+        Long,
+        Long,
+        String,
+        ByteArray,
+        Long,
+        ByteArray,
+        ByteArray,
+        String,
     ) -> Unit,
     private val submit: suspend (
         MppWalletSigner,
@@ -42,8 +50,13 @@ class ViewerVaultSettlement internal constructor(
             network: String,
         ): Result<HostViewerVaultReader.Snapshot> =
             validateVoucher(
-                viewerAddress, creatorAddress, authorizedSignerPublicKey, channelId,
-                signature, cumulativeAmount, network,
+                viewerAddress,
+                creatorAddress,
+                authorizedSignerPublicKey,
+                channelId,
+                signature,
+                cumulativeAmount,
+                network,
                 ::getSessionBoxBytesInternal,
                 ::simulateReadonlyMethodInternal,
                 ::validateLogicSigSettlementInternal,
@@ -60,7 +73,15 @@ class ViewerVaultSettlement internal constructor(
             readBox: (Long, ByteArray, String) -> ByteArray,
             simulate: (Long, String, ByteArray, List<ByteArray>, List<Pair<Long, ByteArray>>) -> ByteArray?,
             validateSignature: suspend (
-                MppWalletSigner, Long, Long, String, ByteArray, Long, ByteArray, ByteArray, String,
+                MppWalletSigner,
+                Long,
+                Long,
+                String,
+                ByteArray,
+                Long,
+                ByteArray,
+                ByteArray,
+                String,
             ) -> Unit,
         ): Result<HostViewerVaultReader.Snapshot> {
             val validationOnlySigner =
@@ -79,7 +100,13 @@ class ViewerVaultSettlement internal constructor(
                 validateSignature,
                 submit = { _, _, _, _, _, _, _, _, _, _ -> error("Voucher validation must not submit") },
             ).validateVoucher(
-                viewerAddress, creatorAddress, authorizedSignerPublicKey, channelId, signature, cumulativeAmount, network,
+                viewerAddress,
+                creatorAddress,
+                authorizedSignerPublicKey,
+                channelId,
+                signature,
+                cumulativeAmount,
+                network,
             )
         }
     }
@@ -133,8 +160,15 @@ class ViewerVaultSettlement internal constructor(
                 require(cumulativeAmount > snapshot.lastSettledMicroUsdc) { "Nothing new to settle" }
                 currentCoroutineContext().ensureActive()
                 validateSignature(
-                    funderSigner, config.appId, config.assetId, config.algodUrl, channel,
-                    cumulativeAmount, voucherSignature, signerKey, creatorAddress,
+                    funderSigner,
+                    config.appId,
+                    config.assetId,
+                    config.algodUrl,
+                    channel,
+                    cumulativeAmount,
+                    voucherSignature,
+                    signerKey,
+                    creatorAddress,
                 )
                 currentCoroutineContext().ensureActive()
                 Result.success(snapshot)
@@ -162,7 +196,13 @@ class ViewerVaultSettlement internal constructor(
             try {
                 val config = HostViewerVaultReader.networkConfig(network)
                 validateVoucher(
-                    viewerAddress, creatorAddress, signerKey, channel, voucherSignature, cumulativeAmount, network,
+                    viewerAddress,
+                    creatorAddress,
+                    signerKey,
+                    channel,
+                    voucherSignature,
+                    cumulativeAmount,
+                    network,
                 ).getOrThrow()
                 currentCoroutineContext().ensureActive()
                 Result.success(

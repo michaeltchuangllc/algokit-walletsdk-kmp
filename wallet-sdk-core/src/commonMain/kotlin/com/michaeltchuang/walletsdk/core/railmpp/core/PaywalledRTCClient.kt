@@ -342,7 +342,8 @@ class PaywalledRTCClient(
         onPaymentRequested?.invoke(request)
 
         // Auto-pay configured + usage payment (not access gate) → skip consent entirely.
-        if (!vaultOnlySession && consentApproval == null &&
+        if (!vaultOnlySession &&
+            consentApproval == null &&
             config.autoPaySegments &&
             request.meta.gatingMode != GatingMode.WHOLE_STREAM
         ) {
@@ -477,7 +478,11 @@ class PaywalledRTCClient(
     }
 
     @OptIn(ExperimentalEncodingApi::class)
-    private fun validateVaultIdentity(sessionId: String, channelId: String?, salt: String?) {
+    private fun validateVaultIdentity(
+        sessionId: String,
+        channelId: String?,
+        salt: String?,
+    ) {
         require(sessionId.isNotBlank()) { "Invalid vault session" }
         val channel = Base64.decode(requireNotNull(channelId))
         val channelSalt = Base64.decode(requireNotNull(salt))

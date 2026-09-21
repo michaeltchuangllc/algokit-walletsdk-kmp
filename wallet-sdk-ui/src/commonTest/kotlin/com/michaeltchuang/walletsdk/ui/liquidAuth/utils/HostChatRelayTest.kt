@@ -19,7 +19,9 @@ class HostChatRelayTest {
         peers.forEach { sender ->
             peers.forEach { it.messages.clear() }
             relayHostChat(
-                message, peers, sender,
+                message,
+                peers,
+                sender,
                 send = { peer, chat -> peer.messages += chat },
                 onFailure = { throw it },
             )
@@ -32,7 +34,8 @@ class HostChatRelayTest {
     fun `EXPECT every viewer to receive host chat exactly once WHEN a duplicate peer is included`() {
         val peers = List(3) { Peer() }
         relayHostChat(
-            message, peers + peers.first(),
+            message,
+            peers + peers.first(),
             send = { peer, chat -> peer.messages += chat },
             onFailure = { throw it },
         )
@@ -45,7 +48,8 @@ class HostChatRelayTest {
         val gift = message.copy(amount = "1.0", asset = "USDC")
         val failures = mutableListOf<Throwable>()
         relayHostChat(
-            gift, peers,
+            gift,
+            peers,
             send = { peer, chat ->
                 if (peer === peers[0]) error("closed")
                 peer.messages += chat
@@ -61,7 +65,9 @@ class HostChatRelayTest {
         val oldConnection = Peer()
         val newConnection = Peer()
         relayHostChat(
-            message, listOf(newConnection), oldConnection,
+            message,
+            listOf(newConnection),
+            oldConnection,
             send = { peer, chat -> peer.messages += chat },
             onFailure = { throw it },
         )

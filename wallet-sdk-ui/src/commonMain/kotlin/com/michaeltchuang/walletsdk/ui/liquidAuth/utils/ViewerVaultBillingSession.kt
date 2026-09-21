@@ -48,12 +48,15 @@ internal class ViewerVaultBillingSession(
                 network = voucher.network,
             )
 
-        suspend fun settle(voucher: Voucher, creatorWalletSigner: MppWalletSigner): Result<Unit>
+        suspend fun settle(
+            voucher: Voucher,
+            creatorWalletSigner: MppWalletSigner,
+        ): Result<Unit>
     }
 
     private object CoreAdapter : Adapter {
-        override suspend fun validateAuthorization(voucher: Voucher): Result<HostViewerVaultReader.Snapshot> {
-            return ViewerVaultSettlement.validateVoucher(
+        override suspend fun validateAuthorization(voucher: Voucher): Result<HostViewerVaultReader.Snapshot> =
+            ViewerVaultSettlement.validateVoucher(
                 viewerAddress = voucher.viewerAddress,
                 creatorAddress = voucher.creatorAddress,
                 authorizedSignerPublicKey = voucher.signerPublicKey,
@@ -62,18 +65,21 @@ internal class ViewerVaultBillingSession(
                 cumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
                 network = voucher.network,
             )
-        }
 
-        override suspend fun settle(voucher: Voucher, creatorWalletSigner: MppWalletSigner): Result<Unit> =
-            ViewerVaultSettlement(creatorWalletSigner).settle(
-                viewerAddress = voucher.viewerAddress,
-                creatorAddress = voucher.creatorAddress,
-                authorizedSignerPublicKey = voucher.signerPublicKey,
-                channelId = voucher.channelId,
-                signature = voucher.signature,
-                cumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
-                network = voucher.network,
-            ).map { Unit }
+        override suspend fun settle(
+            voucher: Voucher,
+            creatorWalletSigner: MppWalletSigner,
+        ): Result<Unit> =
+            ViewerVaultSettlement(creatorWalletSigner)
+                .settle(
+                    viewerAddress = voucher.viewerAddress,
+                    creatorAddress = voucher.creatorAddress,
+                    authorizedSignerPublicKey = voucher.signerPublicKey,
+                    channelId = voucher.channelId,
+                    signature = voucher.signature,
+                    cumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
+                    network = voucher.network,
+                ).map { Unit }
     }
 
     class Voucher internal constructor(
@@ -112,48 +118,51 @@ internal class ViewerVaultBillingSession(
         require(operationTimeoutMillis > 0 && finalDrainTimeoutMillis > 0)
     }
 
-    private val job = scope.launch {
-        try {
-            for (ignored in wake) {
-                val final = mutex.withLock { closed }
-                attemptSettlement(final)
-                if (final) break
+    private val job =
+        scope.launch {
+            try {
+                for (ignored in wake) {
+                    val final = mutex.withLock { closed }
+                    attemptSettlement(final)
+                    if (final) break
+                }
+            } finally {
+                wake.close()
             }
-        } finally {
-            wake.close()
         }
-    }
 
     suspend fun acceptVoucher(message: LiquidAuthPaymentVoucherMessage): Boolean {
-        val voucher = try {
-            require(message.sessionId == sessionId) { "Voucher session mismatch" }
-            require(message.viewerAddress == viewerAddress) { "Voucher viewer mismatch" }
-            val suppliedKey = requireNotNull(message.viewerPublicKey).copyOf()
-            require(suppliedKey.contentEquals(key)) { "Voucher signer mismatch" }
-            message.viewerPublicKeyBase64?.let {
-                require(Base64.decode(it).contentEquals(suppliedKey)) { "Inconsistent signer encoding" }
+        val voucher =
+            try {
+                require(message.sessionId == sessionId) { "Voucher session mismatch" }
+                require(message.viewerAddress == viewerAddress) { "Voucher viewer mismatch" }
+                val suppliedKey = requireNotNull(message.viewerPublicKey).copyOf()
+                require(suppliedKey.contentEquals(key)) { "Voucher signer mismatch" }
+                message.viewerPublicKeyBase64?.let {
+                    require(Base64.decode(it).contentEquals(suppliedKey)) { "Inconsistent signer encoding" }
+                }
+                val channel = requireNotNull(message.channelId).copyOf()
+                require(channel.size == 32) { "Voucher channel must be 32 bytes" }
+                message.channelIdBase64?.let {
+                    require(Base64.decode(it).contentEquals(channel)) { "Inconsistent channel encoding" }
+                }
+                val signature = Base64.decode(requireNotNull(message.signatureBase64))
+                require(signature.isNotEmpty()) { "Voucher signature is empty" }
+                val amount = requireNotNull(message.totalAmountClaimedMicroUsdc)
+                require(amount >= 0) { "Voucher amount is negative" }
+                Voucher(sessionId, viewerAddress, creatorAddress, network, key, channel, signature, amount)
+            } catch (e: IllegalArgumentException) {
+                report(e)
+                return false
             }
-            val channel = requireNotNull(message.channelId).copyOf()
-            require(channel.size == 32) { "Voucher channel must be 32 bytes" }
-            message.channelIdBase64?.let {
-                require(Base64.decode(it).contentEquals(channel)) { "Inconsistent channel encoding" }
-            }
-            val signature = Base64.decode(requireNotNull(message.signatureBase64))
-            require(signature.isNotEmpty()) { "Voucher signature is empty" }
-            val amount = requireNotNull(message.totalAmountClaimedMicroUsdc)
-            require(amount >= 0) { "Voucher amount is negative" }
-            Voucher(sessionId, viewerAddress, creatorAddress, network, key, channel, signature, amount)
-        } catch (e: IllegalArgumentException) {
-            report(e)
-            return false
-        }
         mutex.withLock {
             if (!canAccept(voucher)) return false
         }
         try {
-            val snapshot = withTimeoutOrNull(operationTimeoutMillis) {
-                adapter.validateAuthorization(voucher).getOrThrow()
-            } ?: error("Voucher authorization validation timed out")
+            val snapshot =
+                withTimeoutOrNull(operationTimeoutMillis) {
+                    adapter.validateAuthorization(voucher).getOrThrow()
+                } ?: error("Voucher authorization validation timed out")
             require(voucher.totalAmountClaimedMicroUsdc <= snapshot.totalDepositMicroUsdc) {
                 "Voucher exceeds deposit"
             }
@@ -163,13 +172,14 @@ internal class ViewerVaultBillingSession(
             report(e)
             return false
         }
-        val accepted = mutex.withLock {
-            currentCoroutineContext().ensureActive()
-            if (!canAccept(voucher)) return@withLock false
-            latest = voucher
-            wake.trySend(Unit)
-            true
-        }
+        val accepted =
+            mutex.withLock {
+                currentCoroutineContext().ensureActive()
+                if (!canAccept(voucher)) return@withLock false
+                latest = voucher
+                wake.trySend(Unit)
+                true
+            }
         if (!accepted) report(IllegalArgumentException("Session closed, channel changed or amount decreased"))
         return accepted
     }
@@ -192,35 +202,42 @@ internal class ViewerVaultBillingSession(
         }
     }
 
-    fun onBlock(block: Long): Job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        mutex.withLock {
-            if (closed || block < 0 || latestRound?.let { block <= it } == true) return@withLock
-            latestRound = block
-            if (paidRound == null) paidRound = block
-            wake.trySend(Unit)
+    fun onBlock(block: Long): Job =
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutex.withLock {
+                if (closed || block < 0 || latestRound?.let { block <= it } == true) return@withLock
+                latestRound = block
+                if (paidRound == null) paidRound = block
+                wake.trySend(Unit)
+            }
         }
-    }
 
-    fun close(): Job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        mutex.withLock {
-            closed = true
-            wake.trySend(Unit)
+    fun close(): Job =
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutex.withLock {
+                closed = true
+                wake.trySend(Unit)
+            }
+            if (withTimeoutOrNull(finalDrainTimeoutMillis) {
+                    job.join()
+                    true
+                } != true
+            ) {
+                job.cancel()
+                report(IllegalStateException("Viewer voucher final drain timed out; payment may be pending"))
+            }
         }
-        if (withTimeoutOrNull(finalDrainTimeoutMillis) { job.join(); true } != true) {
-            job.cancel()
-            report(IllegalStateException("Viewer voucher final drain timed out; payment may be pending"))
-        }
-    }
 
     private suspend fun attemptSettlement(force: Boolean) {
-        val candidate = mutex.withLock {
-            val voucher = latest ?: return
-            if (voucher.totalAmountClaimedMicroUsdc <= confirmedAmount) return
-            val round = latestRound
-            val boundary = paidRound
-            if (!force && (round == null || boundary == null || round - boundary < payoutFrequencyBlocks)) return
-            voucher to round
-        }
+        val candidate =
+            mutex.withLock {
+                val voucher = latest ?: return
+                if (voucher.totalAmountClaimedMicroUsdc <= confirmedAmount) return
+                val round = latestRound
+                val boundary = paidRound
+                if (!force && (round == null || boundary == null || round - boundary < payoutFrequencyBlocks)) return
+                voucher to round
+            }
         try {
             withTimeout(operationTimeoutMillis) {
                 val voucher = candidate.first
@@ -249,7 +266,10 @@ internal class ViewerVaultBillingSession(
         }
     }
 
-    private suspend fun confirm(amount: Long, round: Long?) {
+    private suspend fun confirm(
+        amount: Long,
+        round: Long?,
+    ) {
         mutex.withLock {
             confirmedAmount = maxOf(confirmedAmount, amount)
             if (round != null) paidRound = round

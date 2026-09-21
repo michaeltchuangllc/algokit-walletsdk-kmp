@@ -17,7 +17,12 @@ class ViewerVaultHandshakeTest {
     fun `EXPECT known identity to be sent before any receipt without balance or session claims`() {
         val hello = ViewerVaultHandshake("viewer", key)
         var message = ""
-        assertTrue(hello.send(channel, true) { message = it; true })
+        assertTrue(
+            hello.send(channel, true) {
+                message = it
+                true
+            },
+        )
         val fields = Json.parseToJsonElement(message).jsonObject
         assertEquals(setOf("type", "viewer", "viewerPublicKey", "channelId"), fields.keys)
         assertEquals("segment:handshake", fields["type"]?.jsonPrimitive?.content)
@@ -30,10 +35,12 @@ class ViewerVaultHandshakeTest {
     fun `EXPECT the legacy hello to be kept WHEN the channel is unknown or malformed`() {
         listOf(null, ByteArray(3)).forEach { candidate ->
             val hello = ViewerVaultHandshake("viewer", key)
-            assertTrue(hello.send(candidate, true) {
-                assertFalse("channelId" in Json.parseToJsonElement(it).jsonObject)
-                true
-            })
+            assertTrue(
+                hello.send(candidate, true) {
+                    assertFalse("channelId" in Json.parseToJsonElement(it).jsonObject)
+                    true
+                },
+            )
         }
     }
 
@@ -41,7 +48,10 @@ class ViewerVaultHandshakeTest {
     fun `EXPECT closed and failed sends to dedupe and resend WHEN the channel reopens or identity changes`() {
         val hello = ViewerVaultHandshake("viewer", key)
         var sent = 0
-        val send: (String) -> Boolean = { sent++; true }
+        val send: (String) -> Boolean = {
+            sent++
+            true
+        }
         assertFalse(hello.send(channel, false, sendMessage = send))
         assertEquals(0, sent)
         assertFalse(hello.send(channel, true) { false })
@@ -56,7 +66,10 @@ class ViewerVaultHandshakeTest {
     @Test
     fun `EXPECT identity to be advertised once known without reusing dedupe across connections`() {
         val messages = mutableListOf<String>()
-        val send: (String) -> Boolean = { messages.add(it); true }
+        val send: (String) -> Boolean = {
+            messages.add(it)
+            true
+        }
         val hello = ViewerVaultHandshake("viewer", key)
         assertTrue(hello.send(null, true, sendMessage = send))
         assertTrue(hello.send(channel, true, sendMessage = send))
@@ -69,11 +82,13 @@ class ViewerVaultHandshakeTest {
         val mutableKey = key.copyOf()
         val hello = ViewerVaultHandshake("viewer", mutableKey)
         mutableKey.fill(99)
-        assertTrue(hello.send(channel, true) {
-            val fields = Json.parseToJsonElement(it).jsonObject
-            assertEquals(Base64.encode(key), fields["viewerPublicKey"]?.jsonPrimitive?.content)
-            assertEquals("viewer", fields["viewer"]?.jsonPrimitive?.content)
-            true
-        })
+        assertTrue(
+            hello.send(channel, true) {
+                val fields = Json.parseToJsonElement(it).jsonObject
+                assertEquals(Base64.encode(key), fields["viewerPublicKey"]?.jsonPrimitive?.content)
+                assertEquals("viewer", fields["viewer"]?.jsonPrimitive?.content)
+                true
+            },
+        )
     }
 }

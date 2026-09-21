@@ -225,8 +225,7 @@ fun LiquidStreamHostQrModal(
                             .clickable {
                                 clipboardManager.setText(AnnotatedString(requestId))
                                 isCopied = true
-                            }
-                            .padding(horizontal = 16.dp),
+                            }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
@@ -264,7 +263,7 @@ fun LiquidStreamHostQrModal(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = securedViaLabel.ifBlank { localizedStringResource(Res.string.secured_by_algorand_testnet) },
-                            color = ColorPalette.RichNavy900,
+                        color = ColorPalette.RichNavy900,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -273,7 +272,6 @@ fun LiquidStreamHostQrModal(
         }
     }
 }
-
 
 @PreviewLightDark
 @Composable
@@ -287,4 +285,3 @@ private fun LiquidStreamHostQrModalPreview() {
         )
     }
 }
-

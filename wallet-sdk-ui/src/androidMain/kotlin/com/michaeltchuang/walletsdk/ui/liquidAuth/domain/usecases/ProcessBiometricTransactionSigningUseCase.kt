@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
-import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AuthenticateWithBiometricsUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
@@ -8,6 +7,7 @@ import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.ResponseMessage
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import foundation.algorand.provider.avm.models.SignTransactionsResult
+import io.github.aakira.napier.Napier
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
@@ -66,15 +66,15 @@ class ProcessBiometricTransactionSigningUseCase(
         val biometricSuccess = authenticateWithBiometricsUseCase(activity, params)
 
         if (!biometricSuccess) {
-            Log.w(TAG, "Biometric authentication cancelled or failed")
+            Napier.w("Biometric authentication cancelled or failed", tag = TAG)
             return Result.Cancelled("User cancelled biometric authentication")
         }
 
         return try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "✅ BIOMETRIC AUTHENTICATION SUCCESSFUL")
-            Log.d(TAG, "Processing transaction signing...")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("✅ BIOMETRIC AUTHENTICATION SUCCESSFUL", tag = TAG)
+            Napier.d("Processing transaction signing...", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 2: Process transaction signing through ViewModel
             val resultMessage = viewModel.handleMessage(message) as ResponseMessage
@@ -82,17 +82,17 @@ class ProcessBiometricTransactionSigningUseCase(
             // Step 3: Extract and validate result
             when (val result = resultMessage.result) {
                 is SignTransactionsResult -> {
-                    Log.d(TAG, "✅ Transaction signing completed successfully")
-                    Log.d(TAG, "Number of signed transactions: ${result.stxns.size}")
+                    Napier.d("✅ Transaction signing completed successfully", tag = TAG)
+                    Napier.d("Number of signed transactions: ${result.stxns.size}", tag = TAG)
                     Result.Success(resultMessage, result)
                 }
                 else -> {
-                    Log.e(TAG, "Unknown result type: ${result?.javaClass?.simpleName}")
+                    Napier.e("Unknown result type: ${result?.javaClass?.simpleName}", tag = TAG)
                     Result.Error("Unknown result type", null)
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error during transaction signing", e)
+            Napier.e("Error during transaction signing", e, tag = TAG)
             Result.Error("Transaction signing failed: ${e.message}", e)
         }
     }

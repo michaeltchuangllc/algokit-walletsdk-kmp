@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport
 
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
+import io.github.aakira.napier.Napier
 
 class CallbackRtcRtpSender(
     private val setTrackEnabledHandlerProvider: () -> ((enabled: Boolean) -> Unit)?,
@@ -10,9 +11,9 @@ class CallbackRtcRtpSender(
         val handler = setTrackEnabledHandlerProvider()
         if (handler != null) {
             handler(enabled)
-            println("$logTag: setTrackEnabled($enabled)")
+            Napier.d("$logTag: setTrackEnabled($enabled)")
         } else {
-            println("$logTag: setTrackEnabled($enabled) skipped — handlerProvider returned null")
+            Napier.d("$logTag: setTrackEnabled($enabled) skipped — handlerProvider returned null")
         }
     }
 }

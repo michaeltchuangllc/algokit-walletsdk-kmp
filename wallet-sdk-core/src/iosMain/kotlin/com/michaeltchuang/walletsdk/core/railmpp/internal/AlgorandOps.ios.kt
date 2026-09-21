@@ -234,10 +234,19 @@ internal actual suspend fun submitLogicSigSettlementInternal(
     authorizedSignerPublicKey: ByteArray,
     payeeAddress: String,
     note: ByteArray?,
-): String = executeLogicSigSettlement(
-    payerSigner, appId, usdcAssetId, algodUrl, channelId, cumulativeAmountMicroUsdc,
-    voucherSignature, authorizedSignerPublicKey, payeeAddress, note,
-)
+): String =
+    executeLogicSigSettlement(
+        payerSigner,
+        appId,
+        usdcAssetId,
+        algodUrl,
+        channelId,
+        cumulativeAmountMicroUsdc,
+        voucherSignature,
+        authorizedSignerPublicKey,
+        payeeAddress,
+        note,
+    )
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
 internal actual suspend fun validateLogicSigSettlementInternal(
@@ -252,50 +261,77 @@ internal actual suspend fun validateLogicSigSettlementInternal(
     payeeAddress: String,
 ) {
     val signature = voucherSignature.copyOf()
-    val source = buildVoucherVerifierTeal(
-        appId, channelId, cumulativeAmountMicroUsdc, signature, authorizedSignerPublicKey, payeeAddress,
-    )
+    val source =
+        buildVoucherVerifierTeal(
+            appId,
+            channelId,
+            cumulativeAmountMicroUsdc,
+            signature,
+            authorizedSignerPublicKey,
+            payeeAddress,
+        )
     val program = bridge.compileTealProgramWithAlgodUrl(algodUrl = algodUrl, source = source).toKotlinByteArray()
     require(program.isNotEmpty()) { "iOS: voucher verifier compile returned empty" }
-    val verifierAddress = bridge.logicSigAddressWithProgramBase64(
-        programBase64 = Base64.encode(program),
-        argsBase64 = emptyList<String>(),
-    )
+    val verifierAddress =
+        bridge.logicSigAddressWithProgramBase64(
+            programBase64 = Base64.encode(program),
+            argsBase64 = emptyList<String>(),
+        )
     require(verifierAddress.isNotBlank()) { "iOS: failed to derive voucher verifier address" }
     val params = fetchTxParams(algodUrl)
-    val envelopes = buildVoucherValidationGroup(
-        program, signature, funderSigner.address, verifierAddress, params.minFee, params.feePerByte,
-        object : VoucherValidationTransactions {
-            override fun payment(sender: String, receiver: String, amount: Long, fee: Long, note: ByteArray): ByteArray =
-                bridge.buildPaymentTxnWithSenderAddress(
-                    senderAddress = sender,
-                    receiverAddress = receiver,
-                    amountMicroAlgo = amount,
-                    fee = fee,
-                    firstRound = params.firstRoundValid,
-                    lastRound = params.lastRoundValid,
-                    genesisHashBase64 = params.genesisHashBase64,
-                    genesisID = params.genesisID,
-                    noteBase64 = Base64.encode(note),
-                ).toKotlinByteArray()
+    val envelopes =
+        buildVoucherValidationGroup(
+            program,
+            signature,
+            funderSigner.address,
+            verifierAddress,
+            params.minFee,
+            params.feePerByte,
+            object : VoucherValidationTransactions {
+                override fun payment(
+                    sender: String,
+                    receiver: String,
+                    amount: Long,
+                    fee: Long,
+                    note: ByteArray,
+                ): ByteArray =
+                    bridge
+                        .buildPaymentTxnWithSenderAddress(
+                            senderAddress = sender,
+                            receiverAddress = receiver,
+                            amountMicroAlgo = amount,
+                            fee = fee,
+                            firstRound = params.firstRoundValid,
+                            lastRound = params.lastRoundValid,
+                            genesisHashBase64 = params.genesisHashBase64,
+                            genesisID = params.genesisID,
+                            noteBase64 = Base64.encode(note),
+                        ).toKotlinByteArray()
 
-            override fun group(transactions: List<ByteArray>): List<ByteArray> =
-                bridge.assignGroupIdsWithTxnsBase64(
-                    txnsBase64 = transactions.map { Base64.encode(it) },
-                ).map { Base64.decode(normalizeBase64(it.toString())) }
+                override fun group(transactions: List<ByteArray>): List<ByteArray> =
+                    bridge
+                        .assignGroupIdsWithTxnsBase64(
+                            txnsBase64 = transactions.map { Base64.encode(it) },
+                        ).map { Base64.decode(normalizeBase64(it.toString())) }
 
-            override fun logicSign(program: ByteArray, signature: ByteArray, transaction: ByteArray): ByteArray =
-                bridge.signLogicSigTransactionWithProgramBase64(
-                    programBase64 = Base64.encode(program),
-                    argsBase64 = listOf(Base64.encode(signature)),
-                    encodedTxBase64 = Base64.encode(transaction),
-                ).toKotlinByteArray()
-        },
-    )
-    val response = bridge.syncSimulateTransactionWithAlgodUrl(
-        algodUrl = algodUrl,
-        requestBytesBase64 = Base64.encode(buildVoucherValidationRequest(envelopes)),
-    )
+                override fun logicSign(
+                    program: ByteArray,
+                    signature: ByteArray,
+                    transaction: ByteArray,
+                ): ByteArray =
+                    bridge
+                        .signLogicSigTransactionWithProgramBase64(
+                            programBase64 = Base64.encode(program),
+                            argsBase64 = listOf(Base64.encode(signature)),
+                            encodedTxBase64 = Base64.encode(transaction),
+                        ).toKotlinByteArray()
+            },
+        )
+    val response =
+        bridge.syncSimulateTransactionWithAlgodUrl(
+            algodUrl = algodUrl,
+            requestBytesBase64 = Base64.encode(buildVoucherValidationRequest(envelopes)),
+        )
     requireVerifiedVoucherSimulation(response, envelopes.size, signature.size)
 }
 

@@ -220,20 +220,26 @@ class HostViewerVaultReaderTest {
     @Test
     fun `EXPECT a raw passkey-sized signer box to not be decoded as an ARC-4 length WHEN reading via an explicit channel`() =
         runTest {
-            val rawKey = ByteArray(1793) { (it % 251).toByte() }.also {
-                it[0] = 0x0a
-                it[1] = 0x7f
-            }
+            val rawKey =
+                ByteArray(1793) { (it % 251).toByte() }.also {
+                    it[0] = 0x0a
+                    it[1] = 0x7f
+                }
             val channel = ByteArray(32) { 42 }
             val channelBox =
                 ByteArray(32) { it.toByte() } + ByteArray(32) { (it + 32).toByte() } +
                     byteArrayOf(0, 114) + ByteArray(48) + encodeArc4DynamicBytes(sha512_256(rawKey))
             val snapshot =
-                HostViewerVaultReader.readChannel(
-                    channel, viewer, creator, rawKey, network,
-                    readBox = { _, key, _ -> if (key.size == 32) channelBox else rawKey },
-                    simulate = { _, _, _, _, _ -> tuple(7_000_000, 200_000, 200_000) },
-                ).getOrThrow()
+                HostViewerVaultReader
+                    .readChannel(
+                        channel,
+                        viewer,
+                        creator,
+                        rawKey,
+                        network,
+                        readBox = { _, key, _ -> if (key.size == 32) channelBox else rawKey },
+                        simulate = { _, _, _, _, _ -> tuple(7_000_000, 200_000, 200_000) },
+                    ).getOrThrow()
             assertEquals(6_800_000, snapshot.remainingBalanceMicroUsdc)
         }
 

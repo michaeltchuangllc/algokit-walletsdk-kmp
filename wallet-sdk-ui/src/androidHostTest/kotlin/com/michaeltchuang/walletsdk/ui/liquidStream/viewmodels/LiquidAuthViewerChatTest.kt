@@ -47,7 +47,12 @@ class LiquidAuthViewerChatTest {
     fun `EXPECT incoming and outgoing chat to use the same screen state`() {
         val screen = store["viewer"] as LiquidAuthViewerViewModel
         viewer.receivedChatMessage(ChatMessage(sender = "host", text = "Hello iOS", timestamp = 1L))
-        assertEquals("Hello iOS", screen.state.value.chatMessages.single().text)
+        assertEquals(
+            "Hello iOS",
+            screen.state.value.chatMessages
+                .single()
+                .text,
+        )
 
         screen.onMessageChanged("Hello host")
         screen.onSendClicked()
@@ -64,6 +69,10 @@ class LiquidAuthViewerChatTest {
         viewer.receivedChatMessage(ChatMessage(sender = "host", text = "While minimized", timestamp = 2L))
         val restoredScreen = store["viewer"] as LiquidAuthViewerViewModel
         assertTrue(restoredScreen === viewer)
-        assertEquals(listOf("Before minimize", "While minimized"), restoredScreen.state.value.chatMessages.map { it.text })
+        assertEquals(
+            listOf("Before minimize", "While minimized"),
+            restoredScreen.state.value.chatMessages
+                .map { it.text },
+        )
     }
 }

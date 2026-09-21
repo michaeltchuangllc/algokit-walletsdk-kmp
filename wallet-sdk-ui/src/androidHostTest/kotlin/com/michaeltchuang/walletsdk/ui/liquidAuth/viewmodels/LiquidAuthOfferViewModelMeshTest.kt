@@ -258,7 +258,9 @@ class LiquidAuthOfferViewModelMeshTest {
         vm.updateMeshViewerDetails("request-2", details)
         vm.updateMeshViewerDetails(
             "request-2",
-            vm.meshViewerDetails.value.getValue("request-2").copy(connectionType = IceConnectionType.RELAY),
+            vm.meshViewerDetails.value
+                .getValue("request-2")
+                .copy(connectionType = IceConnectionType.RELAY),
         )
 
         assertEquals(details.copy(connectionType = IceConnectionType.RELAY), vm.meshViewerDetails.value["request-2"])

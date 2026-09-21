@@ -11,14 +11,20 @@ class HostPeerRegistry<T> {
 
     val snapshot: Map<String, T> get() = entries.toMap()
 
-    fun add(id: String, peer: T): Boolean {
+    fun add(
+        id: String,
+        peer: T,
+    ): Boolean {
         require(id.isNotBlank())
         if (entries.containsKey(id)) return false
         entries[id] = peer
         return true
     }
 
-    fun contains(id: String, peer: T): Boolean = entries[id] === peer
+    fun contains(
+        id: String,
+        peer: T,
+    ): Boolean = entries[id] === peer
 
     fun remove(id: String): T? = entries.remove(id)
 

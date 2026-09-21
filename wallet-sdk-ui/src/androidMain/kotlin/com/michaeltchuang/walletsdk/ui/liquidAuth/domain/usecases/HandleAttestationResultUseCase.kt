@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.app.Activity
 import android.os.Build
-import android.util.Log
 import androidx.activity.result.ActivityResult
 import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
@@ -10,6 +9,7 @@ import com.google.android.gms.fido.fido2.api.common.ErrorCode
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import io.github.aakira.napier.Napier
 import io.ktor.http.origin
 import org.json.JSONObject
 import kotlin.io.encoding.Base64
@@ -70,11 +70,11 @@ class HandleAttestationResultUseCase(
         viewModel: AnswerViewModel,
     ): Result {
         try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📱 PROCESSING ATTESTATION RESULT")
-            Log.d(TAG, "Result code: ${activityResult.resultCode}")
-            Log.d(TAG, "Expected RESULT_OK: ${Activity.RESULT_OK}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("📱 PROCESSING ATTESTATION RESULT", tag = TAG)
+            Napier.d("Result code: ${activityResult.resultCode}", tag = TAG)
+            Napier.d("Expected RESULT_OK: ${Activity.RESULT_OK}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 1: Validate result code
             if (activityResult.resultCode != Activity.RESULT_OK) {
@@ -84,16 +84,16 @@ class HandleAttestationResultUseCase(
             // Step 2: Extract credential bytes
             val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
             if (bytes == null) {
-                Log.e(TAG, "Credential bytes are null")
+                Napier.e("Credential bytes are null", tag = TAG)
                 return Result.Error("No credential data received")
             }
 
-            Log.d(TAG, "✅ Credential bytes received, size: ${bytes.size}")
+            Napier.d("✅ Credential bytes received, size: ${bytes.size}", tag = TAG)
 
             // Step 3: Deserialize credential
             val credential = PublicKeyCredential.deserializeFromBytes(bytes)
-            Log.d(TAG, "Credential ID: ${credential.id}")
-            Log.d(TAG, "Credential Type: ${credential.type}")
+            Napier.d("Credential ID: ${credential.id}", tag = TAG)
+            Napier.d("Credential Type: ${credential.type}", tag = TAG)
 
             // Step 4: Check for authenticator errors
             val response = credential.response
@@ -103,7 +103,7 @@ class HandleAttestationResultUseCase(
 
             // Step 5: Validate challenge
             if (viewModel.currentChallenge == null) {
-                Log.e(TAG, "Challenge signature is null")
+                Napier.e("Challenge signature is null", tag = TAG)
                 return Result.Error("Challenge signature is missing")
             }
 
@@ -116,11 +116,11 @@ class HandleAttestationResultUseCase(
                     viewModel = viewModel,
                 )
 
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📤 SUBMITTING CREDENTIAL TO SERVER")
-            Log.d(TAG, "URL: ${viewModel.authMessage.value!!.origin}/attestation/response")
-            Log.d(TAG, "Credential ID: ${credential.id}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("📤 SUBMITTING CREDENTIAL TO SERVER", tag = TAG)
+            Napier.d("URL: ${viewModel.authMessage.value!!.origin}/attestation/response", tag = TAG)
+            Napier.d("Credential ID: ${credential.id}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 7: Submit to server
             val attestationResponse =
@@ -133,24 +133,24 @@ class HandleAttestationResultUseCase(
 
             val responseBody = attestationResponse.peekBody(Long.MAX_VALUE).string()
 
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📡 ATTESTATION RESPONSE RECEIVED")
-            Log.d(TAG, "HTTP Status: ${attestationResponse.code} ${attestationResponse.message}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("📡 ATTESTATION RESPONSE RECEIVED", tag = TAG)
+            Napier.d("HTTP Status: ${attestationResponse.code} ${attestationResponse.message}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 8: Validate server response
             if (!attestationResponse.isSuccessful) {
-                Log.e(TAG, "❌ REGISTRATION FAILED!")
-                Log.e(TAG, "Server rejected the credential")
-                Log.e(TAG, "Status: ${attestationResponse.code}")
-                Log.e(TAG, "Response: $responseBody")
+                Napier.e("❌ REGISTRATION FAILED!", tag = TAG)
+                Napier.e("Server rejected the credential", tag = TAG)
+                Napier.e("Status: ${attestationResponse.code}", tag = TAG)
+                Napier.e("Response: $responseBody", tag = TAG)
                 return Result.Error(
                     "Registration failed: ${attestationResponse.code} - Check server logs",
                 )
             }
 
-            Log.d(TAG, "✅ FIDO2 REGISTRATION SUCCESSFUL!")
-            Log.d(TAG, "========================================")
+            Napier.d("✅ FIDO2 REGISTRATION SUCCESSFUL!", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             viewModel.saveCredential(
                 account = viewModel.accountAddress.value,
@@ -160,9 +160,9 @@ class HandleAttestationResultUseCase(
 
             return Result.Success(credential, responseBody)
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception in handleAttestationResult", e)
-            Log.e(TAG, "Exception type: ${e.javaClass.name}")
-            Log.e(TAG, "Exception message: ${e.message}")
+            Napier.e("❌ Exception in handleAttestationResult", e, tag = TAG)
+            Napier.e("Exception type: ${e.javaClass.name}", tag = TAG)
+            Napier.e("Exception message: ${e.message}", tag = TAG)
             e.printStackTrace()
             return Result.Error("Error processing attestation: ${e.message}")
         }
@@ -172,7 +172,7 @@ class HandleAttestationResultUseCase(
      * Handle cancelled or failed attestation
      */
     private fun handleCancelledOrFailed(activityResult: ActivityResult): Result {
-        Log.e(TAG, "Attestation cancelled or failed. Result code: ${activityResult.resultCode}")
+        Napier.e("Attestation cancelled or failed. Result code: ${activityResult.resultCode}", tag = TAG)
 
         // Try to extract error details
         activityResult.data?.let { data ->
@@ -182,15 +182,15 @@ class HandleAttestationResultUseCase(
                     val errorResponse = PublicKeyCredential.deserializeFromBytes(errorBytes)
                     if (errorResponse.response is AuthenticatorErrorResponse) {
                         val error = errorResponse.response as AuthenticatorErrorResponse
-                        Log.e(TAG, "FIDO2 Error Code: ${error.errorCode}")
-                        Log.e(TAG, "FIDO2 Error Message: ${error.errorMessage}")
+                        Napier.e("FIDO2 Error Code: ${error.errorCode}", tag = TAG)
+                        Napier.e("FIDO2 Error Message: ${error.errorMessage}", tag = TAG)
                         return Result.Error(
                             "FIDO2 Error: ${error.errorMessage}",
                             isFido2Error = true,
                         )
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse error response", e)
+                    Napier.e("Failed to parse error response", e, tag = TAG)
                 }
             }
         }
@@ -202,10 +202,10 @@ class HandleAttestationResultUseCase(
      * Handle authenticator error response
      */
     private fun handleAuthenticatorError(response: AuthenticatorErrorResponse): Result {
-        Log.e(TAG, "❌ FIDO2 AUTHENTICATOR ERROR")
-        Log.e(TAG, "Error Code: ${response.errorCode}")
-        Log.e(TAG, "Error Code Name: ${response.errorCode.name}")
-        Log.e(TAG, "Error Message: ${response.errorMessage}")
+        Napier.e("❌ FIDO2 AUTHENTICATOR ERROR", tag = TAG)
+        Napier.e("Error Code: ${response.errorCode}", tag = TAG)
+        Napier.e("Error Code Name: ${response.errorCode.name}", tag = TAG)
+        Napier.e("Error Message: ${response.errorMessage}", tag = TAG)
 
         val message =
             if (response.errorCode === ErrorCode.UNKNOWN_ERR) {

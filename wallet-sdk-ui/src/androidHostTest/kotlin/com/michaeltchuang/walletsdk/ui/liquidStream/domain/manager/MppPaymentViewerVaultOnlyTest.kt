@@ -39,90 +39,112 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalEncodingApi::class)
 class MppPaymentViewerVaultOnlyTest {
     @Test
-    fun `EXPECT deferred receipts to sign cumulative vouchers without rail receipts WHEN billing mode is SESSION_VAULT`() = runTest {
-        val dispatcher = StandardTestDispatcher(testScheduler)
-        Dispatchers.setMain(dispatcher)
-        val oldChannel = EscrowSessionVaultHybridManagerClient.channelId
-        val oldSalt = EscrowSessionVaultHybridManagerClient.salt
-        val oldHost = EscrowSessionVaultHybridManagerClient.hostAddress
-        val manager = MppPaymentViewerManager(mockk<GetRemainingSessionVaultBalanceUseCase>())
-        mockkObject(MppPayments)
-        try {
-            val channel = ByteArray(32) { 9 }
-            val dc = Channel()
-            val signer = mockk<MppWalletSigner>(relaxed = true)
-            every { signer.authorizedSignerPublicKey } returns byteArrayOf(1, 2, 3)
-            val data = MppPayments.SessionDynamicData(100, 20, 20, 1)
-            coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns data
-            coEvery { MppPayments.getSessionProgressSnapshotFromVault(any()) } returns MppPayments.computeSessionProgressSnapshot(data)
-            val cumulative = mutableListOf<Long>()
-            every { MppPayments.buildLogicSigSettlementVoucher(any(), any(), any()) } answers {
-                assertTrue(firstArg<ByteArray>().contentEquals(channel))
-                cumulative += secondArg<Long>()
-                byteArrayOf(secondArg<Long>().toByte())
-            }
-            val signed = mutableListOf<ByteArray>()
-            manager.start(
-                MppPaymentViewerManager.StartParams(
-                    dataChannel = dc,
-                    viewerAddress = "viewer",
-                    scope = this,
-                    signer = signer,
-                    mppNetwork = MppNetworks.ALGORAND_TESTNET,
-                    sessionVaultAppId = 123,
-                    requestMppConsent = { error("Funded receipts should not prompt") },
-                    setViewerSessionVaultProgress = { _, _ -> },
-                    signFido2Challenge = { challenge, _ ->
-                        signed += challenge
-                        byteArrayOf(7, 8, 9)
-                    },
-                    channelIdProvider = { channel },
-                ),
-            )
-            runCurrent()
-            fun deliver(segment: Int) {
-                val receipt = PaymentReceipt(
-                    txId = "", sessionId = "ordinary-session", segmentIndex = segment,
-                    amount = "10", asset = "USDC", payTo = "creator", payFrom = "viewer",
-                    network = MppNetworks.ALGORAND_TESTNET, timestamp = 1,
-                    channelId = Base64.encode(channel), salt = Base64.encode(ByteArray(32) { 1 }),
-                    billingMode = BillingMode.SESSION_VAULT, settlementDeferred = true,
+    fun `EXPECT deferred receipts to sign cumulative vouchers without rail receipts WHEN billing mode is SESSION_VAULT`() =
+        runTest {
+            val dispatcher = StandardTestDispatcher(testScheduler)
+            Dispatchers.setMain(dispatcher)
+            val oldChannel = EscrowSessionVaultHybridManagerClient.channelId
+            val oldSalt = EscrowSessionVaultHybridManagerClient.salt
+            val oldHost = EscrowSessionVaultHybridManagerClient.hostAddress
+            val manager = MppPaymentViewerManager(mockk<GetRemainingSessionVaultBalanceUseCase>())
+            mockkObject(MppPayments)
+            try {
+                val channel = ByteArray(32) { 9 }
+                val dc = Channel()
+                val signer = mockk<MppWalletSigner>(relaxed = true)
+                every { signer.authorizedSignerPublicKey } returns byteArrayOf(1, 2, 3)
+                val data = MppPayments.SessionDynamicData(100, 20, 20, 1)
+                coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns data
+                coEvery { MppPayments.getSessionProgressSnapshotFromVault(any()) } returns MppPayments.computeSessionProgressSnapshot(data)
+                val cumulative = mutableListOf<Long>()
+                every { MppPayments.buildLogicSigSettlementVoucher(any(), any(), any()) } answers {
+                    assertTrue(firstArg<ByteArray>().contentEquals(channel))
+                    cumulative += secondArg<Long>()
+                    byteArrayOf(secondArg<Long>().toByte())
+                }
+                val signed = mutableListOf<ByteArray>()
+                manager.start(
+                    MppPaymentViewerManager.StartParams(
+                        dataChannel = dc,
+                        viewerAddress = "viewer",
+                        scope = this,
+                        signer = signer,
+                        mppNetwork = MppNetworks.ALGORAND_TESTNET,
+                        sessionVaultAppId = 123,
+                        requestMppConsent = { error("Funded receipts should not prompt") },
+                        setViewerSessionVaultProgress = { _, _ -> },
+                        signFido2Challenge = { challenge, _ ->
+                            signed += challenge
+                            byteArrayOf(7, 8, 9)
+                        },
+                        channelIdProvider = { channel },
+                    ),
                 )
-                dc.receive(buildJsonObject {
-                    put("type", DCMessageType.SEGMENT_ACCEPTED.value)
-                    put("payload", Json.encodeToJsonElement(receipt))
-                })
+                runCurrent()
+
+                fun deliver(segment: Int) {
+                    val receipt =
+                        PaymentReceipt(
+                            txId = "",
+                            sessionId = "ordinary-session",
+                            segmentIndex = segment,
+                            amount = "10",
+                            asset = "USDC",
+                            payTo = "creator",
+                            payFrom = "viewer",
+                            network = MppNetworks.ALGORAND_TESTNET,
+                            timestamp = 1,
+                            channelId = Base64.encode(channel),
+                            salt = Base64.encode(ByteArray(32) { 1 }),
+                            billingMode = BillingMode.SESSION_VAULT,
+                            settlementDeferred = true,
+                        )
+                    dc.receive(
+                        buildJsonObject {
+                            put("type", DCMessageType.SEGMENT_ACCEPTED.value)
+                            put("payload", Json.encodeToJsonElement(receipt))
+                        },
+                    )
+                }
+                deliver(0)
+                runCurrent()
+                deliver(1)
+                deliver(1)
+                runCurrent()
+                assertEquals(listOf(30L, 40L), cumulative)
+                assertEquals(2, signed.size)
+                val vouchers = dc.sent.filter { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_VOUCHER.value }
+                assertEquals(2, vouchers.size)
+                assertTrue(vouchers.all { it["channelId"]?.jsonPrimitive?.content == Base64.encode(channel) })
+                assertTrue(vouchers.all { it["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT })
+                assertTrue(vouchers.all { !it["signature"]?.jsonPrimitive?.content.isNullOrBlank() })
+                assertTrue(dc.sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_PAYMENT.value })
+            } finally {
+                manager.stop()
+                unmockkObject(MppPayments)
+                EscrowSessionVaultHybridManagerClient.channelId = oldChannel
+                EscrowSessionVaultHybridManagerClient.salt = oldSalt
+                EscrowSessionVaultHybridManagerClient.hostAddress = oldHost
+                Dispatchers.resetMain()
             }
-            deliver(0)
-            runCurrent()
-            deliver(1)
-            deliver(1)
-            runCurrent()
-            assertEquals(listOf(30L, 40L), cumulative)
-            assertEquals(2, signed.size)
-            val vouchers = dc.sent.filter { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_VOUCHER.value }
-            assertEquals(2, vouchers.size)
-            assertTrue(vouchers.all { it["channelId"]?.jsonPrimitive?.content == Base64.encode(channel) })
-            assertTrue(vouchers.all { it["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT })
-            assertTrue(vouchers.all { !it["signature"]?.jsonPrimitive?.content.isNullOrBlank() })
-            assertTrue(dc.sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_PAYMENT.value })
-        } finally {
-            manager.stop()
-            unmockkObject(MppPayments)
-            EscrowSessionVaultHybridManagerClient.channelId = oldChannel
-            EscrowSessionVaultHybridManagerClient.salt = oldSalt
-            EscrowSessionVaultHybridManagerClient.hostAddress = oldHost
-            Dispatchers.resetMain()
         }
-    }
 
     private class Channel : RtcDataChannel {
         val sent = mutableListOf<JsonObject>()
         private lateinit var observer: RtcDataChannelObserver
+
         override fun state() = RtcDataChannelState.OPEN
-        override fun send(bytes: ByteArray) { sent += Json.parseToJsonElement(bytes.decodeToString()).jsonObject }
-        override fun registerObserver(observer: RtcDataChannelObserver) { this.observer = observer }
+
+        override fun send(bytes: ByteArray) {
+            sent += Json.parseToJsonElement(bytes.decodeToString()).jsonObject
+        }
+
+        override fun registerObserver(observer: RtcDataChannelObserver) {
+            this.observer = observer
+        }
+
         override fun close() = Unit
+
         fun receive(message: JsonObject) = observer.onMessage(message.toString().encodeToByteArray())
     }
 }

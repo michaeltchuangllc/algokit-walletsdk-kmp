@@ -29,11 +29,13 @@ class ViewerVaultSettlementTest {
     private val creator = encodeAlgorandAddress(ByteArray(32) { (it + 32).toByte() })
     private val otherViewer = encodeAlgorandAddress(ByteArray(32) { (it + 64).toByte() })
     private val channel = ByteArray(32) { 42 }
+
     // A raw Falcon-sized key whose first two bytes are NOT an ARC-4 length.
-    private val key = ByteArray(1793) { (it % 251).toByte() }.also {
-        it[0] = 0x0a
-        it[1] = 0x7f
-    }
+    private val key =
+        ByteArray(1793) { (it % 251).toByte() }.also {
+            it[0] = 0x0a
+            it[1] = 0x7f
+        }
     private val signature = byteArrayOf(7, 8, 9)
     private val network = MppNetworks.ALGORAND_TESTNET
     private val funder =
@@ -41,8 +43,7 @@ class ViewerVaultSettlementTest {
             override val address = creator
             override val authorizedSignerPublicKey = byteArrayOf(99)
 
-            override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray =
-                error("Fake tests must never sign transactions")
+            override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray = error("Fake tests must never sign transactions")
         }
 
     @Test
@@ -85,9 +86,19 @@ class ViewerVaultSettlementTest {
     fun `EXPECT companion validation to need no wallet and reject a forged high watermark WHEN validating a voucher`() =
         runTest {
             var checks = 0
-            suspend fun validate(amount: Long, sig: ByteArray): Result<HostViewerVaultReader.Snapshot> =
+
+            suspend fun validate(
+                amount: Long,
+                sig: ByteArray,
+            ): Result<HostViewerVaultReader.Snapshot> =
                 ViewerVaultSettlement.validateVoucher(
-                    viewer, creator, key, channel, sig, amount, network,
+                    viewer,
+                    creator,
+                    key,
+                    channel,
+                    sig,
+                    amount,
+                    network,
                     readBox = { _, boxKey, _ -> if (boxKey.size == 32) sessionBox() else key },
                     simulate = { _, _, _, _, _ -> tuple(1_000, 300, 500) },
                     validateSignature = { signer, app, asset, url, id, cumulative, signatureBytes, publicKey, payee ->
@@ -364,11 +375,12 @@ class ViewerVaultSettlementTest {
                 }
             assertEquals(
                 "fake-tx",
-                fake.settle(
-                    channelId = inputChannel,
-                    authorizedKey = inputKey,
-                    voucherSignature = inputSignature,
-                ).getOrThrow(),
+                fake
+                    .settle(
+                        channelId = inputChannel,
+                        authorizedKey = inputKey,
+                        voucherSignature = inputSignature,
+                    ).getOrThrow(),
             )
             assertEquals(1, fake.submissions)
         }
@@ -441,9 +453,16 @@ class ViewerVaultSettlementTest {
             firstSubmitted.await()
             val second =
                 async {
-                    api.settle(
-                        otherViewer, creator, secondKey, secondChannel, secondSignature, 700, MppNetworks.ALGORAND_MAINNET,
-                    ).getOrThrow()
+                    api
+                        .settle(
+                            otherViewer,
+                            creator,
+                            secondKey,
+                            secondChannel,
+                            secondSignature,
+                            700,
+                            MppNetworks.ALGORAND_MAINNET,
+                        ).getOrThrow()
                 }
             assertEquals("viewer-two", second.await())
             assertEquals("viewer-one", first.await())
@@ -458,7 +477,12 @@ class ViewerVaultSettlementTest {
 
     private inner class Fake(
         private val config: ExpectedConfig =
-            ExpectedConfig(network, RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID, AssetConstants.USDC_TESTNET_ID, NODE_TESTNET_BASE_URL),
+            ExpectedConfig(
+                network,
+                RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID,
+                AssetConstants.USDC_TESTNET_ID,
+                NODE_TESTNET_BASE_URL,
+            ),
     ) {
         var box = sessionBox()
         var storedKey = key.copyOf()

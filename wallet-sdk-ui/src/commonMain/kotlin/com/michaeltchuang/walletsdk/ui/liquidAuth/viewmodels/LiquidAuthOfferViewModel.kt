@@ -148,28 +148,29 @@ class LiquidAuthOfferViewModel(
         }
         offerGenerationJob?.cancel()
         stateDelegate.updateState { OfferState.Loading }
-        offerGenerationJob = viewModelScope.launch {
-            try {
-                val offer = generateOfferUseCase.generateOffer(origin)
-                stateDelegate.updateState {
-                    OfferState.WaitingForConnection(
-                        requestId = offer.requestId,
-                        liquidAuthUrl = offer.liquidAuthUrl,
-                        origin = offer.origin,
+        offerGenerationJob =
+            viewModelScope.launch {
+                try {
+                    val offer = generateOfferUseCase.generateOffer(origin)
+                    stateDelegate.updateState {
+                        OfferState.WaitingForConnection(
+                            requestId = offer.requestId,
+                            liquidAuthUrl = offer.liquidAuthUrl,
+                            origin = offer.origin,
+                        )
+                    }
+                    eventDelegate.sendEvent(OfferEvent.OfferGenerated(offer.requestId))
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    stateDelegate.updateState {
+                        OfferState.Error(e.message ?: "Failed to generate offer")
+                    }
+                    eventDelegate.sendEvent(
+                        OfferEvent.ShowError(e.message ?: "Failed to generate offer"),
                     )
                 }
-                eventDelegate.sendEvent(OfferEvent.OfferGenerated(offer.requestId))
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                stateDelegate.updateState {
-                    OfferState.Error(e.message ?: "Failed to generate offer")
-                }
-                eventDelegate.sendEvent(
-                    OfferEvent.ShowError(e.message ?: "Failed to generate offer"),
-                )
             }
-        }
     }
 
     /**
@@ -282,10 +283,10 @@ class LiquidAuthOfferViewModel(
      * Called when a client successfully connects via WebRTC
      */
     fun onClientConnected(sessionId: String) {
-        println("💰 onClientConnected called with sessionId=$sessionId")
+        Napier.d("💰 onClientConnected called with sessionId=$sessionId")
         val currentState = state.value
         if (currentState is OfferState.WaitingForConnection) {
-            println("💰 Transitioning from WaitingForConnection to Connected")
+            Napier.d("💰 Transitioning from WaitingForConnection to Connected")
             stateDelegate.updateState {
                 OfferState.Connected(
                     requestId = currentState.requestId,
@@ -294,7 +295,7 @@ class LiquidAuthOfferViewModel(
                     sessionId = sessionId,
                 )
             }
-            println("💰 Emitting ClientConnected event")
+            Napier.d("💰 Emitting ClientConnected event")
             viewModelScope.launch {
                 eventDelegate.sendEvent(OfferEvent.ClientConnected(sessionId))
             }
@@ -311,7 +312,7 @@ class LiquidAuthOfferViewModel(
         network: String = "testnet",
     ) {
         val currentState = state.value
-        println(
+        Napier.d(
             "💰 requestPaymentFromClient called, currentState=${currentState::class.simpleName}, " +
                 "creatorAddress=$creatorAddress, network=$network, sessionId=${getCurrentSessionId()}",
         )
@@ -323,7 +324,7 @@ class LiquidAuthOfferViewModel(
             }
             return
         } else {
-            println("💰 State is Connected, proceeding with payment request")
+            Napier.d("💰 State is Connected, proceeding with payment request")
         }
 
         // Generate payment session ID
@@ -349,7 +350,7 @@ class LiquidAuthOfferViewModel(
                         voucherSignature = null,
                     ),
             )
-        println("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amount}")
+        Napier.d("💰 Created payment request: ${paymentRequest.id}, amount=${paymentRequest.amount}")
 
         _paymentState.value =
             PaymentState.WaitingForDeposit(
@@ -366,14 +367,14 @@ class LiquidAuthOfferViewModel(
                 paymentRequest = paymentRequest,
             )
         }
-        println("💰 Transitioned to WaitingForPayment state")
+        Napier.d("💰 Transitioned to WaitingForPayment state")
 
         viewModelScope.launch {
-            println("💰 Emitting OfferEvent.PaymentRequested for session=${paymentRequest.id}")
+            Napier.d("💰 Emitting OfferEvent.PaymentRequested for session=${paymentRequest.id}")
             eventDelegate.sendEvent(OfferEvent.PaymentRequested(paymentRequest))
-            println("💰 OfferEvent.PaymentRequested emitted")
+            Napier.d("💰 OfferEvent.PaymentRequested emitted")
         }
-        println("💰 Payment request ready to be sent")
+        Napier.d("💰 Payment request ready to be sent")
     }
 
     /**
@@ -690,7 +691,7 @@ class LiquidAuthOfferViewModel(
 
         if (progressBalance <= 0) {
             // Funds depleted - stop streaming immediately
-            println("💰⛽ BALANCE DEPLETED! Stopping video stream... paid=$newBlocksWatched free=$newFreeBlocksWatched")
+            Napier.d("💰⛽ BALANCE DEPLETED! Stopping video stream... paid=$newBlocksWatched free=$newFreeBlocksWatched")
 
             // Stop the video streaming
             val currentState = state.value
@@ -703,7 +704,7 @@ class LiquidAuthOfferViewModel(
                         sessionId = currentState.sessionId,
                     )
                 }
-                println("💰⛽ Stream stopped - transitioned to Connected state")
+                Napier.d("💰⛽ Stream stopped - transitioned to Connected state")
             }
 
             _paymentState.value =
@@ -794,13 +795,13 @@ class LiquidAuthOfferViewModel(
      */
     fun monitorBlockchainBlocks() {
         if (blockchainMonitorJob?.isActive == true) {
-            println("🔗 Blockchain block monitoring already active - skipping duplicate start")
+            Napier.d("🔗 Blockchain block monitoring already active - skipping duplicate start")
             return
         }
 
         blockchainMonitorJob =
             viewModelScope.launch {
-                println("🔗 Starting blockchain block monitoring...")
+                Napier.d("🔗 Starting blockchain block monitoring...")
                 var lastBlockNumber: Long? = null
 
                 try {
@@ -813,27 +814,27 @@ class LiquidAuthOfferViewModel(
                                     // Update current block number for UI
                                     _currentBlockNumber.value = currentBlock
 
-                                    println("🔗 Current block: $currentBlock (last: $lastBlockNumber)")
+                                    Napier.d("🔗 Current block: $currentBlock (last: $lastBlockNumber)")
 
                                     when {
                                         lastBlockNumber == null -> {
                                             // First poll - just store the block number
                                             lastBlockNumber = currentBlock
-                                            println("🔗 Initial block stored: $currentBlock")
+                                            Napier.d("🔗 Initial block stored: $currentBlock")
                                         }
                                         currentBlock > lastBlockNumber!! -> {
                                             val blocksAdvanced = (currentBlock - lastBlockNumber!!).toInt()
-                                            println("🔗 New block(s) detected! Advanced by $blocksAdvanced blocks")
+                                            Napier.d("🔗 New block(s) detected! Advanced by $blocksAdvanced blocks")
                                             lastBlockNumber = currentBlock
                                         }
                                         else -> {
                                             // Same block, no action needed
-                                            println("🔗 Same block $currentBlock, no consumption")
+                                            Napier.d("🔗 Same block $currentBlock, no consumption")
                                         }
                                     }
                                 }
                                 is com.michaeltchuang.walletsdk.utils.DataResource.Error -> {
-                                    println("🔗❌ Failed to get current block: ${result.exception}")
+                                    Napier.e("🔗❌ Failed to get current block: ${result.exception}")
                                 }
                                 is com.michaeltchuang.walletsdk.utils.DataResource.Loading -> {
                                     // Loading state, ignore
@@ -845,7 +846,7 @@ class LiquidAuthOfferViewModel(
                         delay(1000L.milliseconds)
                     }
 
-                    println("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
+                    Napier.d("🔗 Stopping blockchain block monitoring - no longer streaming with balance")
                 } finally {
                     blockchainMonitorJob = null
                 }
@@ -853,7 +854,7 @@ class LiquidAuthOfferViewModel(
     }
 
     private suspend fun handlePaymentConfirmed(txId: String) {
-        println("💰🎉 Payment received on-chain!")
+        Napier.d("💰🎉 Payment received on-chain!")
 
         val currentState = state.value
         val currentPaymentState = _paymentState.value
@@ -867,7 +868,7 @@ class LiquidAuthOfferViewModel(
         }
 
         if (currentState is OfferState.WaitingForPayment) {
-            println("💰 Transitioning from WaitingForPayment to Streaming state")
+            Napier.d("💰 Transitioning from WaitingForPayment to Streaming state")
             stateDelegate.updateState {
                 OfferState.Streaming(
                     requestId = currentState.requestId,
@@ -964,9 +965,9 @@ class LiquidAuthOfferViewModel(
             try {
                 val balance = getAccountASABalance(address, assetId)
                 _creatorAsaBalance.value = balance?.toString()
-                println("Fetched ASA balance (LiquidAuth): ${balance?.toString() ?: "null"}")
+                Napier.d("Fetched ASA balance (LiquidAuth): ${balance?.toString() ?: "null"}")
             } catch (e: Exception) {
-                println("Exception fetching ASA balance (LiquidAuth): ${e.message}")
+                Napier.d("Exception fetching ASA balance (LiquidAuth): ${e.message}")
                 _creatorAsaBalance.value = null
             } finally {
                 _isCheckingCreatorAsaBalance.value = false
