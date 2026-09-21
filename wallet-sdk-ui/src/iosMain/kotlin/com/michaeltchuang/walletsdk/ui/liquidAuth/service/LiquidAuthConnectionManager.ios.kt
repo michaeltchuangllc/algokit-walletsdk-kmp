@@ -1316,20 +1316,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         val recipient = config.gating.payTo
         val sessionId = peer.creator?.sessionId ?: return
         val cost = config.gating.amount.toLongOrNull() ?: 0L
-        sender(
-            buildJsonObject {
-                put("reference", "liquid:stream:info")
-                put("hostAddress", recipient)
-                put("sessionId", sessionId)
-            }.toString(),
-        )
-        sender(
-            buildJsonObject {
-                put("type", DCMessageType.STREAM_COST_UPDATE.value)
-                put("sessionId", sessionId)
-                put("payload", buildJsonObject { put("costMicroUsdc", cost) })
-            }.toString(),
-        )
+        sender(buildLiquidStreamInfoMessage(hostAddress = recipient, sessionId = sessionId))
+        sender(buildLiquidStreamCostUpdateMessage(sessionId = sessionId, costMicroUsdc = cost))
     }
 
     @Suppress("unused")
@@ -1550,99 +1538,68 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
 
             parsed.paymentVoucher?.let { voucher ->
-                val signature = voucher.signatureBase64
-                val claimedAmount = voucher.totalAmountClaimedMicroUsdc
-                val voucherSessionId = voucher.sessionId
-                val voucherViewer = voucher.viewerAddress
-                val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
                 voucher.channelId?.let { decodedChannelId ->
                     EscrowSessionVaultHybridManagerClient.channelId = decodedChannelId
                     Napier.d("$TAG: [VOUCHER_CHANNEL_ID_CAPTURED] len=${decodedChannelId.size}")
                 }
 
-                if (signature == null ||
-                    claimedAmount == null ||
-                    voucherSessionId == null ||
-                    voucherViewer == null ||
-                    voucherViewerPublicKey == null
+                when (
+                    val decision =
+                        evaluateLiquidAuthVoucher(
+                            voucher = voucher,
+                            activeSessionId = activePaymentSessionId,
+                            previousClaimedAmountMicroUsdc = activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc,
+                            isPaidStreamingEnabled = isPaidStreamingEnabled,
+                        )
                 ) {
-                    Napier.d(
-                        "$TAG: [VOUCHER_SKIP] reason=invalid_payload " +
-                            "session=${voucher.sessionId} claimedAmount=$claimedAmount",
-                    )
-                } else {
-                    val activeSession = activePaymentSessionId
-                    if (activeSession != null && voucherSessionId != activeSession) {
+                    is LiquidAuthVoucherDecision.InvalidPayload -> {
+                        Napier.d(
+                            "$TAG: [VOUCHER_SKIP] reason=invalid_payload " +
+                                "session=${voucher.sessionId} claimedAmount=${voucher.totalAmountClaimedMicroUsdc}",
+                        )
+                    }
+                    is LiquidAuthVoucherDecision.SessionMismatch -> {
                         Napier.d(
                             "$TAG: [VOUCHER_SKIP] reason=session_mismatch " +
-                                "voucherSession=$voucherSessionId activeSession=$activeSession",
+                                "voucherSession=${voucher.sessionId} activeSession=$activePaymentSessionId",
                         )
-                    } else {
-                        val previousClaimedAmount =
-                            activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc
-                        if (previousClaimedAmount != null && claimedAmount < previousClaimedAmount) {
-                            Napier.d(
-                                "$TAG: [VOUCHER_STALE_SKIP] session=$voucherSessionId " +
-                                    "claimed=$claimedAmount previous=$previousClaimedAmount",
+                    }
+                    is LiquidAuthVoucherDecision.Stale -> {
+                        Napier.d(
+                            "$TAG: [VOUCHER_STALE_SKIP] session=${voucher.sessionId} " +
+                                "claimed=${voucher.totalAmountClaimedMicroUsdc} previous=${activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc}",
+                        )
+                    }
+                    is LiquidAuthVoucherDecision.Evaluated -> {
+                        // A single commit covers both free and paid mode — the old code built
+                        // and applied this same snapshot/identity update twice in a row.
+                        activeCreatorVoucherClaimSnapshot = decision.snapshot
+                        if (decision.snapshot.viewerAddress != activeViewerAddressForVault) {
+                            activeViewerAddressForVault = decision.snapshot.viewerAddress
+                            Napier.d("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=${decision.snapshot.viewerAddress}")
+                        }
+                        if (activeViewerAuthorizedSignerKey == null) {
+                            val voucherSignerKey = decision.viewerPublicKey
+                            if (voucherSignerKey != null) {
+                                activeViewerAuthorizedSignerKey = voucherSignerKey
+                                Napier.d(
+                                    "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=${decision.snapshot.viewerAddress} " +
+                                        "keyLen=${voucherSignerKey.size}",
+                                )
+                            }
+                        }
+                        Napier.d(
+                            "$TAG: [VOUCHER_CAPTURED] session=${decision.snapshot.sessionId} " +
+                                "sigLen=${decision.snapshot.signatureBase64.length} claimedMicroUsdc=${decision.snapshot.totalAmountClaimedMicroUsdc}",
+                        )
+                        if (decision.shouldSettle) {
+                            startBlockConsumption(decision.snapshot.sessionId)
+                            blockConsumptionManager.triggerSettlementFromViewerVoucher(
+                                decision.snapshot.sessionId,
+                                force = true,
                             )
                         } else {
-                            activeCreatorVoucherClaimSnapshot =
-                                CreatorVoucherClaimSnapshot(
-                                    sessionId = voucherSessionId,
-                                    viewerAddress = voucherViewer,
-                                    viewerPublicKeyBase64 = voucherViewerPublicKey,
-                                    signatureBase64 = signature,
-                                    totalAmountClaimedMicroUsdc = claimedAmount,
-                                )
-                            if (voucherViewer != activeViewerAddressForVault) {
-                                activeViewerAddressForVault = voucherViewer
-                                Napier.d("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
-                            }
-                            if (activeViewerAuthorizedSignerKey == null) {
-                                val voucherSignerKey = voucher.viewerPublicKey
-                                if (voucherSignerKey != null) {
-                                    activeViewerAuthorizedSignerKey = voucherSignerKey
-                                    Napier.d(
-                                        "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=$voucherViewer " +
-                                            "keyLen=${voucherSignerKey.size}",
-                                    )
-                                }
-                            }
-                            Napier.d(
-                                "$TAG: [VOUCHER_CAPTURED] session=$voucherSessionId " +
-                                    "sigLen=${signature.length} claimedMicroUsdc=$claimedAmount",
-                            )
-                            if (isPaidStreamingEnabled || claimedAmount > 0L) {
-                                activeCreatorVoucherClaimSnapshot =
-                                    CreatorVoucherClaimSnapshot(
-                                        sessionId = voucherSessionId,
-                                        viewerAddress = voucherViewer,
-                                        viewerPublicKeyBase64 = voucherViewerPublicKey,
-                                        signatureBase64 = signature,
-                                        totalAmountClaimedMicroUsdc = claimedAmount,
-                                    )
-                                if (voucherViewer != activeViewerAddressForVault) {
-                                    activeViewerAddressForVault = voucherViewer
-                                    Napier.d("$TAG: [VOUCHER_VIEWER_ADDR_UPDATE] viewer=$voucherViewer")
-                                }
-                                if (activeViewerAuthorizedSignerKey == null) {
-                                    val voucherSignerKey = voucher.viewerPublicKey
-                                    if (voucherSignerKey != null) {
-                                        activeViewerAuthorizedSignerKey = voucherSignerKey
-                                        Napier.d(
-                                            "$TAG: [VOUCHER_SIGNER_KEY_CAPTURED] viewer=$voucherViewer " +
-                                                "keyLen=${voucherSignerKey.size}",
-                                        )
-                                    }
-                                }
-                                startBlockConsumption(voucherSessionId)
-                                blockConsumptionManager.triggerSettlementFromViewerVoucher(
-                                    voucherSessionId,
-                                    force = true,
-                                )
-                            } else {
-                                println("$TAG: [VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
-                            }
+                            println("$TAG: [VOUCHER_IGNORE] reason=free_mode session=${decision.snapshot.sessionId}")
                         }
                     }
                 }

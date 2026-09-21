@@ -1372,22 +1372,13 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private fun sendAdditionalSessionInfo(viewer: AdditionalViewer, recipient: String) {
         if (!isCurrent(viewer)) return
-        viewer.session.send(
-            buildJsonObject {
-                put("reference", "liquid:stream:info")
-                put("hostAddress", recipient)
-                put("sessionId", viewer.sessionId)
-            }.toString(),
-        )
+        viewer.session.send(buildLiquidStreamInfoMessage(hostAddress = recipient, sessionId = viewer.sessionId))
         // Never broadcast the primary's cost envelope verbatim: it contains the primary session ID.
         viewer.session.send(
-            buildJsonObject {
-                put("type", DCMessageType.STREAM_COST_UPDATE.value)
-                put("sessionId", viewer.sessionId)
-                put("payload", buildJsonObject {
-                    put("costMicroUsdc", viewer.config?.gating?.amount?.toLongOrNull() ?: 0L)
-                })
-            }.toString(),
+            buildLiquidStreamCostUpdateMessage(
+                sessionId = viewer.sessionId,
+                costMicroUsdc = viewer.config?.gating?.amount?.toLongOrNull() ?: 0L,
+            ),
         )
     }
 
@@ -1439,63 +1430,51 @@ actual class LiquidAuthConnectionManager actual constructor(
             parsed.paymentVoucher?.let { voucher ->
                 voucher.channelIdBase64?.let { Napier.e("channelId=$it", tag = TAG) }
                 voucher.channelId?.let { EscrowSessionVaultHybridManagerClient.channelId = it }
-                val signature = voucher.signatureBase64
-                val claimedAmount = voucher.totalAmountClaimedMicroUsdc?.takeIf { it >= 0L }
-                val voucherSessionId = voucher.sessionId
-                val voucherViewer = voucher.viewerAddress
-                val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
 
-                if (signature == null ||
-                    claimedAmount == null ||
-                    voucherSessionId == null ||
-                    voucherViewer == null ||
-                    voucherViewerPublicKey == null
+                when (
+                    val decision =
+                        evaluateLiquidAuthVoucher(
+                            voucher = voucher,
+                            activeSessionId = activePaymentSessionId,
+                            previousClaimedAmountMicroUsdc = activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc,
+                            isPaidStreamingEnabled = isPaidStreamingEnabled,
+                        )
                 ) {
-                    Log.e(
-                        TAG,
-                        "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${voucher.sessionId} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer",
-                    )
-                } else {
-                    val activeSession = activePaymentSessionId
-                    if (activeSession != null && voucherSessionId != activeSession) {
+                    is LiquidAuthVoucherDecision.InvalidPayload -> {
                         Log.e(
                             TAG,
-                            "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=session_mismatch voucherSession=$voucherSessionId activeSession=$activeSession",
+                            "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=invalid_payload session=${voucher.sessionId} claimedAmountMicroUsdc=${voucher.totalAmountClaimedMicroUsdc} viewer=${voucher.viewerAddress}",
                         )
-                    } else {
-                        val previousClaimedAmount =
-                            activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc
-                        if (previousClaimedAmount != null && claimedAmount < previousClaimedAmount) {
+                    }
+                    is LiquidAuthVoucherDecision.SessionMismatch -> {
+                        Log.e(
+                            TAG,
+                            "[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=session_mismatch voucherSession=${voucher.sessionId} activeSession=$activePaymentSessionId",
+                        )
+                    }
+                    is LiquidAuthVoucherDecision.Stale -> {
+                        Log.e(
+                            TAG,
+                            "[SESSION_VAULT_VIEWER_VOUCHER_SIG_STALE_SKIP] session=${voucher.sessionId} claimedAmountMicroUsdc=${voucher.totalAmountClaimedMicroUsdc} previousClaimedAmountMicroUsdc=${activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc}",
+                        )
+                    }
+                    is LiquidAuthVoucherDecision.Evaluated -> {
+                        if (decision.shouldSettle) {
+                            activeCreatorVoucherClaimSnapshot = decision.snapshot
+                            updateCreatorViewerSignerConfig(decision.viewerPublicKey)
                             Log.e(
                                 TAG,
-                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG_STALE_SKIP] session=$voucherSessionId claimedAmountMicroUsdc=$claimedAmount previousClaimedAmountMicroUsdc=$previousClaimedAmount",
+                                "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=${decision.snapshot.sessionId} sigLen=${decision.snapshot.signatureBase64.length} claimedAmountMicroUsdc=${decision.snapshot.totalAmountClaimedMicroUsdc} viewer=${decision.snapshot.viewerAddress} signerKeyPresent=${decision.viewerPublicKey != null}",
+                            )
+                            startBlockConsumption(decision.snapshot.sessionId)
+                            blockConsumptionManager.triggerSettlementFromViewerVoucher(
+                                decision.snapshot.sessionId,
+                                force = true,
                             )
                         } else {
-                            if (isPaidStreamingEnabled || claimedAmount > 0L) {
-                                activeCreatorVoucherClaimSnapshot =
-                                    CreatorVoucherClaimSnapshot(
-                                        sessionId = voucherSessionId,
-                                        viewerAddress = voucherViewer,
-                                        viewerPublicKeyBase64 = voucherViewerPublicKey,
-                                        signatureBase64 = signature,
-                                        totalAmountClaimedMicroUsdc = claimedAmount,
-                                    )
-                                val signerKey = voucher.viewerPublicKey
-                                updateCreatorViewerSignerConfig(signerKey)
-                                Log.e(
-                                    TAG,
-                                    "[SESSION_VAULT_VIEWER_VOUCHER_SIG] session=$voucherSessionId sigLen=${signature.length} claimedAmountMicroUsdc=$claimedAmount viewer=$voucherViewer signerKeyPresent=${signerKey != null}",
-                                )
-                                startBlockConsumption(voucherSessionId)
-                                blockConsumptionManager.triggerSettlementFromViewerVoucher(
-                                    voucherSessionId,
-                                    force = true,
-                                )
-                            } else {
-                                Log.d(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_IGNORE] reason=free_mode session=$voucherSessionId")
-                                // Still update signer config if provided, but don't save voucher or settle
-                                voucher.viewerPublicKey?.let { updateCreatorViewerSignerConfig(it) }
-                            }
+                            Log.d(TAG, "[SESSION_VAULT_VIEWER_VOUCHER_IGNORE] reason=free_mode session=${decision.snapshot.sessionId}")
+                            // Still update signer config if provided, but don't save voucher or settle
+                            decision.viewerPublicKey?.let { updateCreatorViewerSignerConfig(it) }
                         }
                     }
                 }
@@ -1637,7 +1616,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             Log.w(TAG, "sendCreatorSessionInfo: skipping — hostAddress is blank")
             return
         }
-        val json = """{"reference":"liquid:stream:info","hostAddress":"$hostAddress","sessionId":"$sessionId"}"""
+        val json = buildLiquidStreamInfoMessage(hostAddress = hostAddress, sessionId = sessionId)
         Log.d(TAG, "[CREATOR_SESSION_INFO_SENT] host=$hostAddress session=$sessionId")
         platformServices.sendHostMessage(signalService, json)
     }
