@@ -310,16 +310,16 @@ public class SignalService {
 
         let transports = stats.values
             .filter { $0.type == "transport" }
-            .map { IceTransportStat(selectedCandidatePairId: $0.values["selectedCandidatePairId"] as? String) }
+            .map { Wallet_sdk_coreIceTransportStat(selectedCandidatePairId: $0.values["selectedCandidatePairId"] as? String) }
 
         func candidateType(_ candidateId: Any?) -> String? {
             guard let candidateId = candidateId as? String else { return nil }
             return stats[candidateId]?.values["candidateType"] as? String
         }
 
-        let candidatePairs = stats.compactMap { id, entry -> IceCandidatePairStat? in
+        let candidatePairs = stats.compactMap { id, entry -> Wallet_sdk_coreIceCandidatePairStat? in
             guard entry.type == "candidate-pair" else { return nil }
-            return IceCandidatePairStat(
+            return Wallet_sdk_coreIceCandidatePairStat(
                 id: id,
                 state: entry.values["state"] as? String,
                 isSelectedOrNominated: (entry.values["selected"] as? NSNumber)?.boolValue == true ||
