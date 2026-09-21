@@ -14,7 +14,7 @@ class ViewerVaultHandshakeTest {
     private val channel = ByteArray(32) { it.toByte() }
 
     @Test
-    fun sendsKnownIdentityBeforeAnyReceiptWithoutBalanceOrSessionClaims() {
+    fun `EXPECT known identity to be sent before any receipt without balance or session claims`() {
         val hello = ViewerVaultHandshake("viewer", key)
         var message = ""
         assertTrue(hello.send(channel, true) { message = it; true })
@@ -27,7 +27,7 @@ class ViewerVaultHandshakeTest {
     }
 
     @Test
-    fun unknownOrMalformedChannelKeepsLegacyHello() {
+    fun `EXPECT the legacy hello to be kept WHEN the channel is unknown or malformed`() {
         listOf(null, ByteArray(3)).forEach { candidate ->
             val hello = ViewerVaultHandshake("viewer", key)
             assertTrue(hello.send(candidate, true) {
@@ -38,7 +38,7 @@ class ViewerVaultHandshakeTest {
     }
 
     @Test
-    fun retriesClosedAndFailedSendsDeduplicatesAndResendsOnReopenOrIdentityChange() {
+    fun `EXPECT closed and failed sends to dedupe and resend WHEN the channel reopens or identity changes`() {
         val hello = ViewerVaultHandshake("viewer", key)
         var sent = 0
         val send: (String) -> Boolean = { sent++; true }
@@ -54,7 +54,7 @@ class ViewerVaultHandshakeTest {
     }
 
     @Test
-    fun advertisesIdentityWhenItBecomesKnownAndDoesNotReuseDedupeAcrossConnections() {
+    fun `EXPECT identity to be advertised once known without reusing dedupe across connections`() {
         val messages = mutableListOf<String>()
         val send: (String) -> Boolean = { messages.add(it); true }
         val hello = ViewerVaultHandshake("viewer", key)
@@ -65,7 +65,7 @@ class ViewerVaultHandshakeTest {
     }
 
     @Test
-    fun signerSnapshotCannotBeRetargetedByMutableCallerKey() {
+    fun `EXPECT the signer snapshot to stay fixed WHEN the caller mutates its key array`() {
         val mutableKey = key.copyOf()
         val hello = ViewerVaultHandshake("viewer", mutableKey)
         mutableKey.fill(99)

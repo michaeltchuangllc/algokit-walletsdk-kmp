@@ -30,7 +30,7 @@ class HostViewerVaultReaderTest {
     private val network = MppNetworks.ALGORAND_TESTNET
 
     @Test
-    fun derivationMatchesIndependentContractVectorsForEveryNetwork() {
+    fun `EXPECT channel derivation to match independent contract vectors WHEN run for every network`() {
         // Independently generated using SHA-256 and OpenSSL SHA-512/256, not the escrow singleton.
         val vectors =
             mapOf(
@@ -45,7 +45,7 @@ class HostViewerVaultReaderTest {
     }
 
     @Test
-    fun channelIdentityIncludesViewerCreatorSignerAndAdvertisedSalt() {
+    fun `EXPECT the channel id to change WHEN viewer, creator, signer, or salt differ`() {
         val first = HostViewerVaultReader.deriveChannelId(viewer, creator, signer, network, salt)
         val others =
             listOf(
@@ -61,7 +61,7 @@ class HostViewerVaultReaderTest {
     }
 
     @Test
-    fun oneReadonlyCallUsesExplicitNetworkAndBothBoxKeys() =
+    fun `EXPECT a single readonly call to use the explicit network and both box keys WHEN reading a snapshot`() =
         runTest {
             val networks =
                 listOf(
@@ -91,7 +91,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun concurrentViewersKeepTheirOwnChannelAndSnapshot() =
+    fun `EXPECT each viewer to keep its own channel and snapshot WHEN reads run concurrently`() =
         runTest {
             val results =
                 listOf(viewer, secondViewer, viewer)
@@ -112,7 +112,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun decodingPreservesCumulativeSettlementAndProgressSemantics() {
+    fun `EXPECT cumulative settlement and progress semantics to be preserved WHEN decoding a snapshot`() {
         assertEquals(HostViewerVaultReader.Snapshot(800, 200, 650, 1_000), decode(1_000, 200, 350))
         assertEquals(HostViewerVaultReader.Snapshot(800, 200, 800, 1_000), decode(1_000, 200, 100))
         assertEquals(HostViewerVaultReader.Snapshot(0, 1_000, 0, 1_000), decode(1_000, 1_000, 1_000))
@@ -121,7 +121,7 @@ class HostViewerVaultReaderTest {
     }
 
     @Test
-    fun rejectsTruncatedTuplesUnsignedOverflowAndInconsistentAmounts() {
+    fun `EXPECT decoding to fail WHEN the tuple is truncated, overflows unsigned, or has inconsistent amounts`() {
         listOf(0, 23, 24, 55, 57).forEach { size ->
             assertFailsWith<IllegalArgumentException> { HostViewerVaultReader.decodeSnapshot(ByteArray(size)) }
         }
@@ -133,7 +133,7 @@ class HostViewerVaultReaderTest {
     }
 
     @Test
-    fun invalidInputsNeverReadAndMissingDataIsNotZero() =
+    fun `EXPECT invalid inputs to fail without reading and missing data to not be treated as zero WHEN reading a snapshot`() =
         runTest {
             suspend fun invalid(
                 viewerAddress: String = viewer,
@@ -166,7 +166,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun cancellationIsRethrown() =
+    fun `EXPECT cancellation to be rethrown WHEN the read is cancelled`() =
         runTest {
             val cancelled = CancellationException("cancelled read")
             val thrown =
@@ -178,7 +178,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun explicitChannelValidatesIdentityBeforeReadingSnapshotWithoutSalt() =
+    fun `EXPECT identity to be validated before reading the snapshot WHEN an explicit channel is provided without salt`() =
         runTest {
             val hint = ByteArray(32) { 42 }
             var boxCalls = 0
@@ -218,7 +218,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun rawPasskeySizedSignerBoxIsNotDecodedAsAnArc4Length() =
+    fun `EXPECT a raw passkey-sized signer box to not be decoded as an ARC-4 length WHEN reading via an explicit channel`() =
         runTest {
             val rawKey = ByteArray(1793) { (it % 251).toByte() }.also {
                 it[0] = 0x0a
@@ -238,7 +238,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun explicitChannelRejectsIdentityMismatchesAndMalformedBoxes() =
+    fun `EXPECT identity mismatches and malformed boxes to be rejected WHEN reading via an explicit channel`() =
         runTest {
             val invalidBoxes =
                 listOf(
@@ -272,7 +272,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun explicitChannelMissingBoxFailsAndBoxCancellationEscapes() =
+    fun `EXPECT a missing box to fail and cancellation to escape WHEN reading via an explicit channel`() =
         runTest {
             val failure = IllegalStateException("Box not found")
             val result =
@@ -300,7 +300,7 @@ class HostViewerVaultReaderTest {
         }
 
     @Test
-    fun channelHintRejectsMissingMalformedAndMismatchedSignerBoxes() =
+    fun `EXPECT missing, malformed, or mismatched signer boxes to be rejected WHEN reading via a channel hint`() =
         runTest {
             val invalidSigners =
                 listOf(

@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class VoucherValidationSourceTest {
     @Test
-    fun platformValidationNeverSignsSponsorFundsOnChainOrBroadcasts() {
+    fun `EXPECT no sponsor signing, funding, or broadcasting WHEN scanning platform validation source for forbidden calls`() {
         for (platform in listOf("android", "ios")) {
             val relative = "src/${platform}Main/kotlin/com/michaeltchuang/walletsdk/core/railmpp/internal/AlgorandOps.$platform.kt"
             val file = listOf(File(relative), File("wallet-sdk-core/$relative")).first { it.isFile }

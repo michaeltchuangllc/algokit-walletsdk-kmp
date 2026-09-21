@@ -44,7 +44,7 @@ class LiquidAuthViewerChatTest {
     }
 
     @Test
-    fun incomingAndOutgoingChatUseTheSameScreenState() {
+    fun `EXPECT incoming and outgoing chat to use the same screen state`() {
         val screen = store["viewer"] as LiquidAuthViewerViewModel
         viewer.receivedChatMessage(ChatMessage(sender = "host", text = "Hello iOS", timestamp = 1L))
         assertEquals("Hello iOS", screen.state.value.chatMessages.single().text)
@@ -59,7 +59,7 @@ class LiquidAuthViewerChatTest {
     }
 
     @Test
-    fun restoringScreenUsesBufferedMessagesWithoutAnotherViewModel() {
+    fun `EXPECT buffered messages to be used without another view model WHEN the screen restores`() {
         viewer.receivedChatMessage(ChatMessage(sender = "host", text = "Before minimize", timestamp = 1L))
         viewer.receivedChatMessage(ChatMessage(sender = "host", text = "While minimized", timestamp = 2L))
         val restoredScreen = store["viewer"] as LiquidAuthViewerViewModel

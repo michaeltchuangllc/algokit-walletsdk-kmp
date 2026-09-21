@@ -39,7 +39,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalEncodingApi::class)
 class MppPaymentViewerVaultOnlyTest {
     @Test
-    fun deferredReceiptsSignCumulativeVouchersWithoutRailReceipts() = runTest {
+    fun `EXPECT deferred receipts to sign cumulative vouchers without rail receipts WHEN billing mode is SESSION_VAULT`() = runTest {
         val dispatcher = StandardTestDispatcher(testScheduler)
         Dispatchers.setMain(dispatcher)
         val oldChannel = EscrowSessionVaultHybridManagerClient.channelId

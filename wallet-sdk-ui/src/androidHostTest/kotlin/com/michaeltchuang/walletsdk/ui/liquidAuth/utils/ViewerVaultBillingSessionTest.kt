@@ -121,7 +121,7 @@ class ViewerVaultBillingSessionTest {
     )
 
     @Test
-    fun validatesBeforePinningChannelAndRejectsRetargetingAndDecreasingAmounts() = runTest {
+    fun `EXPECT retargeting and decreasing amounts to be rejected WHEN a channel is already pinned`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter)
         val malformed = listOf(
@@ -143,7 +143,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun onlyIncreasingChainRoundsReachBoundaryAndLatestSignedTotalWins() = runTest {
+    fun `EXPECT only increasing chain rounds to reach the boundary with the latest signed total`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter)
         session.onBlock(500)
@@ -168,7 +168,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun retryReadsChainAndDoesNotResubmitAnUncertainButConfirmedPayment() = runTest {
+    fun `EXPECT retry to read the chain without resubmitting WHEN an uncertain payment is confirmed`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter, frequency = 1)
         adapter.action = {
@@ -189,7 +189,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun failedReadAndUnconfirmedSubmissionRetainPendingVoucher() = runTest {
+    fun `EXPECT the pending voucher to be retained WHEN a read fails or a submission is unconfirmed`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter, frequency = 1)
         session.onBlock(1)
@@ -212,7 +212,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun alreadySettledVoucherSkipsSigningAndSubmission() = runTest {
+    fun `EXPECT signing and submission to be skipped WHEN the voucher is already settled`() = runTest {
         val adapter = FakeAdapter().apply { settled = 150 }
         val session = session(adapter)
         session.acceptVoucher(message())
@@ -222,7 +222,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun callerAndAdapterArrayMutationsCannotRetargetAuthority() = runTest {
+    fun `EXPECT authority to stay unchanged WHEN caller or adapter arrays are mutated`() = runTest {
         val adapter = FakeAdapter()
         val mutableKey = key.copyOf()
         val mutableChannel = channel.copyOf()
@@ -244,7 +244,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun finalDrainWaitsSeriallyForInFlightThenUsesNewestVoucher() = runTest {
+    fun `EXPECT the final drain to wait serially then use the newest voucher WHEN closing`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val adapter = FakeAdapter().apply { action = { gate.await() } }
         val session = session(adapter, frequency = 1)
@@ -265,7 +265,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun hungPeerDoesNotBlockOtherPeerAndRemovalIsBounded() = runTest {
+    fun `EXPECT other peers to remain unblocked and removal to be bounded WHEN a peer hangs`() = runTest {
         val hung = FakeAdapter().apply { action = { awaitCancellation() } }
         val healthy = FakeAdapter()
         val first = session(hung, frequency = 1)
@@ -290,7 +290,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun throwingSnapshotObserverDoesNotLoseSettlement() = runTest {
+    fun `EXPECT settlement to proceed WHEN the snapshot observer throws`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter, snapshot = { error("UI observer failure") })
         session.acceptVoucher(message())
@@ -300,7 +300,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun failedIdentityReadDoesNotPinChannelOrPoisonMonotonicAmount() = runTest {
+    fun `EXPECT the channel to stay unpinned and the amount to stay valid WHEN identity read fails`() = runTest {
         val badHint = ByteArray(32) { 99 }
         val adapter = FakeAdapter().apply {
             readAction = { voucher ->
@@ -317,7 +317,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun identityReadTimeoutLeavesSessionAvailableForValidVoucher() = runTest {
+    fun `EXPECT the session to remain available for a valid voucher WHEN identity read times out`() = runTest {
         val adapter = FakeAdapter().apply { readAction = { awaitCancellation() } }
         val session = session(adapter)
         val pending = async { session.acceptVoucher(message()) }
@@ -333,7 +333,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun closeDoesNotWaitForUnacceptedIdentityReadOrAllowLateAcceptance() = runTest {
+    fun `EXPECT close to skip an unaccepted identity read and reject late acceptance`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val adapter = FakeAdapter().apply { readAction = { gate.await() } }
         val session = session(adapter)
@@ -348,7 +348,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun concurrentFirstReadsRecheckPinnedChannelAndMonotonicAmount() = runTest {
+    fun `EXPECT the pinned channel and monotonic amount to be rechecked WHEN first reads run concurrently`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val adapter = FakeAdapter().apply {
             readAction = { if (it.totalAmountClaimedMicroUsdc == 100L) gate.await() }
@@ -364,7 +364,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun lateIdentityReadCannotReplaceTheChannelAcceptedWhileItWasSuspended() = runTest {
+    fun `EXPECT the accepted channel to be retained WHEN a suspended identity read resolves late`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val otherChannel = ByteArray(32) { 8 }
         val adapter = FakeAdapter().apply {
@@ -381,7 +381,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun frequencyUpdatesKeepRoundBaselineAndAreIsolatedFromOtherPeers() = runTest {
+    fun `EXPECT the round baseline to be kept and other peers to stay isolated WHEN frequency updates`() = runTest {
         val firstAdapter = FakeAdapter()
         val secondAdapter = FakeAdapter()
         val first = session(firstAdapter, frequency = 10)
@@ -415,7 +415,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun invalidHigherOrEqualSignatureCannotReplaceValidPendingVoucher() = runTest {
+    fun `EXPECT the valid pending voucher to remain WHEN a higher or equal signature is invalid`() = runTest {
         val adapter = FakeAdapter().apply {
             authorizationAction = {
                 if (it.signature.contentEquals(byteArrayOf(5))) {
@@ -437,7 +437,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun invalidFirstSignatureDoesNotPinChannelOrAmount() = runTest {
+    fun `EXPECT the channel and amount to stay unpinned WHEN the first signature is invalid`() = runTest {
         val adapter = FakeAdapter().apply {
             authorizationAction = { Result.failure(IllegalArgumentException("Invalid voucher signature")) }
         }
@@ -452,7 +452,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun authorizationTimeoutRetainsValidPendingVoucher() = runTest {
+    fun `EXPECT the valid pending voucher to be retained WHEN authorization times out`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter)
         assertTrue(session.acceptVoucher(message(100)))
@@ -468,7 +468,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun concurrentAuthorizationRechecksMonotonicAmountBeforeReplacement() = runTest {
+    fun `EXPECT the monotonic amount to be rechecked before replacement WHEN authorizations run concurrently`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val adapter = FakeAdapter().apply {
             authorizationAction = {
@@ -488,7 +488,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun closeDrainsValidatedVoucherWithoutWaitingForPendingAuthorization() = runTest {
+    fun `EXPECT close to drain the validated voucher without waiting for pending authorization`() = runTest {
         val gate = CompletableDeferred<Unit>()
         val adapter = FakeAdapter()
         val session = session(adapter)
@@ -506,7 +506,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun authorizationCancellationPropagatesWithoutReplacingPendingVoucher() = runTest {
+    fun `EXPECT cancellation to propagate without replacing the pending voucher WHEN authorization is cancelled`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter)
         assertTrue(session.acceptVoucher(message(100)))
@@ -517,7 +517,7 @@ class ViewerVaultBillingSessionTest {
     }
 
     @Test
-    fun overDepositVoucherCannotReplaceValidPendingVoucher() = runTest {
+    fun `EXPECT the valid pending voucher to remain WHEN a new voucher exceeds the deposit`() = runTest {
         val adapter = FakeAdapter()
         val session = session(adapter)
         assertTrue(session.acceptVoucher(message(100)))

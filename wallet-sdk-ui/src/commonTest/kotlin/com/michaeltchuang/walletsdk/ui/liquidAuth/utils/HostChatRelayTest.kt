@@ -14,7 +14,7 @@ class HostChatRelayTest {
     private val message = ChatMessage(sender = "viewer", text = "Hello everyone", timestamp = 1L)
 
     @Test
-    fun anyViewerCanSendToAllOtherViewersWithoutEcho() {
+    fun `EXPECT the message to reach all other viewers without echo WHEN any viewer sends`() {
         val peers = List(3) { Peer() }
         peers.forEach { sender ->
             peers.forEach { it.messages.clear() }
@@ -29,7 +29,7 @@ class HostChatRelayTest {
     }
 
     @Test
-    fun hostChatReachesEveryViewerOnce() {
+    fun `EXPECT every viewer to receive host chat exactly once WHEN a duplicate peer is included`() {
         val peers = List(3) { Peer() }
         relayHostChat(
             message, peers + peers.first(),
@@ -40,7 +40,7 @@ class HostChatRelayTest {
     }
 
     @Test
-    fun failedViewerDoesNotBlockOthersAndGiftMetadataIsPreserved() {
+    fun `EXPECT other viewers to still receive the message with gift metadata preserved WHEN one viewer send fails`() {
         val peers = List(3) { Peer() }
         val gift = message.copy(amount = "1.0", asset = "USDC")
         val failures = mutableListOf<Throwable>()
@@ -57,7 +57,7 @@ class HostChatRelayTest {
     }
 
     @Test
-    fun disconnectedSenderCannotExcludeAnotherConnectionWithTheSameWallet() {
+    fun `EXPECT the new connection to still receive the message WHEN a disconnected sender shares its wallet`() {
         val oldConnection = Peer()
         val newConnection = Peer()
         relayHostChat(

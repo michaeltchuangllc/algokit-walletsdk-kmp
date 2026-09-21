@@ -1,19 +1,16 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
 
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidateWireKeys
 import org.json.JSONObject
 import org.webrtc.IceCandidate
 
-fun IceCandidate.toJSON(): JSONObject {
-//    "serverUrl" to candidate?.serverUrl,
-//    "sdpMid" to candidate?.sdpMid,
-//    "sdpMLineIndex" to candidate?.sdpMLineIndex,
-//    "sdpCandidate" to candidate?.sdp,
-//    "type" to type
-    return JSONObject().apply {
-//        put("type", "offer")
-//        put("serverUrl", serverUrl)
-        put("candidate", sdp)
-        put("sdpMid", sdpMid)
-        put("sdpMLineIndex", sdpMLineIndex)
+/**
+ * Encodes a trickle ICE candidate using the shared wire keys ([IceCandidateWireKeys]) so this
+ * can never drift from the shape iOS (`SignalClient.swift`) sends/expects.
+ */
+fun IceCandidate.toJSON(): JSONObject =
+    JSONObject().apply {
+        put(IceCandidateWireKeys.CANDIDATE, sdp)
+        put(IceCandidateWireKeys.SDP_MID, sdpMid)
+        put(IceCandidateWireKeys.SDP_M_LINE_INDEX, sdpMLineIndex)
     }
-}

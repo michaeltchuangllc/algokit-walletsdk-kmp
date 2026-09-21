@@ -44,7 +44,7 @@ class LiquidAuthViewerConsentLifecycleTest {
     }
 
     @Test
-    fun duplicateRequestsRejectWithoutReplacingOrSharingPendingApproval() =
+    fun `EXPECT duplicate requests to be rejected without replacing or sharing the pending approval`() =
         scenario {
             val originalTerms = terms()
             val original = request(originalTerms)
@@ -68,7 +68,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun staleCancellationFinallyCannotClearReplacementRequest() =
+    fun `EXPECT the replacement request to survive WHEN a stale cancellation's finally block runs`() =
         scenario {
             val original = request()
             holder.clearViewerConsent()
@@ -90,7 +90,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun cancellingRequesterClearsPendingAndAllowsAnotherRequest() =
+    fun `EXPECT pending to clear and allow another request WHEN the requester cancels`() =
         scenario {
             val original = request()
             original.cancel()
@@ -109,7 +109,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun positiveVaultBalancesDoNotAutoApproveAndSurviveExternalApproval() =
+    fun `EXPECT no auto-approval and balances to survive external approval WHEN vault balances are positive`() =
         scenario {
             holder.setViewerSessionVaultProgress(9_000_000L, 12_000_000L)
             val pending = request()
@@ -129,7 +129,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun fundedApprovalRemainsAvailableWhileProcessing() =
+    fun `EXPECT the funded approval to remain available WHILE processing`() =
         scenario {
             holder.setViewerSessionVaultProgress(9_000_000L, 12_000_000L)
             val pending = request()
@@ -147,7 +147,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun rapidApprovalsResolveOnceAndProcessingLastsUntilManagerCallback() =
+    fun `EXPECT rapid approvals to resolve once and processing to last until the manager callback`() =
         scenario {
             holder.setViewerSessionVaultProgress(9_000_000L, 12_000_000L)
             val pending = request()
@@ -186,7 +186,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun processingGuardLeavesActiveConsentForExternalCompletion() =
+    fun `EXPECT the processing guard to leave consent active for external completion`() =
         scenario {
             val pending = request()
             holder.setViewerPaymentProcessing(true)
@@ -201,7 +201,7 @@ class LiquidAuthViewerConsentLifecycleTest {
         }
 
     @Test
-    fun clearCancelsPendingAndResetsProcessing() =
+    fun `EXPECT pending to cancel and processing to reset WHEN consent is cleared`() =
         scenario {
             val pending = request()
             holder.setViewerPaymentProcessing(true)

@@ -81,7 +81,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun topUpBaselinesAreViewerScopedAndClearedOnDisconnect() {
+    fun `EXPECT top-up baselines to be viewer-scoped and cleared WHEN a viewer disconnects`() {
         vm.generateOffer(ORIGIN)
         vm.onMeshViewerConnected("request-1")
         vm.onMeshViewerConnected("request-2")
@@ -105,7 +105,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun firstAndSecondViewersRotateQrWithoutReplacingPrimaryPaymentSession() {
+    fun `EXPECT the QR to rotate without replacing the primary payment session WHEN a second viewer joins`() {
         vm.generateOffer(ORIGIN)
         assertEquals(invitation(1), vm.state.value)
         assertNull(vm.pendingMeshOffer.value)
@@ -142,7 +142,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun refreshAndRegenerateOnlyReplaceInvitationAndReentryPreservesMembership() {
+    fun `EXPECT refresh and regenerate to only replace the invitation WHEN reentry preserves membership`() {
         startPaidHost()
         vm.onMeshViewerConnected("request-2")
         val primary = vm.state.value
@@ -168,7 +168,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun duplicateConnectionCallbacksDoNotRotateQrOrDuplicateMembership() {
+    fun `EXPECT no QR rotation or duplicate membership WHEN connection callbacks duplicate`() {
         connectPrimary()
         vm.onMeshViewerConnected("request-2")
         val primary = vm.state.value
@@ -185,7 +185,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun primaryAndLastViewerLeavingDoNotClearStreamOrPayment() {
+    fun `EXPECT the stream and payment to remain WHEN the primary and last viewer leave`() {
         startPaidHost()
         vm.onMeshViewerConnected("request-2")
         val primary = vm.state.value
@@ -210,7 +210,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun failedInvitationInvalidatesOnlyMatchingQrWithoutOverwritingLiveHost() {
+    fun `EXPECT only the matching QR to be invalidated without overwriting the live host WHEN an invitation fails`() {
         startPaidHost()
         val primary = vm.state.value
         val payment = vm.paymentState.value
@@ -245,7 +245,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun detailsOnlyAcceptConnectedRequestsAndCopyPreservesOtherFields() {
+    fun `EXPECT details to only be accepted for connected requests and copy to preserve other fields`() {
         val details = HostViewerDetails(viewerAddress = "viewer-wallet", remainingBalanceMicroUsdc = 0L)
         vm.updateMeshViewerDetails("request-1", details)
         assertTrue(vm.meshViewerDetails.value.isEmpty())
@@ -268,7 +268,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun disconnectRemovesOnlyMatchingDetailsAndIgnoresStaleUpdates() {
+    fun `EXPECT only matching details to be removed and stale updates to be ignored WHEN a viewer disconnects`() {
         connectPrimary()
         vm.onMeshViewerConnected("request-2")
         val details = HostViewerDetails(viewerAddress = "viewer-wallet", progressBalanceMicroUsdc = 0L)
@@ -285,7 +285,7 @@ class LiquidAuthOfferViewModelMeshTest {
     }
 
     @Test
-    fun clearMeshHostingClearsDetailsAndRejectsLateCallbacks() {
+    fun `EXPECT details to clear and late callbacks to be rejected WHEN mesh hosting is cleared`() {
         connectPrimary()
         val details = HostViewerDetails(viewerAddress = "viewer-wallet")
         vm.updateMeshViewerDetails("request-1", details)

@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 
 class HostViewerMappingTest {
     @Test
-    fun firstFundedSnapshotStartsFullDespitePreviousSettlementAndThenDecreases() {
+    fun `EXPECT the first funded snapshot to start full and then decrease WHEN there was a previous settlement`() {
         val progress = HostViewerProgress()
         assertNull(progress.update(HostViewerDetails()).progressCapacityMicroUsdc)
         val snapshot = HostViewerDetails(
@@ -39,7 +39,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun emptyInitialVaultStaysEmptyUntilFunded() {
+    fun `EXPECT the vault to stay empty until funded WHEN the initial snapshot is empty`() {
         val progress = HostViewerProgress()
         val empty = progress.update(HostViewerDetails(totalDepositMicroUsdc = 0, progressBalanceMicroUsdc = 0))
         assertEquals(0L, empty.progressCapacityMicroUsdc)
@@ -48,7 +48,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun repeatedTopUpsResetOnlySecondaryProgressWithoutResettingRevenue() {
+    fun `EXPECT only secondary progress to reset without resetting revenue WHEN top-ups repeat`() {
         val progress = HostViewerProgress()
         fun update(total: Long, settled: Long, available: Long = total - settled): ConnectedViewerInfo {
             val details = progress.update(
@@ -84,7 +84,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun unavailableReadAndRepeatedSnapshotsDoNotResetTopUpBaseline() {
+    fun `EXPECT the top-up baseline to survive WHEN a read is unavailable or a snapshot repeats`() {
         val progress = HostViewerProgress()
         val initial = HostViewerDetails(
             totalDepositMicroUsdc = 1_000_000,
@@ -117,7 +117,7 @@ class HostViewerMappingTest {
         )
 
     @Test
-    fun primaryKeepsExistingDataAndSecondaryUsesOnlyItsOwnDetailsRegardlessOfOrder() {
+    fun `EXPECT primary to keep its data and secondary to use only its own details regardless of order`() {
         val secondary =
             HostViewerDetails(
                 viewerAddress = "secondary-wallet",
@@ -145,7 +145,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun missingSecondaryDetailsStayUnknownEvenWhenPrimaryLeaves() {
+    fun `EXPECT missing secondary details to stay unknown even WHEN the primary leaves`() {
         val viewer = mapHostViewers(primary, listOf("secondary-request"), emptyMap()).single()
 
         assertEquals("secondary-request", viewer.sessionId)
@@ -162,7 +162,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun settlementKeepsSecondaryDepositCapacityInsteadOfRefillingProgress() {
+    fun `EXPECT settlement to keep the secondary deposit capacity instead of refilling progress`() {
         val details =
             HostViewerDetails(
                 remainingBalanceMicroUsdc = 2_000_000L,
@@ -189,7 +189,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun zeroBalancesAreKnownAndPrimaryCanFillMissingFactsFromItsOwnSnapshot() {
+    fun `EXPECT zero balances to be known and primary to fill missing facts from its own snapshot`() {
         val details =
             HostViewerDetails(
                 viewerAddress = "real-wallet",
@@ -232,7 +232,7 @@ class HostViewerMappingTest {
     }
 
     @Test
-    fun nfdUsesRealAddressAndOnlyUnknownWalletsDisplayNotAvailable() {
+    fun `EXPECT the NFD to use the real address and only unknown wallets to display N-A`() {
         val address = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U"
         val names = mapOf(address to "viewer.algo", "secondary-request" to "wrong.algo")
 

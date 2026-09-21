@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
 import io.socket.client.Ack
 import io.socket.client.IO
 import io.socket.client.Socket
@@ -205,7 +206,10 @@ class SignalClient
             val scaledLogo = logo?.let { Bitmap.createScaledBitmap(it, size, size, false) }
             val stream = ByteArrayOutputStream()
             scaledLogo?.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            val data = "liquid://${url.replace("https://", "")}/?requestId=$requestId"
+            // Delegates to the single shared URL builder (wallet-sdk-core commonMain) instead of
+            // hand-rolling the `liquid://` shape here - this copy used to omit `&appId=...`,
+            // which the shared `fromUri()` parser (and iOS) both expect.
+            val data = GenerateLiquidAuthOfferUseCase().generateLiquidAuthUrl(origin = url, requestId = requestId)
             val image =
                 QRCode
                     .ofSquares()
@@ -253,7 +257,8 @@ class SignalClient
                         }
                         current.listen("$type-candidate") { args ->
                             val json = args.firstOrNull() as? JSONObject ?: error("Invalid ICE candidate")
-                            val candidate = json.toIceCandidate()
+                            // A malformed candidate frame is dropped, not fatal - matching iOS.
+                            val candidate = json.toIceCandidate() ?: return@listen
                             if (current.remoteDescriptionSet) {
                                 current.peer!!.addIceCandidate(candidate)
                             } else {

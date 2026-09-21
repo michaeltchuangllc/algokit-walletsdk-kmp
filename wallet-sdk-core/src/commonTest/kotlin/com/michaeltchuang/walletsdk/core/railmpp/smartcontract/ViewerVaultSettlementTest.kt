@@ -46,7 +46,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun submitsExactCumulativeVoucherWithExplicitConfigForEveryNetwork() =
+    fun `EXPECT the exact cumulative voucher to submit with explicit config WHEN settling on every network`() =
         runTest {
             val configs =
                 listOf(
@@ -82,7 +82,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun companionValidationNeedsNoWalletAndRejectsForgedHighWatermark() =
+    fun `EXPECT companion validation to need no wallet and reject a forged high watermark WHEN validating a voucher`() =
         runTest {
             var checks = 0
             suspend fun validate(amount: Long, sig: ByteArray): Result<HostViewerVaultReader.Snapshot> =
@@ -110,7 +110,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun everyAcceptedVoucherMustPassCurrentDepositAndSignatureChecks() =
+    fun `EXPECT every accepted voucher to pass current deposit and signature checks WHEN validating`() =
         runTest {
             val fake = Fake()
             assertTrue(fake.api.validateVoucher(viewer, creator, key, channel, signature, 500, network).isSuccess)
@@ -137,7 +137,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun readSnapshotReusesIdentityValidationAndNeverSubmits() =
+    fun `EXPECT identity validation to be reused and no submission to occur WHEN reading a snapshot`() =
         runTest {
             val fake = Fake()
             assertEquals(
@@ -151,7 +151,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun forgedVoucherCannotBeAcceptedOrReachFundingSubmission() =
+    fun `EXPECT a forged voucher to be rejected and never reach funding submission WHEN settling`() =
         runTest {
             val rejected = Fake().also { it.validationFailure = IllegalArgumentException("Invalid Falcon signature") }
             assertTrue(rejected.api.validateVoucher(viewer, creator, key, channel, signature, 1_000, network).isFailure)
@@ -165,7 +165,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun acceptanceValidatesWithoutSubmittingAndSettlementRevalidates() =
+    fun `EXPECT acceptance to validate without submitting and settlement to revalidate WHEN settling after acceptance`() =
         runTest {
             val fake = Fake()
             assertEquals(
@@ -182,7 +182,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun everyAcceptedVoucherChecksCurrentDepositBeforeSignatureAndNeverSubmits() =
+    fun `EXPECT current deposit to be checked before signature and no submission WHEN validating an accepted voucher`() =
         runTest {
             val fake = Fake()
             assertTrue(fake.api.validateVoucher(viewer, creator, key, channel, signature, 500, network).isSuccess)
@@ -199,7 +199,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun unavailableOrFailedDryrunNeverFallsBackToFunding() =
+    fun `EXPECT no fallback to funding WHEN dryrun or simulation is unavailable or fails`() =
         runTest {
             for (reason in listOf("invalid signature", "dryrun unavailable", "missing signature trace")) {
                 val failure = IllegalStateException(reason)
@@ -213,7 +213,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun modifiedSignatureAmountOrNetworkCannotReuseVoucherAuthorization() =
+    fun `EXPECT voucher authorization to be unusable WHEN signature, amount, or network is modified`() =
         runTest {
             var submissions = 0
             val api =
@@ -254,7 +254,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun wrongChannelParticipantsAndSignerNeverSubmit() =
+    fun `EXPECT no submission WHEN channel, participants, or signer are wrong`() =
         runTest {
             val wrongChannel = Fake()
             assertTrue(wrongChannel.settle(channelId = ByteArray(32) { 43 }).isFailure)
@@ -283,7 +283,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun overclaimAndAlreadyConfirmedVouchersSkipSubmission() =
+    fun `EXPECT submission to be skipped WHEN a voucher overclaims or is already confirmed`() =
         runTest {
             for (amount in listOf(1_001L, Long.MAX_VALUE, 300L, 299L)) {
                 val fake = Fake()
@@ -302,7 +302,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun invalidArgumentsFailBeforeIo() =
+    fun `EXPECT settlement to fail before any I-O WHEN arguments are invalid`() =
         runTest {
             val fake = Fake()
             assertTrue(fake.settle(channelId = ByteArray(31)).isFailure)
@@ -320,7 +320,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun readAndSubmissionFailuresAreReturnedWithoutFallback() =
+    fun `EXPECT read and submission failures to be returned without fallback WHEN settling`() =
         runTest {
             val readFailure = IllegalStateException("missing box")
             val missing = Fake().also { it.readFailure = readFailure }
@@ -338,7 +338,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun cancellationEscapesReadsAndSubmission() =
+    fun `EXPECT cancellation to escape WHEN reads or submission are cancelled`() =
         runTest {
             val reading = Fake().also { it.readFailure = CancellationException("read cancelled") }
             assertFailsWith<CancellationException> { reading.settle() }
@@ -349,7 +349,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun callerArrayMutationDuringReadCannotChangeSubmittedVoucher() =
+    fun `EXPECT the submitted voucher to stay unchanged WHEN caller mutates its input arrays during read`() =
         runTest {
             val inputChannel = channel.copyOf()
             val inputKey = key.copyOf()
@@ -374,7 +374,7 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun sameInstanceKeepsConcurrentViewersAndNetworksIsolated() =
+    fun `EXPECT concurrent viewers and networks to remain isolated WHEN settling on the same instance`() =
         runTest {
             val firstSubmitted = CompletableDeferred<Unit>()
             val secondSubmitted = CompletableDeferred<Unit>()

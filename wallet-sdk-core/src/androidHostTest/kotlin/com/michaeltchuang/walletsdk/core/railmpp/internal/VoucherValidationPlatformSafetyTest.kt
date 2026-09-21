@@ -7,7 +7,7 @@ import kotlin.test.assertTrue
 
 class VoucherValidationPlatformSafetyTest {
     @Test
-    fun bothValidationPathsOnlyCompileBuildAndSimulateWithoutWalletSigning() {
+    fun `EXPECT validation to only compile, build, and simulate WHEN checking both platform sources for wallet-signing calls`() {
         val module = sequenceOf(File("."), File("wallet-sdk-core")).first { File(it, "src/commonMain").isDirectory }
         for (platform in listOf("android", "ios")) {
             val source = File(

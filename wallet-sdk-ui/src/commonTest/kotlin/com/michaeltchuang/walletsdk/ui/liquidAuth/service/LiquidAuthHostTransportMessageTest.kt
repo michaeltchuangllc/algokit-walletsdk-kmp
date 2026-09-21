@@ -8,7 +8,7 @@ import kotlin.test.assertNull
 
 class LiquidAuthHostTransportMessageTest {
     @Test
-    fun legacyHandshakeWithoutChannelStillParses() {
+    fun `EXPECT the legacy handshake to still parse WHEN no channel is present`() {
         val parsed = parseLiquidAuthHostTransportMessage(
             """{"type":"segment:handshake","viewer":"viewer-address","viewerPublicKey":"AQID"}""",
         )
@@ -21,7 +21,7 @@ class LiquidAuthHostTransportMessageTest {
     }
 
     @Test
-    fun handshakeChannelHintNeedsNoVoucherOrSessionId() {
+    fun `EXPECT no voucher or session id to be required WHEN the handshake carries a channel hint`() {
         val parsed = parseLiquidAuthHostTransportMessage(
             """{"type":"segment:handshake","viewer":"viewer-address","viewerPublicKey":"AQID","channelId":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="}""",
         )
@@ -33,7 +33,7 @@ class LiquidAuthHostTransportMessageTest {
     }
 
     @Test
-    fun invalidOrEmptyChannelHintStaysNullWithoutDroppingLegacyFields() {
+    fun `EXPECT the channel hint to stay null without dropping legacy fields WHEN it is invalid or empty`() {
         for (channel in listOf("\"%%%\"", "\"\"", "null")) {
             val parsed = parseLiquidAuthHostTransportMessage(
                 """{"type":"segment:handshake","viewer":"viewer-address","viewerPublicKey":"AQID","channelId":$channel}""",

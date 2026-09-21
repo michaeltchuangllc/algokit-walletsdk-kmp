@@ -73,7 +73,7 @@ class PeerApiSharedMediaTest {
     }
 
     @Test
-    fun `two peers borrow the same EGL track and factory without starting capture on construction`() {
+    fun `EXPECT two peers to borrow the same EGL track and factory WHEN neither has started capture yet`() {
         val first = PeerApi(context, sharedMedia)
         assertSame(eglContext, first.eglBaseContext)
         assertSame(videoTrack, first.localVideoTrack)
@@ -113,7 +113,7 @@ class PeerApiSharedMediaTest {
     }
 
     @Test
-    fun `destroying one peer disposes only its connection and leaves the other usable`() {
+    fun `EXPECT only its own connection to be disposed WHEN one of two peers is destroyed`() {
         val first = PeerApi(context, sharedMedia)
         val second = PeerApi(context, sharedMedia)
         connect(first)
@@ -157,7 +157,7 @@ class PeerApiSharedMediaTest {
     }
 
     @Test
-    fun `duplicate destroy releases peer and channel resources exactly once without disposing owner`() {
+    fun `EXPECT peer and channel resources to release exactly once WHEN destroy is called twice`() {
         val first = PeerApi(context, sharedMedia)
         val second = PeerApi(context, sharedMedia)
         connect(first)
@@ -205,7 +205,7 @@ class PeerApiSharedMediaTest {
     }
 
     @Test
-    fun `ICE failure notifies only its peer and stale callbacks cannot affect surviving peer`() {
+    fun `EXPECT ICE failure to notify only its own peer WHEN stale callbacks fire after destroy`() {
         val first = PeerApi(context, sharedMedia)
         val second = PeerApi(context, sharedMedia)
         val firstStates = mutableListOf<PeerConnection.IceConnectionState>()

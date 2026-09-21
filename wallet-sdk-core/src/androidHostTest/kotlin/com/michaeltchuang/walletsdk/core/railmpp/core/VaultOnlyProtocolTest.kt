@@ -121,7 +121,7 @@ class VaultOnlyProtocolTest {
     )
 
     @Test
-    fun fundedShortcutIsDeferredAndNeverSettlesOrUsesGlobalBalance() = runTest(dispatcher) {
+    fun `EXPECT deferred receipt with no settlement or global balance use WHEN vault channel is already funded`() = runTest(dispatcher) {
         val dc = Channel()
         val server = PaywalledRTCServer(
             rail, config(), balance,
@@ -151,7 +151,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun unfundedHandshakeRequiresOnChainFundingAndCannotReplayOrSubmitDirectPayment() = runTest(dispatcher) {
+    fun `EXPECT on-chain funding to be required WHEN vault channel is unfunded and replay or direct payment is attempted`() = runTest(dispatcher) {
         var funded = 0L
         val dc = Channel()
         val server = PaywalledRTCServer(
@@ -196,7 +196,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun missingKeyRequestsHelloThenRetriesWithMatchingSaltAndChannel() = runTest(dispatcher) {
+    fun `EXPECT viewer identity request then a matching retry WHEN authorized signer key is missing`() = runTest(dispatcher) {
         val dc = Channel()
         val server = PaywalledRTCServer(
             rail, config().copy(viewerAuthorizedSignerPublicKey = null), balance,
@@ -217,7 +217,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun viewerConsentSendsOnlyFundedNotificationAndDeferredReceiptsConsumeOnce() = runTest(dispatcher) {
+    fun `EXPECT only a funded notification and single receipt consumption WHEN viewer consents to vault billing`() = runTest(dispatcher) {
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
         var receipts = 0
@@ -239,7 +239,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun failedFundingAndModeDowngradeNeverBuildDirectCredentials() = runTest(dispatcher) {
+    fun `EXPECT no direct payment credentials to be built WHEN funding fails or billing mode is downgraded`() = runTest(dispatcher) {
         coEvery { consent.requestConsent(any()) } throws IllegalStateException("deposit failed")
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
@@ -254,7 +254,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun fundedReceiptWithoutRequestStillTriggersConsumption() = runTest(dispatcher) {
+    fun `EXPECT receipt consumption to trigger WHEN a funded receipt arrives without a prior request`() = runTest(dispatcher) {
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
         var receipts = 0
@@ -270,7 +270,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun legacyWireDefaultsAndConfigEqualityRemainExplicit() {
+    fun `EXPECT legacy wire defaults and config equality to remain explicit WHEN vaultOnlyBilling is unset`() {
         val legacy = config().copy(vaultOnlyBilling = false)
         assertFalse(ServerConfig(gating = legacy.gating).vaultOnlyBilling)
         assertNotEquals(legacy, config())
@@ -280,7 +280,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun legacyViewerStillCreatesDirectPaymentEvenWithMeshSessionName() = runTest(dispatcher) {
+    fun `EXPECT direct payment creation WHEN legacy viewer receives a mesh-named session without a billing mode`() = runTest(dispatcher) {
         coEvery { rail.createRailPayment(any()) } returns RailPayment("test", 1, "nonce", JsonNull, JsonNull)
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
@@ -296,7 +296,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun legacyServerStillSettlesThroughRail() = runTest(dispatcher) {
+    fun `EXPECT settlement through the rail WHEN legacy server has vaultOnlyBilling disabled`() = runTest(dispatcher) {
         val dc = Channel()
         val direct = RailPayment("test", 1, "nonce", JsonNull, JsonNull)
         coEvery { rail.verifyAndSettle(any(), any()) } returns receipt().copy(
@@ -316,7 +316,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun failedVaultLookupNeverFallsBackToRailSettlement() = runTest(dispatcher) {
+    fun `EXPECT no fallback to rail settlement WHEN vault lookup fails`() = runTest(dispatcher) {
         val dc = Channel()
         val server = PaywalledRTCServer(
             rail, config(), balance,
@@ -335,7 +335,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun deferredConsumptionCannotReuseUnsettledFunds() = runTest(dispatcher) {
+    fun `EXPECT unsettled funds to be unusable for a new segment WHEN prior consumption is still deferred`() = runTest(dispatcher) {
         val dc = Channel()
         val serverConfig = config().let { it.copy(
             gating = it.gating.copy(mode = GatingMode.PARTIAL_TIME, segmentDuration = 1, leadTime = 0),
@@ -358,7 +358,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun legacyClientAndServerStillUseDirectRail() = runTest(dispatcher) {
+    fun `EXPECT legacy client and server to use the direct rail WHEN vaultOnlyBilling is disabled on both sides`() = runTest(dispatcher) {
         val payment = RailPayment("test", 1, "nonce", buildJsonObject {}, buildJsonObject {})
         coEvery { rail.createRailPayment(any()) } returns payment
         coEvery { rail.verifyAndSettle(any(), any()) } returns receipt().copy(
@@ -385,7 +385,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun unavailableVaultReaderFailsClosed() = runTest(dispatcher) {
+    fun `EXPECT fail-closed behavior WHEN the vault reader is unavailable`() = runTest(dispatcher) {
         val dc = Channel()
         val server = PaywalledRTCServer(
             rail, config(), balance,
@@ -402,7 +402,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun viewerRespondsToIdentityRetryWithoutSigningPayment() = runTest(dispatcher) {
+    fun `EXPECT viewer to retry without signing a payment WHEN host requests viewer identity`() = runTest(dispatcher) {
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
         client.connect(dc)
@@ -421,7 +421,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun deferredConsumptionHonorsBudgetCapWithoutSigningPayment() = runTest(dispatcher) {
+    fun `EXPECT budget cap to be honored without signing a payment WHEN deferred vault consumption exceeds the cap`() = runTest(dispatcher) {
         coEvery { consent.requestConsent(any()) } returns ConsentApproval(
             approved = true, autoPaySegments = true, budgetCap = BudgetCap("10", "USDC"),
         )
@@ -445,7 +445,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun receiptFirstPinsVaultIdentityAndRejectsChangedSessionsChannelsAndDuplicates() = runTest(dispatcher) {
+    fun `EXPECT vault identity to pin on first receipt and reject session, channel, or duplicate changes WHEN receipt arrives before request`() = runTest(dispatcher) {
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
         var receipts = 0
@@ -476,7 +476,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun requestFirstPinsVaultIdentityBeforeAnyConsumption() = runTest(dispatcher) {
+    fun `EXPECT vault identity to pin before any consumption WHEN request arrives before receipt`() = runTest(dispatcher) {
         val dc = Channel()
         val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
         var receipts = 0
@@ -503,7 +503,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun freeVaultSegmentNeedsNoFundingOrDirectPayment() = runTest(dispatcher) {
+    fun `EXPECT no funding or direct payment needed WHEN a vault segment is free`() = runTest(dispatcher) {
         val dc = Channel()
         var reads = 0
         val server = PaywalledRTCServer(
@@ -546,7 +546,7 @@ class VaultOnlyProtocolTest {
     }
 
     @Test
-    fun fundedAndInitiallyEmptyExtrasKeepReceiptAndVoucherIdentityWithoutDirectCharges() = runTest(dispatcher) {
+    fun `EXPECT receipt and voucher identity to remain consistent without direct charges WHEN vault starts funded or empty`() = runTest(dispatcher) {
         for (initialBalance in listOf(0L, 100L)) {
             var funded = initialBalance
             val hostDc = Channel()

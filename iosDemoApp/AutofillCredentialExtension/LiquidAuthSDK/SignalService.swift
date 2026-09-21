@@ -16,6 +16,7 @@
 
 import Foundation
 import WebRTC
+import sharedDemoApp
 
 // MARK: - SignalServiceDelegate
 
@@ -300,38 +301,35 @@ public class SignalService {
         }
     }
 
-    /// Classify the selected pair, not arbitrary gathered candidates or succeeded checks.
+    /// Classifies the selected pair by delegating to the single shared implementation in
+    /// `IceConnectionTypeClassifier.kt` (wallet-sdk-core), so Android and iOS can never disagree
+    /// on the quality (and therefore x402-style billing tier) of the same connection. This only
+    /// adapts WebRTC's native `RTCStatisticsReport` into the shared, engine-agnostic model.
     private static func selectedConnectionType(_ report: RTCStatisticsReport) -> String {
         let stats = report.statistics
-        let selectedIds = stats.values.filter { $0.type == "transport" }.compactMap {
-            $0.values["selectedCandidatePairId"] as? String
+
+        let transports = stats.values
+            .filter { $0.type == "transport" }
+            .map { IceTransportStat(selectedCandidatePairId: $0.values["selectedCandidatePairId"] as? String) }
+
+        func candidateType(_ candidateId: Any?) -> String? {
+            guard let candidateId = candidateId as? String else { return nil }
+            return stats[candidateId]?.values["candidateType"] as? String
         }
-        var pairs = selectedIds.compactMap { stats[$0] }.filter { $0.type == "candidate-pair" }
-        if pairs.isEmpty {
-            pairs = stats.values.filter {
-                $0.type == "candidate-pair" &&
-                    ($0.values["state"] as? String) == "succeeded" &&
-                    (($0.values["selected"] as? NSNumber)?.boolValue == true ||
-                     ($0.values["nominated"] as? NSNumber)?.boolValue == true)
-            }
-            // Several nominated pairs without a selected transport are ambiguous.
-            guard pairs.count == 1 else { return "unknown" }
+
+        let candidatePairs = stats.compactMap { id, entry -> IceCandidatePairStat? in
+            guard entry.type == "candidate-pair" else { return nil }
+            return IceCandidatePairStat(
+                id: id,
+                state: entry.values["state"] as? String,
+                isSelectedOrNominated: (entry.values["selected"] as? NSNumber)?.boolValue == true ||
+                    (entry.values["nominated"] as? NSNumber)?.boolValue == true,
+                localCandidateType: candidateType(entry.values["localCandidateId"]),
+                remoteCandidateType: candidateType(entry.values["remoteCandidateId"])
+            )
         }
-        let types = pairs.map { pair -> String in
-            let candidateTypes = ["localCandidateId", "remoteCandidateId"].compactMap { key -> String? in
-                guard let id = pair.values[key] as? String else { return nil }
-                return stats[id]?.values["candidateType"] as? String
-            }
-            if candidateTypes.contains("relay") { return "relay" }
-            guard candidateTypes.count == 2 else { return "unknown" }
-            if candidateTypes.contains("srflx") || candidateTypes.contains("prflx") { return "stun" }
-            if candidateTypes.count == 2 && candidateTypes.allSatisfy({ $0 == "host" }) { return "local" }
-            return "unknown"
-        }
-        if types.contains("relay") { return "relay" }
-        if types.isEmpty || types.contains("unknown") { return "unknown" }
-        if types.contains("stun") { return "stun" }
-        return types.allSatisfy { $0 == "local" } ? "local" : "unknown"
+
+        return App_iosKt.classifyIceConnectionType(transports: transports, candidatePairs: candidatePairs)
     }
 
     func disconnectHostViewer(requestId: String, terminalState: String = "closed") {

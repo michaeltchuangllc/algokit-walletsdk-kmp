@@ -37,7 +37,7 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class MppPaymentViewerConsentTest {
     @Test
-    fun positiveBalanceSuppressesGatedPopup() = scenario {
+    fun `EXPECT the gated popup to be suppressed WHEN the balance is positive`() = scenario {
         balance = 1L
         gated()
         runCurrent()
@@ -46,7 +46,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun positiveButInsufficientVaultBudgetRejectsWithoutPopup() = scenario {
+    fun `EXPECT rejection without a popup WHEN the vault budget is positive but insufficient`() = scenario {
         balance = 5L
         coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns
             MppPayments.SessionDynamicData(5, 0, 0, 1)
@@ -56,7 +56,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun unknownBalanceRetriesWithoutPopup() = scenario {
+    fun `EXPECT retries without a popup WHEN the balance is unknown`() = scenario {
         coEvery { balanceReader(any()) } returns Result.failure(IllegalStateException("offline"))
         repeat(5) { gated() }
         advanceTimeBy(3000)
@@ -66,7 +66,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun gatedEventsAndInitialConsentShareOnePrompt() = scenario {
+    fun `EXPECT gated events and the initial consent to share one prompt`() = scenario {
         val answer = CompletableDeferred<ConsentApproval>()
         approval = { answer.await() }
         gated()
@@ -86,7 +86,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun fundingAndConfirmationKeepGatedEventsOut() = scenario {
+    fun `EXPECT gated events to stay out WHILE funding and confirmation are in progress`() = scenario {
         val transaction = CompletableDeferred<Unit>()
         var deposits = 0
         val payment = async {
@@ -120,7 +120,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun confirmationTimeoutRetriesReadsWithoutAnotherDeposit() = scenario {
+    fun `EXPECT reads to retry without another deposit WHEN confirmation times out`() = scenario {
         var deposits = 0
         val payment = async {
             runCatching {
@@ -149,7 +149,7 @@ class MppPaymentViewerConsentTest {
     }
 
     @Test
-    fun restartCancelsOldPromptWithoutFundingOrProgress() = scenario {
+    fun `EXPECT the old prompt to cancel without funding or progress WHEN restarting`() = scenario {
         val answer = CompletableDeferred<ConsentApproval>()
         approval = { answer.await() }
         gated()

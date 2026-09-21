@@ -20,6 +20,10 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.HostViewerSession
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.toIceCandidatePairStats
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.toIceTransportStats
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
@@ -1029,43 +1033,15 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
-    private fun selectedConnectionType(report: RTCStatsReport): IceConnectionType {
-        val stats = report.statsMap
-        val selectedIds = stats.values
-            .filter { it.type == "transport" }
-            .mapNotNull { it.members["selectedCandidatePairId"]?.toString() }
-            .toSet()
-        val pairs = stats.values.filter { it.type == "candidate-pair" }
-        val selectedPairs = if (selectedIds.isNotEmpty()) {
-            pairs.filter { it.id in selectedIds }
-        } else {
-            // Older libwebrtc reports selection on the pair itself. A merely
-            // succeeded pair is not evidence that it carries this viewer's traffic.
-            pairs.filter { it.members["selected"]?.toString() == "true" }.ifEmpty {
-                pairs.filter {
-                    it.members["nominated"]?.toString() == "true" &&
-                        it.members["state"]?.toString() == "succeeded"
-                }.singleOrNull()?.let { listOf(it) }.orEmpty()
-            }
+    // Delegates to the shared, platform-agnostic classifier in wallet-sdk-core so this never
+    // drifts from the legacy single-viewer path (SignalService.detectConnectionType) or iOS.
+    private fun selectedConnectionType(report: RTCStatsReport): IceConnectionType =
+        when (classifyIceConnectionType(report.toIceTransportStats(), report.toIceCandidatePairStats())) {
+            IceConnectionClass.LOCAL -> IceConnectionType.LOCAL
+            IceConnectionClass.STUN -> IceConnectionType.STUN
+            IceConnectionClass.RELAY -> IceConnectionType.RELAY
+            IceConnectionClass.UNKNOWN -> IceConnectionType.UNKNOWN
         }
-        val types = selectedPairs.map { pair ->
-            val local = stats[pair.members["localCandidateId"]?.toString()]?.members?.get("candidateType")?.toString()
-            val remote = stats[pair.members["remoteCandidateId"]?.toString()]?.members?.get("candidateType")?.toString()
-            when {
-                local == "relay" || remote == "relay" -> IceConnectionType.RELAY
-                local == null || remote == null -> IceConnectionType.UNKNOWN
-                local in setOf("srflx", "prflx") || remote in setOf("srflx", "prflx") -> IceConnectionType.STUN
-                local == "host" && remote == "host" -> IceConnectionType.LOCAL
-                else -> IceConnectionType.UNKNOWN
-            }
-        }
-        return when {
-            IceConnectionType.RELAY in types -> IceConnectionType.RELAY
-            types.isEmpty() || IceConnectionType.UNKNOWN in types -> IceConnectionType.UNKNOWN
-            IceConnectionType.STUN in types -> IceConnectionType.STUN
-            else -> IceConnectionType.LOCAL
-        }
-    }
 
     private fun refreshAdditionalCreators() {
         additionalViewers.values.toList().forEach(::setupAdditionalCreator)

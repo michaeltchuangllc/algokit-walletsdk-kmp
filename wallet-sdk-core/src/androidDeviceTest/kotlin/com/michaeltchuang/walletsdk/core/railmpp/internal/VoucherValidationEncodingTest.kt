@@ -22,19 +22,19 @@ import kotlin.test.assertTrue
 
 class VoucherValidationEncodingTest {
     @Test
-    fun realSdkEnvelopesKeepOnlyVerifierLogicSignedAndSponsorUnsigned() {
+    fun `EXPECT only the verifier envelope to be logic-signed and the sponsor to remain unsigned WHEN encoding a real SDK-sized voucher group`() {
         val program = byteArrayOf(7, 0x80.toByte(), 0, 0x2d, 0x80.toByte(), 32) +
             ByteArray(32) + byteArrayOf(0x84.toByte(), 0x43)
         verifyGroup(program, ByteArray(64) { it.toByte() }, 0, 2)
     }
 
     @Test
-    fun falconSizedEnvelopesPoolFeesAndKeepPaddingUnsigned() {
+    fun `EXPECT fees to pool across envelopes and padding to remain unsigned WHEN encoding a Falcon-sized voucher group`() {
         verifyGroup(ByteArray(1900) { 12 }, ByteArray(1330) { (it % 251).toByte() }, 10, 4)
     }
 
     @Test
-    fun maximumSizeGroupEncodesAllSixteenTransactions() {
+    fun `EXPECT all sixteen transactions to encode WHEN the voucher group is at maximum size`() {
         verifyGroup(ByteArray(15_936) { 12 }, ByteArray(64) { it.toByte() }, 0, 16)
     }
 

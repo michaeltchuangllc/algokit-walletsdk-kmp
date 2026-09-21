@@ -11,7 +11,7 @@ class ValidateSettlementVoucherTest {
     private val payee = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ"
 
     @Test
-    fun verifierUsesExactRawDomainAndActualSignatureArgument() {
+    fun `EXPECT the verifier TEAL to use the exact raw domain and signature argument WHEN building the voucher verifier`() {
         val channel = ByteArray(32) { it.toByte() }
         val key = ByteArray(32) { (it + 32).toByte() }
         val teal = buildVoucherVerifierTeal(123, channel, 456, ByteArray(64), key, payee)
@@ -42,7 +42,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun groupSizeCoversCompiledProgramAndSignatureWithoutOversizedGroups() {
+    fun `EXPECT group size to cover the compiled program and signature without oversized groups WHEN sizing the voucher group`() {
         assertEquals(2, voucherValidationGroupSize(140, 64))
         assertEquals(2, voucherValidationGroupSize(1000, 1000))
         assertEquals(3, voucherValidationGroupSize(1001, 1000))
@@ -53,7 +53,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun falconVerifierPaysThreeMinimumUnitsAndEd25519PaysOne() {
+    fun `EXPECT the Falcon verifier to pay three minimum units and Ed25519 to pay one WHEN funding the voucher group`() {
         for ((signatureSize, programSize, expectedCount, expectedFee) in listOf(
             listOf(64, 140, 2, 2000),
             listOf(1232, 1900, 4, 6000),
@@ -89,7 +89,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun encodedByteFeeRebuildsGroupAndPreservesFalconMinimum() {
+    fun `EXPECT the group to rebuild with the encoded byte fee and preserve the Falcon minimum WHEN a per-byte fee is supplied`() {
         val fake = RecordingTransactions()
         val envelopes = buildVoucherValidationGroup(ByteArray(1900), ByteArray(1232), "sponsor", "verifier", 1000, 10, fake)
         val required = envelopes.mapIndexed { index, bytes ->
@@ -101,7 +101,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun emptySigningAndGroupingFallbackFailClosed() {
+    fun `EXPECT the build to fail closed WHEN signing returns empty or grouping falls back`() {
         for (fake in listOf(
             RecordingTransactions(emptySignature = true),
             RecordingTransactions(groupingFallback = true),
@@ -114,7 +114,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun requestPreservesEnvelopesWithoutSignerFixingOrDeveloperOptions() {
+    fun `EXPECT envelopes to be preserved without signer-fixing or developer options WHEN building the simulate request`() {
         val envelopes = listOf(byteArrayOf(0x80.toByte()), byteArrayOf(0x81.toByte()))
         val request = buildVoucherValidationRequest(envelopes)
         val text = request.decodeToString()
@@ -134,7 +134,7 @@ class ValidateSettlementVoucherTest {
     }
 
     @Test
-    fun onlySuccessfulPerTransactionSignatureVerificationIsAccepted() {
+    fun `EXPECT only a fully successful per-transaction signature verification to be accepted WHEN validating the simulation response`() {
         requireVerifiedVoucherSimulation(success, 2, 64)
         requireVerifiedVoucherSimulation(success.replace("1904", "1704"), 2, 1232)
         for (response in listOf(

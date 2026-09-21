@@ -48,7 +48,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalEncodingApi::class)
 class MppPaymentViewerSingleFlightTest {
     @Test
-    fun manualTopUpBlocksPollingAndQueuedConsentUntilConfirmed() = scenario {
+    fun `EXPECT polling and queued consent to block until a manual top-up confirms`() = scenario {
         val transaction = CompletableDeferred<Unit>()
         val topUp = async {
             manager.topUpViewerSessionVault(
@@ -82,7 +82,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun manualTopUpOverlapCannotSubmitAnotherDeposit() = scenario {
+    fun `EXPECT no additional deposit WHEN a manual top-up overlaps another`() = scenario {
         val transaction = CompletableDeferred<Unit>()
         val first = async {
             manager.topUpViewerSessionVault("viewer", 100L, {
@@ -106,7 +106,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun manualTopUpRetryOnlyReconcilesAnUnconfirmedDeposit() = scenario {
+    fun `EXPECT retry to only reconcile the unconfirmed deposit WHEN a manual top-up is retried`() = scenario {
         val first = async {
             runCatching {
                 manager.topUpViewerSessionVault("viewer", 100L, { deposits++ }, { balance })
@@ -132,7 +132,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun positiveBalanceSuppressesGatedAndVaultOnlyPromptsEvenBelowSegmentCost() = scenario {
+    fun `EXPECT gated and vault-only prompts to be suppressed WHEN balance is positive even below segment cost`() = scenario {
         balance = 1L
         channel.gate()
         runCurrent()
@@ -143,7 +143,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun unknownBalanceRetriesWithoutPromptingOrFunding() = scenario {
+    fun `EXPECT retries without prompting or funding WHEN the balance is unknown`() = scenario {
         readBalance = { Result.failure(IllegalStateException("offline")) }
         channel.gate()
         runCurrent()
@@ -155,7 +155,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun gatedAndInitialConsentShareFundingAndConfirmationFlight() = scenario {
+    fun `EXPECT gated and initial consent to share one funding and confirmation flight`() = scenario {
         val consent = CompletableDeferred<ConsentApproval>()
         val transaction = CompletableDeferred<Result<String>>()
         requestConsent = { consent.await() }
@@ -192,7 +192,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun initialPromptDropsGatedOverlapAndRechecksExternalFundingBeforeDeposit() = scenario {
+    fun `EXPECT the initial prompt to drop a gated overlap and recheck external funding before depositing`() = scenario {
         val consent = CompletableDeferred<ConsentApproval>()
         requestConsent = { consent.await() }
         channel.request()
@@ -208,7 +208,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun approvedConsentReadFailureClearsProcessingBeforeFunding() = scenario {
+    fun `EXPECT processing to clear before funding WHEN the read fails after gated consent is approved`() = scenario {
         requestConsent = {
             processing += true
             readBalance = { Result.failure(IllegalStateException("offline after approval")) }
@@ -224,7 +224,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun initialApprovedConsentReadFailureClearsProcessingBeforeFunding() = scenario {
+    fun `EXPECT processing to clear before funding WHEN the read fails after initial consent is approved`() = scenario {
         requestConsent = {
             processing += true
             readBalance = { Result.failure(IllegalStateException("offline after approval")) }
@@ -239,7 +239,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun restartDuringApprovedConsentReadDoesNotClearNewProcessing() = scenario {
+    fun `EXPECT new processing to survive WHEN restart happens during an approved consent's read`() = scenario {
         val read = CompletableDeferred<Result<Long>>()
         requestConsent = {
             processing += true
@@ -260,7 +260,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun cancellationInsideConsentClearsAtomicallyApprovedProcessing() = scenario {
+    fun `EXPECT approved processing to clear atomically WHEN cancellation occurs inside consent`() = scenario {
         requestConsent = {
             processing += true
             throw kotlinx.coroutines.CancellationException("approved request cancelled")
@@ -272,7 +272,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun unconfirmedFundingAndReadErrorsOnlyRetryReconciliation() = scenario {
+    fun `EXPECT unconfirmed funding and read errors to only retry reconciliation`() = scenario {
         channel.gate()
         runCurrent()
         assertEquals(1, deposits)
@@ -294,7 +294,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun stalePositivePollCannotClearExternalPendingPayment() = scenario {
+    fun `EXPECT the external pending payment to remain WHEN a stale positive poll arrives`() = scenario {
         val poll = CompletableDeferred<Result<Long>>()
         readBalance = { poll.await() }
         refresh()
@@ -315,7 +315,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun restartCancelsOldConsentAndQueuedInitialRequest() = scenario {
+    fun `EXPECT the old consent and queued initial request to cancel WHEN restarting`() = scenario {
         val consent = CompletableDeferred<ConsentApproval>()
         requestConsent = { consent.await() }
         channel.gate()
@@ -336,7 +336,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun stopDuringFundingClearsProcessingWithoutLateProgress() = scenario {
+    fun `EXPECT processing to clear without late progress WHEN stop happens during funding`() = scenario {
         val transaction = CompletableDeferred<Result<String>>()
         fund = { transaction.await() }
         channel.gate()
@@ -353,7 +353,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun fundingFailureAllowsAnotherConsentAndDeposit() = scenario {
+    fun `EXPECT another consent and deposit to be allowed WHEN funding fails`() = scenario {
         fund = {
             requestConsent = { ConsentApproval(false, autoPaySegments = false) }
             Result.failure(IllegalStateException("transaction rejected"))
@@ -374,7 +374,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun thrownFundingFailureDoesNotLeavePendingDepositStuck() = scenario {
+    fun `EXPECT the pending deposit to not get stuck WHEN funding throws`() = scenario {
         fund = {
             requestConsent = { ConsentApproval(false, autoPaySegments = false) }
             error("signing failed")
@@ -395,7 +395,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun externalFundingCompletionRequiresFreshPositiveConfirmation() = scenario {
+    fun `EXPECT a fresh positive confirmation to be required WHEN external funding completes`() = scenario {
         manager.markPaymentPending()
         balance = 100L
         refresh()
@@ -418,7 +418,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun externalFundingFailureAllowsGatedConsentAgain() = scenario {
+    fun `EXPECT gated consent to be allowed again WHEN external funding fails`() = scenario {
         manager.markPaymentPending()
         channel.gate()
         runCurrent()
@@ -430,7 +430,7 @@ class MppPaymentViewerSingleFlightTest {
     }
 
     @Test
-    fun restartDiscardsOldZeroPoll() = scenario {
+    fun `EXPECT the old zero poll to be discarded WHEN restarting`() = scenario {
         val poll = CompletableDeferred<Result<Long>>()
         readBalance = { poll.await() }
         refresh()

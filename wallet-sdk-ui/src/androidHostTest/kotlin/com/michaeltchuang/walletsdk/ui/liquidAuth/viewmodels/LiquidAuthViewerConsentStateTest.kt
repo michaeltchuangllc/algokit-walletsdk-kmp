@@ -61,7 +61,7 @@ class LiquidAuthViewerConsentStateTest {
     }
 
     @Test
-    fun pendingDuplicatesAreRejectedWithoutReplacingOrSharingApproval() =
+    fun `EXPECT pending duplicates to be rejected without replacing or sharing the approval`() =
         scenario {
             val first = request()
             val identicalDuplicate = request()
@@ -82,7 +82,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun cancelledOldRequestFinallyDoesNotClearReplacement() =
+    fun `EXPECT the replacement to survive WHEN a cancelled old request's finally block runs`() =
         scenario {
             val old = request()
             holder.clearViewerConsent()
@@ -100,7 +100,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun callerCancellationClearsPendingRequestWithoutStartingProcessing() =
+    fun `EXPECT the pending request to clear without starting processing WHEN the caller cancels`() =
         scenario {
             val pending = request()
             pending.cancel()
@@ -117,7 +117,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun directApprovalPreservesRealBalancesAndWorksWhileProcessing() =
+    fun `EXPECT real balances to be preserved and direct approval to work WHILE processing`() =
         scenario {
             holder.setViewerSessionVaultProgress(7_000_000L, 9_000_000L)
             val pending = request()
@@ -134,7 +134,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun viewerApprovalPreservesRealBalancesWithoutAutomaticConsent() =
+    fun `EXPECT real balances to be preserved without automatic consent WHEN the viewer approves`() =
         scenario {
             holder.setViewerSessionVaultProgress(7_000_000L, 9_000_000L)
             val pending = request()
@@ -150,7 +150,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun fundedApprovalRemainsAvailableWhileProcessing() =
+    fun `EXPECT the funded approval to remain available WHILE processing`() =
         scenario {
             holder.setViewerSessionVaultProgress(7_000_000L, 9_000_000L)
             val pending = request()
@@ -165,7 +165,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun rapidApprovalsCompleteOnceAndProcessingLastsUntilManagerCallback() =
+    fun `EXPECT rapid approvals to complete once and processing to last until the manager callback`() =
         scenario {
             val processing = mutableListOf<Boolean>()
             backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
@@ -209,7 +209,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun viewerApprovalDoesNotCompleteActiveConsentWhileProcessing() =
+    fun `EXPECT active consent to stay incomplete WHEN the viewer approves while processing`() =
         scenario {
             val pending = request()
             holder.setViewerPaymentProcessing(true)
@@ -225,7 +225,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun clearCancelsPendingConsentAndResetsProcessing() =
+    fun `EXPECT pending consent to cancel and processing to reset WHEN consent is cleared`() =
         scenario {
             val pending = request()
             holder.setViewerPaymentProcessing(true)
@@ -242,7 +242,7 @@ class LiquidAuthViewerConsentStateTest {
         }
 
     @Test
-    fun rejectionNeverStartsPaymentProcessing() =
+    fun `EXPECT payment processing to never start WHEN consent is rejected`() =
         scenario {
             val pending = request()
 

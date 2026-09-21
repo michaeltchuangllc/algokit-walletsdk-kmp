@@ -15,6 +15,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat.Builder
 import androidx.core.app.ServiceCompat
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.HostPeerRegistry
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -511,78 +513,52 @@ class SignalService : Service() {
      * - UNKNOWN: Connection type not yet determined
      */
     fun detectConnectionType(onResult: ((IceConnectionType) -> Unit)? = null) {
-        peerConnection?.let { pc ->
-            Log.d(TAG, "🔍 Detecting connection type... pc state: ${pc.connectionState()}, ice state: ${pc.iceConnectionState()}")
-
-            pc.getStats { statsReport ->
-                var connectionType = IceConnectionType.UNKNOWN
-                var foundCandidatePair = false
-
-                // Log all stats types for debugging
-                val statsTypes =
-                    statsReport.statsMap.values
-                        .map { it.type }
-                        .distinct()
-                Log.d(TAG, "📊 Available stats types: $statsTypes")
-
-                // Look for candidate-pair stats which show the selected connection
-                statsReport.statsMap.values.forEach { stats ->
-                    if (stats.type == "candidate-pair") {
-                        val state = stats.members["state"]?.toString()
-                        Log.d(TAG, "🔗 Candidate pair: state=$state, id=${stats.id}")
-
-                        if (state == "succeeded") {
-                            foundCandidatePair = true
-                            val localCandidateId = stats.members["localCandidateId"]?.toString()
-                            val remoteCandidateId = stats.members["remoteCandidateId"]?.toString()
-                            Log.d(TAG, "✅ Found succeeded pair: local=$localCandidateId, remote=$remoteCandidateId")
-
-                            // Find the local candidate type
-                            if (localCandidateId != null) {
-                                statsReport.statsMap.values.forEach { candidateStats ->
-                                    if (candidateStats.id == localCandidateId) {
-                                        val candidateType = candidateStats.members["candidateType"]?.toString()
-                                        val ip = candidateStats.members["ip"]?.toString()
-                                        val port = candidateStats.members["port"]?.toString()
-                                        Log.d(TAG, "📍 Local candidate: type=$candidateType, ip=$ip, port=$port")
-
-                                        connectionType =
-                                            when (candidateType) {
-                                                "host" -> IceConnectionType.LOCAL
-                                                "srflx" -> IceConnectionType.STUN
-                                                "relay" -> IceConnectionType.RELAY
-                                                else -> IceConnectionType.UNKNOWN
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (!foundCandidatePair) {
-                    Log.d(TAG, "⚠️ No succeeded candidate pair found yet")
-                }
-
-                // Also check connection state
-                if (pc.connectionState() == PeerConnection.PeerConnectionState.FAILED ||
-                    pc.iceConnectionState() == PeerConnection.IceConnectionState.FAILED
-                ) {
-                    connectionType = IceConnectionType.FAILED
-                }
-
-                // Update state and notify
-                if (this.connectionType != connectionType) {
-                    this.connectionType = connectionType
-                    onConnectionTypeChange?.invoke(connectionType)
-                    Log.d(TAG, "🌐 Connection type changed to: $connectionType")
-                }
-
-                onResult?.invoke(connectionType)
-            }
-        } ?: run {
+        val pc = peerConnection
+        if (pc == null) {
             Log.d(TAG, "⚠️ Cannot detect connection type - peerConnection is null")
             onResult?.invoke(IceConnectionType.UNKNOWN)
+            return
+        }
+        Log.d(TAG, "🔍 Detecting connection type... pc state: ${pc.connectionState()}, ice state: ${pc.iceConnectionState()}")
+
+        // A terminal failure is a connection-level fact, not something derivable from a stats
+        // snapshot - check it up front rather than letting stale "succeeded" stats mask it.
+        if (pc.connectionState() == PeerConnection.PeerConnectionState.FAILED ||
+            pc.iceConnectionState() == PeerConnection.IceConnectionState.FAILED
+        ) {
+            updateConnectionType(IceConnectionType.FAILED, onResult)
+            return
+        }
+
+        pc.getStats { statsReport ->
+            // Delegate to the shared, platform-agnostic classifier so Android and iOS can never
+            // disagree on the quality (and therefore billing tier) of the same connection.
+            val connectionType =
+                classifyIceConnectionType(
+                    statsReport.toIceTransportStats(),
+                    statsReport.toIceCandidatePairStats(),
+                ).toSignalServiceIceConnectionType()
+            updateConnectionType(connectionType, onResult)
         }
     }
+
+    private fun updateConnectionType(
+        connectionType: IceConnectionType,
+        onResult: ((IceConnectionType) -> Unit)?,
+    ) {
+        if (this.connectionType != connectionType) {
+            this.connectionType = connectionType
+            onConnectionTypeChange?.invoke(connectionType)
+            Log.d(TAG, "🌐 Connection type changed to: $connectionType")
+        }
+        onResult?.invoke(connectionType)
+    }
+
+    private fun IceConnectionClass.toSignalServiceIceConnectionType(): IceConnectionType =
+        when (this) {
+            IceConnectionClass.LOCAL -> IceConnectionType.LOCAL
+            IceConnectionClass.STUN -> IceConnectionType.STUN
+            IceConnectionClass.RELAY -> IceConnectionType.RELAY
+            IceConnectionClass.UNKNOWN -> IceConnectionType.UNKNOWN
+        }
 }

@@ -2,6 +2,7 @@ import CoreImage
 import Foundation
 import SocketIO
 import WebRTC
+import sharedDemoApp
 
 // MARK: - SignalClient
 
@@ -419,12 +420,20 @@ public class SignalClient {
         })
     }
 
+    /// Validates and decodes a trickle ICE candidate frame by delegating to the single shared
+    /// implementation in `wallet-sdk-core` (`IceCandidateMessage.kt`, via `App_iosKt`), so a
+    /// malformed/late candidate is dropped identically on Android and iOS instead of each
+    /// platform hand-rolling its own validation.
     private func handleIceCandidate(_ data: [String: Any]) {
-        guard !closed, let candidate = data["candidate"] as? String, !candidate.isEmpty,
-              let index = data["sdpMLineIndex"] as? Int,
-              let sdpMLineIndex = Int32(exactly: index), sdpMLineIndex >= 0 else { return }
+        guard !closed else { return }
+        let rawIndex = (data["sdpMLineIndex"] as? Int).flatMap { Int32(exactly: $0) } ?? -1
+        guard let message = App_iosKt.parseIceCandidateMessage(
+            candidate: data["candidate"] as? String,
+            sdpMid: data["sdpMid"] as? String,
+            sdpMLineIndex: rawIndex
+        ) else { return }
         let iceCandidate = RTCIceCandidate(
-            sdp: candidate, sdpMLineIndex: sdpMLineIndex, sdpMid: data["sdpMid"] as? String
+            sdp: message.candidate, sdpMLineIndex: message.sdpMLineIndex, sdpMid: message.sdpMid
         )
         Logger.debug("Adding ICE candidate: \(iceCandidate)")
 

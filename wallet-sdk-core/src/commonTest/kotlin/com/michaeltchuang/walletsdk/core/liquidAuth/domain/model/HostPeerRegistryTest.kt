@@ -10,7 +10,7 @@ class HostPeerRegistryTest {
     private class Peer
 
     @Test
-    fun joiningSecondViewerPreservesFirstConnection() {
+    fun `EXPECT the first connection to be preserved WHEN a second viewer joins`() {
         val registry = HostPeerRegistry<Peer>()
         val first = Peer()
         val second = Peer()
@@ -24,7 +24,7 @@ class HostPeerRegistryTest {
     }
 
     @Test
-    fun duplicateInvitationCannotReplaceExistingViewer() {
+    fun `EXPECT the existing viewer to remain WHEN a duplicate invitation is added`() {
         val registry = HostPeerRegistry<Peer>()
         val first = Peer()
         registry.add("invitation-a", first)
@@ -35,7 +35,7 @@ class HostPeerRegistryTest {
     }
 
     @Test
-    fun leavingSecondViewerDoesNotRemoveFirstViewer() {
+    fun `EXPECT the first viewer to remain WHEN the second viewer leaves`() {
         val registry = HostPeerRegistry<Peer>()
         val first = Peer()
         val second = Peer()
@@ -50,7 +50,7 @@ class HostPeerRegistryTest {
     }
 
     @Test
-    fun staleSessionCannotActOnReplacement() {
+    fun `EXPECT the stale session to be excluded WHEN a replacement viewer takes over the invitation`() {
         val registry = HostPeerRegistry<Peer>()
         val old = Peer()
         val replacement = Peer()
@@ -63,7 +63,7 @@ class HostPeerRegistryTest {
     }
 
     @Test
-    fun hostShutdownDrainsEveryPeerExactlyOnce() {
+    fun `EXPECT every peer to drain exactly once WHEN the host shuts down`() {
         val registry = HostPeerRegistry<Peer>()
         val first = Peer()
         val second = Peer()

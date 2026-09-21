@@ -22,21 +22,12 @@ import SwiftCBOR
 // MARK: - Utility
 
 public enum Utility {
-    /// Extracts the origin and request ID from a Liquid Auth URI
-    ///
-    /// - Parameter uri: The liquid:// URI to parse
-    /// - Returns: A tuple containing the origin and requestId, or nil if parsing fails
-    public static func extractOriginAndRequestId(from uri: String) -> (origin: String, requestId: String)? {
-        guard let url = URL(string: uri),
-              url.scheme == "liquid",
-              let host = url.host,
-              let queryItems = URLComponents(string: uri)?.queryItems,
-              let requestId = queryItems.first(where: { $0.name == "requestId" })?.value
-        else {
-            return nil
-        }
-        return (origin: host, requestId: requestId)
-    }
+    // Note: parsing a `liquid://` URI into (origin, requestId, appId) is handled by the single
+    // shared implementation, `fromUri()` in wallet-sdk-ui's `Utils.kt` (used by both platforms
+    // via the common `LiquidAuthViewModel`) - it used to also be hand-rolled here, but that copy
+    // was unused and had drifted (e.g. it didn't recognize `request_id`/`rid`, and returned a
+    // bare host instead of an `https://` origin). Removed rather than fixed to avoid a second
+    // copy to keep in sync.
 
     /// Decodes a Base64URL string into bytes
     ///

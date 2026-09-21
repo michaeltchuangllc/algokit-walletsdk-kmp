@@ -2,6 +2,12 @@ package com.michaeltchuang.walletsdk.demo
 
 import androidx.compose.ui.window.ComposeUIViewController
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidateMessage
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidatePairStat
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceTransportStat
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType as classifyIceConnectionTypeShared
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.parseIceCandidateMessage as parseIceCandidateMessageShared
 import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
@@ -689,6 +695,42 @@ fun notifyBroadcastViewerDisconnected(requestId: String) {
 fun notifyBroadcastViewerConnectionType(requestId: String, type: String) {
     activeIOSBroadcastConnectionManager?.notifyBroadcastViewerConnectionType(requestId, type)
 }
+
+/**
+ * Classifies a WebRTC ICE connection's quality from a stats snapshot, delegating to the single
+ * shared implementation in `wallet-sdk-core` (`IceConnectionTypeClassifier.kt`). Swift builds
+ * [IceTransportStat]/[IceCandidatePairStat] from its own `RTCStatisticsReport` and calls this
+ * instead of re-implementing the classification, so Android and iOS can never disagree on the
+ * quality (and therefore x402-style billing tier) of the same connection.
+ *
+ * @return one of "local", "stun", "relay", "unknown" - the same wire format already used by
+ * [notifyBroadcastViewerConnectionType] and `broadcastConnectionTypeString`.
+ */
+fun classifyIceConnectionType(
+    transports: List<IceTransportStat>,
+    candidatePairs: List<IceCandidatePairStat>,
+): String =
+    when (classifyIceConnectionTypeShared(transports, candidatePairs)) {
+        IceConnectionClass.LOCAL -> "local"
+        IceConnectionClass.STUN -> "stun"
+        IceConnectionClass.RELAY -> "relay"
+        IceConnectionClass.UNKNOWN -> "unknown"
+    }
+
+/**
+ * Validates and extracts a trickle ICE candidate from signaling wire fields, delegating to the
+ * single shared implementation in `wallet-sdk-core` (`IceCandidateMessage.kt`). Swift calls this
+ * from `SignalClient.swift.handleIceCandidate` instead of re-implementing the validation, so
+ * malformed/late candidate frames are dropped identically on both platforms.
+ *
+ * @param sdpMLineIndex pass `-1` when the field is missing or not parseable as an integer.
+ * @return `null` if the candidate is malformed (blank candidate, or a missing/negative index).
+ */
+fun parseIceCandidateMessage(
+    candidate: String?,
+    sdpMid: String?,
+    sdpMLineIndex: Int,
+): IceCandidateMessage? = parseIceCandidateMessageShared(candidate, sdpMid, sdpMLineIndex)
 
 fun notifyBroadcastInvitationFailed(
     requestId: String,
