@@ -1,6 +1,6 @@
 [versions]
 agp = "9.2.1"
-algokit-walletSdk = "3.202603.4"
+algokit-walletSdk = "3.202603.5"
 algokit-core = "1.0.0-alpha.85"
 algorand-foundation = "0.1.0"
 android-compileSdk = "37"
