@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.ExperimentalTime
 
 data class VideoFrameData(
@@ -205,7 +206,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     onStreamTimeout(reason)
                 }
 
-                delay(200) // Poll frequently relative to STREAM_TIMEOUT_MS for prompt detection
+                delay(200.milliseconds) // Poll frequently relative to STREAM_TIMEOUT_MS for prompt detection
             }
         }
     }
