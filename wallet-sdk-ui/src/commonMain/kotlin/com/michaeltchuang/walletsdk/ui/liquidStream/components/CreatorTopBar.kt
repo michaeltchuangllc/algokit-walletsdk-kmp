@@ -47,7 +47,7 @@ fun CreatorTopBar(
     creatorAvatarUrl: String? = null,
     numbersOfViewers: String? = "1",
     onSettingsClick: () -> Unit,
-    onMinimise: () -> Unit
+    onMinimise: () -> Unit,
 ) {
     Column(modifier = modifier) {
         Row(
@@ -163,7 +163,7 @@ fun CreatorTopBarPreview() {
         Box(modifier = Modifier.background(Color.DarkGray).padding(16.dp)) {
             CreatorTopBar(
                 onSettingsClick = {},
-                onMinimise = {}
+                onMinimise = {},
             )
         }
     }

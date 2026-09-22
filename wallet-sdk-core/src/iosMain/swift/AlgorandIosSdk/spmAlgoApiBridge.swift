@@ -1499,10 +1499,10 @@ import CommonCrypto
         guard status == 200, let data = data else {
             if let data = data, let msg = String(data: data, encoding: .utf8) {
                 NSLog("❌ syncSimulateTransaction failed status=\(status) body=\(msg.prefix(400))")
-                return "SIMULATE_ERROR:\(msg)"
+                return "SIMULATE_ERROR: HTTP \(status): \(msg)"
             }
             NSLog("❌ syncSimulateTransaction failed status=\(status) (no body)")
-            return ""
+            return "SIMULATE_ERROR: HTTP \(status): empty response"
         }
         return String(data: data, encoding: .utf8) ?? ""
     }

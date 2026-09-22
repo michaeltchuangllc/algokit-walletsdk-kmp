@@ -14,6 +14,16 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat.Builder
 import androidx.core.app.ServiceCompat
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.HostPeerRegistry
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import org.webrtc.DataChannel
 import org.webrtc.PeerConnection
@@ -51,6 +61,17 @@ class SignalService : Service() {
     var paymentDataChannel: DataChannel? = null
     var peerConnection: PeerConnection? = null
 
+    private val hostScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val hostPeers = HostPeerRegistry<HostViewerSession>()
+    private var hostMedia: SharedBroadcastMedia? = null
+    private var hostOrigin: String? = null
+    private var hostHttpClient: OkHttpClient? = null
+    private var primaryHostPeerId: String? = null
+    private var hostGeneration = 0L
+
+    /** Snapshot only; mutations and callbacks are confined to the main dispatcher. */
+    val hostViewerSessions: Map<String, HostViewerSession> get() = hostPeers.snapshot
+
     // Simple service binding
     inner class LocalBinder : Binder() {
         fun getServerInstance(): SignalService = this@SignalService
@@ -70,6 +91,7 @@ class SignalService : Service() {
     fun startForeground(
         notificationBuilder: Builder,
         notificationId: Int,
+        captureMedia: Boolean = false,
     ) {
         try {
             ServiceCompat.startForeground(
@@ -78,7 +100,11 @@ class SignalService : Service() {
                 notificationBuilder
                     .build(),
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    if (captureMedia) {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                    } else {
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                    }
                 } else {
                     0
                 },
@@ -90,6 +116,7 @@ class SignalService : Service() {
             ) {
                 Log.e(TAG, "Foreground service not allowed")
             }
+            if (captureMedia) throw e
         }
     }
 
@@ -119,6 +146,7 @@ class SignalService : Service() {
         notificationId: Int,
         activityClass: Class<out Activity>?,
     ) {
+        check(hostOrigin == null) { "Stop hosting before starting a viewer session" }
         val builder =
             activityClass?.let {
                 createPendingIntent(it, 0)?.let { pendingIntent ->
@@ -134,9 +162,174 @@ class SignalService : Service() {
     }
 
     /**
+     * Start the broadcast once. Adding invitations must never call [start], which is the
+     * legacy replacement API. Capture remains alive until the host explicitly stops.
+     */
+    fun startHost(
+        url: String,
+        httpClient: OkHttpClient,
+        notificationBuilder: Builder,
+        notificationId: Int,
+        activityClass: Class<out Activity>?,
+    ) {
+        if (hostOrigin != null) {
+            check(hostOrigin == url) { "Stop the broadcast before changing its origin" }
+            return
+        }
+        check(signalClient == null) { "A viewer session is already active" }
+        activityClass?.let { createPendingIntent(it)?.let(notificationBuilder::setContentIntent) }
+        startForeground(notificationBuilder, notificationId, captureMedia = true)
+        val media = SharedBroadcastMedia(applicationContext)
+        try {
+            checkNotNull(media.startCapture()) { "Camera capture could not start. Check camera permissions and availability." }
+        } catch (error: Exception) {
+            media.dispose()
+            throw error
+        }
+        hostMedia = media
+        hostOrigin = url
+        hostHttpClient = httpClient
+        hostGeneration++
+    }
+
+    /**
+     * One socket/request ID per viewer, using the existing one-to-one server protocol.
+     * A new invitation does not replace any pending or established connection.
+     */
+    fun addHostViewer(
+        requestId: String,
+        iceServers: List<PeerConnection.IceServer>,
+        onConnected: (HostViewerSession) -> Unit,
+        onMessage: (HostViewerSession, String) -> Unit,
+        onDisconnected: (String) -> Unit,
+        onError: (String, Throwable) -> Unit,
+    ) {
+        val origin = checkNotNull(hostOrigin) { "Call startHost first" }
+        if (hostPeers.snapshot.containsKey(requestId)) return
+        check(hostPeers.snapshot.values.count { !it.connected } < 8) {
+            "Too many pending invitations. Wait for an invitation to expire before refreshing."
+        }
+        val client = SignalClient(origin, this, checkNotNull(hostHttpClient), checkNotNull(hostMedia))
+        val session = HostViewerSession(requestId, client)
+        hostPeers.add(requestId, session)
+        session.onDisconnected = onDisconnected
+        val generation = hostGeneration
+
+        fun isCurrent() = generation == hostGeneration && hostPeers.contains(requestId, session)
+        client.onFailure = { error ->
+            if (isCurrent()) {
+                removeHostViewer(requestId)
+                onError(requestId, error)
+            }
+        }
+
+        fun connected() {
+            if (!isCurrent() || session.connected || session.dataChannel?.state() != DataChannel.State.OPEN) return
+            session.connected = true
+            session.invitationExpiry?.cancel()
+            session.invitationExpiry = null
+            // Compatibility projection for the original payment flow. Never retarget it when
+            // another viewer joins; all additional peers are accessed through their session.
+            if (primaryHostPeerId == null) {
+                primaryHostPeerId = requestId
+                peerClient = session.peer
+                peerConnection = session.peer?.peerConnection
+                dataChannel = session.dataChannel
+            }
+            onConnected(session)
+        }
+        session.invitationExpiry =
+            hostScope.launch {
+                delay(5 * 60 * 1000L)
+                if (isCurrent() && !session.connected) {
+                    removeHostViewer(requestId)
+                    onError(requestId, IllegalStateException("Invitation expired. Generate a new QR code."))
+                }
+            }
+        session.job =
+            hostScope.launch {
+                try {
+                    val channel = checkNotNull(client.peer(requestId, "offer", iceServers, enableMedia = true))
+                    if (!isCurrent()) return@launch
+                    session.dataChannel = channel
+                    channel.registerObserver(
+                        object : DataChannel.Observer {
+                            override fun onBufferedAmountChange(previousAmount: Long) = Unit
+
+                            override fun onStateChange() {
+                                hostScope.launch {
+                                    if (!isCurrent()) return@launch
+                                    when (channel.state()) {
+                                        DataChannel.State.OPEN -> connected()
+                                        DataChannel.State.CLOSED, DataChannel.State.CLOSING -> removeHostViewer(requestId)
+                                        else -> Unit
+                                    }
+                                }
+                            }
+
+                            override fun onMessage(buffer: DataChannel.Buffer) {
+                                if (buffer.binary) return
+                                val bytes = ByteArray(buffer.data.remaining())
+                                buffer.data.get(bytes)
+                                val message = bytes.toString(Charsets.UTF_8)
+                                hostScope.launch {
+                                    if (isCurrent()) {
+                                        connected()
+                                        onMessage(session, message)
+                                    }
+                                }
+                            }
+                        },
+                    )
+                    session.peer?.onIceConnectionStateChange = { state ->
+                        if (state == PeerConnection.IceConnectionState.FAILED) {
+                            hostScope.launch {
+                                if (isCurrent()) removeHostViewer(requestId)
+                            }
+                        }
+                    }
+                    connected()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    if (isCurrent()) {
+                        removeHostViewer(requestId)
+                        onError(requestId, error)
+                    }
+                }
+            }
+    }
+
+    /** Closing viewer B never closes viewer A or the camera. */
+    fun removeHostViewer(requestId: String) {
+        val session = hostPeers.remove(requestId) ?: return
+        val callback = session.onDisconnected
+        if (primaryHostPeerId == requestId) {
+            peerClient = null
+            peerConnection = null
+            dataChannel = null
+            paymentDataChannel = null
+            // Keep primaryHostPeerId reserved: legacy payment state must not switch wallets.
+        }
+        session.close()
+        callback?.invoke(requestId)
+    }
+
+    private fun stopHost() {
+        hostGeneration++
+        hostPeers.drain().forEach { it.close() }
+        hostMedia?.dispose()
+        hostMedia = null
+        hostOrigin = null
+        hostHttpClient = null
+        primaryHostPeerId = null
+    }
+
+    /**
      * Stop the Liquid WebRTC Service
      */
     fun stop() {
+        stopHost()
         signalClient?.disconnect() // peerClient.destroy() already closes/disposes all channels & peerConnection
         signalClient = null
         peerConnection = null
@@ -145,6 +338,18 @@ class SignalService : Service() {
         peerClient = null
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    override fun onDestroy() {
+        stopHost()
+        signalClient?.disconnect()
+        signalClient = null
+        peerClient = null
+        peerConnection = null
+        dataChannel = null
+        paymentDataChannel = null
+        hostScope.cancel()
+        super.onDestroy()
     }
 
     /**
@@ -164,11 +369,11 @@ class SignalService : Service() {
 
     /** Shared EGL context for rendering local/remote video tracks. */
     val eglBaseContext: org.webrtc.EglBase.Context?
-        get() = peerClient?.eglBaseContext
+        get() = hostMedia?.eglBaseContext ?: peerClient?.eglBaseContext
 
     /** Creator/host local camera track for self-preview. */
     val localVideoTrack: org.webrtc.VideoTrack?
-        get() = peerClient?.localVideoTrack
+        get() = hostMedia?.localVideoTrack ?: peerClient?.localVideoTrack
 
     /** Remote camera track received from the peer (viewer side). */
     val remoteVideoTrack: org.webrtc.VideoTrack?
@@ -183,15 +388,15 @@ class SignalService : Service() {
 
     /** Toggle the creator/host camera between front and back. */
     fun switchCamera() {
-        peerClient?.switchCamera()
+        hostMedia?.switchCamera() ?: peerClient?.switchCamera()
     }
 
     fun setAudioEnabled(enabled: Boolean) {
-        peerClient?.setAudioEnabled(enabled)
+        hostMedia?.setAudioEnabled(enabled) ?: peerClient?.setAudioEnabled(enabled)
     }
 
     fun setVideoEnabled(enabled: Boolean) {
-        peerClient?.setVideoEnabled(enabled)
+        hostMedia?.setVideoEnabled(enabled) ?: peerClient?.setVideoEnabled(enabled)
     }
 
     fun createDataChannel(label: String): DataChannel? = peerClient?.createAdditionalDataChannel(label)
@@ -312,78 +517,52 @@ class SignalService : Service() {
      * - UNKNOWN: Connection type not yet determined
      */
     fun detectConnectionType(onResult: ((IceConnectionType) -> Unit)? = null) {
-        peerConnection?.let { pc ->
-            Log.d(TAG, "🔍 Detecting connection type... pc state: ${pc.connectionState()}, ice state: ${pc.iceConnectionState()}")
-
-            pc.getStats { statsReport ->
-                var connectionType = IceConnectionType.UNKNOWN
-                var foundCandidatePair = false
-
-                // Log all stats types for debugging
-                val statsTypes =
-                    statsReport.statsMap.values
-                        .map { it.type }
-                        .distinct()
-                Log.d(TAG, "📊 Available stats types: $statsTypes")
-
-                // Look for candidate-pair stats which show the selected connection
-                statsReport.statsMap.values.forEach { stats ->
-                    if (stats.type == "candidate-pair") {
-                        val state = stats.members["state"]?.toString()
-                        Log.d(TAG, "🔗 Candidate pair: state=$state, id=${stats.id}")
-
-                        if (state == "succeeded") {
-                            foundCandidatePair = true
-                            val localCandidateId = stats.members["localCandidateId"]?.toString()
-                            val remoteCandidateId = stats.members["remoteCandidateId"]?.toString()
-                            Log.d(TAG, "✅ Found succeeded pair: local=$localCandidateId, remote=$remoteCandidateId")
-
-                            // Find the local candidate type
-                            if (localCandidateId != null) {
-                                statsReport.statsMap.values.forEach { candidateStats ->
-                                    if (candidateStats.id == localCandidateId) {
-                                        val candidateType = candidateStats.members["candidateType"]?.toString()
-                                        val ip = candidateStats.members["ip"]?.toString()
-                                        val port = candidateStats.members["port"]?.toString()
-                                        Log.d(TAG, "📍 Local candidate: type=$candidateType, ip=$ip, port=$port")
-
-                                        connectionType =
-                                            when (candidateType) {
-                                                "host" -> IceConnectionType.LOCAL
-                                                "srflx" -> IceConnectionType.STUN
-                                                "relay" -> IceConnectionType.RELAY
-                                                else -> IceConnectionType.UNKNOWN
-                                            }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (!foundCandidatePair) {
-                    Log.d(TAG, "⚠️ No succeeded candidate pair found yet")
-                }
-
-                // Also check connection state
-                if (pc.connectionState() == PeerConnection.PeerConnectionState.FAILED ||
-                    pc.iceConnectionState() == PeerConnection.IceConnectionState.FAILED
-                ) {
-                    connectionType = IceConnectionType.FAILED
-                }
-
-                // Update state and notify
-                if (this.connectionType != connectionType) {
-                    this.connectionType = connectionType
-                    onConnectionTypeChange?.invoke(connectionType)
-                    Log.d(TAG, "🌐 Connection type changed to: $connectionType")
-                }
-
-                onResult?.invoke(connectionType)
-            }
-        } ?: run {
+        val pc = peerConnection
+        if (pc == null) {
             Log.d(TAG, "⚠️ Cannot detect connection type - peerConnection is null")
             onResult?.invoke(IceConnectionType.UNKNOWN)
+            return
+        }
+        Log.d(TAG, "🔍 Detecting connection type... pc state: ${pc.connectionState()}, ice state: ${pc.iceConnectionState()}")
+
+        // A terminal failure is a connection-level fact, not something derivable from a stats
+        // snapshot - check it up front rather than letting stale "succeeded" stats mask it.
+        if (pc.connectionState() == PeerConnection.PeerConnectionState.FAILED ||
+            pc.iceConnectionState() == PeerConnection.IceConnectionState.FAILED
+        ) {
+            updateConnectionType(IceConnectionType.FAILED, onResult)
+            return
+        }
+
+        pc.getStats { statsReport ->
+            // Delegate to the shared, platform-agnostic classifier so Android and iOS can never
+            // disagree on the quality (and therefore billing tier) of the same connection.
+            val connectionType =
+                classifyIceConnectionType(
+                    statsReport.toIceTransportStats(),
+                    statsReport.toIceCandidatePairStats(),
+                ).toSignalServiceIceConnectionType()
+            updateConnectionType(connectionType, onResult)
         }
     }
+
+    private fun updateConnectionType(
+        connectionType: IceConnectionType,
+        onResult: ((IceConnectionType) -> Unit)?,
+    ) {
+        if (this.connectionType != connectionType) {
+            this.connectionType = connectionType
+            onConnectionTypeChange?.invoke(connectionType)
+            Log.d(TAG, "🌐 Connection type changed to: $connectionType")
+        }
+        onResult?.invoke(connectionType)
+    }
+
+    private fun IceConnectionClass.toSignalServiceIceConnectionType(): IceConnectionType =
+        when (this) {
+            IceConnectionClass.LOCAL -> IceConnectionType.LOCAL
+            IceConnectionClass.STUN -> IceConnectionType.STUN
+            IceConnectionClass.RELAY -> IceConnectionType.RELAY
+            IceConnectionClass.UNKNOWN -> IceConnectionType.UNKNOWN
+        }
 }

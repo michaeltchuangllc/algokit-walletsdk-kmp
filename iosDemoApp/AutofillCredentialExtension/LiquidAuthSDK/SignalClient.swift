@@ -2,6 +2,7 @@ import CoreImage
 import Foundation
 import SocketIO
 import WebRTC
+import sharedDemoApp
 
 // MARK: - SignalClient
 
@@ -13,7 +14,11 @@ public class SignalClient {
     var peerClient: PeerApi?
     private var candidatesBuffer: [RTCIceCandidate] = []
     private var eventQueue: [(String, QueuedEventData)] = []
-    private var dataChannelDelegates: [RTCDataChannel: DataChannelDelegate] = [:]
+    private var dataChannelDelegates: [RTCDataChannel: ScopedDataChannelDelegate] = [:]
+    private var remoteDescriptionReady = false
+    private var closed = false
+    private var linkedRequestId: String?
+    private var peerType: String?
     var onSocketConnected: (() -> Void)?
 
     init(url: String, service: SignalService) {
@@ -25,7 +30,9 @@ public class SignalClient {
             .replacingOccurrences(of: "http://", with: "")
         
         // Get session cookies for Socket.IO connection
-        var socketConfig: SocketIOClientConfiguration = [.log(false), .compress]
+        var socketConfig: SocketIOClientConfiguration = [
+            .log(false), .compress, .forceNew(true), .handleQueue(.main)
+        ]
         
         // Add cookies from HTTPCookieStorage to Socket.IO connection
         if let url = URL(string: "https://\(cleanUrl)"),
@@ -54,97 +61,52 @@ public class SignalClient {
     }
 
     // swiftlint:disable:next function_body_length
-    public func connectToPeer(
+    func connectToPeer(
         requestId: String,
         type: String,
         iceServers: [RTCIceServer],
         enableMedia: Bool,
+        sharedMedia: SharedBroadcastMedia? = nil,
+        onPeerCreated: ((PeerApi) -> Void)? = nil,
+        onConnectionStateChange: @escaping (RTCPeerConnectionState) -> Void = { _ in },
         onDataChannelOpen: @escaping (RTCDataChannel) -> Void,
         onRemoteVideoTrack: @escaping (RTCVideoTrack) -> Void,
         onMessage: @escaping (String) -> Void,
         onStateChange: @escaping (String?) -> Void
     ) -> RTCDataChannel? {
-        // Clean up any existing peer connection
-        peerClient?.close()
-        peerClient = nil
+        // A client owns exactly one invitation. Socket reconnects must not replace media.
+        guard !closed, peerClient == nil else { return nil }
+        linkedRequestId = requestId
+        peerType = type
+        remoteDescriptionReady = false
 
         Logger.debug("SignalClient: Attempting to connect to peer with requestId: \(requestId), type: \(type)")
 
         peerClient = PeerApi(
             iceServers: iceServers,
             poolSize: 10,
-            signalService: service,
+            signalService: nil,
             enableMedia: enableMedia,
+            factory: sharedMedia?.factory,
+            onConnectionStateChange: onConnectionStateChange,
             onDataChannel: { [weak self] dataChannel in
                 Logger.debug("SignalClient: onDataChannel called with: \(dataChannel.label)")
                 let isPaymentChannel = dataChannel.label == "x402-payment-channel"
 
-                // ── Payment DC (created by Android host) ─────────────────────────────
-                // Use a stripped-down delegate: forward messages but NEVER overwrite
-                // service.dataChannel (signalService: nil) and NEVER propagate state
-                // changes upward (would retrigger sendCredentialMessage in the host path).
-                if isPaymentChannel {
-                    Logger.info("SignalClient: 💳 payment DC '\(dataChannel.label)' received — setting up isolated delegate")
-                    let paymentDelegate = DataChannelDelegate(
-                        signalService: nil,   // ← prevents service.dataChannel overwrite
-                        onMessage: { message in
-                            Logger.debug("💬 SignalClient [payment DC]: \(message.prefix(80))")
-                            onMessage(message)  // forward to messageForwardingHandler
-                        },
-                        onStateChange: { state in
-                            Logger.debug("SignalClient [payment DC]: state=\(state ?? "nil")")
-                            if state == "open" {
-                                // Route through onDataChannelOpen which checks the label
-                                // and saves to SignalService.paymentDataChannel.
-                                onDataChannelOpen(dataChannel)
-                            }
-                            // Do NOT call outer onStateChange — that would retrigger
-                            // sendCredentialMessage and re-set iosViewerSendMessageHandler.
-                        }
-                    )
-                    dataChannel.delegate = paymentDelegate
-                    self?.dataChannelDelegates[dataChannel] = paymentDelegate
-                    if dataChannel.readyState == .open {
-                        onDataChannelOpen(dataChannel)
-                    }
-                    return
-                }
-
-                // ── Main "liquid" DC (or any other remote-created DC) ────────────────
-                Logger.debug("Received data channel from remote peer: \(dataChannel.label)")
-                let delegate = DataChannelDelegate(
-                    signalService: self?.service,
-                    onMessage: { message in
-                        onMessage(message)
-                    },
-                    onStateChange: { state in
-                        Logger.debug("SignalClient: Data channel state changed: \(state ?? "unknown")")
-                        onStateChange(state)
-                        if state == "open" {
-                            Logger.info("✅ SignalClient: Open and ready: \(dataChannel.label)")
-                            onDataChannelOpen(dataChannel)
-                        }
-                    },
-                    onChannelAvailable: { [weak self] channel in
-                        if self?.service?.dataChannel !== channel {
-                            Logger
-                                .debug(
-                                    "SignalClient: Setting dataChannel from " +
-                                        "didReceiveMessageWith: \(ObjectIdentifier(channel))"
-                                )
-                            self?.service?.dataChannel = channel
-                        }
+                guard let self, !self.closed else { return }
+                // Unknown/secondary channels can never replace the liquid channel or
+                // report its state. Delegates never mutate SignalService's singleton slot.
+                guard isPaymentChannel || dataChannel.label == "liquid" else { return }
+                let delegate = ScopedDataChannelDelegate(
+                    onMessage: onMessage,
+                    onState: { channel, state in
+                        if state == "open" { onDataChannelOpen(channel) }
+                        if channel.label == "liquid" { onStateChange(state) }
                     }
                 )
                 dataChannel.delegate = delegate
-                self?.dataChannelDelegates[dataChannel] = delegate
-                Logger.debug("SignalClient: DataChannelDelegate assigned to remote data channel: \(dataChannel.label)")
-
-                if dataChannel.readyState == .open {
-                    Logger.info("✅ SignalClient: Open and ready (immediate): \(dataChannel.label)")
-                    onDataChannelOpen(dataChannel)
-                    onStateChange("open")
-                }
+                self.dataChannelDelegates[dataChannel] = delegate
+                delegate.dataChannelDidChangeState(dataChannel)
             },
             onRemoteVideoTrack: onRemoteVideoTrack,
             onIceCandidate: { [weak self] candidate in
@@ -158,11 +120,17 @@ public class SignalClient {
                 ])
             }
         )
+        if let peerClient {
+            sharedMedia?.attach(to: peerClient)
+            onPeerCreated?(peerClient)
+        }
 
         if peerClient?.peerConnection != nil {
             Logger.info("SignalClient: Peer connection created successfully.")
         } else {
             Logger.error("SignalClient: Failed to create peer connection!")
+            DispatchQueue.main.async { onStateChange("failed") }
+            return nil
         }
 
         if type == "answer" {
@@ -175,21 +143,12 @@ public class SignalClient {
                 return nil
             }
 
-            var createdDataChannel: RTCDataChannel?
-            let wrappedOnStateChange: (String?) -> Void = { [weak self] state in
-                if state == "open", let dc = createdDataChannel {
-                    Logger.info("Answer (initiator): self-created 'liquid' DC open — calling onDataChannelOpen to set SignalService.dataChannel")
-                    onDataChannelOpen(dc)
-                }
-                onStateChange(state)
-            }
-
             let dataChannel = peerClient.createDataChannel(
                 label: "liquid",
                 onMessage: onMessage,
-                onStateChange: wrappedOnStateChange
+                onStateChange: onStateChange,
+                onOpen: onDataChannelOpen
             )
-            createdDataChannel = dataChannel
 
             peerClient.createOffer { offer in
                 guard let offer else {
@@ -210,15 +169,13 @@ public class SignalClient {
         } else if type == "offer" {
             // Responder logic (waits for offer, then sends answer)
             Logger.info("Offer (responder): Waiting for remote offer")
-            send(event: "link", data: ["requestId": requestId])
-
             socket.off("offer-description")
             socket.on("offer-description") { [weak self] data, _ in
-                guard let self else { return }
+                guard let self, !self.closed else { return }
                 let sessionDescription: RTCSessionDescription
                 if let eventData = data.first as? [String: Any],
                    let sdp = eventData["sdp"] as? String,
-                   let sdpType = sdpType(from: eventData["type"] as? String) {
+                   let sdpType = sdpType(from: eventData["type"] as? String ?? "offer") {
                     Logger.info("Offer (responder): Received SDP (dict) type: \(sdpType) : \(sdp.prefix(80))")
                     sessionDescription = RTCSessionDescription(type: sdpType, sdp: sdp)
                 } else if let rawSdp = data.first as? String, !rawSdp.isEmpty {
@@ -230,11 +187,15 @@ public class SignalClient {
                     return
                 }
 
+                self.remoteDescriptionReady = false
                 peerClient?.setRemoteDescription(sessionDescription, completion: { error in
+                    guard !self.closed else { return }
                     if let error {
                         Logger.error("Failed to set remote description: \(error)")
                     } else {
                         Logger.info("Offer (responder): Remote description set successfully.")
+                        self.remoteDescriptionReady = true
+                        self.processBufferedCandidates()
 
                         self.peerClient?.createAnswer { answer in
                             guard let answer else {
@@ -257,6 +218,8 @@ public class SignalClient {
                     }
                 })
             }
+            // Install SDP listeners before linking: a waiting viewer can reply immediately.
+            send(event: "link", data: ["requestId": requestId])
             return nil
         }
         return nil
@@ -274,38 +237,53 @@ public class SignalClient {
     }
 
     func disconnectSocket() {
+        closed = true
+        onSocketConnected = nil
+        socket.removeAllHandlers()
         socket.disconnect()
-        handleDisconnect()
+        for (channel, delegate) in dataChannelDelegates {
+            delegate.invalidate()
+            channel.delegate = nil
+            channel.close()
+        }
+        dataChannelDelegates.removeAll()
+        peerClient?.close()
+        peerClient = nil
+        candidatesBuffer.removeAll()
+        eventQueue.removeAll()
+        remoteDescriptionReady = false
     }
 
     private func handleDisconnect() {
-        Logger.debug("Handling Socket.IO disconnection...")
-        peerClient?.close()
-        peerClient = nil
+        // Signaling is only rendezvous; an established P2P connection outlives it.
+        Logger.debug("Socket.IO disconnected; retaining peer media until explicit close.")
     }
 
     // MARK: - Set Up Socket.IO Listeners
 
     private func setupSocketListeners() {
-        socket.on(clientEvent: .connect) { _, _ in
+        socket.on(clientEvent: .connect) { [weak self] _, _ in
+            guard let self, !self.closed else { return }
             Logger.debug("Socket.IO connected")
-            self.onSocketConnected?()
+            if self.peerClient == nil {
+                self.onSocketConnected?()
+            } else if let requestId = self.linkedRequestId {
+                self.send(event: "link", data: ["requestId": requestId])
+            }
             self.processEventQueue()
         }
 
-        socket.on(clientEvent: .disconnect) { _, _ in
+        socket.on(clientEvent: .disconnect) { [weak self] _, _ in
             Logger.debug("Socket.IO disconnected")
-            self.handleDisconnect()
+            self?.handleDisconnect()
         }
 
-        // FIXED: When we are "answer", we listen for "offer-description" from the browser
-        // When we are "offer", we listen for "answer-description" from the browser
-        if service?.currentPeerType == "answer" {
-            socket.on("offer-description") { [weak self] data, _ in
-                guard let self, let eventData = data.first as? [String: Any] else { return }
+        // Role belongs to this invitation, never to SignalService's legacy slot.
+        socket.on("offer-description") { [weak self] data, _ in
+                guard let self, !self.closed, self.peerType == "answer",
+                      let eventData = data.first as? [String: Any] else { return }
                 Logger.debug("Received SDP offer: \(eventData)")
                 handleOfferDescription(eventData)
-            }
         }
 
         socket.on("answer-description") { [weak self] data, _ in
@@ -351,8 +329,8 @@ public class SignalClient {
     // MARK: - Handle WebSocket Messages
 
     private func handleOfferDescription(_ data: [String: Any]) {
-        guard let sdp = data["sdp"] as? String,
-              let type = sdpType(from: data["type"] as? String)
+        guard !closed, let sdp = data["sdp"] as? String,
+              let type = sdpType(from: data["type"] as? String ?? "offer")
         else {
             Logger.error("Received SDP is missing or invalid.")
             return
@@ -368,11 +346,14 @@ public class SignalClient {
 
         Logger.debug("Setting remote description with session description: \(sessionDescription)")
 
+        remoteDescriptionReady = false
         peerClient?.setRemoteDescription(sessionDescription, completion: { error in
+            guard !self.closed else { return }
             if let error {
                 Logger.error("Failed to set remote description: \(error)")
             } else {
                 Logger.debug("Remote description set successfully.")
+                self.remoteDescriptionReady = true
                 self.processBufferedCandidates()
                 self.peerClient?.createAnswer { answer in
                     guard let answer else {
@@ -394,7 +375,7 @@ public class SignalClient {
 
     private func handleAnswerDescription(_ data: [String: Any]) {
         guard let sdp = data["sdp"] as? String,
-              let type = sdpType(from: data["type"] as? String)
+              let type = sdpType(from: data["type"] as? String ?? "answer")
         else {
             Logger.error("Received SDP is missing or invalid.")
             return
@@ -408,9 +389,11 @@ public class SignalClient {
         }
 
         peerClient?.setRemoteDescription(sessionDescription, completion: { error in
+            guard !self.closed else { return }
             if let error {
                 Logger.error("Failed to set remote description: \(error)")
             } else {
+                self.remoteDescriptionReady = true
                 self.processBufferedCandidates()
             }
         })
@@ -427,24 +410,36 @@ public class SignalClient {
 
         Logger.debug("handleAnswerDescription SDP: Setting remote description with session description.")
         peerClient?.setRemoteDescription(sessionDescription, completion: { error in
+            guard !self.closed else { return }
             if let error {
                 Logger.error("Failed to set remote description: \(error)")
             } else {
+                self.remoteDescriptionReady = true
                 self.processBufferedCandidates()
             }
         })
     }
 
+    /// Validates and decodes a trickle ICE candidate frame by delegating to the single shared
+    /// implementation in `wallet-sdk-core` (`IceCandidateMessage.kt`, via `App_iosKt`), so a
+    /// malformed/late candidate is dropped identically on Android and iOS instead of each
+    /// platform hand-rolling its own validation.
     private func handleIceCandidate(_ data: [String: Any]) {
-        guard let candidate = data["candidate"] as? String,
-              let sdpMid = data["sdpMid"] as? String,
-              let sdpMLineIndex = data["sdpMLineIndex"] as? Int else { return }
-        let iceCandidate = RTCIceCandidate(sdp: candidate, sdpMLineIndex: Int32(sdpMLineIndex), sdpMid: sdpMid)
+        guard !closed else { return }
+        let rawIndex = (data["sdpMLineIndex"] as? Int).flatMap { Int32(exactly: $0) } ?? -1
+        guard let message = App_iosKt.parseIceCandidateMessage(
+            candidate: data["candidate"] as? String,
+            sdpMid: data["sdpMid"] as? String,
+            sdpMLineIndex: rawIndex
+        ) else { return }
+        let iceCandidate = RTCIceCandidate(
+            sdp: message.candidate, sdpMLineIndex: message.sdpMLineIndex, sdpMid: message.sdpMid
+        )
         Logger.debug("Adding ICE candidate: \(iceCandidate)")
 
         if let peerConnection = peerClient?.peerConnection {
             // Only add if remote description is set
-            if peerConnection.remoteDescription != nil {
+            if remoteDescriptionReady {
                 peerConnection.add(iceCandidate, completionHandler: { error in
                     if let error {
                         Logger.error("handleIceCandidate: Failed to add ICE candidate: \(error)")
@@ -463,7 +458,8 @@ public class SignalClient {
 
     // Process buffered ICE candidates once the peer connection is ready
     private func processBufferedCandidates() {
-        guard let peerConnection = peerClient?.peerConnection else { return }
+        guard !closed, remoteDescriptionReady,
+              let peerConnection = peerClient?.peerConnection else { return }
         for iceCandidate in candidatesBuffer {
             peerConnection.add(iceCandidate, completionHandler: { error in
                 if let error {
@@ -479,6 +475,7 @@ public class SignalClient {
     // MARK: - Send Events to the Server, wth Swift Dictionary/JSON Encoding
 
     func send(event: String, data: [String: Any]) {
+        guard !closed else { return }
         if socket.status == .connected {
             Logger.debug("Emitting event immediately: \(event) with data: \(data)")
             socket.emit(event, data)
@@ -490,6 +487,7 @@ public class SignalClient {
 
     // Send event with data as a pure string
     func send(event: String, sdp: String) {
+        guard !closed else { return }
         if socket.status == .connected {
             Logger.debug("Emitting event immediately: \(event) with SDP string")
             socket.emit(event, sdp)

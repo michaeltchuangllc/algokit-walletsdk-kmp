@@ -1,13 +1,13 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.app.Activity
-import android.util.Log
 import androidx.activity.result.ActivityResult
 import com.google.android.gms.fido.Fido
 import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
 import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import io.github.aakira.napier.Napier
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.io.encoding.Base64
@@ -64,33 +64,33 @@ class HandleAssertionResultUseCase(
         viewModel: AnswerViewModel,
     ): Result {
         try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📱 PROCESSING ASSERTION RESULT")
-            Log.d(TAG, "Result code: ${activityResult.resultCode}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("📱 PROCESSING ASSERTION RESULT", tag = TAG)
+            Napier.d("Result code: ${activityResult.resultCode}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 1: Validate result code
             if (activityResult.resultCode != Activity.RESULT_OK) {
-                Log.w(TAG, "Assertion cancelled or failed")
+                Napier.w("Assertion cancelled or failed", tag = TAG)
                 return Result.Cancelled("Authentication was cancelled")
             }
 
             // Step 2: Extract credential bytes
             val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
             if (bytes == null) {
-                Log.e(TAG, "Credential bytes are null")
+                Napier.e("Credential bytes are null", tag = TAG)
                 return Result.Error("No credential data received")
             }
 
             // Step 3: Deserialize credential
             val credential = PublicKeyCredential.deserializeFromBytes(bytes)
-            Log.d(TAG, "✅ Authentication credential received")
-            Log.d(TAG, "Credential ID: ${credential.id}")
+            Napier.d("✅ Authentication credential received", tag = TAG)
+            Napier.d("Credential ID: ${credential.id}", tag = TAG)
 
             // Step 4: Check for authenticator errors
             val response = credential.response
             if (response is AuthenticatorErrorResponse) {
-                Log.e(TAG, "Authenticator error: ${response.errorMessage}")
+                Napier.e("Authenticator error: ${response.errorMessage}", tag = TAG)
                 return Result.Error(response.errorMessage ?: "Authentication error")
             }
 
@@ -104,7 +104,7 @@ class HandleAssertionResultUseCase(
                     challengeSignature = viewModel.currentChallenge,
                 )
 
-            Log.d(TAG, "Posting authentication assertion to server...")
+            Napier.d("Posting authentication assertion to server...", tag = TAG)
 
             // Step 6: Submit to server
             val serverResponse =
@@ -115,11 +115,11 @@ class HandleAssertionResultUseCase(
                     liquidExtJSON,
                 )
 
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "✅ AUTHENTICATION SUCCESSFUL!")
-            Log.d(TAG, "Server response: ${serverResponse.code}")
-            Log.d(TAG, "Credential was recognized and validated!")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("✅ AUTHENTICATION SUCCESSFUL!", tag = TAG)
+            Napier.d("Server response: ${serverResponse.code}", tag = TAG)
+            Napier.d("Credential was recognized and validated!", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 7: Parse response and extract counter
             val responseBody = serverResponse.body!!.string()
@@ -131,9 +131,9 @@ class HandleAssertionResultUseCase(
                 prevCounter = prevCounter,
             )
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception in handleAssertionResult", e)
-            Log.e(TAG, "Exception type: ${e.javaClass.name}")
-            Log.e(TAG, "Exception message: ${e.message}")
+            Napier.e("❌ Exception in handleAssertionResult", e, tag = TAG)
+            Napier.e("Exception type: ${e.javaClass.name}", tag = TAG)
+            Napier.e("Exception message: ${e.message}", tag = TAG)
             e.printStackTrace()
             return Result.Error("Error processing authentication: ${e.message}")
         }
@@ -181,7 +181,7 @@ class HandleAssertionResultUseCase(
             }
             0
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract prevCounter from response", e)
+            Napier.w("Failed to extract prevCounter from response", e, tag = TAG)
             0
         }
     }

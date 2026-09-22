@@ -61,7 +61,8 @@ fun CreatorActionRow(
                 )
             }
         } else {
-            androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(67.dp))
+            androidx.compose.foundation.layout
+                .Spacer(modifier = Modifier.size(67.dp))
         }
 
         Box(

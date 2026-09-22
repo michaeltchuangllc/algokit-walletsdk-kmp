@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
@@ -14,6 +15,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -161,6 +164,8 @@ data class ResolvedLiquidAuthPaymentRequest(
 class LiquidAuthViewerHelloMessage(
     val viewerAddress: String?,
     val viewerPublicKey: ByteArray?,
+    /** Optional actual vault channel, independent of voucher/payment session metadata. */
+    val channelId: ByteArray? = null,
 )
 
 class LiquidAuthPaymentVoucherMessage(
@@ -234,6 +239,7 @@ fun parseLiquidAuthHostTransportMessage(message: String): LiquidAuthHostTranspor
             LiquidAuthViewerHelloMessage(
                 viewerAddress = message.jsonOptString("viewer"),
                 viewerPublicKey = viewerPublicKeyBase64?.decodeLiquidAuthBase64OrNull(),
+                channelId = message.jsonOptString("channelId")?.decodeLiquidAuthBase64OrNull(),
             )
         } else {
             null
@@ -290,6 +296,110 @@ fun String.decodeLiquidAuthBase64OrNull(): ByteArray? =
         val padded = normalised + "=".repeat((4 - normalised.length % 4) % 4)
         Base64.decode(padded)
     }.getOrNull()
+
+/**
+ * Outcome of validating an incoming `segment:voucher` payment voucher against the creator's
+ * currently active payment session. Shared by the Android and iOS `LiquidAuthConnectionManager`
+ * actuals so the accept/reject/staleness rules for a viewer's voucher can never drift between
+ * platforms — only what each platform does with an [Evaluated] voucher differs.
+ */
+sealed class LiquidAuthVoucherDecision {
+    /** One or more required voucher fields were missing (or the claimed amount was negative). */
+    data object InvalidPayload : LiquidAuthVoucherDecision()
+
+    /** The voucher targets a session other than the one currently active. */
+    data object SessionMismatch : LiquidAuthVoucherDecision()
+
+    /** The voucher's claimed amount regressed versus the last accepted voucher. */
+    data object Stale : LiquidAuthVoucherDecision()
+
+    /**
+     * The voucher is valid, in-order, and ready to be recorded. [shouldSettle] indicates
+     * whether the caller should also trigger block consumption + settlement (paid streaming,
+     * or a non-zero claim), versus just updating signer/identity bookkeeping for free streams.
+     */
+    data class Evaluated(
+        val snapshot: CreatorVoucherClaimSnapshot,
+        val viewerPublicKey: ByteArray?,
+        val shouldSettle: Boolean,
+    ) : LiquidAuthVoucherDecision()
+}
+
+/**
+ * Pure decision function for an incoming [LiquidAuthPaymentVoucherMessage]. Contains no
+ * platform/transport concerns — both `LiquidAuthConnectionManager.android.kt` and `.ios.kt`
+ * delegate to this so validation, staleness, and session-matching rules stay identical.
+ */
+fun evaluateLiquidAuthVoucher(
+    voucher: LiquidAuthPaymentVoucherMessage,
+    activeSessionId: String?,
+    previousClaimedAmountMicroUsdc: Long?,
+    isPaidStreamingEnabled: Boolean,
+): LiquidAuthVoucherDecision {
+    val signature = voucher.signatureBase64
+    val claimedAmount = voucher.totalAmountClaimedMicroUsdc?.takeIf { it >= 0L }
+    val voucherSessionId = voucher.sessionId
+    val voucherViewer = voucher.viewerAddress
+    val voucherViewerPublicKey = voucher.viewerPublicKeyBase64
+
+    if (signature == null ||
+        claimedAmount == null ||
+        voucherSessionId == null ||
+        voucherViewer == null ||
+        voucherViewerPublicKey == null
+    ) {
+        return LiquidAuthVoucherDecision.InvalidPayload
+    }
+
+    if (activeSessionId != null && voucherSessionId != activeSessionId) {
+        return LiquidAuthVoucherDecision.SessionMismatch
+    }
+
+    if (previousClaimedAmountMicroUsdc != null && claimedAmount < previousClaimedAmountMicroUsdc) {
+        return LiquidAuthVoucherDecision.Stale
+    }
+
+    return LiquidAuthVoucherDecision.Evaluated(
+        snapshot =
+            CreatorVoucherClaimSnapshot(
+                sessionId = voucherSessionId,
+                viewerAddress = voucherViewer,
+                viewerPublicKeyBase64 = voucherViewerPublicKey,
+                signatureBase64 = signature,
+                totalAmountClaimedMicroUsdc = claimedAmount,
+            ),
+        viewerPublicKey = voucher.viewerPublicKey,
+        shouldSettle = isPaidStreamingEnabled || claimedAmount > 0L,
+    )
+}
+
+/**
+ * Builds the `liquid:stream:info` bootstrap message sent to a viewer so it can discover the
+ * creator's payment address and the active session id. Identical shape on Android and iOS.
+ */
+fun buildLiquidStreamInfoMessage(
+    hostAddress: String,
+    sessionId: String,
+): String =
+    buildJsonObject {
+        put("reference", "liquid:stream:info")
+        put("hostAddress", hostAddress)
+        put("sessionId", sessionId)
+    }.toString()
+
+/**
+ * Builds the `STREAM_COST_UPDATE` message broadcasting the current per-segment cost to a
+ * viewer. Identical shape on Android and iOS.
+ */
+fun buildLiquidStreamCostUpdateMessage(
+    sessionId: String,
+    costMicroUsdc: Long,
+): String =
+    buildJsonObject {
+        put("type", DCMessageType.STREAM_COST_UPDATE.value)
+        put("sessionId", sessionId)
+        put("payload", buildJsonObject { put("costMicroUsdc", costMicroUsdc) })
+    }.toString()
 
 /**
  * Factory function to create the default LiquidAuthConnectionManager.

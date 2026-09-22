@@ -52,10 +52,11 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.vectorResource
@@ -118,11 +119,11 @@ fun LiquidStreamHostQrModal(
                                 Modifier
                                     .size(8.dp)
                                     .clip(CircleShape)
-                                    .background(colors.success),
+                                    .background(ColorPalette.Turquoise600),
                         )
                         Text(
                             text = localizedStringResource(Res.string.stream_is_live),
-                            color = colors.streamHostMetricLabel,
+                            color = ColorPalette.SlateBlue400,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 0.5.sp,
@@ -132,7 +133,7 @@ fun LiquidStreamHostQrModal(
                     Icon(
                         vectorResource(Res.drawable.ic_cross),
                         contentDescription = localizedStringResource(Res.string.close_popup),
-                        tint = colors.streamHostTitle,
+                        tint = ColorPalette.SlateBlue400,
                         modifier =
                             Modifier
                                 .size(24.dp)
@@ -151,7 +152,7 @@ fun LiquidStreamHostQrModal(
                             lineHeight = 28.8.sp,
                             fontFamily = FontFamily(Font(Res.font.dmsans_bold, FontWeight.W700)),
                             fontWeight = FontWeight.W700,
-                            color = colors.streamHostTitle,
+                            color = ColorPalette.RichNavy900,
                             textAlign = TextAlign.Center,
                         ),
                 )
@@ -167,7 +168,7 @@ fun LiquidStreamHostQrModal(
                             lineHeight = 19.2.sp,
                             fontFamily = FontFamily(Font(Res.font.dmsans_bold, FontWeight.W700)),
                             fontWeight = FontWeight.W700,
-                            color = colors.streamHostTitle,
+                            color = ColorPalette.RichNavy900,
                             textAlign = TextAlign.Center,
                         ),
                 )
@@ -204,7 +205,7 @@ fun LiquidStreamHostQrModal(
                 // SESSION ID Label
                 Text(
                     text = localizedStringResource(Res.string.session_id_label),
-                    color = colors.streamHostTitle,
+                    color = ColorPalette.RichNavy900,
                     fontSize = 11.sp,
                     letterSpacing = 1.sp,
                     fontWeight = FontWeight.Bold,
@@ -220,18 +221,17 @@ fun LiquidStreamHostQrModal(
                             .height(38.dp)
                             .fillMaxWidth()
                             .clip(CircleShape)
-                            .border(1.5.dp, colors.streamHostAccent, CircleShape)
+                            .border(1.5.dp, ColorPalette.ElectricBlue600, CircleShape)
                             .clickable {
                                 clipboardManager.setText(AnnotatedString(requestId))
                                 isCopied = true
-                            }
-                            .padding(horizontal = 16.dp),
+                            }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     Text(
                         text = if (isCopied) localizedStringResource(Res.string.copied_to_clipboard) else requestId,
-                        color = colors.streamHostAccent,
+                        color = ColorPalette.ElectricBlue600,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
@@ -241,7 +241,7 @@ fun LiquidStreamHostQrModal(
                     Icon(
                         vectorResource(Res.drawable.ic_copy),
                         contentDescription = localizedStringResource(Res.string.copy_session_id),
-                        tint = colors.streamHostAccent,
+                        tint = ColorPalette.ElectricBlue600,
                         modifier = Modifier.size(16.dp),
                     )
                 }
@@ -257,13 +257,13 @@ fun LiquidStreamHostQrModal(
                     Icon(
                         vectorResource(Res.drawable.figma_ic_lock),
                         contentDescription = null,
-                        tint = colors.streamHostAccent,
+                        tint = ColorPalette.RichNavy900,
                         modifier = Modifier.size(18.dp),
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = securedViaLabel.ifBlank { localizedStringResource(Res.string.secured_by_algorand_testnet) },
-                        color = colors.streamHostTitle,
+                        color = ColorPalette.RichNavy900,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium,
                     )
@@ -273,7 +273,7 @@ fun LiquidStreamHostQrModal(
     }
 }
 
-@Preview
+@PreviewLightDark
 @Composable
 private fun LiquidStreamHostQrModalPreview() {
     AlgoKitTheme {

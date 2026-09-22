@@ -10,11 +10,18 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import io.github.aakira.napier.Napier
+import io.ktor.utils.io.InternalAPI
+import io.ktor.utils.io.locks.SynchronizedObject
+import io.ktor.utils.io.locks.synchronized
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
 
@@ -53,6 +60,7 @@ data class VideoFrameData(
     }
 }
 
+@OptIn(InternalAPI::class)
 open class LiquidAuthViewerStateHolder : ViewModel() {
     companion object {
         private const val TAG = "LiquidAuthViewerState"
@@ -60,7 +68,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         // No frames for this long = stream ended. Tune this to trade off responsiveness
         // (lower = viewer disconnects faster after the host stops) vs. tolerance for
         // transient frame gaps/hiccups (higher = fewer false-positive disconnects).
-        private const val STREAM_TIMEOUT_MS = 2_000L
+        private const val STREAM_TIMEOUT_MS = 8_000L
 
         private const val BASE58_ALPHABET =
             "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -163,6 +171,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
     val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
 
+    private val consentLock = SynchronizedObject()
     private var pendingMppConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
     init {
@@ -190,7 +199,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     _session.value = SESSION_LOGGED_OUT
                     _authMessage.value = null
                     val reason =
-                        "Stream disconnected because no video frames were received for a few seconds. " +
+                        "Stream disconnected because no video frames were received for 8 seconds. " +
                             "Please reconnect to continue watching."
                     _error.value = reason
                     onStreamTimeout(reason)
@@ -318,45 +327,66 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     }
 
     // --- MPP consent bridge --------------------------------------------------------------------
-    suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval {
-        Napier.d(
-            tag = TAG,
-            message =
-                "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} " +
-                    "network=${terms.network} gating=${terms.gatingMode}",
-        )
-        val deferred = CompletableDeferred<ConsentApproval>()
-        pendingMppConsentContinuation = deferred
-        _pendingMppConsent.value = terms
-        return try {
-            val approval = deferred.await()
-            Napier.d(tag = TAG, message = "[VIEWER_MPP_CONSENT_RESOLVED] approved=${approval.approved}")
-            approval
-        } finally {
-            pendingMppConsentContinuation = null
-            _pendingMppConsent.value = null
+    suspend fun requestMppConsentFromUi(terms: ConsentTerms): ConsentApproval =
+        withContext(Dispatchers.Main.immediate) {
+            Napier.d(
+                tag = TAG,
+                message =
+                    "[VIEWER_MPP_CONSENT_REQUEST] amount=${terms.amount} asset=${terms.asset} " +
+                        "network=${terms.network} gating=${terms.gatingMode}",
+            )
+            val parentJob = currentCoroutineContext()[Job]
+            val deferred =
+                synchronized(consentLock) {
+                    if (pendingMppConsentContinuation != null || _isViewerPaymentProcessing.value) {
+                        return@withContext ConsentApproval(approved = false, autoPaySegments = false)
+                    }
+                    CompletableDeferred<ConsentApproval>(parentJob).also {
+                        pendingMppConsentContinuation = it
+                        _pendingMppConsent.value = terms
+                    }
+                }
+            try {
+                val approval = deferred.await()
+                Napier.d(tag = TAG, message = "[VIEWER_MPP_CONSENT_RESOLVED] approved=${approval.approved}")
+                approval
+            } finally {
+                synchronized(consentLock) {
+                    if (pendingMppConsentContinuation === deferred) {
+                        pendingMppConsentContinuation = null
+                        _pendingMppConsent.value = null
+                    }
+                }
+                deferred.cancel()
+            }
         }
-    }
 
     fun approveMppConsent(approval: ConsentApproval) {
-        // Do not seed viewer balance from consent budget; source of truth is on-chain vault read.
-        if (approval.approved) {
-            _viewerSessionVaultMicroUsdc.value = 0L
-            _viewerProgressBalanceMicroUsdc.value = 0L
+        synchronized(consentLock) {
+            val deferred = pendingMppConsentContinuation ?: return
+            if (!deferred.isActive) return
+            _pendingMppConsent.value = null
+            deferred.complete(approval)
         }
-        pendingMppConsentContinuation?.complete(approval)
-        _pendingMppConsent.value = null
     }
 
     fun approveViewerConsent(approval: ConsentApproval) {
-        approveMppConsent(approval)
+        synchronized(consentLock) {
+            val deferred = pendingMppConsentContinuation ?: return
+            if (!deferred.isActive || _isViewerPaymentProcessing.value) return
+            if (approval.approved) _isViewerPaymentProcessing.value = true
+            _pendingMppConsent.value = null
+            if (!deferred.complete(approval) && approval.approved && pendingMppConsentContinuation === deferred) {
+                _isViewerPaymentProcessing.value = false
+            }
+        }
     }
 
     fun approveFundedViewerConsent(
         existingBalanceMicroUsdc: Long,
         asset: String = "USDC",
     ) {
-        approveViewerConsent(
+        approveMppConsent(
             ConsentApproval(
                 approved = true,
                 autoPaySegments = true,
@@ -370,15 +400,18 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     }
 
     open fun rejectMppConsent() {
-        Napier.d(tag = TAG, message = "[VIEWER_MPP_CONSENT_REJECTED]")
-        pendingMppConsentContinuation?.complete(
-            ConsentApproval(
-                approved = false,
-                autoPaySegments = false,
-            ),
-        )
-        _pendingMppConsent.value = null
-        _isViewerPaymentProcessing.value = false
+        synchronized(consentLock) {
+            val deferred = pendingMppConsentContinuation ?: return
+            if (!deferred.isActive || _isViewerPaymentProcessing.value) return
+            Napier.d(tag = TAG, message = "[VIEWER_MPP_CONSENT_REJECTED]")
+            _pendingMppConsent.value = null
+            deferred.complete(
+                ConsentApproval(
+                    approved = false,
+                    autoPaySegments = false,
+                ),
+            )
+        }
     }
 
     open fun rejectViewerConsent() {
@@ -390,11 +423,16 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     open fun stopMppPaymentViewer() {}
 
     fun setViewerPaymentProcessing(isProcessing: Boolean) {
-        _isViewerPaymentProcessing.value = isProcessing
+        synchronized(consentLock) {
+            _isViewerPaymentProcessing.value = isProcessing
+        }
     }
 
     fun showPendingViewerConsent(terms: ConsentTerms) {
-        _pendingMppConsent.value = terms
+        synchronized(consentLock) {
+            if (pendingMppConsentContinuation != null || _isViewerPaymentProcessing.value || _pendingMppConsent.value != null) return
+            _pendingMppConsent.value = terms
+        }
     }
 
     fun showPendingViewerConsent(
@@ -417,10 +455,13 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     }
 
     fun clearViewerConsent() {
-        _pendingMppConsent.value = null
-        _isViewerPaymentProcessing.value = false
-        pendingMppConsentContinuation?.cancel()
-        pendingMppConsentContinuation = null
+        synchronized(consentLock) {
+            val deferred = pendingMppConsentContinuation
+            pendingMppConsentContinuation = null
+            _pendingMppConsent.value = null
+            _isViewerPaymentProcessing.value = false
+            deferred?.cancel()
+        }
     }
 
     fun setViewerSessionVaultProgress(

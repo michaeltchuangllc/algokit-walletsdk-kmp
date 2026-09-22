@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ChatStack
@@ -75,8 +77,12 @@ fun LiquidStreamHostLiveScreen(
     lastSettledUsdc: Double? = null,
     requestId: String = "",
     liquidAuthUrl: String = "",
+    meshViewerIds: List<String>? = null,
+    onRefreshInvitation: (() -> Unit)? = null,
+    meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
 ) {
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
+    val viewerCount = meshViewerIds?.size?.toString() ?: numbersOfViewer
     var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
     var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc ?: 0.0) }
@@ -85,12 +91,6 @@ fun LiquidStreamHostLiveScreen(
         val addrToLoad = creatorAddress.ifBlank { creatorUsername.orEmpty() }
         if (addrToLoad.isNotBlank()) {
             viewModel.loadCreatorNfdProfile(addrToLoad)
-        }
-    }
-
-    LaunchedEffect(viewerAddress) {
-        if (viewerAddress.isNotBlank()) {
-            viewModel.loadViewerNfdProfile(viewerAddress)
         }
     }
 
@@ -111,12 +111,7 @@ fun LiquidStreamHostLiveScreen(
     val resolvedCreatorAvatarUrl =
         uiState.creatorNfdAvatarUrl ?: creatorAvatarUrl
 
-    val displayViewerAddress =
-        viewerAddress.let { addr ->
-            uiState.viewerNfdNames[addr] ?: addr.toShortenedAddress()
-        }
-
-    val viewers =
+    val rawViewers =
         remember(
             sessionId,
             remainingBalanceUsdc,
@@ -128,10 +123,11 @@ fun LiquidStreamHostLiveScreen(
             networkLabel,
             originUrl,
             lastSettledUsdc,
-            displayViewerAddress,
-            uiState.viewerNfdNames,
+            viewerAddress,
+            meshViewerIds,
+            meshViewerDetails,
         ) {
-            listOf(
+            val primaryViewer =
                 ConnectedViewerInfo(
                     sessionId = sessionId ?: "session-pending",
                     remainingBalanceUSDC = remainingBalanceUsdc,
@@ -142,24 +138,33 @@ fun LiquidStreamHostLiveScreen(
                     currentBlockNumber = currentBlockNumber,
                     networkLabel = networkLabel,
                     originUrl = originUrl,
-                    viewerAddress = displayViewerAddress,
+                    viewerAddress = viewerAddress,
                     lastSettledUSDC = lastSettledUsdc,
-                ),
-            )
+                )
+            mapHostViewers(primaryViewer, meshViewerIds, meshViewerDetails)
+        }
+
+    val viewerAddresses = rawViewers.mapNotNull { it.viewerAddress?.takeIf(String::isNotBlank) }.distinct()
+    LaunchedEffect(viewerAddresses) {
+        viewerAddresses.forEach(viewModel::loadViewerNfdProfile)
+    }
+    val viewers =
+        rawViewers.map { viewer ->
+            viewer.copy(viewerAddress = hostViewerDisplayAddress(viewer.viewerAddress, uiState.viewerNfdNames))
         }
 
     LaunchedEffect(
         currentBlockNumber,
         blockChainLabel,
         networkLabel,
-        numbersOfViewer,
+        viewerCount,
         viewers,
     ) {
         viewModel.updateMetrics(
             currentBlockNumber = currentBlockNumber,
             blockChainLabel = blockChainLabel,
             networkLabel = networkLabel,
-            numbersOfViewer = numbersOfViewer,
+            numbersOfViewer = viewerCount,
             viewers = viewers,
         )
     }
@@ -189,7 +194,7 @@ fun LiquidStreamHostLiveScreen(
         cameraPreview = cameraPreview,
         creatorUsername = resolvedCreatorUsername,
         creatorAvatarUrl = resolvedCreatorAvatarUrl,
-        numbersOfViewer = numbersOfViewer,
+        numbersOfViewer = viewerCount,
         onSettingsClick = {
             viewModel.onSettingsClicked()
             onStatsModalVisibilityChanged(false)
@@ -222,13 +227,62 @@ fun LiquidStreamHostLiveScreen(
         onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
         onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
         onSettingsDismissed = viewModel::onSettingsDismissed,
-        onQrClick = viewModel::onQrClicked,
+        onQrClick = {
+            if (liquidAuthUrl.isBlank()) onRefreshInvitation?.invoke()
+            viewModel.onQrClicked()
+        },
         onQrDismissed = viewModel::onQrDismissed,
         requestId = requestId,
         liquidAuthUrl = liquidAuthUrl,
-        showQrButton = false,
+        showQrButton = liquidAuthUrl.isNotBlank() || onRefreshInvitation != null,
     )
 }
+
+/**
+ * Keep singleton statistics attached to the original session, even after it leaves.
+ * Additional peers use only their own snapshots; shared network/origin metadata is safe to reuse.
+ */
+internal fun mapHostViewers(
+    primaryViewer: ConnectedViewerInfo,
+    meshViewerIds: List<String>?,
+    meshViewerDetails: Map<String, HostViewerDetails>,
+): List<ConnectedViewerInfo> =
+    meshViewerIds?.map { requestId ->
+        val details = meshViewerDetails[requestId] ?: HostViewerDetails()
+        if (requestId == primaryViewer.sessionId) {
+            primaryViewer.copy(
+                viewerAddress = primaryViewer.viewerAddress?.takeIf(String::isNotBlank) ?: details.viewerAddress,
+                connectionType =
+                    primaryViewer.connectionType.takeUnless { it == IceConnectionType.UNKNOWN }
+                        ?: details.connectionType,
+                remainingBalanceUSDC = primaryViewer.remainingBalanceUSDC ?: details.remainingBalanceMicroUsdc?.let { it / 1_000_000.0 },
+                progressBalanceUSDC = primaryViewer.progressBalanceUSDC ?: details.progressBalanceMicroUsdc?.let { it / 1_000_000.0 },
+                lastSettledUSDC = primaryViewer.lastSettledUSDC ?: details.lastSettledMicroUsdc?.let { it / 1_000_000.0 },
+            )
+        } else {
+            ConnectedViewerInfo(
+                sessionId = requestId,
+                viewerAddress = details.viewerAddress,
+                remainingBalanceUSDC = details.remainingBalanceMicroUsdc?.let { it / 1_000_000.0 },
+                progressBalanceUSDC = details.progressBalanceMicroUsdc?.let { it / 1_000_000.0 },
+                progressCapacityUSDC = (details.progressCapacityMicroUsdc ?: details.totalDepositMicroUsdc)?.let { it / 1_000_000.0 },
+                revenueCapacityUSDC = details.totalDepositMicroUsdc?.let { it / 1_000_000.0 },
+                lastSettledUSDC = details.lastSettledMicroUsdc?.let { it / 1_000_000.0 },
+                connectionType = details.connectionType,
+                currentBlockNumber = primaryViewer.currentBlockNumber,
+                networkLabel = primaryViewer.networkLabel,
+                originUrl = primaryViewer.originUrl,
+            )
+        }
+    } ?: listOf(primaryViewer)
+
+internal fun hostViewerDisplayAddress(
+    address: String?,
+    viewerNfdNames: Map<String, String>,
+): String =
+    address?.takeIf(String::isNotBlank)?.let {
+        viewerNfdNames[it]?.takeIf(String::isNotBlank) ?: it.toShortenedAddress()
+    } ?: "N/A"
 
 @Composable
 fun LiquidStreamHostLiveScreenContent(
@@ -309,7 +363,7 @@ fun LiquidStreamHostLiveScreenContent(
                 creatorAvatarUrl = creatorAvatarUrl,
                 numbersOfViewers = numbersOfViewer,
                 onSettingsClick = onSettingsClick,
-                onMinimise = onMinimise
+                onMinimise = onMinimise,
             )
             Spacer(Modifier.weight(1f))
             ChatStack(uiState.chatMessages)
@@ -372,13 +426,16 @@ fun LiquidStreamHostLiveScreenContent(
             )
         }
 
-        if (uiState.isQrModalVisible) {
-            LiquidStreamHostQrModal(
-                requestId = requestId,
-                qrUrl = liquidAuthUrl,
-                securedViaLabel = securedViaLabel,
-                onDismiss = onQrDismissed,
-            )
+        if (uiState.isQrModalVisible && liquidAuthUrl.isNotBlank()) {
+            // Keep the original QR modal; update it when the next viewer invitation rotates.
+            key(requestId, liquidAuthUrl) {
+                LiquidStreamHostQrModal(
+                    requestId = requestId,
+                    qrUrl = liquidAuthUrl,
+                    securedViaLabel = securedViaLabel,
+                    onDismiss = onQrDismissed,
+                )
+            }
         }
     }
 }
@@ -392,13 +449,30 @@ private fun LiquidStreamHostLiveScreenPreview() {
             cameraPreview = null,
             creatorUsername = "michaeltchuang.algo",
             numbersOfViewer = "1",
-            onSettingsClick = { uiState = uiState.copy(isSettingsModalVisible = true, isStatsModalVisible = false, isQrModalVisible = false) },
+            onSettingsClick = {
+                uiState =
+                    uiState.copy(
+                        isSettingsModalVisible = true,
+                        isStatsModalVisible = false,
+                        isQrModalVisible = false,
+                    )
+            },
             onMinimise = {},
             onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
             onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
             onRotateCamera = {},
-            onStatsClick = { uiState = uiState.copy(isStatsModalVisible = !uiState.isStatsModalVisible, isSettingsModalVisible = false, isQrModalVisible = false) },
-            onQrClick = { uiState = uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false) },
+            onStatsClick = {
+                uiState =
+                    uiState.copy(
+                        isStatsModalVisible = !uiState.isStatsModalVisible,
+                        isSettingsModalVisible = false,
+                        isQrModalVisible = false,
+                    )
+            },
+            onQrClick = {
+                uiState =
+                    uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false)
+            },
             onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
             onSendClickInternal = { uiState = uiState.copy(message = "") },
             viewers =

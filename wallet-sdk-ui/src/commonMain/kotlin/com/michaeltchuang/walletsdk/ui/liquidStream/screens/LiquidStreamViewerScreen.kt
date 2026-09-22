@@ -92,8 +92,8 @@ fun LiquidStreamViewerScreen(
     currentBlockNumber: Long? = null,
     remainingBalanceUsdc: Double = 0.0,
     progressBalanceUsdc: Double = 0.0,
+    viewModel: LiquidAuthViewerViewModel = koinViewModel(),
 ) {
-    val viewModel: LiquidAuthViewerViewModel = koinViewModel()
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
     var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
     var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
@@ -139,7 +139,7 @@ fun LiquidStreamViewerScreen(
     val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
     val blockNumberLabel = currentBlockNumber?.let { "#$it" } ?: "-"
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(viewModel) {
         viewModel.viewEvent.collect { event ->
             when (event) {
                 is LiquidAuthViewerViewModel.ViewEvent.SendMessage -> onSendClick(event.message, event.amount, event.asset)

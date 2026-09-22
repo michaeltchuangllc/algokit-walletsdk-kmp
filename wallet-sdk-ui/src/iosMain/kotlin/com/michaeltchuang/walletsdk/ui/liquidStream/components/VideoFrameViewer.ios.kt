@@ -14,6 +14,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import io.github.aakira.napier.Napier
 import org.jetbrains.skia.Image
 
 @Composable
@@ -27,7 +28,7 @@ actual fun VideoFrameDisplay(
             runCatching {
                 Image.makeFromEncoded(frameData).toComposeImageBitmap()
             }.getOrElse { e ->
-                println("VideoFrameDisplay: decode failed (${frameData.size} B): $e")
+                Napier.d("VideoFrameDisplay: decode failed (${frameData.size} B): $e")
                 null
             }
         }

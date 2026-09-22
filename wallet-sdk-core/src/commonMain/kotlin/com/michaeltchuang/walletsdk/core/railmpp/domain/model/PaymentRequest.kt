@@ -18,4 +18,5 @@ data class PaymentRequest(
     val railPayload: JsonElement? = null,
     val channelId: String? = null,
     val salt: String? = null,
+    val billingMode: String? = null,
 )

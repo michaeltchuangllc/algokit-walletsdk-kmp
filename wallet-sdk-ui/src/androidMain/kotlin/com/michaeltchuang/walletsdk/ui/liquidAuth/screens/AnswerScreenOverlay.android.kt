@@ -3,7 +3,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 import android.app.NotificationManager
 import android.content.Context
 import android.os.StrictMode
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -36,6 +35,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import org.bouncycastle.jce.provider.BouncyCastleProvider
@@ -178,7 +178,7 @@ actual fun AnswerScreenOverlay() {
             viewModel.viewEvent.collect { event ->
                 when (event) {
                     is AnswerViewModel.ViewEvent.AttestationSuccess -> {
-                        Log.d(TAG, "Attestation Success - setting up WebRTC")
+                        Napier.d("Attestation Success - setting up WebRTC", tag = TAG)
                         viewModel.setSession(LIQUID_AUTH_SESSION)
                         handleWebRTCSetup(
                             viewModel = viewModel,
@@ -189,7 +189,7 @@ actual fun AnswerScreenOverlay() {
                     }
 
                     is AnswerViewModel.ViewEvent.AssertionSuccess -> {
-                        Log.d(TAG, "Assertion Success - setting up WebRTC")
+                        Napier.d("Assertion Success - setting up WebRTC", tag = TAG)
                         viewModel.authMessage.value?.let { _ ->
                             viewModel.setSession(LIQUID_AUTH_SESSION)
                         }
@@ -250,7 +250,7 @@ actual fun AnswerScreenOverlay() {
                                     IntentSenderRequest.Builder(pendingIntent).build(),
                                 )
                             } catch (e: Exception) {
-                                Log.e(TAG, "Failed to launch registration intent", e)
+                                Napier.e("Failed to launch registration intent", e, tag = TAG)
                                 Toast.makeText(context, "Failed to launch passkey registration", Toast.LENGTH_LONG).show()
                             }
                         } else {
@@ -273,7 +273,7 @@ actual fun AnswerScreenOverlay() {
                                     IntentSenderRequest.Builder(pendingIntent).build(),
                                 )
                             } catch (e: Exception) {
-                                Log.e(TAG, "Failed to launch assertion intent", e)
+                                Napier.e("Failed to launch assertion intent", e, tag = TAG)
                                 Toast.makeText(context, "Failed to launch passkey authentication", Toast.LENGTH_LONG).show()
                             }
                         } else {
@@ -405,12 +405,20 @@ private suspend fun handleWebRTCSetup(
 ) {
     val msg = viewModel.authMessage.value ?: return
     if (viewModel.signalService.value != null) {
-        Log.d(TAG, "Setting up WebRTC connection...")
+        Napier.d("Setting up WebRTC connection...", tag = TAG)
         // Streaming sessions receive the creator's camera + microphone as native WebRTC
         // media tracks, so request recv-only media on the offer for those sessions only.
         val enableMedia = msg.appId == AppId.LIQUID_AUTH_STREAM.name
         viewModel.signalService.value?.peer(msg.requestId, "answer", IceServerConfig.iceServers, enableMedia)
         var viewerSetupDone = false
+        var credentialSent = false
+
+        fun sendCredentialWhenOpen() {
+            val service = viewModel.signalService.value ?: return
+            if (credentialSent || service.dataChannel?.state() != org.webrtc.DataChannel.State.OPEN) return
+            credentialSent = true
+            service.send(viewModel.getCredentialMessage(address, credential).toString())
+        }
         viewModel.signalService.value?.handleMessages(
             activity = activity,
             onMessage = { peerMsg ->
@@ -426,14 +434,15 @@ private suspend fun handleWebRTCSetup(
             },
             onStateChange = { state ->
                 if (state == "OPEN") {
-                    val credentialMessage = viewModel.getCredentialMessage(address, credential).toString()
-                    viewModel.signalService.value?.send(credentialMessage)
+                    sendCredentialWhenOpen()
                 }
             },
             notificationBuilder = viewModel.createNotificationBuilder(activity),
             notificationId = AnswerViewModel.SERVICE_NOTIFICATION_ID,
             activityClass = null,
         )
+        // OPEN can occur between applying the answer and attaching the observer.
+        sendCredentialWhenOpen()
     } else {
         Toast.makeText(activity, "Couldn't find service", Toast.LENGTH_LONG).show()
     }

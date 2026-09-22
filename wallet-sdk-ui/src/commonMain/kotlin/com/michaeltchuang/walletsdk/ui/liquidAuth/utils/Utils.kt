@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+import io.github.aakira.napier.Napier
 
 /**
  * Simple URL decoder for common percent-encoded characters.
@@ -34,11 +35,11 @@ private fun String.urlDecode(): String {
 private fun String.findParameterValue(parameterName: String): String? {
     // Extract query string from URI (everything after '?')
     val queryStart = this.indexOf('?')
-    println("   🔍 findParameterValue('$parameterName'):")
-    println("      queryStart index: $queryStart")
+    Napier.d("   🔍 findParameterValue('$parameterName'):")
+    Napier.d("      queryStart index: $queryStart")
 
     val query = if (queryStart != -1) this.substring(queryStart + 1) else null
-    println("      query string: '$query'")
+    Napier.d("      query string: '$query'")
 
     val pairs =
         query
@@ -48,24 +49,24 @@ private fun String.findParameterValue(parameterName: String): String? {
                 val name = parts.firstOrNull() ?: ""
                 val rawValue = parts.drop(1).joinToString("=") // Join back in case value had '='
                 val value = rawValue.urlDecode() // URL-decode the parameter value
-                println("      found param: '$name' = '$value'")
+                Napier.d("      found param: '$name' = '$value'")
                 Pair(name, value)
             }
 
     val result = pairs?.firstOrNull { it.first == parameterName }?.second
-    println("      result for '$parameterName': '$result'")
+    Napier.d("      result for '$parameterName': '$result'")
     return result
 }
 
 fun fromUri(uri: String): AuthMessage {
-    println("🔍 Parsing Liquid Auth URI:")
-    println("   Full URI: $uri")
+    Napier.d("🔍 Parsing Liquid Auth URI:")
+    Napier.d("   Full URI: $uri")
 
     // Extract host from URI
     val host = uri.removePrefix("liquid://").substringBefore('?').substringBefore('/')
     val origin = "https://$host"
-    println("   Host: $host")
-    println("   Origin: $origin")
+    Napier.d("   Host: $host")
+    Napier.d("   Origin: $origin")
 
     // Try multiple parameter names for requestId
     val requestId =
@@ -74,11 +75,11 @@ fun fromUri(uri: String): AuthMessage {
             ?: uri.findParameterValue("rid")
             ?: "" // Default to empty string if not found
 
-    println("   RequestId found: '$requestId'")
+    Napier.d("   RequestId found: '$requestId'")
 
     if (requestId.isEmpty()) {
-        println("   ⚠️ WARNING: RequestId is empty! Check URL format.")
-        println("   Expected format: liquid://host/?requestId=...")
+        Napier.w("   ⚠️ WARNING: RequestId is empty! Check URL format.")
+        Napier.d("   Expected format: liquid://host/?requestId=...")
     }
 
     // Parse appId if present
@@ -86,7 +87,7 @@ fun fromUri(uri: String): AuthMessage {
         uri.findParameterValue("appId")
             ?: AppId.NONE.name
 
-    println("   AppId found: '$appId'")
+    Napier.d("   AppId found: '$appId'")
 
     return AuthMessage(origin, requestId, appId)
 }

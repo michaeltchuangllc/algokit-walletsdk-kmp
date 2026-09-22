@@ -234,6 +234,119 @@ internal actual suspend fun submitLogicSigSettlementInternal(
     authorizedSignerPublicKey: ByteArray,
     payeeAddress: String,
     note: ByteArray?,
+): String =
+    executeLogicSigSettlement(
+        payerSigner,
+        appId,
+        usdcAssetId,
+        algodUrl,
+        channelId,
+        cumulativeAmountMicroUsdc,
+        voucherSignature,
+        authorizedSignerPublicKey,
+        payeeAddress,
+        note,
+    )
+
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+internal actual suspend fun validateLogicSigSettlementInternal(
+    funderSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+) {
+    val signature = voucherSignature.copyOf()
+    val source =
+        buildVoucherVerifierTeal(
+            appId,
+            channelId,
+            cumulativeAmountMicroUsdc,
+            signature,
+            authorizedSignerPublicKey,
+            payeeAddress,
+        )
+    val program = bridge.compileTealProgramWithAlgodUrl(algodUrl = algodUrl, source = source).toKotlinByteArray()
+    require(program.isNotEmpty()) { "iOS: voucher verifier compile returned empty" }
+    val verifierAddress =
+        bridge.logicSigAddressWithProgramBase64(
+            programBase64 = Base64.encode(program),
+            argsBase64 = emptyList<String>(),
+        )
+    require(verifierAddress.isNotBlank()) { "iOS: failed to derive voucher verifier address" }
+    val params = fetchTxParams(algodUrl)
+    val envelopes =
+        buildVoucherValidationGroup(
+            program,
+            signature,
+            funderSigner.address,
+            verifierAddress,
+            params.minFee,
+            params.feePerByte,
+            object : VoucherValidationTransactions {
+                override fun payment(
+                    sender: String,
+                    receiver: String,
+                    amount: Long,
+                    fee: Long,
+                    note: ByteArray,
+                ): ByteArray =
+                    bridge
+                        .buildPaymentTxnWithSenderAddress(
+                            senderAddress = sender,
+                            receiverAddress = receiver,
+                            amountMicroAlgo = amount,
+                            fee = fee,
+                            firstRound = params.firstRoundValid,
+                            lastRound = params.lastRoundValid,
+                            genesisHashBase64 = params.genesisHashBase64,
+                            genesisID = params.genesisID,
+                            noteBase64 = Base64.encode(note),
+                        ).toKotlinByteArray()
+
+                override fun group(transactions: List<ByteArray>): List<ByteArray> =
+                    bridge
+                        .assignGroupIdsWithTxnsBase64(
+                            txnsBase64 = transactions.map { Base64.encode(it) },
+                        ).map { Base64.decode(normalizeBase64(it.toString())) }
+
+                override fun logicSign(
+                    program: ByteArray,
+                    signature: ByteArray,
+                    transaction: ByteArray,
+                ): ByteArray =
+                    bridge
+                        .signLogicSigTransactionWithProgramBase64(
+                            programBase64 = Base64.encode(program),
+                            argsBase64 = listOf(Base64.encode(signature)),
+                            encodedTxBase64 = Base64.encode(transaction),
+                        ).toKotlinByteArray()
+            },
+        )
+    val response =
+        bridge.syncSimulateTransactionWithAlgodUrl(
+            algodUrl = algodUrl,
+            requestBytesBase64 = Base64.encode(buildVoucherValidationRequest(envelopes)),
+        )
+    requireVerifiedVoucherSimulation(response, envelopes.size, signature.size)
+}
+
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+private suspend fun executeLogicSigSettlement(
+    payerSigner: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    channelId: ByteArray,
+    cumulativeAmountMicroUsdc: Long,
+    voucherSignature: ByteArray,
+    authorizedSignerPublicKey: ByteArray,
+    payeeAddress: String,
+    note: ByteArray?,
 ): String {
     require(channelId.size == 32) { "channelId must be 32 bytes" }
     val encodedChannelId = encodeArc4DynamicBytes(channelId)
@@ -483,6 +596,7 @@ private data class AlgodTxParams(
     val genesisHashBase64: String,
     val genesisID: String,
     val minFee: Long,
+    val feePerByte: Long,
 )
 
 @OptIn(ExperimentalForeignApi::class)
@@ -500,6 +614,7 @@ private fun fetchTxParams(algodUrl: String): AlgodTxParams {
         genesisHashBase64 = normalizeBase64(genesisHashB64),
         genesisID = genesisID,
         minFee = minFee,
+        feePerByte = parseJsonLong(json, "fee") ?: 0L,
     )
 }
 

@@ -39,6 +39,9 @@ class SetupMppPaymentViewerUseCase(
         val setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         val signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
         val onChatMessageReceived: (ChatMessage) -> Unit = {},
+        val getHostAddress: () -> String = { hostAddress },
+        val channelIdProvider: () -> ByteArray? = { EscrowSessionVaultHybridManagerClient.channelId?.copyOf() },
+        val setViewerPaymentProcessing: (Boolean) -> Unit = {},
     )
 
     operator fun invoke(params: Params) {
@@ -63,6 +66,9 @@ class SetupMppPaymentViewerUseCase(
                 setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                 signFido2Challenge = params.signFido2Challenge,
                 onChatMessageReceived = params.onChatMessageReceived,
+                getHostAddress = params.getHostAddress,
+                channelIdProvider = params.channelIdProvider,
+                setViewerPaymentProcessing = params.setViewerPaymentProcessing,
             ),
         )
     }

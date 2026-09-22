@@ -44,6 +44,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerV
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
 import platform.Foundation.NSLog
 import platform.UIKit.UIView
 import kotlin.io.encoding.Base64
@@ -109,7 +110,7 @@ actual fun AnswerScreenOverlay() {
             ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
         }
 
-    val viewerViewModel: LiquidAuthViewerViewModel = koinInject()
+    val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
@@ -203,7 +204,7 @@ actual fun AnswerScreenOverlay() {
         }
     }
 
-    LaunchedEffect(stateHolder) {
+    LaunchedEffect(stateHolder, viewerViewModel) {
         stateHolder.chatMessages.collect { messages ->
             if (messages.size > deliveredMessageCount) {
                 messages.drop(deliveredMessageCount).forEach {
@@ -230,6 +231,7 @@ actual fun AnswerScreenOverlay() {
 
             if (streamHostUiModeState.value != StreamHostUiMode.Minimized) {
                 LiquidStreamViewerScreen(
+                    viewModel = viewerViewModel,
                     sessionId = sessionId,
                     connectionType = connType,
                     cameraPreview = viewerCameraPreview,

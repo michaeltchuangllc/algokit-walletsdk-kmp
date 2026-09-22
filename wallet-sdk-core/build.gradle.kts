@@ -37,6 +37,12 @@ kotlin {
             freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
         }
         withHostTest {}
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }.configure {
+            applicationId = "com.michaeltchuang.walletsdk.core.test"
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
         packaging {
             resources {
                 // Exclude duplicate files from multiple dependencies
@@ -240,6 +246,14 @@ kotlin {
                 implementation(libs.mockk)
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
+            }
+        }
+        val androidDeviceTest by getting {
+            dependencies {
+                implementation(libs.junit)
+                implementation(libs.androidx.junit)
+                implementation(libs.runner)
+                implementation(libs.kotlin.test)
             }
         }
     }

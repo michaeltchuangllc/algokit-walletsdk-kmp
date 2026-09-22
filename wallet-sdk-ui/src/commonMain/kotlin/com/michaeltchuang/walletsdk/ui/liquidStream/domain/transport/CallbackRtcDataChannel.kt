@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.domain.transport
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannel
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelObserver
 import com.michaeltchuang.walletsdk.core.railmpp.core.RtcDataChannelState
+import io.github.aakira.napier.Napier
 
 open class CallbackRtcDataChannel(
     private val sendMessageProvider: () -> ((message: String) -> Unit)?,
@@ -18,7 +19,7 @@ open class CallbackRtcDataChannel(
         if (handler != null) {
             handler(bytes.decodeToString())
         } else {
-            println("$logTag: send skipped — sendMessageProvider returned null")
+            Napier.d("$logTag: send skipped — sendMessageProvider returned null")
         }
     }
 

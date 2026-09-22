@@ -1,6 +1,5 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
-import android.util.Log
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +27,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerSc
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.delay
 import org.koin.compose.viewmodel.koinViewModel
 import org.webrtc.EglBase
@@ -113,12 +113,12 @@ fun AnswerScreen(
 
     LaunchedEffect(viewModel) {
         viewModel.startRealtimeBlockNumberUpdates()
-        Log.d("AnswerScreen", "Starting to collect view events...")
+        Napier.d("Starting to collect view events...", tag = "AnswerScreen")
         viewModel.viewEvent.collect { event ->
-            Log.d("AnswerScreen", "View event received: ${event::class.simpleName}")
+            Napier.d("View event received: ${event::class.simpleName}", tag = "AnswerScreen")
             when (event) {
                 is AnswerViewModel.ViewEvent.StreamDisconnected -> {
-                    Log.w("AnswerScreen", "Viewer stream disconnected: ${event.reason}")
+                    Napier.w("Viewer stream disconnected: ${event.reason}", tag = "AnswerScreen")
                     isViewerSheetVisible = false
                     ConnectionStatusState.isVisible = false
                     ConnectionStatusState.isExpanded = false
@@ -173,6 +173,7 @@ fun AnswerScreen(
                 },
             ) {
                 LiquidStreamViewerScreen(
+                    viewModel = viewerViewModel,
                     sessionId = session,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
@@ -182,7 +183,7 @@ fun AnswerScreen(
                     remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
                     progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
                     onMinimize = {
-                        Log.d("AnswerScreen", "Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}")
+                        Napier.d("Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}", tag = "AnswerScreen")
                         isViewerSheetVisible = false
                         miniPlayerCameraPreviewState.value = viewerCameraPreview
                         streamHostUiModeState.value = StreamHostUiMode.Minimized

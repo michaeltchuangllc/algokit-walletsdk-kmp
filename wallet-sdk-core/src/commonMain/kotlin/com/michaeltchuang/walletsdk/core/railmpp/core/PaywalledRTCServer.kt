@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.railmpp.core
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BillingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
@@ -16,15 +17,19 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SessionStats
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -53,6 +58,9 @@ class PaywalledRTCServer
         private var config: ServerConfig,
         private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
         private val nonceStore: NonceStore = InMemoryNonceStore(),
+        private val vaultReader: suspend (String, String, ByteArray, String, ByteArray) -> Result<HostViewerVaultReader.Snapshot> =
+            HostViewerVaultReader::read,
+        private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
     ) {
         private companion object {
             const val TAG = "PaywalledRTCServer"
@@ -69,6 +77,9 @@ class PaywalledRTCServer
         // ─── Callbacks ──────────────────────────────────────────
         var onSessionStarted: ((sessionId: String) -> Unit)? = null
         var onViewerHello: ((viewer: String, viewerPublicKeyBase64: String) -> Unit)? = null
+
+        /** Raw handshake metadata; does not authorize or settle payments. */
+        var onViewerHelloMessage: ((String) -> Unit)? = null
         var onVoucherReceived: ((voucherJson: String) -> Unit)? = null
         var onPaymentRequested: ((PaymentRequest) -> Unit)? = null
         var onPaymentReceived: ((RailPayment) -> Unit)? = null
@@ -99,6 +110,9 @@ class PaywalledRTCServer
 
         private var cachedChannelIdBase64: String? = null
         private var cachedSaltBase64: String? = null
+        private val vaultRequestMutex = Mutex()
+        private var vaultAcknowledgedCumulative = 0L
+        private var awaitingVaultIdentity = false
 
         /**
          * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
@@ -122,10 +136,25 @@ class PaywalledRTCServer
          */
         fun updateConfig(newConfig: ServerConfig) {
             val hadKey = config.viewerAuthorizedSignerPublicKey != null
+            require(!config.vaultOnlyBilling || newConfig.vaultOnlyBilling) { "Cannot downgrade vault-only billing" }
+            if (config.viewerAddress != newConfig.viewerAddress ||
+                config.gating.payTo != newConfig.gating.payTo ||
+                config.gating.network != newConfig.gating.network ||
+                !config.viewerAuthorizedSignerPublicKey.contentEquals(newConfig.viewerAuthorizedSignerPublicKey)
+            ) {
+                cachedChannelIdBase64 = null
+            }
             config = newConfig
             if (!hadKey && newConfig.viewerAuthorizedSignerPublicKey != null) {
                 Napier.d("🔑 viewerAuthorizedSignerPublicKey received — resolving viewerKeyDeferred", tag = TAG)
                 viewerKeyDeferred.complete(Unit)
+            }
+            if (awaitingVaultIdentity &&
+                !newConfig.viewerAddress.isNullOrBlank() &&
+                newConfig.viewerAuthorizedSignerPublicKey?.isNotEmpty() == true
+            ) {
+                awaitingVaultIdentity = false
+                requestPayment()
             }
         }
 
@@ -233,7 +262,7 @@ class PaywalledRTCServer
                 // If skipPaymentRequestWhenSessionFunded is enabled but the viewer's authorized
                 // signer key is not yet known, wait for it before running the funded-skip check.
                 val needsKey =
-                    config.skipPaymentRequestWhenSessionFunded &&
+                    (config.skipPaymentRequestWhenSessionFunded || config.vaultOnlyBilling) &&
                         !config.viewerAddress.isNullOrBlank() &&
                         config.viewerAuthorizedSignerPublicKey == null
 
@@ -288,6 +317,7 @@ class PaywalledRTCServer
                         val viewer = msg["viewer"]?.jsonPrimitive?.content.orEmpty()
                         val viewerPublicKey = msg["viewerPublicKey"]?.jsonPrimitive?.content.orEmpty()
                         Napier.d("[VIEWER_HELLO_RECEIVED] session=$sessionId viewer=$viewer keyLen=${viewerPublicKey.length}", tag = TAG)
+                        onViewerHelloMessage?.invoke(msgStr)
                         onViewerHello?.invoke(viewer, viewerPublicKey)
                     }
 
@@ -297,6 +327,11 @@ class PaywalledRTCServer
                     }
 
                     DCMessageType.SEGMENT_PAYMENT -> {
+                        if (config.vaultOnlyBilling) {
+                            // Even an old/malicious viewer must never reach rail settlement.
+                            onPaymentRejected?.invoke("Direct payments are disabled for session-vault billing")
+                            return
+                        }
                         val payload = msg[DCFieldKey.PAYLOAD]
                         if (payload == null || payload is JsonNull) {
                             Napier.d("[SEGMENT_PAYMENT_DENIED] session=$sessionId segment=$segmentIndex", tag = TAG)
@@ -314,6 +349,10 @@ class PaywalledRTCServer
                     }
 
                     DCMessageType.VIEWER_VAULT_FUNDED -> {
+                        if (config.vaultOnlyBilling) {
+                            scope.launch { handleVaultFunded(msg) }
+                            return
+                        }
                         Napier.d(
                             "[VIEWER_VAULT_FUNDED_RECEIVED] session=$sessionId segment=$segmentIndex gated=$gated pending=${pendingRequest != null}",
                             tag = TAG,
@@ -345,84 +384,160 @@ class PaywalledRTCServer
         }
 
         private fun requestPayment() {
-            scope.launch(Dispatchers.Default) {
-                try {
-                    val channelIdBase64 = resolveChannelIdBase64()
+            scope.launch(workDispatcher) {
+                if (config.vaultOnlyBilling) {
+                    vaultRequestMutex.withLock { requestPaymentNow() }
+                } else {
+                    requestPaymentNow()
+                }
+            }
+        }
 
-                    val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+        private suspend fun requestPaymentNow() {
+            try {
+                if (disposed) return
+                if (config.vaultOnlyBilling &&
+                    (config.viewerAddress.isNullOrBlank() || config.viewerAuthorizedSignerPublicKey?.isNotEmpty() != true)
+                ) {
+                    awaitingVaultIdentity = true
+                    // No channel can be derived until hello supplies the signer. Ask the
+                    // viewer to resend hello; updateConfig retries this same unpaid segment.
+                    sendDC(
+                        buildJsonObject {
+                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
+                            put(DCFieldKey.SESSION_ID, sessionId)
+                            put("billingMode", BillingMode.SESSION_VAULT)
+                            put("requestViewerIdentity", true)
+                        },
+                    )
+                    return
+                }
+                val channelIdBase64 = resolveChannelIdBase64()
+                if (config.vaultOnlyBilling) {
+                    requireNotNull(channelIdBase64) { "Session-vault billing requires a viewer channel" }
+                    requireNotNull(resolveSaltBase64()) { "Session-vault billing requires a salt" }
+                }
+
+                val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+                Napier.d(
+                    "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
+                    tag = TAG,
+                )
+                if (shouldSkipPrompt) {
                     Napier.d(
-                        "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
+                        "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
                         tag = TAG,
                     )
-                    if (shouldSkipPrompt) {
-                        Napier.d(
-                            "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
-                            tag = TAG,
+                    val syntheticReceipt =
+                        createSessionVaultReceipt(
+                            txIdPrefix = "session-vault-funded-skip",
+                            segmentIndex = segmentIndex,
+                            amount = config.gating.amount,
+                            asset = config.gating.asset,
+                            payTo = config.gating.payTo,
+                            payFrom = config.viewerAddress.orEmpty(),
+                            network = config.gating.network,
+                            channelId = channelIdBase64,
                         )
-                        val syntheticReceipt =
-                            createSessionVaultReceipt(
-                                txIdPrefix = "session-vault-funded-skip",
+                    pendingRequest = null
+                    completePaidSegment(syntheticReceipt, config.gating.amount)
+                    return
+                }
+
+                val request =
+                    paymentRail
+                        .createPaymentRequest(
+                            PaymentRailRequestParams(
+                                sessionId = sessionId,
                                 segmentIndex = segmentIndex,
                                 amount = config.gating.amount,
                                 asset = config.gating.asset,
-                                payTo = config.gating.payTo,
-                                payFrom = config.viewerAddress.orEmpty(),
                                 network = config.gating.network,
-                                channelId = channelIdBase64,
-                            )
-                        completePaidSegment(syntheticReceipt, config.gating.amount)
-                        return@launch
-                    }
+                                payTo = config.gating.payTo,
+                                ttl = config.paymentTTL,
+                                meta =
+                                    PaymentRequestMeta(
+                                        gatingMode = config.gating.mode,
+                                        enforcement = config.enforcement,
+                                        segmentDuration = config.gating.segmentDuration,
+                                        segmentBytes = config.gating.segmentBytes,
+                                        viewerAddress = config.viewerAddress,
+                                        voucherSignature = null,
+                                    ),
+                            ),
+                        ).copy(
+                            channelId = channelIdBase64,
+                            salt = resolveSaltBase64(),
+                            billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
+                        )
 
-                    val request =
-                        paymentRail
-                            .createPaymentRequest(
-                                PaymentRailRequestParams(
-                                    sessionId = sessionId,
-                                    segmentIndex = segmentIndex,
-                                    amount = config.gating.amount,
-                                    asset = config.gating.asset,
-                                    network = config.gating.network,
-                                    payTo = config.gating.payTo,
-                                    ttl = config.paymentTTL,
-                                    meta =
-                                        PaymentRequestMeta(
-                                            gatingMode = config.gating.mode,
-                                            enforcement = config.enforcement,
-                                            segmentDuration = config.gating.segmentDuration,
-                                            segmentBytes = config.gating.segmentBytes,
-                                            viewerAddress = config.viewerAddress,
-                                            voucherSignature = null,
-                                        ),
-                                ),
-                            ).copy(channelId = channelIdBase64, salt = resolveSaltBase64())
+                pendingRequest = request
+                onPaymentRequested?.invoke(request)
+                Napier.d(
+                    "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} " +
+                        "amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} " +
+                        "ttl=${request.ttl} channelId=${request.channelId} salt=${request.salt}",
+                    tag = TAG,
+                )
 
-                    pendingRequest = request
-                    onPaymentRequested?.invoke(request)
-                    Napier.d(
-                        "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} " +
-                            "amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} " +
-                            "ttl=${request.ttl} channelId=${request.channelId} salt=${request.salt}",
-                        tag = TAG,
-                    )
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REQUEST.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, request.toJson())
+                    },
+                )
+            } catch (e: Throwable) {
+                Napier.e(
+                    "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} " +
+                        "asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}",
+                    e,
+                    tag = TAG,
+                )
+                onError?.invoke(e)
+            }
+        }
 
-                    sendDC(
-                        buildJsonObject {
-                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REQUEST.value)
-                            put(DCFieldKey.SESSION_ID, sessionId)
-                            put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
-                            put(DCFieldKey.PAYLOAD, request.toJson())
-                        },
-                    )
-                } catch (e: Throwable) {
-                    Napier.e(
-                        "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} " +
-                            "asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}",
-                        e,
-                        tag = TAG,
-                    )
-                    onError?.invoke(e)
+        /** Notification is only a wake-up hint. Never trust a viewer-reported balance. */
+        private suspend fun handleVaultFunded(msg: JsonObject) {
+            vaultRequestMutex.withLock {
+                val request = pendingRequest ?: return
+                if (disposed ||
+                    msg[DCFieldKey.SESSION_ID]?.jsonPrimitive?.content != sessionId ||
+                    msg["nonce"]?.jsonPrimitive?.content != request.nonce ||
+                    msg["billingMode"]?.jsonPrimitive?.content != BillingMode.SESSION_VAULT ||
+                    msg["channelId"]?.jsonPrimitive?.content != request.channelId ||
+                    msg["salt"]?.jsonPrimitive?.content != request.salt
+                ) {
+                    return
                 }
+                // A price/identity update must not validate an old request against a new vault.
+                if (request.channelId != resolveChannelIdBase64() ||
+                    request.payTo != config.gating.payTo ||
+                    request.network != config.gating.network
+                ) {
+                    return
+                }
+                if (!shouldSkipPaymentRequestBecauseSessionFunded(request.amount)) {
+                    onPaymentRejected?.invoke("Session vault is not sufficiently funded")
+                    return
+                }
+                pendingRequest = null
+                cancelGraceTimer()
+                completePaidSegment(
+                    createSessionVaultReceipt(
+                        txIdPrefix = "session-vault-funded",
+                        segmentIndex = request.segmentIndex,
+                        amount = request.amount,
+                        asset = request.asset,
+                        payTo = request.payTo,
+                        payFrom = config.viewerAddress.orEmpty(),
+                        network = request.network,
+                        channelId = request.channelId,
+                    ),
+                    request.amount,
+                )
             }
         }
 
@@ -476,12 +591,24 @@ class PaywalledRTCServer
 
             return runCatching {
                 val channelId =
-                    EscrowSessionVaultHybridManagerClient
-                        .initializeChannelId(
-                            payerAddress = viewer,
-                            payeeAddress = payTo,
-                            authorizedSignerPublicKey = signerKey,
+                    if (config.vaultOnlyBilling) {
+                        HostViewerVaultReader.deriveChannelId(
+                            viewer,
+                            payTo,
+                            signerKey,
+                            config.gating.network,
+                            Base64.decode(requireNotNull(resolveSaltBase64())),
                         )
+                    } else {
+                        EscrowSessionVaultHybridManagerClient
+                            // Each server belongs to one viewer. Derivation must not switch the
+                            // process-wide legacy channel used by another viewer's settlement.
+                            .deriveChannelId(
+                                payerAddress = viewer,
+                                payeeAddress = payTo,
+                                authorizedSignerPublicKey = signerKey,
+                            )
+                    }
                 Base64.encode(channelId)
             }.onFailure {
                 Napier.e("[RESOLVE_CHANNEL_ID_FAILED] session=$sessionId viewer=$viewer payTo=$payTo", it, tag = TAG)
@@ -510,7 +637,31 @@ class PaywalledRTCServer
                 else -> RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
             }
 
-        private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(): Boolean {
+        @OptIn(ExperimentalEncodingApi::class)
+        private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(requiredAmount: String = config.gating.amount): Boolean {
+            if (config.vaultOnlyBilling) {
+                val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
+                val signer = config.viewerAuthorizedSignerPublicKey ?: return false
+                val salt = resolveSaltBase64() ?: return false
+                val amount = requiredAmount.toLongOrNull()?.takeIf { it >= 0L } ?: return false
+                if (amount == 0L) return true
+                val snapshot =
+                    vaultReader(
+                        viewer,
+                        config.gating.payTo,
+                        signer.copyOf(),
+                        config.gating.network,
+                        Base64.decode(salt),
+                    ).getOrNull() ?: return false
+                // Reserve acknowledged consumption even before the billing engine settles its vouchers.
+                vaultAcknowledgedCumulative =
+                    maxOf(
+                        vaultAcknowledgedCumulative,
+                        snapshot.totalDepositMicroUsdc - snapshot.progressBalanceMicroUsdc,
+                    )
+                val available = snapshot.totalDepositMicroUsdc - vaultAcknowledgedCumulative
+                return available > 0L && available >= amount
+            }
             if (!config.skipPaymentRequestWhenSessionFunded) return false
             val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
             val remaining =
@@ -525,6 +676,10 @@ class PaywalledRTCServer
         }
 
         private suspend fun handlePayment(railPayment: RailPayment) {
+            if (config.vaultOnlyBilling) {
+                onPaymentRejected?.invoke("Direct payments are disabled for session-vault billing")
+                return
+            }
             val request =
                 pendingRequest ?: run {
                     Napier.e("[HANDLE_PAYMENT_NO_PENDING_REQUEST] session=$sessionId segment=$segmentIndex", tag = TAG)
@@ -572,7 +727,7 @@ class PaywalledRTCServer
             }
 
             val receipt =
-                withContext(Dispatchers.Default) {
+                withContext(workDispatcher) {
                     verifyAndSettleOrCreateFallbackReceipt(request, railPayment)
                 }
 
@@ -609,8 +764,9 @@ class PaywalledRTCServer
         private suspend fun verifyAndSettleOrCreateFallbackReceipt(
             request: PaymentRequest,
             railPayment: RailPayment,
-        ): PaymentReceipt =
-            try {
+        ): PaymentReceipt {
+            check(!config.vaultOnlyBilling) { "Direct settlement is disabled for session-vault billing" }
+            return try {
                 paymentRail.verifyAndSettle(railPayment, request)
             } catch (e: Throwable) {
                 Napier.e(
@@ -630,11 +786,15 @@ class PaywalledRTCServer
                     sessionId = request.sessionId,
                 )
             }
+        }
 
         private fun completePaidSegment(
             receipt: PaymentReceipt,
             amount: String,
         ) {
+            if (config.vaultOnlyBilling) {
+                vaultAcknowledgedCumulative += amount.toLong()
+            }
             stats.segmentsPaid++
             stats.totalAmountReceived =
                 (BigInteger.parseString(stats.totalAmountReceived) + BigInteger.parseString(amount)).toString()
@@ -689,7 +849,8 @@ class PaywalledRTCServer
             channelId: String? = null,
         ): PaymentReceipt =
             PaymentReceipt(
-                txId = "$txIdPrefix-${mppNowMs()}",
+                // Empty txId is deliberate: settlement belongs to the voucher billing engine.
+                txId = if (config.vaultOnlyBilling) "" else "$txIdPrefix-${mppNowMs()}",
                 sessionId = sessionId,
                 segmentIndex = segmentIndex,
                 amount = amount,
@@ -701,6 +862,9 @@ class PaywalledRTCServer
                 network = network,
                 timestamp = mppNowMs(),
                 channelId = channelId,
+                salt = if (config.vaultOnlyBilling) resolveSaltBase64() else null,
+                billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
+                settlementDeferred = config.vaultOnlyBilling,
             )
 
         private fun scheduleSegmentTimer(

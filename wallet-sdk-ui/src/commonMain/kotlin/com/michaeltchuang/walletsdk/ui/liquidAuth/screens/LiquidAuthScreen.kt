@@ -50,6 +50,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.liquidAuth.connectLiquidAuth
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.checkMinimumBalanceRequired
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
+import io.github.aakira.napier.Napier
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -78,9 +79,9 @@ fun LiquidAuthScreen(
                     .replace("%25", "%") // Must be last to avoid double-decoding!
             }
 
-        println("📥 LiquidAuthScreen received URI:")
-        println("   Encoded: $uri")
-        println("   Decoded: $decodedUri")
+        Napier.d("📥 LiquidAuthScreen received URI:")
+        Napier.d("   Encoded: $uri")
+        Napier.d("   Decoded: $decodedUri")
 
         viewModel.initialize(decodedUri)
     }

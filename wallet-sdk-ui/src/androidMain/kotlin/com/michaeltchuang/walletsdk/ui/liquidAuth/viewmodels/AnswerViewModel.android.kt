@@ -4,7 +4,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.biometric.R
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -238,7 +237,7 @@ actual open class AnswerViewModel actual constructor(
         val credMessage = JSONObject()
         val origin = authMessage.value?.origin
         if (origin == null) {
-            Log.e(TAG, "Missing auth message origin when building credential message")
+            Napier.e("Missing auth message origin when building credential message", tag = TAG)
         }
         credMessage.put("address", account)
         credMessage.put("device", Build.MODEL)
@@ -335,7 +334,7 @@ actual open class AnswerViewModel actual constructor(
         val address = viewerAddress?.takeIf { it.isNotBlank() } ?: return
         val service = signalService.value
         if (service?.peerConnection == null) {
-            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection")
+            Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection", tag = TAG)
             return
         }
         viewModelScope.launch {
@@ -346,13 +345,13 @@ actual open class AnswerViewModel actual constructor(
                 val paymentChannel =
                     platformServices.awaitViewerPaymentDataChannel(service)
                         ?: run {
-                            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$address")
+                            Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$address", tag = TAG)
                             return@launch
                         }
                 val signer =
                     buildMppWalletSigner(address)
                         ?: run {
-                            Log.e(TAG, "[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$address")
+                            Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$address", tag = TAG)
                             return@launch
                         }
                 val mppNetwork = resolveMppClientNetwork(address)
@@ -361,19 +360,22 @@ actual open class AnswerViewModel actual constructor(
                     SetupMppPaymentViewerUseCase.Params(
                         dataChannel = platformServices.wrapPaymentDataChannel(paymentChannel),
                         viewerAddress = address,
+                        hostAddress = hostAddress.value,
                         scope = viewModelScope,
                         signer = signer,
                         mppNetwork = mppNetwork,
                         requestMppConsent = ::requestMppConsentFromUi,
+                        setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                         setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                         signFido2Challenge = ::signFido2Challenge,
                         onChatMessageReceived = ::onChatMessageReceived,
+                        getHostAddress = { hostAddress.value },
                     ),
                 )
             } catch (_: CancellationException) {
-                Log.w(TAG, "[VIEWER_MPP_SETUP_CANCELLED] viewer=$address")
+                Napier.w("[VIEWER_MPP_SETUP_CANCELLED] viewer=$address", tag = TAG)
             } catch (e: Exception) {
-                Log.e(TAG, "[VIEWER_MPP_SETUP_FAILED] viewer=$address", e)
+                Napier.e("[VIEWER_MPP_SETUP_FAILED] viewer=$address", e, tag = TAG)
             }
         }
     }

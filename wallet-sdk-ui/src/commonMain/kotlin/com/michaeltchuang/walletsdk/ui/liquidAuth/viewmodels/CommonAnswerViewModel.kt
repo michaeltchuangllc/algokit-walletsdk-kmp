@@ -154,6 +154,11 @@ open class CommonAnswerViewModel(
     ) {
         val jsonObject = json.parseToJsonElement(msgStr).jsonObject
         val type = jsonObject.optString("type")
+        if (jsonObject.optString("reference") == "liquid:stream:info") {
+            // Stream metadata must not replace the LiquidAuth authentication sentinel.
+            jsonObject.optString("hostAddress")?.let(::setHostAddress)
+            return
+        }
 
         when (val msgType = DCMessageType.fromStringOrNull(type)) {
             DCMessageType.CHAT_MESSAGE -> {
@@ -255,6 +260,11 @@ open class CommonAnswerViewModel(
         val type = message.jsonOptString("type")
 
         when {
+            reference == "liquid:stream:info" -> {
+                val host = message.jsonOptString("hostAddress")
+                if (!host.isNullOrBlank()) setHostAddress(host)
+                onHostDiscovered(host)
+            }
             reference == "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
             reference == "ping" -> onPongRequested()
             type == DCMessageType.STREAM_COST_UPDATE.value -> handleMessages(message)
@@ -352,9 +362,9 @@ open class CommonAnswerViewModel(
             try {
                 val balance = getAccountAlgoBalance(accountAddress.value)
                 setAccountBalance(balance?.toString())
-                println("$TAG: fetched balance=${balance?.toString() ?: "0"}")
+                Napier.d("$TAG: fetched balance=${balance?.toString() ?: "0"}")
             } catch (e: Exception) {
-                println("$TAG: exception fetching balance: ${e.message}")
+                Napier.d("$TAG: exception fetching balance: ${e.message}")
             }
         }
     }
@@ -423,23 +433,23 @@ open class CommonAnswerViewModel(
         challenge: ByteArray,
         address: String,
     ): ByteArray? {
-        println("$TAG: signFido2Challenge called for address=$address")
+        Napier.d("$TAG: signFido2Challenge called for address=$address")
         val localAccount =
             getLocalAccount(address) ?: run {
-                println("$TAG: getLocalAccount returned null for $address")
+                Napier.d("$TAG: getLocalAccount returned null for $address")
                 return null
             }
-        println("$TAG: localAccount type=${localAccount::class.simpleName}")
+        Napier.d("$TAG: localAccount type=${localAccount::class.simpleName}")
 
         return when (localAccount) {
             is LocalAccount.Algo25 -> {
                 val secretKey =
                     getAlgo25SecretKey(address) ?: run {
-                        println("$TAG: getAlgo25SecretKey returned null")
+                        Napier.d("$TAG: getAlgo25SecretKey returned null")
                         return null
                     }
                 val result = signAlgo25ArbitraryData(challenge, secretKey)
-                println("$TAG: signAlgo25ArbitraryData result=${result != null}")
+                Napier.d("$TAG: signAlgo25ArbitraryData result=${result != null}")
                 result
             }
 
@@ -457,13 +467,13 @@ open class CommonAnswerViewModel(
             is LocalAccount.Falcon24 -> {
                 val privateKey = getFalcon24SecretKey(address) ?: return null
                 if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
-                    println("$TAG: signFido2Challenge skipped — empty input for Falcon24")
+                    Napier.d("$TAG: signFido2Challenge skipped — empty input for Falcon24")
                     return null
                 }
                 try {
                     signFalcon24ArbitraryData(challenge, localAccount.publicKey, privateKey)
                 } catch (t: Throwable) {
-                    println("$TAG: signFalcon24ArbitraryData threw: ${t.message}")
+                    Napier.d("$TAG: signFalcon24ArbitraryData threw: ${t.message}")
                     null
                 }
             }
@@ -471,19 +481,19 @@ open class CommonAnswerViewModel(
             is LocalAccount.Falcon25 -> {
                 val privateKey = getFalcon25PrivateKey(address) ?: return null
                 if (challenge.isEmpty() || localAccount.publicKey.isEmpty() || privateKey.isEmpty()) {
-                    println("$TAG: signFido2Challenge skipped — empty input for Falcon25")
+                    Napier.d("$TAG: signFido2Challenge skipped — empty input for Falcon25")
                     return null
                 }
                 try {
                     signFalcon25ArbitraryData(challenge, localAccount.publicKey, privateKey)
                 } catch (t: Throwable) {
-                    println("$TAG: signFalcon25ArbitraryData threw: ${t.message}")
+                    Napier.d("$TAG: signFalcon25ArbitraryData threw: ${t.message}")
                     null
                 }
             }
 
             is LocalAccount.SeedVault -> {
-                println("$TAG: SeedVault account — FIDO2 signing not supported")
+                Napier.d("$TAG: SeedVault account — FIDO2 signing not supported")
                 null
             }
 
@@ -500,51 +510,41 @@ open class CommonAnswerViewModel(
     ): Result<Long?> {
         val amountUsdc = enteredAmount.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
         val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-        mppPaymentViewerManager.markPaymentPending()
         val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
-        val topUpResult =
-            runCatching {
-                MppPayments
-                    .topUpSessionVault(
-                        signer = signer,
-                        additionalDepositMicroUsdc = depositMicroUsdc,
-                    ).getOrThrow()
-            }.onFailure { throwable ->
-                mppPaymentViewerManager.clearPendingPayment()
-                Napier.e(
-                    tag = TAG,
-                    message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress",
-                    throwable = throwable,
+        return try {
+            val remaining =
+                mppPaymentViewerManager.topUpViewerSessionVault(
+                    viewerAddress = viewerAddress,
+                    depositMicroUsdc = depositMicroUsdc,
+                    fund = {
+                        MppPayments
+                            .topUpSessionVault(
+                                signer = signer,
+                                additionalDepositMicroUsdc = depositMicroUsdc,
+                            ).getOrThrow()
+                    },
+                    readBalance = {
+                        getRemainingSessionVaultBalanceUseCase(
+                            GetRemainingSessionVaultBalanceUseCase.Params(
+                                viewerAddress = viewerAddress,
+                                appId = sessionVaultAppId,
+                                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                            ),
+                        ).getOrThrow()
+                    },
                 )
-            }
-
-        val txId = topUpResult.getOrElse { return Result.failure(it) }
-        Napier.e(tag = TAG, message = "[VIEWER_SESSION_VAULT_TOPUP_OK] viewer=$viewerAddress txId=$txId")
-
-        val onChainRemaining =
-            runCatching {
-                getRemainingSessionVaultBalanceUseCase(
-                    GetRemainingSessionVaultBalanceUseCase.Params(
-                        viewerAddress = viewerAddress,
-                        appId = sessionVaultAppId,
-                        authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-                    ),
-                ).getOrThrow()
-            }.onFailure { throwable ->
-                Napier.e(
-                    tag = TAG,
-                    message = "[VIEWER_SESSION_VAULT_TOPUP_REFRESH_ERR] viewer=$viewerAddress",
-                    throwable = throwable,
-                )
-            }.getOrNull()
-
-        if (onChainRemaining != null) {
-            if (onChainRemaining > 0L) {
-                mppPaymentViewerManager.clearPendingPayment()
-            }
-            setViewerSessionVaultBalance(onChainRemaining)
+            setViewerSessionVaultBalance(remaining)
+            Result.success(remaining)
+        } catch (ce: kotlin.coroutines.cancellation.CancellationException) {
+            throw ce
+        } catch (throwable: Throwable) {
+            Napier.e(
+                tag = TAG,
+                message = "[VIEWER_SESSION_VAULT_TOPUP_ERR] viewer=$viewerAddress",
+                throwable = throwable,
+            )
+            Result.failure(throwable)
         }
-        return Result.success(onChainRemaining)
     }
 
     /** Build an [MppWalletSigner] for the given account address. */
