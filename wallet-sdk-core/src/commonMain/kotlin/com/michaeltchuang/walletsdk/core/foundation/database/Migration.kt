@@ -246,3 +246,11 @@ val MIGRATION_8_9 =
             )
         }
     }
+
+// Preserve all existing vouchers with an unknown network rather than guessing during recovery.
+val MIGRATION_9_10 =
+    object : Migration(9, 10) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("ALTER TABLE mpp_vouchers ADD COLUMN network TEXT DEFAULT NULL")
+        }
+    }

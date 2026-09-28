@@ -13,7 +13,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24GroupBundle
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
-import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
@@ -140,7 +140,9 @@ class MppWalletSignerImpl(
                     key = account.keyIndex,
                 )
             SigningOperation.MESSAGE ->
-                signHdKeyArbitraryData(
+                // Settlement verifies the raw voucher (already domain-bound by settle-lsig-v1),
+                // not the MX-prefixed payload used by legacy arbitrary-data signing.
+                signHdKeyData(
                     data = bytes,
                     seed = seed,
                     account = account.account,

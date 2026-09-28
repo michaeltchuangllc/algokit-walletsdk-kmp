@@ -17,6 +17,14 @@ internal class MppVoucherRepositoryImpl(
         mppVoucherDao.deleteVoucherByChannelId(channelIdBase64)
     }
 
+    override suspend fun deleteSettledVoucher(channelIdBase64: String, confirmedAmount: Long) {
+        mppVoucherDao.deleteSettledVoucher(channelIdBase64, confirmedAmount)
+    }
+
+    override suspend fun deleteVouchersBeforeRound(channelIdBase64: String, network: String, startRound: Long) {
+        mppVoucherDao.deleteVouchersBeforeRound(channelIdBase64, network, startRound)
+    }
+
     override suspend fun deleteVoucherBySessionAndViewer(
         sessionId: String,
         viewerAddress: String,

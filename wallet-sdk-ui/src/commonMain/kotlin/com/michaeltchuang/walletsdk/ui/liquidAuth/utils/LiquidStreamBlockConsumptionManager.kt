@@ -1,15 +1,14 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.utils
 
-import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
-import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.deleteVoucher
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
@@ -18,8 +17,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withTimeout
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
@@ -30,8 +30,8 @@ import kotlin.time.Duration.Companion.milliseconds
 /**
  * Shared (commonMain) block-consumption + settlement manager for the Liquid Stream host/creator
  * side. Used identically by both Android and iOS actual [com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager]
- * implementations so the block-driven consumption loop, staleness checks, voucher persistence,
- * and on-chain settlement logic live in exactly one place.
+ * implementations. Retains primary UI accounting; all financial writes are delegated to
+ * [ViewerVaultBillingSession], just like additional viewers.
  */
 internal class LiquidStreamBlockConsumptionManager(
     private val tag: String,
@@ -46,15 +46,120 @@ internal class LiquidStreamBlockConsumptionManager(
 ) {
     companion object {
         private const val CHAIN_READ_TIMEOUT_MS = VoucherSettlementPolicy.CHAIN_READ_TIMEOUT_MS
-        private const val CHAIN_WRITE_TIMEOUT_MS = VoucherSettlementPolicy.CHAIN_WRITE_TIMEOUT_MS
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val settlementMutex = Mutex()
     private var blockDrivenConsumptionJob: Job? = null
-
+    private var billing: ViewerVaultBillingSession? = null
     @Volatile
-    private var settlementJob: Job? = null
+    private var billingGeneration = 0L
+    // Ordered intake survives screen teardown and drains before a replacement session starts.
+    private val billingCommands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+
+    init {
+        scope.launch {
+            for (action in billingCommands) {
+                try {
+                    action()
+                } catch (e: TimeoutCancellationException) {
+                    Napier.e("Primary viewer billing timed out; persisted vouchers retained", e, tag = tag)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Napier.e("Primary viewer billing failed", e, tag = tag)
+                }
+            }
+        }
+    }
+
+    private fun enqueueBilling(command: suspend () -> Unit) {
+        billingCommands.trySend(command)
+    }
+
+    fun processPendingSettlements() {
+        scope.launch {
+            try {
+                ViewerVaultBillingSession.recoverPending(
+                    scope, voucherRepository, getMppVoucherNoteUseCase, buildCreatorWalletSigner,
+                ) { Napier.e("Pending viewer settlement failed", it, tag = tag) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Napier.e("Pending voucher recovery failed", e, tag = tag)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalEncodingApi::class)
+    fun acceptVoucher(voucher: LiquidAuthPaymentVoucherMessage, network: String) {
+        val creator = getActiveCreatorAddress() ?: return
+        val viewer = voucher.viewerAddress ?: return
+        val session = voucher.sessionId ?: return
+        val key = voucher.viewerPublicKey?.copyOf() ?: return
+        val channel = voucher.channelId?.copyOf() ?: return
+        if (session != currentSessionId || (voucher.totalAmountClaimedMicroUsdc ?: 0L) <= 0L) return
+        val round = getViewModel()?.currentBlockNumber?.value
+        val generation = billingGeneration
+        val paid = getIsPaidStreaming()
+        val cost = getViewModel()?.currentCostPerBlockMicroUsdc ?: 0L
+        // Keep primary note accounting identical to the existing balance-driven UI counters.
+        val params = GetMppVoucherNoteUseCase.Params(
+            channelId = Base64.encode(channel),
+            startBlock = startRound,
+            currentBlock = round ?: 0L,
+            freeBlocks = freeBlocksConsumed.toLong(),
+            paidBlocks = paidBlocksConsumed.toLong(),
+            costPerPaidBlock = cost,
+            settledAmount = lastSettledMicroUsdc,
+            totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc ?: 0L,
+            freeChatCount = freeChatCount,
+            tipChatCount = tipChatCount,
+            tipChatTotal = tipChatTotalMicroUsdc,
+        )
+        enqueueBilling {
+            // Disconnect discards unvalidated backlog; already persisted work is drained below.
+            if (generation != billingGeneration) return@enqueueBilling
+            withTimeout(25_000.milliseconds) {
+                val current = billing
+                if (current != null) {
+                    require(current.sessionId == session && current.viewerAddress == viewer &&
+                        current.creatorAddress == creator && current.network == network &&
+                        current.signerPublicKey.contentEquals(key)) { "Primary billing identity changed" }
+                }
+                val target = current ?: ViewerVaultBillingSession(
+                    scope = scope,
+                    sessionId = session,
+                    viewerAddress = viewer,
+                    creatorAddress = creator,
+                    network = network,
+                    signerPublicKey = key,
+                    buildCreatorWalletSigner = buildCreatorWalletSigner,
+                    onSnapshot = {},
+                    onError = { Napier.e("Primary viewer settlement failed", it, tag = tag) },
+                    voucherRepository = voucherRepository,
+                    getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
+                    payoutFrequencyBlocks = payoutFrequencyBlocks,
+                ).also { billing = it }
+                if (current == null) target.restorePending(channel)
+                round?.let { target.onBlock(it, paid, cost).join() }
+                if (target.acceptVoucher(voucher, force = true, noteParams = params) &&
+                    currentSessionId == session && generation == billingGeneration) {
+                    // Legacy primary UI reads still use this client; never set it from unvalidated input.
+                    EscrowSessionVaultHybridManagerClient.channelId = channel
+                }
+            }
+        }
+    }
+
+    /** Terminal disconnect, unlike stop() which is a resumable UI pause. */
+    fun closeBilling() {
+        billingGeneration++
+        currentSessionId = null
+        enqueueBilling {
+            billing?.close()?.join()
+            billing = null
+        }
+    }
 
     @Volatile
     private var blocksConsumed: Int = 0
@@ -99,7 +204,11 @@ internal class LiquidStreamBlockConsumptionManager(
 
     @Volatile
     var payoutFrequencyBlocks: Int = 1
-    private var lastSettledBlockCount: Int = 0
+        set(value) {
+            require(value > 0)
+            field = value
+            enqueueBilling { billing?.updatePayoutFrequencyBlocks(value)?.join() }
+        }
 
     fun start(sessionId: String) {
         Napier.e(
@@ -123,6 +232,7 @@ internal class LiquidStreamBlockConsumptionManager(
         }
 
         stop()
+        if (currentSessionId != null && currentSessionId != sessionId) closeBilling()
 
         val viewModel =
             getViewModel() ?: run {
@@ -139,14 +249,13 @@ internal class LiquidStreamBlockConsumptionManager(
             blocksConsumed = 0
             paidBlocksConsumed = 0
             freeBlocksConsumed = 0
-            lastSettledBlockCount = 0
             freeChatCount = 0L
             tipChatCount = 0L
             tipChatTotalMicroUsdc = 0L
+            startRound = 0L
+            lastSettledMicroUsdc = 0L
         }
         currentSessionId = sessionId
-
-        processPendingSettlements()
 
         viewModel.monitorBlockchainBlocks()
         viewModel.startRealtimeBlockNumberUpdates()
@@ -165,6 +274,9 @@ internal class LiquidStreamBlockConsumptionManager(
                     if (blockNumber == null) {
                         return@collect
                     }
+                    val paid = getIsPaidStreaming()
+                    val cost = viewModel.currentCostPerBlockMicroUsdc
+                    enqueueBilling { billing?.onBlock(blockNumber, paid, cost)?.join() }
 
                     val previous = lastObservedBlock
 
@@ -248,21 +360,13 @@ internal class LiquidStreamBlockConsumptionManager(
             tag = tag,
         )
 
-        val sessionId = currentSessionId
-        if (sessionId != null) {
-            scope.launch {
-                triggerSettlementFromViewerVoucher(sessionId, force = true)
-            }
-        }
+        enqueueBilling { billing?.requestSettlement()?.join() }
 
         blockDrivenConsumptionJob?.cancel()
         blockDrivenConsumptionJob = null
 
         getViewModel()?.stopRealtimeBlockNumberUpdates()
 
-        val jobToCancel = settlementJob
-        settlementJob = null
-        jobToCancel?.cancel()
     }
 
     private suspend fun consumeBlockSequentially() {
@@ -357,330 +461,4 @@ internal class LiquidStreamBlockConsumptionManager(
         )
     }
 
-    private suspend fun startSettlement(
-        sessionId: String,
-        viewerAddress: String?,
-        creatorAddress: String,
-        signatureBase64: String,
-        viewerPublicKeyBase64: String,
-        signedTotalAmount: Long,
-        localBlocksConsumed: Int,
-        voucherBlockNumber: Long? = null,
-        channelIdBase64: String? = null,
-        note: String,
-    ) {
-        Napier.d(
-            "[SESSION_VAULT_CLAIM_ATTEMPT] " +
-                "session=$sessionId " +
-                "viewer=$viewerAddress " +
-                "blocks=$localBlocksConsumed " +
-                "voucherBlock=$voucherBlockNumber " +
-                "hasChannelId=${!channelIdBase64.isNullOrBlank()}",
-            tag = tag,
-        )
-
-        val viewModel = getViewModel()
-        val currentBlock = viewModel?.currentBlockNumber?.value
-
-        if (VoucherSettlementPolicy.isTooStaleToSettle(currentBlock, voucherBlockNumber)) {
-            Napier.d(
-                "[SESSION_VAULT_CLAIM_SKIP] " +
-                    "reason=block_diff_too_high " +
-                    "session=$sessionId " +
-                    "current=$currentBlock " +
-                    "voucher=$voucherBlockNumber",
-                tag = tag,
-            )
-            // Delete voucher from DB immediately as requested
-            voucherRepository.deleteVoucher(sessionId, viewerAddress, channelIdBase64)
-            return
-        }
-
-        val settlementResult =
-            try {
-                /**
-                 * Session stopped while suspended.
-                 * Guard is only active if currentSessionId is non-null (active streaming).
-                 * Pending settlements during app-restart (currentSessionId == null) bypass this check.
-                 */
-                if (currentSessionId != null && sessionId != currentSessionId) {
-                    error("Session changed during settlement")
-                }
-
-                val signer =
-                    buildCreatorWalletSigner(creatorAddress)
-                        ?: error("Unsupported creator account")
-
-                @OptIn(ExperimentalEncodingApi::class)
-                val channelId = channelIdBase64?.let { Base64.decode(it) }
-
-                val refreshed =
-                    withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
-                        MppPayments.getSessionDynamicDataFromVault(channelId)
-                    }
-
-                val refreshedSettled =
-                    refreshed?.lastSettled ?: 0L
-
-                if (signedTotalAmount <= refreshedSettled) {
-                    Napier.e(
-                        "[SESSION_VAULT_CLAIM_SKIP] " +
-                            "reason=nothing_to_settle " +
-                            "signedTotal=$signedTotalAmount " +
-                            "onChainSettled=$refreshedSettled",
-                        tag = tag,
-                    )
-
-                    Result.success("nothing_to_settle")
-                } else {
-                    @OptIn(ExperimentalEncodingApi::class)
-                    val signature = Base64.decode(signatureBase64)
-
-                    // Must be the viewer's (payer's) registered session key — the one their
-                    // settlement LogicSig was compiled and registered on-chain with — not the
-                    // creator's own signer key, since the creator's device is only the one
-                    // submitting this settlement transaction, not the channel's payer.
-                    @OptIn(ExperimentalEncodingApi::class)
-                    val viewerAuthorizedSignerPublicKey = Base64.decode(viewerPublicKeyBase64)
-                    val settleResult =
-                        try {
-                            Result.success(
-                                withTimeout(CHAIN_WRITE_TIMEOUT_MS.milliseconds) {
-                                    MppPayments
-                                        .settleFromLogicSig(
-                                            funderSigner = signer,
-                                            cumulativeAmountMicroUsdc = signedTotalAmount,
-                                            voucherSignature = signature,
-                                            authorizedSignerPublicKey = viewerAuthorizedSignerPublicKey,
-                                            payeeAddress = creatorAddress,
-                                            channelId = channelId,
-                                            note = note,
-                                        ).getOrThrow()
-                                },
-                            )
-                        } catch (ce: CancellationException) {
-                            throw ce
-                        } catch (t: Throwable) {
-                            Result.failure(t)
-                        }
-
-                    if (settleResult.isSuccess) {
-                        settleResult
-                    } else {
-                        val err = settleResult.exceptionOrNull()
-                        val nothingToSettleAssert =
-                            MppPayments.isNothingToSettleError(err?.message.orEmpty())
-                        val postFailureData =
-                            if (nothingToSettleAssert) {
-                                withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
-                                    MppPayments.getSessionDynamicDataFromVault(channelId)
-                                }
-                            } else {
-                                null
-                            }
-                        val postFailureSettled = postFailureData?.lastSettled ?: 0L
-                        val nothingLeftToSettle = signedTotalAmount <= postFailureSettled
-
-                        if (nothingToSettleAssert && nothingLeftToSettle) {
-                            Napier.e(
-                                "[SESSION_VAULT_CLAIM_SKIP] reason=already_settled signedTotal=$signedTotalAmount settled=$postFailureSettled",
-                                tag = tag,
-                            )
-                            Result.success("already_settled")
-                        } else {
-                            settleResult
-                        }
-                    }
-                }
-            } catch (ce: CancellationException) {
-                throw ce
-            } catch (t: Throwable) {
-                Result.failure(t)
-            }
-
-        settlementResult
-            .onSuccess { txId ->
-                Napier.e(
-                    "[SESSION_VAULT_CLAIM_OK] " +
-                        "txId=$txId " +
-                        "blocks=$localBlocksConsumed " +
-                        "session=$sessionId",
-                    tag = tag,
-                )
-                // Delete voucher from DB after successful settlement
-                voucherRepository.deleteVoucher(sessionId, viewerAddress, channelIdBase64)
-            }.onFailure {
-                Napier.e(
-                    "[SESSION_VAULT_CLAIM_ERR] " +
-                        "blocks=$localBlocksConsumed " +
-                        "session=$sessionId",
-                    it,
-                    tag = tag,
-                )
-            }
-    }
-
-    fun processPendingSettlements() {
-        scope.launch {
-            val vouchers = voucherRepository.getAllVouchers()
-            if (vouchers.isNotEmpty()) {
-                Napier.d("processing ${vouchers.size} pending settlements", tag = tag)
-                vouchers.forEach { voucher ->
-                    startSettlement(
-                        sessionId = voucher.sessionId,
-                        viewerAddress = voucher.viewerAddress,
-                        creatorAddress = voucher.creatorAddress,
-                        signatureBase64 = voucher.signatureBase64,
-                        viewerPublicKeyBase64 = voucher.viewerPublicKeyBase64,
-                        signedTotalAmount = voucher.totalAmountClaimedMicroUsdc,
-                        localBlocksConsumed = 0,
-                        voucherBlockNumber = voucher.blockNumber,
-                        channelIdBase64 = voucher.channelIdBase64,
-                        note = voucher.note,
-                    )
-                }
-            }
-        }
-    }
-
-    fun triggerSettlementFromViewerVoucher(
-        sessionId: String,
-        force: Boolean = false,
-    ) {
-        val creatorAddress = getActiveCreatorAddress()
-        val viewerAddress = getActiveViewerAddress()
-        val activeSession = currentSessionId
-        if (creatorAddress.isNullOrBlank()) {
-            Napier.e(
-                "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=creator_missing session=$sessionId",
-                tag = tag,
-            )
-            return
-        }
-        if (!force && (activeSession.isNullOrBlank() || (activeSession != sessionId))) {
-            Napier.e(
-                "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$activeSession",
-                tag = tag,
-            )
-            return
-        }
-
-        val localBlocksConsumed = blocksConsumed.coerceAtLeast(0)
-        val localPaidBlocksConsumed = paidBlocksConsumed.coerceAtLeast(0)
-
-        if (!force) {
-            val blocksSinceLastSettle = localPaidBlocksConsumed - lastSettledBlockCount
-            if (blocksSinceLastSettle < payoutFrequencyBlocks) {
-                Napier.d(
-                    "[SESSION_VAULT_SETTLEMENT_TRIGGER_DEFERRED] " +
-                        "reason=frequency_not_met " +
-                        "blocksSinceLast=$blocksSinceLastSettle " +
-                        "frequency=$payoutFrequencyBlocks",
-                    tag = tag,
-                )
-                return
-            }
-        }
-
-        if (!settlementMutex.tryLock()) {
-            Napier.e(
-                "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=request_in_flight session=$sessionId",
-                tag = tag,
-            )
-            return
-        }
-
-        val claimSnapshot =
-            getCreatorVoucherClaimSnapshot() ?: run {
-                Napier.e(
-                    "[SESSION_VAULT_CLAIM_SKIP] reason=claim_snapshot_missing",
-                    tag = tag,
-                )
-                settlementMutex.unlock()
-                return
-            }
-
-        if (claimSnapshot.sessionId != sessionId) {
-            Napier.e(
-                "[SESSION_VAULT_CLAIM_SKIP] reason=session_mismatch",
-                tag = tag,
-            )
-            settlementMutex.unlock()
-            return
-        }
-
-        val job =
-            scope.launch {
-                val currentJob = coroutineContext[Job]
-
-                try {
-                    if (!force && sessionId != currentSessionId) {
-                        Napier.e(
-                            "[SESSION_VAULT_SETTLEMENT_TRIGGER_SKIP] reason=session_mismatch session=$sessionId current=$currentSessionId",
-                            tag = tag,
-                        )
-                        return@launch
-                    }
-
-                    @OptIn(ExperimentalEncodingApi::class)
-                    val currentChannelIdBase64 = EscrowSessionVaultHybridManagerClient.channelId?.let { Base64.encode(it) }
-                    currentChannelIdBase64?.let { channelId ->
-                        // Save latest voucher to DB before settlement
-                        val viewModel = getViewModel()
-                        val currentBlock = viewModel?.currentBlockNumber?.value ?: 0L
-
-                        val noteJson =
-                            getMppVoucherNoteUseCase(
-                                GetMppVoucherNoteUseCase.Params(
-                                    channelId = channelId,
-                                    startBlock = startRound,
-                                    currentBlock = currentBlock,
-                                    freeBlocks = freeBlocksConsumed.toLong(),
-                                    paidBlocks = paidBlocksConsumed.toLong(),
-                                    costPerPaidBlock = viewModel?.currentCostPerBlockMicroUsdc ?: 0L,
-                                    settledAmount = lastSettledMicroUsdc,
-                                    totalCumulativeAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
-                                    freeChatCount = freeChatCount,
-                                    tipChatCount = tipChatCount,
-                                    tipChatTotal = tipChatTotalMicroUsdc,
-                                ),
-                            )
-                        Napier.d { "Generated voucher note: $noteJson" }
-
-                        voucherRepository.upsertVoucher(
-                            MppVoucherEntity(
-                                sessionId = sessionId,
-                                viewerAddress = viewerAddress.orEmpty(),
-                                viewerPublicKeyBase64 = claimSnapshot.viewerPublicKeyBase64,
-                                signatureBase64 = claimSnapshot.signatureBase64,
-                                totalAmountClaimedMicroUsdc = claimSnapshot.totalAmountClaimedMicroUsdc,
-                                creatorAddress = creatorAddress,
-                                blockNumber = currentBlock,
-                                channelIdBase64 = channelId,
-                                note = noteJson,
-                            ),
-                        )
-                        startSettlement(
-                            sessionId = sessionId,
-                            viewerAddress = viewerAddress,
-                            creatorAddress = creatorAddress,
-                            signatureBase64 = claimSnapshot.signatureBase64,
-                            viewerPublicKeyBase64 = claimSnapshot.viewerPublicKeyBase64,
-                            signedTotalAmount = claimSnapshot.totalAmountClaimedMicroUsdc,
-                            localBlocksConsumed = localBlocksConsumed,
-                            voucherBlockNumber = currentBlock,
-                            channelIdBase64 = channelId,
-                            note = noteJson,
-                        )
-                        lastSettledBlockCount = localPaidBlocksConsumed
-                    }
-                } finally {
-                    settlementMutex.unlock()
-                    if (settlementJob == currentJob) {
-                        settlementJob = null
-                    }
-                }
-            }
-        settlementJob = job
-    }
 }

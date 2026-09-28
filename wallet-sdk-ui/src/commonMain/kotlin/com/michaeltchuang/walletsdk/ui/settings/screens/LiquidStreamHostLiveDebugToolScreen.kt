@@ -1,301 +1,259 @@
 package com.michaeltchuang.walletsdk.ui.settings.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
-import com.michaeltchuang.walletsdk.ui.liquidStream.components.rememberStandaloneCameraPreview
-import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreenContent
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.LiquidAuthOfferScreen
+import com.michaeltchuang.walletsdk.ui.liquidAuth.screens.StreamHostUiMode
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.createCameraStreamingPreview
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
-import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
-import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
-import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamHostDebugToolViewModel
-import kotlinx.coroutines.delay
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiveDebugPermissionGate
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.rememberLiveDebugConnectionManager
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamLiveDebugViewModel
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun LiquidStreamHostDebugToolScreen(
     viewModel: LiquidStreamHostViewModel = koinViewModel(),
-    debugViewModel: LiquidStreamHostDebugToolViewModel = koinViewModel(),
-    onSettingsClick: () -> Unit = {},
+    debugViewModel: LiquidStreamLiveDebugViewModel = koinViewModel(),
     onMinimise: () -> Unit = {},
-    onQRClick: () -> Unit = {},
-    onCameraClick: (isEnabled: Boolean) -> Unit = {},
-    onMicClick: (isMuted: Boolean) -> Unit = {},
-    onRotateCamera: () -> Unit = {},
-    onStatsClick: () -> Unit = {},
-    onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
-    onSendClick: (String) -> Unit = {},
-    blockChainLabel: String = "ALGORAND",
-    balanceCurrencySymbol: String = "¦",
 ) {
-    val cameraPreviewComp = rememberStandaloneCameraPreview()
-    val uiState = viewModel.state.collectAsStateWithLifecycle().value
-    val debugState = debugViewModel.state.collectAsStateWithLifecycle().value
-    var statusMessage by remember { mutableStateOf<String?>(null) }
+    val offerViewModel: LiquidAuthOfferViewModel = koinViewModel()
+    val manager = rememberLiveDebugConnectionManager()
+    val uiState by viewModel.state.collectAsStateWithLifecycle()
+    val state by debugViewModel.state.collectAsStateWithLifecycle()
+    val streamHostUiMode = remember { mutableStateOf(StreamHostUiMode.Expanded) }
+    val cameraController = remember { CameraStreamingPreviewController() }
+    val cameraPreview =
+        remember(manager, cameraController) {
+            createCameraStreamingPreview(manager, cameraController)
+        }
 
-    DisposableEffect(debugViewModel) {
+    fun stopHost() {
+        manager.stopBlockConsumption()
+        manager.stopListening()
+        offerViewModel.stopRealtimeBlockNumberUpdates()
+        offerViewModel.stopVideoStreaming()
+        offerViewModel.clearMeshHosting()
+    }
+    
+    DisposableEffect(debugViewModel, manager, offerViewModel) {
         onDispose {
-            debugViewModel.closeAllSessions()
+           // debugViewModel.closeAllSessions()
+            debugViewModel.stopBots()
+            stopHost()
         }
     }
 
-    LaunchedEffect(debugViewModel) {
-        debugViewModel.viewEvent.collect { event ->
-            when (event) {
-                is LiquidStreamHostDebugToolViewModel.ViewEvent.ShowStatusMessage -> {
-                    statusMessage = event.message
-                }
-                is LiquidStreamHostDebugToolViewModel.ViewEvent.ChatMessageGenerated -> {
-                    viewModel.receivedChatMessage(event.message)
-                }
-            }
+    var hadLoaded by remember(debugViewModel, manager, offerViewModel) { mutableStateOf(false) }
+    LaunchedEffect(debugViewModel, manager, offerViewModel, state.loaded) {
+        if (state.loaded) {
+            hadLoaded = true
+        } else if (hadLoaded) {
+            // The loading/error return below does not dispose the screen-owned manager.
+            stopHost()
+            hadLoaded = false
         }
     }
 
-    val streamRevenueLabel =
-        if (debugState.totalRevenueMicroUsdc > 0) {
-            "+${(debugState.totalRevenueMicroUsdc / 1_000_000.0 * 100).toLong() / 100.0}"
+    val isPaid = uiState.selectedStreamCostTabId == LiquidStreamHostViewModel.STREAM_COST_PAID_TAB_ID
+    val costMicroUsdc = if (isPaid) LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC else 0L
+    val payoutBlocks =
+        if (uiState.selectedPayoutFrequencyTabId == PAYOUT_EVERY_256_BLOCKS_TAB_ID) {
+            PAYOUT_BATCH_BLOCK_COUNT
         } else {
-            "0.00"
+            1
         }
-    val blockNumberLabelLabel = debugState.liveBlockNumber?.let { "#$it" } ?: "-"
-    val securedViaLabel = debugState.liveNetworkLabel
-
-    LaunchedEffect(Unit) {
-        viewModel.viewEvent.collect { event ->
-            when (event) {
-                is LiquidStreamHostViewModel.ViewEvent.SendMessage -> onSendClick(event.message)
-                is LiquidStreamHostViewModel.ViewEvent.ShowError -> Unit
-                is LiquidStreamHostViewModel.ViewEvent.ToggleMic -> onMicClick(event.isMuted)
-                is LiquidStreamHostViewModel.ViewEvent.ToggleCamera -> onCameraClick(event.isEnabled)
-                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> {
-                    debugViewModel.setStreamCost(event.costMicroUsdc)
-                }
-                is LiquidStreamHostViewModel.ViewEvent.PayoutFrequencyChanged -> {
-                    val blocks =
-                        if (event.tabId == PAYOUT_EVERY_256_BLOCKS_TAB_ID) {
-                            PAYOUT_BATCH_BLOCK_COUNT
-                        } else {
-                            1
-                        }
-                    debugViewModel.setPayoutFrequency(blocks)
-                }
-            }
-        }
+    // Observe state rather than consuming host events also needed by the production UI.
+    LaunchedEffect(debugViewModel, state.loaded, isPaid, costMicroUsdc, payoutBlocks) {
+        if (state.loaded) debugViewModel.configure(isPaid, costMicroUsdc, payoutBlocks)
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        LiquidStreamHostLiveScreenContent(
-            cameraPreview = cameraPreviewComp,
-            creatorUsername = debugState.creatorNfdName ?: DebugAddressHolder.creatorAddress.toShortenedAddress(),
-            creatorAvatarUrl = debugState.creatorNfdAvatarUrl,
-            numbersOfViewer = debugState.viewers.size.toString(),
-            onSettingsClick = {
-                viewModel.onSettingsClicked()
-                onStatsModalVisibilityChanged(false)
-                onSettingsClick()
-            },
-            onMinimise = onMinimise,
-            onCameraClick = viewModel::onCameraClicked,
-            onMicClick = viewModel::onMicClicked,
-            onRotateCamera = onRotateCamera,
-            onStatsClick = {
-                val isStatsVisible = !uiState.isStatsModalVisible
-                viewModel.onStatsClicked()
-                onStatsModalVisibilityChanged(isStatsVisible)
-                onStatsClick()
-            },
-            onQrClick = {
-                viewModel.onQrClicked()
-                onQRClick()
-            },
-            onQrDismissed = viewModel::onQrDismissed,
-            requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
-            liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
-            showQrButton = false,
-            onSendClickInternal = { viewModel.onSendClicked() },
-            viewers = debugState.viewers,
-            blockChainLabel = blockChainLabel,
-            balanceCurrencySymbol = balanceCurrencySymbol,
-            streamRevenue = streamRevenueLabel,
-            blockNumberLabel = blockNumberLabelLabel,
-            securedViaLabel = securedViaLabel,
-            uiState = uiState,
-            onTextChanged = viewModel::onMessageChanged,
-            onStatsDismissed = {
-                viewModel.onStatsDismissed()
-                onStatsModalVisibilityChanged(false)
-            },
-            onStreamCostTabSelected = viewModel::onStreamCostTabSelected,
-            onPayoutFrequencyTabSelected = viewModel::onPayoutFrequencyTabSelected,
-            onSubsidizeViewerFeesChanged = viewModel::onSubsidizeViewerFeesChanged,
-            onSettingsDismissed = viewModel::onSettingsDismissed,
+    if (!state.loaded) {
+        Text(
+            text = state.error ?: "Loading debug viewers…",
+            modifier = Modifier.padding(24.dp),
         )
+        return
+    }
 
-        LaunchedEffect(uiState.selectedStreamCostTabId) {
-            val isPaid = uiState.selectedStreamCostTabId == LiquidStreamHostViewModel.STREAM_COST_PAID_TAB_ID
-            debugViewModel.setIsPaidStreaming(isPaid)
-        }
+    LiveDebugPermissionGate {
+        LiveDebugOfferContent(
+            state = state,
+            debugViewModel = debugViewModel,
+            manager = manager,
+            cameraController = cameraController,
+            cameraPreview = cameraPreview,
+            streamHostUiMode = streamHostUiMode,
+            isPaid = isPaid,
+            costMicroUsdc = costMicroUsdc,
+            payoutBlocks = payoutBlocks,
+            onMinimise = onMinimise,
+        )
+    }
+}
 
-        // Floating Debug Status Info
-        Column(
+@Composable
+private fun LiveDebugOfferContent(
+    state: LiquidStreamLiveDebugViewModel.State,
+    debugViewModel: LiquidStreamLiveDebugViewModel,
+    manager: LiquidAuthConnectionManager,
+    cameraController: CameraStreamingPreviewController,
+    cameraPreview: @Composable () -> Unit,
+    streamHostUiMode: MutableState<StreamHostUiMode>,
+    isPaid: Boolean,
+    costMicroUsdc: Long,
+    payoutBlocks: Int,
+    onMinimise: () -> Unit,
+) {
+    val isSolana = state.network.startsWith("solana", ignoreCase = true)
+    LiquidAuthOfferScreen(
+        origin = "https://liquid-auth-api.pg.nodely.dev/",
+        onBackPressed = onMinimise,
+        onMinimise = onMinimise,
+        cameraPreview = cameraPreview,
+        cameraPreviewController = cameraController,
+        connectionManager = manager,
+        streamHostUiModeState = streamHostUiMode,
+        creatorAddress = state.creator,
+        creatorAssetId = state.assetId,
+        enablePaidStreaming = isPaid,
+        paymentCurrencyLabel = if (isSolana) "SOL" else "ALGO",
+        blockChainLabel = if (isSolana) "Solana" else "Algorand",
+        balanceCurrencySymbol = if (isSolana) "S" else "A",
+        paymentNetworkOverride = state.network,
+        debugViewerDetails = state.botDetails,
+        debugFullscreen = true,
+        debugContent = {
+            LiveDebugContent(state = state)
+        },
+    )
+
+    // Entered only after loading and permission approval. Running/funding updates must not restart bots.
+    LaunchedEffect(Unit) {
+        debugViewModel.configure(isPaid, costMicroUsdc, payoutBlocks)
+        debugViewModel.startBots { message -> manager.relayDebugViewerChat(message) }
+    }
+}
+
+@Composable
+private fun LiveDebugContent(
+    state: LiquidStreamLiveDebugViewModel.State,
+) {
+    Box(
+        modifier =
+            Modifier
+                .clip(RoundedCornerShape(15.dp))
+                .background(
+                    brush =
+                        Brush.horizontalGradient(
+                            colorStops =
+                                arrayOf(
+                                    0.00f to Color(0xFFAFEFF5),
+                                    0.10f to Color(0x00AFEFF5),
+                                    1.00f to Color(0x00AFEFF5),
+                                ),
+                        ),
+                ).padding(start = 2.dp),
+    ) {
+        Row(
             modifier =
                 Modifier
-                    .padding(16.dp)
-                    .width(200.dp)
-                    .align(Alignment.TopStart)
-                    .padding(top = 100.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                    .background(Color.Black.copy(alpha = 0.8f), RoundedCornerShape(15.dp))
+                    .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            statusMessage?.let { msg ->
-                androidx.compose.material3.Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors =
-                        androidx.compose.material3.CardDefaults.cardColors(
-                            containerColor = if (msg.startsWith("✅")) Color(0xFFE8F5E9) else Color(0xFFFFEBEE),
-                        ),
-                ) {
-                    Text(
-                        text = msg,
-                        modifier = Modifier.padding(8.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (msg.startsWith("✅")) Color(0xFF2E7D32) else Color(0xFFC62828),
-                    )
-                }
-
-                LaunchedEffect(msg) {
-                    delay(5000.milliseconds)
-                    statusMessage = null
-                }
+            if (state.isFunding) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = Color.White,
+                )
             }
-
-            if (debugState.isLoading) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                    Text("Auto-processing on-chain...", style = MaterialTheme.typography.labelSmall, color = Color.White)
-                }
-            }
+            Text(
+                    when {
+                        state.error != null -> "System Bot billing: ${state.error}"
+                        state.billingErrors.isNotEmpty() -> state.billingErrors.entries.first().let {
+                            "System Bot billing: ${it.key}: ${it.value}"
+                        }
+                        state.isFunding -> "Funding 1 USDC per bot…"
+                        state.running -> "Bots running · ${state.botDetails.size} debug viewers"
+                        state.isFundAdded && state.fundedAddresses.isNotEmpty() ->
+                            "Fund added successfully to ${state.fundedAddresses.joinToString(", ")}"
+                        else -> "Bots stopped"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                )
         }
     }
 }
 
 @Preview
 @Composable
-fun LiquidStreamHostDebugScreenPreview() {
+fun LiveDebugContentPreview() {
     AlgoKitTheme {
-        var uiState by remember {
-            mutableStateOf(
-                LiquidStreamHostViewModel.UiState(
-                    chatMessages =
-                        listOf(
-                            ChatUiMessage(
-                                sender = "michaeltchuang.algo",
-                                text = "Hello from the preview!",
-                                timestamp = 0L,
-                            ),
-                            ChatUiMessage(
-                                sender = "viewer.algo",
-                                text = "This is a preview message",
-                                timestamp = 0L,
-                            ),
-                            ChatUiMessage(
-                                sender = "gift.algo",
-                                text = "Supporting the stream!",
-                                timestamp = 0L,
-                                amount = "10.0",
-                                asset = "USDC",
-                            ),
-                        ),
-                ),
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            LiveDebugContent(
+                state =
+                    LiquidStreamLiveDebugViewModel.State(
+                        running = true,
+                    ),
+            )
+            LiveDebugContent(
+                state =
+                    LiquidStreamLiveDebugViewModel.State(
+                        isFunding = true,
+                    ),
+            )
+            LiveDebugContent(
+                state =
+                    LiquidStreamLiveDebugViewModel.State(
+                        isFundAdded = true,
+                        fundedAddresses = listOf("0x123...abcabbdjabdbabdjabdjabjhdbjbdjabjdbajhbdhjabj abdaj abdab"),
+                    ),
+            )
+            LiveDebugContent(
+                state =
+                    LiquidStreamLiveDebugViewModel.State(
+                        running = false,
+                    ),
             )
         }
-        LiquidStreamHostLiveScreenContent(
-            cameraPreview = null,
-            creatorUsername = "michaeltchuang.algo",
-            numbersOfViewer = "1",
-            onSettingsClick = {
-                uiState =
-                    uiState.copy(
-                        isSettingsModalVisible = true,
-                        isStatsModalVisible = false,
-                        isQrModalVisible = false,
-                    )
-            },
-            onMinimise = {},
-            onCameraClick = { uiState = uiState.copy(isCameraEnabled = !uiState.isCameraEnabled) },
-            onMicClick = { uiState = uiState.copy(isMicMuted = !uiState.isMicMuted) },
-            onRotateCamera = {},
-            onStatsClick = {
-                uiState =
-                    uiState.copy(
-                        isStatsModalVisible = !uiState.isStatsModalVisible,
-                        isSettingsModalVisible = false,
-                        isQrModalVisible = false,
-                    )
-            },
-            onQrClick = {
-                uiState =
-                    uiState.copy(isQrModalVisible = !uiState.isQrModalVisible, isSettingsModalVisible = false, isStatsModalVisible = false)
-            },
-            onQrDismissed = { uiState = uiState.copy(isQrModalVisible = false) },
-            requestId = "C4FEC83F-8C43-401B-A739-77C87F83835B",
-            liquidAuthUrl = "https://liquid-auth.example/connect/C4FEC83F-8C43-401B-A739-77C87F83835B",
-            showQrButton = false,
-            onSendClickInternal = { uiState = uiState.copy(message = "") },
-            viewers =
-                listOf(
-                    ConnectedViewerInfo(
-                        sessionId = "session-preview-id",
-                        remainingBalanceUSDC = 12.0,
-                        progressBalanceUSDC = 11.9,
-                        progressCapacityUSDC = 12.0,
-                        revenueCapacityUSDC = 12.0,
-                        connectionType = IceConnectionType.UNKNOWN,
-                        currentBlockNumber = 38291041L,
-                        networkLabel = "TESTNET",
-                        originUrl = "https://example.app",
-                    ),
-                ),
-            blockChainLabel = "ALGORAND",
-            balanceCurrencySymbol = "A",
-            streamRevenue = "+0.00",
-            blockNumberLabel = "#38291041",
-            uiState = uiState,
-            onTextChanged = { message -> uiState = uiState.copy(message = message) },
-            onStatsDismissed = { uiState = uiState.copy(isStatsModalVisible = false) },
-            onStreamCostTabSelected = { tabId -> uiState = uiState.copy(selectedStreamCostTabId = tabId) },
-            onPayoutFrequencyTabSelected = { tabId -> uiState = uiState.copy(selectedPayoutFrequencyTabId = tabId) },
-            onSubsidizeViewerFeesChanged = { enabled -> uiState = uiState.copy(subsidizeViewerFeesEnabled = enabled) },
-            onSettingsDismissed = { uiState = uiState.copy(isSettingsModalVisible = false) },
-        )
     }
 }

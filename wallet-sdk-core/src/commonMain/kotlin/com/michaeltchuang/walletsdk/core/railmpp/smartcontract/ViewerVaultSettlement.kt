@@ -188,6 +188,7 @@ class ViewerVaultSettlement internal constructor(
         signature: ByteArray,
         cumulativeAmount: Long,
         network: String,
+        note: String = "N/A",
     ): Result<String> {
         val channel = channelId.copyOf()
         val signerKey = authorizedSignerPublicKey.copyOf()
@@ -216,7 +217,7 @@ class ViewerVaultSettlement internal constructor(
                         voucherSignature,
                         signerKey,
                         creatorAddress,
-                        "N/A".encodeToByteArray(),
+                        note.encodeToByteArray(),
                     ),
                 )
             } catch (e: CancellationException) {

@@ -288,8 +288,9 @@ object MppPayments {
         channelId: ByteArray,
         cumulativeAmountMicroUsdc: Long,
         payeeAddress: String,
+        appId: Long = EscrowSessionVaultHybridManagerClient.appId,
     ): ByteArray =
-        encodeUint64(EscrowSessionVaultHybridManagerClient.appId) +
+        encodeUint64(appId) +
             channelId +
             encodeUint64(cumulativeAmountMicroUsdc) +
             com.michaeltchuang.walletsdk.core.railmpp.internal

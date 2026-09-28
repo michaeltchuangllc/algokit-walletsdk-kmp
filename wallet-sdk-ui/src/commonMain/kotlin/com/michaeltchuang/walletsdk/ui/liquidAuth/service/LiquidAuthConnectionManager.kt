@@ -76,6 +76,9 @@ expect class LiquidAuthConnectionManager(
      */
     fun sendChatMessage(message: ChatMessage)
 
+    /** Debug bot billing has already recorded this message; do not charge primary counters. */
+    internal fun relayDebugViewerChat(message: ChatMessage)
+
     /**
      * Check if currently connected to a peer.
      */

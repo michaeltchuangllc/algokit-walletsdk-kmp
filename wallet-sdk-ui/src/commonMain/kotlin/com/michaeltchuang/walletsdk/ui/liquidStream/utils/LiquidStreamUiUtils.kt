@@ -1,5 +1,37 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.utils
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+
+
+enum class TextCasing {
+    UPPERCASE,
+    LOWERCASE,
+    ORIGINAL,
+}
+
+
+fun formatDisplayName(
+    input: String?,
+    casing: TextCasing = TextCasing.ORIGINAL,
+): String {
+    if (input.isNullOrBlank()) return ""
+    val isAddress = input.length >= 50
+    val formatted =
+        if (isAddress) {
+            input.toShortenedAddress().uppercase()
+        } else {
+            input
+        }
+    if (isAddress) {
+        return formatted
+    }
+    return when (casing) {
+        TextCasing.UPPERCASE -> formatted.uppercase()
+        TextCasing.LOWERCASE -> formatted.lowercase()
+        TextCasing.ORIGINAL -> formatted
+    }
+}
+
 /**
  * Formats revenue into a string with two decimal places and a '+' prefix if positive.
  * Example: 6.0 -> "+6.00", 6.123 -> "+6.12", 0.0 -> "0.00"

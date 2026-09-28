@@ -36,6 +36,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.TextCasing
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatDisplayName
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -77,9 +79,10 @@ fun ChatStack(
 
 @Composable
 private fun ChatMessageItem(message: ChatUiMessage) {
+    val displaySender = formatDisplayName(message.sender, TextCasing.LOWERCASE)
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(
-            text = "@${message.sender.uppercase()}",
+            text = "@$displaySender",
             color = Color(0xFFB4D2DB).copy(alpha = 0.9f),
             maxLines = 1,
             fontSize = 11.sp,
@@ -135,6 +138,7 @@ private val GiftGradient =
 
 @Composable
 private fun GiftMessageItem(message: ChatUiMessage) {
+    val displaySender = formatDisplayName(message.sender, TextCasing.LOWERCASE)
     Box(
         modifier =
             Modifier
@@ -172,7 +176,7 @@ private fun GiftMessageItem(message: ChatUiMessage) {
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            text = "@${message.sender.lowercase()}",
+                            text = "@$displaySender",
                             color = Color(0xFFE8F4FF),
                             fontSize = 12.sp,
                             maxLines = 1,
@@ -254,17 +258,17 @@ fun ChatStackPreview() {
                     listOf(
                         ChatUiMessage(
                             sender = "michaeltchuang.algo",
-                            text = "This is a preview message",
+                            text = "Message with NFD username available",
                             timestamp = 0L,
                         ),
                         ChatUiMessage(
-                            sender = "BLOCK_RUNNER",
-                            text = "The micro-billing is so smooth here.",
+                            sender = "P2NLGCABQGLZRNR3CQ3XMLO3HFCIK5QQG42FZ7ZFBKWE43UZTHS4O2NT74",
+                            text = "Message when NFD username is NOT available (raw address)",
                             timestamp = 0L,
                         ),
                         ChatUiMessage(
-                            sender = "algo25.liquidstream.algo",
-                            text = "Supporting the stream!",
+                            sender = "P2NLGCABQGLZRNR3CQ3XMLO3HFCIK5QQG42FZ7ZFBKWE43UZTHS4O2NT74",
+                            text = "Supporting the stream without NFD!",
                             timestamp = 0L,
                             amount = "10.0",
                             asset = "USDC",

@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.settings.domain
+package com.michaeltchuang.walletsdk.ui.settings.utils.debug
 
 object DebugAddressHolder {
     var viewerAddresses: ArrayList<String> = arrayListOf("", "", "")

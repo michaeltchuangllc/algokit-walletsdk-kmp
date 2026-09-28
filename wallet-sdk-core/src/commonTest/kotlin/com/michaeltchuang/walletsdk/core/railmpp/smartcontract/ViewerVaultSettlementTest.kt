@@ -83,6 +83,17 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
+    fun `EXPECT the supplied voucher note to reach transaction submission`() = runTest {
+        val note = """{"v":1,"channel":"viewer-channel","cumulative_total":500}"""
+        val fake = Fake().apply { expectedNote = note }
+        assertEquals(
+            "fake-tx",
+            fake.api.settle(viewer, creator, key, channel, signature, 500, network, note).getOrThrow(),
+        )
+        assertEquals(1, fake.submissions)
+    }
+
+    @Test
     fun `EXPECT companion validation to need no wallet and reject a forged high watermark WHEN validating a voucher`() =
         runTest {
             var checks = 0
@@ -116,7 +127,7 @@ class ViewerVaultSettlementTest {
                 )
 
             assertTrue(validate(1_000, byteArrayOf(0)).isFailure)
-            assertEquals(HostViewerVaultReader.Snapshot(700, 300, 500, 1_000), validate(500, signature).getOrThrow())
+            assertEquals(HostViewerVaultReader.Snapshot(700, 300, 500, 1_000, startRound = 0), validate(500, signature).getOrThrow())
             assertEquals(2, checks)
         }
 
@@ -152,7 +163,7 @@ class ViewerVaultSettlementTest {
         runTest {
             val fake = Fake()
             assertEquals(
-                HostViewerVaultReader.Snapshot(700, 300, 500, 1_000),
+                HostViewerVaultReader.Snapshot(700, 300, 500, 1_000, startRound = 0),
                 fake.api.readSnapshot(viewer, creator, key, channel, network).getOrThrow(),
             )
             assertEquals(2, fake.boxReads)
@@ -180,7 +191,7 @@ class ViewerVaultSettlementTest {
         runTest {
             val fake = Fake()
             assertEquals(
-                HostViewerVaultReader.Snapshot(700, 300, 500, 1_000),
+                HostViewerVaultReader.Snapshot(700, 300, 500, 1_000, startRound = 0),
                 fake.api.validateVoucher(viewer, creator, key, channel, signature, 500, network).getOrThrow(),
             )
             assertEquals(1, fake.signatureChecks)
@@ -543,12 +554,14 @@ class ViewerVaultSettlementTest {
                     assertContentEquals(signature, sig)
                     assertContentEquals(key, publicKey)
                     assertEquals(creator, payee)
-                    assertContentEquals("N/A".encodeToByteArray(), note)
+                    assertContentEquals(expectedNote.encodeToByteArray(), note)
                     submittedAmount = amount
                     submitFailure?.let { throw it }
                     "fake-tx"
                 },
             )
+
+        var expectedNote = "N/A"
 
         suspend fun settle(
             viewerAddress: String = viewer,
