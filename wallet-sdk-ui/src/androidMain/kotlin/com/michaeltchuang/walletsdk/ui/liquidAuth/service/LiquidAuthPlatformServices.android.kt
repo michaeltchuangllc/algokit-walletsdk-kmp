@@ -21,6 +21,8 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
@@ -33,6 +35,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import foundation.algorand.provider.Message
 import foundation.algorand.provider.avm.models.SignTransactionsParams
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -68,6 +72,19 @@ actual class LiquidAuthPlatformServices(
     private val _signalService = MutableStateFlow<SignalService?>(null)
     val signalService = _signalService
 
+    // Polls the viewer's own ICE connection type (LOCAL/STUN/RELAY) from the bound SignalService's
+    // WebRTC stats. The polling harness (LiquidAuthPollingJobController) is shared with the host
+    // side (LiquidAuthConnectionManager) and iOS's viewer path; only this Android-specific
+    // detection call differs, since it reads stats off org.webrtc.PeerConnection directly, whereas
+    // iOS delegates to a native Swift callback.
+    private var viewerConnectionTypeTarget: AnswerViewModel? = null
+    private val viewerConnectionTypePollingController =
+        LiquidAuthPollingJobController(
+            scope = CoroutineScope(Dispatchers.Default),
+            runImmediately = true,
+            onPoll = { detectAndPublishViewerConnectionType() },
+        )
+
     val viewEvent get() = eventDelegate.viewEvent
 
     fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
@@ -84,6 +101,7 @@ actual class LiquidAuthPlatformServices(
         context: Context,
         viewModel: AnswerViewModel,
     ) {
+        stopViewerConnectionTypePolling()
         viewModel.stopMppPaymentViewer()
         _signalService.value?.stop()
         signalServiceConnection?.let { manageSignalServiceUseCase.unbind(context, it) }
@@ -93,6 +111,41 @@ actual class LiquidAuthPlatformServices(
 
     fun stopSignalService() {
         _signalService.value?.stop()
+    }
+
+    /**
+     * Starts polling [viewModel]'s viewer connection type from the bound SignalService's WebRTC
+     * stats, mirroring the host-side detection so the "Connected Viewers" analytics card shows the
+     * real network type instead of always defaulting to UNKNOWN.
+     */
+    fun startViewerConnectionTypePolling(viewModel: AnswerViewModel) {
+        viewerConnectionTypeTarget = viewModel
+        viewerConnectionTypePollingController.start()
+    }
+
+    fun stopViewerConnectionTypePolling() {
+        viewerConnectionTypePollingController.stop()
+        viewerConnectionTypeTarget = null
+    }
+
+    private fun detectAndPublishViewerConnectionType() {
+        val viewModel = viewerConnectionTypeTarget ?: return
+        val service = _signalService.value ?: return
+        if (service.peerConnection == null) return
+        service.detectConnectionType { type ->
+            val mappedType =
+                when (type) {
+                    SignalService.IceConnectionType.LOCAL -> IceConnectionType.LOCAL
+                    SignalService.IceConnectionType.STUN -> IceConnectionType.STUN
+                    SignalService.IceConnectionType.RELAY -> IceConnectionType.RELAY
+                    SignalService.IceConnectionType.FAILED -> IceConnectionType.FAILED
+                    SignalService.IceConnectionType.UNKNOWN -> IceConnectionType.UNKNOWN
+                }
+            if (viewModel.connectionType.value != mappedType) {
+                viewModel.setConnectionType(mappedType)
+                Napier.d(tag = TAG, message = "🌐 Viewer connection type changed: ${mappedType.displayName()}")
+            }
+        }
     }
 
     fun isHostPeerConnectionReady(service: SignalService?): Boolean = service?.peerConnection != null

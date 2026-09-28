@@ -9,6 +9,12 @@ interface MppVoucherRepository {
 
     suspend fun deleteVoucherByChannelId(channelIdBase64: String)
 
+    /** Keep any newer cumulative voucher that arrived while settlement was in flight. */
+    suspend fun deleteSettledVoucher(channelIdBase64: String, confirmedAmount: Long)
+
+    /** Atomically discard only dated vouchers from a previous lifetime on this network. */
+    suspend fun deleteVouchersBeforeRound(channelIdBase64: String, network: String, startRound: Long)
+
     suspend fun deleteVoucherBySessionAndViewer(
         sessionId: String,
         viewerAddress: String,

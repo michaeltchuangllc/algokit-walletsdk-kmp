@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.figma_ic_drop
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_analytics
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_eye
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_gift
@@ -544,116 +543,7 @@ private fun GiftTickerCard() {
     }
 }
 
-@Composable
-private fun ChatStack(messages: List<ChatUiMessage>) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        for (message in messages.takeLast(5)) {
-            if (message.amount != null) {
-                GiftMessageItem(message)
-            } else {
-                ChatMessageItem(message)
-            }
-        }
-    }
-}
 
-@Composable
-private fun ChatMessageItem(message: ChatUiMessage) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = "@${message.sender.take(3)}",
-            color = Color(0xFFB4D2DB),
-            fontSize = 14.sp / 1.4f,
-            letterSpacing = 1.sp,
-        )
-
-        Box(
-            modifier =
-                Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xCC082947))
-                    .padding(horizontal = 14.dp, vertical = 11.dp),
-        ) {
-            Text(
-                text = message.text,
-                color = Color(0xFFD8EAF2),
-                fontSize = 14.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
-@Composable
-private fun GiftMessageItem(message: ChatUiMessage) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = Color.Transparent,
-        modifier =
-            Modifier.background(
-                brush =
-                    Brush.horizontalGradient(
-                        colors = listOf(Color(0xCC2B3BFF), Color(0xCC1E93E0), Color(0xCC1D6F7D)),
-                    ),
-                shape = RoundedCornerShape(18.dp),
-            ),
-    ) {
-        Column(
-            modifier = Modifier.padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    vectorResource(Res.drawable.figma_ic_drop),
-                    contentDescription = null,
-                    tint = Color(0xFF2ED8EA),
-                    modifier = Modifier.size(14.dp),
-                )
-                Spacer(Modifier.width(6.dp))
-                Text("@${message.sender.take(8)}", color = Color(0xFFE8F4FF), fontSize = 18.sp / 1.5f)
-                Spacer(Modifier.weight(1f))
-                Box(
-                    modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x3398EDF0))
-                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                ) {
-                    Text(
-                        text = "GIFT SUPERCHAT",
-                        color = Color(0xFFEBF9FF),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
-                    )
-                }
-            }
-            Text(
-                text = message.text,
-                color = Color(0xFFF4F8FF),
-                fontSize = 14.sp,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier =
-                        Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0x4DE9FCFF))
-                            .padding(horizontal = 10.dp, vertical = 3.dp),
-                ) {
-                    Text(
-                        "${message.amount} ${message.asset}",
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                    )
-                }
-                Spacer(Modifier.weight(1f))
-                Text(text = "›", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
 
 @Composable
 private fun FloatingButtons(
@@ -747,11 +637,10 @@ private fun ChatComposer(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(70.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0x668A9AAC))
                 .border(1.dp, Color(0x40D7E6EE), RoundedCornerShape(22.dp))
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
@@ -820,16 +709,6 @@ private fun ChatComposer(
                 }
             },
         )
-        Box(
-            modifier =
-                Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .border(1.dp, Color(0x66D4E6EE), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("☺", color = Color(0xBFE0EFF5), fontSize = 14.sp)
-        }
         Box(
             modifier =
                 Modifier

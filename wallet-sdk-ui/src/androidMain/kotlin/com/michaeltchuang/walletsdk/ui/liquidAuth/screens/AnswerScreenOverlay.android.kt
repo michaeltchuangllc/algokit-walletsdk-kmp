@@ -413,6 +413,13 @@ private suspend fun handleWebRTCSetup(
         var viewerSetupDone = false
         var credentialSent = false
 
+        // Detect and keep publishing the viewer's own ICE connection type (LOCAL/STUN/RELAY),
+        // mirroring the host side, so the viewer's "Connected Viewers" analytics card shows the
+        // real network type instead of always defaulting to UNKNOWN. Polling lives in
+        // LiquidAuthPlatformServices (shared with signalService lifecycle) and is stopped
+        // automatically by unbindSignalService.
+        viewModel.startViewerConnectionTypePolling()
+
         fun sendCredentialWhenOpen() {
             val service = viewModel.signalService.value ?: return
             if (credentialSent || service.dataChannel?.state() != org.webrtc.DataChannel.State.OPEN) return

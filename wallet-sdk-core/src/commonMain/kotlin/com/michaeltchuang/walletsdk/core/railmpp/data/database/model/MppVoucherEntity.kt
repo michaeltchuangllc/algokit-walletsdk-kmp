@@ -43,4 +43,6 @@ data class MppVoucherEntity(
     val blockNumber: Long,
     @ColumnInfo("note")
     val note: String,
+    @ColumnInfo(name = "network", defaultValue = "NULL")
+    val network: String? = null,
 )

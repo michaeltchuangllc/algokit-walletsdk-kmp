@@ -52,6 +52,7 @@ fun AnswerScreen(
     val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel()
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
+    val connectionType by viewModel.connectionType.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val hostAddress by viewModel.hostAddress.collectAsState()
     val errorMessage by viewModel.error.collectAsState()
@@ -174,7 +175,8 @@ fun AnswerScreen(
             ) {
                 LiquidStreamViewerScreen(
                     viewModel = viewerViewModel,
-                    sessionId = session,
+                    sessionId = message?.requestId.orEmpty(),
+                    connectionType = connectionType,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = accountAddress,
                     creatorAddress = hostAddress,

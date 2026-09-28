@@ -16,7 +16,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.CreationType
 import com.michaeltchuang.walletsdk.core.foundation.utils.manager.AccountCreationManager
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
-import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.DebugAddressHolder
 import com.michaeltchuang.walletsdk.ui.settings.screens.networkNodeSettings
 import kotlinx.coroutines.launch
 

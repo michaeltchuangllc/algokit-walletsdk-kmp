@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandl
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastViewerStopHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosMeshHostingIntegrated
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerDetectConnectionTypeHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerPaymentDCSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHandler
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
@@ -568,7 +569,10 @@ fun setViewerSendMessageHandler(handler: (String) -> Unit) {
 }
 
 fun setViewerStopHandler(handler: () -> Unit) {
-    iosViewerStopHandler = handler
+    iosViewerStopHandler = {
+        viewerConnectionTypeString = "unknown"
+        handler()
+    }
 }
 
 fun setViewerPaymentSendMessageHandler(handler: ((String) -> Unit)?) {
@@ -585,6 +589,15 @@ var iosViewerMinimizeHandler: (() -> Unit)? = null
 
 var isBroadcastChannelOpen: Boolean = false
 var broadcastConnectionTypeString: String = "unknown"
+
+/**
+ * Mirrors [broadcastConnectionTypeString] for the viewer (answerer) side of a Liquid Auth
+ * stream: Swift's [SignalService] polls its own `RTCPeerConnection.statistics()` on a timer
+ * and pushes the classified result here via [notifyViewerConnectionType], so the synchronous
+ * [iosViewerDetectConnectionTypeHandler] (invoked by the shared `viewerConnectionTypePollingController`
+ * in `LiquidAuthConnectionManager.ios.kt`) always has a fresh value to return instead of null.
+ */
+var viewerConnectionTypeString: String = "unknown"
 
 fun setIosBroadcastPaymentSendHandler(handler: (String) -> Unit) {
     // An unkeyed setter cannot tell primary from an additional viewer.
@@ -667,6 +680,18 @@ fun registerIosNativeMediaHandlers(
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider = remoteVideoViewProvider
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetAudioEnabledHandler = setAudioEnabled
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetVideoEnabledHandler = setVideoEnabled
+    // Self-contained, like iosBroadcastDetectConnectionTypeHandler — no Swift closure needed,
+    // it just reads the Kotlin var that SignalService keeps fresh via notifyViewerConnectionType().
+    iosViewerDetectConnectionTypeHandler = { viewerConnectionTypeString }
+}
+
+/**
+ * Swift calls this from a Timer-driven poll of its own `RTCPeerConnection.statistics()` for the
+ * viewer's (answerer's) peer connection, mirroring [notifyBroadcastViewerConnectionType] on the
+ * host side. Call on the main thread.
+ */
+fun notifyViewerConnectionType(type: String) {
+    viewerConnectionTypeString = type
 }
 
 fun notifyBroadcastClientConnected(requestId: String) {

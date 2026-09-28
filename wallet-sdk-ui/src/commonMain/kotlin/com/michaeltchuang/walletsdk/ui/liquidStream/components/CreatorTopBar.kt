@@ -30,10 +30,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatDisplayName
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.painterResource
@@ -56,6 +58,7 @@ fun CreatorTopBar(
             verticalAlignment = Alignment.Top,
         ) {
             Row(
+                modifier = Modifier.weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -92,9 +95,14 @@ fun CreatorTopBar(
                                 .border(2.dp, Color.White, CircleShape),
                     )
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Column(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
                     Text(
-                        text = creatorUsername.orEmpty(),
+                        text = formatDisplayName(creatorUsername),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                         style =
                             TextStyle(
                                 fontSize = 18.sp,
@@ -160,8 +168,25 @@ private fun TopSquareIconButton(
 @Composable
 fun CreatorTopBarPreview() {
     AlgoKitTheme {
-        Box(modifier = Modifier.background(Color.DarkGray).padding(16.dp)) {
+        Column(
+            modifier =
+                Modifier
+                    .background(Color.DarkGray)
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Case 1: NFD Username
             CreatorTopBar(
+                creatorUsername = "liquidstream.algo",
+                numbersOfViewers = "12",
+                onSettingsClick = {},
+                onMinimise = {},
+            )
+
+            // Case 2: Raw Wallet Address (NFD username not available)
+            CreatorTopBar(
+                creatorUsername = "P2NLGCABQGLZRNR3CQ3XMLO3HFCIK5QQG42FZ7ZFBKWE43UZTHS4O2NT74",
+                numbersOfViewers = "1",
                 onSettingsClick = {},
                 onMinimise = {},
             )

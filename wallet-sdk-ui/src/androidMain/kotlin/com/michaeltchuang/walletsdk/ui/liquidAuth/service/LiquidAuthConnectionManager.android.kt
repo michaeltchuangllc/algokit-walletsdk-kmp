@@ -210,8 +210,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         Napier.d("🔌 initialize() called with viewModel=$viewModel", tag = TAG)
         this.viewModel = viewModel
         viewModel.meshHostingEnabled = true
-        Napier.d("🔌 viewModel set, this.viewModel=${this.viewModel}", tag = TAG)
         blockConsumptionManager.processPendingSettlements()
+        Napier.d("🔌 viewModel set, this.viewModel=${this.viewModel}", tag = TAG)
     }
 
     /**
@@ -246,18 +246,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         // NO stopBlockConsumption() here — keep tracking in both modes.
         if (!enabled) {
             setStreamCost(0L)
-            // Clear any stale claim snapshot so we don't settle old vouchers when resuming to Paid.
+            // Clear the UI claim snapshot, but preserve pending billing vouchers.
             activeCreatorVoucherClaimSnapshot = null
-            activePaymentSessionId?.let { sessionId ->
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        voucherRepository.deleteVoucherBySessionId(sessionId)
-                        Napier.d("💰 Cleared pending vouchers for session $sessionId during switch to Free", tag = TAG)
-                    } catch (e: Exception) {
-                        Napier.e("❌ Failed to clear vouchers", e, tag = TAG)
-                    }
-                }
-            }
         } else {
             // Resume if we have a session
             activePaymentSessionId?.let { startBlockConsumption(it) }
@@ -361,6 +351,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                             }
                             ?: activeViewerAuthorizedSignerKey,
                     skipPaymentRequestWhenSessionFunded = true,
+                    vaultOnlyBilling = true,
                 )
 
             val current = liquidStreamCreator
@@ -514,6 +505,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     viewerAddress = activeViewerAddressForVault,
                     viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
                     skipPaymentRequestWhenSessionFunded = true,
+                    vaultOnlyBilling = true,
                 )
 
             current?.terminate("replaced")
@@ -879,6 +871,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (id == primaryViewerId) {
             stopConnectionTypePolling()
             stopBlockConsumption()
+            blockConsumptionManager.closeBilling()
             val creator = liquidStreamCreator
             liquidStreamCreator = null
             runCatching { creator?.terminate("viewer_disconnected") }
@@ -1071,6 +1064,8 @@ actual class LiquidAuthConnectionManager actual constructor(
             val signerKey = viewer.signerKey?.takeIf { it.isNotEmpty() } ?: return
             viewer.billing =
                 ViewerVaultBillingSession(
+                    voucherRepository = voucherRepository,
+                    getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
                     scope = viewer.billingScope,
                     sessionId = viewer.sessionId,
                     viewerAddress = address,
@@ -1113,7 +1108,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                         round > (lastRound ?: 0L)
                     ) {
                         lastRound = round
-                        billing.onBlock(round)
+                        billing.onBlock(round, isPaidStreamingEnabled, vm.currentCostPerBlockMicroUsdc)
                     }
                 }
             }
@@ -1149,7 +1144,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             viewer.billingScope.launch {
                 try {
                     viewer.voucherDrainJob?.join()
-                    billing?.close()?.join()
+                    billing?.close(refundVault = true)?.join()
                 } finally {
                     viewer.billing = null
                     viewer.pendingVouchers.clear()
@@ -1340,6 +1335,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             creator.onChatMessageReceived = { message ->
                 onAdditionalViewer(viewer) {
                     // Display chat, but do not add another viewer's messages to primary billing.
+                    viewer.billing?.recordChatMessage(message)
                     viewModel?.onChatMessageReceived(message)
                     broadcastChat(message, source = creator)
                 }
@@ -1463,6 +1459,12 @@ actual class LiquidAuthConnectionManager actual constructor(
             parsed.viewerHello?.let { hello ->
                 val helloViewer = hello.viewerAddress
                 val signerKey = hello.viewerPublicKey
+                if ((activeViewerAddressForVault != null && helloViewer != null && helloViewer != activeViewerAddressForVault) ||
+                    (activeViewerAuthorizedSignerKey != null && signerKey != null && !activeViewerAuthorizedSignerKey.contentEquals(signerKey))
+                ) {
+                    Napier.w("[SESSION_VAULT_VIEWER_HELLO_SKIP] reason=identity_mismatch", tag = TAG)
+                    return@runCatching
+                }
                 if (signerKey != null) {
                     if (helloViewer != null && helloViewer != activeViewerAddressForVault) {
                         setActiveViewerAddress(helloViewer)
@@ -1481,15 +1483,27 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
 
             parsed.paymentVoucher?.let { voucher ->
+                val sessionId = activePaymentSessionId
+                if (sessionId == null || voucher.sessionId != sessionId) {
+                    Napier.w("[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=missing_or_mismatched_session", tag = TAG)
+                    return@runCatching
+                }
+                if ((activeViewerAddressForVault != null && voucher.viewerAddress != activeViewerAddressForVault) ||
+                    (activeViewerAuthorizedSignerKey != null && !activeViewerAuthorizedSignerKey.contentEquals(voucher.viewerPublicKey))
+                ) {
+                    Napier.w("[SESSION_VAULT_VIEWER_VOUCHER_SIG_SKIP] reason=identity_mismatch", tag = TAG)
+                    return@runCatching
+                }
+                val network = activePaymentNetwork ?: return@runCatching
                 voucher.channelIdBase64?.let { Napier.e("channelId=$it", tag = TAG) }
-                voucher.channelId?.let { EscrowSessionVaultHybridManagerClient.channelId = it }
 
                 when (
                     val decision =
                         evaluateLiquidAuthVoucher(
                             voucher = voucher,
-                            activeSessionId = activePaymentSessionId,
-                            previousClaimedAmountMicroUsdc = activeCreatorVoucherClaimSnapshot?.totalAmountClaimedMicroUsdc,
+                            activeSessionId = sessionId,
+                            // Only billing's validated watermark may reject lower claims.
+                            previousClaimedAmountMicroUsdc = null,
                             isPaidStreamingEnabled = isPaidStreamingEnabled,
                         )
                 ) {
@@ -1512,6 +1526,12 @@ actual class LiquidAuthConnectionManager actual constructor(
                         )
                     }
                     is LiquidAuthVoucherDecision.Evaluated -> {
+                        if (activeViewerAddressForVault == null) {
+                            setActiveViewerAddress(decision.snapshot.viewerAddress)
+                        }
+                        if (activeViewerAuthorizedSignerKey == null) {
+                            activeViewerAuthorizedSignerKey = decision.viewerPublicKey
+                        }
                         if (decision.shouldSettle) {
                             activeCreatorVoucherClaimSnapshot = decision.snapshot
                             updateCreatorViewerSignerConfig(decision.viewerPublicKey)
@@ -1520,9 +1540,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 tag = TAG,
                             )
                             startBlockConsumption(decision.snapshot.sessionId)
-                            blockConsumptionManager.triggerSettlementFromViewerVoucher(
-                                decision.snapshot.sessionId,
-                                force = true,
+                            blockConsumptionManager.acceptVoucher(
+                                voucher = voucher,
+                                network = network,
                             )
                         } else {
                             Napier.d(
@@ -1534,10 +1554,12 @@ actual class LiquidAuthConnectionManager actual constructor(
                         }
                     }
                 }
+                // Voucher payloads must never fall through to generic identity capture.
+                return@runCatching
             }
 
             val candidate = parsed.address
-            if (candidate != null && candidate != activeViewerAddressForVault) {
+            if (candidate != null && activeViewerAddressForVault == null) {
                 setActiveViewerAddress(candidate)
                 Napier.d("🔑 Captured viewer address from LiquidAuth message: $candidate", tag = TAG)
             }
@@ -1564,6 +1586,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 viewerAddress = activeViewerAddressForVault,
                 viewerAuthorizedSignerPublicKey = signerKey,
                 skipPaymentRequestWhenSessionFunded = true,
+                vaultOnlyBilling = true,
             ),
         )
     }
@@ -1589,6 +1612,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         creators.forEach { runCatching { it.terminate("stop_listening") } }
         stopConnectionTypePolling()
         stopBlockConsumption()
+        blockConsumptionManager.closeBilling()
         runCatching { liquidStreamCreator?.terminate("stop_listening") }
         liquidStreamCreator = null
         activePaymentSessionId = null
@@ -1649,6 +1673,11 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     actual fun sendChatMessage(message: ChatMessage) {
         blockConsumptionManager.recordChatMessage(message)
+        broadcastChat(message)
+    }
+
+    internal actual fun relayDebugViewerChat(message: ChatMessage) {
+        viewModel?.onChatMessageReceived(message)
         broadcastChat(message)
     }
 

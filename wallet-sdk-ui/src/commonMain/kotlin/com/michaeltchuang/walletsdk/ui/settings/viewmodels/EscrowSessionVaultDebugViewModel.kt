@@ -16,7 +16,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerU
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.PaymentError
-import com.michaeltchuang.walletsdk.ui.settings.domain.DebugAddressHolder
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.DebugAddressHolder
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

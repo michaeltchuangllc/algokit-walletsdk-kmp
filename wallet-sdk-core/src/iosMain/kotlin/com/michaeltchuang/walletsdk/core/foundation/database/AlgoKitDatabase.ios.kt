@@ -47,6 +47,7 @@ internal fun createAlgoKitDatabase(customDirectory: String? = null): RoomDatabas
             MIGRATION_6_7,
             MIGRATION_7_8,
             MIGRATION_8_9,
+            MIGRATION_9_10,
         )
 }
 

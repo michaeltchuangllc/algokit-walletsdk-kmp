@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -72,6 +74,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.base.utils.isDebugBuild
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
@@ -229,6 +232,10 @@ fun LiquidAuthOfferScreen(
     miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>? = null,
     miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>? = null,
     cameraPreviewController: CameraStreamingPreviewController? = null,
+    paymentNetworkOverride: String? = null,
+    debugViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
     val hostViewModel: LiquidStreamHostViewModel = koinViewModel()
@@ -261,6 +268,7 @@ fun LiquidAuthOfferScreen(
         viewModel.clearMeshHosting()
         streamHostUiMode.value = StreamHostUiMode.Hidden
         viewModel.regenerateOffer(origin)
+        hostViewModel.resetMediaToggles()
     }
 
     // Host card uses split balances:
@@ -395,6 +403,7 @@ fun LiquidAuthOfferScreen(
     val currentEnablePaidStreaming by rememberUpdatedState(enablePaidStreaming)
     val currentCreatorAddress by rememberUpdatedState(creatorAddress)
     val currentConnectionManager by rememberUpdatedState(connectionManager)
+    val currentPaymentNetworkOverride by rememberUpdatedState(paymentNetworkOverride)
 
     LaunchedEffect(viewModel, hostViewModel) {
         viewModel.viewEvent.collect { event ->
@@ -407,11 +416,13 @@ fun LiquidAuthOfferScreen(
                     // Auto-request payment when paid streaming is enabled
                     if (canRequestPayment && address != null) {
                         Napier.d("💰 Requesting payment from client...")
-                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        val paymentNetwork =
+                            currentPaymentNetworkOverride
+                                ?: if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
                         viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     } else if (address != null) {
                         Napier.d("💬 Initializing chat only (no payment)...")
-                        connectionManager?.setupCreator(address, network = blockChainLabel)
+                        connectionManager?.setupCreator(address, network = currentPaymentNetworkOverride ?: blockChainLabel)
                     } else {
                         Napier.d(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
@@ -450,7 +461,9 @@ fun LiquidAuthOfferScreen(
                     }
                     currentCreatorAddress?.let { address ->
                         Napier.d("💰 Requesting additional payment from viewer...")
-                        val paymentNetwork = if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
+                        val paymentNetwork =
+                            currentPaymentNetworkOverride
+                                ?: if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
                         viewModel.requestPaymentFromClient(address, network = paymentNetwork)
                     }
                 }
@@ -536,8 +549,16 @@ fun LiquidAuthOfferScreen(
         lastSettledUsdc = lastSettledUsdc,
         creatorAddress = creatorAddress.orEmpty(),
         pendingMeshOffer = pendingMeshOffer,
-        meshViewerIds = if (viewModel.meshHostingEnabled) meshViewerIds else null,
-        meshViewerDetails = meshViewerDetails,
+        // Debug peers are display-only: never add them to VM membership or primary state.
+        meshViewerIds =
+            when {
+                debugViewerDetails.isNotEmpty() -> (meshViewerIds + debugViewerDetails.keys).distinct()
+                viewModel.meshHostingEnabled -> meshViewerIds
+                else -> null
+            },
+        meshViewerDetails = meshViewerDetails + debugViewerDetails,
+        debugContent = debugContent,
+        debugFullscreen = debugFullscreen,
         onRefreshInvitation =
             if (viewModel.meshHostingEnabled) {
                 { viewModel.refreshMeshInvitation(origin) }
@@ -580,72 +601,84 @@ fun LiquidAuthOfferScreenContent(
     meshViewerIds: List<String>? = null,
     onRefreshInvitation: (() -> Unit)? = null,
     meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
 ) {
-    Column(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .background(AlgoKitTheme.colors.background)
-                .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
-    ) {
-        Spacer(modifier = Modifier.height(1.dp))
-        headerContent?.invoke()
-
-        // Connection Status Card
-        ConnectionStatusCard(
-            state = state,
-            paymentCurrencyLabel = paymentCurrencyLabel,
-        )
-
-        // Main Content Area - changes based on state
-        val currentState = state
-        when (currentState) {
-            is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
-                if (!requiresCreatorAsaOptIn) {
-                    QRCodeSection(
-                        liquidAuthUrl = currentState.liquidAuthUrl,
-                        requestId = currentState.requestId,
-                        onRegenerate = onRegenerate,
-                    )
-                } else if (isCheckingCreatorAsaBalance) {
-                    LoadingSection()
-                } else if (!creatorAsaBalance.isNullOrEmpty()) {
-                    QRCodeSection(
-                        liquidAuthUrl = currentState.liquidAuthUrl,
-                        requestId = currentState.requestId,
-                        onRegenerate = onRegenerate,
-                    )
-                } else {
-                    NotOptedInSection()
-                }
-            }
-
-            is LiquidAuthOfferViewModel.OfferState.Streaming,
-            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
-            is LiquidAuthOfferViewModel.OfferState.Connected,
-            -> {
-                // Stream host UI is controlled below so it dismisses only on stop.
-                if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
-                    streamHostUiMode.value = StreamHostUiMode.Expanded
-                }
-            }
-
-            is LiquidAuthOfferViewModel.OfferState.Error -> {
-                ErrorSection(
-                    message = currentState.message,
-                    onRetry = onRetry,
-                )
-            }
-
-            else -> {
-                // Idle or Loading
-                LoadingSection()
+    // Keep live-state promotion independent of the optional background UI.
+    when (state) {
+        is LiquidAuthOfferViewModel.OfferState.Streaming,
+        is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+        is LiquidAuthOfferViewModel.OfferState.Connected,
+        -> {
+            if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                streamHostUiMode.value = StreamHostUiMode.Expanded
             }
         }
+        else -> Unit
+    }
 
-        Spacer(modifier = Modifier.height(32.dp))
+    if (!debugFullscreen) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
+        ) {
+            Spacer(modifier = Modifier.height(1.dp))
+            headerContent?.invoke()
+
+            // Connection Status Card
+            ConnectionStatusCard(
+                state = state,
+                paymentCurrencyLabel = paymentCurrencyLabel,
+            )
+
+            // Main Content Area - changes based on state
+            val currentState = state
+            when (currentState) {
+                is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
+                    if (!requiresCreatorAsaOptIn) {
+                        QRCodeSection(
+                            liquidAuthUrl = currentState.liquidAuthUrl,
+                            requestId = currentState.requestId,
+                            onRegenerate = onRegenerate,
+                        )
+                    } else if (isCheckingCreatorAsaBalance) {
+                        LoadingSection()
+                    } else if (!creatorAsaBalance.isNullOrEmpty()) {
+                        QRCodeSection(
+                            liquidAuthUrl = currentState.liquidAuthUrl,
+                            requestId = currentState.requestId,
+                            onRegenerate = onRegenerate,
+                        )
+                    } else {
+                        NotOptedInSection()
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferState.Streaming,
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+                is LiquidAuthOfferViewModel.OfferState.Connected,
+                -> Unit // Live host UI is rendered below.
+
+                is LiquidAuthOfferViewModel.OfferState.Error -> {
+                    ErrorSection(
+                        message = currentState.message,
+                        onRetry = onRetry,
+                    )
+                }
+
+                else -> {
+                    // Idle or Loading
+                    LoadingSection()
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
     }
 
     if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
@@ -658,9 +691,13 @@ fun LiquidAuthOfferScreenContent(
             }
 
         val (currentRequestId, currentLiquidAuthUrl) =
-            if (meshViewerIds != null) {
+            if (meshViewerIds != null && (onRefreshInvitation != null || pendingMeshOffer != null)) {
+                // Display-only debug IDs do not imply mesh invitation management.
                 // Never re-display the accepted invitation while waiting for its replacement.
-                pendingMeshOffer?.let { it.requestId to it.liquidAuthUrl } ?: ("" to "")
+                pendingMeshOffer?.let { it.requestId to it.liquidAuthUrl }
+                    ?: (state as? LiquidAuthOfferViewModel.OfferState.WaitingForConnection)?.let {
+                        it.requestId to it.liquidAuthUrl
+                    } ?: ("" to "")
             } else {
                 when (state) {
                     is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> state.requestId to state.liquidAuthUrl
@@ -705,6 +742,8 @@ fun LiquidAuthOfferScreenContent(
             meshViewerIds = meshViewerIds,
             meshViewerDetails = meshViewerDetails,
             onRefreshInvitation = onRefreshInvitation,
+            debugContent = debugContent,
+            debugFullscreen = debugFullscreen,
         )
     }
 }
@@ -737,7 +776,62 @@ private fun StreamHostBottomSheet(
     meshViewerIds: List<String>? = null,
     onRefreshInvitation: (() -> Unit)? = null,
     meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
 ) {
+    if (debugFullscreen) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LiquidStreamHostLiveScreen(
+                cameraPreview = cameraPreview,
+                connectionManager = connectionManager,
+                viewModel = hostViewModel,
+                onSettingsClick = {},
+                onMinimise = onMinimise,
+                onRotateCamera = { cameraPreviewController.rotateCamera() },
+                onStatsClick = onStatsClick,
+                onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                sessionId = sessionId,
+                progressBalanceUsdc = progressBalanceUsdc,
+                remainingBalanceUsdc = remainingBalanceUsdc,
+                connectionType = connectionType,
+                currentBlockNumber = currentBlockNumber,
+                blockChainLabel = blockChainLabel,
+                networkLabel = networkLabel,
+                balanceCurrencySymbol = balanceCurrencySymbol,
+                originUrl = originUrl,
+                lastSettledUsdc = lastSettledUsdc,
+                creatorAddress = creatorAddress,
+                viewerAddress = viewerAddress,
+                requestId = requestId,
+                liquidAuthUrl = liquidAuthUrl,
+                meshViewerIds = meshViewerIds,
+                meshViewerDetails = meshViewerDetails,
+                onRefreshInvitation = onRefreshInvitation,
+                onSendClick = { text ->
+                    connectionManager?.sendChatMessage(
+                        ChatMessage(
+                            sender = "Creator",
+                            text = text,
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                        ),
+                    )
+                },
+            )
+            if (debugContent != null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                            .padding(top = 100.dp),
+                ) {
+                    debugContent()
+                }
+            }
+        }
+        return
+    }
+
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
         // Avoid modal container in Compose Preview; render content directly for faster preview.

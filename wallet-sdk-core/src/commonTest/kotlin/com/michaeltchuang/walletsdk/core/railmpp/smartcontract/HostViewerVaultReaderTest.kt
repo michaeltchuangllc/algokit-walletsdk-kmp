@@ -196,7 +196,7 @@ class HostViewerVaultReaderTest {
                         assertEquals(NODE_TESTNET_BASE_URL, url)
                         if (boxCalls == 1) {
                             assertContentEquals(hint, key)
-                            sessionBox()
+                            sessionBox().also { encodeUint64(12345).copyInto(it, 90) }
                         } else {
                             assertContentEquals("p".encodeToByteArray() + hint, key)
                             // p || channelId is raw AVMBytes in the deployed contract.
@@ -212,7 +212,7 @@ class HostViewerVaultReaderTest {
                         tuple(1000, 300, 500)
                     },
                 )
-            assertEquals(HostViewerVaultReader.Snapshot(700, 300, 500, 1000), result.getOrThrow())
+            assertEquals(HostViewerVaultReader.Snapshot(700, 300, 500, 1000, startRound = 12345), result.getOrThrow())
             assertEquals(2, boxCalls)
             assertEquals(1, simulateCalls)
         }
