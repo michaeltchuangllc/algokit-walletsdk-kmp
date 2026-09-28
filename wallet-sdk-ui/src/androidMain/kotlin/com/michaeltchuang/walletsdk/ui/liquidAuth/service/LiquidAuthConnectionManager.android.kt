@@ -1144,7 +1144,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             viewer.billingScope.launch {
                 try {
                     viewer.voucherDrainJob?.join()
-                    billing?.close()?.join()
+                    billing?.close(refundVault = true)?.join()
                 } finally {
                     viewer.billing = null
                     viewer.pendingVouchers.clear()

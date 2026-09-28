@@ -7,7 +7,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.ViewerVaultSettlement
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
+import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -451,7 +453,14 @@ internal class ViewerVaultBillingSession(
             }
         }
 
-    fun close(): Job =
+    /**
+     * Shuts down the settlement worker after draining any pending voucher. Shared by every
+     * host platform (Android/iOS) and by both the primary-viewer and mesh-viewer paths, so a
+     * single [refundVault] flag decides whether this is a resumable pause (`false`, the
+     * default — for example a screen backgrounding briefly) or the viewer actually leaving for
+     * good (`true`), in which case the vault's leftover deposit is refunded back to them.
+     */
+    fun close(refundVault: Boolean = false): Job =
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             mutex.withLock {
                 closed = true
@@ -465,7 +474,38 @@ internal class ViewerVaultBillingSession(
                 job.cancel()
                 report(IllegalStateException("Viewer voucher final drain timed out; payment may be pending"))
             }
+            if (refundVault) refundRemainingVaultBalance()
         }
+
+    /**
+     * Viewer disconnect (not a pause): the final voucher has just been settled above, so this
+     * only needs to submit the on-chain `close` call. Per the escrow contract only the payee
+     * (the creator/host) may call it, which refunds whatever remains of the payer's deposit
+     * back to the departing viewer.
+     */
+    private suspend fun refundRemainingVaultBalance() {
+        val channelId = mutex.withLock { latest?.channelId } ?: return
+        try {
+            val signer = buildCreatorWalletSigner(creatorAddress)
+            if (signer == null) {
+                report(IllegalStateException("Skipping session vault close: signer unavailable for $creatorAddress"))
+                return
+            }
+            MppPayments
+                .closeSessionVault(signer = signer, channelId = channelId)
+                .onSuccess { txId ->
+                    Napier.d("Session vault closed (refund) for $sessionId. txId=$txId")
+                }.onFailure { throwable ->
+                    Napier.e("Failed to close session vault (refund) for $sessionId", throwable)
+                    report(throwable)
+                }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Napier.e("Unexpected error while closing session vault (refund) for $sessionId", e)
+            report(e)
+        }
+    }
 
     private suspend fun attemptSettlement(force: Boolean) {
         val candidate =

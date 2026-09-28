@@ -1387,7 +1387,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 withTimeoutOrNull(30_000L) { intake.joinAll() }
             } finally {
                 intake.forEach { it.cancel() }
-                billing?.close()
+                billing?.close(refundVault = true)
             }
         }
         if (additionalHostViewers.isEmpty()) {

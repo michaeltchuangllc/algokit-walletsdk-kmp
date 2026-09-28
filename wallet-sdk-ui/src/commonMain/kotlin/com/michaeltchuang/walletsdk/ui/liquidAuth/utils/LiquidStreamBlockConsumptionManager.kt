@@ -156,7 +156,7 @@ internal class LiquidStreamBlockConsumptionManager(
         billingGeneration++
         currentSessionId = null
         enqueueBilling {
-            billing?.close()?.join()
+            billing?.close(refundVault = true)?.join()
             billing = null
         }
     }
