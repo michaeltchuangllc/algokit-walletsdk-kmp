@@ -214,6 +214,15 @@ actual open class AnswerViewModel actual constructor(
         platformServices.unbindSignalService(context, this)
     }
 
+    /**
+     * Starts polling this viewer's own ICE connection type (LOCAL/STUN/RELAY) so the "Connected
+     * Viewers" analytics card on the host shows the real network type instead of defaulting to
+     * UNKNOWN. Automatically stopped by [unbindSignalService].
+     */
+    fun startViewerConnectionTypePolling() {
+        platformServices.startViewerConnectionTypePolling(this)
+    }
+
     // --- Credential Management ---
     suspend fun saveCredential(
         account: String,

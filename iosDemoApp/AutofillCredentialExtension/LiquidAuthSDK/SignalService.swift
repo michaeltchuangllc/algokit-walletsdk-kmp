@@ -76,6 +76,8 @@ public class SignalService {
 
     private var peerConnection: RTCPeerConnection?
     private var dataChannelDelegates: [RTCDataChannel: ScopedDataChannelDelegate] = [:]
+    private var viewerConnectionTypeTimer: Timer?
+    private var viewerConnectionTypeReadInFlight = false
 
     private var messageQueue: [String] = []
     private var keepAliveTimer: Timer?
@@ -114,6 +116,7 @@ public class SignalService {
     func stop() {
         stopHosting()
         stopKeepAlive()
+        stopViewerConnectionTypePolling()
         signalClient?.disconnectSocket()
         signalClient = nil
         peerClient = nil
@@ -131,6 +134,7 @@ public class SignalService {
     /// Disconnects from the signaling service
     func disconnect() {
         stopKeepAlive()
+        stopViewerConnectionTypePolling()
         // Explicit legacy disconnect, unlike a transient Socket.IO disconnect.
         // Viewer dismissal must not stop a separately retained host camera.
         signalClient?.disconnectSocket()
@@ -301,6 +305,40 @@ public class SignalService {
         }
     }
 
+    /// Legacy single-peer counterpart of [startHostViewerConnectionTypePolling], for when this
+    /// device is itself the viewer (answerer) of someone else's broadcast. Pushes the classified
+    /// type into Kotlin via `App_iosKt.notifyViewerConnectionType(type:)` so the synchronous
+    /// `iosViewerDetectConnectionTypeHandler` (polled by `viewerConnectionTypePollingController`
+    /// in `LiquidAuthConnectionManager.ios.kt`) has a fresh value to return instead of "unknown".
+    private func startViewerConnectionTypePolling() {
+        guard peerConnection != nil else { return }
+        viewerConnectionTypeTimer?.invalidate()
+        viewerConnectionTypeTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) {
+            [weak self] _ in
+            self?.readViewerConnectionType()
+        }
+        readViewerConnectionType()
+    }
+
+    private func readViewerConnectionType() {
+        guard !viewerConnectionTypeReadInFlight, let connection = peerConnection else { return }
+        viewerConnectionTypeReadInFlight = true
+        connection.statistics { [weak self, weak connection] report in
+            DispatchQueue.main.async {
+                guard let self, let connection, self.peerConnection === connection else { return }
+                self.viewerConnectionTypeReadInFlight = false
+                App_iosKt.notifyViewerConnectionType(type: Self.selectedConnectionType(report))
+            }
+        }
+    }
+
+    private func stopViewerConnectionTypePolling() {
+        viewerConnectionTypeTimer?.invalidate()
+        viewerConnectionTypeTimer = nil
+        viewerConnectionTypeReadInFlight = false
+        App_iosKt.notifyViewerConnectionType(type: "unknown")
+    }
+
     /// Classifies the selected pair by delegating to the single shared implementation in
     /// `IceConnectionTypeClassifier.kt` (wallet-sdk-core), so Android and iOS can never disagree
     /// on the quality (and therefore x402-style billing tier) of the same connection. This only
@@ -448,7 +486,14 @@ public class SignalService {
                 onMessage: { message in
                     onMessage(message)
                 },
-                onStateChange: onStateChange
+                onStateChange: { [weak self] state in
+                    if state == "open" {
+                        self?.startViewerConnectionTypePolling()
+                    } else if state == "closed" || state == "failed" {
+                        self?.stopViewerConnectionTypePolling()
+                    }
+                    onStateChange(state)
+                }
             )
 
             peerClient = signalClient?.peerClient

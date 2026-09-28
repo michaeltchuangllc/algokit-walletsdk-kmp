@@ -232,7 +232,7 @@ actual fun AnswerScreenOverlay() {
             if (streamHostUiModeState.value != StreamHostUiMode.Minimized) {
                 LiquidStreamViewerScreen(
                     viewModel = viewerViewModel,
-                    sessionId = sessionId,
+                    sessionId = AnswerScreenState.requestId,
                     connectionType = connType,
                     cameraPreview = viewerCameraPreview,
                     viewerAddress = address.ifBlank { "-" },
