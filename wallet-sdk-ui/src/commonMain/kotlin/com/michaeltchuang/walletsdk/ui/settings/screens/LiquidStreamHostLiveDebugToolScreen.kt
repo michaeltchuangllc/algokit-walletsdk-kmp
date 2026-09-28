@@ -66,6 +66,7 @@ fun LiquidStreamHostDebugToolScreen(
         offerViewModel.stopRealtimeBlockNumberUpdates()
         offerViewModel.stopVideoStreaming()
         offerViewModel.clearMeshHosting()
+        viewModel.resetMediaToggles()
     }
     
     DisposableEffect(debugViewModel, manager, offerViewModel) {

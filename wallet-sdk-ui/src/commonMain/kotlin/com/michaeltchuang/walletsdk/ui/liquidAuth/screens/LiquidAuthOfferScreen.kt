@@ -268,6 +268,7 @@ fun LiquidAuthOfferScreen(
         viewModel.clearMeshHosting()
         streamHostUiMode.value = StreamHostUiMode.Hidden
         viewModel.regenerateOffer(origin)
+        hostViewModel.resetMediaToggles()
     }
 
     // Host card uses split balances:

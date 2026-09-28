@@ -19,6 +19,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.SessionVaultCont
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.parseLiquidAuthHostTransportMessage
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.ViewerVaultBillingSession
 import io.ktor.client.HttpClient
@@ -310,8 +311,11 @@ internal suspend fun prepareDebugBotViewers(
     }
 }
 
+// Debug bots share the host's device and never negotiate a real WebRTC/ICE connection, so the
+// generic UNKNOWN default would otherwise show "Detecting..." forever. Report LOCAL instead.
 internal fun HostViewerVaultReader.Snapshot.asDetails(viewer: String) = HostViewerDetails(
     viewerAddress = viewer,
+    connectionType = IceConnectionType.LOCAL,
     remainingBalanceMicroUsdc = remainingBalanceMicroUsdc,
     lastSettledMicroUsdc = lastSettledMicroUsdc,
     progressBalanceMicroUsdc = progressBalanceMicroUsdc,

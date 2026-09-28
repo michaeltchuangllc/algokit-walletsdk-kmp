@@ -281,6 +281,10 @@ class LiquidStreamHostViewModel(
         eventDelegate.sendEvent(viewModelScope, ViewEvent.ToggleCamera(isEnabled = newEnabledState))
     }
 
+    fun resetMediaToggles() {
+        stateDelegate.updateState { it.copy(isMicMuted = false, isCameraEnabled = true) }
+    }
+
     data class UiState(
         val message: String = "",
         val isStatsModalVisible: Boolean = false,

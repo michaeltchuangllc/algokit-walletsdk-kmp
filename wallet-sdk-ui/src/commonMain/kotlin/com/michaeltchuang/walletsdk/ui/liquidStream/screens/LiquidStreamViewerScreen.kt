@@ -637,11 +637,10 @@ private fun ChatComposer(
         modifier =
             Modifier
                 .fillMaxWidth()
-                .height(70.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(Color(0x668A9AAC))
                 .border(1.dp, Color(0x40D7E6EE), RoundedCornerShape(22.dp))
-                .padding(horizontal = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
