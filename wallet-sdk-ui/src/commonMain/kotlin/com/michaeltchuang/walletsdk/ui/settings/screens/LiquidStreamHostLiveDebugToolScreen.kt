@@ -70,8 +70,8 @@ fun LiquidStreamHostDebugToolScreen(
     
     DisposableEffect(debugViewModel, manager, offerViewModel) {
         onDispose {
-           // debugViewModel.closeAllSessions()
             debugViewModel.stopBots()
+            debugViewModel.closeAllSessions()
             stopHost()
         }
     }
