@@ -85,92 +85,87 @@ private fun ChatMessageItem(message: ChatUiMessage) {
             message.sender.contains("host", ignoreCase = true) ||
             message.sender.contains("creator", ignoreCase = true)
 
-    val isLocalCreator = isCreator && (message.isLocalUser || message.sender.equals("You", ignoreCase = true))
-
-    val displaySender =
-        when {
-            isLocalCreator -> "YOU · CREATOR"
-            isCreator -> "CREATOR"
-            else -> formatDisplayName(message.sender, TextCasing.LOWERCASE)
-        }
-
-    val horizontalAlignment = if (isCreator) Alignment.End else Alignment.Start
+    val displaySender = formatDisplayName(message.sender, TextCasing.LOWERCASE)
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = horizontalAlignment,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = "@$displaySender",
-            color = Color(0xFFB4D2DB).copy(alpha = 0.9f),
-            maxLines = 1,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp,
-            modifier = Modifier.padding(horizontal = 4.dp),
-        )
+        Column(
+            modifier = if (isCreator) Modifier.align(Alignment.End) else Modifier.align(Alignment.Start),
+            horizontalAlignment = Alignment.Start,
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = "@$displaySender",
+                color = Color(0xFFB4D2DB).copy(alpha = 0.9f),
+                maxLines = 1,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.8.sp,
+                modifier = Modifier.padding(start = 2.dp),
+            )
 
-        if (isCreator) {
-            Box(
-                modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(
-                            brush =
-                                Brush.horizontalGradient(
-                                    colorStops =
-                                        arrayOf(
-                                            0.00f to Color(0xFFAFEFF5),
-                                            0.05f to Color(0xFFAFEFF5),
-                                            1.00f to Color(0x00AFEFF5),
-                                        ),
-                                ),
-                        ).padding(start = 2.dp),
-            ) {
+            if (isCreator) {
                 Box(
                     modifier =
                         Modifier
-                            .background(Color(0xFF2D2DF1), RoundedCornerShape(15.dp))
-                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(
+                                brush =
+                                    Brush.horizontalGradient(
+                                        colorStops =
+                                            arrayOf(
+                                                0.00f to Color(0xFFAFEFF5),
+                                                0.05f to Color(0xFFAFEFF5),
+                                                1.00f to Color(0x00AFEFF5),
+                                            ),
+                                    ),
+                            ).padding(start = 2.dp),
                 ) {
-                    Text(
-                        text = message.text,
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                    )
+                    Box(
+                        modifier =
+                            Modifier
+                                .background(Color(0xFF2D2DF1), RoundedCornerShape(15.dp))
+                                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                    ) {
+                        Text(
+                            text = message.text,
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                        )
+                    }
                 }
-            }
-        } else {
-            Box(
-                modifier =
-                    Modifier
-                        .clip(RoundedCornerShape(15.dp))
-                        .background(
-                            brush =
-                                Brush.horizontalGradient(
-                                    colorStops =
-                                        arrayOf(
-                                            0.00f to Color(0xFFAFEFF5),
-                                            0.05f to Color(0xFFAFEFF5),
-                                            1.00f to Color(0x00AFEFF5),
-                                        ),
-                                ),
-                        ).padding(start = 2.dp),
-            ) {
+            } else {
                 Box(
                     modifier =
                         Modifier
-                            .background(Color(0xCC082947), RoundedCornerShape(15.dp))
-                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                            .clip(RoundedCornerShape(15.dp))
+                            .background(
+                                brush =
+                                    Brush.horizontalGradient(
+                                        colorStops =
+                                            arrayOf(
+                                                0.00f to Color(0xFFAFEFF5),
+                                                0.05f to Color(0xFFAFEFF5),
+                                                1.00f to Color(0x00AFEFF5),
+                                            ),
+                                    ),
+                            ).padding(start = 2.dp),
                 ) {
-                    Text(
-                        text = message.text,
-                        color = Color(0xFFD8EAF2),
-                        fontSize = 15.sp,
-                        lineHeight = 20.sp,
-                    )
+                    Box(
+                        modifier =
+                            Modifier
+                                .background(Color(0xCC082947), RoundedCornerShape(15.dp))
+                                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                    ) {
+                        Text(
+                            text = message.text,
+                            color = Color(0xFFD8EAF2),
+                            fontSize = 15.sp,
+                            lineHeight = 20.sp,
+                        )
+                    }
                 }
             }
         }
