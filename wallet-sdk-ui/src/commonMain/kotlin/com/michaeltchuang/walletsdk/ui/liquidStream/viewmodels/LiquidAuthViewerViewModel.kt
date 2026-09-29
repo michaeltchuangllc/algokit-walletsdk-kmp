@@ -177,6 +177,10 @@ class LiquidAuthViewerViewModel(
     }
 
     fun receivedChatMessage(message: ChatMessage) {
+        val isCreator =
+            message.sender.contains("host", ignoreCase = true) ||
+                message.sender.contains("creator", ignoreCase = true)
+        val isLocalUser = message.sender.equals("You", ignoreCase = true)
         stateDelegate.updateState {
             it.copy(
                 chatMessages =
@@ -185,6 +189,8 @@ class LiquidAuthViewerViewModel(
                             sender = message.sender,
                             text = message.text,
                             timestamp = message.timestamp,
+                            isCreator = isCreator,
+                            isLocalUser = isLocalUser,
                             amount = message.amount,
                             asset = message.asset,
                         ),

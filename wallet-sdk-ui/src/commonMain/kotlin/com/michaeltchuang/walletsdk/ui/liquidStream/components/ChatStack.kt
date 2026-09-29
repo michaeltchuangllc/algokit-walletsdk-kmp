@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -79,8 +80,27 @@ fun ChatStack(
 
 @Composable
 private fun ChatMessageItem(message: ChatUiMessage) {
-    val displaySender = formatDisplayName(message.sender, TextCasing.LOWERCASE)
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val isCreator =
+        message.isCreator ||
+            message.sender.contains("host", ignoreCase = true) ||
+            message.sender.contains("creator", ignoreCase = true)
+
+    val isLocalCreator = isCreator && (message.isLocalUser || message.sender.equals("You", ignoreCase = true))
+
+    val displaySender =
+        when {
+            isLocalCreator -> "YOU · CREATOR"
+            isCreator -> "CREATOR"
+            else -> formatDisplayName(message.sender, TextCasing.LOWERCASE)
+        }
+
+    val horizontalAlignment = if (isCreator) Alignment.End else Alignment.Start
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = horizontalAlignment,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
         Text(
             text = "@$displaySender",
             color = Color(0xFFB4D2DB).copy(alpha = 0.9f),
@@ -88,37 +108,70 @@ private fun ChatMessageItem(message: ChatUiMessage) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 0.8.sp,
-            modifier = Modifier.padding(start = 4.dp),
+            modifier = Modifier.padding(horizontal = 4.dp),
         )
 
-        Box(
-            modifier =
-                Modifier
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(
-                        brush =
-                            Brush.horizontalGradient(
-                                colorStops =
-                                    arrayOf(
-                                        0.00f to Color(0xFFAFEFF5),
-                                        0.05f to Color(0xFFAFEFF5),
-                                        1.00f to Color(0x00AFEFF5),
-                                    ),
-                            ),
-                    ).padding(start = 2.dp),
-        ) {
+        if (isCreator) {
             Box(
                 modifier =
                     Modifier
-                        .background(Color(0xCC082947), RoundedCornerShape(15.dp))
-                        .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(
+                            brush =
+                                Brush.horizontalGradient(
+                                    colorStops =
+                                        arrayOf(
+                                            0.00f to Color(0xFFAFEFF5),
+                                            0.05f to Color(0xFFAFEFF5),
+                                            1.00f to Color(0x00AFEFF5),
+                                        ),
+                                ),
+                        ).padding(start = 2.dp),
             ) {
-                Text(
-                    text = message.text,
-                    color = Color(0xFFD8EAF2),
-                    fontSize = 15.sp,
-                    lineHeight = 20.sp,
-                )
+                Box(
+                    modifier =
+                        Modifier
+                            .background(Color(0xFF2D2DF1), RoundedCornerShape(15.dp))
+                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                ) {
+                    Text(
+                        text = message.text,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier =
+                    Modifier
+                        .clip(RoundedCornerShape(15.dp))
+                        .background(
+                            brush =
+                                Brush.horizontalGradient(
+                                    colorStops =
+                                        arrayOf(
+                                            0.00f to Color(0xFFAFEFF5),
+                                            0.05f to Color(0xFFAFEFF5),
+                                            1.00f to Color(0x00AFEFF5),
+                                        ),
+                                ),
+                        ).padding(start = 2.dp),
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .background(Color(0xCC082947), RoundedCornerShape(15.dp))
+                            .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+                ) {
+                    Text(
+                        text = message.text,
+                        color = Color(0xFFD8EAF2),
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                    )
+                }
             }
         }
     }
@@ -267,11 +320,10 @@ fun ChatStackPreview() {
                             timestamp = 0L,
                         ),
                         ChatUiMessage(
-                            sender = "P2NLGCABQGLZRNR3CQ3XMLO3HFCIK5QQG42FZ7ZFBKWE43UZTHS4O2NT74",
-                            text = "Supporting the stream without NFD!",
+                            sender = "You",
+                            text = "Creator sent chat 😃",
                             timestamp = 0L,
-                            amount = "10.0",
-                            asset = "USDC",
+                            isCreator = true,
                         ),
                     ),
             )

@@ -103,6 +103,11 @@ class LiquidStreamHostViewModel(
         val amountStr = message.amount
         val giftUsdc = amountStr?.toDoubleOrNull()
         val isTip = giftUsdc != null && giftUsdc > 0.0
+        val isCreator =
+            message.sender.contains("host", ignoreCase = true) ||
+                message.sender.contains("creator", ignoreCase = true) ||
+                message.sender.equals("You", ignoreCase = true)
+        val isLocalUser = message.sender.equals("You", ignoreCase = true)
 
         stateDelegate.updateState { currentState ->
             val newFreeCount = if (isTip) currentState.freeChatCount else currentState.freeChatCount + 1
@@ -117,6 +122,8 @@ class LiquidStreamHostViewModel(
                                 sender = message.sender,
                                 text = message.text,
                                 timestamp = message.timestamp,
+                                isCreator = isCreator,
+                                isLocalUser = isLocalUser,
                                 amount = message.amount,
                                 asset = message.asset,
                             ),
