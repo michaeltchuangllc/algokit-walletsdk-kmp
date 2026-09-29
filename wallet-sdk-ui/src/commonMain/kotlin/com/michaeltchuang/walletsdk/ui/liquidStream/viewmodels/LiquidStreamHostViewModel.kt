@@ -116,12 +116,10 @@ class LiquidStreamHostViewModel(
                 (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
                     (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
                     message.sender.contains("host", ignoreCase = true) ||
-                    message.sender.contains("creator", ignoreCase = true) ||
-                    message.sender.equals("You", ignoreCase = true)
+                    message.sender.contains("creator", ignoreCase = true)
             val isLocalUser =
                 (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
-                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
-                    message.sender.equals("You", ignoreCase = true)
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName)
 
             val newFreeCount = if (isTip) currentState.freeChatCount else currentState.freeChatCount + 1
             val newTipCount = if (isTip) currentState.tipChatCount + 1 else currentState.tipChatCount
