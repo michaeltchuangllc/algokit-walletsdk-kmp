@@ -156,20 +156,21 @@ internal class ViewerVaultBillingSession(
                     val network = row.network ?: return@forEach
                     var session: ViewerVaultBillingSession? = null
                     try {
-                        session = ViewerVaultBillingSession(
-                            scope = scope,
-                            sessionId = row.sessionId,
-                            viewerAddress = row.viewerAddress,
-                            creatorAddress = row.creatorAddress,
-                            network = network,
-                            signerPublicKey = Base64.decode(row.viewerPublicKeyBase64),
-                            buildCreatorWalletSigner = buildSigner,
-                            onSnapshot = {},
-                            onError = onError,
-                            voucherRepository = repository,
-                            getMppVoucherNoteUseCase = noteUseCase,
-                            adapter = adapter,
-                        )
+                        session =
+                            ViewerVaultBillingSession(
+                                scope = scope,
+                                sessionId = row.sessionId,
+                                viewerAddress = row.viewerAddress,
+                                creatorAddress = row.creatorAddress,
+                                network = network,
+                                signerPublicKey = Base64.decode(row.viewerPublicKeyBase64),
+                                buildCreatorWalletSigner = buildSigner,
+                                onSnapshot = {},
+                                onError = onError,
+                                voucherRepository = repository,
+                                getMppVoucherNoteUseCase = noteUseCase,
+                                adapter = adapter,
+                            )
                         session.restorePending(Base64.decode(row.channelIdBase64))
                     } catch (e: CancellationException) {
                         throw e
@@ -182,12 +183,19 @@ internal class ViewerVaultBillingSession(
             }
         }
 
-        private class ChannelLock(val mutex: Mutex = Mutex(), var users: Int = 0)
+        private class ChannelLock(
+            val mutex: Mutex = Mutex(),
+            var users: Int = 0,
+        )
 
-        private suspend fun <T> withChannelLock(id: String, action: suspend () -> T): T {
-            val entry = registryMutex.withLock {
-                settlementLocks.getOrPut(id) { ChannelLock() }.also { it.users++ }
-            }
+        private suspend fun <T> withChannelLock(
+            id: String,
+            action: suspend () -> T,
+        ): T {
+            val entry =
+                registryMutex.withLock {
+                    settlementLocks.getOrPut(id) { ChannelLock() }.also { it.users++ }
+                }
             try {
                 return entry.mutex.withLock { action() }
             } finally {
@@ -212,9 +220,10 @@ internal class ViewerVaultBillingSession(
         scope.launch {
             try {
                 for (ignored in wake) {
-                    val (final, force) = mutex.withLock {
-                        (closed to (closed || forceRequested)).also { forceRequested = false }
-                    }
+                    val (final, force) =
+                        mutex.withLock {
+                            (closed to (closed || forceRequested)).also { forceRequested = false }
+                        }
                     attemptSettlement(force)
                     if (final) break
                 }
@@ -261,82 +270,93 @@ internal class ViewerVaultBillingSession(
                 return true
             }
         }
-        val snapshot = try {
-            val validated =
-                withTimeoutOrNull(operationTimeoutMillis.milliseconds) {
-                    adapter.validateAuthorization(voucher).getOrThrow()
-                } ?: error("Voucher authorization validation timed out")
-            require(voucher.totalAmountClaimedMicroUsdc <= validated.totalDepositMicroUsdc) {
-                "Voucher exceeds deposit"
+        val snapshot =
+            try {
+                val validated =
+                    withTimeoutOrNull(operationTimeoutMillis.milliseconds) {
+                        adapter.validateAuthorization(voucher).getOrThrow()
+                    } ?: error("Voucher authorization validation timed out")
+                require(voucher.totalAmountClaimedMicroUsdc <= validated.totalDepositMicroUsdc) {
+                    "Voucher exceeds deposit"
+                }
+                validated
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                report(e)
+                return false
             }
-            validated
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            report(e)
-            return false
-        }
-        val accepted = try {
-            withTimeout(operationTimeoutMillis.milliseconds) {
-                mutex.withLock {
-                    currentCoroutineContext().ensureActive()
-                    if (!canAccept(voucher)) return@withLock false
-                    if (isDuplicate(voucher)) {
+        val accepted =
+            try {
+                withTimeout(operationTimeoutMillis.milliseconds) {
+                    mutex.withLock {
+                        currentCoroutineContext().ensureActive()
+                        if (!canAccept(voucher)) return@withLock false
+                        if (isDuplicate(voucher)) {
+                            if (force) forceRequested = true
+                            wake.trySend(Unit)
+                            return@withLock true
+                        }
+                        val block = latestRound ?: 0L
+                        val note =
+                            getMppVoucherNoteUseCase(
+                                noteParams ?: GetMppVoucherNoteUseCase.Params(
+                                    channelId = Base64.encode(voucher.channelId),
+                                    startBlock = startBlock ?: block,
+                                    currentBlock = block,
+                                    freeBlocks = freeBlocks,
+                                    paidBlocks = paidBlocks,
+                                    costPerPaidBlock = costPerPaidBlock,
+                                    settledAmount = snapshot.lastSettledMicroUsdc,
+                                    totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
+                                    freeChatCount = freeChatCount,
+                                    tipChatCount = tipChatCount,
+                                    tipChatTotal = tipChatTotal,
+                                ),
+                            )
+                        val saved =
+                            Voucher(
+                                sessionId,
+                                viewerAddress,
+                                creatorAddress,
+                                network,
+                                key,
+                                voucher.channelId,
+                                voucher.signature,
+                                voucher.totalAmountClaimedMicroUsdc,
+                                block,
+                                note,
+                            )
+                        // Persist before publishing/waking settlement. Failed writes must never submit.
+                        voucherRepository.upsertVoucher(
+                            MppVoucherEntity(
+                                channelIdBase64 = Base64.encode(saved.channelId),
+                                sessionId = sessionId,
+                                viewerAddress = viewerAddress,
+                                viewerPublicKeyBase64 = Base64.encode(saved.signerPublicKey),
+                                signatureBase64 = Base64.encode(saved.signature),
+                                totalAmountClaimedMicroUsdc = saved.totalAmountClaimedMicroUsdc,
+                                creatorAddress = creatorAddress,
+                                blockNumber = saved.blockNumber,
+                                note = saved.note,
+                                network = network,
+                            ),
+                        )
+                        latest = saved
                         if (force) forceRequested = true
                         wake.trySend(Unit)
-                        return@withLock true
+                        true
                     }
-                    val block = latestRound ?: 0L
-                    val note = getMppVoucherNoteUseCase(
-                        noteParams ?: GetMppVoucherNoteUseCase.Params(
-                            channelId = Base64.encode(voucher.channelId),
-                            startBlock = startBlock ?: block,
-                            currentBlock = block,
-                            freeBlocks = freeBlocks,
-                            paidBlocks = paidBlocks,
-                            costPerPaidBlock = costPerPaidBlock,
-                            settledAmount = snapshot.lastSettledMicroUsdc,
-                            totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
-                            freeChatCount = freeChatCount,
-                            tipChatCount = tipChatCount,
-                            tipChatTotal = tipChatTotal,
-                        ),
-                    )
-                    val saved = Voucher(
-                        sessionId, viewerAddress, creatorAddress, network, key,
-                        voucher.channelId, voucher.signature, voucher.totalAmountClaimedMicroUsdc,
-                        block, note,
-                    )
-                    // Persist before publishing/waking settlement. Failed writes must never submit.
-                    voucherRepository.upsertVoucher(
-                        MppVoucherEntity(
-                            channelIdBase64 = Base64.encode(saved.channelId),
-                            sessionId = sessionId,
-                            viewerAddress = viewerAddress,
-                            viewerPublicKeyBase64 = Base64.encode(saved.signerPublicKey),
-                            signatureBase64 = Base64.encode(saved.signature),
-                            totalAmountClaimedMicroUsdc = saved.totalAmountClaimedMicroUsdc,
-                            creatorAddress = creatorAddress,
-                            blockNumber = saved.blockNumber,
-                            note = saved.note,
-                            network = network,
-                        ),
-                    )
-                    latest = saved
-                    if (force) forceRequested = true
-                    wake.trySend(Unit)
-                    true
                 }
+            } catch (e: TimeoutCancellationException) {
+                report(e)
+                return false
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                report(e)
+                return false
             }
-        } catch (e: TimeoutCancellationException) {
-            report(e)
-            return false
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            report(e)
-            return false
-        }
         if (!accepted) report(IllegalArgumentException("Session closed, channel changed or amount decreased"))
         return accepted
     }
@@ -362,18 +382,29 @@ internal class ViewerVaultBillingSession(
      */
     suspend fun restorePending(channelId: ByteArray): Long {
         val channel = channelId.copyOf()
-        val row = voucherRepository.getAllVouchers().firstOrNull {
-            it.channelIdBase64 == Base64.encode(channel) && it.network == network &&
-                it.viewerAddress == viewerAddress && it.creatorAddress == creatorAddress &&
-                it.viewerPublicKeyBase64 == Base64.encode(key)
-        } ?: return 0L
+        val row =
+            voucherRepository.getAllVouchers().firstOrNull {
+                it.channelIdBase64 == Base64.encode(channel) &&
+                    it.network == network &&
+                    it.viewerAddress == viewerAddress &&
+                    it.creatorAddress == creatorAddress &&
+                    it.viewerPublicKeyBase64 == Base64.encode(key)
+            } ?: return 0L
         try {
             return withTimeout(operationTimeoutMillis.milliseconds) {
-                val voucher = Voucher(
-                    sessionId, viewerAddress, creatorAddress, network, key, channel,
-                    Base64.decode(row.signatureBase64), row.totalAmountClaimedMicroUsdc,
-                    row.blockNumber, row.note,
-                )
+                val voucher =
+                    Voucher(
+                        sessionId,
+                        viewerAddress,
+                        creatorAddress,
+                        network,
+                        key,
+                        channel,
+                        Base64.decode(row.signatureBase64),
+                        row.totalAmountClaimedMicroUsdc,
+                        row.blockNumber,
+                        row.note,
+                    )
                 val snapshot = adapter.readChannel(voucher).getOrThrow()
                 val startRound = snapshot.startRound
                 if (startRound != null && row.blockNumber > 0 && row.blockNumber < startRound) {
@@ -406,13 +437,14 @@ internal class ViewerVaultBillingSession(
     }
 
     /** Flush without closing: depletion/minimize may pause and later resume the same viewer. */
-    fun requestSettlement(): Job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
-        mutex.withLock {
-            if (closed) return@withLock
-            forceRequested = true
-            wake.trySend(Unit)
+    fun requestSettlement(): Job =
+        scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            mutex.withLock {
+                if (closed) return@withLock
+                forceRequested = true
+                wake.trySend(Unit)
+            }
         }
-    }
 
     fun updatePayoutFrequencyBlocks(blocks: Int): Job {
         require(blocks > 0) { "Payout frequency must be positive" }
@@ -425,7 +457,11 @@ internal class ViewerVaultBillingSession(
         }
     }
 
-    fun onBlock(block: Long, isPaid: Boolean = true, costMicroUsdc: Long = 0L): Job =
+    fun onBlock(
+        block: Long,
+        isPaid: Boolean = true,
+        costMicroUsdc: Long = 0L,
+    ): Job =
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             mutex.withLock {
                 if (closed || block < 0 || latestRound?.let { block <= it } == true) return@withLock

@@ -2,13 +2,11 @@ package com.michaeltchuang.walletsdk.ui.liquidStream.utils
 
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 
-
 enum class TextCasing {
     UPPERCASE,
     LOWERCASE,
     ORIGINAL,
 }
-
 
 fun formatDisplayName(
     input: String?,

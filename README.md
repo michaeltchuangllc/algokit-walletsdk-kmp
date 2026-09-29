@@ -134,11 +134,10 @@ timeline
     2026Q4   
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Onboarding - PQ Passkeys
-             : Seed Vault - Sign Liquid Auth using Algorand seed vault seeds
+             : Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
              : Liquid Stream - Liquid Stream demo app (own repo)
              : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
-             : Research - React Native sample app talking to seed vault
-             : Liquid Gossip mobile POC
+             : Research - React Native sample app talking to Trusty seed vault
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
              : Liquid Stream - Improve bot commenting in demo mode
@@ -152,6 +151,7 @@ timeline
             : Seed Vault - Escrow Session Vault for Solana accounts
             : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+            : Liquid Gossip mobile POC
             : TBD
 
 ```

@@ -68,7 +68,7 @@ fun LiquidStreamHostDebugToolScreen(
         offerViewModel.clearMeshHosting()
         viewModel.resetMediaToggles()
     }
-    
+
     DisposableEffect(debugViewModel, manager, offerViewModel) {
         onDispose {
             debugViewModel.stopBots()
@@ -169,9 +169,7 @@ private fun LiveDebugOfferContent(
 }
 
 @Composable
-private fun LiveDebugContent(
-    state: LiquidStreamLiveDebugViewModel.State,
-) {
+private fun LiveDebugContent(state: LiquidStreamLiveDebugViewModel.State) {
     Box(
         modifier =
             Modifier
@@ -204,20 +202,21 @@ private fun LiveDebugContent(
                 )
             }
             Text(
-                    when {
-                        state.error != null -> "System Bot billing: ${state.error}"
-                        state.billingErrors.isNotEmpty() -> state.billingErrors.entries.first().let {
+                when {
+                    state.error != null -> "System Bot billing: ${state.error}"
+                    state.billingErrors.isNotEmpty() ->
+                        state.billingErrors.entries.first().let {
                             "System Bot billing: ${it.key}: ${it.value}"
                         }
-                        state.isFunding -> "Funding 1 USDC per bot…"
-                        state.running -> "Bots running · ${state.botDetails.size} debug viewers"
-                        state.isFundAdded && state.fundedAddresses.isNotEmpty() ->
-                            "Fund added successfully to ${state.fundedAddresses.joinToString(", ")}"
-                        else -> "Bots stopped"
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White,
-                )
+                    state.isFunding -> "Funding 1 USDC per bot…"
+                    state.running -> "Bots running · ${state.botDetails.size} debug viewers"
+                    state.isFundAdded && state.fundedAddresses.isNotEmpty() ->
+                        "Fund added successfully to ${state.fundedAddresses.joinToString(", ")}"
+                    else -> "Bots stopped"
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White,
+            )
         }
     }
 }
