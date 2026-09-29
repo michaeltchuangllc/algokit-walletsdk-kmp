@@ -33,8 +33,8 @@ actual fun rememberLiveDebugConnectionManager(): LiquidAuthConnectionManager {
 actual fun LiveDebugPermissionGate(content: @Composable () -> Unit) {
     val context = LocalContext.current
     val permissions = remember { arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO) }
-    fun hasPermissions() =
-        permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+
+    fun hasPermissions() = permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
 
     var granted by remember(context) { mutableStateOf(hasPermissions()) }
     var requested by remember { mutableStateOf(false) }

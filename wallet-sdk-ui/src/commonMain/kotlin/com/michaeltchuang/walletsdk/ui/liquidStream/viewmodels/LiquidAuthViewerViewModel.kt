@@ -29,11 +29,13 @@ class LiquidAuthViewerViewModel(
 
     fun loadCreatorNfdProfile(address: String) {
         if (address.isBlank()) return
+        stateDelegate.updateState { it.copy(creatorAddress = address) }
         viewModelScope.launch {
             try {
                 val nfdProfile = getNfdProfileForAddress(address)
                 stateDelegate.updateState {
                     it.copy(
+                        creatorAddress = address,
                         creatorNfdName = nfdProfile?.name,
                         creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
                     )
@@ -46,12 +48,16 @@ class LiquidAuthViewerViewModel(
 
     fun loadViewerNfdProfile(address: String) {
         if (address.isBlank() || address == "-") return
+        stateDelegate.updateState { it.copy(viewerAddress = address) }
         viewModelScope.launch {
             try {
                 val nfdProfile = getNfdProfileForAddress(address)
                 if (nfdProfile?.name != null) {
                     stateDelegate.updateState {
-                        it.copy(viewerNfdName = nfdProfile.name)
+                        it.copy(
+                            viewerAddress = address,
+                            viewerNfdName = nfdProfile.name,
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -177,14 +183,26 @@ class LiquidAuthViewerViewModel(
     }
 
     fun receivedChatMessage(message: ChatMessage) {
-        stateDelegate.updateState {
-            it.copy(
+        stateDelegate.updateState { currentState ->
+            val isCreator =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
+                    message.sender.contains("host", ignoreCase = true) ||
+                    message.sender.contains("creator", ignoreCase = true)
+            val isLocalUser =
+                (currentState.viewerAddress.isNotBlank() && message.sender == currentState.viewerAddress) ||
+                    (!currentState.viewerNfdName.isNullOrBlank() && message.sender == currentState.viewerNfdName) ||
+                    message.sender.equals("You", ignoreCase = true)
+
+            currentState.copy(
                 chatMessages =
-                    it.chatMessages +
+                    currentState.chatMessages +
                         ChatUiMessage(
                             sender = message.sender,
                             text = message.text,
                             timestamp = message.timestamp,
+                            isCreator = isCreator,
+                            isLocalUser = isLocalUser,
                             amount = message.amount,
                             asset = message.asset,
                         ),
@@ -201,6 +219,8 @@ class LiquidAuthViewerViewModel(
     }
 
     data class UiState(
+        val creatorAddress: String = "",
+        val viewerAddress: String = "",
         val showAnalyticsModal: Boolean = false,
         val showViewerSettingsSheet: Boolean = false,
         val showTopUpSheet: Boolean = false,

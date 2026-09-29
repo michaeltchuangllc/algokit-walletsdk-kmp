@@ -5,5 +5,6 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionMa
 
 @Composable
 expect fun rememberLiveDebugConnectionManager(): LiquidAuthConnectionManager
+
 @Composable
 expect fun LiveDebugPermissionGate(content: @Composable () -> Unit)

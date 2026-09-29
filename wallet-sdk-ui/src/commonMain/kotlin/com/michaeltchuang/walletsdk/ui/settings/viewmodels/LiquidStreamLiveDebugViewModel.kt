@@ -84,12 +84,13 @@ class LiquidStreamLiveDebugViewModel(
                 val captured = contextUseCase()
                 context = captured
                 viewers = selections.uniqueDebugViewers()
-                mutableState.value = State(
-                    loaded = true,
-                    creator = creator,
-                    network = captured.mppNetwork,
-                    assetId = captured.usdcAssetId,
-                )
+                mutableState.value =
+                    State(
+                        loaded = true,
+                        creator = creator,
+                        network = captured.mppNetwork,
+                        assetId = captured.usdcAssetId,
+                    )
                 pendingStart?.let { callback ->
                     pendingStart = null
                     launchBots(callback)
@@ -131,16 +132,17 @@ class LiquidStreamLiveDebugViewModel(
         checkLowBalanceOnly: Boolean = false,
     ): Job {
         fundingJob?.takeIf { it.isActive }?.let { return it }
-        return viewModelScope.launch {
-            try {
-                fundSessions(amountUsdc, checkLowBalanceOnly)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Napier.e("Batch deposit failed", e, tag = "LiquidStreamLiveDebugVM")
-                mutableState.update { it.copy(error = "Batch deposit failed: ${e.message}") }
-            }
-        }.also { fundingJob = it }
+        return viewModelScope
+            .launch {
+                try {
+                    fundSessions(amountUsdc, checkLowBalanceOnly)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Napier.e("Batch deposit failed", e, tag = "LiquidStreamLiveDebugVM")
+                    mutableState.update { it.copy(error = "Batch deposit failed: ${e.message}") }
+                }
+            }.also { fundingJob = it }
     }
 
     private suspend fun fundSessions(
@@ -156,11 +158,12 @@ class LiquidStreamLiveDebugViewModel(
         val creator = state.value.creator
         // Validate the whole batch before spending, including the creator needed for settlement.
         requireNotNull(mppWalletSignerUseCase(creator)) { "Selected creator has no local signer" }
-        val signers = viewers.map { viewer ->
-            requireNotNull(mppWalletSignerUseCase(viewer)) { "Selected viewer has no local signer: $viewer" }.also {
-                require(it.address == viewer && it.authorizedSignerPublicKey.isNotEmpty())
+        val signers =
+            viewers.map { viewer ->
+                requireNotNull(mppWalletSignerUseCase(viewer)) { "Selected viewer has no local signer: $viewer" }.also {
+                    require(it.address == viewer && it.authorizedSignerPublicKey.isNotEmpty())
+                }
             }
-        }
         mutableState.update { it.copy(isFunding = true, isFundAdded = false, fundedAddresses = emptyList()) }
         val funded = mutableListOf<String>()
         try {
@@ -172,21 +175,29 @@ class LiquidStreamLiveDebugViewModel(
                 viewerChannelIds[viewer] = channel
                 // An open call supports both new and existing channels. Never retry an uncertain
                 // top-up submission as a second deposit.
-                val shouldDeposit = if (checkLowBalanceOnly) {
-                    val snapshot = HostViewerVaultReader.readChannel(
-                        channel, viewer, creator, signer.authorizedSignerPublicKey, captured.mppNetwork,
-                    ).getOrThrow()
-                    snapshot.progressBalanceMicroUsdc <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC
-                } else {
-                    true
-                }
+                val shouldDeposit =
+                    if (checkLowBalanceOnly) {
+                        val snapshot =
+                            HostViewerVaultReader
+                                .readChannel(
+                                    channel,
+                                    viewer,
+                                    creator,
+                                    signer.authorizedSignerPublicKey,
+                                    captured.mppNetwork,
+                                ).getOrThrow()
+                        snapshot.progressBalanceMicroUsdc <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC
+                    } else {
+                        true
+                    }
                 if (shouldDeposit) {
                     withContext(Dispatchers.Default) {
-                        val txId = if (checkLowBalanceOnly) {
-                            EscrowSessionVaultHybridManagerClient.topUp(signer, channel, depositMicroUsdc)
-                        } else {
-                            MppPayments.openSessionAndDeposit(signer, viewer, depositMicroUsdc, channel)
-                        }.getOrThrow()
+                        val txId =
+                            if (checkLowBalanceOnly) {
+                                EscrowSessionVaultHybridManagerClient.topUp(signer, channel, depositMicroUsdc)
+                            } else {
+                                MppPayments.openSessionAndDeposit(signer, viewer, depositMicroUsdc, channel)
+                            }.getOrThrow()
                         check(MppPayments.awaitTransactionConfirmation(txId)) {
                             "Bot funding is not confirmed: $txId"
                         }
@@ -198,9 +209,14 @@ class LiquidStreamLiveDebugViewModel(
                     // Existing funded channels need this too: a prior failed registration must
                     // not leave a bot funded but unable to settle its first voucher.
                     withContext(Dispatchers.Default) {
-                        val authorizationTxId = MppPayments.setAuthorizedSignerForSession(
-                            signer, viewer, signer.authorizedSignerPublicKey, channel,
-                        ).getOrThrow()
+                        val authorizationTxId =
+                            MppPayments
+                                .setAuthorizedSignerForSession(
+                                    signer,
+                                    viewer,
+                                    signer.authorizedSignerPublicKey,
+                                    channel,
+                                ).getOrThrow()
                         check(MppPayments.awaitTransactionConfirmation(authorizationTxId)) {
                             "Bot signer authorization is not confirmed: $authorizationTxId"
                         }
@@ -212,9 +228,15 @@ class LiquidStreamLiveDebugViewModel(
                         currentCoroutineContext().ensureActive()
                     }
                 }
-                val snapshot = HostViewerVaultReader.readChannel(
-                    channel, viewer, creator, signer.authorizedSignerPublicKey, captured.mppNetwork,
-                ).getOrThrow()
+                val snapshot =
+                    HostViewerVaultReader
+                        .readChannel(
+                            channel,
+                            viewer,
+                            creator,
+                            signer.authorizedSignerPublicKey,
+                            captured.mppNetwork,
+                        ).getOrThrow()
                 val details = botProgressMap.getOrPut(viewer) { HostViewerProgress() }.update(snapshot.asDetails(viewer))
                 mutableState.update { it.copy(botDetails = it.botDetails + ("debug:$viewer" to details)) }
                 // Only release this viewer after all three transactions are confirmed.
@@ -227,7 +249,10 @@ class LiquidStreamLiveDebugViewModel(
         }
     }
 
-    private fun getOrInitChannelId(viewer: String, signer: MppWalletSigner): ByteArray =
+    private fun getOrInitChannelId(
+        viewer: String,
+        signer: MppWalletSigner,
+    ): ByteArray =
         viewerChannelIds.getOrPut(viewer) {
             configureDebugSessionContext(viewer, state.value.creator, signer.authorizedSignerPublicKey)
         }
@@ -261,7 +286,11 @@ class LiquidStreamLiveDebugViewModel(
             }
         }
 
-    fun configure(isPaid: Boolean, costMicroUsdc: Long, payoutBlocks: Int) {
+    fun configure(
+        isPaid: Boolean,
+        costMicroUsdc: Long,
+        payoutBlocks: Int,
+    ) {
         if (costMicroUsdc < 0 || payoutBlocks <= 0) {
             mutableState.update { it.copy(error = "Cost must be nonnegative and payout blocks positive") }
             return
@@ -297,65 +326,70 @@ class LiquidStreamLiveDebugViewModel(
                 botDetails = emptyMap(),
             )
         }
-        producerJob = viewModelScope.launch {
-            try {
-                // A rapid Stop/Start cannot overlap old and new channel producers/drains.
-                previous?.join()
-                runner.run(
-                    captured, creator, viewers, configuration,
-                    prepareViewers = { ready -> fundSessions(onViewerReady = ready) },
-                    onDetails = { viewer, details ->
-                        if (generation == token) {
-                            val updated = botProgressMap.getOrPut(viewer) { HostViewerProgress() }.update(details)
-                            mutableState.update { it.copy(botDetails = it.botDetails + ("debug:$viewer" to updated)) }
+        producerJob =
+            viewModelScope.launch {
+                try {
+                    // A rapid Stop/Start cannot overlap old and new channel producers/drains.
+                    previous?.join()
+                    runner.run(
+                        captured,
+                        creator,
+                        viewers,
+                        configuration,
+                        prepareViewers = { ready -> fundSessions(onViewerReady = ready) },
+                        onDetails = { viewer, details ->
+                            if (generation == token) {
+                                val updated = botProgressMap.getOrPut(viewer) { HostViewerProgress() }.update(details)
+                                mutableState.update { it.copy(botDetails = it.botDetails + ("debug:$viewer" to updated)) }
 
-                            val remaining = details.progressBalanceMicroUsdc ?: details.remainingBalanceMicroUsdc
-                            if (remaining != null && remaining <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC) {
-                                if (!mutableState.value.isFunding) {
-                                    Napier.d(
-                                        "[AUTO_DEPOSIT_TRIGGERED] viewer=$viewer balance=$remaining threshold=${LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC}",
-                                        tag = "LiquidStreamLiveDebugVM",
-                                    )
-                                    openSessionAndDeposit(checkLowBalanceOnly = true)
+                                val remaining = details.progressBalanceMicroUsdc ?: details.remainingBalanceMicroUsdc
+                                if (remaining != null && remaining <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC) {
+                                    if (!mutableState.value.isFunding) {
+                                        Napier.d(
+                                            "[AUTO_DEPOSIT_TRIGGERED] viewer=$viewer balance=$remaining threshold=${LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC}",
+                                            tag = "LiquidStreamLiveDebugVM",
+                                        )
+                                        openSessionAndDeposit(checkLowBalanceOnly = true)
+                                    }
                                 }
                             }
-                        }
-                    },
-                    onChat = { if (generation == token) onChat(it) },
-                    onError = { error ->
-                        if (generation == token) mutableState.update { it.copy(error = it.error ?: error) }
-                    },
-                    onBillingError = { viewer, error ->
-                        if (generation == token) {
-                            mutableState.update {
-                                it.copy(
-                                    billingErrors = if (error == null) {
-                                        it.billingErrors - viewer
-                                    } else {
-                                        it.billingErrors + (viewer to error)
-                                    },
-                                )
+                        },
+                        onChat = { if (generation == token) onChat(it) },
+                        onError = { error ->
+                            if (generation == token) mutableState.update { it.copy(error = it.error ?: error) }
+                        },
+                        onBillingError = { viewer, error ->
+                            if (generation == token) {
+                                mutableState.update {
+                                    it.copy(
+                                        billingErrors =
+                                            if (error == null) {
+                                                it.billingErrors - viewer
+                                            } else {
+                                                it.billingErrors + (viewer to error)
+                                            },
+                                    )
+                                }
                             }
+                        },
+                    )
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (generation == token) mutableState.update { it.copy(error = e.message ?: "Bots stopped") }
+                } finally {
+                    if (generation == token) {
+                        mutableState.update {
+                            it.copy(
+                                running = false,
+                                isFunding = false,
+                                isFundAdded = false,
+                                fundedAddresses = emptyList(),
+                            )
                         }
-                    },
-                )
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                if (generation == token) mutableState.update { it.copy(error = e.message ?: "Bots stopped") }
-            } finally {
-                if (generation == token) {
-                    mutableState.update {
-                        it.copy(
-                            running = false,
-                            isFunding = false,
-                            isFundAdded = false,
-                            fundedAddresses = emptyList(),
-                        )
                     }
                 }
             }
-        }
     }
 
     fun stopBots() {

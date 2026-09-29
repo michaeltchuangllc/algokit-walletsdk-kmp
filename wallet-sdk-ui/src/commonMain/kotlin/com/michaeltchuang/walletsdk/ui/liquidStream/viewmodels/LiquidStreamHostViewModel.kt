@@ -31,11 +31,13 @@ class LiquidStreamHostViewModel(
 
     fun loadCreatorNfdProfile(address: String) {
         if (address.isBlank()) return
+        stateDelegate.updateState { it.copy(creatorAddress = address) }
         viewModelScope.launch {
             try {
                 val nfdProfile = getNfdProfileForAddress(address)
                 stateDelegate.updateState {
                     it.copy(
+                        creatorAddress = address,
                         creatorNfdName = nfdProfile?.name,
                         creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
                     )
@@ -86,10 +88,15 @@ class LiquidStreamHostViewModel(
             return
         }
 
+        val creatorSender =
+            state.value.creatorNfdName
+                ?: state.value.creatorAddress.takeIf { it.isNotBlank() }
+                ?: "Creator"
+
         // Add locally immediately
         receivedChatMessage(
             ChatMessage(
-                sender = "You",
+                sender = creatorSender,
                 text = messageText,
                 timestamp = Clock.System.now().toEpochMilliseconds(),
             ),
@@ -105,6 +112,15 @@ class LiquidStreamHostViewModel(
         val isTip = giftUsdc != null && giftUsdc > 0.0
 
         stateDelegate.updateState { currentState ->
+            val isCreator =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
+                    message.sender.contains("host", ignoreCase = true) ||
+                    message.sender.contains("creator", ignoreCase = true)
+            val isLocalUser =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName)
+
             val newFreeCount = if (isTip) currentState.freeChatCount else currentState.freeChatCount + 1
             val newTipCount = if (isTip) currentState.tipChatCount + 1 else currentState.tipChatCount
             val newTipTotal = if (isTip) currentState.tipChatTotalUsdc + giftUsdc else currentState.tipChatTotalUsdc
@@ -117,6 +133,8 @@ class LiquidStreamHostViewModel(
                                 sender = message.sender,
                                 text = message.text,
                                 timestamp = message.timestamp,
+                                isCreator = isCreator,
+                                isLocalUser = isLocalUser,
                                 amount = message.amount,
                                 asset = message.asset,
                             ),
@@ -287,6 +305,7 @@ class LiquidStreamHostViewModel(
 
     data class UiState(
         val message: String = "",
+        val creatorAddress: String = "",
         val isStatsModalVisible: Boolean = false,
         val isSettingsModalVisible: Boolean = false,
         val isQrModalVisible: Boolean = false,

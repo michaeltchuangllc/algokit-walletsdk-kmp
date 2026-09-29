@@ -1611,7 +1611,11 @@ actual class LiquidAuthConnectionManager actual constructor(
                 val helloViewer = hello.viewerAddress
                 val signerKey = hello.viewerPublicKey
                 if ((activeViewerAddressForVault != null && helloViewer != null && helloViewer != activeViewerAddressForVault) ||
-                    (activeViewerAuthorizedSignerKey != null && signerKey != null && !activeViewerAuthorizedSignerKey.contentEquals(signerKey))
+                    (
+                        activeViewerAuthorizedSignerKey != null &&
+                            signerKey != null &&
+                            !activeViewerAuthorizedSignerKey.contentEquals(signerKey)
+                    )
                 ) {
                     Napier.w("$TAG: [VIEWER_HELLO_SKIP] reason=identity_mismatch")
                     return@runCatching

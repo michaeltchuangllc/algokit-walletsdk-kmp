@@ -51,8 +51,10 @@ internal class LiquidStreamBlockConsumptionManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var blockDrivenConsumptionJob: Job? = null
     private var billing: ViewerVaultBillingSession? = null
+
     @Volatile
     private var billingGeneration = 0L
+
     // Ordered intake survives screen teardown and drains before a replacement session starts.
     private val billingCommands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
 
@@ -80,7 +82,10 @@ internal class LiquidStreamBlockConsumptionManager(
         scope.launch {
             try {
                 ViewerVaultBillingSession.recoverPending(
-                    scope, voucherRepository, getMppVoucherNoteUseCase, buildCreatorWalletSigner,
+                    scope,
+                    voucherRepository,
+                    getMppVoucherNoteUseCase,
+                    buildCreatorWalletSigner,
                 ) { Napier.e("Pending viewer settlement failed", it, tag = tag) }
             } catch (e: CancellationException) {
                 throw e
@@ -91,7 +96,10 @@ internal class LiquidStreamBlockConsumptionManager(
     }
 
     @OptIn(ExperimentalEncodingApi::class)
-    fun acceptVoucher(voucher: LiquidAuthPaymentVoucherMessage, network: String) {
+    fun acceptVoucher(
+        voucher: LiquidAuthPaymentVoucherMessage,
+        network: String,
+    ) {
         val creator = getActiveCreatorAddress() ?: return
         val viewer = voucher.viewerAddress ?: return
         val session = voucher.sessionId ?: return
@@ -103,47 +111,55 @@ internal class LiquidStreamBlockConsumptionManager(
         val paid = getIsPaidStreaming()
         val cost = getViewModel()?.currentCostPerBlockMicroUsdc ?: 0L
         // Keep primary note accounting identical to the existing balance-driven UI counters.
-        val params = GetMppVoucherNoteUseCase.Params(
-            channelId = Base64.encode(channel),
-            startBlock = startRound,
-            currentBlock = round ?: 0L,
-            freeBlocks = freeBlocksConsumed.toLong(),
-            paidBlocks = paidBlocksConsumed.toLong(),
-            costPerPaidBlock = cost,
-            settledAmount = lastSettledMicroUsdc,
-            totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc ?: 0L,
-            freeChatCount = freeChatCount,
-            tipChatCount = tipChatCount,
-            tipChatTotal = tipChatTotalMicroUsdc,
-        )
+        val params =
+            GetMppVoucherNoteUseCase.Params(
+                channelId = Base64.encode(channel),
+                startBlock = startRound,
+                currentBlock = round ?: 0L,
+                freeBlocks = freeBlocksConsumed.toLong(),
+                paidBlocks = paidBlocksConsumed.toLong(),
+                costPerPaidBlock = cost,
+                settledAmount = lastSettledMicroUsdc,
+                totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc ?: 0L,
+                freeChatCount = freeChatCount,
+                tipChatCount = tipChatCount,
+                tipChatTotal = tipChatTotalMicroUsdc,
+            )
         enqueueBilling {
             // Disconnect discards unvalidated backlog; already persisted work is drained below.
             if (generation != billingGeneration) return@enqueueBilling
             withTimeout(25_000.milliseconds) {
                 val current = billing
                 if (current != null) {
-                    require(current.sessionId == session && current.viewerAddress == viewer &&
-                        current.creatorAddress == creator && current.network == network &&
-                        current.signerPublicKey.contentEquals(key)) { "Primary billing identity changed" }
+                    require(
+                        current.sessionId == session &&
+                            current.viewerAddress == viewer &&
+                            current.creatorAddress == creator &&
+                            current.network == network &&
+                            current.signerPublicKey.contentEquals(key),
+                    ) { "Primary billing identity changed" }
                 }
-                val target = current ?: ViewerVaultBillingSession(
-                    scope = scope,
-                    sessionId = session,
-                    viewerAddress = viewer,
-                    creatorAddress = creator,
-                    network = network,
-                    signerPublicKey = key,
-                    buildCreatorWalletSigner = buildCreatorWalletSigner,
-                    onSnapshot = {},
-                    onError = { Napier.e("Primary viewer settlement failed", it, tag = tag) },
-                    voucherRepository = voucherRepository,
-                    getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
-                    payoutFrequencyBlocks = payoutFrequencyBlocks,
-                ).also { billing = it }
+                val target =
+                    current ?: ViewerVaultBillingSession(
+                        scope = scope,
+                        sessionId = session,
+                        viewerAddress = viewer,
+                        creatorAddress = creator,
+                        network = network,
+                        signerPublicKey = key,
+                        buildCreatorWalletSigner = buildCreatorWalletSigner,
+                        onSnapshot = {},
+                        onError = { Napier.e("Primary viewer settlement failed", it, tag = tag) },
+                        voucherRepository = voucherRepository,
+                        getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
+                        payoutFrequencyBlocks = payoutFrequencyBlocks,
+                    ).also { billing = it }
                 if (current == null) target.restorePending(channel)
                 round?.let { target.onBlock(it, paid, cost).join() }
                 if (target.acceptVoucher(voucher, force = true, noteParams = params) &&
-                    currentSessionId == session && generation == billingGeneration) {
+                    currentSessionId == session &&
+                    generation == billingGeneration
+                ) {
                     // Legacy primary UI reads still use this client; never set it from unvalidated input.
                     EscrowSessionVaultHybridManagerClient.channelId = channel
                 }
@@ -366,7 +382,6 @@ internal class LiquidStreamBlockConsumptionManager(
         blockDrivenConsumptionJob = null
 
         getViewModel()?.stopRealtimeBlockNumberUpdates()
-
     }
 
     private suspend fun consumeBlockSequentially() {
@@ -460,5 +475,4 @@ internal class LiquidStreamBlockConsumptionManager(
             freeBlocks = freeBlocksConsumed,
         )
     }
-
 }

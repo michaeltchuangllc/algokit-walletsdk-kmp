@@ -101,10 +101,11 @@ object HostViewerVaultReader {
                 // The contract stores AVMBytes here, not an ARC-4 dynamic byte array.
                 // Only the channel's signer-hash field above has an ARC-4 length prefix.
                 require(storedSigner.contentEquals(signerKey)) { "Channel signer key mismatch" }
-                val snapshot = simulateSnapshot(config, channel, simulate).copy(
-                    // ChannelInfo head: two addresses, byte[] offset, then six uint64s.
-                    startRound = decodeAmount(box, 90),
-                )
+                val snapshot =
+                    simulateSnapshot(config, channel, simulate).copy(
+                        // ChannelInfo head: two addresses, byte[] offset, then six uint64s.
+                        startRound = decodeAmount(box, 90),
+                    )
                 currentCoroutineContext().ensureActive()
                 Result.success(snapshot)
             } catch (e: CancellationException) {

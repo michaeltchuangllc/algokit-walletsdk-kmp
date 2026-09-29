@@ -83,15 +83,16 @@ class ViewerVaultSettlementTest {
         }
 
     @Test
-    fun `EXPECT the supplied voucher note to reach transaction submission`() = runTest {
-        val note = """{"v":1,"channel":"viewer-channel","cumulative_total":500}"""
-        val fake = Fake().apply { expectedNote = note }
-        assertEquals(
-            "fake-tx",
-            fake.api.settle(viewer, creator, key, channel, signature, 500, network, note).getOrThrow(),
-        )
-        assertEquals(1, fake.submissions)
-    }
+    fun `EXPECT the supplied voucher note to reach transaction submission`() =
+        runTest {
+            val note = """{"v":1,"channel":"viewer-channel","cumulative_total":500}"""
+            val fake = Fake().apply { expectedNote = note }
+            assertEquals(
+                "fake-tx",
+                fake.api.settle(viewer, creator, key, channel, signature, 500, network, note).getOrThrow(),
+            )
+            assertEquals(1, fake.submissions)
+        }
 
     @Test
     fun `EXPECT companion validation to need no wallet and reject a forged high watermark WHEN validating a voucher`() =

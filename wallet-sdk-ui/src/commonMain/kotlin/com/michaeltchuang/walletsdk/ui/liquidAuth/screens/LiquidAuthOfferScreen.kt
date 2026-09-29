@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,7 +14,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -74,7 +72,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
-import com.michaeltchuang.walletsdk.ui.base.utils.isDebugBuild
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
@@ -808,9 +805,12 @@ private fun StreamHostBottomSheet(
                 meshViewerDetails = meshViewerDetails,
                 onRefreshInvitation = onRefreshInvitation,
                 onSendClick = { text ->
+                    val senderIdentity =
+                        hostViewModel.state.value.creatorNfdName
+                            ?: creatorAddress.ifBlank { "Creator" }
                     connectionManager?.sendChatMessage(
                         ChatMessage(
-                            sender = "Creator",
+                            sender = senderIdentity,
                             text = text,
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                         ),
@@ -868,9 +868,12 @@ private fun StreamHostBottomSheet(
                 meshViewerDetails = meshViewerDetails,
                 onRefreshInvitation = onRefreshInvitation,
                 onSendClick = { text ->
+                    val senderIdentity =
+                        hostViewModel.state.value.creatorNfdName
+                            ?: creatorAddress.ifBlank { "Creator" }
                     connectionManager?.sendChatMessage(
                         ChatMessage(
-                            sender = "Creator",
+                            sender = senderIdentity,
                             text = text,
                             timestamp = Clock.System.now().toEpochMilliseconds(),
                         ),

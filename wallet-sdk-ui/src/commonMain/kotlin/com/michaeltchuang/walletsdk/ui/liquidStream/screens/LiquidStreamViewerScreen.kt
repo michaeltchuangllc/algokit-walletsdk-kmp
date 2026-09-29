@@ -31,7 +31,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -49,7 +48,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -65,7 +63,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersC
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
-import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
@@ -542,8 +539,6 @@ private fun GiftTickerCard() {
         }
     }
 }
-
-
 
 @Composable
 private fun FloatingButtons(
