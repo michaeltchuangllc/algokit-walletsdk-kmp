@@ -1,13 +1,10 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
-import android.app.Activity
-import androidx.activity.result.ActivityResult
-import com.google.android.gms.fido.Fido
-import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.io.encoding.Base64
@@ -16,13 +13,10 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 /**
  * Use case for handling FIDO2 assertion (authentication) result
  *
- * Processes the ActivityResult from the FIDO2 authentication intent and handles:
- * - Result code validation
- * - Credential extraction
- * - Error handling
+ * Processes the provider-neutral authentication credential and handles:
  * - Liquid extension JSON creation
  * - Server submission
- * - Counter update
+ * - Previous counter extraction after server verification
  *
  * This separates assertion result handling from the Activity
  */
@@ -38,7 +32,7 @@ class HandleAssertionResultUseCase(
      */
     sealed class Result {
         data class Success(
-            val credential: PublicKeyCredential,
+            val credential: WebAuthnCredential,
             val responseBody: String,
             val prevCounter: Int,
         ) : Result()
@@ -53,83 +47,59 @@ class HandleAssertionResultUseCase(
     }
 
     /**
-     * Handle the assertion activity result
+     * Submit the assertion credential for server verification
      *
-     * @param activityResult The result from the FIDO2 authentication intent
+     * @param credential The credential returned by the authentication provider
      * @param viewModel The ViewModel for API calls
      * @return Result indicating success, cancellation, or error
      */
     suspend operator fun invoke(
-        activityResult: ActivityResult,
+        credential: WebAuthnCredential,
         viewModel: AnswerViewModel,
     ): Result {
         try {
-            Napier.d("========================================", tag = TAG)
-            Napier.d("📱 PROCESSING ASSERTION RESULT", tag = TAG)
-            Napier.d("Result code: ${activityResult.resultCode}", tag = TAG)
-            Napier.d("========================================", tag = TAG)
+            val authMessage =
+                viewModel.authMessage.value
+                    ?: return Result.Error("Authentication message is missing")
+            val challengeSignature =
+                viewModel.currentChallenge
+                    ?: return Result.Error("Challenge signature is missing")
 
-            // Step 1: Validate result code
-            if (activityResult.resultCode != Activity.RESULT_OK) {
-                Napier.w("Assertion cancelled or failed", tag = TAG)
-                return Result.Cancelled("Authentication was cancelled")
-            }
-
-            // Step 2: Extract credential bytes
-            val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
-            if (bytes == null) {
-                Napier.e("Credential bytes are null", tag = TAG)
-                return Result.Error("No credential data received")
-            }
-
-            // Step 3: Deserialize credential
-            val credential = PublicKeyCredential.deserializeFromBytes(bytes)
-            Napier.d("✅ Authentication credential received", tag = TAG)
-            Napier.d("Credential ID: ${credential.id}", tag = TAG)
-
-            // Step 4: Check for authenticator errors
-            val response = credential.response
-            if (response is AuthenticatorErrorResponse) {
-                Napier.e("Authenticator error: ${response.errorMessage}", tag = TAG)
-                return Result.Error(response.errorMessage ?: "Authentication error")
-            }
-
-            // Step 5: Build liquid extension JSON
             val liquidExtJSON =
                 buildLiquidExtensionJson(
                     accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
-                    requestId = viewModel.authMessage.value!!.requestId,
+                    requestId = authMessage.requestId,
                     accountAddress = viewModel.accountAddress.value,
                     publicKey = viewModel.getAccountPublicKey(viewModel.accountAddress.value),
-                    challengeSignature = viewModel.currentChallenge,
+                    challengeSignature = challengeSignature,
                 )
 
             Napier.d("Posting authentication assertion to server...", tag = TAG)
 
-            // Step 6: Submit to server
-            val serverResponse =
-                assertionApiUseCase.postAssertionResult(
-                    viewModel.authMessage.value!!.origin,
+            return assertionApiUseCase
+                .postAssertionResult(
+                    authMessage.origin,
                     viewModel.userAgent,
                     credential,
                     liquidExtJSON,
-                )
+                ).use { response ->
+                    if (!response.isSuccessful) {
+                        return Result.Error(
+                            "Authentication failed: ${response.code} ${response.message}",
+                        )
+                    }
 
-            Napier.d("========================================", tag = TAG)
-            Napier.d("✅ AUTHENTICATION SUCCESSFUL!", tag = TAG)
-            Napier.d("Server response: ${serverResponse.code}", tag = TAG)
-            Napier.d("Credential was recognized and validated!", tag = TAG)
-            Napier.d("========================================", tag = TAG)
-
-            // Step 7: Parse response and extract counter
-            val responseBody = serverResponse.body!!.string()
-            val prevCounter = extractPrevCounter(responseBody, credential.id)
-
-            return Result.Success(
-                credential = credential,
-                responseBody = responseBody,
-                prevCounter = prevCounter,
-            )
+                    val responseBody = response.body.string()
+                    val prevCounter = extractPrevCounter(responseBody, credential.id)
+                    Napier.d("Authentication successful", tag = TAG)
+                    Result.Success(
+                        credential = credential,
+                        responseBody = responseBody,
+                        prevCounter = prevCounter,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("❌ Exception in handleAssertionResult", e, tag = TAG)
             Napier.e("Exception type: ${e.javaClass.name}", tag = TAG)
@@ -180,6 +150,8 @@ class HandleAssertionResultUseCase(
                 }
             }
             0
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("Failed to extract prevCounter from response", e, tag = TAG)
             0

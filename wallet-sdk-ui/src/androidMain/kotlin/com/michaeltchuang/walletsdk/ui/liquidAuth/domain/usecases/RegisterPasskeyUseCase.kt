@@ -1,13 +1,12 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.net.Uri
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import okhttp3.Response
 import org.json.JSONObject
 
@@ -18,7 +17,7 @@ import org.json.JSONObject
  * 1. Extracting RP ID from origin
  * 2. Building attestation options
  * 3. Fetching attestation options from FIDO2 server
- * 4. Converting to PublicKeyCredentialCreationOptions
+ * 4. Preserving server JSON with the effective RP and discoverable-passkey requirements
  *
  * This separates the complex registration logic from the Activity
  */
@@ -34,7 +33,7 @@ class RegisterPasskeyUseCase(
      */
     sealed class Result {
         data class Success(
-            val pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
+            val requestJson: String,
             val attestationApiResponse: String,
             val sessionId: String?,
         ) : Result()
@@ -86,43 +85,42 @@ class RegisterPasskeyUseCase(
             Napier.d("User-Agent: ${viewModel.userAgent}", tag = TAG)
             Napier.d("========================================", tag = TAG)
 
-            val response =
-                attestationApiUseCase.postAttestationOptions(
+            attestationApiUseCase
+                .postAttestationOptions(
                     authMessage.origin,
                     viewModel.userAgent,
                     attestationOptions,
-                )
+                ).use { response ->
+                    if (!response.isSuccessful) {
+                        Napier.e("Server error ${response.code}: ${response.message}", tag = TAG)
+                        return Result.Error("Server error ${response.code}: ${response.message}")
+                    }
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                Napier.e("Server error ${response.code}: ${response.message}", tag = TAG)
-                return Result.Error("Server error ${response.code}: ${response.message}")
-            }
+                    val sessionId = extractSessionFromResponse(response)
+                    onSessionUpdate(sessionId)
 
-            val attestationApiResponse = response.peekBody(Long.MAX_VALUE).string()
-            Napier.d("✅ Attestation options received successfully", tag = TAG)
+                    val requestOptions = JSONObject(response.body.string())
+                    requestOptions.getJSONObject("rp").put("id", rpId)
+                    val selection =
+                        if (requestOptions.has("authenticatorSelection")) {
+                            requestOptions.getJSONObject("authenticatorSelection")
+                        } else {
+                            JSONObject()
+                        }
+                    selection.put("residentKey", "required")
+                    selection.put("requireResidentKey", true)
+                    requestOptions.put("authenticatorSelection", selection)
 
-            // Step 4: Extract session cookie
-            val sessionId = extractSessionFromResponse(response)
-            onSessionUpdate(sessionId)
-
-            // Step 5: Convert to PublicKeyCredentialCreationOptions
-            val pubKeyCredentialCreationOptions =
-                response.body!!.toPublicKeyCredentialCreationOptions(
-                    overrideRpId = rpId,
-                )
-
-            Napier.d("✅ PublicKeyCredentialCreationOptions created", tag = TAG)
-            Napier.d("RP ID: ${pubKeyCredentialCreationOptions.rp?.id}", tag = TAG)
-            Napier.d("User: ${pubKeyCredentialCreationOptions.user?.name}", tag = TAG)
-            Napier.d("Challenge length: ${pubKeyCredentialCreationOptions.challenge?.size}", tag = TAG)
-            Napier.d("========================================", tag = TAG)
-
-            Result.Success(
-                pubKeyCredentialCreationOptions = pubKeyCredentialCreationOptions,
-                attestationApiResponse = attestationApiResponse,
-                sessionId = sessionId,
-            )
+                    // Persist exactly the effective options passed to the credential provider.
+                    val requestJson = requestOptions.toString()
+                    Result.Success(
+                        requestJson = requestJson,
+                        attestationApiResponse = requestJson,
+                        sessionId = sessionId,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Error during registration preparation", e, tag = TAG)
             Result.Error("Registration preparation failed: ${e.message}", e)
@@ -155,6 +153,8 @@ class RegisterPasskeyUseCase(
             }
 
             host
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.e("Failed to parse origin URL: $origin", e, tag = TAG)
             null
@@ -179,7 +179,8 @@ class RegisterPasskeyUseCase(
                 JSONObject().apply {
                     put("authenticatorAttachment", "platform")
                     put("userVerification", "required")
-                    put("requireResidentKey", false)
+                    put("residentKey", "required")
+                    put("requireResidentKey", true)
                 }
             put("authenticatorSelection", authenticatorSelection)
 
@@ -206,6 +207,8 @@ class RegisterPasskeyUseCase(
         try {
             val cookie = Cookie.fromResponse(response)
             cookie?.let { Cookie.getID(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Napier.w("Failed to extract session from response", e, tag = TAG)
             null

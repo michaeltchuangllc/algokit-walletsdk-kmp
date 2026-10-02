@@ -9,8 +9,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
@@ -20,6 +18,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
@@ -226,22 +225,22 @@ actual open class AnswerViewModel actual constructor(
     // --- Credential Management ---
     suspend fun saveCredential(
         account: String,
-        credential: PublicKeyCredential,
+        credential: WebAuthnCredential,
         response: String,
     ) {
         platformServices.saveCredential(account, credential, response)
     }
 
     suspend fun getCredentialIdByAccountAddress(accountAddress: String): String? =
-        platformServices.getCredentialIdByAccountAddress(accountAddress)
+        platformServices.getCredentialIdByAccountAddress(accountAddress, authMessage.value?.origin.orEmpty())
 
     suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
-        platformServices.deleteCredentialByAccountAddress(accountAddress)
+        platformServices.deleteCredentialByAccountAddress(accountAddress, authMessage.value?.origin.orEmpty())
     }
 
     fun getCredentialMessage(
         account: String,
-        credential: PublicKeyCredential,
+        credential: WebAuthnCredential,
     ): JSONObject {
         val credMessage = JSONObject()
         val origin = authMessage.value?.origin
@@ -494,7 +493,7 @@ actual open class AnswerViewModel actual constructor(
         ) : ViewEvent
 
         data class AttestationSuccess(
-            val credential: PublicKeyCredential,
+            val credential: WebAuthnCredential,
         ) : ViewEvent
 
         object AttestationCancelled : ViewEvent
@@ -504,16 +503,16 @@ actual open class AnswerViewModel actual constructor(
         ) : ViewEvent
 
         data class AssertionSuccess(
-            val credential: PublicKeyCredential,
+            val credential: WebAuthnCredential,
         ) : ViewEvent
 
         data class AuthenticationSuccess(
-            val publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions,
+            val requestJson: String,
             val credentialId: String,
         ) : ViewEvent
 
         data class RegistrationSuccess(
-            val pubKeyCredentialCreationOptions: com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions,
+            val requestJson: String,
             val accountAddress: String,
         ) : ViewEvent
 
