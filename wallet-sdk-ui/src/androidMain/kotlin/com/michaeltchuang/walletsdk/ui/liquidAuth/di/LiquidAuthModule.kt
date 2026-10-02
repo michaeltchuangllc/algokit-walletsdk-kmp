@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.LiquidAuthCredentialStore
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AuthenticateWithBiometricsUseCase
@@ -10,8 +11,6 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignal
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideCookieJarUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
@@ -22,6 +21,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
@@ -50,8 +50,7 @@ val liquidAuthUIModule =
                 getSeed = get(),
             )
         }
-        single { AttestationIntentLauncherUseCase(get()) }
-        single { AssertionIntentLauncherUseCase(get()) }
+        single { LiquidAuthCredentialStore(androidContext()) }
         single { AttestationApiUseCase(get<ProvideHttpClientUseCase>()()) }
         single { AssertionApiUseCase(get<ProvideHttpClientUseCase>()()) }
 
@@ -68,7 +67,7 @@ val liquidAuthUIModule =
 
         single {
             LiquidAuthPlatformServices(
-                addNewPasskey = get(),
+                liquidAuthCredentialStore = get(),
                 passkeyRepository = get(),
                 setPasskeyLastUsedTime = get(),
                 getAccountMnemonic = get(),
@@ -78,8 +77,6 @@ val liquidAuthUIModule =
                 prepareAuthenticationUseCase = get(),
                 manageSignalServiceUseCase = get(),
                 processSignTransactionsUseCase = get(),
-                attestationIntentLauncherUseCase = get(),
-                assertionIntentLauncherUseCase = get(),
                 eventDelegate = get(),
                 logAppSignatureUseCase = get(),
                 providerHttpClientUseCase = get(),

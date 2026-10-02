@@ -4,9 +4,6 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.StrictMode
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
@@ -19,12 +16,22 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.credentials.CreatePublicKeyCredentialRequest
+import androidx.credentials.CreatePublicKeyCredentialResponse
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.GetPublicKeyCredentialOption
+import androidx.credentials.PublicKeyCredential
+import androidx.credentials.exceptions.CreateCredentialCancellationException
+import androidx.credentials.exceptions.CreateCredentialProviderConfigurationException
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
+import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
-import com.google.android.gms.fido.fido2.Fido2ApiClient
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidAuth.AuthMessageStorage
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
@@ -36,15 +43,19 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.json.JSONObject
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.mp.KoinPlatform
 import java.security.Security
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import java.util.Base64 as JavaBase64
 
 private const val TAG = "AnswerScreenOverlay"
 
@@ -70,35 +81,7 @@ actual fun AnswerScreenOverlay() {
         val viewModel: AnswerViewModel = koinViewModel()
         val address = AnswerScreenState.accountAddress
 
-        val fido2Client = remember { Fido2ApiClient(activity) }
-
-        val attestationLauncher =
-            rememberLauncherForActivityResult(
-                ActivityResultContracts.StartIntentSenderForResult(),
-            ) { activityResult ->
-                scope.launch {
-                    val useCase =
-                        HandleAttestationResultUseCase(
-                            attestationApiUseCase = KoinPlatform.getKoin().get(),
-                        )
-                    val result = useCase(activityResult, viewModel)
-                    viewModel.handleAttestationResultFromLauncher(result, address)
-                }
-            }
-
-        val assertionLauncher =
-            rememberLauncherForActivityResult(
-                ActivityResultContracts.StartIntentSenderForResult(),
-            ) { activityResult ->
-                scope.launch {
-                    val useCase =
-                        HandleAssertionResultUseCase(
-                            assertionApiUseCase = KoinPlatform.getKoin().get(),
-                        )
-                    val result = useCase(activityResult, viewModel)
-                    viewModel.handleAssertionResultFromLauncher(result)
-                }
-            }
+        val credentialManager = remember(context) { CredentialManager.create(context) }
 
         LaunchedEffect(Unit) {
             val policy =
@@ -125,9 +108,7 @@ actual fun AnswerScreenOverlay() {
                 viewModel.clearError()
 
                 // Wait for SignalService to bind before starting the WebRTC flow.
-                viewModel.signalService.collect { service ->
-                    if (service == null) return@collect
-
+                viewModel.signalService.filterNotNull().take(1).collect { service ->
                     service.start(
                         msg.origin,
                         viewModel.getProvideHttpClient(),
@@ -168,13 +149,12 @@ actual fun AnswerScreenOverlay() {
                             )
                         }
                     }
-                    // Only run once — stop collecting after the first non-null service.
-                    return@collect
                 }
             }
         }
 
         LaunchedEffect(viewModel) {
+            var credentialOperation: Job? = null
             viewModel.viewEvent.collect { event ->
                 when (event) {
                     is AnswerViewModel.ViewEvent.AttestationSuccess -> {
@@ -236,49 +216,77 @@ actual fun AnswerScreenOverlay() {
                     }
 
                     is AnswerViewModel.ViewEvent.RegistrationSuccess -> {
-                        val challenge = event.pubKeyCredentialCreationOptions.challenge
-                        val signature = viewModel.signFido2Challenge(challenge, address)
-                        if (signature != null) {
-                            viewModel.currentChallenge = signature
-                            try {
-                                val pendingIntent =
-                                    fido2Client
-                                        .getRegisterPendingIntent(
-                                            event.pubKeyCredentialCreationOptions,
-                                        ).await()
-                                attestationLauncher.launch(
-                                    IntentSenderRequest.Builder(pendingIntent).build(),
-                                )
-                            } catch (e: Exception) {
-                                Napier.e("Failed to launch registration intent", e, tag = TAG)
-                                Toast.makeText(context, "Failed to launch passkey registration", Toast.LENGTH_LONG).show()
+                        if (credentialOperation?.isActive == true) return@collect
+                        // Launch separately: result handlers emit events to this same collector.
+                        credentialOperation =
+                            scope.launch {
+                                try {
+                                    val challenge = JavaBase64.getUrlDecoder().decode(JSONObject(event.requestJson).getString("challenge"))
+                                    viewModel.currentChallenge = viewModel.signFido2Challenge(challenge, event.accountAddress)
+                                    checkNotNull(viewModel.currentChallenge) { "Failed to sign registration challenge" }
+                                    val response =
+                                        credentialManager.createCredential(
+                                            context = activity,
+                                            request = CreatePublicKeyCredentialRequest(event.requestJson),
+                                        ) as? CreatePublicKeyCredentialResponse
+                                            ?: error("Unexpected passkey registration response")
+                                    val handler: HandleAttestationResultUseCase = KoinPlatform.getKoin().get()
+                                    val result = handler(WebAuthnCredential(response.registrationResponseJson), viewModel)
+                                    viewModel.handleAttestationResultFromLauncher(result, event.accountAddress)
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: CreateCredentialCancellationException) {
+                                    viewModel.handleAttestationResultFromLauncher(
+                                        HandleAttestationResultUseCase.Result.Cancelled("Registration cancelled"),
+                                        event.accountAddress,
+                                    )
+                                } catch (e: Exception) {
+                                    viewModel.handleAttestationResultFromLauncher(
+                                        HandleAttestationResultUseCase.Result.Error(credentialErrorMessage(e)),
+                                        event.accountAddress,
+                                    )
+                                } finally {
+                                    viewModel.currentChallenge = null
+                                }
                             }
-                        } else {
-                            Toast.makeText(context, "Failed to sign FIDO2 challenge", Toast.LENGTH_LONG).show()
-                        }
                     }
 
                     is AnswerViewModel.ViewEvent.AuthenticationSuccess -> {
-                        val challenge = event.publicKeyCredentialRequestOptions.challenge
-                        val signature = viewModel.signFido2Challenge(challenge, address)
-                        if (signature != null) {
-                            viewModel.currentChallenge = signature
-                            try {
-                                val pendingIntent =
-                                    fido2Client
-                                        .getSignPendingIntent(
-                                            event.publicKeyCredentialRequestOptions,
-                                        ).await()
-                                assertionLauncher.launch(
-                                    IntentSenderRequest.Builder(pendingIntent).build(),
-                                )
-                            } catch (e: Exception) {
-                                Napier.e("Failed to launch assertion intent", e, tag = TAG)
-                                Toast.makeText(context, "Failed to launch passkey authentication", Toast.LENGTH_LONG).show()
+                        if (credentialOperation?.isActive == true) return@collect
+                        credentialOperation =
+                            scope.launch {
+                                try {
+                                    val challenge = JavaBase64.getUrlDecoder().decode(JSONObject(event.requestJson).getString("challenge"))
+                                    viewModel.currentChallenge = viewModel.signFido2Challenge(challenge, address)
+                                    checkNotNull(viewModel.currentChallenge) { "Failed to sign authentication challenge" }
+                                    val response =
+                                        credentialManager.getCredential(
+                                            context = activity,
+                                            request = GetCredentialRequest(listOf(GetPublicKeyCredentialOption(event.requestJson))),
+                                        )
+                                    val publicKeyCredential =
+                                        response.credential as? PublicKeyCredential
+                                            ?: error("Unexpected passkey authentication response")
+                                    val credential = WebAuthnCredential(publicKeyCredential.authenticationResponseJson)
+                                    check(credential.rawId.contentEquals(JavaBase64.getUrlDecoder().decode(event.credentialId))) {
+                                        "Provider returned a different passkey"
+                                    }
+                                    val handler: HandleAssertionResultUseCase = KoinPlatform.getKoin().get()
+                                    viewModel.handleAssertionResultFromLauncher(handler(credential, viewModel))
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (_: GetCredentialCancellationException) {
+                                    viewModel.handleAssertionResultFromLauncher(
+                                        HandleAssertionResultUseCase.Result.Cancelled("Authentication cancelled"),
+                                    )
+                                } catch (e: Exception) {
+                                    viewModel.handleAssertionResultFromLauncher(
+                                        HandleAssertionResultUseCase.Result.Error(credentialErrorMessage(e)),
+                                    )
+                                } finally {
+                                    viewModel.currentChallenge = null
+                                }
                             }
-                        } else {
-                            Toast.makeText(context, "Failed to sign assertion challenge", Toast.LENGTH_LONG).show()
-                        }
                     }
 
                     else -> { /* other events */ }
@@ -401,7 +409,7 @@ private suspend fun handleWebRTCSetup(
     viewModel: AnswerViewModel,
     activity: AppCompatActivity,
     address: String,
-    credential: PublicKeyCredential,
+    credential: WebAuthnCredential,
 ) {
     val msg = viewModel.authMessage.value ?: return
     if (viewModel.signalService.value != null) {
@@ -454,6 +462,17 @@ private suspend fun handleWebRTCSetup(
         Toast.makeText(activity, "Couldn't find service", Toast.LENGTH_LONG).show()
     }
 }
+
+private fun credentialErrorMessage(error: Exception): String =
+    when (error) {
+        is NoCredentialException ->
+            "No matching passkey is available. Enable the provider holding this passkey in Android settings. " +
+                "Legacy Google-held credentials may not be available on AOSP; your saved credential has not been deleted."
+        is CreateCredentialProviderConfigurationException,
+        is GetCredentialProviderConfigurationException,
+        -> "Enable a passkey provider in Android's Passwords & accounts settings, then retry."
+        else -> error.message ?: "Passkey operation failed. Check your passkey provider and try again."
+    }
 
 private suspend fun topUpViewerSessionVault(
     context: Context,

@@ -190,7 +190,6 @@ kotlin {
             implementation(libs.stream.webrtc.android)
             implementation(libs.qrcode.kotlin)
             implementation(libs.uuid.generator)
-            implementation(libs.play.services.fido)
             implementation(libs.mlkit.barcode.scanning.common)
             implementation(libs.mlkit.camera)
             implementation(libs.socketio.client)

@@ -11,25 +11,22 @@ class GetAllHdSeedFirstAddressesUseCase(
     private val falconRepository: Falcon24AccountRepository,
 ) : GetAllHdSeedFirstAddresses {
     override suspend fun invoke(): List<HdSeedFirstAddress> {
-        // Get all HD seeds
         val allSeeds = hdSeedRepository.getAllHdSeeds()
-
-        // For each seed, find the account with index 0 (first address)
+        val falcon24Accounts = falconRepository.getAll()
+        val hdAccounts =
+            hdKeyRepository.getAll().sortedWith(
+                compareBy({ it.account }, { it.change }, { it.keyIndex }, { it.derivationType }, { it.address }),
+            )
         return allSeeds.mapNotNull { seed ->
-            // Get all Falcon24 accounts for this seed
-            val falcon24Accounts = falconRepository.getAll()
-
-            // Find the first account (index 0) for this seed
-            val firstAccount =
-                falcon24Accounts.firstOrNull { account ->
-                    account.seedId == seed.seedId
-                }
-
-            // If we found the first address, return it
-            firstAccount?.let {
+            // Preserve the existing Falcon24 representative for previously registered passkeys,
+            // but also expose ordinary HD wallets (which need not contain a Falcon24 account).
+            val firstAddress =
+                falcon24Accounts.firstOrNull { it.seedId == seed.seedId }?.address
+                    ?: hdAccounts.firstOrNull { it.seedId == seed.seedId }?.address
+            firstAddress?.let {
                 HdSeedFirstAddress(
                     seedId = seed.seedId,
-                    firstAddress = it.address,
+                    firstAddress = it,
                 )
             }
         }

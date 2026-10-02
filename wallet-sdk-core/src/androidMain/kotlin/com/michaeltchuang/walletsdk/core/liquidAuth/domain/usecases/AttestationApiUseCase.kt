@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.AttestationApi
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.Call
 import okhttp3.Callback
@@ -26,7 +26,7 @@ class AttestationApiUseCase(
     suspend fun postAttestationResult(
         origin: String,
         userAgent: String,
-        credential: PublicKeyCredential,
+        credential: WebAuthnCredential,
         liquidExt: JSONObject? = null,
     ): Response = attestationApi.postAttestationResult(origin, userAgent, credential, liquidExt).await()
 }
