@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -30,6 +31,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalEncodingApi::class)
 class ViewerVaultBillingSessionTest {
@@ -218,7 +220,8 @@ class ViewerVaultBillingSessionTest {
 
                 adapter.authorizationAction = { Result.success(Unit) }
                 session.onBlock(50).join()
-                assertTrue(session.acceptVoucher(message(10), force = true))
+                assertTrue(session.acceptVoucher(message(10)))
+                session.requestSettlement().join()
                 runCurrent()
                 assertEquals(10L, adapter.submissions.single().totalAmountClaimedMicroUsdc)
                 session.close().join()
@@ -345,7 +348,8 @@ class ViewerVaultBillingSessionTest {
             // The fake shares chain state but does not serialize submissions.
             val adapter = FakeAdapter().apply { action = { release.await() } }
             val live = session(adapter, repository = repository)
-            assertTrue(live.acceptVoucher(message(), force = true))
+            assertTrue(live.acceptVoucher(message()))
+            live.requestSettlement().join()
             runCurrent()
             assertEquals(1, adapter.active)
             val saved = repository.rows.getValue(Base64.encode(channel))
@@ -378,17 +382,20 @@ class ViewerVaultBillingSessionTest {
         }
 
     @Test
-    fun `EXPECT forced acceptance with null note params to settle without a block boundary`() =
+    fun `EXPECT explicit flush with null note params to settle without a block boundary`() =
         runTest {
             val repository = FakeRepository()
             val adapter = FakeAdapter()
             val session = session(adapter, repository = repository)
 
-            assertTrue(session.acceptVoucher(message(), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message()))
             val saved = repository.rows.getValue(Base64.encode(channel))
             assertEquals(MppNetworks.ALGORAND_TESTNET, saved.network)
             assertEquals(0L, saved.blockNumber)
             assertTrue(saved.note.contains(Base64.encode(channel)))
+            runCurrent()
+            assertTrue(adapter.submissions.isEmpty())
+            session.requestSettlement().join()
             runCurrent()
 
             assertEquals(100L, adapter.settled)
@@ -440,14 +447,16 @@ class ViewerVaultBillingSessionTest {
 
             session.onBlock(1).join()
             session.recordChatMessage(ChatMessage("viewer", "later chat", 1)).join()
-            assertTrue(session.acceptVoucher(message(), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message()))
             assertEquals(reads, adapter.reads)
             assertEquals(saved, repository.rows[Base64.encode(channel)])
             assertEquals(1, repository.writes)
+            session.requestSettlement().join()
             runCurrent()
             assertEquals(1, adapter.active)
 
-            assertTrue(session.acceptVoucher(message(), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message()))
+            session.requestSettlement().join()
             runCurrent()
             assertEquals(1, adapter.submissions.size)
             assertEquals(saved, repository.rows[Base64.encode(channel)])
@@ -457,7 +466,7 @@ class ViewerVaultBillingSessionTest {
             val confirmedReads = adapter.reads
 
             assertTrue(session.acceptVoucher(message()))
-            assertTrue(session.acceptVoucher(message(), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message()))
             assertTrue(repository.rows.isEmpty())
             runCurrent()
             session.requestSettlement().join()
@@ -471,7 +480,7 @@ class ViewerVaultBillingSessionTest {
         }
 
     @Test
-    fun `EXPECT a newer forced voucher during an old submission to settle exactly once afterward`() =
+    fun `EXPECT an explicit flush of a newer voucher during an old submission to settle exactly once afterward`() =
         runTest {
             val repository = FakeRepository()
             val releaseOld = CompletableDeferred<Unit>()
@@ -487,10 +496,12 @@ class ViewerVaultBillingSessionTest {
                     }
                 }
             val session = session(adapter, repository = repository)
-            assertTrue(session.acceptVoucher(message(100), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message(100)))
+            session.requestSettlement().join()
             runCurrent()
             assertEquals(1, adapter.active)
-            assertTrue(session.acceptVoucher(message(200), force = true, noteParams = null))
+            assertTrue(session.acceptVoucher(message(200)))
+            session.requestSettlement().join()
             val newer = repository.rows.getValue(Base64.encode(channel))
             runCurrent()
             assertEquals(listOf(100L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
@@ -635,7 +646,7 @@ class ViewerVaultBillingSessionTest {
             assertEquals(saved, repository.rows[Base64.encode(channel)])
             adapter.settled = 100
             session.onBlock(104).join()
-            advanceTimeBy(501)
+            advanceTimeBy(501.milliseconds)
             runCurrent()
             assertTrue(repository.rows.isEmpty())
             assertEquals(1, adapter.submissions.size)
@@ -762,6 +773,55 @@ class ViewerVaultBillingSessionTest {
         }
 
     @Test
+    fun `EXPECT normal vouchers with primary UI notes to respect every block and batch intervals`() =
+        runTest {
+            for (frequency in listOf(1, PAYOUT_BATCH_BLOCK_COUNT).distinct()) {
+                val repository = FakeRepository()
+                val adapter = FakeAdapter()
+                val session = session(adapter, frequency = frequency, repository = repository)
+                val params =
+                    GetMppVoucherNoteUseCase.Params(
+                        channelId = Base64.encode(channel),
+                        startBlock = 100L,
+                        currentBlock = 100L,
+                        freeBlocks = 0L,
+                        paidBlocks = 0L,
+                        costPerPaidBlock = 100L,
+                        settledAmount = 0L,
+                        totalCumulativeAmount = 100L,
+                        freeChatCount = 0L,
+                        tipChatCount = 0L,
+                        tipChatTotal = 0L,
+                    )
+                session.onBlock(100).join()
+                assertTrue(session.acceptVoucher(message(), noteParams = params))
+                val saved = repository.rows.getValue(Base64.encode(channel))
+                runCurrent()
+                assertTrue(adapter.submissions.isEmpty())
+
+                for (offset in 1 until frequency) {
+                    session.onBlock(100L + offset).join()
+                    assertTrue(session.acceptVoucher(message(), noteParams = params))
+                    runCurrent()
+                    assertTrue(adapter.submissions.isEmpty())
+                }
+                assertEquals(1, repository.writes)
+                session.onBlock(100L + frequency).join()
+                runCurrent()
+                assertEquals(100L, adapter.settled)
+                assertEquals(saved.note, adapter.submissions.single().note)
+                assertTrue(repository.rows.isEmpty())
+
+                assertTrue(session.acceptVoucher(message(200)))
+                runCurrent()
+                assertEquals(1, adapter.submissions.size)
+                session.close().join()
+                assertEquals(listOf(100L, 200L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            }
+            assertTrue(errors.isEmpty())
+        }
+
+    @Test
     fun `EXPECT only increasing chain rounds to reach the boundary with the latest signed total`() =
         runTest {
             val adapter = FakeAdapter()
@@ -825,7 +885,7 @@ class ViewerVaultBillingSessionTest {
             session.onBlock(3)
             runCurrent()
             assertEquals(1, adapter.submissions.size)
-            advanceTimeBy(1_001)
+            advanceTimeBy(1_001.milliseconds)
             runCurrent()
             assertTrue(errors.any { it.message == "Voucher settlement confirmation timed out; payment may still be pending" })
             adapter.confirm = true
@@ -850,7 +910,7 @@ class ViewerVaultBillingSessionTest {
             assertTrue(repository.rows.isNotEmpty())
             assertTrue(statuses.isEmpty())
             adapter.settled = 100
-            advanceTimeBy(501)
+            advanceTimeBy(501.milliseconds)
             runCurrent()
             assertEquals(1, adapter.submissions.size)
             assertTrue(repository.rows.isEmpty())
@@ -870,7 +930,7 @@ class ViewerVaultBillingSessionTest {
             session.acceptVoucher(message())
             session.onBlock(2)
             runCurrent()
-            advanceTimeBy(1_001)
+            advanceTimeBy(1_001.milliseconds)
             runCurrent()
             assertEquals(1, statuses.size)
             assertTrue(statuses.single()?.message?.contains("confirmation timed out") == true)
@@ -967,7 +1027,7 @@ class ViewerVaultBillingSessionTest {
             assertEquals(200L, healthy.settled)
             assertEquals(1, hung.active)
             val close = first.close()
-            advanceTimeBy(1_501)
+            advanceTimeBy(1_501.milliseconds)
             runCurrent()
             assertTrue(close.isCompleted)
             assertEquals(0, hung.active)
@@ -1013,7 +1073,7 @@ class ViewerVaultBillingSessionTest {
             val session = session(adapter)
             val pending = async { session.acceptVoucher(message()) }
             runCurrent()
-            advanceTimeBy(1_001)
+            advanceTimeBy(1_001.milliseconds)
             runCurrent()
             assertFalse(pending.await())
             adapter.readAction = {}
@@ -1160,7 +1220,7 @@ class ViewerVaultBillingSessionTest {
             adapter.authorizationAction = { awaitCancellation() }
             val pending = async { session.acceptVoucher(message(900)) }
             runCurrent()
-            advanceTimeBy(1_001)
+            advanceTimeBy(1_001.milliseconds)
             runCurrent()
             assertFalse(pending.await())
             session.close().join()

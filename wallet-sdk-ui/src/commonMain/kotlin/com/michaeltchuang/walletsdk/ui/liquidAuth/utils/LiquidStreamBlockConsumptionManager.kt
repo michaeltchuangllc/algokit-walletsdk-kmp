@@ -156,7 +156,7 @@ internal class LiquidStreamBlockConsumptionManager(
                     ).also { billing = it }
                 if (current == null) target.restorePending(channel)
                 round?.let { target.onBlock(it, paid, cost).join() }
-                if (target.acceptVoucher(voucher, force = true, noteParams = params) &&
+                if (target.acceptVoucher(voucher, noteParams = params) &&
                     currentSessionId == session &&
                     generation == billingGeneration
                 ) {

@@ -234,7 +234,6 @@ internal class ViewerVaultBillingSession(
 
     suspend fun acceptVoucher(
         message: LiquidAuthPaymentVoucherMessage,
-        force: Boolean = false,
         noteParams: GetMppVoucherNoteUseCase.Params? = null,
     ): Boolean {
         val voucher =
@@ -262,13 +261,7 @@ internal class ViewerVaultBillingSession(
             }
         mutex.withLock {
             if (!canAccept(voucher)) return false
-            if (isDuplicate(voucher)) {
-                if (force) {
-                    forceRequested = true
-                    wake.trySend(Unit)
-                }
-                return true
-            }
+            if (isDuplicate(voucher)) return true
         }
         val snapshot =
             try {
@@ -292,11 +285,7 @@ internal class ViewerVaultBillingSession(
                     mutex.withLock {
                         currentCoroutineContext().ensureActive()
                         if (!canAccept(voucher)) return@withLock false
-                        if (isDuplicate(voucher)) {
-                            if (force) forceRequested = true
-                            wake.trySend(Unit)
-                            return@withLock true
-                        }
+                        if (isDuplicate(voucher)) return@withLock true
                         val block = latestRound ?: 0L
                         val note =
                             getMppVoucherNoteUseCase(
@@ -343,7 +332,6 @@ internal class ViewerVaultBillingSession(
                             ),
                         )
                         latest = saved
-                        if (force) forceRequested = true
                         wake.trySend(Unit)
                         true
                     }
