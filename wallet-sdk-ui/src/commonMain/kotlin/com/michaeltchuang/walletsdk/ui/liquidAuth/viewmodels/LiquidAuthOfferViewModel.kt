@@ -645,8 +645,8 @@ class LiquidAuthOfferViewModel(
     }
 
     /**
-     * Consume one block of streaming (deduct 0.1 ALGO)
-     * Called every block or periodically while streaming
+     * Refresh observed vault balances and accepted block counts.
+     * Only the chain snapshot supplies settled amounts; no local deduction occurs here.
      */
     fun consumeBlock(
         onChainRemainingMicroUsdc: Long? = null,
@@ -713,7 +713,9 @@ class LiquidAuthOfferViewModel(
                     totalFreeBlocksWatched = newFreeBlocksWatched,
                     totalConsumedMicroAlgos = currentPaymentState.initialDepositMicroUsdc,
                 )
-            _remainingBalanceMicroUsdc.value = 0
+            // Exhausted progress may include an unsettled voucher; the vault can still
+            // have a confirmed remaining balance until that voucher settles.
+            _remainingBalanceMicroUsdc.value = onChainRemaining
             _progressBarBalanceMicroUsdc.value = 0
 
             updateStreamingPaymentStatus(StreamingPaymentStatus.Depleted)

@@ -375,6 +375,7 @@ actual open class AnswerViewModel actual constructor(
                         requestMppConsent = ::requestMppConsentFromUi,
                         setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                         setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+                        onVaultSnapshot = ::setViewerVaultSnapshot,
                         signFido2Challenge = ::signFido2Challenge,
                         onChatMessageReceived = ::onChatMessageReceived,
                         getHostAddress = { hostAddress.value },

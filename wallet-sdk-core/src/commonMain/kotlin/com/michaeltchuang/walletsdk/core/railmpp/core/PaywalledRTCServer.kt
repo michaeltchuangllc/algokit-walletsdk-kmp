@@ -21,12 +21,14 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultRe
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -39,6 +41,7 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 import kotlin.time.Duration.Companion.milliseconds
@@ -61,6 +64,7 @@ class PaywalledRTCServer
         private val vaultReader: suspend (String, String, ByteArray, String, ByteArray) -> Result<HostViewerVaultReader.Snapshot> =
             HostViewerVaultReader::read,
         private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
+        private val blockRounds: (String) -> Flow<Long> = ::liquidStreamBlockRounds,
     ) {
         private companion object {
             const val TAG = "PaywalledRTCServer"
@@ -113,6 +117,33 @@ class PaywalledRTCServer
         private val vaultRequestMutex = Mutex()
         private var vaultAcknowledgedCumulative = 0L
         private var awaitingVaultIdentity = false
+        private var blockJob: Job? = null
+        private var paymentFlowStarted = false
+        private var lastBillingRound: Long? = null
+        private val blockChargeCheckpoints = ArrayDeque<Pair<Long, Long>>()
+        private var acceptedBlockCount = 0L
+
+        suspend fun voucherCoveredBlockCount(
+            cumulativeAmount: Long,
+            confirmedBlockCount: Long,
+        ): Long =
+            vaultRequestMutex.withLock {
+                while (blockChargeCheckpoints.firstOrNull()?.first?.let { it <= confirmedBlockCount } == true) {
+                    blockChargeCheckpoints.removeFirst()
+                }
+                blockChargeCheckpoints.lastOrNull { it.second <= cumulativeAmount }?.first ?: confirmedBlockCount
+            }
+
+        @Volatile
+        var paidBlockCount: Int = 0
+            private set
+        @Volatile
+        var freeBlockCount: Int = 0
+            private set
+
+        init {
+            require(!config.blockDrivenBilling || (config.vaultOnlyBilling && config.gating.mode == GatingMode.PARTIAL_TIME))
+        }
 
         /**
          * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
@@ -137,12 +168,25 @@ class PaywalledRTCServer
         fun updateConfig(newConfig: ServerConfig) {
             val hadKey = config.viewerAuthorizedSignerPublicKey != null
             require(!config.vaultOnlyBilling || newConfig.vaultOnlyBilling) { "Cannot downgrade vault-only billing" }
+            require(config.blockDrivenBilling == newConfig.blockDrivenBilling) { "Cannot change the billing clock of an active session" }
+            require(!newConfig.blockDrivenBilling || newConfig.gating.mode == GatingMode.PARTIAL_TIME) {
+                "Block billing requires partial-time gating"
+            }
+            require(!config.blockDrivenBilling || config.gating.network == newConfig.gating.network) {
+                "A block-billed session cannot switch networks"
+            }
             if (config.viewerAddress != newConfig.viewerAddress ||
                 config.gating.payTo != newConfig.gating.payTo ||
                 config.gating.network != newConfig.gating.network ||
                 !config.viewerAuthorizedSignerPublicKey.contentEquals(newConfig.viewerAuthorizedSignerPublicKey)
             ) {
                 cachedChannelIdBase64 = null
+            }
+            if (config.blockDrivenBilling && config.gating != newConfig.gating) {
+                lastBillingRound = null
+                pendingRequest = null
+                awaitingVaultIdentity = false
+                cancelGraceTimer()
             }
             config = newConfig
             if (!hadKey && newConfig.viewerAuthorizedSignerPublicKey != null) {
@@ -159,7 +203,7 @@ class PaywalledRTCServer
         }
 
         fun updateGating(gating: GatingConfig) {
-            config = config.copy(gating = gating)
+            updateConfig(config.copy(gating = gating))
         }
 
         fun updateGracePeriod(seconds: Int) {
@@ -226,6 +270,7 @@ class PaywalledRTCServer
         fun terminate(reason: String? = null) {
             if (disposed) return
             disposed = true
+            blockJob?.cancel()
             cancelTimers()
             gate()
             sendDC(
@@ -288,7 +333,38 @@ class PaywalledRTCServer
 
         /** Kick off the payment flow based on the configured [GatingMode]. */
         private fun startPaymentFlow() {
-            if (disposed) return
+            if (disposed || paymentFlowStarted) return
+            paymentFlowStarted = true
+            if (config.blockDrivenBilling) {
+                gate()
+                blockJob =
+                    scope.launch {
+                        blockRounds(config.gating.network).collect { round ->
+                            vaultRequestMutex.withLock {
+                                if (disposed || dc?.state() != RtcDataChannelState.OPEN) return@withLock
+                                if (round < 0L) {
+                                    lastBillingRound = null
+                                    gate()
+                                    return@withLock
+                                }
+                                val previous = lastBillingRound
+                                if (previous != null && round <= previous) return@withLock
+                                lastBillingRound = round
+                                if (previous == null || pendingRequest != null || awaitingVaultIdentity) return@withLock
+                                val intervalConfig = config
+                                var next = previous
+                                while (next < round && !disposed && pendingRequest == null && !awaitingVaultIdentity) {
+                                    if (config != intervalConfig) break
+                                    val index = segmentIndex
+                                    requestPaymentNow()
+                                    if (segmentIndex == index) break
+                                    next++
+                                }
+                            }
+                        }
+                    }
+                return
+            }
             if (config.gating.mode == GatingMode.WHOLE_STREAM) {
                 requestPayment()
             } else {
@@ -378,6 +454,9 @@ class PaywalledRTCServer
         }
 
         private fun handleDisconnect() {
+            if (disposed) return
+            disposed = true
+            blockJob?.cancel()
             cancelTimers()
             gate()
             onSessionTerminated?.invoke(sessionId)
@@ -396,10 +475,12 @@ class PaywalledRTCServer
         private suspend fun requestPaymentNow() {
             try {
                 if (disposed) return
+                val requestConfig = config
                 if (config.vaultOnlyBilling &&
                     (config.viewerAddress.isNullOrBlank() || config.viewerAuthorizedSignerPublicKey?.isNotEmpty() != true)
                 ) {
                     awaitingVaultIdentity = true
+                    if (config.blockDrivenBilling) gate()
                     // No channel can be derived until hello supplies the signer. Ask the
                     // viewer to resend hello; updateConfig retries this same unpaid segment.
                     sendDC(
@@ -419,6 +500,7 @@ class PaywalledRTCServer
                 }
 
                 val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+                if (disposed || config != requestConfig) return
                 Napier.d(
                     "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
                     tag = TAG,
@@ -471,7 +553,9 @@ class PaywalledRTCServer
                             billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
                         )
 
+                if (disposed || config != requestConfig) return
                 pendingRequest = request
+                if (config.blockDrivenBilling) gate()
                 onPaymentRequested?.invoke(request)
                 Napier.d(
                     "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} " +
@@ -488,6 +572,8 @@ class PaywalledRTCServer
                         put(DCFieldKey.PAYLOAD, request.toJson())
                     },
                 )
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Throwable) {
                 Napier.e(
                     "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} " +
@@ -523,6 +609,7 @@ class PaywalledRTCServer
                     onPaymentRejected?.invoke("Session vault is not sufficiently funded")
                     return
                 }
+                if (disposed || pendingRequest !== request) return
                 pendingRequest = null
                 cancelGraceTimer()
                 completePaidSegment(
@@ -792,10 +879,21 @@ class PaywalledRTCServer
             receipt: PaymentReceipt,
             amount: String,
         ) {
+            if (disposed) return
             if (config.vaultOnlyBilling) {
                 vaultAcknowledgedCumulative += amount.toLong()
             }
             stats.segmentsPaid++
+            if (config.blockDrivenBilling) {
+                acceptedBlockCount++
+                blockChargeCheckpoints.addLast(acceptedBlockCount to vaultAcknowledgedCumulative)
+                if (amount.toLong() > 0L) paidBlockCount++ else freeBlockCount++
+                Napier.d(
+                    "[BLOCK_BILLING_ACCEPTED] session=$sessionId round=$lastBillingRound " +
+                        "paid=$paidBlockCount free=$freeBlockCount amountMicroUsdc=$amount",
+                    tag = TAG,
+                )
+            }
             stats.totalAmountReceived =
                 (BigInteger.parseString(stats.totalAmountReceived) + BigInteger.parseString(amount)).toString()
 
@@ -829,6 +927,7 @@ class PaywalledRTCServer
             if (config.gating.mode == GatingMode.WHOLE_STREAM) return
 
             segmentIndex++
+            if (config.blockDrivenBilling) return
             val duration = segmentDurationMs
             Napier.d("⏱️ Segment timer scheduled: session=$sessionId nextSegment=$segmentIndex in=${duration}ms", tag = TAG)
             scheduleSegmentTimer(duration) {

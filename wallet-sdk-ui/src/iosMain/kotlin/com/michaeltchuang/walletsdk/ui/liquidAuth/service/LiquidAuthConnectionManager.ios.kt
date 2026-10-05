@@ -236,6 +236,12 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             getIsPaidStreaming = { isPaidStreamingEnabled },
+            getAcceptedBlockCounts = {
+                streamCreator?.rtcServer?.let { it.paidBlockCount to it.freeBlockCount } ?: (0 to 0)
+            },
+            getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                streamCreator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
+            },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
             getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
@@ -1136,15 +1142,18 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 (channelId != null || salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt))
                             ) {
                                 val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
-                                publishHostViewerDetails(
-                                    requestId,
-                                    details.copy(
-                                        remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
-                                        lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
-                                        progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
-                                        totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
-                                    ),
-                                )
+                                // A slower poll must not overwrite a settlement callback.
+                                if (snapshot.lastSettledMicroUsdc >= (details.lastSettledMicroUsdc ?: 0L)) {
+                                    publishHostViewerDetails(
+                                        requestId,
+                                        details.copy(
+                                            remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+                                            lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+                                            progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+                                            totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
+                                        ),
+                                    )
+                                }
                             }
                         } catch (cancelled: CancellationException) {
                             throw cancelled
@@ -1311,9 +1320,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                 network = config.gating.network,
                 signerPublicKey = signer.copyOf(),
                 buildCreatorWalletSigner = { mppWalletSignerUseCase(it) },
-                onSnapshot = { snapshot ->
+                onSnapshot = snapshot@{ snapshot ->
                     if (additionalHostViewers[requestId] === peer) {
                         val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
+                        if (snapshot.lastSettledMicroUsdc < (details.lastSettledMicroUsdc ?: 0L)) return@snapshot
                         publishHostViewerDetails(
                             requestId,
                             details.copy(
@@ -1327,6 +1337,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                 },
                 onError = { error -> Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}") },
                 payoutFrequencyBlocks = payoutFrequencyBlocks,
+                getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                    creator.rtcServer.voucherCoveredBlockCount(amount, confirmedBlocks)
+                },
             )
         startAdditionalViewerBlocks()
         viewModel?.let { vm ->
@@ -1744,7 +1757,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     ) {
         val fallbackNetwork = activeGatingConfig?.network ?: MppNetworks.ALGORAND_TESTNET
         val currentGating =
-            activeGatingConfig ?: GatingConfig(
+            activeGatingConfig?.copy(amount = if (isPaidStreamingEnabled) activePaymentAmount ?: "0" else "0") ?: GatingConfig(
                 mode = GatingMode.PARTIAL_TIME,
                 amount = activePaymentAmount ?: "0",
                 asset = "USDC",

@@ -8,7 +8,7 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
-import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlin.time.Clock

@@ -11,6 +11,7 @@ data class ServerConfig(
     val skipPaymentRequestWhenSessionFunded: Boolean = false,
     /** Budget acknowledgements and cumulative vouchers only; never direct rail charges. */
     val vaultOnlyBilling: Boolean = false,
+    val blockDrivenBilling: Boolean = false,
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -22,6 +23,7 @@ data class ServerConfig(
         if (gracePeriod != other.gracePeriod) return false
         if (skipPaymentRequestWhenSessionFunded != other.skipPaymentRequestWhenSessionFunded) return false
         if (vaultOnlyBilling != other.vaultOnlyBilling) return false
+        if (blockDrivenBilling != other.blockDrivenBilling) return false
         if (sessionId != other.sessionId) return false
         if (gating != other.gating) return false
         if (enforcement != other.enforcement) return false
@@ -36,6 +38,7 @@ data class ServerConfig(
         result = 31 * result + gracePeriod
         result = 31 * result + skipPaymentRequestWhenSessionFunded.hashCode()
         result = 31 * result + vaultOnlyBilling.hashCode()
+        result = 31 * result + blockDrivenBilling.hashCode()
         result = 31 * result + (sessionId?.hashCode() ?: 0)
         result = 31 * result + gating.hashCode()
         result = 31 * result + enforcement.hashCode()

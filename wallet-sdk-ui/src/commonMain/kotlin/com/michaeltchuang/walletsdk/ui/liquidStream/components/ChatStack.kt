@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.TextCasing
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatDisplayName
-import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 

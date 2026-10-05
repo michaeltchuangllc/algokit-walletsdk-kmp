@@ -201,6 +201,12 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             getIsPaidStreaming = { isPaidStreamingEnabled },
+            getAcceptedBlockCounts = {
+                liquidStreamCreator?.rtcServer?.let { it.paidBlockCount to it.freeBlockCount } ?: (0 to 0)
+            },
+            getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                liquidStreamCreator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
+            },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
             getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
@@ -1011,13 +1017,17 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 null
                             }
                         if (!isActive || !isCurrent(viewer)) return@launch
-                        if (isCurrentVaultRead(viewer, inputs)) {
+                        if (snapshot != null && isCurrentVaultRead(viewer, inputs)) {
                             publishAdditionalViewerDetails(viewer) {
+                                // A slower poll must not overwrite a settlement callback.
+                                if (snapshot.lastSettledMicroUsdc < (it.lastSettledMicroUsdc ?: 0L)) {
+                                    return@publishAdditionalViewerDetails it
+                                }
                                 it.copy(
-                                    remainingBalanceMicroUsdc = snapshot?.remainingBalanceMicroUsdc,
-                                    lastSettledMicroUsdc = snapshot?.lastSettledMicroUsdc,
-                                    progressBalanceMicroUsdc = snapshot?.progressBalanceMicroUsdc,
-                                    totalDepositMicroUsdc = snapshot?.totalDepositMicroUsdc,
+                                    remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+                                    lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+                                    progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+                                    totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
                                 )
                             }
                         }
@@ -1077,6 +1087,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                         onAdditionalViewer(viewer) {
                             if (!viewer.billingClosed) {
                                 publishAdditionalViewerDetails(viewer) {
+                                    if (snapshot.lastSettledMicroUsdc < (it.lastSettledMicroUsdc ?: 0L)) {
+                                        return@publishAdditionalViewerDetails it
+                                    }
                                     it.copy(
                                         remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
                                         lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
@@ -1091,6 +1104,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                         Napier.e("Mesh vault billing failed (${viewer.sessionId})", error, tag = TAG)
                     },
                     payoutFrequencyBlocks = blockConsumptionManager.payoutFrequencyBlocks,
+                    getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                        viewer.creator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
+                    },
                 )
         }
         drainAdditionalViewerVouchers(viewer)

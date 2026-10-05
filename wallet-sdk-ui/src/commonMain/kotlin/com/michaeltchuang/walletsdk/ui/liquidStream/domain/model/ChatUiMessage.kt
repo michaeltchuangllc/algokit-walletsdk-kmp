@@ -1,4 +1,4 @@
-package com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels
+package com.michaeltchuang.walletsdk.ui.liquidStream.domain.model
 
 data class ChatUiMessage(
     val sender: String,

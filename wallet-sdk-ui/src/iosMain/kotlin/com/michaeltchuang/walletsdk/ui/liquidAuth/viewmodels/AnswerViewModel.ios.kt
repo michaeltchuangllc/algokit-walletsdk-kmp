@@ -88,6 +88,7 @@ actual open class AnswerViewModel actual constructor(
                 requestMppConsent = ::requestMppConsentFromUi,
                 setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+                onVaultSnapshot = ::setViewerVaultSnapshot,
                 signFido2Challenge = { challenge, challengeAddress ->
                     signer.takeIf { it.address == challengeAddress }?.signMessage(challenge)
                         ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)

@@ -59,6 +59,7 @@ fun AnswerScreen(
     val signalService by viewModel.signalService.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
     val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
+    val vaultSnapshot by viewModel.viewerVaultSnapshot.collectAsState()
     val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
     var deliveredMessageCount by remember { mutableIntStateOf(0) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
@@ -184,6 +185,7 @@ fun AnswerScreen(
                     currentBlockNumber = currentBlockNumber,
                     remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
                     progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
+                    vaultSnapshot = vaultSnapshot,
                     onMinimize = {
                         Napier.d("Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}", tag = "AnswerScreen")
                         isViewerSheetVisible = false

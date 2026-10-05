@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatRevenueLabel
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatTwoDecimals
@@ -129,15 +130,15 @@ class LiquidStreamHostViewModel(
                 currentState.copy(
                     chatMessages =
                         currentState.chatMessages +
-                            ChatUiMessage(
-                                sender = message.sender,
-                                text = message.text,
-                                timestamp = message.timestamp,
-                                isCreator = isCreator,
-                                isLocalUser = isLocalUser,
-                                amount = message.amount,
-                                asset = message.asset,
-                            ),
+                                ChatUiMessage(
+                                    sender = message.sender,
+                                    text = message.text,
+                                    timestamp = message.timestamp,
+                                    isCreator = isCreator,
+                                    isLocalUser = isLocalUser,
+                                    amount = message.amount,
+                                    asset = message.asset,
+                                ),
                     freeChatCount = newFreeCount,
                     tipChatCount = newTipCount,
                     tipChatTotalUsdc = newTipTotal,

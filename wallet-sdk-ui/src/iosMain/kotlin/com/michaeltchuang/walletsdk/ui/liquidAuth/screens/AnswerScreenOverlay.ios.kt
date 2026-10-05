@@ -115,6 +115,7 @@ actual fun AnswerScreenOverlay() {
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
     val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
     val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val vaultSnapshot by stateHolder.viewerVaultSnapshot.collectAsStateWithLifecycle()
     val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
     val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
     val sessionId by stateHolder.session.collectAsStateWithLifecycle()
@@ -240,6 +241,7 @@ actual fun AnswerScreenOverlay() {
                     originUrl = origin.ifBlank { "-" },
                     remainingBalanceUsdc = remainingBalance / 1_000_000.0,
                     progressBalanceUsdc = progressBalance / 1_000_000.0,
+                    vaultSnapshot = vaultSnapshot,
                     currentBlockNumber = currentBlockNumber,
                     onMinimize = {
                         miniPlayerCameraPreviewState.value = viewerCameraPreview

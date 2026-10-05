@@ -28,6 +28,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -43,7 +44,6 @@ class MppPaymentViewerManager(
 ) {
     companion object {
         private const val TAG = "MppPaymentViewerManager"
-        private const val DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG = false
     }
 
     data class StartParams(
@@ -60,6 +60,7 @@ class MppPaymentViewerManager(
         val getHostAddress: () -> String = { "" },
         val channelIdProvider: () -> ByteArray? = { EscrowSessionVaultHybridManagerClient.channelId?.copyOf() },
         val setViewerPaymentProcessing: (Boolean) -> Unit = {},
+        val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
     )
 
     private data class VaultFundingResult(
@@ -77,6 +78,21 @@ class MppPaymentViewerManager(
         var extendBudgetOnConfirmation = false
         var processing = false
         var consentActive = false
+        lateinit var viewer: LiquidStreamViewer
+        val pendingVouchers = ArrayDeque<VoucherObligation>()
+    }
+
+    private class VoucherObligation(
+        val sessionId: String,
+        val segmentIndex: Int,
+        val viewerAddress: String,
+        val payTo: String,
+        val channelId: ByteArray,
+        val vaultChannelId: String?,
+        val cumulativeAmount: Long,
+        val blocksConsumed: Int,
+    ) {
+        var signature: ByteArray? = null
     }
 
     private var paymentSession: PaymentSession? = null
@@ -161,7 +177,6 @@ class MppPaymentViewerManager(
     fun start(params: StartParams) {
         val viewerAddress = params.viewerAddress
         val signer = params.signer
-        val sessionVaultAppId = params.sessionVaultAppId
 
         cancelPaymentSession()
         val session = PaymentSession(params)
@@ -214,6 +229,7 @@ class MppPaymentViewerManager(
                     },
                 clientConfig = ClientConfig(autoPaySegments = false),
             ).also { viewer ->
+                session.viewer = viewer
                 viewer.rtcClient.onDataChannelOpen = {
                     if (activeStartParams === params) {
                         refreshVaultIdentity(viewerAddress, force = true)
@@ -231,21 +247,17 @@ class MppPaymentViewerManager(
                 }
 
                 viewer.rtcClient.onPaymentReceipt = { receipt ->
-                    params.scope.launch {
+                    session.scope.launch {
                         voucherMutex.withLock {
-                            if (activeStartParams !== params) return@withLock
+                            ensureCurrent(session)
                             handlePaymentReceipt(
+                                session = session,
                                 receiptSessionId = receipt.sessionId,
                                 receiptSegmentIndex = receipt.segmentIndex,
                                 receiptAmount = receipt.amount,
                                 receiptPayFrom = receipt.payFrom,
                                 receiptPayTo = receipt.payTo,
                                 txId = receipt.txId,
-                                viewerAddress = viewerAddress,
-                                sessionVaultAppId = sessionVaultAppId,
-                                signer = signer,
-                                signFido2Challenge = params.signFido2Challenge,
-                                setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                                 vaultChannelId = if (receipt.billingMode == BillingMode.SESSION_VAULT) receipt.channelId else null,
                             )
                         }
@@ -293,6 +305,7 @@ class MppPaymentViewerManager(
                             if (activeStartParams !== refreshParams || paymentSession !== session) return@launch
                             if (session != null && (session.pendingDeposit != null || externalConfirmationPending)) {
                                 confirmFunding(session)
+                                refreshVaultSnapshot(session)
                             } else if (!pendingPayment || externalConfirmationPending) {
                                 val revision = paymentRevision
                                 val remaining =
@@ -310,6 +323,11 @@ class MppPaymentViewerManager(
                                 refreshVaultIdentity(viewerAddress)
                                 setViewerSessionVaultProgress(remaining, remaining)
                                 exhausted = remaining == 0L && !pendingPayment
+                                if (session != null) {
+                                    val snapshotRevision = paymentRevision
+                                    refreshVaultSnapshot(session)
+                                    if (snapshotRevision != paymentRevision) continue
+                                }
                             }
                         } catch (ce: CancellationException) {
                             throw ce
@@ -343,18 +361,18 @@ class MppPaymentViewerManager(
     }
 
     fun processGiftVoucher(giftUsdc: Double) {
-        val params =
-            activeStartParams ?: run {
+        val session =
+            paymentSession ?: run {
                 Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_active_params", tag = TAG)
                 return
             }
         val giftMicroUsdc = (giftUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-        params.scope.launch {
+        session.scope.launch {
             voucherMutex.withLock {
-                if (activeStartParams !== params) return@withLock
+                ensureCurrent(session)
                 handleGiftVoucher(
                     giftMicroUsdc = giftMicroUsdc,
-                    params = params,
+                    session = session,
                 )
             }
         }
@@ -362,16 +380,18 @@ class MppPaymentViewerManager(
 
     private suspend fun handleGiftVoucher(
         giftMicroUsdc: Long,
-        params: StartParams,
+        session: PaymentSession,
     ) {
+        val params = session.params
         val viewerAddress = params.viewerAddress
-        val sessionVaultAppId = params.sessionVaultAppId
-        val signer = params.signer
+        val channelId = params.channelIdProvider()?.copyOf() ?: return
+        val payTo = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty()
 
         val preUpdateDynamicData =
             safeApiCall("getSessionDynamicData.gift") {
-                MppPayments.getSessionDynamicDataFromVault()
+                MppPayments.getSessionDynamicDataFromVault(channelId)
             }
+        ensureCurrent(session)
         val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
         val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
         val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
@@ -389,61 +409,36 @@ class MppPaymentViewerManager(
         val voucherClaimed = voucherClaimedRaw.coerceAtLeast(minRequiredCumulative).coerceAtMost(maxAllowedCumulative)
 
         viewerVoucherClaimedMicroUsdc = voucherClaimed
-        val channelId = EscrowSessionVaultHybridManagerClient.channelId
-        if (channelId == null) {
-            Napier.w("[GIFT_VOUCHER_SKIPPED] reason=missing_channel_id", tag = TAG)
-            return
-        }
-
-        val voucherSignature =
-            runCatching {
-                val message =
-                    MppPayments.buildLogicSigSettlementVoucher(
-                        channelId = channelId,
-                        cumulativeAmountMicroUsdc = voucherClaimed,
-                        payeeAddress = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
-                    )
-                params.signFido2Challenge(message, viewerAddress)
-            }.getOrNull()
-
-        if (voucherSignature != null && voucherSignature.isNotEmpty()) {
-            val blocksConsumed = viewerVoucherBlocksConsumed.coerceAtLeast(0)
-            updateAndSendVoucher(
-                receiptSessionId = viewerVoucherSessionId.orEmpty(),
-                receiptSegmentIndex = 0,
-                receiptViewerAddress = viewerAddress,
-                receiptPayTo = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
-                sessionVaultAppId = sessionVaultAppId,
-                signer = signer,
-                voucherClaimed = voucherClaimed,
-                voucherSignature = voucherSignature,
-                blocksConsumed = blocksConsumed,
-            )
-            Napier.d(
-                "[GIFT_VOUCHER_SENT] giftMicroUsdc=$giftMicroUsdc totalVoucherClaimed=$voucherClaimed viewer=$viewerAddress",
-                tag = TAG,
-            )
-        } else {
-            Napier.e("[GIFT_VOUCHER_SIGN_FAILED] viewer=$viewerAddress", tag = TAG)
-        }
+        session.pendingVouchers.addLast(
+            VoucherObligation(
+                sessionId = viewerVoucherSessionId.orEmpty(),
+                segmentIndex = 0,
+                viewerAddress = viewerAddress,
+                payTo = payTo,
+                channelId = channelId,
+                vaultChannelId = null,
+                cumulativeAmount = voucherClaimed,
+                blocksConsumed = viewerVoucherBlocksConsumed.coerceAtLeast(0),
+            ),
+        )
+        drainVouchers(session)
     }
 
     @OptIn(ExperimentalEncodingApi::class)
     private suspend fun handlePaymentReceipt(
+        session: PaymentSession,
         receiptSessionId: String,
         receiptSegmentIndex: Int,
         receiptAmount: String,
         receiptPayFrom: String,
         receiptPayTo: String,
         txId: String,
-        viewerAddress: String,
-        sessionVaultAppId: Long,
-        signer: MppWalletSigner,
-        signFido2Challenge: suspend (challenge: ByteArray, address: String) -> ByteArray?,
-        setViewerSessionVaultProgress: (remainingBalanceMicroUsdc: Long, progressBalanceMicroUsdc: Long) -> Unit,
         vaultChannelId: String? = null,
     ) {
+        val params = session.params
+        val viewerAddress = params.viewerAddress
         val explicitChannel = vaultChannelId?.let(Base64::decode)
+        val channelId = explicitChannel ?: params.channelIdProvider()?.copyOf() ?: return
         val debit =
             if (explicitChannel != null) {
                 receiptAmount.toLongOrNull() ?: 0L
@@ -460,10 +455,12 @@ class MppPaymentViewerManager(
             viewerVoucherCapLoggedSessionId = null
         }
 
+        val progressRevision = paymentRevision
         val progressSnapshot =
             safeApiCall("getSessionProgressSnapshot.onReceipt") {
-                MppPayments.getSessionProgressSnapshotFromVault(explicitChannel ?: EscrowSessionVaultHybridManagerClient.channelId)
+                MppPayments.getSessionProgressSnapshotFromVault(channelId)
             }
+        ensureCurrent(session)
         val currentBalance = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
 
         if (currentBalance > 0) {
@@ -496,8 +493,9 @@ class MppPaymentViewerManager(
         if (receiptViewerAddress.isNotBlank()) {
             val preUpdateDynamicData =
                 safeApiCall("getSessionDynamicData.preUpdate") {
-                    MppPayments.getSessionDynamicDataFromVault(explicitChannel ?: EscrowSessionVaultHybridManagerClient.channelId)
+                    MppPayments.getSessionDynamicDataFromVault(channelId)
                 }
+            ensureCurrent(session)
             val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
             val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
             val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
@@ -527,84 +525,127 @@ class MppPaymentViewerManager(
             }
 
             viewerVoucherClaimedMicroUsdc = voucherClaimed
-            val channelId = explicitChannel ?: EscrowSessionVaultHybridManagerClient.channelId ?: return
-            val voucherSignature =
-                runCatching {
-                    val message =
-                        MppPayments.buildLogicSigSettlementVoucher(
-                            channelId = channelId,
-                            cumulativeAmountMicroUsdc = voucherClaimed,
-                            payeeAddress = receiptPayTo,
-                        )
-                    signFido2Challenge(message, viewerAddress)
-                }.getOrNull()
-
-            if ((voucherSignature != null) && voucherSignature.isNotEmpty()) {
-                if (DISABLE_VIEWER_UPDATE_VOUCHER_FOR_DEBUG) {
-                    Napier.d(
-                        "[VIEWER_UPDATE_VOUCHER_DISABLED_DEBUG] session=$receiptSessionId segment=$receiptSegmentIndex claimed=$voucherClaimed viewer=$receiptViewerAddress",
-                        tag = TAG,
-                    )
-                }
-
-                // Since creator can now settle directly using the voucher signature,
-                // we no longer REQUIRE an on-chain update from the viewer side.
-                // We send the voucher immediately.
-                updateAndSendVoucher(
-                    receiptSessionId = receiptSessionId,
-                    receiptSegmentIndex = receiptSegmentIndex,
-                    receiptViewerAddress = receiptViewerAddress,
-                    receiptPayTo = receiptPayTo,
-                    sessionVaultAppId = sessionVaultAppId,
-                    signer = signer,
-                    voucherClaimed = voucherClaimed,
-                    voucherSignature = voucherSignature,
+            session.pendingVouchers.addLast(
+                VoucherObligation(
+                    sessionId = receiptSessionId,
+                    segmentIndex = receiptSegmentIndex,
+                    viewerAddress = receiptViewerAddress,
+                    payTo = receiptPayTo,
+                    channelId = channelId,
+                    cumulativeAmount = voucherClaimed,
                     blocksConsumed = blocksConsumed,
                     vaultChannelId = vaultChannelId,
-                )
-            }
+                ),
+            )
+            drainVouchers(session)
         }
 
-        setViewerSessionVaultProgress(
-            progressSnapshot?.remainingSettledMicroUsdc ?: 0L,
-            progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
+        ensureCurrent(session)
+        if (progressSnapshot == null || !isCurrentVaultSnapshot(session, channelId, progressRevision, progressSnapshot)) return
+        params.setViewerSessionVaultProgress(
+            progressSnapshot.remainingSettledMicroUsdc,
+            progressSnapshot.progressBalanceMicroUsdc,
         )
+        ensureCurrent(session)
+        if (isCurrentVaultSnapshot(session, channelId, progressRevision, progressSnapshot)) {
+            params.onVaultSnapshot(progressSnapshot)
+        }
+    }
+    private suspend fun refreshVaultSnapshot(session: PaymentSession) {
+        ensureCurrent(session)
+        val params = session.params
+        val channelId = params.channelIdProvider()?.copyOf() ?: return
+        val revision = paymentRevision
+        val snapshot =
+            safeApiCall("getSessionProgressSnapshot.refresh") {
+                MppPayments.getSessionProgressSnapshotFromVault(channelId)
+            }
+        ensureCurrent(session)
+        if (snapshot != null && isCurrentVaultSnapshot(session, channelId, revision, snapshot)) {
+            params.onVaultSnapshot(snapshot)
+        }
+    }
+
+    private fun isCurrentVaultSnapshot(
+        session: PaymentSession,
+        channelId: ByteArray,
+        revision: Long,
+        snapshot: MppPayments.SessionProgressSnapshot,
+    ): Boolean =
+        paymentSession === session &&
+            activeStartParams === session.params &&
+            revision == paymentRevision &&
+            channelId.contentEquals(session.params.channelIdProvider()) &&
+            snapshot.totalDepositMicroUsdc >= 0L &&
+            snapshot.remainingSettledMicroUsdc in 0L..snapshot.totalDepositMicroUsdc &&
+            snapshot.progressBalanceMicroUsdc in 0L..snapshot.remainingSettledMicroUsdc &&
+            snapshot.lastSettledMicroUsdc >= 0L &&
+            snapshot.latestVoucherAmountMicroUsdc >= 0L &&
+            snapshot.startRound >= 0L
+
+    private suspend fun drainVouchers(session: PaymentSession) {
+        while (session.pendingVouchers.isNotEmpty()) {
+            ensureCurrent(session)
+            val obligation = session.pendingVouchers.first()
+            val signature =
+                obligation.signature ?: safeApiCall("signVoucher") {
+                    val message =
+                        MppPayments.buildLogicSigSettlementVoucher(
+                            channelId = obligation.channelId.copyOf(),
+                            cumulativeAmountMicroUsdc = obligation.cumulativeAmount,
+                            payeeAddress = obligation.payTo,
+                        )
+                    session.params.signFido2Challenge(message, session.params.viewerAddress)
+                }
+            ensureCurrent(session)
+            if (signature == null || signature.isEmpty()) {
+                Napier.w("[VIEWER_VOUCHER_SIGN_PENDING] session=${obligation.sessionId} segment=${obligation.segmentIndex}", tag = TAG)
+                return // Retry this exact amount on the next receipt/gift; never sign past it.
+            }
+            obligation.signature = signature.copyOf()
+            val attempted =
+                safeApiCall("sendVoucher") {
+                    updateAndSendVoucher(session, obligation, signature)
+                    true
+                } ?: false
+            ensureCurrent(session)
+            if (!attempted) return
+            // sendVoucher is best-effort (Unit, swallowed transport errors), NOT an acknowledgement.
+            session.pendingVouchers.removeFirst()
+            yield()
+        }
     }
 
     @OptIn(ExperimentalEncodingApi::class)
     private suspend fun updateAndSendVoucher(
-        receiptSessionId: String,
-        receiptSegmentIndex: Int,
-        receiptViewerAddress: String,
-        receiptPayTo: String,
-        sessionVaultAppId: Long,
-        signer: MppWalletSigner,
-        voucherClaimed: Long,
+        session: PaymentSession,
+        obligation: VoucherObligation,
         voucherSignature: ByteArray,
-        blocksConsumed: Int,
-        vaultChannelId: String? = null,
     ) {
+        val params = session.params
+        val vaultChannelId = obligation.vaultChannelId
         val progressSnapshot =
             safeApiCall("getSessionProgressSnapshot.preSend") {
                 MppPayments.getSessionProgressSnapshotFromVault(
-                    vaultChannelId?.let(Base64::decode) ?: EscrowSessionVaultHybridManagerClient.channelId,
+                    obligation.channelId,
                 )
             }
+        ensureCurrent(session)
 
         val voucherJson =
             MppPayments.createVoucherJson(
-                sessionId = receiptSessionId,
-                viewerAddress = receiptViewerAddress,
-                viewerPublicKey = signer.authorizedSignerPublicKey,
-                creatorAddress = receiptPayTo,
-                blocksConsumed = blocksConsumed,
-                totalAmountUsed = voucherClaimed,
+                sessionId = obligation.sessionId,
+                viewerAddress = obligation.viewerAddress,
+                viewerPublicKey = params.signer.authorizedSignerPublicKey,
+                creatorAddress = obligation.payTo,
+                blocksConsumed = obligation.blocksConsumed,
+                totalAmountUsed = obligation.cumulativeAmount,
                 remainingMicroUsdc = progressSnapshot?.progressBalanceMicroUsdc ?: 0L,
                 signatureBase64 = MppPayments.serializeVoucherSignature(voucherSignature),
-                appId = sessionVaultAppId,
+                appId = params.sessionVaultAppId,
             )
         Napier.e(
-            "[SESSION_VAULT_VOUCHER_SEND] session=$receiptSessionId segment=$receiptSegmentIndex claimedAmountMicroUsdc=$voucherClaimed viewer=$receiptViewerAddress sigLen=${voucherSignature.size}",
+            "[SESSION_VAULT_VOUCHER_SEND_ATTEMPT] session=${obligation.sessionId} segment=${obligation.segmentIndex} claimedAmountMicroUsdc=${obligation.cumulativeAmount}",
             tag = TAG,
         )
         val wireVoucher =
@@ -617,7 +658,8 @@ class MppPaymentViewerManager(
             } else {
                 voucherJson
             }
-        liquidStreamViewer?.rtcClient?.sendVoucher(wireVoucher)
+        ensureCurrent(session)
+        session.viewer.rtcClient.sendVoucher(wireVoucher)
     }
 
     private fun cancelPaymentSession() {

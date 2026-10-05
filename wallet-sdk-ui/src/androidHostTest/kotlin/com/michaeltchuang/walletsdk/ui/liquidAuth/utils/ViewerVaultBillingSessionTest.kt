@@ -98,6 +98,7 @@ class ViewerVaultBillingSessionTest {
 
     private class FakeAdapter : ViewerVaultBillingSession.Adapter {
         var startRound: Long? = null
+        var deposit = 1_000L
         var settled = 0L
         var reads = 0
         var failRead = false
@@ -119,7 +120,7 @@ class ViewerVaultBillingSessionTest {
             reads++
             readAction(voucher)
             if (failRead) return Result.failure(IllegalStateException("read failed"))
-            return Result.success(HostViewerVaultReader.Snapshot(1_000 - settled, settled, 1_000 - settled, 1_000, startRound))
+            return Result.success(HostViewerVaultReader.Snapshot(deposit - settled, settled, deposit - settled, deposit, startRound))
         }
 
         override suspend fun settle(
@@ -147,6 +148,7 @@ class ViewerVaultBillingSessionTest {
         snapshot: (HostViewerVaultReader.Snapshot) -> Unit = {},
         repository: FakeRepository = FakeRepository(),
         settlementError: (Throwable?) -> Unit = { error -> if (error != null) errors += error },
+        getVoucherCoveredBlockCount: (suspend (Long, Long) -> Long)? = null,
     ) = ViewerVaultBillingSession(
         scope = backgroundScope,
         sessionId = "mesh-session",
@@ -161,6 +163,7 @@ class ViewerVaultBillingSessionTest {
         voucherRepository = repository,
         getMppVoucherNoteUseCase = GetMppVoucherNoteUseCase(),
         payoutFrequencyBlocks = frequency,
+        getVoucherCoveredBlockCount = getVoucherCoveredBlockCount,
         adapter = adapter,
         operationTimeoutMillis = 1_000,
         finalDrainTimeoutMillis = 1_500,
@@ -820,7 +823,6 @@ class ViewerVaultBillingSessionTest {
             }
             assertTrue(errors.isEmpty())
         }
-
     @Test
     fun `EXPECT only increasing chain rounds to reach the boundary with the latest signed total`() =
         runTest {
@@ -989,7 +991,7 @@ class ViewerVaultBillingSessionTest {
         }
 
     @Test
-    fun `EXPECT the final drain to wait serially then use the newest voucher WHEN closing`() =
+    fun `EXPECT the final drain to wait serially then drain all ordered vouchers WHEN closing`() =
         runTest {
             val gate = CompletableDeferred<Unit>()
             val adapter = FakeAdapter().apply { action = { gate.await() } }
@@ -1000,14 +1002,15 @@ class ViewerVaultBillingSessionTest {
             runCurrent()
             assertEquals(1, adapter.active)
             assertTrue(session.acceptVoucher(message(200)))
+            assertTrue(session.acceptVoucher(message(300)))
             val closing = session.close()
-            assertFalse(session.acceptVoucher(message(300)))
+            assertFalse(session.acceptVoucher(message(400)))
             gate.complete(Unit)
             closing.join()
-            assertEquals(listOf(100L, 200L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            assertEquals(listOf(100L, 200L, 300L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
             assertEquals(1, adapter.maxActive)
             session.close().join()
-            assertEquals(2, adapter.submissions.size)
+            assertEquals(3, adapter.submissions.size)
         }
 
     @Test
