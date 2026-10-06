@@ -20,8 +20,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaul
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -137,6 +137,7 @@ class PaywalledRTCServer
         @Volatile
         var paidBlockCount: Int = 0
             private set
+
         @Volatile
         var freeBlockCount: Int = 0
             private set

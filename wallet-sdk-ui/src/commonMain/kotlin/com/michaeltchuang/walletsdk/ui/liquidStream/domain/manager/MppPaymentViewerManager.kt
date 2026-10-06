@@ -551,6 +551,7 @@ class MppPaymentViewerManager(
             params.onVaultSnapshot(progressSnapshot)
         }
     }
+
     private suspend fun refreshVaultSnapshot(session: PaymentSession) {
         ensureCurrent(session)
         val params = session.params

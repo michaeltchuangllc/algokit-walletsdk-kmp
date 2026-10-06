@@ -308,17 +308,18 @@ fun LiquidAuthOfferScreen(
         }
     }
 
-    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value, paymentState) {
+    // Mesh/debug viewers can be live while the primary offer is still waiting for a connection.
+    val hasLiveMeshViewers = meshViewerIds.isNotEmpty() || debugViewerDetails.isNotEmpty()
+    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value, paymentState, hasLiveMeshViewers) {
+        val isBlockNumberVisible =
+            streamHostUiMode.value == StreamHostUiMode.Expanded || isAnalyticsModalVisible.value
         when (state) {
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
             -> {
-                if (isAnalyticsModalVisible.value && streamHostUiMode.value == StreamHostUiMode.Expanded) {
-                    viewModel.startRealtimeBlockNumberUpdates()
-                } else {
-                    viewModel.stopRealtimeBlockNumberUpdates()
-                }
+                // The expanded host UI (incl. Host Settings sheet) and the stats modal show the block number.
+                viewModel.setBlockNumberDisplayed(isBlockNumberVisible)
 
                 // Ensure billing/deduction loop is running whenever paid streaming is active.
                 if (paymentState is LiquidAuthOfferViewModel.PaymentState.StreamingWithBalance) {
@@ -331,7 +332,8 @@ fun LiquidAuthOfferScreen(
                 if (viewModel.meshHostingEnabled && state is LiquidAuthOfferViewModel.OfferState.Loading) {
                     return@LaunchedEffect
                 }
-                viewModel.stopRealtimeBlockNumberUpdates()
+                // Mesh/debug viewers still need block numbers for the host sheet and earnings averages.
+                viewModel.setBlockNumberDisplayed(hasLiveMeshViewers && isBlockNumberVisible)
                 connectionManager?.stopBlockConsumption()
             }
         }
@@ -366,21 +368,12 @@ fun LiquidAuthOfferScreen(
             is LiquidAuthOfferViewModel.OfferState.Connected,
             is LiquidAuthOfferViewModel.OfferState.Streaming,
             -> {
+                // Block polling visibility is owned by the UI-mode effect above.
                 Napier.d("🔗 Connection established - service handling")
-                if (isAnalyticsModalVisible.value) {
-                    viewModel.startRealtimeBlockNumberUpdates()
-                } else {
-                    viewModel.stopRealtimeBlockNumberUpdates()
-                }
             }
 
             is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
                 Napier.d("🔗 Waiting for payment - keeping connection open")
-                if (isAnalyticsModalVisible.value) {
-                    viewModel.startRealtimeBlockNumberUpdates()
-                } else {
-                    viewModel.stopRealtimeBlockNumberUpdates()
-                }
             }
 
             else -> {
@@ -389,7 +382,7 @@ fun LiquidAuthOfferScreen(
                     return@LaunchedEffect
                 }
                 Napier.d("🔗 Stopping listening - state: ${currentState::class.simpleName}")
-                viewModel.stopRealtimeBlockNumberUpdates()
+                // Block polling visibility is owned by the UI-mode effect above.
                 connectionManager.stopListening()
             }
         }
@@ -511,7 +504,7 @@ fun LiquidAuthOfferScreen(
     // Cleanup
     DisposableEffect(Unit) {
         onDispose {
-            viewModel.stopRealtimeBlockNumberUpdates()
+            viewModel.setBlockNumberDisplayed(false)
             connectionManager?.stopListening()
             connectionManager?.stopBlockConsumption()
             viewModel.clearMeshHosting()

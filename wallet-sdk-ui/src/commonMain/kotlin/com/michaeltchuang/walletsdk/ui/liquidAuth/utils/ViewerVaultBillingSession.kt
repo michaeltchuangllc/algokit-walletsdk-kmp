@@ -387,13 +387,15 @@ internal class ViewerVaultBillingSession(
     suspend fun restorePending(channelId: ByteArray): Long {
         val channel = channelId.copyOf()
         val rows =
-            voucherRepository.getAllVouchers().filter {
-                it.channelIdBase64 == Base64.encode(channel) &&
-                    it.network == network &&
-                    it.viewerAddress == viewerAddress &&
-                    it.creatorAddress == creatorAddress &&
-                    it.viewerPublicKeyBase64 == Base64.encode(key)
-            }.sortedBy { it.totalAmountClaimedMicroUsdc }
+            voucherRepository
+                .getAllVouchers()
+                .filter {
+                    it.channelIdBase64 == Base64.encode(channel) &&
+                        it.network == network &&
+                        it.viewerAddress == viewerAddress &&
+                        it.creatorAddress == creatorAddress &&
+                        it.viewerPublicKeyBase64 == Base64.encode(key)
+                }.sortedBy { it.totalAmountClaimedMicroUsdc }
         val row = rows.lastOrNull() ?: return 0L
         try {
             return withTimeout(operationTimeoutMillis.milliseconds) {
@@ -422,23 +424,35 @@ internal class ViewerVaultBillingSession(
                     return@withTimeout voucher.totalAmountClaimedMicroUsdc
                 }
                 adapter.validateAuthorization(voucher).getOrThrow()
-                val restored = rows.filter {
-                    startRound == null || it.blockNumber == 0L || it.blockNumber >= startRound
-                }.map { pending ->
-                    Voucher(
-                        sessionId, viewerAddress, creatorAddress, network, key, channel,
-                        Base64.decode(pending.signatureBase64), pending.totalAmountClaimedMicroUsdc,
-                        pending.blockNumber, pending.note,
-                    )
-                }.filter { it.totalAmountClaimedMicroUsdc > snapshot.lastSettledMicroUsdc }
-                restored.filter { it.totalAmountClaimedMicroUsdc != voucher.totalAmountClaimedMicroUsdc }
+                val restored =
+                    rows
+                        .filter {
+                            startRound == null || it.blockNumber == 0L || it.blockNumber >= startRound
+                        }.map { pending ->
+                            Voucher(
+                                sessionId,
+                                viewerAddress,
+                                creatorAddress,
+                                network,
+                                key,
+                                channel,
+                                Base64.decode(pending.signatureBase64),
+                                pending.totalAmountClaimedMicroUsdc,
+                                pending.blockNumber,
+                                pending.note,
+                            )
+                        }.filter { it.totalAmountClaimedMicroUsdc > snapshot.lastSettledMicroUsdc }
+                restored
+                    .filter { it.totalAmountClaimedMicroUsdc != voucher.totalAmountClaimedMicroUsdc }
                     .forEach { adapter.validateAuthorization(it).getOrThrow() }
                 mutex.withLock {
                     if (!canAccept(voucher)) return@withLock
                     latest = voucher
-                    pendingVouchers.addAll(restored.filter { restoredVoucher ->
-                        pendingVouchers.none { it.totalAmountClaimedMicroUsdc == restoredVoucher.totalAmountClaimedMicroUsdc }
-                    })
+                    pendingVouchers.addAll(
+                        restored.filter { restoredVoucher ->
+                            pendingVouchers.none { it.totalAmountClaimedMicroUsdc == restoredVoucher.totalAmountClaimedMicroUsdc }
+                        },
+                    )
                     pendingVouchers.sortBy { it.totalAmountClaimedMicroUsdc }
                     forceRequested = true
                     wake.trySend(Unit)
@@ -574,8 +588,12 @@ internal class ViewerVaultBillingSession(
                     if (payoutFrequencyBlocks == 1) {
                         pendingVouchers.firstOrNull {
                             it.totalAmountClaimedMicroUsdc > confirmedAmount &&
-                                (force || getVoucherCoveredBlockCount == null ||
-                                    getVoucherCoveredBlockCount.invoke(it.totalAmountClaimedMicroUsdc, confirmedBlockCount) > confirmedBlockCount)
+                                (
+                                    force ||
+                                        getVoucherCoveredBlockCount == null ||
+                                        getVoucherCoveredBlockCount.invoke(it.totalAmountClaimedMicroUsdc, confirmedBlockCount) >
+                                        confirmedBlockCount
+                                )
                         } ?: return false
                     } else {
                         newest
@@ -603,9 +621,12 @@ internal class ViewerVaultBillingSession(
                     publish(before)
                     val remainingAfterVoucher = before.totalDepositMicroUsdc - voucher.totalAmountClaimedMicroUsdc
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc &&
-                        !batchReady && remainingAfterVoucher > 0L &&
+                        !batchReady &&
+                        remainingAfterVoucher > 0L &&
                         (nextBlockCost <= 0L || remainingAfterVoucher >= nextBlockCost)
-                    ) return@withChannelLock
+                    ) {
+                        return@withChannelLock
+                    }
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
                         require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }

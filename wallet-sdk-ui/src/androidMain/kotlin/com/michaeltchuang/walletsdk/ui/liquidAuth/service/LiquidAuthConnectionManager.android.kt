@@ -44,7 +44,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.configuration.IceServerConfig
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.resolvePricingConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.scaleMicroUsdcAmount
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
@@ -137,6 +140,9 @@ actual class LiquidAuthConnectionManager actual constructor(
         var vaultChannelHint: ByteArray? = null
         var advertisedSalt: ByteArray? = null
         var config: ServerConfig? = null
+
+        // Last concrete transport tier for this peer; drives its per-block price multiplier.
+        var pricingConnectionType: IceConnectionType = IceConnectionType.UNKNOWN
         var connectionDetailsJob: Job? = null
         var vaultDetailsJob: Job? = null
         val billingScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -160,7 +166,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                 }
                 detectAndUpdateConnectionType()
             },
-            onStop = { _connectionType.value = IceConnectionType.UNKNOWN },
+            onStop = {
+                _connectionType.value = IceConnectionType.UNKNOWN
+                viewModel?.resetPrimaryPricingConnectionType()
+            },
         )
     private var liquidStreamCreator: LiquidStreamCreator? = null
     private var activePaymentSessionId: String? = null
@@ -340,7 +349,10 @@ actual class LiquidAuthConnectionManager actual constructor(
             val serverConfig =
                 ServerConfig(
                     sessionId = resolvedSessionId,
-                    gating = resolvedPaymentRequest.gatingConfig,
+                    gating =
+                        resolvedPaymentRequest.gatingConfig.let {
+                            it.copy(amount = primaryPricingConnectionType().scaleMicroUsdcAmount(it.amount))
+                        },
                     gracePeriod = 5,
                     viewerAddress = activeViewerAddressForVault,
                     // Prefer the key from the most-recent voucher (authoritative).
@@ -613,7 +625,12 @@ actual class LiquidAuthConnectionManager actual constructor(
                         Napier.d("🌐 Connection type changed: ${mappedType.displayName()}", tag = TAG)
 
                         // Notify view model for any connection-type specific logic
+                        val previousPricing = primaryPricingConnectionType()
                         viewModel?.onConnectionTypeChanged(mappedType)
+                        if (primaryPricingConnectionType() != previousPricing && liquidStreamCreator != null) {
+                            // Re-price the primary peer: base content cost × transport multiplier.
+                            updateCreatorViewerSignerConfig(activeViewerAuthorizedSignerKey)
+                        }
                     }
                 }
             }
@@ -935,6 +952,12 @@ actual class LiquidAuthConnectionManager actual constructor(
                         }
                     if (!isCurrent(viewer)) return@launch
                     publishAdditionalViewerDetails(viewer) { it.copy(connectionType = type) }
+                    val pricingType = resolvePricingConnectionType(viewer.pricingConnectionType, type)
+                    if (pricingType != viewer.pricingConnectionType) {
+                        viewer.pricingConnectionType = pricingType
+                        // Re-price this peer only: base content cost × its transport multiplier.
+                        setupAdditionalCreator(viewer)
+                    }
                     delay(VIEWER_DETAILS_POLL_INTERVAL_MS)
                 }
             }
@@ -1124,7 +1147,11 @@ actual class LiquidAuthConnectionManager actual constructor(
                         round > (lastRound ?: 0L)
                     ) {
                         lastRound = round
-                        billing.onBlock(round, isPaidStreamingEnabled, vm.currentCostPerBlockMicroUsdc)
+                        billing.onBlock(
+                            round,
+                            isPaidStreamingEnabled,
+                            viewer.pricingConnectionType.costPerBlockMicroUsdc(vm.currentCostPerBlockMicroUsdc),
+                        )
                     }
                 }
             }
@@ -1259,7 +1286,13 @@ actual class LiquidAuthConnectionManager actual constructor(
                     segmentDuration = 3,
                     leadTime = 0,
                 )
-            ).let { if (isPaidStreamingEnabled) it else it.copy(amount = "0") }
+            ).let {
+                if (isPaidStreamingEnabled) {
+                    it.copy(amount = viewer.pricingConnectionType.scaleMicroUsdcAmount(it.amount))
+                } else {
+                    it.copy(amount = "0")
+                }
+            }
         val config =
             ServerConfig(
                 sessionId = viewer.sessionId,
@@ -1586,6 +1619,8 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
+    private fun primaryPricingConnectionType(): IceConnectionType = viewModel?.primaryPricingConnectionType ?: IceConnectionType.UNKNOWN
+
     private fun updateCreatorViewerSignerConfig(signerKey: ByteArray?) {
         liquidStreamCreator?.updateConfig(
             ServerConfig(
@@ -1594,8 +1629,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                     GatingConfig(
                         mode = GatingMode.PARTIAL_TIME,
                         amount =
-                            activePaymentAmount
-                                ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
+                            primaryPricingConnectionType().scaleMicroUsdcAmount(
+                                activePaymentAmount
+                                    ?: MppPayments.voucherSettleWindowMicroUsdc().toString(),
+                            ),
                         asset = "USDC",
                         network = activePaymentNetwork ?: MppNetworks.ALGORAND_TESTNET,
                         payTo = activePaymentRecipient.orEmpty(),

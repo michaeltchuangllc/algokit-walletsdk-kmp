@@ -36,47 +36,48 @@ class GetCurrentBlockUseCase(
         flow {
             emit(DataResource.Loading())
 
-            val result: DataResource<Long> = try {
-                val response: HttpResponse = httpClient.get("${nodeBaseUrl().trimEnd('/')}/v2/status")
+            val result: DataResource<Long> =
+                try {
+                    val response: HttpResponse = httpClient.get("${nodeBaseUrl().trimEnd('/')}/v2/status")
 
-                when {
-                    response.status.isSuccess() -> {
-                        val statusResponse = response.body<NodeStatusResponse>()
-                        require(statusResponse.lastRound >= 0L) { "Invalid node round" }
-                        DataResource.Success(statusResponse.lastRound)
+                    when {
+                        response.status.isSuccess() -> {
+                            val statusResponse = response.body<NodeStatusResponse>()
+                            require(statusResponse.lastRound >= 0L) { "Invalid node round" }
+                            DataResource.Success(statusResponse.lastRound)
+                        }
+
+                        response.status == HttpStatusCode.NotFound -> {
+                            DataResource.Error.Api(
+                                exception = Exception("Node status endpoint not found"),
+                                code = response.status.value,
+                            )
+                        }
+
+                        else -> {
+                            val errorMessage =
+                                try {
+                                    response.body<String>()
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    "HTTP ${response.status.value}: ${response.status.description}"
+                                }
+
+                            DataResource.Error.Api(
+                                exception = Exception(errorMessage),
+                                code = response.status.value,
+                            )
+                        }
                     }
-
-                    response.status == HttpStatusCode.NotFound -> {
-                        DataResource.Error.Api(
-                            exception = Exception("Node status endpoint not found"),
-                            code = response.status.value,
-                        )
-                    }
-
-                    else -> {
-                        val errorMessage =
-                            try {
-                                response.body<String>()
-                            } catch (e: CancellationException) {
-                                throw e
-                            } catch (e: Exception) {
-                                "HTTP ${response.status.value}: ${response.status.description}"
-                            }
-
-                        DataResource.Error.Api(
-                            exception = Exception(errorMessage),
-                            code = response.status.value,
-                        )
-                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    DataResource.Error.Api(
+                        exception = e,
+                        code = -1,
+                    )
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                DataResource.Error.Api(
-                    exception = e,
-                    code = -1,
-                )
-            }
             emit(result)
         }
 }

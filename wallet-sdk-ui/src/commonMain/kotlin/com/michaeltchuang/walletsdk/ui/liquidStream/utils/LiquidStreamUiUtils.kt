@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.utils
 
+import androidx.compose.ui.unit.TextUnit
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 
 enum class TextCasing {
@@ -30,28 +31,49 @@ fun formatDisplayName(
     }
 }
 
-/**
- * Formats revenue into a string with two decimal places and a '+' prefix if positive.
- * Example: 6.0 -> "+6.00", 6.123 -> "+6.12", 0.0 -> "0.00"
- */
-fun formatRevenueLabel(revenue: Double): String =
-    if (revenue > 0) {
-        "+${formatTwoDecimals(revenue)}"
-    } else {
-        "0.00"
-    }
+/** Number of decimals USDC supports (1 micro-USDC = 0.000001 USDC). */
+const val USDC_DISPLAY_DECIMALS = 6
+
+/** Zero USDC rendered at full micro-USDC precision. */
+const val ZERO_USDC_LABEL = "0.000000"
 
 /**
- * Formats a double to a string with exactly two decimal places.
- * Example: 6.0 -> "6.00", 6.123 -> "6.12"
+ * Formats revenue with full micro-USDC precision and a '+' prefix if positive.
+ * Example: 6.0 -> "+6.000000", 0.000008 -> "+0.000008", 0.0 -> "0.000000"
  */
-fun formatTwoDecimals(value: Double): String {
-    val rounded = (value * 100).toLong() / 100.0
-    val str = rounded.toString()
-    val parts = str.split(".")
-    val intPart = parts[0]
-    val decPart = parts.getOrNull(1)?.padEnd(2, '0')?.take(2) ?: "00"
-    return "$intPart.$decPart"
+fun formatRevenueLabel(revenue: Double): String {
+    val formatted = formatUsdcSixDecimals(revenue)
+    return if (formatted != ZERO_USDC_LABEL && revenue > 0) "+$formatted" else ZERO_USDC_LABEL
+}
+
+/**
+ * Formats a USDC amount with exactly six decimals (micro-USDC precision).
+ * Rounds to the nearest micro-USDC to avoid floating-point artifacts.
+ * Example: 0.000008 -> "0.000008", 1.5 -> "1.500000"
+ */
+fun formatUsdcSixDecimals(usdc: Double): String = formatMicroUsdc(kotlin.math.round(usdc * 1_000_000.0).toLong())
+
+private const val COMPACT_METRIC_VALUE_LENGTH = 6
+private const val COMPACT_METRIC_VALUE_SCALE = 0.62f
+
+/**
+ * Shrinks large metric values (e.g. "+0.000080") so two six-decimal values fit side by side.
+ */
+fun metricValueFontSize(
+    baseFontSize: TextUnit,
+    value: String,
+): TextUnit = if (value.length > COMPACT_METRIC_VALUE_LENGTH) baseFontSize * COMPACT_METRIC_VALUE_SCALE else baseFontSize
+
+/**
+ * Formats a micro-USDC amount as USDC with exactly six decimals using integer math.
+ * Example: 8 -> "0.000008", 1_250_000 -> "1.250000"
+ */
+fun formatMicroUsdc(microUsdc: Long): String {
+    val sign = if (microUsdc < 0) "-" else ""
+    val absolute = kotlin.math.abs(microUsdc)
+    val whole = absolute / 1_000_000
+    val fraction = (absolute % 1_000_000).toString().padStart(USDC_DISPLAY_DECIMALS, '0')
+    return "$sign$whole.$fraction"
 }
 
 sealed interface GiftAmountValidation {

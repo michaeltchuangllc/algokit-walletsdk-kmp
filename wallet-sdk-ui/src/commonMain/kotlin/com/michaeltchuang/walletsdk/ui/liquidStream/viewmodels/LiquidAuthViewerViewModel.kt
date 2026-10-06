@@ -148,7 +148,10 @@ class LiquidAuthViewerViewModel(
         stateDelegate.updateState { it.copy(selectedPayoutFrequencyTabId = tabId) }
     }
 
-    fun updateVaultProgress(sessionId: String, remainingUsdc: Double) {
+    fun updateVaultProgress(
+        sessionId: String,
+        remainingUsdc: Double,
+    ) {
         stateDelegate.updateState {
             it.copy(vaultProgress = it.vaultProgress.update(sessionId, remainingUsdc))
         }
@@ -214,15 +217,15 @@ class LiquidAuthViewerViewModel(
             currentState.copy(
                 chatMessages =
                     currentState.chatMessages +
-                            ChatUiMessage(
-                                sender = message.sender,
-                                text = message.text,
-                                timestamp = message.timestamp,
-                                isCreator = isCreator,
-                                isLocalUser = isLocalUser,
-                                amount = message.amount,
-                                asset = message.asset,
-                            ),
+                        ChatUiMessage(
+                            sender = message.sender,
+                            text = message.text,
+                            timestamp = message.timestamp,
+                            isCreator = isCreator,
+                            isLocalUser = isLocalUser,
+                            amount = message.amount,
+                            asset = message.asset,
+                        ),
             )
         }
     }

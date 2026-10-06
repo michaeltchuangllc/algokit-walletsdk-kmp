@@ -158,14 +158,15 @@ fun LiquidStreamHostLiveScreen(
         blockChainLabel,
         networkLabel,
         viewerCount,
-        viewers,
+        rawViewers,
     ) {
+        // Raw wallet addresses (not display names) so superchats can be credited to their sender.
         viewModel.updateMetrics(
             currentBlockNumber = currentBlockNumber,
             blockChainLabel = blockChainLabel,
             networkLabel = networkLabel,
             numbersOfViewer = viewerCount,
-            viewers = viewers,
+            viewers = rawViewers,
         )
     }
 

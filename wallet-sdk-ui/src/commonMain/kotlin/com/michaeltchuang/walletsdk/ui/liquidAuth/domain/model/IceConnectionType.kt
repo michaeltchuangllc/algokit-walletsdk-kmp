@@ -98,28 +98,58 @@ fun IceConnectionType.isPremium(): Boolean =
         IceConnectionType.UNKNOWN -> false
     }
 
-/**
- * Suggested pricing tier for x402-style billing
- * Returns relative cost multiplier
- */
-fun IceConnectionType.suggestedPricingTier(): Float =
-    when (this) {
-        IceConnectionType.LOCAL -> 1.0f // Base rate
-        IceConnectionType.STUN -> 1.0f // Base rate
-        IceConnectionType.RELAY -> 1.5f // 50% premium for relay costs
-        IceConnectionType.FAILED -> 0.0f // No charge for failed
-        IceConnectionType.UNKNOWN -> 0.0f // No charge while detecting
-    }
+const val LOCAL_COST_MULTIPLIER = 1L
+const val STUN_COST_MULTIPLIER = 2L
+const val RELAY_COST_MULTIPLIER = 10L
 
 /**
- * Get cost tier indicator for UI ($ to $$$)
+ * Transport multiplier applied on top of the base content price (per block).
+ *
+ * - LOCAL: 1x — direct path, no infrastructure cost.
+ * - STUN: 2x — NAT traversal via STUN; small infrastructure cost.
+ * - RELAY: 10x — every byte flows through a TURN server, the dominant real cost.
+ * - UNKNOWN/FAILED: 1x — never discount below content price while detecting, and
+ *   avoid price flicker if a stats poll briefly times out.
+ *
+ * Integer multipliers keep billing in exact micro-USDC.
+ */
+fun IceConnectionType.costMultiplier(): Long =
+    when (this) {
+        IceConnectionType.LOCAL -> LOCAL_COST_MULTIPLIER
+        IceConnectionType.STUN -> STUN_COST_MULTIPLIER
+        IceConnectionType.RELAY -> RELAY_COST_MULTIPLIER
+        IceConnectionType.FAILED, IceConnectionType.UNKNOWN -> LOCAL_COST_MULTIPLIER
+    }
+
+/** Per-block price in micro-USDC: base content cost × transport multiplier. */
+fun IceConnectionType.costPerBlockMicroUsdc(baseCostMicroUsdc: Long): Long = (baseCostMicroUsdc * costMultiplier()).coerceAtLeast(0L)
+
+/**
+ * Picks the connection type used for pricing. Only a concrete detection (LOCAL/STUN/RELAY)
+ * changes the price; transient UNKNOWN/FAILED readings keep the last known tier.
+ */
+fun resolvePricingConnectionType(
+    previous: IceConnectionType,
+    detected: IceConnectionType,
+): IceConnectionType =
+    when (detected) {
+        IceConnectionType.LOCAL, IceConnectionType.STUN, IceConnectionType.RELAY -> detected
+        IceConnectionType.UNKNOWN, IceConnectionType.FAILED -> previous
+    }
+
+/** Applies the transport multiplier to a decimal micro-USDC amount string (e.g. a gating amount). */
+fun IceConnectionType.scaleMicroUsdcAmount(baseAmount: String): String =
+    baseAmount.toLongOrNull()?.let { costPerBlockMicroUsdc(it).toString() } ?: baseAmount
+
+/**
+ * Get cost tier indicator for UI ($ to $$)
  * Simple visual indicator of relative cost
  */
 fun IceConnectionType.costTier(): String =
     when (this) {
         IceConnectionType.LOCAL -> "$" // Cheapest - direct connection
-        IceConnectionType.STUN -> "$" // Cheap - just STUN lookup
-        IceConnectionType.RELAY -> "$$$" // Expensive - TURN relay bandwidth
+        IceConnectionType.STUN -> "$" // NAT traversal via STUN
+        IceConnectionType.RELAY -> "$$" // Expensive - TURN relay bandwidth
         IceConnectionType.FAILED -> "-"
         IceConnectionType.UNKNOWN -> "..."
     }

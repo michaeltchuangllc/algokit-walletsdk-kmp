@@ -10,15 +10,19 @@ data class ViewerVaultProgress(
     val confirmedDepositMicroUsdc: Long? = null,
     val startRound: Long? = null,
 ) {
-    fun update(sessionId: String, snapshot: MppPayments.SessionProgressSnapshot): ViewerVaultProgress {
+    fun update(
+        sessionId: String,
+        snapshot: MppPayments.SessionProgressSnapshot,
+    ): ViewerVaultProgress {
         val sameVault = this.sessionId == sessionId && startRound == snapshot.startRound
         val previousDeposit = confirmedDepositMicroUsdc.takeIf { sameVault }
         if (previousDeposit != null && snapshot.totalDepositMicroUsdc < previousDeposit) return this
-        val capacity = when {
-            previousDeposit == null -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
-            snapshot.totalDepositMicroUsdc > previousDeposit -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
-            else -> capacityUsdc
-        }
+        val capacity =
+            when {
+                previousDeposit == null -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
+                snapshot.totalDepositMicroUsdc > previousDeposit -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
+                else -> capacityUsdc
+            }
         return ViewerVaultProgress(
             sessionId = sessionId,
             remainingUsdc = snapshot.remainingSettledMicroUsdc / 1_000_000.0,
@@ -29,7 +33,10 @@ data class ViewerVaultProgress(
         )
     }
 
-    fun update(sessionId: String, remainingUsdc: Double): ViewerVaultProgress {
+    fun update(
+        sessionId: String,
+        remainingUsdc: Double,
+    ): ViewerVaultProgress {
         if (this.sessionId == sessionId && confirmedDepositMicroUsdc != null) return this
         if (!remainingUsdc.isFinite() || remainingUsdc < 0.0) return this
         if (this.sessionId != sessionId) {

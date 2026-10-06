@@ -91,8 +91,9 @@ fun LiquidStreamViewerScreen(
     vaultSnapshot: com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.SessionProgressSnapshot? = null,
 ) {
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
-    val vaultProgress = vaultSnapshot?.let { uiState.vaultProgress.update(sessionId, it) }
-        ?: uiState.vaultProgress.update(sessionId, remainingBalanceUsdc)
+    val vaultProgress =
+        vaultSnapshot?.let { uiState.vaultProgress.update(sessionId, it) }
+            ?: uiState.vaultProgress.update(sessionId, remainingBalanceUsdc)
     val displayedRemainingUsdc = vaultSnapshot?.remainingSettledMicroUsdc?.div(1_000_000.0) ?: remainingBalanceUsdc
     val displayedProgressUsdc = vaultSnapshot?.progressBalanceMicroUsdc?.div(1_000_000.0) ?: progressBalanceUsdc
     val revenueCapacityUsdc = vaultProgress.revenueCapacityUsdc

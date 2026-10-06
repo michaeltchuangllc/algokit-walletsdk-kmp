@@ -113,7 +113,7 @@ internal class LiquidStreamBlockConsumptionManager(
         val round = getViewModel()?.currentBlockNumber?.value
         val generation = billingGeneration
         val paid = getIsPaidStreaming()
-        val cost = getViewModel()?.currentCostPerBlockMicroUsdc ?: 0L
+        val cost = getViewModel()?.effectiveCostPerBlockMicroUsdc ?: 0L
         val (acceptedPaid, acceptedFree) = getAcceptedBlockCounts()
         // Keep primary note accounting identical to the existing balance-driven UI counters.
         val params =
@@ -301,7 +301,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@collect
                     }
                     val paid = getIsPaidStreaming()
-                    val cost = viewModel.currentCostPerBlockMicroUsdc
+                    val cost = viewModel.effectiveCostPerBlockMicroUsdc
                     enqueueBilling { billing?.onBlock(blockNumber, paid, cost)?.join() }
 
                     val previous = lastObservedBlock

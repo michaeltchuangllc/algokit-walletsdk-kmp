@@ -24,6 +24,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.resolvePricingConnectionType
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -115,11 +117,20 @@ class LiquidAuthOfferViewModel(
     // Payment session ID
     private var paymentSessionId: String? = null
 
-    // Dynamic cost per block for settlement
+    // Base (content) cost per block selected by the host; transport multiplier is applied per peer.
     var currentCostPerBlockMicroUsdc: Long = COST_PER_BLOCK_MICRO_USDC
+
+    // Last concrete connection type of the primary viewer, used for pricing.
+    var primaryPricingConnectionType: IceConnectionType = IceConnectionType.UNKNOWN
+        private set
+
+    /** Primary viewer's per-block price: base content cost × connection-type multiplier. */
+    val effectiveCostPerBlockMicroUsdc: Long
+        get() = primaryPricingConnectionType.costPerBlockMicroUsdc(currentCostPerBlockMicroUsdc)
 
     // Real-time block polling job (for UI block number updates)
     private var blockNumberPollingJob: Job? = null
+    private var isBlockNumberDisplayed = false
 
     // Payment consumption monitor job (must be singleton to avoid double-deduction)
     private var blockchainMonitorJob: Job? = null
@@ -525,11 +536,17 @@ class LiquidAuthOfferViewModel(
             else -> null
         }
 
+    /** Forget the previous primary viewer's transport tier (new peer starts at base price). */
+    fun resetPrimaryPricingConnectionType() {
+        primaryPricingConnectionType = IceConnectionType.UNKNOWN
+    }
+
     /**
      * Called when ICE connection type changes (for UI and billing)
      */
     fun onConnectionTypeChanged(type: IceConnectionType) {
         _connectionType.value = type
+        primaryPricingConnectionType = resolvePricingConnectionType(primaryPricingConnectionType, type)
         viewModelScope.launch {
             eventDelegate.sendEvent(OfferEvent.ConnectionTypeChanged(type))
         }
@@ -947,9 +964,27 @@ class LiquidAuthOfferViewModel(
             }
     }
 
+    /**
+     * Stops block polling unless the host UI is currently displaying the block number.
+     * Billing teardown and payment events call this; they must not freeze a visible label.
+     */
     fun stopRealtimeBlockNumberUpdates() {
+        if (isBlockNumberDisplayed) return
         blockNumberPollingJob?.cancel()
         blockNumberPollingJob = null
+    }
+
+    /**
+     * Declares whether a visible host surface (live UI, settings/stats sheets) shows the block number.
+     * While true, polling keeps running regardless of billing start/stop.
+     */
+    fun setBlockNumberDisplayed(displayed: Boolean) {
+        isBlockNumberDisplayed = displayed
+        if (displayed) {
+            startRealtimeBlockNumberUpdates()
+        } else {
+            stopRealtimeBlockNumberUpdates()
+        }
     }
 
     fun fetchAccountASABalance(

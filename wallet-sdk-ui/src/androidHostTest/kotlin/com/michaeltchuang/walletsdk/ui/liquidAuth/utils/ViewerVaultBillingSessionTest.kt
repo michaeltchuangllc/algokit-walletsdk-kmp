@@ -823,6 +823,7 @@ class ViewerVaultBillingSessionTest {
             }
             assertTrue(errors.isEmpty())
         }
+
     @Test
     fun `EXPECT only increasing chain rounds to reach the boundary with the latest signed total`() =
         runTest {
