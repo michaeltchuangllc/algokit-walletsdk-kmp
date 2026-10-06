@@ -35,7 +35,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -89,11 +88,16 @@ fun LiquidStreamViewerScreen(
     remainingBalanceUsdc: Double = 0.0,
     progressBalanceUsdc: Double = 0.0,
     viewModel: LiquidAuthViewerViewModel = koinViewModel(),
+    vaultSnapshot: com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.SessionProgressSnapshot? = null,
 ) {
     val uiState = viewModel.state.collectAsStateWithLifecycle().value
-    var prevRemainingBalanceUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
-    var revenueCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
-    var progressCapacityUsdc by remember(sessionId) { mutableDoubleStateOf(remainingBalanceUsdc) }
+    val vaultProgress =
+        vaultSnapshot?.let { uiState.vaultProgress.update(sessionId, it) }
+            ?: uiState.vaultProgress.update(sessionId, remainingBalanceUsdc)
+    val displayedRemainingUsdc = vaultSnapshot?.remainingSettledMicroUsdc?.div(1_000_000.0) ?: remainingBalanceUsdc
+    val displayedProgressUsdc = vaultSnapshot?.progressBalanceMicroUsdc?.div(1_000_000.0) ?: progressBalanceUsdc
+    val revenueCapacityUsdc = vaultProgress.revenueCapacityUsdc
+    val progressCapacityUsdc = vaultProgress.capacityUsdc
 
     val effectiveCreatorAddress =
         creatorAddress
@@ -112,12 +116,12 @@ fun LiquidStreamViewerScreen(
         }
     }
 
-    LaunchedEffect(remainingBalanceUsdc) {
-        if (remainingBalanceUsdc > prevRemainingBalanceUsdc) {
-            revenueCapacityUsdc += (remainingBalanceUsdc - prevRemainingBalanceUsdc)
-            progressCapacityUsdc = remainingBalanceUsdc
+    LaunchedEffect(viewModel, sessionId, remainingBalanceUsdc, vaultSnapshot) {
+        if (vaultSnapshot != null) {
+            viewModel.updateVaultProgress(sessionId, vaultSnapshot)
+        } else {
+            viewModel.updateVaultProgress(sessionId, remainingBalanceUsdc)
         }
-        prevRemainingBalanceUsdc = remainingBalanceUsdc
     }
 
     val resolvedCreatorUsername =
@@ -131,7 +135,7 @@ fun LiquidStreamViewerScreen(
         uiState.viewerNfdName
             ?: viewerAddress.toShortenedAddress()
 
-    val calculatedRevenue = (revenueCapacityUsdc - remainingBalanceUsdc).coerceAtLeast(0.0)
+    val calculatedRevenue = (revenueCapacityUsdc - displayedRemainingUsdc).coerceAtLeast(0.0)
     val streamRevenueLabel = if (calculatedRevenue > 0) "+${(calculatedRevenue * 100).toLong() / 100.0}" else "0.00"
     val blockNumberLabel = currentBlockNumber?.let { "#$it" } ?: "-"
 
@@ -156,8 +160,8 @@ fun LiquidStreamViewerScreen(
         originUrl = originUrl,
         networkLabel = uiState.networkLabel,
         currentBlockNumber = currentBlockNumber,
-        remainingBalanceUsdc = remainingBalanceUsdc,
-        progressBalanceUsdc = progressBalanceUsdc,
+        remainingBalanceUsdc = displayedRemainingUsdc,
+        progressBalanceUsdc = displayedProgressUsdc,
         progressCapacityUsdc = progressCapacityUsdc,
         revenueCapacityUsdc = revenueCapacityUsdc,
         streamRevenue = streamRevenueLabel,

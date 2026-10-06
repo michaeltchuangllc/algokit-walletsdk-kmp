@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.metricValueFontSize
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.streamMetricsCardStyle
 import org.jetbrains.compose.resources.vectorResource
 
@@ -34,6 +35,7 @@ internal fun StreamSettingsMetricsCard(
     streamRevenue: String,
     securedViaLabel: String,
     blockNumberLabel: String,
+    rateLabel: String = "REAL-TIME RATE",
 ) {
     val colors = AlgoKitTheme.colors
     val style = streamMetricsCardStyle
@@ -50,25 +52,31 @@ internal fun StreamSettingsMetricsCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(style.metricSpacing)) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(style.metricSpacing),
+                ) {
                     Text(
-                        text = "REAL-TIME RATE",
+                        text = rateLabel,
                         fontSize = 12.sp,
                         color = colors.streamHostMetricLabel,
                         letterSpacing = 1.2.sp,
                     )
                     Row(
-                        verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(style.metricValueSpacing),
                     ) {
                         Text(
+                            modifier = Modifier.alignByBaseline(),
                             text = realTimeRate,
-                            fontSize = style.valueFontSize,
+                            fontSize = metricValueFontSize(style.valueFontSize, realTimeRate),
                             lineHeight = style.valueLineHeight,
                             fontWeight = FontWeight.Bold,
                             color = colors.streamHostTitle,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                         Text(
+                            modifier = Modifier.alignByBaseline(),
                             text = "${style.unitTextPrefix}USDC/BLOCK",
                             fontSize = style.unitFontSize,
                             color = colors.streamHostAccent,
@@ -77,6 +85,7 @@ internal fun StreamSettingsMetricsCard(
                     }
                 }
                 Column(
+                    modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(style.metricSpacing),
                     horizontalAlignment = Alignment.End,
                 ) {
@@ -87,17 +96,20 @@ internal fun StreamSettingsMetricsCard(
                         letterSpacing = 1.2.sp,
                     )
                     Row(
-                        verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(style.metricValueSpacing),
                     ) {
                         Text(
+                            modifier = Modifier.alignByBaseline(),
                             text = streamRevenue,
-                            fontSize = style.valueFontSize,
+                            fontSize = metricValueFontSize(style.valueFontSize, streamRevenue),
                             lineHeight = style.valueLineHeight,
                             fontWeight = FontWeight.Bold,
                             color = colors.streamHostTitle,
+                            maxLines = 1,
+                            softWrap = false,
                         )
                         Text(
+                            modifier = Modifier.alignByBaseline(),
                             text = "${style.unitTextPrefix}USDC",
                             fontSize = style.unitFontSize,
                             color = colors.streamHostAccent,

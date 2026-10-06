@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +43,7 @@ class SetupMppPaymentViewerUseCase(
         val getHostAddress: () -> String = { hostAddress },
         val channelIdProvider: () -> ByteArray? = { EscrowSessionVaultHybridManagerClient.channelId?.copyOf() },
         val setViewerPaymentProcessing: (Boolean) -> Unit = {},
+        val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
     )
 
     operator fun invoke(params: Params) {
@@ -69,6 +71,7 @@ class SetupMppPaymentViewerUseCase(
                 getHostAddress = params.getHostAddress,
                 channelIdProvider = params.channelIdProvider,
                 setViewerPaymentProcessing = params.setViewerPaymentProcessing,
+                onVaultSnapshot = params.onVaultSnapshot,
             ),
         )
     }

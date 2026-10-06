@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.core.RtcRtpSender
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ClientConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.SetLiquidStreamViewerAutoPayUseCase
@@ -36,7 +37,7 @@ class LiquidStreamCreator(
     val rtcServer: PaywalledRTCServer =
         PaywalledRTCServer(
             paymentRail = paymentRail,
-            config = serverConfig,
+            config = blockBillingConfig(serverConfig),
             getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
         )
 
@@ -62,8 +63,11 @@ class LiquidStreamCreator(
     }
 
     fun updateConfig(config: ServerConfig) {
-        updateConfigUseCase(this, config)
+        updateConfigUseCase(this, blockBillingConfig(config))
     }
+
+    private fun blockBillingConfig(config: ServerConfig): ServerConfig =
+        config.copy(blockDrivenBilling = config.vaultOnlyBilling && config.gating.mode == GatingMode.PARTIAL_TIME)
 
     fun sendChatMessage(message: ChatMessage) {
         rtcServer.sendChatMessage(message)

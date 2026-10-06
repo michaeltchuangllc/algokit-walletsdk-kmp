@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetSitePasskeys
 import com.michaeltchuang.walletsdk.ui.passkeys.model.GetPasskeyCredentialEntry
+import org.json.JSONException
 
 class DefaultPasskeyGetCredentialsEntryBuilder constructor(
     private val getSitePasskeys: GetSitePasskeys,
@@ -26,11 +27,19 @@ class DefaultPasskeyGetCredentialsEntryBuilder constructor(
     }
 
     private suspend fun getEntries(option: BeginGetPublicKeyCredentialOption): List<GetPasskeyCredentialEntry>? {
-        val siteUrl = PublicKeyCredentialRequestOptions(option.requestJson).rpId
+        val requestOptions =
+            try {
+                PublicKeyCredentialRequestOptions(option.requestJson)
+            } catch (_: JSONException) {
+                return null
+            } catch (_: IllegalArgumentException) {
+                return null
+            }
+        val siteUrl = requestOptions.rpId
         if (siteUrl.isBlank()) {
             return null
         }
-        val passkeys = getSitePasskeys(siteUrl)
+        val passkeys = getSitePasskeys(siteUrl).filter { requestOptions.allows(it) }
         return if (passkeys.isEmpty()) {
             null
         } else {

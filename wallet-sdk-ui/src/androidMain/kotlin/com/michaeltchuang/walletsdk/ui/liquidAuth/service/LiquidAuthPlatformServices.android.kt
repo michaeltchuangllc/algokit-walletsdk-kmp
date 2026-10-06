@@ -2,29 +2,27 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import android.content.Context
 import android.content.ServiceConnection
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.viewModelScope
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.LiquidAuthCredentialStore
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
-import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
-import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
 import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
@@ -48,7 +46,7 @@ import kotlin.coroutines.resume
 import kotlin.time.Duration.Companion.milliseconds
 
 actual class LiquidAuthPlatformServices(
-    val addNewPasskey: AddNewPasskey,
+    val liquidAuthCredentialStore: LiquidAuthCredentialStore,
     val passkeyRepository: PasskeyRepository,
     val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     val getAccountMnemonic: GetAccountMnemonic,
@@ -58,8 +56,6 @@ actual class LiquidAuthPlatformServices(
     val prepareAuthenticationUseCase: PrepareAuthenticationUseCase,
     val manageSignalServiceUseCase: ManageSignalServiceUseCase,
     val processSignTransactionsUseCase: ProcessSignTransactionsUseCase,
-    val attestationIntentLauncherUseCase: AttestationIntentLauncherUseCase,
-    val assertionIntentLauncherUseCase: AssertionIntentLauncherUseCase,
     val eventDelegate: EventDelegate<AnswerViewModel.ViewEvent>,
     val logAppSignatureUseCase: LogAppSignatureUseCase,
     val providerHttpClientUseCase: ProvideHttpClientUseCase,
@@ -213,31 +209,32 @@ actual class LiquidAuthPlatformServices(
 
     suspend fun saveCredential(
         account: String,
-        credential: PublicKeyCredential,
+        credential: WebAuthnCredential,
         response: String,
     ) {
-        val requestOption = PublicKeyCredentialCreationOptions(response)
-        val credentialId = credential.rawId ?: return
-        addNewPasskey(
-            address = account,
-            requestOptions = requestOption,
-            credId = credentialId,
-        )
+        val rpId = JSONObject(response).getJSONObject("rp").getString("id")
+        liquidAuthCredentialStore.saveCredentialId(rpId, account, credential.id)
         Napier.d(tag = TAG, message = "Credential saved to local storage")
         eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast("Credential saved to local storage"))
     }
 
-    suspend fun getCredentialIdByAccountAddress(accountAddress: String): String? =
-        passkeyRepository.getCredentialIdByAddress(accountAddress)
+    suspend fun getCredentialIdByAccountAddress(
+        accountAddress: String,
+        origin: String,
+    ): String? {
+        val rpId = Uri.parse(origin).host ?: return null
+        return liquidAuthCredentialStore.getCredentialId(rpId, accountAddress)
+            // Read legacy metadata without advertising new external credentials through our provider.
+            ?: passkeyRepository.getSitePasskeys(rpId).firstOrNull { it.address == accountAddress }?.credId
+    }
 
-    suspend fun deleteCredentialByAccountAddress(accountAddress: String) {
-        val credentialId = passkeyRepository.getCredentialIdByAddress(accountAddress)
-        if (credentialId != null) {
-            Napier.d(tag = TAG, message = "Deleting credential: $credentialId for address: $accountAddress")
-            passkeyRepository.removePasskeyByCredentialId(credentialId)
-        } else {
-            Napier.w(tag = TAG, message = "No credential found to delete for address: $accountAddress")
-        }
+    suspend fun deleteCredentialByAccountAddress(
+        accountAddress: String,
+        origin: String,
+    ) {
+        val rpId = Uri.parse(origin).host ?: return
+        // Only remove the binding, never a provider's signing key/metadata.
+        liquidAuthCredentialStore.removeCredentialId(rpId, accountAddress)
     }
 
     suspend fun getMnemonic(address: String): String? {
@@ -320,7 +317,7 @@ actual class LiquidAuthPlatformServices(
                 is RegisterPasskeyUseCase.Result.Success -> {
                     viewModel.setAttestationApiResponse(result.attestationApiResponse)
                     eventDelegate.sendEvent(
-                        AnswerViewModel.ViewEvent.RegistrationSuccess(result.pubKeyCredentialCreationOptions, accountAddress),
+                        AnswerViewModel.ViewEvent.RegistrationSuccess(result.requestJson, accountAddress),
                     )
                 }
 
@@ -364,9 +361,8 @@ actual class LiquidAuthPlatformServices(
             when (result) {
                 is PrepareAuthenticationUseCase.Result.Success -> {
                     eventDelegate.sendEvent(
-                        AnswerViewModel.ViewEvent.AuthenticationSuccess(result.publicKeyCredentialRequestOptions, credentialId),
+                        AnswerViewModel.ViewEvent.AuthenticationSuccess(result.requestJson, credentialId),
                     )
-                    setPasskeyLastUsedTime(credentialId, timeProvider.getCurrentTimeMillis())
                 }
 
                 is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
@@ -385,6 +381,7 @@ actual class LiquidAuthPlatformServices(
         viewModel.viewModelScope.launch {
             when (result) {
                 is HandleAssertionResultUseCase.Result.Success -> {
+                    setPasskeyLastUsedTime(result.credential.id, timeProvider.getCurrentTimeMillis())
                     eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast("Authentication Successful!"))
                     eventDelegate.sendEvent(AnswerViewModel.ViewEvent.AssertionSuccess(result.credential))
                 }

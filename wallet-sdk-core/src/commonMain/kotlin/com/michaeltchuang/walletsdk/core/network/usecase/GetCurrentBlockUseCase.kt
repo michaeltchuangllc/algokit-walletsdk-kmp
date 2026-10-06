@@ -8,6 +8,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.isSuccess
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
@@ -26,52 +27,58 @@ class GetCurrentBlockUseCase(
      *
      * @return Flow of DataResource containing the current block number (lastRound) as Long
      */
-    operator fun invoke(): Flow<DataResource<Long>> =
+    operator fun invoke(): Flow<DataResource<Long>> = query { getNodeBaseUrl() }
+
+    /** Query a session's node without changing the wallet's selected network. */
+    operator fun invoke(nodeBaseUrl: String): Flow<DataResource<Long>> = query { nodeBaseUrl }
+
+    private fun query(nodeBaseUrl: suspend () -> String): Flow<DataResource<Long>> =
         flow {
             emit(DataResource.Loading())
 
-            try {
-                val response: HttpResponse = httpClient.get("${getNodeBaseUrl()}/v2/status")
+            val result: DataResource<Long> =
+                try {
+                    val response: HttpResponse = httpClient.get("${nodeBaseUrl().trimEnd('/')}/v2/status")
 
-                when {
-                    response.status.isSuccess() -> {
-                        val statusResponse = response.body<NodeStatusResponse>()
-                        emit(DataResource.Success(statusResponse.lastRound))
-                    }
+                    when {
+                        response.status.isSuccess() -> {
+                            val statusResponse = response.body<NodeStatusResponse>()
+                            require(statusResponse.lastRound >= 0L) { "Invalid node round" }
+                            DataResource.Success(statusResponse.lastRound)
+                        }
 
-                    response.status == HttpStatusCode.NotFound -> {
-                        emit(
+                        response.status == HttpStatusCode.NotFound -> {
                             DataResource.Error.Api(
                                 exception = Exception("Node status endpoint not found"),
                                 code = response.status.value,
-                            ),
-                        )
-                    }
+                            )
+                        }
 
-                    else -> {
-                        val errorMessage =
-                            try {
-                                response.body<String>()
-                            } catch (e: Exception) {
-                                "HTTP ${response.status.value}: ${response.status.description}"
-                            }
+                        else -> {
+                            val errorMessage =
+                                try {
+                                    response.body<String>()
+                                } catch (e: CancellationException) {
+                                    throw e
+                                } catch (e: Exception) {
+                                    "HTTP ${response.status.value}: ${response.status.description}"
+                                }
 
-                        emit(
                             DataResource.Error.Api(
                                 exception = Exception(errorMessage),
                                 code = response.status.value,
-                            ),
-                        )
+                            )
+                        }
                     }
-                }
-            } catch (e: Exception) {
-                emit(
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
                     DataResource.Error.Api(
                         exception = e,
                         code = -1,
-                    ),
-                )
-            }
+                    )
+                }
+            emit(result)
         }
 }
 

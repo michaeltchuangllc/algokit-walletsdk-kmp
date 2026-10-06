@@ -25,7 +25,7 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
 
         val entries = createEntries(request, hdSeedsAddresses, seedVaultAccounts)
         return if (entries.isEmpty()) {
-            AlgoKitResult.Error(CreateCredentialNoCreateOptionException())
+            AlgoKitResult.Error(CreateCredentialNoCreateOptionException("No HD or Seed Vault signing account is available"))
         } else {
             AlgoKitResult.Success(entries)
         }
@@ -41,7 +41,7 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
         val hdEntries =
             hdSeedsAddresses.map { hdSeed ->
                 CreatePasskeyCredentialCreateEntry(
-                    accountName = getHdSeedCustomName(hdSeed.seedId).orEmpty(),
+                    accountName = getHdSeedCustomName(hdSeed.seedId)?.takeIf { it.isNotBlank() } ?: "HD Wallet ${hdSeed.seedId}",
                     passkeyCount = registeredRelyingPartyPasskeyCount,
                     address = hdSeed.firstAddress,
                     signingProvider = PasskeySigningProvider.BIP39_DETERMINISTIC,

@@ -37,6 +37,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.createCameraStrea
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.DEBUG_BOT_DEPOSIT_MICRO_USDC
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiveDebugPermissionGate
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.rememberLiveDebugConnectionManager
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.LiquidStreamLiveDebugViewModel
@@ -208,7 +209,7 @@ private fun LiveDebugContent(state: LiquidStreamLiveDebugViewModel.State) {
                         state.billingErrors.entries.first().let {
                             "System Bot billing: ${it.key}: ${it.value}"
                         }
-                    state.isFunding -> "Funding 1 USDC per bot…"
+                    state.isFunding -> "Funding $DEBUG_BOT_DEPOSIT_MICRO_USDC micro-USDC per bot…"
                     state.running -> "Bots running · ${state.botDetails.size} debug viewers"
                     state.isFundAdded && state.fundedAddresses.isNotEmpty() ->
                         "Fund added successfully to ${state.fundedAddresses.joinToString(", ")}"

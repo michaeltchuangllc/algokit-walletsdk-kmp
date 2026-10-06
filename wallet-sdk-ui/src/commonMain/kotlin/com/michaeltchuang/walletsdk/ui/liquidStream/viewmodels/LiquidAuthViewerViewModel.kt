@@ -10,6 +10,8 @@ import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetwor
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ViewerVaultProgress
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
@@ -146,6 +148,24 @@ class LiquidAuthViewerViewModel(
         stateDelegate.updateState { it.copy(selectedPayoutFrequencyTabId = tabId) }
     }
 
+    fun updateVaultProgress(
+        sessionId: String,
+        remainingUsdc: Double,
+    ) {
+        stateDelegate.updateState {
+            it.copy(vaultProgress = it.vaultProgress.update(sessionId, remainingUsdc))
+        }
+    }
+
+    fun updateVaultProgress(
+        sessionId: String,
+        snapshot: com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.SessionProgressSnapshot,
+    ) {
+        stateDelegate.updateState {
+            it.copy(vaultProgress = it.vaultProgress.update(sessionId, snapshot))
+        }
+    }
+
     fun onWillingToBeRelayerChanged(enabled: Boolean) {
         stateDelegate.updateState { it.copy(willingToBeRelayerEnabled = enabled) }
     }
@@ -227,6 +247,7 @@ class LiquidAuthViewerViewModel(
         val showGiftSupportSheet: Boolean = false,
         val giftAmountTag: String = ZERO_GIFT_AMOUNT,
         val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
+        val vaultProgress: ViewerVaultProgress = ViewerVaultProgress(),
         val willingToBeRelayerEnabled: Boolean = false,
         val message: String = "",
         val realTimeRate: String = "0.42",

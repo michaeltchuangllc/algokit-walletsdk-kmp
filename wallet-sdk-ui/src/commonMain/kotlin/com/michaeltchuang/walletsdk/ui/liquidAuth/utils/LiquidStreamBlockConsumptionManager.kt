@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRep
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
@@ -20,6 +21,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
@@ -40,6 +42,8 @@ internal class LiquidStreamBlockConsumptionManager(
     private val getActiveCreatorAddress: () -> String?,
     private val getCreatorVoucherClaimSnapshot: () -> CreatorVoucherClaimSnapshot?,
     private val getIsPaidStreaming: () -> Boolean,
+    private val getAcceptedBlockCounts: () -> Pair<Int, Int>,
+    private val getVoucherCoveredBlockCount: suspend (Long, Long) -> Long,
     private val buildCreatorWalletSigner: suspend (String) -> MppWalletSigner?,
     private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase,
     private val voucherRepository: MppVoucherRepository,
@@ -109,15 +113,16 @@ internal class LiquidStreamBlockConsumptionManager(
         val round = getViewModel()?.currentBlockNumber?.value
         val generation = billingGeneration
         val paid = getIsPaidStreaming()
-        val cost = getViewModel()?.currentCostPerBlockMicroUsdc ?: 0L
+        val cost = getViewModel()?.effectiveCostPerBlockMicroUsdc ?: 0L
+        val (acceptedPaid, acceptedFree) = getAcceptedBlockCounts()
         // Keep primary note accounting identical to the existing balance-driven UI counters.
         val params =
             GetMppVoucherNoteUseCase.Params(
                 channelId = Base64.encode(channel),
                 startBlock = startRound,
                 currentBlock = round ?: 0L,
-                freeBlocks = freeBlocksConsumed.toLong(),
-                paidBlocks = paidBlocksConsumed.toLong(),
+                freeBlocks = acceptedFree.toLong(),
+                paidBlocks = acceptedPaid.toLong(),
                 costPerPaidBlock = cost,
                 settledAmount = lastSettledMicroUsdc,
                 totalCumulativeAmount = voucher.totalAmountClaimedMicroUsdc ?: 0L,
@@ -148,15 +153,20 @@ internal class LiquidStreamBlockConsumptionManager(
                         network = network,
                         signerPublicKey = key,
                         buildCreatorWalletSigner = buildCreatorWalletSigner,
-                        onSnapshot = {},
+                        onSnapshot = { snapshot ->
+                            scope.launch(Dispatchers.Main.immediate) {
+                                publishSnapshot(session, generation, snapshot)
+                            }
+                        },
                         onError = { Napier.e("Primary viewer settlement failed", it, tag = tag) },
                         voucherRepository = voucherRepository,
                         getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
                         payoutFrequencyBlocks = payoutFrequencyBlocks,
+                        getVoucherCoveredBlockCount = getVoucherCoveredBlockCount,
                     ).also { billing = it }
                 if (current == null) target.restorePending(channel)
                 round?.let { target.onBlock(it, paid, cost).join() }
-                if (target.acceptVoucher(voucher, force = true, noteParams = params) &&
+                if (target.acceptVoucher(voucher, noteParams = params) &&
                     currentSessionId == session &&
                     generation == billingGeneration
                 ) {
@@ -291,7 +301,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         return@collect
                     }
                     val paid = getIsPaidStreaming()
-                    val cost = viewModel.currentCostPerBlockMicroUsdc
+                    val cost = viewModel.effectiveCostPerBlockMicroUsdc
                     enqueueBilling { billing?.onBlock(blockNumber, paid, cost)?.join() }
 
                     val previous = lastObservedBlock
@@ -386,6 +396,7 @@ internal class LiquidStreamBlockConsumptionManager(
 
     private suspend fun consumeBlockSequentially() {
         val sessionId = currentSessionId
+        val generation = billingGeneration
         val creatorAddress = getActiveCreatorAddress()
         val viewModel = getViewModel()
 
@@ -416,6 +427,9 @@ internal class LiquidStreamBlockConsumptionManager(
                     withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
                         MppPayments.getSessionProgressSnapshotFromVault()
                     }
+                } catch (e: TimeoutCancellationException) {
+                    Napier.w("Primary viewer vault read timed out; retaining last confirmed balance", e, tag = tag)
+                    null
                 } catch (ce: CancellationException) {
                     throw ce
                 } catch (t: Throwable) {
@@ -428,49 +442,46 @@ internal class LiquidStreamBlockConsumptionManager(
                 }
             }
 
-        val remainingVaultBalance =
-            progressSnapshot?.remainingSettledMicroUsdc ?: 0L
-
-        val progressBarBalanceMicroUsdc =
-            progressSnapshot?.progressBalanceMicroUsdc ?: 0L
-
-        if (progressBarBalanceMicroUsdc > 0) {
-            val isPaid = getIsPaidStreaming()
-            if (isPaid) {
-                paidBlocksConsumed++
-            } else {
-                freeBlocksConsumed++
-            }
-            blocksConsumed++
-
-            Napier.e(
-                "[BLOCK_CONSUMED] session=$sessionId " +
-                    "paid=$paidBlocksConsumed " +
-                    "free=$freeBlocksConsumed " +
-                    "total=$blocksConsumed" +
-                    " isPaidStreaming=$isPaid",
-                tag = tag,
-            )
-        } else {
-            Napier.w(
-                "[BLOCK_CONSUMED_SKIPPED_ZERO_BALANCE] session=$sessionId balance=$progressBarBalanceMicroUsdc",
-                tag = tag,
+        if (progressSnapshot == null) return
+        withContext(Dispatchers.Main.immediate) {
+            publishSnapshot(
+                sessionId,
+                generation,
+                HostViewerVaultReader.Snapshot(
+                    remainingBalanceMicroUsdc = progressSnapshot.remainingSettledMicroUsdc,
+                    lastSettledMicroUsdc = progressSnapshot.lastSettledMicroUsdc,
+                    progressBalanceMicroUsdc = progressSnapshot.progressBalanceMicroUsdc,
+                    totalDepositMicroUsdc = progressSnapshot.remainingSettledMicroUsdc + progressSnapshot.lastSettledMicroUsdc,
+                    startRound = progressSnapshot.startRound,
+                ),
             )
         }
+    }
 
-        val lastSettled =
-            progressSnapshot?.lastSettledMicroUsdc ?: 0L
-        val start =
-            progressSnapshot?.startRound ?: 0L
+    /** Main-thread publication shared by block polling and prompt settlement callbacks. */
+    private fun publishSnapshot(
+        sessionId: String,
+        generation: Long,
+        snapshot: HostViewerVaultReader.Snapshot,
+    ) {
+        if (sessionId != currentSessionId || generation != billingGeneration) return
+        // A poll started before confirmation must not roll the UI back afterwards.
+        if (snapshot.lastSettledMicroUsdc < lastSettledMicroUsdc) return
+        val viewModel = getViewModel() ?: return
 
-        lastSettledMicroUsdc = lastSettled
-        startRound = start
+        val (acceptedPaid, acceptedFree) = getAcceptedBlockCounts()
+        paidBlocksConsumed = acceptedPaid
+        freeBlocksConsumed = acceptedFree
+        blocksConsumed = acceptedPaid + acceptedFree
+
+        lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc
+        snapshot.startRound?.let { startRound = it }
 
         viewModel.consumeBlock(
-            onChainRemainingMicroUsdc = remainingVaultBalance,
-            progressBarBalanceMicroUsdc = progressBarBalanceMicroUsdc,
-            lastSettledMicroUsdc = lastSettled,
-            startRound = start,
+            onChainRemainingMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+            progressBarBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+            lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+            startRound = startRound,
             paidBlocks = paidBlocksConsumed,
             freeBlocks = freeBlocksConsumed,
         )

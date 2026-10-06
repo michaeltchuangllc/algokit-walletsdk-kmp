@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentTerms
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
 import io.github.aakira.napier.Napier
@@ -172,6 +173,9 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val _viewerProgressBalanceMicroUsdc = MutableStateFlow(0L)
     val viewerProgressBalanceMicroUsdc: StateFlow<Long> = _viewerProgressBalanceMicroUsdc
 
+    private val _viewerVaultSnapshot = MutableStateFlow<MppPayments.SessionProgressSnapshot?>(null)
+    val viewerVaultSnapshot: StateFlow<MppPayments.SessionProgressSnapshot?> = _viewerVaultSnapshot
+
     private val consentLock = SynchronizedObject()
     private var pendingMppConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
@@ -197,7 +201,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     Napier.w(tag = TAG, message = "Stream timeout triggered - disconnecting")
                     hasTimedOutCurrentStream = true
                     clearVideoFrame()
-                    _session.value = SESSION_LOGGED_OUT
+                    setSession(null)
                     _authMessage.value = null
                     val reason =
                         "Stream disconnected because no video frames were received for 8 seconds. " +
@@ -220,6 +224,9 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     // --- Public setters / helpers --------------------------------------------------------------
     fun setSession(cookie: String?) {
         _session.value = cookie ?: SESSION_LOGGED_OUT
+        if (_session.value == SESSION_LOGGED_OUT) {
+            clearViewerVaultState()
+        }
     }
 
     fun setViewerAddress(address: String) {
@@ -253,9 +260,8 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         _viewerAddress.value = ""
         _hostAddress.value = ""
         _connectionType.value = IceConnectionType.UNKNOWN
-        _session.value = SESSION_LOGGED_OUT
+        setSession(null)
         _chatMessages.value = emptyList()
-        setViewerSessionVaultProgress(0L, 0L)
     }
 
     fun setMessage(authMessage: AuthMessage?) {
@@ -418,6 +424,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     open fun rejectViewerConsent() {
         rejectMppConsent()
         stopMppPaymentViewer()
+        clearViewerVaultState()
         onStreamTimeout("Stream closed by viewer")
     }
 
@@ -465,10 +472,24 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         }
     }
 
+    fun setViewerVaultSnapshot(snapshot: MppPayments.SessionProgressSnapshot) {
+        _viewerVaultSnapshot.value = snapshot
+        _viewerSessionVaultMicroUsdc.value = snapshot.remainingSettledMicroUsdc.coerceAtLeast(0L)
+        _viewerProgressBalanceMicroUsdc.value = snapshot.progressBalanceMicroUsdc.coerceAtLeast(0L)
+    }
+
+    private fun clearViewerVaultState() {
+        _viewerVaultSnapshot.value = null
+        _viewerSessionVaultMicroUsdc.value = 0L
+        _viewerProgressBalanceMicroUsdc.value = 0L
+    }
+
     fun setViewerSessionVaultProgress(
         remainingBalanceMicroUsdc: Long,
         progressBalanceMicroUsdc: Long,
     ) {
+        // Legacy callbacks lack the full confirmed vault state and must not overwrite it.
+        if (_viewerVaultSnapshot.value != null) return
         _viewerSessionVaultMicroUsdc.value = remainingBalanceMicroUsdc.coerceAtLeast(0L)
         _viewerProgressBalanceMicroUsdc.value = progressBalanceMicroUsdc.coerceAtLeast(0L)
     }

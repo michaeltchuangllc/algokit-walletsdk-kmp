@@ -11,9 +11,12 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.StreamEarningsLedger
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.ZERO_USDC_LABEL
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatRevenueLabel
-import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatTwoDecimals
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatUsdcSixDecimals
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.launch
 import kotlin.time.Clock
@@ -25,6 +28,8 @@ class LiquidStreamHostViewModel(
 ) : ViewModel(),
     StateViewModel<LiquidStreamHostViewModel.UiState> by stateDelegate,
     EventViewModel<LiquidStreamHostViewModel.ViewEvent> by eventDelegate {
+    private val earningsLedger = StreamEarningsLedger()
+
     init {
         stateDelegate.setDefaultState(UiState())
     }
@@ -250,32 +255,28 @@ class LiquidStreamHostViewModel(
                     viewers = currentViewers,
                 )
 
+            // Re-record on every update (incl. block-only ticks) so viewers seen before the
+            // first block number still start the stream clock.
+            earningsLedger.update(viewers ?: currentState.viewers, block)
             calculateMetrics(baseState)
         }
     }
 
     private fun calculateMetrics(currentState: UiState): UiState {
-        val subscriptionRevenue = currentState.viewers.mapNotNull { it.lastSettledUSDC }.sum()
-        val calculatedRevenue = subscriptionRevenue + currentState.tipChatTotalUsdc
-        val startRound = currentState.viewers.mapNotNull { it.startRound }.firstOrNull() ?: 0L
-        val currentBlock = currentState.currentBlockNumber ?: 0L
-
+        // Revenue = everything viewers have signed for over the whole stream (incl. viewers who left).
+        // Signed vouchers are escrowed in the viewer's vault, so the host is guaranteed to claim them.
+        // Superchats are paid by bumping the same voucher, so they're already included exactly once.
+        // Same basis as AVG RATE: revenue == rate × blocks since the stream started.
+        val calculatedRevenue = earningsLedger.totalAuthorizedMicroUsdc() / MICRO_USDC_PER_USDC
         val isPaid = currentState.selectedStreamCostTabId == STREAM_COST_PAID_TAB_ID
-        val rate =
-            if (isPaid) {
-                if (currentBlock > startRound && startRound > 0) {
-                    formatTwoDecimals(subscriptionRevenue / (currentBlock - startRound))
-                } else {
-                    formatTwoDecimals(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC / 1_000_000.0)
-                }
-            } else {
-                "0.00"
-            }
+        val currentBlock = currentState.currentBlockNumber
+        // Stream average = the same signed total ÷ blocks since the stream started.
+        val rate = formatUsdcSixDecimals(earningsLedger.streamRatePerBlockMicroUsdc(currentBlock) / MICRO_USDC_PER_USDC)
         val revenueLabel =
-            if (isPaid || currentState.tipChatTotalUsdc > 0.0) {
+            if (isPaid || calculatedRevenue > 0.0) {
                 formatRevenueLabel(calculatedRevenue)
             } else {
-                "0.00"
+                ZERO_USDC_LABEL
             }
 
         return currentState.copy(
@@ -312,8 +313,9 @@ class LiquidStreamHostViewModel(
         val selectedStreamCostTabId: String = STREAM_COST_PAID_TAB_ID,
         val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
         val subsidizeViewerFeesEnabled: Boolean = false,
-        val realTimeRate: String = "0.00",
-        val streamRevenue: String = "0.00",
+        /** Stream average: total authorized across all sessions ÷ blocks since the paid stream started. */
+        val realTimeRate: String = ZERO_USDC_LABEL,
+        val streamRevenue: String = ZERO_USDC_LABEL,
         val securedViaLabel: String = "-",
         val blockNumberLabel: String = "-",
         val isMicMuted: Boolean = false,
@@ -335,6 +337,7 @@ class LiquidStreamHostViewModel(
 
     companion object {
         const val STREAM_COST_PAID_TAB_ID = "paid"
+        private const val MICRO_USDC_PER_USDC = 1_000_000.0
     }
 
     sealed interface ViewEvent {

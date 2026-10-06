@@ -789,8 +789,9 @@ class VaultOnlyProtocolTest {
     private class Channel : RtcDataChannel {
         val sent = mutableListOf<JsonObject>()
         private lateinit var observer: RtcDataChannelObserver
+        private var currentState = RtcDataChannelState.OPEN
 
-        override fun state() = RtcDataChannelState.OPEN
+        override fun state() = currentState
 
         override fun send(bytes: ByteArray) {
             sent += Json.parseToJsonElement(bytes.decodeToString()).jsonObject

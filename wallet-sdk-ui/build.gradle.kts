@@ -139,14 +139,11 @@ kotlin {
                 implementation(libs.androidx.credentials)
                 implementation(libs.biometric)
                 implementation(libs.bcprov.jdk18on)
-                implementation(libs.androidx.credentials)
                 implementation(libs.algorand.falcon)
 
                 implementation(libs.algorand.foundation.crypto)
                 implementation(libs.algorand.foundation.provider)
 
-                implementation(libs.play.services.fido)
-                implementation(libs.kotlinx.coroutines.play.services)
                 implementation(libs.okhttp)
                 implementation(libs.okhttp.logging.interceptor)
                 implementation(libs.coroutines.okhttp)

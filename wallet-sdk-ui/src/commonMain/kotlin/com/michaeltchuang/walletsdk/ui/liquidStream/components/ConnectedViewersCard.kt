@@ -39,10 +39,13 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatMicroUsdc
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatUsdcSixDecimals
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.metricValueFontSize
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
-import kotlin.math.round
 
 data class ConnectedViewerInfo(
     val sessionId: String,
@@ -141,13 +144,9 @@ internal fun ConnectedViewersCard(viewers: List<ConnectedViewerInfo>) {
 @Composable
 private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
     val colors = AlgoKitTheme.colors
-    val balanceText = viewer.remainingBalanceUSDC?.let { (round(it * 100) / 100).toString() } ?: "N/A"
-    val streamCost =
-        if (viewer.connectionType == IceConnectionType.RELAY) {
-            "0.5"
-        } else {
-            microUsdcToUsdcDisplay(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC)
-        }
+    val balanceText = viewer.remainingBalanceUSDC?.let(::formatUsdcSixDecimals) ?: "N/A"
+    // Per-block price: base content cost × transport multiplier (LOCAL 1x, STUN 2x, RELAY 10x).
+    val streamCost = formatMicroUsdc(viewer.connectionType.costPerBlockMicroUsdc(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC))
     val progress =
         if (viewer.progressBalanceUSDC != null) {
             val capacity = (viewer.progressCapacityUSDC ?: viewer.remainingBalanceUSDC ?: 0.0).coerceAtLeast(0.0)
@@ -186,12 +185,14 @@ private fun ConnectedViewerContent(viewer: ConnectedViewerInfo) {
                 value = balanceText,
                 unit = "USDC",
                 alignEnd = false,
+                modifier = Modifier.weight(1f),
             )
             MetricBlock(
-                label = "STREAM COST",
+                label = "COST / BLOCK",
                 value = streamCost,
-                unit = "USDC/BLOCK+GAS",
+                unit = "USDC",
                 alignEnd = true,
+                modifier = Modifier.weight(1f),
             )
         }
 
@@ -265,9 +266,13 @@ private fun MetricBlock(
     value: String,
     unit: String,
     alignEnd: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val colors = AlgoKitTheme.colors
-    Column(horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = if (alignEnd) Alignment.End else Alignment.Start,
+    ) {
         Text(
             text = label,
             color = colors.streamHostMetricLabel,
@@ -277,15 +282,19 @@ private fun MetricBlock(
             letterSpacing = 1.2.sp,
             fontWeight = FontWeight.Normal,
         )
-        Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
+                modifier = Modifier.alignByBaseline(),
                 text = value,
                 color = colors.streamHostTitle,
-                fontSize = 28.sp,
+                fontSize = metricValueFontSize(28.sp, value),
                 lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                softWrap = false,
             )
             Text(
+                modifier = Modifier.alignByBaseline(),
                 text = unit,
                 color = colors.streamHostBodyText,
                 fontSize = 12.sp,
@@ -321,13 +330,6 @@ private fun MetaRow(
             maxLines = 1,
         )
     }
-}
-
-@Composable
-private fun microUsdcToUsdcDisplay(microUsdc: Long): String {
-    val usdc = microUsdc / 1_000_000.0
-    val rounded = round(usdc * 100) / 100
-    return rounded.toString()
 }
 
 @Composable

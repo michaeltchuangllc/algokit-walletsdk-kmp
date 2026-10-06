@@ -45,6 +45,7 @@ internal class ViewerVaultBillingSession(
     private val voucherRepository: MppVoucherRepository,
     private val getMppVoucherNoteUseCase: GetMppVoucherNoteUseCase,
     payoutFrequencyBlocks: Int = 1,
+    private val getVoucherCoveredBlockCount: (suspend (Long, Long) -> Long)? = null,
     private val adapter: Adapter = CoreAdapter,
     private val operationTimeoutMillis: Long = 25_000,
     private val finalDrainTimeoutMillis: Long = 30_000,
@@ -120,9 +121,12 @@ internal class ViewerVaultBillingSession(
     private val key = signerPublicKey.copyOf()
     val signerPublicKey: ByteArray get() = key.copyOf()
     private val mutex = Mutex()
+    private val acceptanceMutex = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var latest: Voucher? = null
+    private val pendingVouchers = mutableListOf<Voucher>()
     private var confirmedAmount = 0L
+    private var confirmedBlockCount = 0L
     private var latestRound: Long? = null
     private var paidRound: Long? = null
     private var closed = false
@@ -224,7 +228,13 @@ internal class ViewerVaultBillingSession(
                         mutex.withLock {
                             (closed to (closed || forceRequested)).also { forceRequested = false }
                         }
-                    attemptSettlement(force)
+                    if (force) {
+                        while (attemptSettlement(force = true)) {
+                            currentCoroutineContext().ensureActive()
+                        }
+                    } else {
+                        attemptSettlement(force)
+                    }
                     if (final) break
                 }
             } finally {
@@ -234,8 +244,12 @@ internal class ViewerVaultBillingSession(
 
     suspend fun acceptVoucher(
         message: LiquidAuthPaymentVoucherMessage,
-        force: Boolean = false,
         noteParams: GetMppVoucherNoteUseCase.Params? = null,
+    ): Boolean = acceptanceMutex.withLock { acceptVoucherInOrder(message, noteParams) }
+
+    private suspend fun acceptVoucherInOrder(
+        message: LiquidAuthPaymentVoucherMessage,
+        noteParams: GetMppVoucherNoteUseCase.Params?,
     ): Boolean {
         val voucher =
             try {
@@ -262,13 +276,7 @@ internal class ViewerVaultBillingSession(
             }
         mutex.withLock {
             if (!canAccept(voucher)) return false
-            if (isDuplicate(voucher)) {
-                if (force) {
-                    forceRequested = true
-                    wake.trySend(Unit)
-                }
-                return true
-            }
+            if (isDuplicate(voucher)) return true
         }
         val snapshot =
             try {
@@ -292,11 +300,7 @@ internal class ViewerVaultBillingSession(
                     mutex.withLock {
                         currentCoroutineContext().ensureActive()
                         if (!canAccept(voucher)) return@withLock false
-                        if (isDuplicate(voucher)) {
-                            if (force) forceRequested = true
-                            wake.trySend(Unit)
-                            return@withLock true
-                        }
+                        if (isDuplicate(voucher)) return@withLock true
                         val block = latestRound ?: 0L
                         val note =
                             getMppVoucherNoteUseCase(
@@ -343,7 +347,7 @@ internal class ViewerVaultBillingSession(
                             ),
                         )
                         latest = saved
-                        if (force) forceRequested = true
+                        pendingVouchers.add(saved)
                         wake.trySend(Unit)
                         true
                     }
@@ -382,14 +386,17 @@ internal class ViewerVaultBillingSession(
      */
     suspend fun restorePending(channelId: ByteArray): Long {
         val channel = channelId.copyOf()
-        val row =
-            voucherRepository.getAllVouchers().firstOrNull {
-                it.channelIdBase64 == Base64.encode(channel) &&
-                    it.network == network &&
-                    it.viewerAddress == viewerAddress &&
-                    it.creatorAddress == creatorAddress &&
-                    it.viewerPublicKeyBase64 == Base64.encode(key)
-            } ?: return 0L
+        val rows =
+            voucherRepository
+                .getAllVouchers()
+                .filter {
+                    it.channelIdBase64 == Base64.encode(channel) &&
+                        it.network == network &&
+                        it.viewerAddress == viewerAddress &&
+                        it.creatorAddress == creatorAddress &&
+                        it.viewerPublicKeyBase64 == Base64.encode(key)
+                }.sortedBy { it.totalAmountClaimedMicroUsdc }
+        val row = rows.lastOrNull() ?: return 0L
         try {
             return withTimeout(operationTimeoutMillis.milliseconds) {
                 val voucher =
@@ -417,9 +424,36 @@ internal class ViewerVaultBillingSession(
                     return@withTimeout voucher.totalAmountClaimedMicroUsdc
                 }
                 adapter.validateAuthorization(voucher).getOrThrow()
+                val restored =
+                    rows
+                        .filter {
+                            startRound == null || it.blockNumber == 0L || it.blockNumber >= startRound
+                        }.map { pending ->
+                            Voucher(
+                                sessionId,
+                                viewerAddress,
+                                creatorAddress,
+                                network,
+                                key,
+                                channel,
+                                Base64.decode(pending.signatureBase64),
+                                pending.totalAmountClaimedMicroUsdc,
+                                pending.blockNumber,
+                                pending.note,
+                            )
+                        }.filter { it.totalAmountClaimedMicroUsdc > snapshot.lastSettledMicroUsdc }
+                restored
+                    .filter { it.totalAmountClaimedMicroUsdc != voucher.totalAmountClaimedMicroUsdc }
+                    .forEach { adapter.validateAuthorization(it).getOrThrow() }
                 mutex.withLock {
                     if (!canAccept(voucher)) return@withLock
                     latest = voucher
+                    pendingVouchers.addAll(
+                        restored.filter { restoredVoucher ->
+                            pendingVouchers.none { it.totalAmountClaimedMicroUsdc == restoredVoucher.totalAmountClaimedMicroUsdc }
+                        },
+                    )
+                    pendingVouchers.sortBy { it.totalAmountClaimedMicroUsdc }
                     forceRequested = true
                     wake.trySend(Unit)
                 }
@@ -543,23 +577,56 @@ internal class ViewerVaultBillingSession(
         }
     }
 
-    private suspend fun attemptSettlement(force: Boolean) {
+    private suspend fun attemptSettlement(force: Boolean): Boolean {
+        var batchReady = true
+        var nextBlockCost = 0L
         val candidate =
             mutex.withLock {
-                val voucher = latest ?: return
-                if (voucher.totalAmountClaimedMicroUsdc <= confirmedAmount) return
+                val newest = latest ?: return false
+                if (newest.totalAmountClaimedMicroUsdc <= confirmedAmount) return false
+                val voucher =
+                    if (payoutFrequencyBlocks == 1) {
+                        pendingVouchers.firstOrNull {
+                            it.totalAmountClaimedMicroUsdc > confirmedAmount &&
+                                (
+                                    force ||
+                                        getVoucherCoveredBlockCount == null ||
+                                        getVoucherCoveredBlockCount.invoke(it.totalAmountClaimedMicroUsdc, confirmedBlockCount) >
+                                        confirmedBlockCount
+                                )
+                        } ?: return false
+                    } else {
+                        newest
+                    }
                 val round = latestRound
                 val boundary = paidRound
-                if (!force && (round == null || boundary == null || round - boundary < payoutFrequencyBlocks)) return
-                voucher to round
+                val coveredBlocks = getVoucherCoveredBlockCount?.invoke(voucher.totalAmountClaimedMicroUsdc, confirmedBlockCount)
+                nextBlockCost = costPerPaidBlock
+                if (!force) {
+                    if (coveredBlocks != null) {
+                        batchReady = coveredBlocks - confirmedBlockCount >= payoutFrequencyBlocks
+                    } else if (round == null || boundary == null || round - boundary < payoutFrequencyBlocks) {
+                        batchReady = false
+                    }
+                }
+                Triple(voucher, round, coveredBlocks)
             }
         var awaitingConfirmation = false
+        var completed = false
         try {
             withTimeout(operationTimeoutMillis.milliseconds) {
                 val voucher = candidate.first
                 withChannelLock("$network/$viewerAddress/$creatorAddress/${Base64.encode(voucher.channelId)}") {
                     val before = adapter.readChannel(voucher).getOrThrow()
                     publish(before)
+                    val remainingAfterVoucher = before.totalDepositMicroUsdc - voucher.totalAmountClaimedMicroUsdc
+                    if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc &&
+                        !batchReady &&
+                        remainingAfterVoucher > 0L &&
+                        (nextBlockCost <= 0L || remainingAfterVoucher >= nextBlockCost)
+                    ) {
+                        return@withChannelLock
+                    }
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
                         require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
@@ -575,13 +642,15 @@ internal class ViewerVaultBillingSession(
                             publish(after)
                         }
                         awaitingConfirmation = false
-                        confirm(voucher, after.lastSettledMicroUsdc, candidate.second)
+                        confirm(voucher, after.lastSettledMicroUsdc, candidate.second, candidate.third)
                     } else {
-                        confirm(voucher, before.lastSettledMicroUsdc, candidate.second)
+                        confirm(voucher, before.lastSettledMicroUsdc, candidate.second, candidate.third)
                     }
+                    completed = true
                 }
             }
             reportSettlementError(null)
+            return completed
         } catch (e: TimeoutCancellationException) {
             reportSettlementError(
                 if (awaitingConfirmation) {
@@ -595,6 +664,7 @@ internal class ViewerVaultBillingSession(
         } catch (e: Exception) {
             reportSettlementError(e)
         }
+        return false
     }
 
     private fun reportSettlementError(error: Throwable?) {
@@ -611,12 +681,16 @@ internal class ViewerVaultBillingSession(
         voucher: Voucher,
         amount: Long,
         round: Long?,
+        coveredBlocks: Long?,
     ) {
         mutex.withLock {
             // Atomic conditional deletion preserves a newer voucher, including across sessions.
             voucherRepository.deleteSettledVoucher(Base64.encode(voucher.channelId), amount)
             confirmedAmount = maxOf(confirmedAmount, amount)
+            pendingVouchers.removeAll { it.totalAmountClaimedMicroUsdc <= confirmedAmount }
+            if (coveredBlocks != null) confirmedBlockCount = maxOf(confirmedBlockCount, coveredBlocks)
             if (round != null) paidRound = round
+            if (pendingVouchers.isNotEmpty()) wake.trySend(Unit)
         }
     }
 

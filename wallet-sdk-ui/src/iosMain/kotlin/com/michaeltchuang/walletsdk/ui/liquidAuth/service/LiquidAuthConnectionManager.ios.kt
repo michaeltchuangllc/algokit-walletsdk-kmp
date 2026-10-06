@@ -18,8 +18,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaul
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.parseIceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.resolvePricingConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.scaleMicroUsdcAmount
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.LiquidStreamBlockConsumptionManager
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.ViewerVaultBillingSession
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.relayHostChat
@@ -152,6 +155,9 @@ actual class LiquidAuthConnectionManager actual constructor(
         var dataChannel: CallbackRtcDataChannel? = null
         var config: ServerConfig? = null
         var billing: ViewerVaultBillingSession? = null
+
+        // Last concrete transport tier for this peer; drives its per-block price multiplier.
+        var pricingConnectionType: IceConnectionType = IceConnectionType.UNKNOWN
         val pendingMessages = mutableListOf<String>()
         val voucherJobs = mutableSetOf<Job>()
     }
@@ -172,7 +178,10 @@ actual class LiquidAuthConnectionManager actual constructor(
             onPoll = {
                 platformServices.detectHostConnectionType()?.let { notifyConnectionTypeChanged(it) }
             },
-            onStop = { _connectionType.value = IceConnectionType.UNKNOWN },
+            onStop = {
+                _connectionType.value = IceConnectionType.UNKNOWN
+                viewModel?.resetPrimaryPricingConnectionType()
+            },
         )
     private val viewerConnectionTypePollingController =
         LiquidAuthPollingJobController(
@@ -236,6 +245,12 @@ actual class LiquidAuthConnectionManager actual constructor(
             getActiveCreatorAddress = { activePaymentRecipient },
             getCreatorVoucherClaimSnapshot = { activeCreatorVoucherClaimSnapshot },
             getIsPaidStreaming = { isPaidStreamingEnabled },
+            getAcceptedBlockCounts = {
+                streamCreator?.rtcServer?.let { it.paidBlockCount to it.freeBlockCount } ?: (0 to 0)
+            },
+            getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                streamCreator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
+            },
             buildCreatorWalletSigner = { creatorAddress -> mppWalletSignerUseCase(creatorAddress) },
             getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
             voucherRepository = voucherRepository,
@@ -333,6 +348,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         isVideoGated = false
         viewModel?.clearMeshHosting()
         _connectionType.value = IceConnectionType.UNKNOWN
+        viewModel?.resetPrimaryPricingConnectionType()
     }
 
     fun clearActiveViewerIfCurrent() {
@@ -585,7 +601,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val serverConfig =
             ServerConfig(
                 sessionId = paymentRequest.sessionId,
-                gating = gatingConfig,
+                gating = gatingConfig.copy(amount = primaryPricingConnectionType().scaleMicroUsdcAmount(gatingConfig.amount)),
                 enforcement = paymentRequest.meta.enforcement,
                 viewerAddress = activeViewerAddressForVault,
                 viewerAuthorizedSignerPublicKey = activeViewerAuthorizedSignerKey,
@@ -1136,15 +1152,18 @@ actual class LiquidAuthConnectionManager actual constructor(
                                 (channelId != null || salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt))
                             ) {
                                 val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
-                                publishHostViewerDetails(
-                                    requestId,
-                                    details.copy(
-                                        remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
-                                        lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
-                                        progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
-                                        totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
-                                    ),
-                                )
+                                // A slower poll must not overwrite a settlement callback.
+                                if (snapshot.lastSettledMicroUsdc >= (details.lastSettledMicroUsdc ?: 0L)) {
+                                    publishHostViewerDetails(
+                                        requestId,
+                                        details.copy(
+                                            remainingBalanceMicroUsdc = snapshot.remainingBalanceMicroUsdc,
+                                            lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc,
+                                            progressBalanceMicroUsdc = snapshot.progressBalanceMicroUsdc,
+                                            totalDepositMicroUsdc = snapshot.totalDepositMicroUsdc,
+                                        ),
+                                    )
+                                }
                             }
                         } catch (cancelled: CancellationException) {
                             throw cancelled
@@ -1164,10 +1183,18 @@ actual class LiquidAuthConnectionManager actual constructor(
         type: String,
     ) {
         if (requestId !in connectedHostViewers || requestId !in hostInvitations) return
+        val detected = parseIceConnectionType(type)
         publishHostViewerDetails(
             requestId,
-            (hostViewerDetails[requestId] ?: HostViewerDetails()).copy(connectionType = parseIceConnectionType(type)),
+            (hostViewerDetails[requestId] ?: HostViewerDetails()).copy(connectionType = detected),
         )
+        val peer = additionalHostViewers[requestId] ?: return
+        val pricingType = resolvePricingConnectionType(peer.pricingConnectionType, detected)
+        if (pricingType != peer.pricingConnectionType) {
+            peer.pricingConnectionType = pricingType
+            // Re-price this peer only: base content cost × its transport multiplier.
+            updateAdditionalViewerConfig(requestId, peer)
+        }
     }
 
     fun notifyLegacyBroadcastMessageReceived(message: String) {
@@ -1206,7 +1233,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val recipient = activePaymentRecipient?.takeIf { it.isNotBlank() } ?: return
         val network = activePaymentNetwork ?: return
         val identity = hostViewerIdentities[requestId]
-        val cost = if (isPaidStreamingEnabled) activePaymentAmount ?: "0" else "0"
+        val cost = additionalViewerCost(peer)
         val config =
             ServerConfig(
                 sessionId = "mesh-free-$requestId",
@@ -1274,13 +1301,17 @@ actual class LiquidAuthConnectionManager actual constructor(
         pending.forEach { deliverAdditionalViewerMessage(requestId, peer, it) }
     }
 
+    /** Peer gating amount: base content cost × this peer's transport multiplier (0 when free). */
+    private fun additionalViewerCost(peer: AdditionalHostViewer): String =
+        if (isPaidStreamingEnabled) peer.pricingConnectionType.scaleMicroUsdcAmount(activePaymentAmount ?: "0") else "0"
+
     private fun updateAdditionalViewerConfig(
         requestId: String,
         peer: AdditionalHostViewer,
     ) {
         val previous = peer.config ?: return
         val identity = hostViewerIdentities[requestId]
-        val cost = if (isPaidStreamingEnabled) activePaymentAmount ?: "0" else "0"
+        val cost = additionalViewerCost(peer)
         val config =
             previous.copy(
                 gating = previous.gating.copy(amount = cost),
@@ -1311,9 +1342,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                 network = config.gating.network,
                 signerPublicKey = signer.copyOf(),
                 buildCreatorWalletSigner = { mppWalletSignerUseCase(it) },
-                onSnapshot = { snapshot ->
+                onSnapshot = snapshot@{ snapshot ->
                     if (additionalHostViewers[requestId] === peer) {
                         val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
+                        if (snapshot.lastSettledMicroUsdc < (details.lastSettledMicroUsdc ?: 0L)) return@snapshot
                         publishHostViewerDetails(
                             requestId,
                             details.copy(
@@ -1327,11 +1359,18 @@ actual class LiquidAuthConnectionManager actual constructor(
                 },
                 onError = { error -> Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}") },
                 payoutFrequencyBlocks = payoutFrequencyBlocks,
+                getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
+                    creator.rtcServer.voucherCoveredBlockCount(amount, confirmedBlocks)
+                },
             )
         startAdditionalViewerBlocks()
         viewModel?.let { vm ->
             vm.currentBlockNumber.value?.let {
-                peer.billing?.onBlock(it, isPaidStreamingEnabled, vm.currentCostPerBlockMicroUsdc)
+                peer.billing?.onBlock(
+                    it,
+                    isPaidStreamingEnabled,
+                    peer.pricingConnectionType.costPerBlockMicroUsdc(vm.currentCostPerBlockMicroUsdc),
+                )
             }
         }
     }
@@ -1345,7 +1384,11 @@ actual class LiquidAuthConnectionManager actual constructor(
                 vm.currentBlockNumber.collect { block ->
                     if (block != null) {
                         additionalHostViewers.values.toList().forEach {
-                            it.billing?.onBlock(block, isPaidStreamingEnabled, vm.currentCostPerBlockMicroUsdc)
+                            it.billing?.onBlock(
+                                block,
+                                isPaidStreamingEnabled,
+                                it.pricingConnectionType.costPerBlockMicroUsdc(vm.currentCostPerBlockMicroUsdc),
+                            )
                         }
                     }
                 }
@@ -1506,7 +1549,16 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (_connectionType.value != type) {
             _connectionType.value = type
             Napier.d("$TAG: connection type -> ${type.displayName()}")
+            val previousPricing = primaryPricingConnectionType()
             viewModel?.onConnectionTypeChanged(type)
+            if (primaryPricingConnectionType() != previousPricing) {
+                // Re-price the primary peer on Main: base content cost × transport multiplier.
+                hostBillingScope.launch {
+                    if (streamCreator != null) {
+                        updateCreatorViewerSignerConfig(activeViewerAddressForVault, activeViewerAuthorizedSignerKey ?: ByteArray(0))
+                    }
+                }
+            }
         }
     }
 
@@ -1738,15 +1790,20 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
     }
 
+    private fun primaryPricingConnectionType(): IceConnectionType = viewModel?.primaryPricingConnectionType ?: IceConnectionType.UNKNOWN
+
     private fun updateCreatorViewerSignerConfig(
         viewerAddress: String?,
         signerKey: ByteArray,
     ) {
         val fallbackNetwork = activeGatingConfig?.network ?: MppNetworks.ALGORAND_TESTNET
+        val pricing = primaryPricingConnectionType()
         val currentGating =
-            activeGatingConfig ?: GatingConfig(
+            activeGatingConfig?.copy(
+                amount = if (isPaidStreamingEnabled) pricing.scaleMicroUsdcAmount(activePaymentAmount ?: "0") else "0",
+            ) ?: GatingConfig(
                 mode = GatingMode.PARTIAL_TIME,
-                amount = activePaymentAmount ?: "0",
+                amount = pricing.scaleMicroUsdcAmount(activePaymentAmount ?: "0"),
                 asset = "USDC",
                 network = fallbackNetwork,
                 payTo = activePaymentRecipient ?: "",

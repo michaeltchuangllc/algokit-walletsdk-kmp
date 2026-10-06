@@ -16,6 +16,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultRe
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
+import com.michaeltchuang.walletsdk.ui.settings.utils.debug.DEBUG_BOT_DEPOSIT_MICRO_USDC
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiquidStreamDebugBotRunner
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiquidStreamDebugConfiguration
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.asDetails
@@ -36,7 +37,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlin.math.roundToLong
 
 /** Screen entry calls startBots once; repeated entry/recomposition calls cannot repeat spending. */
 class LiquidStreamLiveDebugViewModel(
@@ -128,14 +128,14 @@ class LiquidStreamLiveDebugViewModel(
     }
 
     fun openSessionAndDeposit(
-        amountUsdc: Double = 1.0,
+        depositMicroUsdc: Long = DEBUG_BOT_DEPOSIT_MICRO_USDC,
         checkLowBalanceOnly: Boolean = false,
     ): Job {
         fundingJob?.takeIf { it.isActive }?.let { return it }
         return viewModelScope
             .launch {
                 try {
-                    fundSessions(amountUsdc, checkLowBalanceOnly)
+                    fundSessions(depositMicroUsdc, checkLowBalanceOnly)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -146,12 +146,10 @@ class LiquidStreamLiveDebugViewModel(
     }
 
     private suspend fun fundSessions(
-        amountUsdc: Double = 1.0,
+        depositMicroUsdc: Long = DEBUG_BOT_DEPOSIT_MICRO_USDC,
         checkLowBalanceOnly: Boolean = false,
         onViewerReady: (String) -> Unit = {},
     ) = fundingMutex.withLock {
-        require(amountUsdc.isFinite() && amountUsdc > 0 && amountUsdc * 1_000_000 < Long.MAX_VALUE)
-        val depositMicroUsdc = (amountUsdc * 1_000_000).roundToLong()
         require(depositMicroUsdc > 0)
         val captured = requireNotNull(context) { "Debug session has not loaded" }
         check(state.value.loaded) { "Reopen live debug on the selected network" }

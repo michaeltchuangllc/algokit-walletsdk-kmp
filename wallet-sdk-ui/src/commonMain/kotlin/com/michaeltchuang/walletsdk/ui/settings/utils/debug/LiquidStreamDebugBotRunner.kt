@@ -62,6 +62,13 @@ private const val VOUCHER_INTERVAL_MS = 1_000L
 private const val CHAT_INTERVAL_MS = 5_000L
 private const val GIFT_INTERVAL_MS = 15_000L
 
+/** Per-bot Session Vault deposit (and low-balance top-up): 888 micro-USDC = 111 blocks at 8/block. */
+internal const val DEBUG_BOT_DEPOSIT_MICRO_USDC = 888L
+
+/** Bot superchat size; must stay below [DEBUG_BOT_DEPOSIT_MICRO_USDC] or gifts can never fire. */
+private const val DEBUG_GIFT_MICRO_USDC = 88L
+private const val DEBUG_GIFT_AMOUNT_USDC = "0.000088"
+
 private val DEBUG_CHAT_MESSAGES =
     listOf(
         "Hello everyone!",
@@ -452,7 +459,7 @@ internal class DebugBotAccounting(
     }
 
     companion object {
-        const val GIFT_MICRO_USDC = 1_000L
+        const val GIFT_MICRO_USDC = DEBUG_GIFT_MICRO_USDC
     }
 }
 
@@ -543,7 +550,9 @@ internal class DebugBotHostReceiver(
     suspend fun acceptChat(wire: String) {
         val chat = parseDebugBotChat(wire, billing.viewerAddress)
         if (chat.amount != null) {
-            check(giftCredit && chat.amount == "0.001" && chat.asset == "USDC") { "Gift has no accepted voucher" }
+            check(giftCredit && chat.amount == DEBUG_GIFT_AMOUNT_USDC && chat.asset == "USDC") {
+                "Gift has no accepted voucher"
+            }
             giftCredit = false
         }
         currentCoroutineContext().ensureActive()
@@ -641,7 +650,7 @@ internal suspend fun runProducer(
                                 sender = signer.address,
                                 text = DEBUG_GIFT_MESSAGES.random(),
                                 timestamp = Clock.System.now().toEpochMilliseconds(),
-                                amount = "0.001",
+                                amount = DEBUG_GIFT_AMOUNT_USDC,
                                 asset = "USDC",
                             ),
                         ),
