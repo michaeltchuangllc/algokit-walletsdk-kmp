@@ -13,6 +13,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.sessionVaultMinimumBalanceMicroUsdc
 import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
@@ -37,25 +39,114 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class MppPaymentViewerConsentTest {
     @Test
-    fun `EXPECT the gated popup to be suppressed WHEN the balance is positive`() =
+    fun `EXPECT the gated popup to be suppressed WHEN the balance is above minimum`() =
         scenario {
-            balance = 1L
+            balance = connectionType.sessionVaultMinimumBalanceMicroUsdc() + 1L
             gated()
             runCurrent()
             assertEquals(0, prompts)
-            assertEquals(listOf(1L), progress)
+            assertEquals(listOf(balance), progress)
         }
 
     @Test
-    fun `EXPECT rejection without a popup WHEN the vault budget is positive but insufficient`() =
+    fun `EXPECT a popup WHEN the vault balance is positive but below minimum`() =
         scenario {
             balance = 5L
             coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns
                 MppPayments.SessionDynamicData(5, 0, 0, 1)
             val approval = consent().requestConsent(terms)
             assertFalse(approval.approved)
-            assertEquals(0, prompts)
+            assertEquals(1, prompts)
         }
+
+    @Test
+    fun `EXPECT initial and gated prompts at or below verified remaining minimum regardless of latest vouchers`() {
+        IceConnectionType.entries.forEach { type ->
+            val minimum = type.sessionVaultMinimumBalanceMicroUsdc()
+            // 0.000020 USDC is above LOCAL's minimum, but below STUN/RELAY's.
+            listOf(0L, 20L, minimum - 1L, minimum, minimum + 1L).forEach { remaining ->
+                scenario {
+                    connectionType = type
+                    balance = remaining
+                    coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns
+                        MppPayments.SessionDynamicData(1000, 1000 - remaining, 1000, 1)
+                    val expectedPrompts = if (remaining <= minimum) 1 else 0
+                    // Popup policy does not grant a spendable budget: all funds are reserved.
+                    assertFalse(consent().requestConsent(terms).approved)
+                    assertEquals(expectedPrompts, prompts, "initial: $type balance=$remaining")
+                    gated()
+                    runCurrent()
+                    assertEquals(expectedPrompts * 2, prompts, "gated: $type balance=$remaining")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `EXPECT initial popup to wait for settlement while funded approval still uses spendable`() =
+        scenario {
+            balance = 100L
+            var latestVoucher = 0L
+            var settled = 0L
+            coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers {
+                MppPayments.SessionDynamicData(100, settled, latestVoucher, 1)
+            }
+            listOf(0L, 84L, 91L, 100L).forEach { claimed ->
+                latestVoucher = claimed
+                val result = consent().requestConsent(terms)
+                val spendable = 100L - claimed
+                assertEquals(spendable >= 10L, result.approved, "latest voucher=$claimed")
+                if (result.approved) {
+                    assertEquals(BudgetCap(spendable.toString(), "USDC"), result.budgetCap)
+                } else {
+                    assertFalse(result.autoPaySegments)
+                }
+                assertEquals(0, prompts)
+            }
+            advanceTimeBy(3000)
+            runCurrent()
+            assertEquals(0, prompts) // Polling must also ignore the exhausted spendable budget.
+
+            settled = 83L
+            balance = 17L
+            assertFalse(consent().requestConsent(terms).approved)
+            runCurrent()
+            assertEquals(0, prompts)
+            settled = 84L
+            balance = 16L
+            assertFalse(consent().requestConsent(terms).approved)
+            assertEquals(1, prompts)
+            assertTrue(processing.none { it })
+        }
+
+    @Test
+    fun `EXPECT initial and gated decisions to use latest transport and retain it through transient detection`() {
+        listOf(false, true).forEach { gatedFlow ->
+            scenario {
+                balance = IceConnectionType.STUN.sessionVaultMinimumBalanceMicroUsdc()
+                coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns
+                    MppPayments.SessionDynamicData(1000, 1000 - balance, 1000, 1)
+                listOf(
+                    IceConnectionType.LOCAL to 0,
+                    IceConnectionType.STUN to 1,
+                    IceConnectionType.RELAY to 2,
+                    IceConnectionType.UNKNOWN to 3,
+                    IceConnectionType.FAILED to 4,
+                    IceConnectionType.LOCAL to 4,
+                ).forEach { (type, expectedPrompts) ->
+                    connectionType = type
+                    if (gatedFlow) {
+                        gated()
+                        runCurrent()
+                    } else {
+                        assertFalse(consent().requestConsent(terms).approved)
+                        runCurrent()
+                    }
+                    assertEquals(expectedPrompts, prompts, "gated=$gatedFlow transport=$type")
+                }
+            }
+        }
+    }
 
     @Test
     fun `EXPECT retries without a popup WHEN the balance is unknown`() =
@@ -193,6 +284,7 @@ class MppPaymentViewerConsentTest {
         val scope: TestScope,
     ) {
         var balance = 0L
+        var connectionType = IceConnectionType.LOCAL
         var prompts = 0
         val progress = mutableListOf<Long>()
         val processing = mutableListOf<Boolean>()
@@ -211,6 +303,9 @@ class MppPaymentViewerConsentTest {
 
         init {
             coEvery { balanceReader(any()) } answers { Result.success(balance) }
+            coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers {
+                MppPayments.SessionDynamicData(balance, 0, 0, 1)
+            }
             val signer = mockk<MppWalletSigner>(relaxed = true)
             every { signer.authorizedSignerPublicKey } returns byteArrayOf(1, 2, 3)
             val channel = mockk<RtcDataChannel>(relaxed = true)
@@ -229,8 +324,9 @@ class MppPaymentViewerConsentTest {
                     },
                     setViewerSessionVaultProgress = { remaining, _ -> progress += remaining },
                     signFido2Challenge = { _, _ -> null },
-                    channelIdProvider = { null },
+                    channelIdProvider = { ByteArray(32) { 9 } },
                     setViewerPaymentProcessing = { processing += it },
+                    getConnectionType = { connectionType },
                 )
         }
 

@@ -23,6 +23,7 @@ import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
@@ -153,6 +154,294 @@ class VaultOnlyProtocolTest {
         )
 
     @Test
+    fun `EXPECT blocks to consume 8 8 3 from 19 then pause and recover without back billing`() =
+        runTest(dispatcher) {
+            val rounds = MutableSharedFlow<Long>(extraBufferCapacity = 10)
+            var deposit = 19L
+            var readFails = false
+            var reads = 0
+            val dc = Channel()
+            val track = Track()
+            val server =
+                PaywalledRTCServer(
+                    rail,
+                    config().copy(
+                        gating = config().gating.copy(mode = GatingMode.PARTIAL_TIME, amount = "8"),
+                        blockDrivenBilling = true,
+                    ),
+                    balance,
+                    vaultReader = { _, _, _, _, _ ->
+                        reads++
+                        if (readFails) Result.failure(IllegalStateException("offline"))
+                        else Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                    },
+                    workDispatcher = dispatcher,
+                    blockRounds = { rounds },
+                )
+            try {
+                server.listen(dc, listOf(track))
+                advanceTimeBy(101)
+                runCurrent()
+                rounds.emit(100)
+                runCurrent()
+                assertTrue(dc.sent.isEmpty())
+                for (round in 101L..103L) {
+                    rounds.emit(round)
+                    runCurrent()
+                    assertTrue(track.enabled)
+                }
+                // Unsettled snapshots still show 19: local reservations must cap the last charge.
+                assertEquals(listOf("8", "8", "3"), dc.receipts().map { it.amount })
+                assertEquals(listOf(0, 1, 2), dc.receipts().map { it.segmentIndex })
+                assertEquals(19L, dc.receipts().sumOf { it.amount.toLong() })
+                assertEquals(3, server.paidBlockCount)
+                assertEquals(0, server.freeBlockCount)
+                assertEquals(0L, server.voucherCoveredBlockCount(7, 0))
+                assertEquals(1L, server.voucherCoveredBlockCount(8, 0))
+                assertEquals(2L, server.voucherCoveredBlockCount(16, 0))
+                assertEquals(2L, server.voucherCoveredBlockCount(18, 0))
+                assertEquals(3L, server.voucherCoveredBlockCount(19, 0))
+                rounds.emit(104)
+                runCurrent()
+                assertVaultPaused(dc.sent.last())
+                assertFalse(track.enabled)
+                var vouchers = 0
+                server.onVoucherReceived = { vouchers++ }
+                dc.receive(buildJsonObject { put("type", DCMessageType.SEGMENT_VOUCHER.value) })
+                runCurrent()
+                assertEquals(1, vouchers)
+
+                readFails = true
+                val readsBeforeRetry = reads
+                rounds.emit(110)
+                runCurrent()
+                assertTrue(reads > readsBeforeRetry)
+                assertVaultPaused(dc.sent.last())
+                assertFalse(track.enabled)
+                assertEquals(3, server.paidBlockCount)
+                assertEquals(3, dc.receipts().size)
+
+                readFails = false
+                deposit += 24L
+                rounds.emit(120)
+                runCurrent()
+                assertEquals(4, server.paidBlockCount) // Only this round, not the paused gap.
+                assertTrue(track.enabled)
+                assertEquals(listOf("8", "8", "3", "8"), dc.receipts().map { it.amount })
+                assertEquals(3L, server.voucherCoveredBlockCount(26, 0))
+                assertEquals(4L, server.voucherCoveredBlockCount(27, 0))
+                rounds.emit(121)
+                runCurrent()
+                assertEquals(5, server.paidBlockCount)
+                assertEquals(listOf(0, 1, 2, 3, 4), dc.receipts().map { it.segmentIndex })
+                assertEquals(35L, dc.receipts().sumOf { it.amount.toLong() })
+                assertEquals(5L, server.voucherCoveredBlockCount(35, 3))
+                assertTrue(dc.sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_REQUEST.value })
+                coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
+                coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
+                coVerify(exactly = 0) { balance(any()) }
+            } finally {
+                server.terminate()
+            }
+        }
+
+    @Test
+    fun `EXPECT timer billing to consume positive balances and retry zero or failed reads without a request`() =
+        runTest(dispatcher) {
+            for (initial in listOf(0L, 1L, 7L, 8L, 19L)) {
+                var deposit = initial
+                var readFails = false
+                var reads = 0
+                val hostDc = Channel()
+                val viewerDc = Channel()
+                val track = Track()
+                val server =
+                    PaywalledRTCServer(
+                        rail,
+                        config().copy(
+                            gating = config().gating.copy(mode = GatingMode.PARTIAL_TIME, amount = "8", segmentDuration = 1, leadTime = 0),
+                        ),
+                        balance,
+                        vaultReader = { _, _, _, _, _ ->
+                            reads++
+                            if (readFails) Result.failure(IllegalStateException("offline"))
+                            else Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                        },
+                        workDispatcher = dispatcher,
+                    )
+                val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+                try {
+                    var gatedNotifications = 0
+                    client.onStreamGated = { gatedNotifications++ }
+                    client.connect(viewerDc)
+                    server.listen(hostDc, listOf(track))
+                    advanceTimeBy(101)
+                    runCurrent()
+                    val message = hostDc.sent.single()
+                    viewerDc.receive(message)
+                    runCurrent()
+                    assertEquals(if (initial == 0L) 1 else 0, gatedNotifications)
+                    assertEquals(
+                        if (initial == 0L) emptyList() else listOf(minOf(8L, initial).toString()),
+                        hostDc.receipts().map { it.amount },
+                    )
+                    assertEquals(minOf(8L, initial).toString(), client.spend.totalAmount)
+                    assertTrue(viewerDc.sent.isEmpty())
+                    assertEquals(request().channelId, Base64.encode(requireNotNull(EscrowSessionVaultHybridManagerClient.channelId)))
+                    // Consume every remaining micro-USDC, then reach a paused timer tick.
+                    repeat(((initial + 7L) / 8L).toInt()) {
+                        val sentBeforeTick = hostDc.sent.size
+                        advanceTimeBy(1000)
+                        runCurrent()
+                        hostDc.sent.drop(sentBeforeTick).forEach { viewerDc.receive(it) }
+                        runCurrent()
+                    }
+                    assertEquals(initial, hostDc.receipts().sumOf { it.amount.toLong() })
+                    assertEquals(initial.toString(), client.spend.totalAmount)
+                    if (initial == 19L) assertEquals(listOf("8", "8", "3"), hostDc.receipts().map { it.amount })
+                    assertVaultPaused(hostDc.sent.last())
+                    assertFalse(track.enabled)
+                    val paidBeforeRecovery = hostDc.receipts().size
+                    val readsBeforeRetry = reads
+                    readFails = true
+                    advanceTimeBy(3000)
+                    runCurrent()
+                    assertTrue(reads > readsBeforeRetry)
+                    assertEquals(paidBeforeRecovery, hostDc.receipts().size)
+                    assertVaultPaused(hostDc.sent.last())
+                    assertFalse(track.enabled)
+
+                    // No pending request or funded hint is needed; paused time is not charged.
+                    readFails = false
+                    deposit += 16L
+                    advanceTimeBy(1000)
+                    runCurrent()
+                    assertTrue(track.enabled)
+                    assertEquals(paidBeforeRecovery + 1, hostDc.receipts().size)
+                    assertEquals("8", hostDc.receipts().last().amount)
+                    assertEquals(initial + 8L, hostDc.receipts().sumOf { it.amount.toLong() })
+                    viewerDc.receive(hostDc.sent.last())
+                    runCurrent()
+                    assertEquals((initial + 8L).toString(), client.spend.totalAmount)
+                    assertTrue(viewerDc.sent.isEmpty())
+                    assertTrue(hostDc.sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_REQUEST.value })
+                    coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
+                    coVerify(exactly = 0) { rail.createRailPayment(any()) }
+                    coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
+                    coVerify(exactly = 0) { consent.requestConsent(any()) }
+                } finally {
+                    server.terminate()
+                    client.terminate()
+                }
+            }
+        }
+
+    @Test
+    fun `EXPECT depletion and recovery of one viewer vault not to affect another viewer`() =
+        runTest(dispatcher) {
+            val rounds = MutableSharedFlow<Long>(extraBufferCapacity = 10)
+            val otherViewer = encodeAlgorandAddress(ByteArray(32) { 3 })
+            val deposits = mutableMapOf(viewer to 3L, otherViewer to 100L)
+            val base =
+                config().copy(
+                    gating = config().gating.copy(mode = GatingMode.PARTIAL_TIME, amount = "8"),
+                    blockDrivenBilling = true,
+                )
+            val channels = listOf(Channel(), Channel())
+            val tracks = listOf(Track(), Track())
+            val servers =
+                listOf(base, base.copy(sessionId = "second-viewer", viewerAddress = otherViewer)).mapIndexed { index, serverConfig ->
+                    PaywalledRTCServer(
+                        rail,
+                        serverConfig,
+                        balance,
+                        vaultReader = { payer, _, _, _, _ ->
+                            val deposit = deposits.getValue(payer)
+                            Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                        },
+                        workDispatcher = dispatcher,
+                        blockRounds = { rounds },
+                    ).also { server -> server.listen(channels[index], listOf(tracks[index])) }
+                }
+            try {
+                advanceTimeBy(101)
+                runCurrent()
+                rounds.emit(100)
+                runCurrent()
+                rounds.emit(101)
+                runCurrent()
+                assertEquals(listOf("3"), channels.first().receipts().map { it.amount })
+                assertEquals(listOf("8"), channels.last().receipts().map { it.amount })
+                assertNotEquals(channels.first().receipts().single().channelId, channels.last().receipts().single().channelId)
+                assertEquals(otherViewer, channels.last().receipts().single().payFrom)
+                assertEquals(1, servers.first().paidBlockCount)
+                assertEquals(1, servers.last().paidBlockCount)
+                rounds.emit(102)
+                runCurrent()
+                assertEquals(1, servers.first().paidBlockCount)
+                assertEquals(2, servers.last().paidBlockCount)
+                assertVaultPaused(channels.first().sent.last())
+                assertFalse(tracks.first().enabled)
+                assertTrue(tracks.last().enabled)
+                deposits[viewer] = 5L
+                rounds.emit(103)
+                runCurrent()
+                assertEquals(listOf("3", "2"), channels.first().receipts().map { it.amount })
+                assertEquals(listOf("8", "8", "8"), channels.last().receipts().map { it.amount })
+                assertTrue(tracks.all { it.enabled })
+                assertEquals(2L, servers.first().voucherCoveredBlockCount(5, 0))
+                assertEquals(3L, servers.last().voucherCoveredBlockCount(24, 0))
+                assertTrue(channels.last().sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_REJECTED.value })
+                coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
+                coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
+            } finally {
+                servers.forEach { it.terminate() }
+            }
+        }
+
+    @Test
+    fun `EXPECT partial charge or pause based on on-chain progress rather than the total deposit`() =
+        runTest(dispatcher) {
+            for (available in listOf(0L, 3L)) {
+                val dc = Channel()
+                val server =
+                    PaywalledRTCServer(
+                        rail,
+                        config().copy(gating = config().gating.copy(amount = "8")),
+                        balance,
+                        vaultReader = { _, _, _, _, _ ->
+                            Result.success(
+                                HostViewerVaultReader.Snapshot(
+                                    remainingBalanceMicroUsdc = available,
+                                    lastSettledMicroUsdc = 19L - available,
+                                    progressBalanceMicroUsdc = available,
+                                    totalDepositMicroUsdc = 19L,
+                                ),
+                            )
+                        },
+                        workDispatcher = dispatcher,
+                    )
+                try {
+                    server.listen(dc, emptyList())
+                    advanceTimeBy(101)
+                    runCurrent()
+                    if (available == 0L) {
+                        assertVaultPaused(dc.sent.single())
+                        assertTrue(dc.receipts().isEmpty())
+                    } else {
+                        assertEquals("3", dc.receipts().single().amount)
+                        assertTrue(dc.receipts().single().settlementDeferred)
+                    }
+                    coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
+                    coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
+                    coVerify(exactly = 0) { balance(any()) }
+                } finally {
+                    server.terminate()
+                }
+            }
+        }
+
+    @Test
     fun `EXPECT deferred receipt with no settlement or global balance use WHEN vault channel is already funded`() =
         runTest(dispatcher) {
             val dc = Channel()
@@ -187,21 +476,26 @@ class VaultOnlyProtocolTest {
         }
 
     @Test
-    fun `EXPECT on-chain funding to be required WHEN vault channel is unfunded and replay or direct payment is attempted`() =
+    fun `EXPECT a verified partial funded hint receipt without replay or direct payment after an unavailable lookup`() =
         runTest(dispatcher) {
             var funded = 0L
+            var readFails = true
             val dc = Channel()
             val server =
                 PaywalledRTCServer(
                     rail,
                     config(),
                     balance,
-                    vaultReader = { _, _, _, _, _ -> Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded)) },
+                    vaultReader = { _, _, _, _, _ ->
+                        if (readFails) Result.failure(IllegalStateException("initial lookup unavailable"))
+                        else Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                    },
                     workDispatcher = dispatcher,
                 )
             server.listen(dc, emptyList())
             advanceTimeBy(101)
             runCurrent()
+            assertEquals(DCMessageType.SEGMENT_REQUEST.value, dc.sent.single()["type"]?.jsonPrimitive?.content)
             val request =
                 paymentRequestFromJson(
                     dc.sent
@@ -210,6 +504,7 @@ class VaultOnlyProtocolTest {
                         .jsonObject,
                 )
             assertEquals(BillingMode.SESSION_VAULT, request.billingMode)
+            assertEquals("10", request.amount)
             val hint =
                 buildJsonObject {
                     put("type", DCMessageType.VIEWER_VAULT_FUNDED.value)
@@ -224,11 +519,8 @@ class VaultOnlyProtocolTest {
             dc.receive(envelope(DCMessageType.SEGMENT_PAYMENT, buildJsonObject { put("signedTransfer", "untrusted") }))
             runCurrent()
             assertEquals(1, dc.sent.size)
+            readFails = false
             funded = 9
-            dc.receive(hint)
-            runCurrent()
-            assertEquals(1, dc.sent.size)
-            funded = 100
             dc.receive(
                 buildJsonObject {
                     hint.forEach { (k, v) -> put(k, v) }
@@ -239,16 +531,25 @@ class VaultOnlyProtocolTest {
             assertEquals(1, dc.sent.size)
             dc.receive(hint)
             runCurrent()
+            val accepted = dc.receipts().single()
+            assertEquals("9", accepted.amount)
+            assertEquals(request.segmentIndex, accepted.segmentIndex)
+            assertEquals(request.channelId, accepted.channelId)
+            assertEquals(request.salt, accepted.salt)
+            assertEquals(BillingMode.SESSION_VAULT, accepted.billingMode)
+            assertTrue(accepted.settlementDeferred)
+            assertEquals("", accepted.txId)
             dc.receive(hint)
             runCurrent()
             assertEquals(2, dc.sent.size)
+            coVerify(exactly = 1) { rail.createPaymentRequest(any()) }
             coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
             coVerify(exactly = 0) { balance(any()) }
             server.terminate()
         }
 
     @Test
-    fun `EXPECT viewer identity request then a matching retry WHEN authorized signer key is missing`() =
+    fun `EXPECT viewer identity request then a matching zero balance pause WHEN authorized signer key is missing`() =
         runTest(dispatcher) {
             val dc = Channel()
             val server =
@@ -271,15 +572,9 @@ class VaultOnlyProtocolTest {
             )
             server.updateConfig(config())
             runCurrent()
-            val payment =
-                paymentRequestFromJson(
-                    dc.sent
-                        .last()
-                        .getValue("payload")
-                        .jsonObject,
-                )
-            assertEquals(request().channelId, payment.channelId)
-            assertEquals(request().salt, payment.salt)
+            assertEquals(2, dc.sent.size)
+            assertVaultPaused(dc.sent.last())
+            coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
             coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
             server.terminate()
         }
@@ -346,6 +641,7 @@ class VaultOnlyProtocolTest {
         assertFalse(ServerConfig(gating = legacy.gating).vaultOnlyBilling)
         assertNotEquals(legacy, config())
         assertEquals(config(), config().copy())
+        assertEquals(config().hashCode(), config().copy().hashCode())
         assertFalse(request().copy(billingMode = null).toJson().containsKey("billingMode"))
         assertEquals(BillingMode.SESSION_VAULT, paymentRequestFromJson(request().toJson()).billingMode)
     }
@@ -464,14 +760,10 @@ class VaultOnlyProtocolTest {
             )
             advanceTimeBy(1_001)
             runCurrent()
-            assertEquals(
-                DCMessageType.SEGMENT_REQUEST.value,
-                dc.sent
-                    .last()["type"]
-                    ?.jsonPrimitive
-                    ?.content,
-            )
+            assertVaultPaused(dc.sent.last())
             assertEquals(2, dc.sent.size)
+            assertEquals(listOf("10"), dc.receipts().map { it.amount })
+            coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
             coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
             server.terminate()
         }
@@ -592,6 +884,219 @@ class VaultOnlyProtocolTest {
         }
 
     @Test
+    fun `EXPECT blocked segment 10 to replay after extending cap 80 by 91 and finish at 171 with 22 receipts`() =
+        runTest(dispatcher) {
+            val dc = Channel()
+            val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+            val delivered = mutableListOf<PaymentReceipt>()
+            val expected = (0..21).map { receipt().copy(segmentIndex = it, amount = if (it == 21) "3" else "8") }
+            var exceeded = 0
+            client.onPaymentReceipt = { delivered += it }
+            client.onBudgetExceeded = { exceeded++ }
+            try {
+                client.connect(dc)
+                client.extendBudget(80, "USDC")
+                expected.take(10).forEach { dc.accept(it) }
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(10))
+                assertEquals("80", client.spend.totalAmount)
+
+                dc.accept(expected[10])
+                runCurrent()
+                assertEquals(1, exceeded)
+                assertVaultSpend(client, delivered, expected.take(10))
+                // Neither an already processed duplicate nor a pending duplicate may charge.
+                dc.accept(expected[0])
+                dc.accept(expected[10])
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(10))
+
+                client.extendBudget(91, "USDC")
+                runCurrent()
+                // No retransmission or subsequent receipt is needed to drain segment 10.
+                assertVaultSpend(client, delivered, expected.take(11))
+                assertEquals("88", client.spend.totalAmount)
+                expected.drop(11).forEach { dc.accept(it) }
+                runCurrent()
+                assertVaultSpend(client, delivered, expected)
+                assertEquals("171", client.spend.totalAmount)
+                assertEquals(22, delivered.size)
+
+                expected.forEach { dc.accept(it) }
+                client.extendBudget(1, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, expected)
+                assertTrue(dc.sent.isEmpty())
+                coVerify(exactly = 0) { rail.createRailPayment(any()) }
+                coVerify(exactly = 0) { consent.requestConsent(any()) }
+            } finally {
+                client.terminate()
+            }
+        }
+
+    @Test
+    fun `EXPECT multiple blocked receipts to drain in arrival order without smaller receipts jumping an unaffordable head`() =
+        runTest(dispatcher) {
+            val dc = Channel()
+            val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+            val delivered = mutableListOf<PaymentReceipt>()
+            // Deliberately not segment-index order: replay must preserve arrival order.
+            val expected =
+                listOf(
+                    receipt(),
+                    receipt().copy(segmentIndex = 3, amount = "8"),
+                    receipt().copy(segmentIndex = 1, amount = "8"),
+                    receipt().copy(segmentIndex = 2, amount = "3"),
+                    receipt().copy(segmentIndex = 4, amount = "1"),
+                )
+            client.onPaymentReceipt = { delivered += it }
+            try {
+                client.connect(dc)
+                client.extendBudget(10, "USDC")
+                expected.take(4).forEach { dc.accept(it) }
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(1))
+
+                client.extendBudget(3, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(1))
+                // This new receipt fits the remaining budget, but must join the tail.
+                dc.accept(expected.last())
+                dc.accept(expected[1])
+                dc.accept(expected[2])
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(1))
+
+                client.extendBudget(10, "USDC")
+                runCurrent()
+                // Replay must budget-check each receipt, not just the first.
+                assertVaultSpend(client, delivered, expected.take(2))
+                assertEquals("18", client.spend.totalAmount)
+                dc.accept(expected[1])
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(2))
+
+                client.extendBudget(12, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, expected)
+                assertEquals("30", client.spend.totalAmount)
+                client.extendBudget(100, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, expected)
+                coVerify(exactly = 0) { rail.createRailPayment(any()) }
+            } finally {
+                client.terminate()
+            }
+        }
+
+    @Test
+    fun `EXPECT consent approval to drain deferred receipts while still honoring the approved cap`() =
+        runTest(dispatcher) {
+            val dc = Channel()
+            val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+            val delivered = mutableListOf<PaymentReceipt>()
+            val expected =
+                listOf(
+                    receipt(),
+                    receipt().copy(segmentIndex = 1, amount = "8"),
+                    receipt().copy(segmentIndex = 2, amount = "3"),
+                )
+            client.onPaymentReceipt = { delivered += it }
+            try {
+                client.connect(dc)
+                client.extendBudget(10, "USDC")
+                expected.forEach { dc.accept(it) }
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(1))
+
+                for ((cap, count) in listOf("18" to 2, "21" to 3)) {
+                    coEvery { consent.requestConsent(any()) } returns
+                        ConsentApproval(
+                            approved = true,
+                            autoPaySegments = true,
+                            budgetCap = BudgetCap(cap, "USDC"),
+                        )
+                    dc.receive(
+                        envelope(
+                            DCMessageType.SEGMENT_REQUEST,
+                            request().copy(id = "top-up-$cap", nonce = "top-up-$cap", segmentIndex = 3, amount = "0").toJson(),
+                        ),
+                    )
+                    runCurrent()
+                    assertVaultSpend(client, delivered, expected.take(count))
+                    assertEquals(cap, client.spend.totalAmount)
+                }
+                coVerify(exactly = 2) { consent.requestConsent(any()) }
+                coVerify(exactly = 0) { rail.createRailPayment(any()) }
+            } finally {
+                client.terminate()
+            }
+        }
+
+    @Test
+    fun `EXPECT terminate to discard deferred receipts before a later budget extension`() =
+        runTest(dispatcher) {
+            val dc = Channel()
+            val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+            val delivered = mutableListOf<PaymentReceipt>()
+            client.onPaymentReceipt = { delivered += it }
+            try {
+                client.connect(dc)
+                client.extendBudget(10, "USDC")
+                dc.accept(receipt())
+                dc.accept(receipt().copy(segmentIndex = 1, amount = "8"))
+                dc.accept(receipt().copy(segmentIndex = 2, amount = "3"))
+                runCurrent()
+                assertVaultSpend(client, delivered, listOf(receipt()))
+
+                client.terminate()
+                client.extendBudget(100, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, listOf(receipt()))
+                coVerify(exactly = 0) { rail.createRailPayment(any()) }
+            } finally {
+                client.terminate()
+            }
+        }
+
+    @Test
+    fun `EXPECT invalid vault identities to be rejected rather than deferred while the budget is exhausted`() =
+        runTest(dispatcher) {
+            val dc = Channel()
+            val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
+            val delivered = mutableListOf<PaymentReceipt>()
+            val expected = (0..4).map { receipt().copy(segmentIndex = it) }
+            client.onPaymentReceipt = { delivered += it }
+            try {
+                client.connect(dc)
+                client.extendBudget(10, "USDC")
+                dc.accept(expected[0])
+                dc.accept(expected[1])
+                runCurrent()
+                val channel = EscrowSessionVaultHybridManagerClient.channelId?.copyOf()
+                val channelSalt = EscrowSessionVaultHybridManagerClient.salt?.copyOf()
+                dc.accept(expected[2].copy(sessionId = "other-session"))
+                dc.accept(expected[3].copy(channelId = Base64.encode(ByteArray(32) { 9 })))
+                dc.accept(expected[4].copy(salt = Base64.encode(ByteArray(32) { 9 })))
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(1))
+
+                client.extendBudget(100, "USDC")
+                runCurrent()
+                assertVaultSpend(client, delivered, expected.take(2))
+                assertTrue(channel.contentEquals(EscrowSessionVaultHybridManagerClient.channelId))
+                assertTrue(channelSalt.contentEquals(EscrowSessionVaultHybridManagerClient.salt))
+                // Rejected identities must not poison deduplication for valid receipts.
+                expected.drop(2).forEach { dc.accept(it) }
+                runCurrent()
+                assertVaultSpend(client, delivered, expected)
+                coVerify(exactly = 0) { rail.createRailPayment(any()) }
+            } finally {
+                client.terminate()
+            }
+        }
+
+    @Test
     fun `EXPECT vault identity to pin on first receipt and reject session or channel changes WHEN receipt arrives before request`() =
         runTest(dispatcher) {
             val dc = Channel()
@@ -702,10 +1207,11 @@ class VaultOnlyProtocolTest {
         }
 
     @Test
-    fun `EXPECT receipt and voucher identity to remain consistent without direct charges WHEN vault starts funded or empty`() =
+    fun `EXPECT receipt and voucher identity to remain consistent WHEN vault starts funded or lookup is unavailable`() =
         runTest(dispatcher) {
             for (initialBalance in listOf(0L, 100L)) {
                 var funded = initialBalance
+                var readFails = initialBalance == 0L
                 val hostDc = Channel()
                 val viewerDc = Channel()
                 val server =
@@ -713,7 +1219,10 @@ class VaultOnlyProtocolTest {
                         rail,
                         config(),
                         balance,
-                        vaultReader = { _, _, _, _, _ -> Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded)) },
+                        vaultReader = { _, _, _, _, _ ->
+                            if (readFails) Result.failure(IllegalStateException("initial lookup unavailable"))
+                            else Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                        },
                         workDispatcher = dispatcher,
                     )
                 val client = PaywalledRTCClient(rail, consent, workDispatcher = dispatcher)
@@ -731,7 +1240,7 @@ class VaultOnlyProtocolTest {
                             creatorAddress = accepted.payTo,
                             blocksConsumed = 1,
                             totalAmountUsed = accepted.amount.toLong(),
-                            remainingMicroUsdc = 90,
+                            remainingMicroUsdc = funded - accepted.amount.toLong(),
                             signatureBase64 = Base64.encode(byteArrayOf(42)),
                         ),
                     )
@@ -750,7 +1259,9 @@ class VaultOnlyProtocolTest {
                             ?.jsonPrimitive
                             ?.content,
                     )
-                    funded = 100
+                    // The funded-notification path must also voucher only the partial charge.
+                    funded = 3
+                    readFails = false
                     hostDc.receive(viewerDc.sent.single())
                     runCurrent()
                     viewerDc.receive(hostDc.sent.last())
@@ -760,6 +1271,8 @@ class VaultOnlyProtocolTest {
                 runCurrent()
                 val accepted = requireNotNull(acknowledged)
                 val voucher = requireNotNull(routedVoucher)
+                assertEquals(if (initialBalance == 0L) "3" else "10", accepted.amount)
+                assertEquals(accepted.amount, client.spend.totalAmount)
                 assertEquals(config().sessionId, accepted.sessionId)
                 assertEquals(accepted.sessionId, voucher["id"]?.jsonPrimitive?.content)
                 assertEquals(accepted.channelId, voucher["channelId"]?.jsonPrimitive?.content)
@@ -775,6 +1288,48 @@ class VaultOnlyProtocolTest {
                 client.terminate()
             }
         }
+
+    private fun Channel.accept(receipt: PaymentReceipt) =
+        receive(envelope(DCMessageType.SEGMENT_ACCEPTED, receipt.toJson()))
+
+    private fun assertVaultSpend(
+        client: PaywalledRTCClient,
+        delivered: List<PaymentReceipt>,
+        expected: List<PaymentReceipt>,
+    ) {
+        assertEquals(expected, delivered)
+        assertEquals(expected.sumOf { it.amount.toLong() }.toString(), client.spend.totalAmount)
+        assertEquals(expected.size, client.spend.segmentsPaid)
+        assertEquals(expected.map { it.segmentIndex }, client.spend.transactions.map { it.segmentIndex })
+        assertEquals(expected.map { it.amount }, client.spend.transactions.map { it.amount })
+    }
+
+    private fun assertVaultPaused(message: JsonObject) {
+        assertEquals(DCMessageType.SEGMENT_REJECTED.value, message["type"]?.jsonPrimitive?.content)
+        assertEquals(config().sessionId, message["sessionId"]?.jsonPrimitive?.content)
+        assertEquals(BillingMode.SESSION_VAULT, message["billingMode"]?.jsonPrimitive?.content)
+        assertEquals(request().channelId, message["channelId"]?.jsonPrimitive?.content)
+        assertEquals(request().salt, message["salt"]?.jsonPrimitive?.content)
+        assertEquals(creator, message["payTo"]?.jsonPrimitive?.content)
+        assertFalse(message.containsKey("nonce"))
+        val payload = message.getValue("payload").jsonObject
+        assertTrue(payload["reason"]?.jsonPrimitive?.content?.isNotBlank() == true)
+        assertFalse(payload.containsKey("amount"))
+        assertFalse(payload.containsKey("nonce"))
+    }
+
+    private fun Channel.receipts(): List<PaymentReceipt> =
+        sent.filter { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_ACCEPTED.value }
+            .map { Json.decodeFromJsonElement<PaymentReceipt>(it.getValue("payload")) }
+
+    private class Track : RtcRtpSender {
+        var enabled = false
+            private set
+
+        override fun setTrackEnabled(enabled: Boolean) {
+            this.enabled = enabled
+        }
+    }
 
     private fun envelope(
         type: DCMessageType,

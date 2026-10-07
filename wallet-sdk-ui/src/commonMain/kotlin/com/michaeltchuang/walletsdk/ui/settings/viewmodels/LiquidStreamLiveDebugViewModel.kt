@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.settings.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
@@ -16,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultRe
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.sessionVaultMinimumBalanceMicroUsdc
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.DEBUG_BOT_DEPOSIT_MICRO_USDC
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiquidStreamDebugBotRunner
 import com.michaeltchuang.walletsdk.ui.settings.utils.debug.LiquidStreamDebugConfiguration
@@ -184,7 +184,10 @@ class LiquidStreamLiveDebugViewModel(
                                     signer.authorizedSignerPublicKey,
                                     captured.mppNetwork,
                                 ).getOrThrow()
-                        snapshot.progressBalanceMicroUsdc <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC
+                        val connectionType =
+                            state.value.botDetails["debug:$viewer"]?.connectionType
+                                ?: snapshot.asDetails(viewer).connectionType
+                        snapshot.progressBalanceMicroUsdc <= connectionType.sessionVaultMinimumBalanceMicroUsdc()
                     } else {
                         true
                     }
@@ -341,10 +344,11 @@ class LiquidStreamLiveDebugViewModel(
                                 mutableState.update { it.copy(botDetails = it.botDetails + ("debug:$viewer" to updated)) }
 
                                 val remaining = details.progressBalanceMicroUsdc ?: details.remainingBalanceMicroUsdc
-                                if (remaining != null && remaining <= LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC) {
+                                val lowBalanceThreshold = details.connectionType.sessionVaultMinimumBalanceMicroUsdc()
+                                if (remaining != null && remaining <= lowBalanceThreshold) {
                                     if (!mutableState.value.isFunding) {
                                         Napier.d(
-                                            "[AUTO_DEPOSIT_TRIGGERED] viewer=$viewer balance=$remaining threshold=${LiquidStreamConstants.SESSION_VAULT_LOW_BALANCE_MICRO_USDC}",
+                                            "[AUTO_DEPOSIT_TRIGGERED] viewer=$viewer balance=$remaining threshold=$lowBalanceThreshold",
                                             tag = "LiquidStreamLiveDebugVM",
                                         )
                                         openSessionAndDeposit(checkLowBalanceOnly = true)

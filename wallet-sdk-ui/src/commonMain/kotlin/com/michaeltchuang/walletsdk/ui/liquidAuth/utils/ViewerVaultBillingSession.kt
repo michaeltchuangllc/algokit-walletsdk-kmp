@@ -124,7 +124,6 @@ internal class ViewerVaultBillingSession(
     private val acceptanceMutex = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var latest: Voucher? = null
-    private val pendingVouchers = mutableListOf<Voucher>()
     private var confirmedAmount = 0L
     private var confirmedBlockCount = 0L
     private var latestRound: Long? = null
@@ -347,7 +346,10 @@ internal class ViewerVaultBillingSession(
                             ),
                         )
                         latest = saved
-                        pendingVouchers.add(saved)
+                        Napier.d(
+                            "HOST_VOUCHER_LATEST session=$sessionId cumulativeMicro=${saved.totalAmountClaimedMicroUsdc}",
+                            tag = "LS_VAULT_DEBUG",
+                        )
                         wake.trySend(Unit)
                         true
                     }
@@ -424,36 +426,9 @@ internal class ViewerVaultBillingSession(
                     return@withTimeout voucher.totalAmountClaimedMicroUsdc
                 }
                 adapter.validateAuthorization(voucher).getOrThrow()
-                val restored =
-                    rows
-                        .filter {
-                            startRound == null || it.blockNumber == 0L || it.blockNumber >= startRound
-                        }.map { pending ->
-                            Voucher(
-                                sessionId,
-                                viewerAddress,
-                                creatorAddress,
-                                network,
-                                key,
-                                channel,
-                                Base64.decode(pending.signatureBase64),
-                                pending.totalAmountClaimedMicroUsdc,
-                                pending.blockNumber,
-                                pending.note,
-                            )
-                        }.filter { it.totalAmountClaimedMicroUsdc > snapshot.lastSettledMicroUsdc }
-                restored
-                    .filter { it.totalAmountClaimedMicroUsdc != voucher.totalAmountClaimedMicroUsdc }
-                    .forEach { adapter.validateAuthorization(it).getOrThrow() }
                 mutex.withLock {
                     if (!canAccept(voucher)) return@withLock
                     latest = voucher
-                    pendingVouchers.addAll(
-                        restored.filter { restoredVoucher ->
-                            pendingVouchers.none { it.totalAmountClaimedMicroUsdc == restoredVoucher.totalAmountClaimedMicroUsdc }
-                        },
-                    )
-                    pendingVouchers.sortBy { it.totalAmountClaimedMicroUsdc }
                     forceRequested = true
                     wake.trySend(Unit)
                 }
@@ -582,22 +557,8 @@ internal class ViewerVaultBillingSession(
         var nextBlockCost = 0L
         val candidate =
             mutex.withLock {
-                val newest = latest ?: return false
-                if (newest.totalAmountClaimedMicroUsdc <= confirmedAmount) return false
-                val voucher =
-                    if (payoutFrequencyBlocks == 1) {
-                        pendingVouchers.firstOrNull {
-                            it.totalAmountClaimedMicroUsdc > confirmedAmount &&
-                                (
-                                    force ||
-                                        getVoucherCoveredBlockCount == null ||
-                                        getVoucherCoveredBlockCount.invoke(it.totalAmountClaimedMicroUsdc, confirmedBlockCount) >
-                                        confirmedBlockCount
-                                )
-                        } ?: return false
-                    } else {
-                        newest
-                    }
+                val voucher = latest ?: return false
+                if (voucher.totalAmountClaimedMicroUsdc <= confirmedAmount) return false
                 val round = latestRound
                 val boundary = paidRound
                 val coveredBlocks = getVoucherCoveredBlockCount?.invoke(voucher.totalAmountClaimedMicroUsdc, confirmedBlockCount)
@@ -630,6 +591,11 @@ internal class ViewerVaultBillingSession(
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
                         require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
+                        Napier.d(
+                            "HOST_SETTLEMENT_START session=$sessionId cumulativeMicro=${voucher.totalAmountClaimedMicroUsdc} " +
+                                "previouslySettledMicro=${before.lastSettledMicroUsdc}",
+                            tag = "LS_VAULT_DEBUG",
+                        )
                         adapter.settle(voucher, signer).getOrThrow()
                         // Submission only broadcasts. Wait for the chain watermark rather than
                         // treating the normal pre-confirmation read as a failed settlement.
@@ -687,10 +653,14 @@ internal class ViewerVaultBillingSession(
             // Atomic conditional deletion preserves a newer voucher, including across sessions.
             voucherRepository.deleteSettledVoucher(Base64.encode(voucher.channelId), amount)
             confirmedAmount = maxOf(confirmedAmount, amount)
-            pendingVouchers.removeAll { it.totalAmountClaimedMicroUsdc <= confirmedAmount }
             if (coveredBlocks != null) confirmedBlockCount = maxOf(confirmedBlockCount, coveredBlocks)
             if (round != null) paidRound = round
-            if (pendingVouchers.isNotEmpty()) wake.trySend(Unit)
+            Napier.d(
+                "HOST_SETTLEMENT_CONFIRMED session=$sessionId confirmedMicro=$confirmedAmount " +
+                    "latestMicro=${latest?.totalAmountClaimedMicroUsdc}",
+                tag = "LS_VAULT_DEBUG",
+            )
+            if ((latest?.totalAmountClaimedMicroUsdc ?: 0L) > confirmedAmount) wake.trySend(Unit)
         }
     }
 

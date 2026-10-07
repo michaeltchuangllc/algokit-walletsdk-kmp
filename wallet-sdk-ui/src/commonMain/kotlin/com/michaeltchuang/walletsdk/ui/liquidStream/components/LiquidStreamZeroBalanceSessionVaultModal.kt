@@ -176,7 +176,7 @@ fun LiquidAuthSessionVaultModalContent(
                             Text("!", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Text(
-                            text = "Your Session Vault is empty.\nTop up now for exclusive features!",
+                            text = "Your Session Vault balance is low.\nTop up now for exclusive features!",
                             color = Color.White,
                             fontSize = 14.sp,
                             lineHeight = 17.sp,

@@ -63,7 +63,7 @@ private const val CHAT_INTERVAL_MS = 5_000L
 private const val GIFT_INTERVAL_MS = 15_000L
 
 /** Per-bot Session Vault deposit (and low-balance top-up): 888 micro-USDC = 111 blocks at 8/block. */
-internal const val DEBUG_BOT_DEPOSIT_MICRO_USDC = 888L
+internal const val DEBUG_BOT_DEPOSIT_MICRO_USDC = 88L
 
 /** Bot superchat size; must stay below [DEBUG_BOT_DEPOSIT_MICRO_USDC] or gifts can never fire. */
 private const val DEBUG_GIFT_MICRO_USDC = 88L
