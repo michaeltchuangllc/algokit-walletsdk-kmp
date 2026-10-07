@@ -245,6 +245,7 @@ kotlin {
                 implementation(libs.mockk)
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.sol4k)
             }
         }
         val androidDeviceTest by getting {

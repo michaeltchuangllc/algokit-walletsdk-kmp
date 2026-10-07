@@ -198,6 +198,18 @@ fun ScreenContent(
                         }
                     }
 
+                    // Seed Vault keys can't auto-sign; a linked session key handles MPP / streaming payments.
+                    if (state.isSolanaAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_key,
+                            title = "Session signing key",
+                        ) {
+                            navController.navigate(AlgoKitScreens.SOLANA_SESSION_KEY_SCREEN.name)
+                        }
+                    }
+
                     // Show the network-specific dispenser when available.
                     if (state.dispenserBaseUrl != null && (!state.isSolanaAccount || state.isTestNet)) {
                         Spacer(modifier = Modifier.height(16.dp))

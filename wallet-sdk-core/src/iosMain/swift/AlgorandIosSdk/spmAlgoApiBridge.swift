@@ -843,6 +843,20 @@ import CommonCrypto
         }
     }
 
+    // MARK: - Solana session key helpers (CryptoKit)
+
+    /// Derives the raw 32-byte Ed25519 public key for a raw 32-byte seed. Returns base64 or empty string on error.
+    public func solanaEd25519PublicKey(seedBase64: String) -> String {
+        guard let seed = Data(base64Encoded: seedBase64), seed.count == 32 else { return "" }
+        do {
+            let key = try Curve25519.Signing.PrivateKey(rawRepresentation: seed)
+            return key.publicKey.rawRepresentation.base64EncodedString()
+        } catch {
+            NSLog("❌ solanaEd25519PublicKey error: \(error)")
+            return ""
+        }
+    }
+
     // MARK: - Algorand Transaction Builders
 
     public func buildAppCallTxn(
