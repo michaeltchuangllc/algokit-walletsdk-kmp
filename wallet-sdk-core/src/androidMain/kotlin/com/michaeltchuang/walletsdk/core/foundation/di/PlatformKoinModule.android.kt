@@ -20,5 +20,6 @@ actual fun platformKoinModule(): Module =
             com.michaeltchuang.walletsdk.core.passkeys.di.passkeyModule,
             com.michaeltchuang.walletsdk.core.passkeys.validator.di.validationModule,
             com.michaeltchuang.walletsdk.core.railmpp.di.railMppModule,
+            com.michaeltchuang.walletsdk.core.solana.di.solanaLinkedSignerModule,
         )
     }

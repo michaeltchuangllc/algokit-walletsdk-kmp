@@ -41,6 +41,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REP
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSessionKeyScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreen
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewPlatformScreen
@@ -125,6 +126,7 @@ enum class AlgoKitScreens {
     ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
     LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
     GITHUB_REPO_SCREEN,
+    SOLANA_SESSION_KEY_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -796,6 +798,17 @@ fun NavigationBottomSheetNavHost(
                 }
                 composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
                     GithubRepoScreen(navController)
+                }
+                composable(route = AlgoKitScreens.SOLANA_SESSION_KEY_SCREEN.name) {
+                    address?.let { addr ->
+                        SolanaSessionKeyScreen(
+                            address = addr,
+                            onBack = { navController.popBackStack() },
+                            showSnackBar = { message ->
+                                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
+                        )
+                    }
                 }
             }
         }

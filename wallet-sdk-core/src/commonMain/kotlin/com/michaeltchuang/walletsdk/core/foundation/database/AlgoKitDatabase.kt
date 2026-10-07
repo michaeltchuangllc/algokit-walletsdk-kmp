@@ -31,6 +31,8 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.SeedVaultEn
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.dao.MppVoucherDao
 import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
+import com.michaeltchuang.walletsdk.core.solana.data.database.SolanaLinkedSignerDao
+import com.michaeltchuang.walletsdk.core.solana.data.database.SolanaLinkedSignerEntity
 
 @Database(
     entities = [
@@ -47,6 +49,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherE
         SiteEntity::class,
         SeedVaultEntity::class,
         MppVoucherEntity::class,
+        SolanaLinkedSignerEntity::class,
     ],
     version = AlgoKitDatabase.DATABASE_VERSION,
 )
@@ -80,8 +83,10 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun mppVoucherDao(): MppVoucherDao
 
+    abstract fun solanaLinkedSignerDao(): SolanaLinkedSignerDao
+
     companion object Companion {
-        const val DATABASE_VERSION = 10
+        const val DATABASE_VERSION = 12
         const val DATABASE_NAME = "algokit_database"
     }
 }

@@ -254,3 +254,55 @@ val MIGRATION_9_10 =
             connection.execSQL("ALTER TABLE mpp_vouchers ADD COLUMN network TEXT DEFAULT NULL")
         }
     }
+
+// Hot session keys linked to cold Solana (Seed Vault) accounts for auto-signing micro-payments.
+val MIGRATION_10_11 =
+    object : Migration(10, 11) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS solana_linked_signer (
+                    owner_address TEXT PRIMARY KEY NOT NULL,
+                    signer_address TEXT NOT NULL,
+                    encrypted_private_seed BLOB NOT NULL,
+                    source TEXT NOT NULL,
+                    derivation_path TEXT,
+                    created_at_ms INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// Session keys are cascade-deleted with their Seed Vault account. SQLite can't add a foreign key
+// to an existing table, so rebuild it. Orphaned keys (Seed Vault account already removed) are dropped.
+val MIGRATION_11_12 =
+    object : Migration(11, 12) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS solana_linked_signer_new (
+                    owner_address TEXT PRIMARY KEY NOT NULL,
+                    signer_address TEXT NOT NULL,
+                    encrypted_private_seed BLOB NOT NULL,
+                    source TEXT NOT NULL,
+                    derivation_path TEXT,
+                    created_at_ms INTEGER NOT NULL,
+                    FOREIGN KEY(owner_address) REFERENCES seed_vault(public_key)
+                        ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            connection.execSQL(
+                """
+                INSERT INTO solana_linked_signer_new
+                    (owner_address, signer_address, encrypted_private_seed, source, derivation_path, created_at_ms)
+                SELECT owner_address, signer_address, encrypted_private_seed, source, derivation_path, created_at_ms
+                FROM solana_linked_signer
+                WHERE owner_address IN (SELECT public_key FROM seed_vault)
+                """.trimIndent(),
+            )
+            connection.execSQL("DROP TABLE solana_linked_signer")
+            connection.execSQL("ALTER TABLE solana_linked_signer_new RENAME TO solana_linked_signer")
+        }
+    }

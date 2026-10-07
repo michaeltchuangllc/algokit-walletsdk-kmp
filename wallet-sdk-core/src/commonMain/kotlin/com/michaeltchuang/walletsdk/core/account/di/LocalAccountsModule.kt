@@ -212,7 +212,7 @@ val localAccountsModule =
         // SeedVaultRepository is provided in platform-specific solanaAccountModule
         single { GetSolanaAccountsFromSeedVaultUseCase(get()) }
         single { GetImportedSolanaAddressesUseCase(get()) }
-        single { ImportSolanaAccountsUseCase(get()) }
-        single { SyncSolanaAccountsFromSeedVaultUseCase(get(), get()) }
-        single { DeleteSolanaAccountUseCase(get()) }
+        single { ImportSolanaAccountsUseCase(get(), get()) }
+        single { SyncSolanaAccountsFromSeedVaultUseCase(get(), get(), get(), get()) }
+        single { DeleteSolanaAccountUseCase(get(), get()) }
     }

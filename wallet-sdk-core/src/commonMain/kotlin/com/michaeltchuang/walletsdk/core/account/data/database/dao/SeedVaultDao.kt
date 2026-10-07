@@ -9,10 +9,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 internal interface SeedVaultDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // IGNORE (not REPLACE): REPLACE deletes the existing row first, which would cascade-delete
+    // the account's linked session key in solana_linked_signer.
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(entity: SeedVaultEntity)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(entities: List<SeedVaultEntity>)
 
     @Query("SELECT * FROM seed_vault")
