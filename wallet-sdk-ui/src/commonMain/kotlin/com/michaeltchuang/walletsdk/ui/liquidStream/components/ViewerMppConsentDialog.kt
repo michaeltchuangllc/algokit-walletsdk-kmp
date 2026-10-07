@@ -1,11 +1,13 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.components
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BudgetCap
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ConsentApproval
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewerStateHolder
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.ViewerVaultDebug
 import kotlin.math.roundToLong
 
 /**
@@ -19,6 +21,15 @@ import kotlin.math.roundToLong
 fun ViewerMppConsentDialog(stateHolder: LiquidAuthViewerStateHolder) {
     val pendingConsent by stateHolder.pendingViewerConsent.collectAsState()
     val isPaymentProcessing by stateHolder.isViewerPaymentProcessing.collectAsState()
+    DisposableEffect(pendingConsent, isPaymentProcessing) {
+        val visible = pendingConsent != null && !isPaymentProcessing
+        ViewerVaultDebug.log(
+            "DIALOG_STATE visible=$visible pendingConsent=${pendingConsent != null} processing=$isPaymentProcessing",
+        )
+        onDispose {
+            if (visible) ViewerVaultDebug.log("DIALOG_HIDDEN_OR_DISPOSED")
+        }
+    }
     val consent = pendingConsent ?: return
     if (isPaymentProcessing) return
 
@@ -34,6 +45,7 @@ fun ViewerMppConsentDialog(stateHolder: LiquidAuthViewerStateHolder) {
         isDismissible = false,
         onDismiss = {
             if (!isPaymentProcessing) {
+                ViewerVaultDebug.log("DIALOG_CLOSE_CLICK")
                 stateHolder.rejectViewerConsent()
             }
         },
@@ -45,6 +57,7 @@ fun ViewerMppConsentDialog(stateHolder: LiquidAuthViewerStateHolder) {
                     .roundToLong()
                     .coerceAtLeast(1L)
             val maxSegments = (depositMicro / perSegmentMicro).toInt().coerceAtLeast(1)
+            ViewerVaultDebug.log("DIALOG_TOP_UP_CLICK depositMicro=$depositMicro perSegmentMicro=$perSegmentMicro")
 
             stateHolder.approveViewerConsent(
                 ConsentApproval(

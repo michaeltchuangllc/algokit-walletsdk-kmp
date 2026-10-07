@@ -16,6 +16,9 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.resolvePricingConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.sessionVaultMinimumBalanceMicroUsdc
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -61,6 +64,7 @@ class MppPaymentViewerManager(
         val channelIdProvider: () -> ByteArray? = { EscrowSessionVaultHybridManagerClient.channelId?.copyOf() },
         val setViewerPaymentProcessing: (Boolean) -> Unit = {},
         val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
+        val getConnectionType: () -> IceConnectionType = { IceConnectionType.UNKNOWN },
     )
 
     private data class VaultFundingResult(
@@ -75,11 +79,30 @@ class MppPaymentViewerManager(
         val scope = CoroutineScope(params.scope.coroutineContext + job)
         val mutex = Mutex()
         var pendingDeposit: Long? = null
+        var expectedTotalDeposit: Long? = null
+        var fundingChannelId: ByteArray? = null
+        var observedVaultChannelId: ByteArray? = null
+        var publishedSnapshot: MppPayments.SessionProgressSnapshot? = null
+        var consentUiRefreshJob: Job? = null
         var extendBudgetOnConfirmation = false
         var processing = false
         var consentActive = false
         lateinit var viewer: LiquidStreamViewer
         val pendingVouchers = ArrayDeque<VoucherObligation>()
+        private var pricingConnectionType = IceConnectionType.UNKNOWN
+
+        fun minimumBalance(): Long {
+            val detected = params.getConnectionType()
+            val previous = pricingConnectionType
+            pricingConnectionType = resolvePricingConnectionType(previous, detected)
+            if (previous != pricingConnectionType) {
+                ViewerVaultDebug.log(
+                    "PRICING_TIER previous=$previous detected=$detected effective=$pricingConnectionType " +
+                        "minimumMicro=${pricingConnectionType.sessionVaultMinimumBalanceMicroUsdc()}",
+                )
+            }
+            return pricingConnectionType.sessionVaultMinimumBalanceMicroUsdc()
+        }
     }
 
     private class VoucherObligation(
@@ -114,6 +137,14 @@ class MppPaymentViewerManager(
     private var vaultHandshake: ViewerVaultHandshake? = null
     private val voucherMutex = Mutex()
 
+    private fun trace(event: String) {
+        ViewerVaultDebug.log(
+            "$event session=${viewerVoucherSessionId ?: "pending"} revision=$paymentRevision " +
+                "pendingPayment=$pendingPayment pendingDepositMicro=${paymentSession?.pendingDeposit} " +
+                "processing=${paymentSession?.processing} consentActive=${paymentSession?.consentActive}",
+        )
+    }
+
     /** Refresh metadata after a top-up without changing payment budget or gating. */
     fun refreshVaultIdentity(
         viewerAddress: String,
@@ -137,6 +168,7 @@ class MppPaymentViewerManager(
         paymentRevision++
         externalConfirmationPending = false
         pendingPayment = true
+        trace("PAYMENT_PENDING")
         Napier.d("[PAYMENT_PENDING_SET] pendingPayment=$pendingPayment", tag = TAG)
     }
 
@@ -145,6 +177,7 @@ class MppPaymentViewerManager(
         paymentRevision++
         externalConfirmationPending = false
         pendingPayment = false
+        trace("PAYMENT_CLEARED")
         Napier.d("[PAYMENT_PENDING_CLEARED] pendingPayment=$pendingPayment", tag = TAG)
     }
 
@@ -171,6 +204,7 @@ class MppPaymentViewerManager(
 
     fun updateStreamCost(cost: Long) {
         currentStreamCostMicroUsdc = cost
+        trace("STREAM_PRICE costMicro=$cost")
         Napier.d("[VIEWER_STREAM_COST_UPDATED] cost=$cost", tag = TAG)
     }
 
@@ -215,6 +249,12 @@ class MppPaymentViewerManager(
                                     session.mutex.withLock {
                                         try {
                                             requestConsent(session, terms)
+                                        } catch (ce: CancellationException) {
+                                            throw ce
+                                        } catch (err: Throwable) {
+                                            // Recheck after an unavailable read without requesting another deposit.
+                                            startRefresh(session)
+                                            throw err
                                         } finally {
                                             finishProcessing(session)
                                         }
@@ -237,6 +277,7 @@ class MppPaymentViewerManager(
                 }
 
                 viewer.rtcClient.onPaymentRequested = { request ->
+                    trace("PAYMENT_REQUEST request=${request.id} amountMicro=${request.amount}")
                     if (activeStartParams === params) {
                         refreshVaultIdentity(viewerAddress)
                     }
@@ -247,24 +288,37 @@ class MppPaymentViewerManager(
                 }
 
                 viewer.rtcClient.onPaymentReceipt = { receipt ->
+                    trace("RECEIPT_QUEUED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} amountMicro=${receipt.amount}")
                     session.scope.launch {
                         voucherMutex.withLock {
-                            ensureCurrent(session)
-                            handlePaymentReceipt(
-                                session = session,
-                                receiptSessionId = receipt.sessionId,
-                                receiptSegmentIndex = receipt.segmentIndex,
-                                receiptAmount = receipt.amount,
-                                receiptPayFrom = receipt.payFrom,
-                                receiptPayTo = receipt.payTo,
-                                txId = receipt.txId,
-                                vaultChannelId = if (receipt.billingMode == BillingMode.SESSION_VAULT) receipt.channelId else null,
-                            )
+                            try {
+                                ensureCurrent(session)
+                                handlePaymentReceipt(
+                                    session = session,
+                                    receiptSessionId = receipt.sessionId,
+                                    receiptSegmentIndex = receipt.segmentIndex,
+                                    receiptAmount = receipt.amount,
+                                    receiptPayFrom = receipt.payFrom,
+                                    receiptPayTo = receipt.payTo,
+                                    txId = receipt.txId,
+                                    vaultChannelId = if (receipt.billingMode == BillingMode.SESSION_VAULT) receipt.channelId else null,
+                                )
+                            } catch (ce: CancellationException) {
+                                trace("RECEIPT_CANCELLED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex}")
+                                throw ce
+                            } catch (err: Throwable) {
+                                trace(
+                                    "RECEIPT_PROCESSING_ERROR receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                                        "errorType=${err::class.simpleName}",
+                                )
+                                throw err
+                            }
                         }
                     }
                 }
 
                 viewer.rtcClient.onStreamGated = { reason ->
+                    trace("STREAM_GATED reason=$reason")
                     Napier.w("[VIEWER_STREAM_GATED] viewer=$viewerAddress reason=$reason", tag = TAG)
                     session.scope.launch {
                         handleStreamGated(session)
@@ -300,7 +354,7 @@ class MppPaymentViewerManager(
             (session?.scope ?: scope).launch {
                 while (isActive) {
                     if (session == null || session.mutex.tryLock()) {
-                        var exhausted = false
+                        var needsTopUp = false
                         try {
                             if (activeStartParams !== refreshParams || paymentSession !== session) return@launch
                             if (session != null && (session.pendingDeposit != null || externalConfirmationPending)) {
@@ -321,9 +375,20 @@ class MppPaymentViewerManager(
                                 if (revision != paymentRevision) continue
                                 if (externalConfirmationPending && remaining > 0L) clearPendingPayment()
                                 refreshVaultIdentity(viewerAddress)
-                                setViewerSessionVaultProgress(remaining, remaining)
-                                exhausted = remaining == 0L && !pendingPayment
+                                val balance = if (session != null) readViewerBalance(session, remaining) else ViewerBalance(remaining, remaining)
+                                setViewerSessionVaultProgress(balance.onChainRemaining, balance.spendable)
+                                val minimum = if (currentStreamCostMicroUsdc != 0L) session?.minimumBalance() else null
+                                needsTopUp =
+                                    minimum != null &&
+                                    balance.onChainRemaining in 0L..minimum &&
+                                    !pendingPayment
                                 if (session != null) {
+                                    trace(
+                                        "POLL_DECISION remainingMicro=$remaining onChainRemainingMicro=${balance.onChainRemaining} " +
+                                            "availableMicro=${balance.spendable} basis=on_chain_remaining " +
+                                            "minimumMicro=$minimum detected=${session.params.getConnectionType()} " +
+                                            "costMicro=$currentStreamCostMicroUsdc needsTopUp=$needsTopUp",
+                                    )
                                     val snapshotRevision = paymentRevision
                                     refreshVaultSnapshot(session)
                                     if (snapshotRevision != paymentRevision) continue
@@ -332,11 +397,14 @@ class MppPaymentViewerManager(
                         } catch (ce: CancellationException) {
                             throw ce
                         } catch (err: Throwable) {
+                            trace("POLL_ERROR errorType=${err::class.simpleName}")
                             Napier.e("[VIEWER_SESSION_VAULT_REFRESH_ERR] viewer=$viewerAddress", err, tag = TAG)
                         } finally {
                             session?.mutex?.unlock()
                         }
-                        if (exhausted) liquidStreamViewer?.rtcClient?.onStreamGated?.invoke("Session balance exhausted")
+                        if (needsTopUp) liquidStreamViewer?.rtcClient?.onStreamGated?.invoke("Session balance at or below minimum")
+                    } else {
+                        trace("POLL_SKIPPED reason=payment_or_consent_lock")
                     }
                     delay(1000L.milliseconds)
                 }
@@ -438,7 +506,10 @@ class MppPaymentViewerManager(
         val params = session.params
         val viewerAddress = params.viewerAddress
         val explicitChannel = vaultChannelId?.let(Base64::decode)
-        val channelId = explicitChannel ?: params.channelIdProvider()?.copyOf() ?: return
+        val channelId = explicitChannel ?: params.channelIdProvider()?.copyOf() ?: run {
+            trace("RECEIPT_SKIPPED receiptSession=$receiptSessionId segment=$receiptSegmentIndex reason=missing_channel")
+            return
+        }
         val debit =
             if (explicitChannel != null) {
                 receiptAmount.toLongOrNull() ?: 0L
@@ -461,6 +532,7 @@ class MppPaymentViewerManager(
                 MppPayments.getSessionProgressSnapshotFromVault(channelId)
             }
         ensureCurrent(session)
+        if (progressSnapshot != null) observeVault(session, channelId)
         val currentBalance = progressSnapshot?.progressBalanceMicroUsdc ?: 0L
 
         if (currentBalance > 0) {
@@ -496,6 +568,7 @@ class MppPaymentViewerManager(
                     MppPayments.getSessionDynamicDataFromVault(channelId)
                 }
             ensureCurrent(session)
+            if (preUpdateDynamicData != null) observeVault(session, channelId)
             val preUpdateLatestVoucher = preUpdateDynamicData?.latestVoucherAmount ?: 0L
             val preUpdateLastSettled = preUpdateDynamicData?.lastSettled ?: 0L
             val preUpdateTotalDeposit = preUpdateDynamicData?.totalDeposit ?: 0L
@@ -525,6 +598,12 @@ class MppPaymentViewerManager(
             }
 
             viewerVoucherClaimedMicroUsdc = voucherClaimed
+            trace(
+                "BLOCK_RESERVED segment=$receiptSegmentIndex paidBlocks=$viewerPaidBlocksConsumed debitMicro=$debit " +
+                    "totalDepositMicro=${preUpdateDynamicData?.totalDeposit} settledMicro=${preUpdateDynamicData?.lastSettled} " +
+                    "latestVoucherMicro=${preUpdateDynamicData?.latestVoucherAmount} localClaimedMicro=$voucherClaimed " +
+                    "availableMicro=${preUpdateDynamicData?.let { (it.totalDeposit - voucherClaimed).coerceAtLeast(0L) }}",
+            )
             session.pendingVouchers.addLast(
                 VoucherObligation(
                     sessionId = receiptSessionId,
@@ -548,7 +627,7 @@ class MppPaymentViewerManager(
         )
         ensureCurrent(session)
         if (isCurrentVaultSnapshot(session, channelId, progressRevision, progressSnapshot)) {
-            params.onVaultSnapshot(progressSnapshot)
+            publishVaultSnapshot(session, progressSnapshot)
         }
     }
 
@@ -563,7 +642,8 @@ class MppPaymentViewerManager(
             }
         ensureCurrent(session)
         if (snapshot != null && isCurrentVaultSnapshot(session, channelId, revision, snapshot)) {
-            params.onVaultSnapshot(snapshot)
+            observeVault(session, channelId)
+            publishVaultSnapshot(session, snapshot)
         }
     }
 
@@ -582,7 +662,22 @@ class MppPaymentViewerManager(
             snapshot.progressBalanceMicroUsdc in 0L..snapshot.remainingSettledMicroUsdc &&
             snapshot.lastSettledMicroUsdc >= 0L &&
             snapshot.latestVoucherAmountMicroUsdc >= 0L &&
-            snapshot.startRound >= 0L
+            snapshot.startRound >= 0L &&
+            session.publishedSnapshot.let { previous ->
+                previous == null ||
+                    snapshot.startRound > previous.startRound ||
+                    (
+                        snapshot.startRound == previous.startRound &&
+                            snapshot.totalDepositMicroUsdc >= previous.totalDepositMicroUsdc &&
+                            snapshot.lastSettledMicroUsdc >= previous.lastSettledMicroUsdc &&
+                            snapshot.latestVoucherAmountMicroUsdc >= previous.latestVoucherAmountMicroUsdc
+                    )
+            }
+
+    private fun publishVaultSnapshot(session: PaymentSession, snapshot: MppPayments.SessionProgressSnapshot) {
+        session.publishedSnapshot = snapshot
+        session.params.onVaultSnapshot(snapshot)
+    }
 
     private suspend fun drainVouchers(session: PaymentSession) {
         while (session.pendingVouchers.isNotEmpty()) {
@@ -661,6 +756,7 @@ class MppPaymentViewerManager(
             }
         ensureCurrent(session)
         session.viewer.rtcClient.sendVoucher(wireVoucher)
+        trace("VOUCHER_SEND_ATTEMPT segment=${obligation.segmentIndex} cumulativeMicro=${obligation.cumulativeAmount}")
     }
 
     private fun cancelPaymentSession() {
@@ -671,6 +767,8 @@ class MppPaymentViewerManager(
     }
 
     private fun finishProcessing(session: PaymentSession) {
+        session.consentUiRefreshJob?.cancel()
+        session.consentUiRefreshJob = null
         if (paymentSession !== session) return
         if (!session.processing && !session.consentActive) return
         session.processing = false
@@ -692,6 +790,25 @@ class MppPaymentViewerManager(
             authorizedSignerPublicKey = params.signer.authorizedSignerPublicKey,
             setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
         )
+    }
+
+    /** Display-only polling must not initiate another payment or outlive the consent flow. */
+    private fun startConsentUiRefresh(session: PaymentSession) {
+        session.consentUiRefreshJob?.cancel()
+        session.consentUiRefreshJob = session.scope.launch {
+            while (isActive) {
+                delay(1000L.milliseconds)
+                if (!session.consentActive) return@launch
+                if (session.processing || pendingPayment) continue
+                try {
+                    refreshVaultSnapshot(session)
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (err: Throwable) {
+                    trace("CONSENT_UI_REFRESH_ERROR errorType=${err::class.simpleName}")
+                }
+            }
+        }
     }
 
     private suspend fun readRemaining(session: PaymentSession): Long {
@@ -716,6 +833,7 @@ class MppPaymentViewerManager(
             } catch (ce: CancellationException) {
                 throw ce
             } catch (err: Throwable) {
+                trace("BALANCE_READ_RETRY attempt=${attempt + 1} errorType=${err::class.simpleName}")
                 lastError = err
             }
             if (attempt < 2) delay(1000L.milliseconds)
@@ -725,11 +843,39 @@ class MppPaymentViewerManager(
 
     private suspend fun confirmFunding(session: PaymentSession): Long {
         repeat(3) { attempt ->
-            val remaining = readRemaining(session)
+            var remaining = readRemaining(session)
             check(session.pendingDeposit != null || externalConfirmationPending) { "External funding is still in progress" }
-            if (remaining > 0L) {
+            val expected = session.expectedTotalDeposit
+            val data =
+                if (session.pendingDeposit != null) {
+                    checkNotNull(expected) { "Missing funding confirmation target" }
+                    val channel = checkNotNull(session.fundingChannelId)
+                    check(channel.contentEquals(session.params.channelIdProvider())) { "Funding channel changed" }
+                    MppPayments.getSessionDynamicDataFromVault(channel)
+                } else {
+                    null
+                }
+            ensureCurrent(session)
+            if (expected != null) {
+                check(session.fundingChannelId.contentEquals(session.params.channelIdProvider())) { "Funding channel changed" }
+                if (data != null) observeVault(session, checkNotNull(session.fundingChannelId))
+            }
+            val depositObserved = expected == null || (data != null && data.totalDeposit >= expected)
+
+            if (expected != null && data != null) {
+                remaining = (data.totalDeposit - data.lastSettled).coerceAtLeast(0L)
+            }
+            trace(
+                "FUNDING_CONFIRM_READ attempt=${attempt + 1} remainingMicro=$remaining " +
+                    "expectedTotalDepositMicro=$expected observedTotalDepositMicro=${data?.totalDeposit} " +
+                    "depositObserved=$depositObserved",
+            )
+            if (depositObserved && (expected != null || remaining > 0L)) {
+                trace("FUNDING_CONFIRM_ACCEPTED remainingMicro=$remaining expectedTotalDepositMicro=$expected")
                 val deposit = session.pendingDeposit
                 session.pendingDeposit = null
+                session.expectedTotalDeposit = null
+                session.fundingChannelId = null
                 clearPendingPayment()
                 session.params.setViewerSessionVaultProgress(remaining, remaining)
                 if (deposit != null && session.extendBudgetOnConfirmation) {
@@ -741,7 +887,87 @@ class MppPaymentViewerManager(
             }
             if (attempt < 2) delay(1000L.milliseconds)
         }
+        trace("FUNDING_CONFIRM_WAIT reason=deposit_not_yet_observed")
         error("Session vault funding is awaiting confirmation")
+    }
+
+    private fun observeVault(session: PaymentSession, channel: ByteArray) {
+        check(channel.contentEquals(session.params.channelIdProvider())) { "Vault channel changed" }
+        val observed = session.observedVaultChannelId
+        check(observed == null || observed.contentEquals(channel)) { "Observed vault channel changed" }
+        session.observedVaultChannelId = channel.copyOf()
+    }
+
+    private suspend fun readConsentVaultData(session: PaymentSession): MppPayments.SessionDynamicData? {
+        val channel = checkNotNull(session.params.channelIdProvider()?.copyOf()) { "Missing vault channel" }
+        val observed = session.observedVaultChannelId
+        check(observed == null || observed.contentEquals(channel)) { "Observed vault channel changed" }
+        repeat(3) { attempt ->
+            val data = MppPayments.getSessionDynamicDataFromVault(channel)
+            ensureCurrent(session)
+            check(channel.contentEquals(session.params.channelIdProvider())) { "Vault channel changed during read" }
+            if (data != null) {
+                observeVault(session, channel)
+                return data
+            }
+            if (session.observedVaultChannelId == null && viewerVoucherClaimedMicroUsdc == 0L) return null
+            trace("VAULT_READ_UNAVAILABLE attempt=${attempt + 1} action=retry_without_popup")
+            if (attempt < 2) delay(1000L.milliseconds)
+        }
+        trace("POPUP_SKIPPED reason=known_vault_unavailable")
+        error("Existing session vault data is temporarily unavailable")
+    }
+
+    private data class ViewerBalance(val onChainRemaining: Long, val spendable: Long)
+
+    private suspend fun readViewerBalance(
+        session: PaymentSession,
+        remaining: Long,
+    ): ViewerBalance {
+        val channel = session.params.channelIdProvider()?.copyOf()
+        val revision = paymentRevision
+        val data = readConsentVaultData(session)
+        if (data != null && channel != null) {
+            val snapshot = MppPayments.computeSessionProgressSnapshot(data)
+            if (isCurrentVaultSnapshot(session, channel, revision, snapshot)) {
+                publishVaultSnapshot(session, snapshot)
+                ensureCurrent(session)
+                trace(
+                    "POPUP_BALANCE_PUBLISHED onChainRemainingMicro=${snapshot.remainingSettledMicroUsdc} " +
+                        "settledMicro=${snapshot.lastSettledMicroUsdc}",
+                )
+            }
+        }
+        val onChainRemaining = data?.let { (it.totalDeposit - it.lastSettled).coerceAtLeast(0L) } ?: remaining
+        val available = if (data == null) {
+            remaining
+        } else {
+            minOf(
+                if (remaining == 0L) (data.totalDeposit - data.lastSettled).coerceAtLeast(0L) else remaining,
+                (data.totalDeposit - maxOf(data.lastSettled, data.latestVoucherAmount, viewerVoucherClaimedMicroUsdc)).coerceAtLeast(0L),
+            )
+        }
+        trace(
+            "BALANCE_SNAPSHOT remainingMicro=$remaining totalDepositMicro=${data?.totalDeposit} " +
+                "settledMicro=${data?.lastSettled} latestVoucherMicro=${data?.latestVoucherAmount} " +
+                "localClaimedMicro=$viewerVoucherClaimedMicroUsdc availableMicro=$available " +
+                "onChainRemainingMicro=$onChainRemaining " +
+                "source=${if (data == null) "remaining_fallback" else "vault_and_local_vouchers"}",
+        )
+        return ViewerBalance(onChainRemaining, available)
+    }
+
+    private suspend fun isAboveMinimum(session: PaymentSession, remaining: Long, source: String): Boolean {
+        val balance = readViewerBalance(session, remaining)
+        val minimum = session.minimumBalance()
+        val aboveMinimum = balance.onChainRemaining > minimum
+        trace(
+            "BALANCE_DECISION source=$source onChainRemainingMicro=${balance.onChainRemaining} " +
+                "availableMicro=${balance.spendable} basis=on_chain_remaining minimumMicro=$minimum " +
+                "detected=${session.params.getConnectionType()} costMicro=$currentStreamCostMicroUsdc " +
+                "aboveMinimum=$aboveMinimum",
+        )
+        return aboveMinimum
     }
 
     suspend fun topUpViewerSessionVault(
@@ -751,12 +977,14 @@ class MppPaymentViewerManager(
         readBalance: suspend () -> Long,
     ): Long {
         val session = paymentSession
+        trace("MANUAL_DEPOSIT_REQUEST amountMicro=$depositMicroUsdc")
         if (session == null) {
             return manualPaymentMutex.withLock {
                 markPaymentPending()
                 try {
                     fund()
-                    readBalance()
+                    trace("MANUAL_DEPOSIT_CALL_RETURNED amountMicro=$depositMicroUsdc")
+                    readBalance().also { trace("MANUAL_DEPOSIT_BALANCE remainingMicro=$it") }
                 } finally {
                     clearPendingPayment()
                 }
@@ -816,6 +1044,21 @@ class MppPaymentViewerManager(
         fund: suspend () -> Unit,
     ): Long {
         ensureCurrent(session)
+        require(deposit > 0L)
+        val channel = checkNotNull(session.params.channelIdProvider()?.copyOf()) { "Missing funding channel" }
+        val baseline = readConsentVaultData(session)
+        ensureCurrent(session)
+        val previousTotal =
+            baseline?.totalDeposit ?: run {
+                check(readRemaining(session) == 0L) { "Funding baseline is unavailable" }
+                0L
+            }
+        check(channel.contentEquals(session.params.channelIdProvider())) { "Funding channel changed" }
+        check(previousTotal >= 0L && previousTotal <= Long.MAX_VALUE - deposit) { "Invalid funding total" }
+        session.expectedTotalDeposit = previousTotal + deposit
+        session.fundingChannelId = channel
+        trace("FUNDING_TARGET previousTotalDepositMicro=$previousTotal expectedTotalDepositMicro=${session.expectedTotalDeposit}")
+        trace("DEPOSIT_START amountMicro=$deposit gated=$gated")
         session.pendingDeposit = deposit
         session.extendBudgetOnConfirmation = gated
         markPaymentPending()
@@ -826,15 +1069,20 @@ class MppPaymentViewerManager(
             try {
                 fund()
             } catch (ce: CancellationException) {
+                trace("DEPOSIT_CANCELLED amountMicro=$deposit")
                 throw ce
             } catch (err: Throwable) {
+                trace("DEPOSIT_ERROR amountMicro=$deposit errorType=${err::class.simpleName}")
                 ensureCurrent(session)
                 session.pendingDeposit = null
+                session.expectedTotalDeposit = null
+                session.fundingChannelId = null
                 session.extendBudgetOnConfirmation = false
                 clearPendingPayment()
                 throw err
             }
             ensureCurrent(session)
+            trace("DEPOSIT_CALL_RETURNED amountMicro=$deposit")
             refreshVaultIdentity(params.viewerAddress)
             return confirmFunding(session)
         } finally {
@@ -858,19 +1106,22 @@ class MppPaymentViewerManager(
                 readRemaining(session)
             }
         if (pendingPayment) error("Session vault payment is pending")
-        if (remaining > 0L) {
+        if (isAboveMinimum(session, remaining, "initial_consent")) {
             params.setViewerSessionVaultProgress(remaining, remaining)
             startRefresh(session)
             return fundedApproval(session, terms, remaining)
         }
         session.consentActive = true
+        startConsentUiRefresh(session)
+        trace("CONSENT_REQUEST source=initial amountMicro=${terms.amount}")
         val approval = params.requestMppConsent(terms)
+        trace("CONSENT_RESULT source=initial approved=${approval.approved} depositMicro=${approval.budgetCap?.amount}")
         ensureCurrent(session)
         if (!approval.approved) return approval
         awaitExternalFunding(session)
         val freshRemaining = if (externalConfirmationPending) confirmFunding(session) else readRemaining(session)
         if (pendingPayment) error("Session vault payment is pending")
-        if (freshRemaining > 0L) {
+        if (isAboveMinimum(session, freshRemaining, "initial_after_approval")) {
             params.setViewerSessionVaultProgress(freshRemaining, freshRemaining)
             startRefresh(session)
             return fundedApproval(session, terms, freshRemaining)
@@ -905,12 +1156,12 @@ class MppPaymentViewerManager(
         val available =
             if (vaultOnly) {
                 val data =
-                    checkNotNull(MppPayments.getSessionDynamicDataFromVault()) {
+                    checkNotNull(readConsentVaultData(session)) {
                         "Session vault budget is unavailable"
                     }
                 ensureCurrent(session)
                 minOf(
-                    remaining,
+                    if (remaining == 0L) (data.totalDeposit - data.lastSettled).coerceAtLeast(0L) else remaining,
                     (
                         data.totalDeposit -
                             maxOf(
@@ -944,21 +1195,34 @@ class MppPaymentViewerManager(
     }
 
     private suspend fun handleStreamGated(session: PaymentSession) {
-        if (!session.mutex.tryLock()) return
+        if (currentStreamCostMicroUsdc == 0L) {
+            trace("POPUP_SKIPPED reason=free_stream")
+            return
+        }
+        if (!session.mutex.tryLock()) {
+            trace("POPUP_SKIPPED reason=payment_or_consent_lock")
+            return
+        }
         try {
             ensureCurrent(session)
             if (session.pendingDeposit != null || externalConfirmationPending) {
+                trace("POPUP_SKIPPED reason=awaiting_funding_confirmation")
                 confirmFunding(session)
                 return
             }
-            if (pendingPayment) return
+            if (pendingPayment) {
+                trace("POPUP_SKIPPED reason=pending_payment")
+                return
+            }
             val remaining = readRemaining(session)
             if (pendingPayment) return
-            if (remaining > 0L) {
+            if (isAboveMinimum(session, remaining, "stream_gated")) {
                 session.params.setViewerSessionVaultProgress(remaining, remaining)
                 return
             }
             session.consentActive = true
+            startConsentUiRefresh(session)
+            trace("CONSENT_REQUEST source=stream_gated")
             val approval =
                 session.params.requestMppConsent(
                     ConsentTerms(
@@ -969,6 +1233,7 @@ class MppPaymentViewerManager(
                         segmentDuration = 3,
                     ),
                 )
+            trace("CONSENT_RESULT source=stream_gated approved=${approval.approved} depositMicro=${approval.budgetCap?.amount}")
             ensureCurrent(session)
             if (!approval.approved) return
             if (externalConfirmationPending) {
@@ -978,7 +1243,7 @@ class MppPaymentViewerManager(
             if (pendingPayment) return
             val freshRemaining = readRemaining(session)
             if (pendingPayment) return
-            if (freshRemaining > 0L) {
+            if (isAboveMinimum(session, freshRemaining, "gated_after_approval")) {
                 session.params.setViewerSessionVaultProgress(freshRemaining, freshRemaining)
                 return
             }
@@ -991,6 +1256,7 @@ class MppPaymentViewerManager(
         } catch (ce: CancellationException) {
             throw ce
         } catch (err: Throwable) {
+            trace("CONSENT_ERROR source=stream_gated errorType=${err::class.simpleName}")
             Napier.e("[VIEWER_STREAM_GATED_CONSENT_ERR] viewer=${session.params.viewerAddress}", err, tag = TAG)
         } finally {
             try {
@@ -1008,14 +1274,19 @@ class MppPaymentViewerManager(
     ): VaultFundingResult {
         val fundingParams = activeStartParams
         val existingSessionData =
-            MppPayments.getSessionDynamicDataFromVault()
+            readConsentVaultData(checkNotNull(paymentSession))
         currentCoroutineContext().ensureActive()
+        trace(
+            "DEPOSIT_ROUTE route=${if (existingSessionData != null) "top_up" else "open_session"} " +
+                "amountMicro=$depositMicroUsdc previousTotalDepositMicro=${existingSessionData?.totalDeposit}",
+        )
         if (existingSessionData != null) {
             val topUpResult =
                 MppPayments.topUpSessionVault(
                     signer = signer,
                     additionalDepositMicroUsdc = depositMicroUsdc,
                 )
+            trace("DEPOSIT_TX_RESULT route=top_up success=${topUpResult.isSuccess} errorType=${topUpResult.exceptionOrNull()?.let { it::class.simpleName }}")
             currentCoroutineContext().ensureActive()
             // The channel may already exist on-chain (e.g. from an earlier session/app run)
             // without ever having had its settlement LogicSig registered — this is idempotent
@@ -1034,6 +1305,7 @@ class MppPaymentViewerManager(
                 viewerAddress = viewerAddress,
                 depositAmountMicroUsdc = depositMicroUsdc,
             )
+        trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=${openResult.exceptionOrNull()?.let { it::class.simpleName }}")
         currentCoroutineContext().ensureActive()
         openResult.onSuccess {
             ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)

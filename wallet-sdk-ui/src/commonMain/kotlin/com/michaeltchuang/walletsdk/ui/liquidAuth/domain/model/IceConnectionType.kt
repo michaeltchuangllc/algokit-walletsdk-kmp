@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
+
 /**
  * WebRTC ICE Connection Type
  *
@@ -123,6 +125,9 @@ fun IceConnectionType.costMultiplier(): Long =
 
 /** Per-block price in micro-USDC: base content cost × transport multiplier. */
 fun IceConnectionType.costPerBlockMicroUsdc(baseCostMicroUsdc: Long): Long = (baseCostMicroUsdc * costMultiplier()).coerceAtLeast(0L)
+
+fun IceConnectionType.sessionVaultMinimumBalanceMicroUsdc(): Long =
+    costPerBlockMicroUsdc(LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC) * 2
 
 /**
  * Picks the connection type used for pricing. Only a concrete detection (LOCAL/STUN/RELAY)

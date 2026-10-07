@@ -79,6 +79,9 @@ class PaywalledRTCClient(
     private var vaultRequest: PaymentRequest? = null
     private var vaultIdentity: Triple<String, String, String>? = null
     private val consumedVaultSegments = mutableSetOf<Pair<String, Int>>()
+    // Keep individual debits (not cumulative vouchers) until the approved budget covers them.
+    private val deferredVaultReceipts = linkedMapOf<Pair<String, Int>, PaymentReceipt>()
+    private var drainingVaultReceipts = false
 
     val spend = SpendSummary()
 
@@ -139,6 +142,7 @@ class PaywalledRTCClient(
         additionalMicroUsdc: Long,
         asset: String,
     ) {
+        if (disposed) return
         val currentSpend = spend.totalAmount.toLongOrNull() ?: 0L
         val newCap = currentSpend + additionalMicroUsdc
         consentApproval =
@@ -154,6 +158,7 @@ class PaywalledRTCClient(
             "[VIEWER_BUDGET_EXTENDED] currentSpend=$currentSpend additional=$additionalMicroUsdc newCap=$newCap asset=$asset",
             tag = TAG,
         )
+        drainVaultReceipts()
     }
 
     /**
@@ -204,6 +209,7 @@ class PaywalledRTCClient(
     fun terminate() {
         if (disposed) return
         disposed = true
+        deferredVaultReceipts.clear()
         consentApproval = null
         started = false
         try {
@@ -225,6 +231,7 @@ class PaywalledRTCClient(
     // ─── Internal ───────────────────────────────────────────
 
     private fun handleDataChannelMessage(msgStr: String) {
+        if (disposed) return
         try {
             // Guard against plain-text keepalive strings (e.g. "ping") that are not JSON.
             val trimmed = msgStr.trim()
@@ -281,46 +288,51 @@ class PaywalledRTCClient(
                 DCMessageType.SEGMENT_ACCEPTED -> {
                     val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
                     val receipt = receiptDecodeJson.decodeFromJsonElement<PaymentReceipt>(payload)
+                    Napier.d(
+                        "RECEIPT_RECEIVED session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                            "amountMicro=${receipt.amount} handlerPresent=${onPaymentReceipt != null}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
                     acceptBillingMode(receipt.billingMode)
                     if (vaultOnlySession) {
                         require(receipt.settlementDeferred) { "Session-vault receipt must defer settlement" }
                         require(BigInteger.parseString(receipt.amount) >= BigInteger.ZERO)
                         validateVaultIdentity(receipt.sessionId, receipt.channelId, receipt.salt)
                         val key = receipt.sessionId to receipt.segmentIndex
-                        if (key in consumedVaultSegments) return
-                        val newTotal = BigInteger.parseString(spend.totalAmount) + BigInteger.parseString(receipt.amount)
-                        consentApproval?.budgetCap?.let { cap ->
-                            if (newTotal > BigInteger.parseString(cap.amount)) {
-                                onBudgetExceeded?.invoke(spend)
-                                onStreamGated?.invoke("Budget exceeded")
-                                return
-                            }
+                        if (key in consumedVaultSegments || key in deferredVaultReceipts) {
+                            Napier.d(
+                                "RECEIPT_SKIPPED session=${receipt.sessionId} segment=${receipt.segmentIndex} reason=duplicate",
+                                tag = "LS_VAULT_DEBUG",
+                            )
+                            return
                         }
-                        consumedVaultSegments.add(key)
-                        spend.asset = receipt.asset
-                        spend.segmentsPaid++
-                        spend.totalAmount = newTotal.toString()
-                        spend.transactions.add(
-                            SpendTransaction(
-                                txId = receipt.txId,
-                                amount = receipt.amount,
-                                segmentIndex = receipt.segmentIndex,
-                                timestamp = receipt.timestamp,
-                            ),
-                        )
-                        captureSalt(receipt.salt)
-                        EscrowSessionVaultHybridManagerClient.hostAddress = receipt.payTo
+                        deferredVaultReceipts[key] = receipt
+                        drainVaultReceipts()
+                        return
                     }
                     captureChannelId(receipt.channelId)
                     onPaymentReceipt?.invoke(receipt)
                 }
 
                 DCMessageType.SEGMENT_REJECTED -> {
+                    if (msg["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT) {
+                        val session = requireNotNull(msg[DCFieldKey.SESSION_ID]?.jsonPrimitive?.content)
+                        val channel = msg["channelId"]?.jsonPrimitive?.content
+                        val salt = msg["salt"]?.jsonPrimitive?.content
+                        val payTo = requireNotNull(msg["payTo"]?.jsonPrimitive?.content).also { require(it.isNotBlank()) }
+                        acceptBillingMode(BillingMode.SESSION_VAULT)
+                        validateVaultIdentity(session, channel, salt)
+                        captureChannelId(channel)
+                        captureSalt(salt)
+                        EscrowSessionVaultHybridManagerClient.hostAddress = payTo
+                    }
                     val reason = (msg[DCFieldKey.PAYLOAD] as? JsonObject)?.optStr("reason", "rejected") ?: "rejected"
                     onStreamGated?.invoke(reason)
                 }
 
                 DCMessageType.SESSION_TERMINATE -> {
+                    disposed = true
+                    deferredVaultReceipts.clear()
                     onSessionTerminated?.invoke()
                 }
 
@@ -398,6 +410,7 @@ class PaywalledRTCClient(
             consentApproval = approval
             spend.asset = request.asset
             onConsentApproved?.invoke(approval)
+            drainVaultReceipts()
         }
 
         // Budget cap.
@@ -522,7 +535,59 @@ class PaywalledRTCClient(
     }
 
     private fun handleDisconnect() {
+        disposed = true
+        deferredVaultReceipts.clear()
         onSessionTerminated?.invoke()
+    }
+
+    /** Replay in arrival order only after an approved cap permits each debit. */
+    private fun drainVaultReceipts() {
+        if (disposed || drainingVaultReceipts) return
+        drainingVaultReceipts = true
+        try {
+            while (!disposed && deferredVaultReceipts.isNotEmpty()) {
+                val (key, receipt) = deferredVaultReceipts.entries.first()
+                val newTotal = BigInteger.parseString(spend.totalAmount) + BigInteger.parseString(receipt.amount)
+                val cap = consentApproval?.budgetCap
+                if (cap != null && newTotal > BigInteger.parseString(cap.amount)) {
+                    Napier.d(
+                        "RECEIPT_DEFERRED session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                            "reason=budget proposedMicro=$newTotal capMicro=${cap.amount}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                    onBudgetExceeded?.invoke(spend)
+                    onStreamGated?.invoke("Budget exceeded")
+                    // A callback may synchronously extend the cap; recheck without recursion.
+                    val updatedCap = consentApproval?.budgetCap
+                    if (!disposed && updatedCap != null && newTotal <= BigInteger.parseString(updatedCap.amount)) continue
+                    return
+                }
+                deferredVaultReceipts.remove(key)
+                consumedVaultSegments.add(key)
+                spend.asset = receipt.asset
+                spend.segmentsPaid++
+                spend.totalAmount = newTotal.toString()
+                spend.transactions.add(
+                    SpendTransaction(
+                        txId = receipt.txId,
+                        amount = receipt.amount,
+                        segmentIndex = receipt.segmentIndex,
+                        timestamp = receipt.timestamp,
+                    ),
+                )
+                captureSalt(receipt.salt)
+                captureChannelId(receipt.channelId)
+                EscrowSessionVaultHybridManagerClient.hostAddress = receipt.payTo
+                Napier.d(
+                    "RECEIPT_BUDGET_ACCEPTED session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                        "amountMicro=${receipt.amount} spentMicro=$newTotal",
+                    tag = "LS_VAULT_DEBUG",
+                )
+                onPaymentReceipt?.invoke(receipt)
+            }
+        } finally {
+            drainingVaultReceipts = false
+        }
     }
 
     private fun sendDC(msg: JsonObject) {

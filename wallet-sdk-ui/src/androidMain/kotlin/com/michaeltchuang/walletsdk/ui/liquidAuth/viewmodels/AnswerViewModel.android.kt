@@ -373,6 +373,7 @@ actual open class AnswerViewModel actual constructor(
                         signer = signer,
                         mppNetwork = mppNetwork,
                         requestMppConsent = ::requestMppConsentFromUi,
+                        getConnectionType = { connectionType.value },
                         setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                         setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                         onVaultSnapshot = ::setViewerVaultSnapshot,

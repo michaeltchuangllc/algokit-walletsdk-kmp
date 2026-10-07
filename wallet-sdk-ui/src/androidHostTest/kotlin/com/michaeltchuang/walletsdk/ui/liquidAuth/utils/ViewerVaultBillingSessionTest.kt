@@ -992,7 +992,7 @@ class ViewerVaultBillingSessionTest {
         }
 
     @Test
-    fun `EXPECT the final drain to wait serially then drain all ordered vouchers WHEN closing`() =
+    fun `EXPECT the final drain to finish the in-flight voucher then settle only the latest WHEN closing`() =
         runTest {
             val gate = CompletableDeferred<Unit>()
             val adapter = FakeAdapter().apply { action = { gate.await() } }
@@ -1008,10 +1008,209 @@ class ViewerVaultBillingSessionTest {
             assertFalse(session.acceptVoucher(message(400)))
             gate.complete(Unit)
             closing.join()
-            assertEquals(listOf(100L, 200L, 300L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            assertEquals(listOf(100L, 300L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
             assertEquals(1, adapter.maxActive)
             session.close().join()
-            assertEquals(3, adapter.submissions.size)
+            assertEquals(2, adapter.submissions.size)
+        }
+
+    @Test
+    fun `EXPECT final partial cumulative depletion to settle with unchanged coverage at every block and batch frequencies`() =
+        runTest {
+            for (frequency in listOf(1, 3)) {
+                val fullBlockAmount = frequency * 100L
+                val repository = FakeRepository()
+                val adapter = FakeAdapter().apply { deposit = fullBlockAmount + 25L }
+                val coverageChecks = mutableListOf<Pair<Long, Long>>()
+                val session =
+                    session(
+                        adapter,
+                        frequency = frequency,
+                        repository = repository,
+                        getVoucherCoveredBlockCount = { amount, confirmed ->
+                            coverageChecks += amount to confirmed
+                            amount / 100L
+                        },
+                    )
+                session.onBlock(100, costMicroUsdc = 100).join()
+                assertTrue(session.acceptVoucher(message(fullBlockAmount)))
+                runCurrent()
+                assertEquals(listOf(fullBlockAmount), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+                assertEquals(25L, adapter.deposit - adapter.settled)
+                assertTrue(repository.rows.isEmpty())
+
+                // The last 25 micro-USDC do not cover another full block. No round advance,
+                // explicit flush or close may be needed to settle the full cumulative total.
+                coverageChecks.clear()
+                assertTrue(session.acceptVoucher(message(adapter.deposit)))
+                val saved = repository.rows.values.single()
+                val readsAfterAcceptance = adapter.reads
+                runCurrent()
+                assertEquals(listOf(adapter.deposit to frequency.toLong()), coverageChecks)
+                assertTrue(adapter.reads > readsAfterAcceptance, "Depletion must reach the settlement channel read")
+                assertEquals(listOf(fullBlockAmount, adapter.deposit), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+                assertEquals(saved.note, adapter.submissions.last().note)
+                assertEquals(0L, adapter.deposit - adapter.settled)
+                assertTrue(repository.rows.isEmpty())
+
+                val writes = repository.writes
+                assertTrue(session.acceptVoucher(message(adapter.deposit)))
+                session.onBlock(101, costMicroUsdc = 100).join()
+                runCurrent()
+                session.close().join()
+                assertEquals(writes, repository.writes)
+                assertTrue(repository.rows.isEmpty())
+                assertEquals(2, adapter.submissions.size)
+            }
+            assertTrue(errors.isEmpty())
+        }
+
+    @Test
+    fun `EXPECT unchanged coverage to keep a nondepleting cumulative voucher batched`() =
+        runTest {
+            for (frequency in listOf(1, 3)) {
+                val fullBlockAmount = frequency * 100L
+                val repository = FakeRepository()
+                val adapter = FakeAdapter()
+                val session =
+                    session(
+                        adapter,
+                        frequency = frequency,
+                        repository = repository,
+                        getVoucherCoveredBlockCount = { amount, _ -> amount / 100L },
+                    )
+                session.onBlock(100, costMicroUsdc = 100).join()
+                assertTrue(session.acceptVoucher(message(fullBlockAmount)))
+                runCurrent()
+                assertEquals(fullBlockAmount, adapter.settled)
+
+                assertTrue(session.acceptVoucher(message(fullBlockAmount + 25L)))
+                val saved = repository.rows.values.single()
+                runCurrent()
+                assertEquals(listOf(fullBlockAmount), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+                assertEquals(saved, repository.rows.values.single())
+                assertTrue(adapter.deposit - saved.totalAmountClaimedMicroUsdc >= 100L)
+                session.close().join()
+            }
+            assertTrue(errors.isEmpty())
+        }
+
+    @Test
+    fun `EXPECT final partial depletion to coalesce to the latest voucher while a full block settlement confirms`() =
+        runTest {
+            val repository = FakeRepository()
+            val adapter =
+                FakeAdapter().apply {
+                    deposit = 325
+                    confirm = false
+                }
+            val coverageChecks = mutableListOf<Pair<Long, Long>>()
+            val session =
+                session(
+                    adapter,
+                    frequency = 3,
+                    repository = repository,
+                    getVoucherCoveredBlockCount = { amount, confirmed ->
+                        coverageChecks += amount to confirmed
+                        amount / 100L
+                    },
+                )
+            session.onBlock(100, costMicroUsdc = 100).join()
+            assertTrue(session.acceptVoucher(message(300)))
+            runCurrent()
+            assertEquals(listOf(300L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+
+            assertTrue(session.acceptVoucher(message(310)))
+            assertTrue(session.acceptVoucher(message(320)))
+            val finalSignature = byteArrayOf(8, 9)
+            val finalMessage = message(325, signature = Base64.encode(finalSignature))
+            assertTrue(session.acceptVoucher(finalMessage))
+            assertTrue(session.acceptVoucher(finalMessage))
+            val saved = repository.rows.values.single()
+            runCurrent()
+            assertEquals(325L, saved.totalAmountClaimedMicroUsdc)
+            assertEquals(4, repository.writes)
+            assertEquals(1, adapter.submissions.size)
+
+            adapter.settled = 300
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            assertEquals(listOf(300L, 325L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            assertEquals(listOf(300L to 0L, 325L to 3L), coverageChecks)
+            assertContentEquals(finalSignature, adapter.submissions.last().signature)
+            assertEquals(saved.note, adapter.submissions.last().note)
+            // Confirming the old voucher must not delete the newer durable authorization.
+            assertEquals(saved, repository.rows.values.single())
+            assertEquals(300L, adapter.settled)
+
+            assertTrue(session.acceptVoucher(finalMessage))
+            adapter.settled = 325
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            assertEquals(0L, adapter.deposit - adapter.settled)
+            assertTrue(repository.rows.isEmpty())
+            assertTrue(session.acceptVoucher(finalMessage))
+            session.close().join()
+            assertEquals(4, repository.writes)
+            assertEquals(listOf(300L, 325L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            assertEquals(1, adapter.maxActive)
+            assertTrue(errors.isEmpty())
+        }
+
+    @Test
+    fun `EXPECT intermediate vouchers to be replaced while a settlement awaits confirmation`() =
+        runTest {
+            val repository = FakeRepository()
+            val adapter = FakeAdapter().apply { confirm = false }
+            val session = session(
+                adapter,
+                frequency = 1,
+                repository = repository,
+                getVoucherCoveredBlockCount = { amount, _ -> amount / 100L },
+            )
+            session.acceptVoucher(message(100))
+            runCurrent()
+            assertEquals(listOf(100L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            session.acceptVoucher(message(200))
+            session.acceptVoucher(message(300))
+            session.acceptVoucher(message(400))
+            runCurrent()
+            assertEquals(1, adapter.submissions.size)
+            assertEquals(400L, repository.rows.values.single().totalAmountClaimedMicroUsdc)
+            adapter.settled = 100
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            assertEquals(listOf(100L, 400L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            // Confirmation of 100 must not delete the newer persisted authorization.
+            assertEquals(400L, repository.rows.values.single().totalAmountClaimedMicroUsdc)
+            adapter.settled = 400
+            advanceTimeBy(500.milliseconds)
+            runCurrent()
+            assertTrue(repository.rows.isEmpty())
+            session.close().join()
+            assertEquals(2, adapter.submissions.size)
+        }
+
+    @Test
+    fun `EXPECT only the latest cumulative voucher to retry after an uncertain settlement`() =
+        runTest {
+            val repository = FakeRepository()
+            val adapter = FakeAdapter().apply { confirm = false }
+            val session = session(adapter, frequency = 1, repository = repository)
+            session.acceptVoucher(message(100))
+            session.requestSettlement()
+            runCurrent()
+            advanceTimeBy(1001.milliseconds)
+            runCurrent()
+            session.acceptVoucher(message(200))
+            session.acceptVoucher(message(300))
+            adapter.confirm = true
+            session.requestSettlement()
+            runCurrent()
+            assertEquals(listOf(100L, 300L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
+            assertEquals(300L, adapter.settled)
+            assertTrue(repository.rows.isEmpty())
+            session.close().join()
         }
 
     @Test

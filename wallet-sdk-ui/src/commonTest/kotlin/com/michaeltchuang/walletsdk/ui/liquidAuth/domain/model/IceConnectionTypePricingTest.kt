@@ -5,6 +5,19 @@ import kotlin.test.assertEquals
 
 class IceConnectionTypePricingTest {
     @Test
+    fun lowBalanceThresholdCoversTwoTransportPricedBlocks() {
+        assertEquals(16L, IceConnectionType.LOCAL.sessionVaultMinimumBalanceMicroUsdc())
+        assertEquals(32L, IceConnectionType.STUN.sessionVaultMinimumBalanceMicroUsdc())
+        assertEquals(160L, IceConnectionType.RELAY.sessionVaultMinimumBalanceMicroUsdc())
+    }
+
+    @Test
+    fun undetectedConnectionsUseBaseLowBalanceThreshold() {
+        assertEquals(16L, IceConnectionType.UNKNOWN.sessionVaultMinimumBalanceMicroUsdc())
+        assertEquals(16L, IceConnectionType.FAILED.sessionVaultMinimumBalanceMicroUsdc())
+    }
+
+    @Test
     fun costPerBlockScalesBaseByTransportTier() {
         assertEquals(8L, IceConnectionType.LOCAL.costPerBlockMicroUsdc(8L))
         assertEquals(16L, IceConnectionType.STUN.costPerBlockMicroUsdc(8L))

@@ -122,6 +122,13 @@ class PaywalledRTCServer
         private var lastBillingRound: Long? = null
         private val blockChargeCheckpoints = ArrayDeque<Pair<Long, Long>>()
         private var acceptedBlockCount = 0L
+        private var awaitingVaultFunding = false
+
+        private sealed class VaultFundingStatus {
+            data class Funded(val amount: String) : VaultFundingStatus()
+            data object RequestRequired : VaultFundingStatus()
+            data object Exhausted : VaultFundingStatus()
+        }
 
         suspend fun voucherCoveredBlockCount(
             cumulativeAmount: Long,
@@ -357,8 +364,10 @@ class PaywalledRTCServer
                                 while (next < round && !disposed && pendingRequest == null && !awaitingVaultIdentity) {
                                     if (config != intervalConfig) break
                                     val index = segmentIndex
+                                    val wasAwaitingBalance = awaitingVaultFunding
                                     requestPaymentNow()
-                                    if (segmentIndex == index) break
+                                    // Paused rounds must not be back-billed after a top-up.
+                                    if (segmentIndex == index || wasAwaitingBalance) break
                                     next++
                                 }
                             }
@@ -500,13 +509,38 @@ class PaywalledRTCServer
                     requireNotNull(resolveSaltBase64()) { "Session-vault billing requires a salt" }
                 }
 
-                val shouldSkipPrompt = shouldSkipPaymentRequestBecauseSessionFunded()
+                val fundingStatus = sessionVaultFundingStatus()
                 if (disposed || config != requestConfig) return
+                if (fundingStatus == VaultFundingStatus.Exhausted) {
+                    awaitingVaultFunding = true
+                    pendingRequest = null
+                    cancelGraceTimer()
+                    gate()
+                    // A status notification, not a payment request. The viewer verifies its own
+                    // balance and owns consent/funding; vouchers and chat remain active.
+                    sendDC(
+                        buildJsonObject {
+                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                            put(DCFieldKey.SESSION_ID, sessionId)
+                            put("billingMode", BillingMode.SESSION_VAULT)
+                            put("channelId", channelIdBase64)
+                            put("salt", resolveSaltBase64())
+                            put("payTo", config.gating.payTo)
+                            put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "Session balance exhausted") })
+                        },
+                    )
+                    if (!config.blockDrivenBilling) {
+                        scheduleSegmentTimer(1000L) { requestPayment() }
+                    }
+                    return
+                }
+                awaitingVaultFunding = false
+                val shouldSkipPrompt = fundingStatus is VaultFundingStatus.Funded
                 Napier.d(
                     "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
                     tag = TAG,
                 )
-                if (shouldSkipPrompt) {
+                if (fundingStatus is VaultFundingStatus.Funded) {
                     Napier.d(
                         "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
                         tag = TAG,
@@ -515,7 +549,7 @@ class PaywalledRTCServer
                         createSessionVaultReceipt(
                             txIdPrefix = "session-vault-funded-skip",
                             segmentIndex = segmentIndex,
-                            amount = config.gating.amount,
+                            amount = fundingStatus.amount,
                             asset = config.gating.asset,
                             payTo = config.gating.payTo,
                             payFrom = config.viewerAddress.orEmpty(),
@@ -523,7 +557,7 @@ class PaywalledRTCServer
                             channelId = channelIdBase64,
                         )
                     pendingRequest = null
-                    completePaidSegment(syntheticReceipt, config.gating.amount)
+                    completePaidSegment(syntheticReceipt, fundingStatus.amount)
                     return
                 }
 
@@ -606,7 +640,8 @@ class PaywalledRTCServer
                 ) {
                     return
                 }
-                if (!shouldSkipPaymentRequestBecauseSessionFunded(request.amount)) {
+                val fundingStatus = sessionVaultFundingStatus(request.amount)
+                if (fundingStatus !is VaultFundingStatus.Funded) {
                     onPaymentRejected?.invoke("Session vault is not sufficiently funded")
                     return
                 }
@@ -617,14 +652,14 @@ class PaywalledRTCServer
                     createSessionVaultReceipt(
                         txIdPrefix = "session-vault-funded",
                         segmentIndex = request.segmentIndex,
-                        amount = request.amount,
+                        amount = fundingStatus.amount,
                         asset = request.asset,
                         payTo = request.payTo,
                         payFrom = config.viewerAddress.orEmpty(),
                         network = request.network,
                         channelId = request.channelId,
                     ),
-                    request.amount,
+                    fundingStatus.amount,
                 )
             }
         }
@@ -726,13 +761,13 @@ class PaywalledRTCServer
             }
 
         @OptIn(ExperimentalEncodingApi::class)
-        private suspend fun shouldSkipPaymentRequestBecauseSessionFunded(requiredAmount: String = config.gating.amount): Boolean {
+        private suspend fun sessionVaultFundingStatus(requiredAmount: String = config.gating.amount): VaultFundingStatus {
             if (config.vaultOnlyBilling) {
-                val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
-                val signer = config.viewerAuthorizedSignerPublicKey ?: return false
-                val salt = resolveSaltBase64() ?: return false
-                val amount = requiredAmount.toLongOrNull()?.takeIf { it >= 0L } ?: return false
-                if (amount == 0L) return true
+                val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return VaultFundingStatus.RequestRequired
+                val signer = config.viewerAuthorizedSignerPublicKey ?: return VaultFundingStatus.RequestRequired
+                val salt = resolveSaltBase64() ?: return VaultFundingStatus.RequestRequired
+                val amount = requiredAmount.toLongOrNull()?.takeIf { it >= 0L } ?: return VaultFundingStatus.RequestRequired
+                if (amount == 0L) return VaultFundingStatus.Funded("0")
                 val snapshot =
                     vaultReader(
                         viewer,
@@ -740,18 +775,41 @@ class PaywalledRTCServer
                         signer.copyOf(),
                         config.gating.network,
                         Base64.decode(salt),
-                    ).getOrNull() ?: return false
+                    ).getOrNull()
+                if (snapshot == null) {
+                    // A transient lookup error cannot turn an exhausted pause into a request.
+                    return if (awaitingVaultFunding) VaultFundingStatus.Exhausted else VaultFundingStatus.RequestRequired
+                }
                 // Reserve acknowledged consumption even before the billing engine settles its vouchers.
+                val previousReserved = vaultAcknowledgedCumulative
                 vaultAcknowledgedCumulative =
                     maxOf(
                         vaultAcknowledgedCumulative,
                         snapshot.totalDepositMicroUsdc - snapshot.progressBalanceMicroUsdc,
                     )
                 val available = snapshot.totalDepositMicroUsdc - vaultAcknowledgedCumulative
-                return available > 0L && available >= amount
+                Napier.d(
+                    "HOST_BALANCE_DECISION session=$sessionId segment=$segmentIndex " +
+                        "totalDepositMicro=${snapshot.totalDepositMicroUsdc} " +
+                        "chainCommittedMicro=${snapshot.totalDepositMicroUsdc - snapshot.progressBalanceMicroUsdc} " +
+                        "previousReservedMicro=$previousReserved reservedMicro=$vaultAcknowledgedCumulative " +
+                        "availableMicro=$available costMicro=$amount",
+                    tag = "LS_VAULT_DEBUG",
+                )
+                if (available <= 0L) return VaultFundingStatus.Exhausted
+                // The final receipt authorizes only the remaining balance. Use the same
+                // amount for the voucher checkpoint, reservation, and spend statistics.
+                val charge = minOf(amount, available)
+                if (charge < amount) {
+                    Napier.d(
+                        "HOST_FINAL_PARTIAL_BLOCK session=$sessionId costMicro=$amount chargeMicro=$charge",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                }
+                return VaultFundingStatus.Funded(charge.toString())
             }
-            if (!config.skipPaymentRequestWhenSessionFunded) return false
-            val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return false
+            if (!config.skipPaymentRequestWhenSessionFunded) return VaultFundingStatus.RequestRequired
+            val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return VaultFundingStatus.RequestRequired
             val remaining =
                 getRemainingSessionVaultBalanceUseCase(
                     GetRemainingSessionVaultBalanceUseCase.Params(
@@ -760,7 +818,7 @@ class PaywalledRTCServer
                         authorizedSignerPublicKey = config.viewerAuthorizedSignerPublicKey,
                     ),
                 ).getOrDefault(0L)
-            return remaining > 0L
+            return if (remaining > 0L) VaultFundingStatus.Funded(requiredAmount) else VaultFundingStatus.RequestRequired
         }
 
         private suspend fun handlePayment(railPayment: RailPayment) {
@@ -839,12 +897,27 @@ class PaywalledRTCServer
         // ─── Helpers ────────────────────────────────────────────
 
         private fun sendDC(msg: JsonObject) {
+            val isReceipt = msg[DCFieldKey.TYPE]?.jsonPrimitive?.content == DCMessageType.SEGMENT_ACCEPTED.value
             try {
-                val dc = this.dc ?: return
-                if (dc.state() == RtcDataChannelState.OPEN) {
+                val dc = this.dc
+                if (dc != null && dc.state() == RtcDataChannelState.OPEN) {
                     dc.send(msg.toString().encodeToByteArray())
+                    if (isReceipt) {
+                        Napier.d("HOST_RECEIPT_SENT session=$sessionId segment=$segmentIndex", tag = "LS_VAULT_DEBUG")
+                    }
+                } else if (isReceipt) {
+                    Napier.w(
+                        "HOST_RECEIPT_NOT_SENT session=$sessionId segment=$segmentIndex state=${dc?.state()}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
                 }
             } catch (e: Exception) {
+                if (isReceipt) {
+                    Napier.w(
+                        "HOST_RECEIPT_SEND_ERROR session=$sessionId segment=$segmentIndex errorType=${e::class.simpleName}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                }
                 Napier.e("sendDC failed", e, tag = TAG)
             }
         }
@@ -883,6 +956,11 @@ class PaywalledRTCServer
             if (disposed) return
             if (config.vaultOnlyBilling) {
                 vaultAcknowledgedCumulative += amount.toLong()
+                Napier.d(
+                    "HOST_BLOCK_RESERVED session=$sessionId segment=${receipt.segmentIndex} " +
+                        "debitMicro=$amount reservedMicro=$vaultAcknowledgedCumulative",
+                    tag = "LS_VAULT_DEBUG",
+                )
             }
             stats.segmentsPaid++
             if (config.blockDrivenBilling) {
