@@ -71,6 +71,7 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
         // (lower = viewer disconnects faster after the host stops) vs. tolerance for
         // transient frame gaps/hiccups (higher = fewer false-positive disconnects).
         private const val STREAM_TIMEOUT_MS = 8_000L
+        private const val STREAM_REJECTION_COOLDOWN_MS = 10_000L
 
         private const val BASE58_ALPHABET =
             "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -179,6 +180,15 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
     private val consentLock = SynchronizedObject()
     private var pendingMppConsentContinuation: CompletableDeferred<ConsentApproval>? = null
 
+    // --- Host rejection (e.g. duplicate wallet address) ----------------------------------------
+    private val _streamRejectedMessage = MutableStateFlow<String?>(null)
+
+    /** Non-null while the "host rejected this viewer" modal should be shown. */
+    val streamRejectedMessage: StateFlow<String?> = _streamRejectedMessage
+
+    // Late duplicate notices from the same (already torn down) host are ignored for a short while.
+    private var streamRejectionAcknowledgedAtMs = 0L
+
     init {
         // Monitor stream activity and disconnect on timeout (no frames for STREAM_TIMEOUT_MS).
         viewModelScope.launch {
@@ -192,10 +202,12 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
                     }
                 _isStreamActive.value = currentlyActive
 
+                // While the rejection modal is up, teardown waits for the user's acknowledgement.
                 val shouldTimeoutDisconnect =
                     hasReceivedAtLeastOneFrame &&
                         !currentlyActive &&
-                        !hasTimedOutCurrentStream
+                        !hasTimedOutCurrentStream &&
+                        _streamRejectedMessage.value == null
 
                 if (shouldTimeoutDisconnect) {
                     Napier.w(tag = TAG, message = "Stream timeout triggered - disconnecting")
@@ -220,6 +232,38 @@ open class LiquidAuthViewerStateHolder : ViewModel() {
      * the underlying connection (e.g. stop the SignalService) and emit user-facing events.
      */
     protected open fun onStreamTimeout(reason: String) {}
+
+    /**
+     * The host refused this viewer (for example, the same wallet address is already watching).
+     * Shows a blocking modal; the connection is torn down once the user taps OK via
+     * [acknowledgeStreamRejected]. Repeated notices for the same session are ignored.
+     */
+    fun onStreamRejected(
+        reason: String,
+        message: String?,
+    ) {
+        if (_streamRejectedMessage.value != null) return
+        if (currentTimeMillis() - streamRejectionAcknowledgedAtMs < STREAM_REJECTION_COOLDOWN_MS) return
+        Napier.w(tag = TAG, message = "Stream rejected by host: reason=$reason")
+        clearViewerConsent()
+        _streamRejectedMessage.value =
+            message?.takeIf { it.isNotBlank() }
+                ?: "The host rejected this connection ($reason)."
+    }
+
+    /** User acknowledged the rejection modal: disconnect from the host. */
+    fun acknowledgeStreamRejected() {
+        val message = _streamRejectedMessage.value ?: return
+        streamRejectionAcknowledgedAtMs = currentTimeMillis()
+        _streamRejectedMessage.value = null
+        hasTimedOutCurrentStream = true
+        stopMppPaymentViewer()
+        clearVideoFrame()
+        setSession(null)
+        _authMessage.value = null
+        _error.value = message
+        onStreamTimeout(message)
+    }
 
     // --- Public setters / helpers --------------------------------------------------------------
     fun setSession(cookie: String?) {

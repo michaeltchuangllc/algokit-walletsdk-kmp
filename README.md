@@ -118,41 +118,41 @@ timeline
             : ✅ Account Details - Send USDC in account detail (between accounts)
             : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
             
-    section In Progress 🔄
-    2026Q3   : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
-             : ✅ Liquid Stream - Refactor code to be more in common folder
-             : ✅ Android - Upgrade to AGP9 and KMP 2.4
-             : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
-             : ✅ Liquid Stream - Add in audio and muting functionality
-             : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
-             : ✅ Settings - Add Fnet network support
-             : ✅ Liquid Stream - Add in chat and super-chat functionality
-             : ✅ Testing - Add debug host mode for liquid stream (with multiple bot viewers)
-             : ✅ Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand          
+    2026Q3  : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
+            : ✅ Liquid Stream - Refactor code to be more in common folder
+            : ✅ Android - Upgrade to AGP9 and KMP 2.4
+            : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
+            : ✅ Liquid Stream - Add in audio and muting functionality
+            : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
+            : ✅ Settings - Add Fnet network support
+            : ✅ Liquid Stream - Add in chat and super-chat functionality
+            : ✅ Testing - Add debug host mode for liquid stream (with multiple bot viewers)
+            : ✅ Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand          
              
-    section Future 🔮
+    section In Progress 🔄
     2026Q4   
-             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-             : Onboarding - PQ Passkeys
-             : Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
+             : 🔄 Seed Vault - Escrow Session Vault for Solana accounts
+             : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
+             : Seed Vault - Create AOSP Service for Algorand Trusty applet
              : Liquid Stream - Liquid Stream demo app (own repo)
-             : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
              : Research - React Native sample app talking to Trusty seed vault
-             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
+             : Seed Vault - Integrate Use-Wallet v5 with chain-agnostic accounts
+             : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
              : Liquid Stream - Improve bot commenting in demo mode
 
-    Backlog
-            : Liquid Stream - Website showing latest escrow session vault activity
-            : Onboarding - Rekey flow
-            : Onboarding - Liquid Auth (Rekeyed Accounts)
-            : Onboarding - Ledger flow
-            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : Seed Vault - Escrow Session Vault for Solana accounts
-            : Seed Vault - Integrate Use-Wallet v5 with cross-chain accounts
-            : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
-            : Liquid Gossip mobile POC
-            : TBD
+    section Future 🔮
+    Backlog  : Liquid Stream - Website showing latest escrow session vault activity
+             : Onboarding - Rekey flow
+             : Onboarding - Liquid Auth (Rekeyed Accounts)
+             : Onboarding - Ledger flow
+             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+             : Liquid Gossip mobile POC
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
+             : Onboarding - PQ Passkeys
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : TBD
 
 ```
 
@@ -308,10 +308,19 @@ erDiagram
         Long block_number
         String note
     }
+    solana_linked_signer {
+        String owner_address PK,FK
+        String signer_address
+        ByteArray encrypted_private_seed
+        String source
+        String derivation_path
+        Long created_at_ms
+    }
     custom_hd_seed_info }|--|| hd_seeds : link
     hd_keys }|--|| hd_seeds : link
     falcon_24 }|--|| hd_seeds : link
     passkey_table }|--|| sites : link
+    solana_linked_signer |o--|| seed_vault : link
 ```
 
 ## Contributing

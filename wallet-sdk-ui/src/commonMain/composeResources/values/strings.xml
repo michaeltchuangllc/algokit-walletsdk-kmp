@@ -32,6 +32,7 @@
     <string name="cancel">Cancel</string>
     <string name="share_via">Share via</string>
     <string name="ok">OK</string>
+    <string name="stream_rejected_title">Already watching</string>
     <string name="next">Next</string>
     <string name="account_name">Account Name</string>
     <string name="name">Name</string>

@@ -65,6 +65,7 @@ class MppPaymentViewerManager(
         val setViewerPaymentProcessing: (Boolean) -> Unit = {},
         val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
         val getConnectionType: () -> IceConnectionType = { IceConnectionType.UNKNOWN },
+        val onStreamRejected: (reason: String, message: String?) -> Unit = { _, _ -> },
     )
 
     private data class VaultFundingResult(
@@ -327,6 +328,11 @@ class MppPaymentViewerManager(
 
                 viewer.onChatMessageReceived = { chatMsg ->
                     params.onChatMessageReceived(chatMsg)
+                }
+
+                viewer.rtcClient.onStreamRejected = { reason, message ->
+                    Napier.w("[VIEWER_STREAM_REJECTED] viewer=$viewerAddress reason=$reason", tag = TAG)
+                    params.onStreamRejected(reason, message)
                 }
 
                 Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress network=${params.mppNetwork}", tag = TAG)

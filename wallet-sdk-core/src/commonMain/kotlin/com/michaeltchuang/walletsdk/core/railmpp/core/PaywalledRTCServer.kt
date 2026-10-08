@@ -305,6 +305,26 @@ class PaywalledRTCServer
             )
         }
 
+        /** Tells the viewer the host refuses to serve it (e.g. duplicate wallet address). */
+        fun sendStreamRejected(
+            reason: String,
+            message: String,
+        ) {
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.STREAM_REJECTED.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(
+                        DCFieldKey.PAYLOAD,
+                        buildJsonObject {
+                            put("reason", reason)
+                            put("message", message)
+                        },
+                    )
+                },
+            )
+        }
+
         // ─── Internal ───────────────────────────────────────────
 
         private fun handleDataChannelOpen() {

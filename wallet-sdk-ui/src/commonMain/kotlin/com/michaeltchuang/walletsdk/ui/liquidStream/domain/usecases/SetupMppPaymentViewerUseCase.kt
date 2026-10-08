@@ -46,6 +46,7 @@ class SetupMppPaymentViewerUseCase(
         val setViewerPaymentProcessing: (Boolean) -> Unit = {},
         val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
         val getConnectionType: () -> IceConnectionType = { IceConnectionType.UNKNOWN },
+        val onStreamRejected: (reason: String, message: String?) -> Unit = { _, _ -> },
     )
 
     operator fun invoke(params: Params) {
@@ -75,6 +76,7 @@ class SetupMppPaymentViewerUseCase(
                 setViewerPaymentProcessing = params.setViewerPaymentProcessing,
                 onVaultSnapshot = params.onVaultSnapshot,
                 getConnectionType = params.getConnectionType,
+                onStreamRejected = params.onStreamRejected,
             ),
         )
     }

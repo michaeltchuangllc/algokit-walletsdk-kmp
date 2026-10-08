@@ -22,6 +22,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.StreamHeartbeatVideoSink
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerStreamRejectedDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
@@ -218,5 +219,20 @@ fun AnswerScreen(
         )
 
         ViewerMppConsentDialog(stateHolder = viewModel)
+
+        ViewerStreamRejectedDialog(
+            stateHolder = viewModel,
+            onAcknowledged = {
+                streamHostUiModeState.value = StreamHostUiMode.Hidden
+                viewModel.signalService.value?.stop()
+                ConnectionStatusState.isVisible = false
+                ConnectionStatusState.isExpanded = false
+                ConnectionStatusState.session = ""
+                ConnectionStatusState.origin = ""
+                ConnectionStatusState.requestId = ""
+                ConnectionStatusState.accountAddress = ""
+                onViewerClose()
+            },
+        )
     }
 }
