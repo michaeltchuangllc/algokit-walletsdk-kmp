@@ -380,6 +380,7 @@ actual open class AnswerViewModel actual constructor(
                         signFido2Challenge = ::signFido2Challenge,
                         onChatMessageReceived = ::onChatMessageReceived,
                         getHostAddress = { hostAddress.value },
+                        onStreamRejected = ::onStreamRejected,
                     ),
                 )
             } catch (_: CancellationException) {

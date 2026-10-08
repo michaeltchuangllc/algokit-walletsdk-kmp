@@ -179,6 +179,14 @@ open class CommonAnswerViewModel(
                 Napier.d(tag = TAG, message = "Core protocol JSON message: ${msgType.value}")
             }
 
+            DCMessageType.STREAM_REJECTED -> {
+                val payload = jsonObject["payload"]?.jsonObject
+                onStreamRejected(
+                    reason = payload?.optString("reason") ?: "rejected",
+                    message = payload?.optString("message"),
+                )
+            }
+
             DCMessageType.STREAM_COST_UPDATE -> {
                 val payload = jsonObject["payload"]?.jsonObject
                 if (payload != null) {
@@ -268,6 +276,7 @@ open class CommonAnswerViewModel(
             reference == "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
             reference == "ping" -> onPongRequested()
             type == DCMessageType.STREAM_COST_UPDATE.value -> handleMessages(message)
+            type == DCMessageType.STREAM_REJECTED.value -> handleMessages(message)
             reference == null -> handleViewerPaymentMessage(message, onPaymentMessage, onHostDiscovered)
             else -> Unit
         }

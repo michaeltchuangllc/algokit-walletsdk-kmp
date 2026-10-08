@@ -16,6 +16,9 @@ enum class DCMessageType(
     SEGMENT_VOUCHER("segment:voucher"),
     CHAT_MESSAGE("chat:message"),
     STREAM_COST_UPDATE("stream:cost:update"),
+
+    /** Sent by the host when it refuses a viewer (e.g. the wallet is already watching this stream). */
+    STREAM_REJECTED("stream:rejected"),
     ;
 
     companion object {

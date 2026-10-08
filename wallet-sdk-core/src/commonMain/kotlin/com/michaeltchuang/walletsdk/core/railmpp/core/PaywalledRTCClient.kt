@@ -68,6 +68,9 @@ class PaywalledRTCClient(
     var onBudgetExceeded: ((SpendSummary) -> Unit)? = null
     var onChatMessageReceived: ((ChatMessage) -> Unit)? = null
     var onSessionTerminated: (() -> Unit)? = null
+
+    /** The host refused this viewer; [message] is human readable, [reason] is a machine code. */
+    var onStreamRejected: ((reason: String, message: String?) -> Unit)? = null
     var onError: ((Throwable) -> Unit)? = null
 
     // ─── State ──────────────────────────────────────────────
@@ -334,6 +337,13 @@ class PaywalledRTCClient(
                     disposed = true
                     deferredVaultReceipts.clear()
                     onSessionTerminated?.invoke()
+                }
+
+                DCMessageType.STREAM_REJECTED -> {
+                    val payload = msg[DCFieldKey.PAYLOAD] as? JsonObject
+                    val reason = payload?.optStr("reason", "rejected") ?: "rejected"
+                    val message = payload?.get("message")?.jsonPrimitive?.content
+                    onStreamRejected?.invoke(reason, message)
                 }
 
                 DCMessageType.CHAT_MESSAGE -> {

@@ -37,6 +37,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerStreamRejectedDialog
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
@@ -277,6 +278,14 @@ actual fun AnswerScreenOverlay() {
             )
 
             ViewerMppConsentDialog(stateHolder = stateHolder)
+
+            ViewerStreamRejectedDialog(
+                stateHolder = stateHolder,
+                onAcknowledged = {
+                    streamHostUiModeState.value = StreamHostUiMode.Hidden
+                    dismissOverlay(viewerManager)
+                },
+            )
         }
     }
 }

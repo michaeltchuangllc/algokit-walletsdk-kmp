@@ -87,6 +87,7 @@ actual open class AnswerViewModel actual constructor(
                 mppNetwork = mppNetwork,
                 requestMppConsent = ::requestMppConsentFromUi,
                 getConnectionType = { connectionType.value },
+                onStreamRejected = ::onStreamRejected,
                 setViewerPaymentProcessing = ::setViewerPaymentProcessing,
                 setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
                 onVaultSnapshot = ::setViewerVaultSnapshot,

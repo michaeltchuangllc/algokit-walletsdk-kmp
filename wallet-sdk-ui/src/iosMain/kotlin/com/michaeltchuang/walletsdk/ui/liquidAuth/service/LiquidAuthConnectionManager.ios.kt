@@ -54,6 +54,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import org.koin.mp.KoinPlatform.getKoin
+import kotlin.time.TimeSource
 
 // ── Swift-bridged global handlers ─────────────────────────────────────────────
 
@@ -147,6 +148,9 @@ actual class LiquidAuthConnectionManager actual constructor(
     )
 
     private val hostViewerIdentities = mutableMapOf<String, HostViewerIdentity>()
+
+    // Peers refused because their wallet address is already watching (requestId -> last notice).
+    private val rejectedHostViewers = mutableMapOf<String, TimeSource.Monotonic.ValueTimeMark?>()
     private val hostViewerDetails = mutableMapOf<String, HostViewerDetails>()
     private val hostViewerBalanceJobs = mutableMapOf<String, Job>()
 
@@ -324,6 +328,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         hostViewerBalanceJobs.values.forEach { it.cancel() }
         hostViewerBalanceJobs.clear()
         hostViewerIdentities.clear()
+        rejectedHostViewers.clear()
         hostViewerDetails.clear()
         stopConnectionTypePolling()
         stopBlockConsumption()
@@ -906,6 +911,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         hostPaymentSenders.remove(requestId)
         hostViewerBalanceJobs.remove(requestId)?.cancel()
         hostViewerIdentities.remove(requestId)
+        rejectedHostViewers.remove(requestId)
         hostViewerDetails.remove(requestId)
         if (requestId == activeRequestId) {
             paymentRequestJob?.cancel()
@@ -950,6 +956,11 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (!meshHostingEnabled && requestId == activeRequestId) {
             iosBroadcastPaymentDCSendMessageHandler = handler
         }
+        if (requestId in rejectedHostViewers) {
+            // The rejection may have happened before this peer's payment DC opened.
+            sendStreamRejectedNotice(requestId, throttle = false)
+            return
+        }
         if (requestId in connectedHostViewers) {
             if (requestId == activeRequestId) streamCreatorDataChannel?.notifyOpen() else sendAdditionalViewerInfo(requestId)
         }
@@ -960,6 +971,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         message: String,
     ) {
         if (requestId !in connectedHostViewers || requestId !in hostInvitations) return
+        if (!admitHostViewerIdentity(requestId, message)) return
         captureHostViewerIdentity(requestId, message)
         if (requestId == activeRequestId) {
             notifyHostMessageReceived(message)
@@ -972,6 +984,82 @@ actual class LiquidAuthConnectionManager actual constructor(
                 deliverAdditionalViewerMessage(requestId, peer, message)
             }
         }
+    }
+
+    /**
+     * Returns the requestId of another live (non-rejected) peer that has already claimed
+     * [address], or null if the address is free.
+     */
+    private fun duplicateAddressOwner(
+        address: String,
+        requestId: String,
+    ): String? {
+        activeRequestId
+            ?.takeIf {
+                it != requestId &&
+                    it in connectedHostViewers &&
+                    it !in rejectedHostViewers &&
+                    activeViewerAddressForVault == address
+            }?.let { return it }
+        return hostViewerIdentities.entries
+            .firstOrNull { (id, identity) ->
+                id != requestId &&
+                    id in connectedHostViewers &&
+                    id !in rejectedHostViewers &&
+                    identity.address == address
+            }?.key
+    }
+
+    /**
+     * Identity gate for every inbound viewer message. A wallet address may only watch this
+     * host once: a peer claiming an address already owned by another live peer is refused.
+     * Returns false when the message must be dropped.
+     */
+    private fun admitHostViewerIdentity(
+        requestId: String,
+        message: String,
+    ): Boolean {
+        if (!meshHostingEnabled) return true
+        if (requestId in rejectedHostViewers) {
+            sendStreamRejectedNotice(requestId, throttle = true)
+            return false
+        }
+        val address = extractLiquidAuthViewerAddress(message) ?: return true
+        val owner = duplicateAddressOwner(address, requestId) ?: return true
+        Napier.w("$TAG: [HOST_DUPLICATE_VIEWER_REJECTED] requestId=$requestId owner=$owner viewer=$address")
+        rejectedHostViewers[requestId] = null
+        // Notify first so the viewer sees the reason before any session teardown message.
+        sendStreamRejectedNotice(requestId, throttle = false)
+        // Stop any per-peer payment work now; the transport lingers only to deliver the notice.
+        closeAdditionalViewer(requestId, LIQUID_STREAM_REJECT_DUPLICATE_VIEWER)
+        val generation = hostGeneration
+        hostBillingScope.launch {
+            delay(LIQUID_STREAM_REJECTED_VIEWER_GRACE_MS)
+            if (generation != hostGeneration || requestId !in rejectedHostViewers) return@launch
+            notifyBroadcastInvitationFailed(requestId, LIQUID_STREAM_DUPLICATE_VIEWER_MESSAGE)
+        }
+        return false
+    }
+
+    private fun sendStreamRejectedNotice(
+        requestId: String,
+        throttle: Boolean,
+    ) {
+        if (requestId !in rejectedHostViewers) return
+        val last = rejectedHostViewers[requestId]
+        if (throttle && last != null && last.elapsedNow().inWholeMilliseconds < LIQUID_STREAM_REJECTION_NOTICE_RESEND_MS) {
+            return
+        }
+        val sender = hostPaymentSenders[requestId] ?: return
+        rejectedHostViewers[requestId] = TimeSource.Monotonic.markNow()
+        runCatching {
+            sender(
+                buildLiquidStreamRejectedMessage(
+                    LIQUID_STREAM_REJECT_DUPLICATE_VIEWER,
+                    LIQUID_STREAM_DUPLICATE_VIEWER_MESSAGE,
+                ),
+            )
+        }.onFailure { Napier.w("$TAG: failed to send rejection to $requestId", it) }
     }
 
     /** Invitation-local identity; never feeds an extra viewer into the primary payment rail. */

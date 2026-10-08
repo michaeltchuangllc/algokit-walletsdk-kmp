@@ -155,6 +155,9 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     private val additionalViewers = linkedMapOf<String, AdditionalViewer>()
+
+    // Peers refused because their wallet address is already watching (requestId -> last notice ms).
+    private val rejectedViewerIds = linkedMapOf<String, Long>()
     private val hostCallbackScope = CoroutineScope(Dispatchers.Main.immediate)
     private val connectionTypePollingController =
         LiquidAuthPollingJobController(
@@ -850,6 +853,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             },
             onMessage = message@{ session, msg ->
                 if (!isCurrent() || service.hostViewerSessions[requestId] !== session) return@message
+                if (!admitViewerIdentity(requestId, msg)) return@message
                 if (requestId == primaryViewerId) {
                     tryCaptureViewerAddressFromMessage(msg)
                     activePaymentRecipient?.let { recipient ->
@@ -881,7 +885,101 @@ actual class LiquidAuthConnectionManager actual constructor(
         )
     }
 
+    /**
+     * Returns the requestId of another live (non-rejected) peer that has already claimed
+     * [address], or null if the address is free.
+     */
+    private fun duplicateAddressOwner(
+        address: String,
+        requestId: String,
+    ): String? {
+        primaryViewerId
+            ?.takeIf {
+                it != requestId &&
+                    it in connectedViewerIds &&
+                    it !in rejectedViewerIds &&
+                    activeViewerAddressForVault == address
+            }?.let { return it }
+        return additionalViewers.values
+            .firstOrNull { viewer ->
+                val id = viewer.session.requestId
+                id != requestId && id !in rejectedViewerIds && viewer.viewerAddress == address
+            }?.session
+            ?.requestId
+    }
+
+    /**
+     * Identity gate for every inbound viewer message. A wallet address may only watch this
+     * host once: a peer that claims an address already owned by another live peer is refused.
+     * Returns false when the message must be dropped.
+     */
+    private fun admitViewerIdentity(
+        requestId: String?,
+        message: String,
+    ): Boolean {
+        if (requestId == null) return true
+        if (requestId in rejectedViewerIds) {
+            sendStreamRejectedNotice(requestId, throttle = true)
+            return false
+        }
+        val address = extractLiquidAuthViewerAddress(message) ?: return true
+        val owner = duplicateAddressOwner(address, requestId) ?: return true
+        rejectDuplicateViewer(requestId, address, owner)
+        return false
+    }
+
+    private fun rejectDuplicateViewer(
+        requestId: String,
+        address: String,
+        ownerId: String,
+    ) {
+        Napier.w(
+            "[HOST_DUPLICATE_VIEWER_REJECTED] requestId=$requestId owner=$ownerId viewer=$address",
+            tag = TAG,
+        )
+        rejectedViewerIds[requestId] = 0L
+        // Stop any billing for the refused peer right away; the transport lingers only so the
+        // notice can be delivered.
+        additionalViewers[requestId]?.let { closeAdditionalViewerBilling(it) }
+        sendStreamRejectedNotice(requestId, throttle = false)
+        val generation = hostGeneration
+        val service = signalService
+        hostCallbackScope.launch {
+            delay(LIQUID_STREAM_REJECTED_VIEWER_GRACE_MS)
+            if (generation != hostGeneration || signalService !== service || requestId !in rejectedViewerIds) {
+                return@launch
+            }
+            val additional = additionalViewers[requestId]
+            if (additional != null) {
+                rejectAdditionalViewer(additional, LIQUID_STREAM_REJECT_DUPLICATE_VIEWER)
+            } else {
+                service?.removeHostViewer(requestId)
+            }
+        }
+    }
+
+    private fun sendStreamRejectedNotice(
+        requestId: String,
+        throttle: Boolean,
+    ) {
+        val now = System.currentTimeMillis()
+        val last = rejectedViewerIds[requestId] ?: return
+        if (throttle && now - last < LIQUID_STREAM_REJECTION_NOTICE_RESEND_MS) return
+        rejectedViewerIds[requestId] = now
+        val reason = LIQUID_STREAM_REJECT_DUPLICATE_VIEWER
+        val text = LIQUID_STREAM_DUPLICATE_VIEWER_MESSAGE
+        // Application channel (always open once connected).
+        runCatching {
+            signalService?.hostViewerSessions?.get(requestId)?.send(buildLiquidStreamRejectedMessage(reason, text))
+        }
+        // Payment channel, if a creator was already attached to this peer.
+        val creator =
+            if (requestId == primaryViewerId) liquidStreamCreator else additionalViewers[requestId]?.creator
+        runCatching { creator?.rtcServer?.sendStreamRejected(reason, text) }
+    }
+
     private fun removeViewerState(id: String) {
+        rejectedViewerIds.remove(id)
         connectedViewerIds.remove(id)
         invitations.remove(id)
         retiredInvitationIds.add(id)
@@ -1403,6 +1501,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         message: String,
     ) {
         if (!isCurrent(viewer)) return
+        if (!admitViewerIdentity(viewer.session.requestId, message)) return
         runCatching {
             val parsed = parseLiquidAuthHostTransportMessage(message)
             val voucher = parsed.paymentVoucher
@@ -1501,6 +1600,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     private fun tryCaptureViewerAddressFromMessage(msg: String) {
+        if (!admitViewerIdentity(primaryViewerId, msg)) return
         runCatching {
             val parsed = parseLiquidAuthHostTransportMessage(msg)
             Napier.e("[SESSION_VAULT_VIEWER_VOUCHER_SIG] voucherRef=${parsed.reference.orEmpty()}", tag = TAG)
@@ -1710,6 +1810,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         isBound = false
         activeRequestId = null
         primaryViewerId = null
+        rejectedViewerIds.clear()
         hostOrigin = null
         hostStarted = false
     }

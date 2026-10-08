@@ -404,6 +404,53 @@ fun buildLiquidStreamCostUpdateMessage(
         put("payload", buildJsonObject { put("costMicroUsdc", costMicroUsdc) })
     }.toString()
 
+/** Reason code sent when a wallet that is already watching tries to join the same host stream. */
+const val LIQUID_STREAM_REJECT_DUPLICATE_VIEWER = "duplicate_viewer"
+
+const val LIQUID_STREAM_DUPLICATE_VIEWER_MESSAGE =
+    "This wallet is already watching this stream on another device or session. " +
+        "Only one connection per wallet address is allowed."
+
+/**
+ * How long the host keeps a rejected peer's transport open so the rejection notice can be
+ * delivered (and re-sent on any late message) before forcibly removing the peer.
+ */
+const val LIQUID_STREAM_REJECTED_VIEWER_GRACE_MS = 5_000L
+
+/** Minimum spacing between repeated rejection notices to the same refused peer. */
+const val LIQUID_STREAM_REJECTION_NOTICE_RESEND_MS = 1_000L
+
+/**
+ * Builds the `stream:rejected` notice sent to a viewer the host refuses to serve. Identical
+ * shape on Android and iOS; viewers handle it on both the general and payment data channels.
+ */
+fun buildLiquidStreamRejectedMessage(
+    reason: String,
+    message: String,
+): String =
+    buildJsonObject {
+        put("type", DCMessageType.STREAM_REJECTED.value)
+        put(
+            "payload",
+            buildJsonObject {
+                put("reason", reason)
+                put("message", message)
+            },
+        )
+    }.toString()
+
+/**
+ * Extracts the wallet address a viewer claims in any identity-bearing message (credential,
+ * `segment:handshake`, or `segment:voucher`). Returns null for non-identity messages.
+ */
+fun extractLiquidAuthViewerAddress(message: String): String? =
+    runCatching {
+        val parsed = parseLiquidAuthHostTransportMessage(message)
+        parsed.paymentVoucher?.viewerAddress
+            ?: parsed.viewerHello?.viewerAddress
+            ?: parsed.address.takeIf { parsed.reference == null && (parsed.type == null || parsed.type == "credential") }
+    }.getOrNull()?.takeIf { it.isNotBlank() }
+
 /**
  * Factory function to create the default LiquidAuthConnectionManager.
  * Call this from Compose with LocalContext.current on Android, or Unit on iOS.
