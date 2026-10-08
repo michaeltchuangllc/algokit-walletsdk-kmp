@@ -141,7 +141,7 @@ timeline
              : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
              : Liquid Stream - Improve bot commenting in demo mode
 
-    Backlog 🔮
+    section Backlog 🔮
             : Liquid Stream - Website showing latest escrow session vault activity
             : Onboarding - Rekey flow
             : Onboarding - Liquid Auth (Rekeyed Accounts)
