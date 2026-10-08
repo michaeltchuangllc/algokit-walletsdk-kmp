@@ -141,18 +141,18 @@ timeline
              : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
              : Liquid Stream - Improve bot commenting in demo mode
 
-    section Backlog 🔮
-            : Liquid Stream - Website showing latest escrow session vault activity
-            : Onboarding - Rekey flow
-            : Onboarding - Liquid Auth (Rekeyed Accounts)
-            : Onboarding - Ledger flow
-            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
-            : Liquid Gossip mobile POC
-            : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-            : Onboarding - PQ Passkeys
-            : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
-            : TBD
+    section Future 🔮
+    Backlog  : Liquid Stream - Website showing latest escrow session vault activity
+             : Onboarding - Rekey flow
+             : Onboarding - Liquid Auth (Rekeyed Accounts)
+             : Onboarding - Ledger flow
+             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+             : Liquid Gossip mobile POC
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
+             : Onboarding - PQ Passkeys
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : TBD
 
 ```
 
