@@ -7,12 +7,16 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServ
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 actual fun uiPlatformModule(): Module =
     module {
+        viewModel {
+            SolanaEscrowVaultDebugViewModel(get(), get(), get(), get(), get(), get(), get())
+        }
         viewModel {
             EscrowSessionVaultDebugViewModel(
                 stateDelegate = StateDelegate<EscrowSessionVaultDebugViewModel.ViewState>(),
