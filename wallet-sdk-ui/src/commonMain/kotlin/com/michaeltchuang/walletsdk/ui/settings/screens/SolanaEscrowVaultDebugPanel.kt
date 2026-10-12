@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.formatSolanaDebugSol
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -82,8 +83,9 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    "Creator fee-paying hot wallet — fund this address with devnet SOL for fees and token-account rent:\n" +
-                        state.payeeFeePayer.ifBlank { "Not selected" },
+                    "Creator fee payer (creator's linked signer) — pays settle fees and token-account rent:\n" +
+                        state.payeeFeePayer.ifBlank { "Not selected" } +
+                        (state.payeeFeePayerLamports?.let { "\nBalance: ${formatSolanaDebugSol(it)} SOL" } ?: ""),
                     color = AlgoKitTheme.colors.textMain,
                 )
             }
@@ -127,7 +129,8 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             hasChannel && state.pendingVoucher != null,
             viewModel::settle,
         )
-        VaultAction("Authorize current linked signer", hasChannel) { viewModel.authorizeSigner(sign) }
+        VaultAction("Authorize viewer voucher signer (on-chain)", hasChannel) { viewModel.authorizeSigner(sign) }
+        VaultAction("Fund creator fee payer 0.01 SOL · creator", hasChannel) { viewModel.fundFeePayer(sign) }
         VaultAction("Revoke voucher signer", hasChannel) { viewModel.revokeSigner(sign) }
         VaultAction("Close & refund · creator", hasChannel) { viewModel.close(sign) }
         VaultAction("Request close · viewer", hasChannel) { viewModel.requestClose(sign) }

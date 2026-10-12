@@ -137,8 +137,6 @@ class SolanaEscrowSessionVaultManager(
             else -> SolanaEscrowSessionVaultConfig.DEVNET
         }
 
-    // region Addresses
-
     fun deriveChannelAddress(
         network: String,
         payer: String,
@@ -166,10 +164,6 @@ class SolanaEscrowSessionVaultManager(
         mint: String,
     ): String = SolanaPda.associatedTokenAddress(channel, mint)
 
-    // endregion
-
-    // region Reads
-
     suspend fun getChannel(
         network: String,
         channel: String,
@@ -192,10 +186,6 @@ class SolanaEscrowSessionVaultManager(
             .map { (address, data) -> decodeChannel(address, data) }
             .sortedByDescending { it.startSlot }
     }
-
-    // endregion
-
-    // region Payer (Seed Vault) actions
 
     data class OpenResult(
         val channel: String,
@@ -306,10 +296,6 @@ class SolanaEscrowSessionVaultManager(
             finalize(network, IX_WITHDRAW, state, caller = payer, feePayer = payer)
         }
 
-    // endregion
-
-    // region Session key (authorized signer)
-
     /**
      * Builds a `settle(cumulativeAmount)` transaction paid for by [feePayer] (the address the payee
      * advertised — for a Seed Vault payee, its linked session key) and signs it with the channel's
@@ -348,9 +334,28 @@ class SolanaEscrowSessionVaultManager(
         )
     }
 
-    // endregion
+    /** SOL balance (lamports) of [address], e.g. the payee's fee-paying session key. */
+    suspend fun getSolBalance(
+        network: String,
+        address: String,
+    ): Long = rpc.getBalance(network, address)
 
-    // region Payee actions
+    /**
+     * Sends [lamports] of SOL from [from] (a Seed Vault account, one approval) to [to] — used to
+     * fund the payee's linked session key so it can pay settle fees and first-time ATA rent.
+     */
+    suspend fun fundFeePayer(
+        network: String,
+        from: SolanaTransactionSigner,
+        to: String,
+        lamports: Long,
+    ): Result<String> =
+        execute("fund_fee_payer") {
+            require(lamports > 0) { "Funding amount must be positive" }
+            require(from.address != to) { "Source and fee payer must differ" }
+            configFor(network)
+            sendAndConfirm(network, from, listOf(SolanaTransactionBuilder.systemTransfer(from.address, to, lamports)))
+        }
 
     /**
      * Payee side: verifies the voucher is exactly a `settle` for this channel (rebuilding the
@@ -416,10 +421,6 @@ class SolanaEscrowSessionVaultManager(
             require(state.payee == payee.address) { "Only the channel payee can close the channel" }
             finalize(network, IX_CLOSE, state, caller = payee, feePayer = feePayer)
         }
-
-    // endregion
-
-    // region Internals
 
     private suspend fun manage(
         network: String,
@@ -560,8 +561,6 @@ class SolanaEscrowSessionVaultManager(
         runCatching { block() }
             .recoverCatching { throw mapProgramError(it) }
             .onFailure { Napier.e("[SOLANA_ESCROW_${action.uppercase()}_ERR] ${it.message}", it, tag = TAG) }
-
-    // endregion
 
     companion object {
         private const val TAG = "SolanaEscrowVault"

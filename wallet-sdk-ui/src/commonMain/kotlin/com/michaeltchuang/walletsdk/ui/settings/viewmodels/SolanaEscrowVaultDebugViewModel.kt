@@ -47,6 +47,8 @@ class SolanaEscrowVaultDebugViewModel(
         val channel: SolanaEscrowChannel? = null,
         val payerSessionKey: String = "",
         val payeeFeePayer: String = "",
+        /** SOL balance (lamports) of [payeeFeePayer]; null until read. */
+        val payeeFeePayerLamports: Long? = null,
         val amount: String = "0.1",
         val pendingVoucher: SolanaSettlementVoucher? = null,
         val isLoading: Boolean = false,
@@ -72,6 +74,7 @@ class SolanaEscrowVaultDebugViewModel(
                 cluster == other.cluster &&
                 payerSessionKey == other.payerSessionKey &&
                 payeeFeePayer == other.payeeFeePayer &&
+                payeeFeePayerLamports == other.payeeFeePayerLamports &&
                 amount == other.amount &&
                 pendingVoucher == other.pendingVoucher &&
                 isLoading == other.isLoading &&
@@ -145,6 +148,7 @@ class SolanaEscrowVaultDebugViewModel(
                 channel = null,
                 payerSessionKey = "",
                 payeeFeePayer = "",
+                payeeFeePayerLamports = null,
                 pendingVoucher = null,
             )
         refresh()
@@ -285,6 +289,39 @@ class SolanaEscrowVaultDebugViewModel(
         }
     }
 
+    /**
+     * Sends [FEE_PAYER_FUNDING_LAMPORTS] SOL to the creator's fee-paying linked key (the voucher
+     * `feePayer`), signed by the payee (creator) Seed Vault account — the creator always pays its own
+     * settle fees. Settling is never paid by the payer's voucher signer, so this is what unblocks Settle.
+     */
+    fun fundFeePayer(sign: suspend (String, ByteArray) -> ByteArray) {
+        val label = "Fund creator fee payer"
+        runOperation("$label…") { token, _ ->
+            refreshContext(token)
+            val current = state.value
+            requireSelected(current)
+            val feePayer = current.payeeFeePayer
+            check(feePayer.isNotBlank()) { "Creator fee-payer key is not available yet. Refresh first." }
+            val source = current.payee
+            val sourceLamports = manager.getSolBalance(current.cluster, source)
+            checkCurrent(token)
+            check(sourceLamports >= FEE_PAYER_FUNDING_LAMPORTS + FUNDING_FEE_BUFFER_LAMPORTS) {
+                "${source.take(6)}… has ${formatSolanaDebugSol(sourceLamports)} SOL; needs at least " +
+                    "${formatSolanaDebugSol(FEE_PAYER_FUNDING_LAMPORTS + FUNDING_FEE_BUFFER_LAMPORTS)} SOL. Airdrop devnet SOL first."
+            }
+            checkNetwork(token, current.cluster)
+            val signature =
+                manager
+                    .fundFeePayer(
+                        current.cluster,
+                        ownerSigner(token, current.cluster, source, sign),
+                        feePayer,
+                        FEE_PAYER_FUNDING_LAMPORTS,
+                    ).getOrThrow()
+            afterWrite(token, "$label confirmed (${formatSolanaDebugSol(FEE_PAYER_FUNDING_LAMPORTS)} SOL): $signature")
+        }
+    }
+
     fun close(sign: suspend (String, ByteArray) -> ByteArray) {
         ownerAction("Close", sign, payeeSigns = true, closesChannel = true) { current, channel, signer ->
             manager.close(current.cluster, signer, channel.address).getOrThrow()
@@ -400,6 +437,7 @@ class SolanaEscrowVaultDebugViewModel(
                         channel = null,
                         payerSessionKey = "",
                         payeeFeePayer = "",
+                        payeeFeePayerLamports = null,
                         pendingVoucher = null,
                     )
                 } else {
@@ -418,10 +456,13 @@ class SolanaEscrowVaultDebugViewModel(
         checkCurrent(token)
         val feePayer = getFeePayer(current.payee)
         checkCurrent(token)
+        val feePayerLamports = manager.getSolBalance(current.cluster, feePayer)
+        checkCurrent(token)
         mutableState.update {
             it.copy(
                 payerSessionKey = payerKey,
                 payeeFeePayer = feePayer,
+                payeeFeePayerLamports = feePayerLamports,
                 pendingVoucher =
                     it.pendingVoucher?.takeIf { voucher ->
                         voucher.authorizedSigner == payerKey && voucher.feePayer == feePayer
@@ -638,6 +679,10 @@ class SolanaEscrowVaultDebugViewModel(
         const val DEBUG_DOMAIN = "wallet-sdk-solana-escrow-debug-v1"
         const val MAX_AMOUNT_LENGTH = 32
 
+        /** 0.01 SOL: covers first-settle USDC account rent (~0.00204 SOL) plus many settle fees. */
+        const val FEE_PAYER_FUNDING_LAMPORTS = 10_000_000L
+        const val FUNDING_FEE_BUFFER_LAMPORTS = 10_000L
+
         fun sameChannel(
             left: SolanaEscrowChannel?,
             right: SolanaEscrowChannel?,
@@ -658,6 +703,11 @@ class SolanaEscrowVaultDebugViewModel(
                 left.bump == right.bump
         }
     }
+}
+
+internal fun formatSolanaDebugSol(lamports: Long): String {
+    val raw = lamports.coerceAtLeast(0).toString().padStart(10, '0')
+    return "${raw.dropLast(9)}.${raw.takeLast(9)}".trimEnd('0').trimEnd('.')
 }
 
 /** Strict, positive six-decimal USDC parsing; never rounds or passes through floating point. */
