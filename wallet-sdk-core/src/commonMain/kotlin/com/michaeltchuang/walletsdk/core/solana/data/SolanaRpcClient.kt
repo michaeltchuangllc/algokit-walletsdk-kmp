@@ -38,14 +38,24 @@ class SolanaRpcClient(
     suspend fun getLatestBlockhash(network: String): String {
         val result =
             call(network, "getLatestBlockhash", buildJsonArray { add(commitment()) })
-        return result.jsonObject["value"]!!.jsonObject["blockhash"]!!.jsonPrimitive.content
+        return result.jsonObject["value"]!!
+            .jsonObject["blockhash"]!!
+            .jsonPrimitive.content
     }
 
     suspend fun getBalance(
         network: String,
         address: String,
     ): Long {
-        val result = call(network, "getBalance", buildJsonArray { add(JsonPrimitive(address)); add(commitment()) })
+        val result =
+            call(
+                network,
+                "getBalance",
+                buildJsonArray {
+                    add(JsonPrimitive(address))
+                    add(commitment())
+                },
+            )
         return result.jsonObject["value"]!!.jsonPrimitive.long
     }
 
@@ -113,7 +123,10 @@ class SolanaRpcClient(
             )
         val value = result.jsonObject["value"]
         if (value == null || value is JsonNull) return null
-        val data = value.jsonObject["data"]!!.jsonArray[0].jsonPrimitive.content
+        val data =
+            value.jsonObject["data"]!!
+                .jsonArray[0]
+                .jsonPrimitive.content
         return Base64.decode(data)
     }
 
@@ -162,7 +175,11 @@ class SolanaRpcClient(
             )
         return result.jsonArray.associate { entry ->
             val obj = entry.jsonObject
-            val data = obj["account"]!!.jsonObject["data"]!!.jsonArray[0].jsonPrimitive.content
+            val data =
+                obj["account"]!!
+                    .jsonObject["data"]!!
+                    .jsonArray[0]
+                    .jsonPrimitive.content
             obj["pubkey"]!!.jsonPrimitive.content to Base64.decode(data)
         }
     }

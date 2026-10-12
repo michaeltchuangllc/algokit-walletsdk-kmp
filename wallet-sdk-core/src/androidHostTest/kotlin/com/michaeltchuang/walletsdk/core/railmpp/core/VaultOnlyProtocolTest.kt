@@ -172,8 +172,11 @@ class VaultOnlyProtocolTest {
                     balance,
                     vaultReader = { _, _, _, _, _ ->
                         reads++
-                        if (readFails) Result.failure(IllegalStateException("offline"))
-                        else Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                        if (readFails) {
+                            Result.failure(IllegalStateException("offline"))
+                        } else {
+                            Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                        }
                     },
                     workDispatcher = dispatcher,
                     blockRounds = { rounds },
@@ -264,8 +267,11 @@ class VaultOnlyProtocolTest {
                         balance,
                         vaultReader = { _, _, _, _, _ ->
                             reads++
-                            if (readFails) Result.failure(IllegalStateException("offline"))
-                            else Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                            if (readFails) {
+                                Result.failure(IllegalStateException("offline"))
+                            } else {
+                                Result.success(HostViewerVaultReader.Snapshot(deposit, 0, deposit, deposit))
+                            }
                         },
                         workDispatcher = dispatcher,
                     )
@@ -372,8 +378,26 @@ class VaultOnlyProtocolTest {
                 runCurrent()
                 assertEquals(listOf("3"), channels.first().receipts().map { it.amount })
                 assertEquals(listOf("8"), channels.last().receipts().map { it.amount })
-                assertNotEquals(channels.first().receipts().single().channelId, channels.last().receipts().single().channelId)
-                assertEquals(otherViewer, channels.last().receipts().single().payFrom)
+                assertNotEquals(
+                    channels
+                        .first()
+                        .receipts()
+                        .single()
+                        .channelId,
+                    channels
+                        .last()
+                        .receipts()
+                        .single()
+                        .channelId,
+                )
+                assertEquals(
+                    otherViewer,
+                    channels
+                        .last()
+                        .receipts()
+                        .single()
+                        .payFrom,
+                )
                 assertEquals(1, servers.first().paidBlockCount)
                 assertEquals(1, servers.last().paidBlockCount)
                 rounds.emit(102)
@@ -487,15 +511,24 @@ class VaultOnlyProtocolTest {
                     config(),
                     balance,
                     vaultReader = { _, _, _, _, _ ->
-                        if (readFails) Result.failure(IllegalStateException("initial lookup unavailable"))
-                        else Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                        if (readFails) {
+                            Result.failure(IllegalStateException("initial lookup unavailable"))
+                        } else {
+                            Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                        }
                     },
                     workDispatcher = dispatcher,
                 )
             server.listen(dc, emptyList())
             advanceTimeBy(101)
             runCurrent()
-            assertEquals(DCMessageType.SEGMENT_REQUEST.value, dc.sent.single()["type"]?.jsonPrimitive?.content)
+            assertEquals(
+                DCMessageType.SEGMENT_REQUEST.value,
+                dc.sent
+                    .single()["type"]
+                    ?.jsonPrimitive
+                    ?.content,
+            )
             val request =
                 paymentRequestFromJson(
                     dc.sent
@@ -1220,8 +1253,11 @@ class VaultOnlyProtocolTest {
                         config(),
                         balance,
                         vaultReader = { _, _, _, _, _ ->
-                            if (readFails) Result.failure(IllegalStateException("initial lookup unavailable"))
-                            else Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                            if (readFails) {
+                                Result.failure(IllegalStateException("initial lookup unavailable"))
+                            } else {
+                                Result.success(HostViewerVaultReader.Snapshot(funded, 0, funded, funded))
+                            }
                         },
                         workDispatcher = dispatcher,
                     )
@@ -1289,8 +1325,7 @@ class VaultOnlyProtocolTest {
             }
         }
 
-    private fun Channel.accept(receipt: PaymentReceipt) =
-        receive(envelope(DCMessageType.SEGMENT_ACCEPTED, receipt.toJson()))
+    private fun Channel.accept(receipt: PaymentReceipt) = receive(envelope(DCMessageType.SEGMENT_ACCEPTED, receipt.toJson()))
 
     private fun assertVaultSpend(
         client: PaywalledRTCClient,
@@ -1319,7 +1354,8 @@ class VaultOnlyProtocolTest {
     }
 
     private fun Channel.receipts(): List<PaymentReceipt> =
-        sent.filter { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_ACCEPTED.value }
+        sent
+            .filter { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_ACCEPTED.value }
             .map { Json.decodeFromJsonElement<PaymentReceipt>(it.getValue("payload")) }
 
     private class Track : RtcRtpSender {

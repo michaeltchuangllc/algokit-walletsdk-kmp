@@ -125,8 +125,12 @@ class PaywalledRTCServer
         private var awaitingVaultFunding = false
 
         private sealed class VaultFundingStatus {
-            data class Funded(val amount: String) : VaultFundingStatus()
+            data class Funded(
+                val amount: String,
+            ) : VaultFundingStatus()
+
             data object RequestRequired : VaultFundingStatus()
+
             data object Exhausted : VaultFundingStatus()
         }
 

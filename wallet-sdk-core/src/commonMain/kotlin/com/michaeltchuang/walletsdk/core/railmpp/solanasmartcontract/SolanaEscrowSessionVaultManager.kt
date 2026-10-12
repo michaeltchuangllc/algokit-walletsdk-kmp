@@ -633,8 +633,16 @@ class SolanaEscrowSessionVaultManager(
         internal fun mapProgramError(error: Throwable): Throwable {
             val text = error.message ?: return error
             val code =
-                Regex("\"Custom\"\\s*:\\s*(\\d+)").find(text)?.groupValues?.get(1)?.toIntOrNull()
-                    ?: Regex("custom program error: 0x([0-9a-fA-F]+)").find(text)?.groupValues?.get(1)?.toIntOrNull(16)
+                Regex("\"Custom\"\\s*:\\s*(\\d+)")
+                    .find(text)
+                    ?.groupValues
+                    ?.get(1)
+                    ?.toIntOrNull()
+                    ?: Regex("custom program error: 0x([0-9a-fA-F]+)")
+                        .find(text)
+                        ?.groupValues
+                        ?.get(1)
+                        ?.toIntOrNull(16)
             val vaultError = code?.let { SolanaEscrowVaultError.fromCode(it) } ?: return error
             return SolanaEscrowVaultException(vaultError, error)
         }

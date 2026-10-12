@@ -11,7 +11,6 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class SolanaKeyDerivationTest {
-
     @Test
     fun base58RoundTripsSystemProgramId() {
         val decoded = Base58.decode(SolanaTransactionBuilder.SYSTEM_PROGRAM_ID)
