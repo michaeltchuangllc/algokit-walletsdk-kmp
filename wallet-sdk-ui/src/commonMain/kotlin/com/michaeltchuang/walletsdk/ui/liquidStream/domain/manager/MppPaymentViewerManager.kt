@@ -289,7 +289,9 @@ class MppPaymentViewerManager(
                 }
 
                 viewer.rtcClient.onPaymentReceipt = { receipt ->
-                    trace("RECEIPT_QUEUED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} amountMicro=${receipt.amount}")
+                    trace(
+                        "RECEIPT_QUEUED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} amountMicro=${receipt.amount}",
+                    )
                     session.scope.launch {
                         voucherMutex.withLock {
                             try {
@@ -381,7 +383,12 @@ class MppPaymentViewerManager(
                                 if (revision != paymentRevision) continue
                                 if (externalConfirmationPending && remaining > 0L) clearPendingPayment()
                                 refreshVaultIdentity(viewerAddress)
-                                val balance = if (session != null) readViewerBalance(session, remaining) else ViewerBalance(remaining, remaining)
+                                val balance =
+                                    if (session != null) {
+                                        readViewerBalance(session, remaining)
+                                    } else {
+                                        ViewerBalance(remaining, remaining)
+                                    }
                                 setViewerSessionVaultProgress(balance.onChainRemaining, balance.spendable)
                                 val minimum = if (currentStreamCostMicroUsdc != 0L) session?.minimumBalance() else null
                                 needsTopUp =
@@ -512,10 +519,11 @@ class MppPaymentViewerManager(
         val params = session.params
         val viewerAddress = params.viewerAddress
         val explicitChannel = vaultChannelId?.let(Base64::decode)
-        val channelId = explicitChannel ?: params.channelIdProvider()?.copyOf() ?: run {
-            trace("RECEIPT_SKIPPED receiptSession=$receiptSessionId segment=$receiptSegmentIndex reason=missing_channel")
-            return
-        }
+        val channelId =
+            explicitChannel ?: params.channelIdProvider()?.copyOf() ?: run {
+                trace("RECEIPT_SKIPPED receiptSession=$receiptSessionId segment=$receiptSegmentIndex reason=missing_channel")
+                return
+            }
         val debit =
             if (explicitChannel != null) {
                 receiptAmount.toLongOrNull() ?: 0L
@@ -680,7 +688,10 @@ class MppPaymentViewerManager(
                     )
             }
 
-    private fun publishVaultSnapshot(session: PaymentSession, snapshot: MppPayments.SessionProgressSnapshot) {
+    private fun publishVaultSnapshot(
+        session: PaymentSession,
+        snapshot: MppPayments.SessionProgressSnapshot,
+    ) {
         session.publishedSnapshot = snapshot
         session.params.onVaultSnapshot(snapshot)
     }
@@ -801,20 +812,21 @@ class MppPaymentViewerManager(
     /** Display-only polling must not initiate another payment or outlive the consent flow. */
     private fun startConsentUiRefresh(session: PaymentSession) {
         session.consentUiRefreshJob?.cancel()
-        session.consentUiRefreshJob = session.scope.launch {
-            while (isActive) {
-                delay(1000L.milliseconds)
-                if (!session.consentActive) return@launch
-                if (session.processing || pendingPayment) continue
-                try {
-                    refreshVaultSnapshot(session)
-                } catch (ce: CancellationException) {
-                    throw ce
-                } catch (err: Throwable) {
-                    trace("CONSENT_UI_REFRESH_ERROR errorType=${err::class.simpleName}")
+        session.consentUiRefreshJob =
+            session.scope.launch {
+                while (isActive) {
+                    delay(1000L.milliseconds)
+                    if (!session.consentActive) return@launch
+                    if (session.processing || pendingPayment) continue
+                    try {
+                        refreshVaultSnapshot(session)
+                    } catch (ce: CancellationException) {
+                        throw ce
+                    } catch (err: Throwable) {
+                        trace("CONSENT_UI_REFRESH_ERROR errorType=${err::class.simpleName}")
+                    }
                 }
             }
-        }
     }
 
     private suspend fun readRemaining(session: PaymentSession): Long {
@@ -897,7 +909,10 @@ class MppPaymentViewerManager(
         error("Session vault funding is awaiting confirmation")
     }
 
-    private fun observeVault(session: PaymentSession, channel: ByteArray) {
+    private fun observeVault(
+        session: PaymentSession,
+        channel: ByteArray,
+    ) {
         check(channel.contentEquals(session.params.channelIdProvider())) { "Vault channel changed" }
         val observed = session.observedVaultChannelId
         check(observed == null || observed.contentEquals(channel)) { "Observed vault channel changed" }
@@ -924,7 +939,10 @@ class MppPaymentViewerManager(
         error("Existing session vault data is temporarily unavailable")
     }
 
-    private data class ViewerBalance(val onChainRemaining: Long, val spendable: Long)
+    private data class ViewerBalance(
+        val onChainRemaining: Long,
+        val spendable: Long,
+    )
 
     private suspend fun readViewerBalance(
         session: PaymentSession,
@@ -945,14 +963,22 @@ class MppPaymentViewerManager(
             }
         }
         val onChainRemaining = data?.let { (it.totalDeposit - it.lastSettled).coerceAtLeast(0L) } ?: remaining
-        val available = if (data == null) {
-            remaining
-        } else {
-            minOf(
-                if (remaining == 0L) (data.totalDeposit - data.lastSettled).coerceAtLeast(0L) else remaining,
-                (data.totalDeposit - maxOf(data.lastSettled, data.latestVoucherAmount, viewerVoucherClaimedMicroUsdc)).coerceAtLeast(0L),
-            )
-        }
+        val available =
+            if (data == null) {
+                remaining
+            } else {
+                minOf(
+                    if (remaining == 0L) (data.totalDeposit - data.lastSettled).coerceAtLeast(0L) else remaining,
+                    (
+                        data.totalDeposit -
+                            maxOf(
+                                data.lastSettled,
+                                data.latestVoucherAmount,
+                                viewerVoucherClaimedMicroUsdc,
+                            )
+                    ).coerceAtLeast(0L),
+                )
+            }
         trace(
             "BALANCE_SNAPSHOT remainingMicro=$remaining totalDepositMicro=${data?.totalDeposit} " +
                 "settledMicro=${data?.lastSettled} latestVoucherMicro=${data?.latestVoucherAmount} " +
@@ -963,7 +989,11 @@ class MppPaymentViewerManager(
         return ViewerBalance(onChainRemaining, available)
     }
 
-    private suspend fun isAboveMinimum(session: PaymentSession, remaining: Long, source: String): Boolean {
+    private suspend fun isAboveMinimum(
+        session: PaymentSession,
+        remaining: Long,
+        source: String,
+    ): Boolean {
         val balance = readViewerBalance(session, remaining)
         val minimum = session.minimumBalance()
         val aboveMinimum = balance.onChainRemaining > minimum
@@ -1292,7 +1322,8 @@ class MppPaymentViewerManager(
                     signer = signer,
                     additionalDepositMicroUsdc = depositMicroUsdc,
                 )
-            trace("DEPOSIT_TX_RESULT route=top_up success=${topUpResult.isSuccess} errorType=${topUpResult.exceptionOrNull()?.let { it::class.simpleName }}")
+            val topUpErrorType = topUpResult.exceptionOrNull()?.let { it::class.simpleName }
+            trace("DEPOSIT_TX_RESULT route=top_up success=${topUpResult.isSuccess} errorType=$topUpErrorType")
             currentCoroutineContext().ensureActive()
             // The channel may already exist on-chain (e.g. from an earlier session/app run)
             // without ever having had its settlement LogicSig registered — this is idempotent
@@ -1311,7 +1342,8 @@ class MppPaymentViewerManager(
                 viewerAddress = viewerAddress,
                 depositAmountMicroUsdc = depositMicroUsdc,
             )
-        trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=${openResult.exceptionOrNull()?.let { it::class.simpleName }}")
+        val openErrorType = openResult.exceptionOrNull()?.let { it::class.simpleName }
+        trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=$openErrorType")
         currentCoroutineContext().ensureActive()
         openResult.onSuccess {
             ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)

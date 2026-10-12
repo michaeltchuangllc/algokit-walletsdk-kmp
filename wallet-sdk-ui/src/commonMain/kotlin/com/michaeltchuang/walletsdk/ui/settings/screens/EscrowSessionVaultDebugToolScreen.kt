@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +33,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,11 +46,48 @@ import androidx.navigation.NavHostController
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
+    var solanaSelected by rememberSaveable { mutableStateOf(false) }
+    var isBusy by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.fillMaxSize().background(AlgoKitTheme.colors.background),
+    ) {
+        AlgoKitTopBar(
+            title = localizedStringResource(Res.string.developer_settings),
+            onClick = { navController.popBackStack() },
+        )
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            FilterChip(
+                selected = !solanaSelected,
+                onClick = { solanaSelected = false },
+                enabled = !isBusy,
+                label = { Text("Algorand") },
+            )
+            FilterChip(
+                selected = solanaSelected,
+                onClick = { solanaSelected = true },
+                enabled = !isBusy && isSeedVaultTransactionSigningSupported,
+                label = { Text("Solana · Seed Vault") },
+            )
+        }
+        if (solanaSelected) {
+            SolanaEscrowVaultDebugPanel(onBusyChanged = { isBusy = it })
+        } else {
+            AlgorandEscrowVaultDebugPanel(onBusyChanged = { isBusy = it })
+        }
+    }
+}
+
+@Composable
+private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
     val viewModel: EscrowSessionVaultDebugViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val content = viewState as EscrowSessionVaultDebugViewModel.ViewState.Content
@@ -60,6 +100,7 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
     val depositAmount = content.depositAmountUsdc
     val remainingBalance = content.remainingBalance
     val isLoading = content.isLoading
+    LaunchedEffect(isLoading) { onBusyChanged(isLoading) }
     val canRunVaultActions = content.canRunVaultActions
     val selectedAddresses =
         listOf(creatorAddress, viewerAddress, viewerAddress2, viewerAddress3)
@@ -97,11 +138,6 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
                 .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        AlgoKitTopBar(
-            title = localizedStringResource(Res.string.developer_settings),
-            onClick = { navController.popBackStack() },
-        )
-
         Text(
             text = "Manually test Session Vault operations between a viewer and a creator.",
             style = MaterialTheme.typography.bodyMedium,
@@ -316,13 +352,14 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 }
 
 @Composable
-private fun AddressDropdownField(
+internal fun AddressDropdownField(
     label: String,
     placeholder: String,
     selectedAddress: String,
     accountAddresses: List<String>,
     enabled: Boolean,
     colors: androidx.compose.material3.TextFieldColors,
+    allowNone: Boolean = true,
     onAddressSelected: (String) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -353,13 +390,15 @@ private fun AddressDropdownField(
             onDismissRequest = { expanded = false },
             modifier = Modifier.fillMaxWidth(),
         ) {
-            DropdownMenuItem(
-                text = { Text("None") },
-                onClick = {
-                    onAddressSelected("")
-                    expanded = false
-                },
-            )
+            if (allowNone) {
+                DropdownMenuItem(
+                    text = { Text("None") },
+                    onClick = {
+                        onAddressSelected("")
+                        expanded = false
+                    },
+                )
+            }
             accountAddresses.forEach { address ->
                 DropdownMenuItem(
                     text = { Text(address) },

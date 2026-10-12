@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.5")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.5")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.6")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.6")
 }
 ```
 
@@ -133,7 +133,7 @@ timeline
     2026Q4   
              : 🔄 Seed Vault - Escrow Session Vault for Solana accounts
              : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
-             : Seed Vault - Create AOSP Service for Algorand Trusty applet
+             : 🔄 Seed Vault - Create AOSP Service for Algorand Trusty applet
              : Liquid Stream - Liquid Stream demo app (own repo)
              : Research - React Native sample app talking to Trusty seed vault
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)

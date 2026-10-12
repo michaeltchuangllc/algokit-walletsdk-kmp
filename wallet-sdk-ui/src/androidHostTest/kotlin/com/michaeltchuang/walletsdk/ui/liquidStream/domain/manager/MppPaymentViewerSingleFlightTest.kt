@@ -57,8 +57,7 @@ class MppPaymentViewerSingleFlightTest {
         assertCardRefreshesWhileConsentIsHeld(gated = false)
 
     @Test
-    fun `EXPECT gated held consent to keep the card refreshing from twelve to zero`() =
-        assertCardRefreshesWhileConsentIsHeld(gated = true)
+    fun `EXPECT gated held consent to keep the card refreshing from twelve to zero`() = assertCardRefreshesWhileConsentIsHeld(gated = true)
 
     private fun assertCardRefreshesWhileConsentIsHeld(gated: Boolean) =
         scenario {
@@ -190,59 +189,61 @@ class MppPaymentViewerSingleFlightTest {
     fun `EXPECT initial popup to publish the low positive threshold snapshot before consent suspends`() =
         assertSnapshotPublishedBeforeConsent(gated = false, remaining = 12L)
 
-    private fun assertSnapshotPublishedBeforeConsent(gated: Boolean, remaining: Long) =
-        scenario {
-            val stale = MppPayments.SessionProgressSnapshot(260, 58, 50, 202, 210, 7)
-            var dynamicData = MppPayments.SessionDynamicData(260, 202, 210, 7)
-            balance = 58L
-            coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers { dynamicData }
-            // This independent RPC deliberately stays stale, including during consent.
-            coEvery { MppPayments.getSessionProgressSnapshotFromVault(any()) } returns stale
-            refresh()
-            runCurrent()
-            assertEquals(stale, vaultSnapshots.lastOrNull())
-            assertEquals(0, prompts)
-            val beforePrompt = vaultSnapshots.size
+    private fun assertSnapshotPublishedBeforeConsent(
+        gated: Boolean,
+        remaining: Long,
+    ) = scenario {
+        val stale = MppPayments.SessionProgressSnapshot(260, 58, 50, 202, 210, 7)
+        var dynamicData = MppPayments.SessionDynamicData(260, 202, 210, 7)
+        balance = 58L
+        coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers { dynamicData }
+        // This independent RPC deliberately stays stale, including during consent.
+        coEvery { MppPayments.getSessionProgressSnapshotFromVault(any()) } returns stale
+        refresh()
+        runCurrent()
+        assertEquals(stale, vaultSnapshots.lastOrNull())
+        assertEquals(0, prompts)
+        val beforePrompt = vaultSnapshots.size
 
-            dynamicData = MppPayments.SessionDynamicData(260, 260 - remaining, 260 - remaining / 2, 7)
-            val expected =
-                MppPayments.SessionProgressSnapshot(
-                    totalDepositMicroUsdc = 260,
-                    remainingSettledMicroUsdc = remaining,
-                    progressBalanceMicroUsdc = remaining / 2,
-                    lastSettledMicroUsdc = 260 - remaining,
-                    latestVoucherAmountMicroUsdc = 260 - remaining / 2,
-                    startRound = 7,
-                )
-            val consent = CompletableDeferred<ConsentApproval>()
-            var snapshotAtPrompt: MppPayments.SessionProgressSnapshot? = null
-            requestConsent = {
-                // Capture at popup entry, before suspending, not after a later refresh.
-                snapshotAtPrompt = vaultSnapshots.lastOrNull()
-                consent.await()
-            }
-            if (gated) channel.gate() else channel.request()
-            runCurrent()
-            assertEquals(1, prompts)
-            assertEquals(expected, snapshotAtPrompt, "at prompt: gated=$gated remaining=$remaining")
-            assertEquals(expected, vaultSnapshots.lastOrNull())
-            assertEquals(listOf(expected), vaultSnapshots.drop(beforePrompt).distinct())
-            assertFalse(consent.isCompleted)
-            assertEquals(0, deposits)
-            val whileSuspended = vaultSnapshots.toList()
-
-            refresh()
-            repeat(5) { channel.gate() }
-            advanceTimeBy(3000)
-            runCurrent()
-            assertEquals(whileSuspended, vaultSnapshots)
-            assertEquals(expected, vaultSnapshots.lastOrNull())
-            assertFalse(consent.isCompleted)
-            assertEquals(1, prompts)
-            assertEquals(0, deposits)
-            coVerify(exactly = 0) { MppPayments.topUpSessionVault(any(), any()) }
-            coVerify(exactly = 0) { MppPayments.openSessionAndDeposit(any(), any(), any(), any()) }
+        dynamicData = MppPayments.SessionDynamicData(260, 260 - remaining, 260 - remaining / 2, 7)
+        val expected =
+            MppPayments.SessionProgressSnapshot(
+                totalDepositMicroUsdc = 260,
+                remainingSettledMicroUsdc = remaining,
+                progressBalanceMicroUsdc = remaining / 2,
+                lastSettledMicroUsdc = 260 - remaining,
+                latestVoucherAmountMicroUsdc = 260 - remaining / 2,
+                startRound = 7,
+            )
+        val consent = CompletableDeferred<ConsentApproval>()
+        var snapshotAtPrompt: MppPayments.SessionProgressSnapshot? = null
+        requestConsent = {
+            // Capture at popup entry, before suspending, not after a later refresh.
+            snapshotAtPrompt = vaultSnapshots.lastOrNull()
+            consent.await()
         }
+        if (gated) channel.gate() else channel.request()
+        runCurrent()
+        assertEquals(1, prompts)
+        assertEquals(expected, snapshotAtPrompt, "at prompt: gated=$gated remaining=$remaining")
+        assertEquals(expected, vaultSnapshots.lastOrNull())
+        assertEquals(listOf(expected), vaultSnapshots.drop(beforePrompt).distinct())
+        assertFalse(consent.isCompleted)
+        assertEquals(0, deposits)
+        val whileSuspended = vaultSnapshots.toList()
+
+        refresh()
+        repeat(5) { channel.gate() }
+        advanceTimeBy(3000)
+        runCurrent()
+        assertEquals(whileSuspended, vaultSnapshots)
+        assertEquals(expected, vaultSnapshots.lastOrNull())
+        assertFalse(consent.isCompleted)
+        assertEquals(1, prompts)
+        assertEquals(0, deposits)
+        coVerify(exactly = 0) { MppPayments.topUpSessionVault(any(), any()) }
+        coVerify(exactly = 0) { MppPayments.openSessionAndDeposit(any(), any(), any(), any()) }
+    }
 
     @Test
     fun `EXPECT missing known vault data to suppress initial gated and polling prompts until recovery`() =
@@ -359,17 +360,19 @@ class MppPaymentViewerSingleFlightTest {
             coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers {
                 MppPayments.SessionDynamicData(totalDeposit, 248, 248, 1)
             }
-            val first = async {
-                runCatching { manager.topUpViewerSessionVault("viewer", 30L, { deposits++ }, { balance }) }
-            }
+            val first =
+                async {
+                    runCatching { manager.topUpViewerSessionVault("viewer", 30L, { deposits++ }, { balance }) }
+                }
             runCurrent()
             advanceTimeBy(2000)
             runCurrent()
             assertEquals(true, first.await().isFailure)
             assertEquals(emptyList(), progress)
-            val retry = async {
-                runCatching { manager.topUpViewerSessionVault("viewer", 30L, { deposits++ }, { balance }) }
-            }
+            val retry =
+                async {
+                    runCatching { manager.topUpViewerSessionVault("viewer", 30L, { deposits++ }, { balance }) }
+                }
             runCurrent()
             channel.gate()
             runCurrent()

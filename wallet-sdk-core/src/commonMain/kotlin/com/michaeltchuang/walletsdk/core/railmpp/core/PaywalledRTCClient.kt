@@ -82,6 +82,7 @@ class PaywalledRTCClient(
     private var vaultRequest: PaymentRequest? = null
     private var vaultIdentity: Triple<String, String, String>? = null
     private val consumedVaultSegments = mutableSetOf<Pair<String, Int>>()
+
     // Keep individual debits (not cumulative vouchers) until the approved budget covers them.
     private val deferredVaultReceipts = linkedMapOf<Pair<String, Int>, PaymentReceipt>()
     private var drainingVaultReceipts = false

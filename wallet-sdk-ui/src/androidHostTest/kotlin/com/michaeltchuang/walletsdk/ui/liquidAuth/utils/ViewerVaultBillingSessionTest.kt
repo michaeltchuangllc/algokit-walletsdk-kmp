@@ -1162,12 +1162,13 @@ class ViewerVaultBillingSessionTest {
         runTest {
             val repository = FakeRepository()
             val adapter = FakeAdapter().apply { confirm = false }
-            val session = session(
-                adapter,
-                frequency = 1,
-                repository = repository,
-                getVoucherCoveredBlockCount = { amount, _ -> amount / 100L },
-            )
+            val session =
+                session(
+                    adapter,
+                    frequency = 1,
+                    repository = repository,
+                    getVoucherCoveredBlockCount = { amount, _ -> amount / 100L },
+                )
             session.acceptVoucher(message(100))
             runCurrent()
             assertEquals(listOf(100L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
@@ -1176,13 +1177,23 @@ class ViewerVaultBillingSessionTest {
             session.acceptVoucher(message(400))
             runCurrent()
             assertEquals(1, adapter.submissions.size)
-            assertEquals(400L, repository.rows.values.single().totalAmountClaimedMicroUsdc)
+            assertEquals(
+                400L,
+                repository.rows.values
+                    .single()
+                    .totalAmountClaimedMicroUsdc,
+            )
             adapter.settled = 100
             advanceTimeBy(500.milliseconds)
             runCurrent()
             assertEquals(listOf(100L, 400L), adapter.submissions.map { it.totalAmountClaimedMicroUsdc })
             // Confirmation of 100 must not delete the newer persisted authorization.
-            assertEquals(400L, repository.rows.values.single().totalAmountClaimedMicroUsdc)
+            assertEquals(
+                400L,
+                repository.rows.values
+                    .single()
+                    .totalAmountClaimedMicroUsdc,
+            )
             adapter.settled = 400
             advanceTimeBy(500.milliseconds)
             runCurrent()

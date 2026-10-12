@@ -77,7 +77,9 @@ class SolanaSessionKeyViewModel(
     fun regenerate() =
         runBusy("Failed to regenerate session key") { owner ->
             regenerateSessionKey(owner)
-            eventDelegate.sendEvent(ViewEvent.Message("New session key generated. If you receive payments, add a little SOL for settlement fees."))
+            eventDelegate.sendEvent(
+                ViewEvent.Message("New session key generated. If you receive payments, add a little SOL for settlement fees."),
+            )
         }
 
     fun sweep() =

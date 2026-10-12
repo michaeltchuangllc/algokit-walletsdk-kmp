@@ -119,7 +119,10 @@ class MppPaymentViewerVaultOnlyTest {
                 val rtcClient = viewer.rtcClient
                 rtcClient.extendBudget(80L, "USDC")
 
-                fun deliver(segment: Int, amount: String = "8") {
+                fun deliver(
+                    segment: Int,
+                    amount: String = "8",
+                ) {
                     val receipt =
                         PaymentReceipt(
                             txId = "",
@@ -231,7 +234,12 @@ class MppPaymentViewerVaultOnlyTest {
                 assertEquals("171", rtcClient.spend.totalAmount)
                 assertEquals(22, rtcClient.spend.segmentsPaid)
                 assertEquals((0..21).toList(), rtcClient.spend.transactions.map { it.segmentIndex })
-                assertEquals("3", rtcClient.spend.transactions.last().amount)
+                assertEquals(
+                    "3",
+                    rtcClient.spend.transactions
+                        .last()
+                        .amount,
+                )
                 assertEquals(3L, cumulative.last() - cumulative[cumulative.lastIndex - 1])
                 assertEquals(0L, data.totalDeposit - cumulative.last()) // No stranded 8.
                 assertEquals(1, prompts)
@@ -297,7 +305,10 @@ class MppPaymentViewerVaultOnlyTest {
                 )
                 runCurrent()
 
-                fun deliver(segment: Int, amount: String = "10") {
+                fun deliver(
+                    segment: Int,
+                    amount: String = "10",
+                ) {
                     val receipt =
                         PaymentReceipt(
                             txId = "",

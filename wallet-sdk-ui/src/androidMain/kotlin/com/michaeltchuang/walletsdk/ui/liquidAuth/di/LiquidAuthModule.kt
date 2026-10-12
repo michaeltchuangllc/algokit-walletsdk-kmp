@@ -21,6 +21,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
@@ -53,6 +54,10 @@ val liquidAuthUIModule =
         single { LiquidAuthCredentialStore(androidContext()) }
         single { AttestationApiUseCase(get<ProvideHttpClientUseCase>()()) }
         single { AssertionApiUseCase(get<ProvideHttpClientUseCase>()()) }
+
+        viewModel {
+            SolanaEscrowVaultDebugViewModel(get(), get(), get(), get(), get(), get(), get())
+        }
 
         viewModel {
             EscrowSessionVaultDebugViewModel(

@@ -41,6 +41,5 @@ object SolanaClusters {
             AlgorandNetwork.TESTNET, AlgorandNetwork.FUTURENET -> "devnet"
         }
 
-    fun usdcMintFor(cluster: String): String =
-        if (cluster.contains("mainnet", ignoreCase = true)) USDC_MINT_MAINNET else USDC_MINT_DEVNET
+    fun usdcMintFor(cluster: String): String = if (cluster.contains("mainnet", ignoreCase = true)) USDC_MINT_MAINNET else USDC_MINT_DEVNET
 }
