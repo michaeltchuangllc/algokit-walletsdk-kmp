@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Placeholder vault mark loosely styled after the Solana Seed Vault logo -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:pathData="M7,50 A43,43 0 1,1 93,50 A43,43 0 1,1 7,50 M50,7 L50,32 M50,68 L50,93 M41,50 A9,9 0 1,1 59,50 A9,9 0 1,1 41,50 M37,23 Q20,48 38,77 M63,23 Q80,52 62,77"
+        android:strokeWidth="7"
+        android:strokeLineCap="round">
+        <aapt:attr name="android:strokeColor">
+            <gradient
+                android:endX="90"
+                android:endY="90"
+                android:startX="10"
+                android:startY="10"
+                android:type="linear">
+                <item
+                    android:color="#FF35B6B4"
+                    android:offset="0" />
+                <item
+                    android:color="#FF9DB3AE"
+                    android:offset="0.5" />
+                <item
+                    android:color="#FF5FD3CF"
+                    android:offset="1" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

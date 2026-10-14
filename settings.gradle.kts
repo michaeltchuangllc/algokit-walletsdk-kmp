@@ -23,6 +23,7 @@ rootProject.name = "algokit-walletsdk-kmp"
 include(":androidDemoApp")
 include(":sharedDemoApp")
 include(":serviceDemoApp")
+include(":seedVaultDemoApp")
 include(":wallet-sdk-core")
 include(":wallet-sdk-ui")
 if (file("wallet-sdk-service").isDirectory) {
