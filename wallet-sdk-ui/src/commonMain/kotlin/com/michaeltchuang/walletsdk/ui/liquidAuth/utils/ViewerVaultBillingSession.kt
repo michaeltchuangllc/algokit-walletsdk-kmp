@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.ViewerVaultSettlement
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
 import io.github.aakira.napier.Napier
@@ -119,6 +120,7 @@ internal class ViewerVaultBillingSession(
     }
 
     private val key = signerPublicKey.copyOf()
+    private val isSolana = SolanaStreamVault.isSolana(network)
     val signerPublicKey: ByteArray get() = key.copyOf()
     private val mutex = Mutex()
     private val acceptanceMutex = Mutex()
@@ -377,7 +379,8 @@ internal class ViewerVaultBillingSession(
     private fun isDuplicate(voucher: Voucher): Boolean =
         latest?.let {
             it.channelId.contentEquals(voucher.channelId) &&
-                it.totalAmountClaimedMicroUsdc == voucher.totalAmountClaimedMicroUsdc
+                it.totalAmountClaimedMicroUsdc == voucher.totalAmountClaimedMicroUsdc &&
+                (!isSolana || it.signature.contentEquals(voucher.signature))
         } == true
 
     /**
@@ -416,7 +419,7 @@ internal class ViewerVaultBillingSession(
                     )
                 val snapshot = adapter.readChannel(voucher).getOrThrow()
                 val startRound = snapshot.startRound
-                if (startRound != null && row.blockNumber > 0 && row.blockNumber < startRound) {
+                if (!isSolana && startRound != null && row.blockNumber > 0 && row.blockNumber < startRound) {
                     // Its old cumulative voucher must never be replayed against the new deposit.
                     voucherRepository.deleteVouchersBeforeRound(row.channelIdBase64, network, startRound)
                     return@withTimeout 0L
@@ -529,6 +532,13 @@ internal class ViewerVaultBillingSession(
      * back to the departing viewer.
      */
     private suspend fun refundRemainingVaultBalance() {
+        if (isSolana) {
+            Napier.w(
+                "Solana channel cannot auto close until SeedVault owner approval; " +
+                    "final voucher drained, remaining deposit stays refundable through the payer escape hatch. session=$sessionId",
+            )
+            return
+        }
         val channelId = mutex.withLock { latest?.channelId } ?: return
         try {
             val signer = buildCreatorWalletSigner(creatorAddress)
@@ -563,7 +573,9 @@ internal class ViewerVaultBillingSession(
                 val boundary = paidRound
                 val coveredBlocks = getVoucherCoveredBlockCount?.invoke(voucher.totalAmountClaimedMicroUsdc, confirmedBlockCount)
                 nextBlockCost = costPerPaidBlock
-                if (!force) {
+                // Solana transactions carry expiring recent blockhashes. The displayed
+                // payout/pricing interval is unchanged, but submission must never wait for it.
+                if (!force && !isSolana) {
                     if (coveredBlocks != null) {
                         batchReady = coveredBlocks - confirmedBlockCount >= payoutFrequencyBlocks
                     } else if (round == null || boundary == null || round - boundary < payoutFrequencyBlocks) {
@@ -590,7 +602,9 @@ internal class ViewerVaultBillingSession(
                     }
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
-                        require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
+                        // Solana's signer address is the linked fee-payer key, not the
+                        // SeedVault owner. Core resolves and validates that linkage locally.
+                        if (!isSolana) require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
                         Napier.d(
                             "HOST_SETTLEMENT_START session=$sessionId cumulativeMicro=${voucher.totalAmountClaimedMicroUsdc} " +
                                 "previouslySettledMicro=${before.lastSettledMicroUsdc}",
@@ -635,7 +649,7 @@ internal class ViewerVaultBillingSession(
 
     private fun reportSettlementError(error: Throwable?) {
         try {
-            onSettlementError(error)
+            onSettlementError(if (error != null) explainSolanaExpiry(error) else null)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -676,10 +690,21 @@ internal class ViewerVaultBillingSession(
 
     private fun report(error: Throwable) {
         try {
-            onError(error)
+            onError(explainSolanaExpiry(error))
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
         }
     }
+
+    private fun explainSolanaExpiry(error: Throwable): Throwable =
+        if (isSolana) {
+            IllegalStateException(
+                "Solana voucher not confirmed; its recent blockhash may have expired. " +
+                    "Persisted authorization is retained; reconnect for a fresh transaction at the same cumulative amount. ${error.message}",
+                error,
+            )
+        } else {
+            error
+        }
 }

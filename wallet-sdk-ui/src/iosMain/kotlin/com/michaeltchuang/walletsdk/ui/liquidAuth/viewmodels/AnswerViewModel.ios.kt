@@ -8,9 +8,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
-import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
@@ -18,8 +16,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerU
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.first
 
 actual open class AnswerViewModel actual constructor(
     getCurrentBlockUseCase: GetCurrentBlockUseCase,
@@ -66,42 +64,45 @@ actual open class AnswerViewModel actual constructor(
         viewerAddress: String,
         hostAddress: String = "",
         scope: CoroutineScope,
-    ): Boolean {
-        if (viewerAddress.isBlank()) return false
-        val signer = buildMppWalletSigner(viewerAddress) ?: return false
-        platformServices.closeViewerPaymentDataChannel()
-        val dataChannel = platformServices.createViewerPaymentDataChannel()
-        val mppNetwork =
-            when (getCurrentNetworkUseCase().first()) {
-                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
-                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
-                AlgorandNetwork.FUTURENET -> MppNetworks.ALGORAND_FUTURENET
-            }
-        setupMppPaymentViewerUseCase(
-            SetupMppPaymentViewerUseCase.Params(
-                dataChannel = dataChannel,
-                viewerAddress = viewerAddress,
-                hostAddress = hostAddress,
-                scope = scope,
-                signer = signer,
-                mppNetwork = mppNetwork,
-                requestMppConsent = ::requestMppConsentFromUi,
-                getConnectionType = { connectionType.value },
-                onStreamRejected = ::onStreamRejected,
-                setViewerPaymentProcessing = ::setViewerPaymentProcessing,
-                setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
-                onVaultSnapshot = ::setViewerVaultSnapshot,
-                signFido2Challenge = { challenge, challengeAddress ->
-                    signer.takeIf { it.address == challengeAddress }?.signMessage(challenge)
-                        ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)
-                        ?: signFido2Challenge(challenge, challengeAddress)
-                },
-                onChatMessageReceived = ::onChatMessageReceived,
-                getHostAddress = { this.hostAddress.value.ifBlank { hostAddress } },
-            ),
-        )
-        return true
-    }
+    ): Boolean =
+        try {
+            require(viewerAddress.isNotBlank()) { "Select an account for streaming payments." }
+            val mppNetwork = resolveMppClientNetwork(viewerAddress)
+            val signer = buildMppWalletSigner(viewerAddress) ?: error("The selected account cannot sign streaming payments.")
+            platformServices.closeViewerPaymentDataChannel()
+            val dataChannel = platformServices.createViewerPaymentDataChannel()
+            setupMppPaymentViewerUseCase(
+                SetupMppPaymentViewerUseCase.Params(
+                    dataChannel = dataChannel,
+                    viewerAddress = viewerAddress,
+                    hostAddress = hostAddress,
+                    scope = scope,
+                    signer = signer,
+                    mppNetwork = mppNetwork,
+                    signSolanaTransaction = signSolanaTransactionDelegate,
+                    requestMppConsent = ::requestMppConsentFromUi,
+                    getConnectionType = { connectionType.value },
+                    onStreamRejected = ::onStreamRejected,
+                    onPaymentError = ::setError,
+                    setViewerPaymentProcessing = ::setViewerPaymentProcessing,
+                    setViewerSessionVaultProgress = ::setViewerSessionVaultProgress,
+                    onVaultSnapshot = ::setViewerVaultSnapshot,
+                    signFido2Challenge = { challenge, challengeAddress ->
+                        signer.takeIf { it.address == challengeAddress }?.signMessage(challenge)
+                            ?: buildMppWalletSigner(challengeAddress)?.signMessage(challenge)
+                            ?: signFido2Challenge(challenge, challengeAddress)
+                    },
+                    onChatMessageReceived = ::onChatMessageReceived,
+                    getHostAddress = { this.hostAddress.value.ifBlank { hostAddress } },
+                ),
+            )
+            true
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            onStreamRejected("payment_setup_failed", e.message ?: "Could not set up streaming payments.")
+            false
+        }
 
     fun openViewerPaymentRail() {
         platformServices.openViewerPaymentDataChannel()

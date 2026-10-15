@@ -19,8 +19,8 @@ data class ViewerVaultProgress(
         if (previousDeposit != null && snapshot.totalDepositMicroUsdc < previousDeposit) return this
         val capacity =
             when {
-                previousDeposit == null -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
-                snapshot.totalDepositMicroUsdc > previousDeposit -> snapshot.progressBalanceMicroUsdc / 1_000_000.0
+                previousDeposit == null -> snapshot.remainingSettledMicroUsdc / 1_000_000.0
+                snapshot.totalDepositMicroUsdc > previousDeposit -> snapshot.remainingSettledMicroUsdc / 1_000_000.0
                 else -> capacityUsdc
             }
         return ViewerVaultProgress(

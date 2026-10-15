@@ -5,6 +5,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInte
 import com.michaeltchuang.walletsdk.core.railmpp.internal.simulateReadonlyMethodInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitLogicSigSettlementInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.validateLogicSigSettlementInternal
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -126,15 +127,19 @@ class ViewerVaultSettlement internal constructor(
         channelId: ByteArray,
         network: String,
     ): Result<HostViewerVaultReader.Snapshot> =
-        HostViewerVaultReader.readChannel(
-            channelId = channelId,
-            viewerAddress = viewerAddress,
-            creatorAddress = creatorAddress,
-            authorizedSignerPublicKey = authorizedSignerPublicKey,
-            network = network,
-            readBox = readBox,
-            simulate = simulate,
-        )
+        if (SolanaStreamVault.isSolana(network)) {
+            SolanaStreamVault.read(viewerAddress, creatorAddress, authorizedSignerPublicKey, network, channelId)
+        } else {
+            HostViewerVaultReader.readChannel(
+                channelId = channelId,
+                viewerAddress = viewerAddress,
+                creatorAddress = creatorAddress,
+                authorizedSignerPublicKey = authorizedSignerPublicKey,
+                network = network,
+                readBox = readBox,
+                simulate = simulate,
+            )
+        }
 
     suspend fun validateVoucher(
         viewerAddress: String,
@@ -145,6 +150,17 @@ class ViewerVaultSettlement internal constructor(
         cumulativeAmount: Long,
         network: String,
     ): Result<HostViewerVaultReader.Snapshot> {
+        if (SolanaStreamVault.isSolana(network)) {
+            return SolanaStreamVault.validateVoucher(
+                network,
+                viewerAddress,
+                creatorAddress,
+                authorizedSignerPublicKey,
+                channelId,
+                signature,
+                cumulativeAmount,
+            )
+        }
         val channel = channelId.copyOf()
         val signerKey = authorizedSignerPublicKey.copyOf()
         val voucherSignature = signature.copyOf()
@@ -190,6 +206,18 @@ class ViewerVaultSettlement internal constructor(
         network: String,
         note: String = "N/A",
     ): Result<String> {
+        if (SolanaStreamVault.isSolana(network)) {
+            return SolanaStreamVault
+                .settleVoucher(
+                    network,
+                    viewerAddress,
+                    creatorAddress,
+                    authorizedSignerPublicKey,
+                    channelId,
+                    signature,
+                    cumulativeAmount,
+                ).map { "" }
+        }
         val channel = channelId.copyOf()
         val signerKey = authorizedSignerPublicKey.copyOf()
         val voucherSignature = signature.copyOf()

@@ -63,7 +63,10 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
@@ -79,6 +82,7 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.resolveLiquidStreamAccountNetwork
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
@@ -86,10 +90,13 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersC
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
 import org.koin.compose.viewmodel.koinViewModel
 import qrgenerator.qrkitpainter.rememberQrKitPainter
 import kotlin.time.Clock
@@ -235,6 +242,12 @@ fun LiquidAuthOfferScreen(
     debugFullscreen: Boolean = false,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
+    val getLocalAccount: GetLocalAccount = koinInject()
+    val getCurrentNetwork: GetCurrentNetworkUseCase = koinInject()
+    val appNetwork by remember(getCurrentNetwork) { getCurrentNetwork() }.collectAsStateWithLifecycle(null)
+    var localCreatorAccount by remember(creatorAddress) { mutableStateOf<LocalAccount?>(null) }
+    var creatorRouteReady by remember(creatorAddress, appNetwork, paymentNetworkOverride) { mutableStateOf(false) }
+    var creatorRouteError by remember(creatorAddress, appNetwork, paymentNetworkOverride) { mutableStateOf<String?>(null) }
     val hostViewModel: LiquidStreamHostViewModel = koinViewModel()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val pendingMeshOffer by viewModel.pendingMeshOffer.collectAsStateWithLifecycle()
@@ -254,9 +267,28 @@ fun LiquidAuthOfferScreen(
     val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val isAnalyticsModalVisible = remember { mutableStateOf(false) }
     val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
-    // Solana creators do not use ASA opt-in checks; only enforce this for Algorand-style flows.
-    val isSolanaCreator = blockChainLabel.equals("solana", ignoreCase = true)
-    val requiresCreatorAsaOptIn = !isSolanaCreator && !creatorAddress.isNullOrBlank() && creatorAssetId > 0
+    // Labels are presentation only; SeedVault accounts never perform Algorand ASA calls.
+    val requiresCreatorAsaOptIn =
+        localCreatorAccount != null && localCreatorAccount !is LocalAccount.SeedVault && creatorAssetId > 0
+    LaunchedEffect(creatorAddress, appNetwork, paymentNetworkOverride, viewModel) {
+        if (creatorAddress.isNullOrBlank()) {
+            creatorRouteReady = true
+            return@LaunchedEffect
+        }
+        val network = appNetwork ?: return@LaunchedEffect
+        try {
+            val account = getLocalAccount(creatorAddress)
+            localCreatorAccount = account
+            val resolved = resolveLiquidStreamAccountNetwork(account, network, paymentNetworkOverride)
+            viewModel.configureBillingNetwork(creatorAddress, resolved)
+            creatorRouteReady = true
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            creatorRouteError = e.message ?: "Could not configure streaming payments."
+            viewModel.onMppPaymentRejected(creatorRouteError!!)
+        }
+    }
     miniPlayerCameraPreviewState?.value = cameraPreview
     miniPlayerOnCloseActionState?.value = {
         viewModel.stopVideoStreaming()
@@ -275,13 +307,13 @@ fun LiquidAuthOfferScreen(
     val progressBalanceUsdc = progressBarBalanceMicroUsdc?.let { it / 1_000_000.0 }
 
     // Wait for initialize() to set the platform's mesh opt-in before generating.
-    LaunchedEffect(origin, managerInitialized) {
-        if (managerInitialized) viewModel.generateOffer(origin)
+    LaunchedEffect(origin, managerInitialized, creatorRouteReady) {
+        if (managerInitialized && creatorRouteReady) viewModel.generateOffer(origin)
     }
 
     LaunchedEffect(creatorAddress, creatorAssetId, requiresCreatorAsaOptIn) {
         if (requiresCreatorAsaOptIn) {
-            viewModel.fetchAccountASABalance(creatorAddress, creatorAssetId)
+            viewModel.fetchAccountASABalance(creatorAddress.orEmpty(), creatorAssetId)
         } else {
             viewModel.fetchAccountASABalance("", -1L)
         }
@@ -298,8 +330,8 @@ fun LiquidAuthOfferScreen(
     }
 
     // Invitations have their own lifecycle: accepting/refreshing one never restarts live state.
-    LaunchedEffect(pendingMeshOffer, connectionManager, managerInitialized) {
-        if (!managerInitialized || !viewModel.meshHostingEnabled) return@LaunchedEffect
+    LaunchedEffect(pendingMeshOffer, connectionManager, managerInitialized, creatorRouteReady) {
+        if (!managerInitialized || !creatorRouteReady || !viewModel.meshHostingEnabled) return@LaunchedEffect
         pendingMeshOffer?.let { invitation ->
             connectionManager?.startListening(
                 origin = invitation.origin,
@@ -340,8 +372,8 @@ fun LiquidAuthOfferScreen(
     }
 
     // Start listening after initialization
-    LaunchedEffect(state, connectionManager, managerInitialized) {
-        if (!managerInitialized) return@LaunchedEffect
+    LaunchedEffect(state, connectionManager, managerInitialized, creatorRouteReady) {
+        if (!managerInitialized || !creatorRouteReady) return@LaunchedEffect
         // Ensure connectionManager is initialized before starting
         if (connectionManager == null) {
             Napier.w("⚠️ Cannot start listening - connectionManager is null")
@@ -395,6 +427,26 @@ fun LiquidAuthOfferScreen(
     val currentConnectionManager by rememberUpdatedState(connectionManager)
     val currentPaymentNetworkOverride by rememberUpdatedState(paymentNetworkOverride)
 
+    suspend fun withCreatorRoute(
+        address: String,
+        action: (String) -> Unit,
+    ) {
+        try {
+            val network =
+                resolveLiquidStreamAccountNetwork(
+                    getLocalAccount(address),
+                    getCurrentNetwork().first(),
+                    currentPaymentNetworkOverride,
+                )
+            action(network)
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            creatorRouteError = e.message ?: "Could not configure streaming payments."
+            viewModel.onMppPaymentRejected(creatorRouteError!!)
+        }
+    }
+
     LaunchedEffect(viewModel, hostViewModel) {
         viewModel.viewEvent.collect { event ->
             when (event) {
@@ -406,13 +458,14 @@ fun LiquidAuthOfferScreen(
                     // Auto-request payment when paid streaming is enabled
                     if (canRequestPayment && address != null) {
                         Napier.d("💰 Requesting payment from client...")
-                        val paymentNetwork =
-                            currentPaymentNetworkOverride
-                                ?: if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
-                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
+                        withCreatorRoute(address) { network ->
+                            viewModel.requestPaymentFromClient(address, network = network)
+                        }
                     } else if (address != null) {
                         Napier.d("💬 Initializing chat only (no payment)...")
-                        connectionManager?.setupCreator(address, network = currentPaymentNetworkOverride ?: blockChainLabel)
+                        withCreatorRoute(address) { network ->
+                            currentConnectionManager?.setupCreator(address, network = network)
+                        }
                     } else {
                         Napier.d(
                             "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
@@ -451,10 +504,9 @@ fun LiquidAuthOfferScreen(
                     }
                     currentCreatorAddress?.let { address ->
                         Napier.d("💰 Requesting additional payment from viewer...")
-                        val paymentNetwork =
-                            currentPaymentNetworkOverride
-                                ?: if (blockChainLabel.equals("solana", ignoreCase = true)) "solana:devnet" else "testnet"
-                        viewModel.requestPaymentFromClient(address, network = paymentNetwork)
+                        withCreatorRoute(address) { network ->
+                            viewModel.requestPaymentFromClient(address, network = network)
+                        }
                     }
                 }
 
@@ -513,7 +565,7 @@ fun LiquidAuthOfferScreen(
 
     LiquidAuthOfferScreenContent(
         headerContent = headerContent,
-        state = state,
+        state = creatorRouteError?.let { LiquidAuthOfferViewModel.OfferState.Error(it) } ?: state,
         cameraPreview = cameraPreview,
         connectionManager = connectionManager,
         onRegenerate = { viewModel.regenerateOffer(origin) },

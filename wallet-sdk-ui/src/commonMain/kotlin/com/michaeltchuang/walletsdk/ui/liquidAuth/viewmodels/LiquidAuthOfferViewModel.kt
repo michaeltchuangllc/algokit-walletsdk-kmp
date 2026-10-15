@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -13,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiqui
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
@@ -20,12 +22,16 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.resolvePricingConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.resolveLiquidAuthMppNetwork
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.validateLiquidStreamHostNetwork
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.resolveLiquidStreamAccountNetwork
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -37,9 +43,11 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.koin.mp.KoinPlatform
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -52,6 +60,7 @@ class LiquidAuthOfferViewModel(
     private val getCurrentBlockUseCase: GetCurrentBlockUseCase,
     private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
     private val mppWalletSignerUseCase: MppWalletSignerUseCase,
+    private val getLocalAccount: GetLocalAccount? = null,
 ) : ViewModel(),
     StateViewModel<LiquidAuthOfferViewModel.OfferState> by stateDelegate,
     EventViewModel<LiquidAuthOfferViewModel.OfferEvent> by eventDelegate {
@@ -136,6 +145,49 @@ class LiquidAuthOfferViewModel(
     private var blockchainMonitorJob: Job? = null
 
     private var creatorAddress: String? = null
+    var billingNetwork: String = MppNetworks.ALGORAND_TESTNET
+        private set
+
+    fun configureBillingNetwork(
+        address: String,
+        network: String,
+    ) {
+        val resolved = resolveLiquidAuthMppNetwork(network)
+        validateLiquidStreamHostNetwork(address, resolved)
+        creatorAddress = address
+        if (billingNetwork == resolved) return
+        billingNetwork = resolved
+        blockchainMonitorJob?.cancel()
+        blockchainMonitorJob = null
+        val wasPolling = blockNumberPollingJob?.isActive == true
+        blockNumberPollingJob?.cancel()
+        blockNumberPollingJob = null
+        _currentBlockNumber.value = null
+        if (wasPolling || isBlockNumberDisplayed) startRealtimeBlockNumberUpdates()
+    }
+
+    private fun withCreatorNetwork(
+        address: String,
+        requested: String,
+        action: (String) -> Unit,
+    ) {
+        viewModelScope.launch {
+            try {
+                val lookup = getLocalAccount ?: KoinPlatform.getKoin().get<GetLocalAccount>()
+                val account = requireNotNull(lookup(address)) { "Creator account not found" }
+                // "testnet" remains the legacy Algorand alias, not a chain-neutral
+                // default. Solana callers must pass the fully resolved devnet network.
+                // The shared resolver rejects cross-chain overrides and mainnet downgrades.
+                val network = resolveLiquidStreamAccountNetwork(account, getCurrentNetworkUseCase().first(), requested)
+                configureBillingNetwork(address, network)
+                action(network)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onMppPaymentRejected(e.message ?: "Unsupported creator network")
+            }
+        }
+    }
 
     companion object {
         const val DEPOSIT_AMOUNT_MICRO_USDC = LiquidStreamConstants.DEPOSIT_AMOUNT_MICRO_USDC
@@ -321,6 +373,12 @@ class LiquidAuthOfferViewModel(
     fun requestPaymentFromClient(
         creatorAddress: String,
         network: String = "testnet",
+    ) = withCreatorNetwork(creatorAddress, network) { requestPaymentOnNetwork(creatorAddress, it) }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun requestPaymentOnNetwork(
+        creatorAddress: String,
+        network: String,
     ) {
         val currentState = state.value
         Napier.d(
@@ -584,6 +642,12 @@ class LiquidAuthOfferViewModel(
     fun startPaidStreaming(
         creatorAddress: String,
         network: String = "testnet",
+    ) = withCreatorNetwork(creatorAddress, network) { startPaidStreamingOnNetwork(creatorAddress, it) }
+
+    @OptIn(ExperimentalUuidApi::class)
+    private fun startPaidStreamingOnNetwork(
+        creatorAddress: String,
+        network: String,
     ) {
         val currentState = state.value
         if (currentState !is OfferState.Connected) {
@@ -813,6 +877,10 @@ class LiquidAuthOfferViewModel(
      * Polls every 1 second and only calls consumeBlock() when block number changes.
      */
     fun monitorBlockchainBlocks() {
+        if (SolanaStreamVault.isSolana(billingNetwork)) {
+            startRealtimeBlockNumberUpdates()
+            return
+        }
         if (blockchainMonitorJob?.isActive == true) {
             Napier.d("🔗 Blockchain block monitoring already active - skipping duplicate start")
             return
@@ -949,6 +1017,7 @@ class LiquidAuthOfferViewModel(
         blockNumberPollingJob =
             viewModelScope.launch {
                 while (true) {
+                    // Both account families observe Algorand rounds; this is not a Solana slot.
                     getCurrentBlockUseCase().collect { result ->
                         when (result) {
                             is com.michaeltchuang.walletsdk.utils.DataResource.Success -> {
@@ -988,10 +1057,15 @@ class LiquidAuthOfferViewModel(
     }
 
     fun fetchAccountASABalance(
-        address: String,
+        address: String?,
         assetId: Long,
     ) {
-        if (assetId <= 0) {
+        if (address.isNullOrBlank() ||
+            assetId <= 0 ||
+            SolanaStreamVault.isSolana(billingNetwork) ||
+            com.michaeltchuang.walletsdk.core.solana.utils.Base58
+                .isValidSolanaAddress(address)
+        ) {
             _creatorAsaBalance.value = null
             _isCheckingCreatorAsaBalance.value = false
             return
@@ -1013,6 +1087,15 @@ class LiquidAuthOfferViewModel(
     }
 
     private fun closeSessionVault(creatorAddress: String?) {
+        if (SolanaStreamVault.isSolana(billingNetwork) ||
+            creatorAddress?.let {
+                com.michaeltchuang.walletsdk.core.solana.utils.Base58
+                    .isValidSolanaAddress(it)
+            } == true
+        ) {
+            Napier.w("Solana cannot auto close until SeedVault owner approval; payer escape hatch remains available")
+            return
+        }
         if (creatorAddress == null) {
             Napier.e("Skipping session vault close: creatorAddress is missing")
             return

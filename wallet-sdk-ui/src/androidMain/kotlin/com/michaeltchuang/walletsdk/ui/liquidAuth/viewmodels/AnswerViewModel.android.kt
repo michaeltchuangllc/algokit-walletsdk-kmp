@@ -238,7 +238,7 @@ actual open class AnswerViewModel actual constructor(
         platformServices.deleteCredentialByAccountAddress(accountAddress, authMessage.value?.origin.orEmpty())
     }
 
-    fun getCredentialMessage(
+    suspend fun getCredentialMessage(
         account: String,
         credential: WebAuthnCredential,
     ): JSONObject {
@@ -253,6 +253,9 @@ actual open class AnswerViewModel actual constructor(
         credMessage.put("id", credential.id)
         credMessage.put("prevCounter", count.value)
         credMessage.put("type", "credential")
+        if (authMessage.value?.appId == com.michaeltchuang.walletsdk.core.foundation.utils.AppId.LIQUID_AUTH_STREAM.name) {
+            credMessage.put("mppNetwork", resolveMppClientNetwork(account))
+        }
         return credMessage
     }
 
@@ -343,10 +346,12 @@ actual open class AnswerViewModel actual constructor(
         val service = signalService.value
         if (service?.peerConnection == null) {
             Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_peer_connection", tag = TAG)
+            onStreamRejected("payment_setup_failed", "The viewer connection is not available.")
             return
         }
         viewModelScope.launch {
             try {
+                val mppNetwork = resolveMppClientNetwork(address)
                 // Unlike iOS — where Swift hands Kotlin an already-ready data channel — Android's
                 // payment channel is created by the remote host peer, so we must wait for it
                 // (and resolve the signer/network) before the shared use case can run.
@@ -354,15 +359,14 @@ actual open class AnswerViewModel actual constructor(
                     platformServices.awaitViewerPaymentDataChannel(service)
                         ?: run {
                             Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_payment_channel viewer=$address", tag = TAG)
-                            return@launch
+                            error("The viewer payment channel is not available.")
                         }
                 val signer =
                     buildMppWalletSigner(address)
                         ?: run {
                             Napier.e("[VIEWER_MPP_SETUP_SKIP] reason=missing_signer viewer=$address", tag = TAG)
-                            return@launch
+                            error("The selected account cannot sign streaming payments.")
                         }
-                val mppNetwork = resolveMppClientNetwork(address)
 
                 setupMppPaymentViewerUseCase(
                     SetupMppPaymentViewerUseCase.Params(
@@ -372,6 +376,7 @@ actual open class AnswerViewModel actual constructor(
                         scope = viewModelScope,
                         signer = signer,
                         mppNetwork = mppNetwork,
+                        signSolanaTransaction = signSolanaTransactionDelegate,
                         requestMppConsent = ::requestMppConsentFromUi,
                         getConnectionType = { connectionType.value },
                         setViewerPaymentProcessing = ::setViewerPaymentProcessing,
@@ -381,12 +386,15 @@ actual open class AnswerViewModel actual constructor(
                         onChatMessageReceived = ::onChatMessageReceived,
                         getHostAddress = { hostAddress.value },
                         onStreamRejected = ::onStreamRejected,
+                        onPaymentError = ::setError,
                     ),
                 )
-            } catch (_: CancellationException) {
+            } catch (ce: CancellationException) {
                 Napier.w("[VIEWER_MPP_SETUP_CANCELLED] viewer=$address", tag = TAG)
+                throw ce
             } catch (e: Exception) {
                 Napier.e("[VIEWER_MPP_SETUP_FAILED] viewer=$address", e, tag = TAG)
+                onStreamRejected("payment_setup_failed", e.message ?: "Could not set up streaming payments.")
             }
         }
     }

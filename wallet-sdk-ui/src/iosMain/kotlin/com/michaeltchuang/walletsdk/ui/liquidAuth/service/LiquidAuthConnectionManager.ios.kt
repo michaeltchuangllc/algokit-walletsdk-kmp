@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamCreator
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.core.railmpp.MppServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.core.readMppNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
@@ -16,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costPerBlockMicroUsdc
@@ -80,6 +82,7 @@ var iosBroadcastSendMessageHandler: ((message: String) -> Unit)? = null
 var iosBroadcastPaymentDCSendMessageHandler: ((message: String) -> Unit)? = null
 
 var iosBroadcastGateVideoHandler: ((enabled: Boolean) -> Unit)? = null
+var iosBroadcastViewerMediaAdmissionHandler: ((requestId: String, admitted: Boolean) -> Unit)? = null
 var iosBroadcastSetAudioEnabledHandler: ((enabled: Boolean) -> Unit)? = null
 var iosBroadcastSetVideoEnabledHandler: ((enabled: Boolean) -> Unit)? = null
 
@@ -462,8 +465,12 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel?.clearViewerConsent()
         viewerPaymentRailSetupKey = null
         pendingViewerPaymentMessages.clear()
-        EscrowSessionVaultHybridManagerClient.channelId = null
-        EscrowSessionVaultHybridManagerClient.hostAddress = null
+        if (!com.michaeltchuang.walletsdk.core.solana.utils.Base58
+                .isValidSolanaAddress(_viewerAddress.value.orEmpty())
+        ) {
+            EscrowSessionVaultHybridManagerClient.channelId = null
+            EscrowSessionVaultHybridManagerClient.hostAddress = null
+        }
         answerViewModel?.closeViewerPaymentRail()
     }
 
@@ -480,8 +487,12 @@ actual class LiquidAuthConnectionManager actual constructor(
         answerViewModel = viewModel
         if (viewModel != null) {
             viewerPaymentRailSetupKey = null
-            EscrowSessionVaultHybridManagerClient.channelId = null
-            EscrowSessionVaultHybridManagerClient.hostAddress = null
+            if (!com.michaeltchuang.walletsdk.core.solana.utils.Base58
+                    .isValidSolanaAddress(_viewerAddress.value.orEmpty())
+            ) {
+                EscrowSessionVaultHybridManagerClient.channelId = null
+                EscrowSessionVaultHybridManagerClient.hostAddress = null
+            }
         }
         maybeSetupViewerPaymentRail()
     }
@@ -555,6 +566,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     actual fun sendPaymentRequest(paymentRequest: PaymentRequest) {
+        if (!configureHostNetwork(paymentRequest.payTo, paymentRequest.network)) return
         activePaymentRecipient = paymentRequest.payTo
         activePaymentAmount = paymentRequest.amount
         resolveLiquidAuthPaymentRequest(paymentRequest).let {
@@ -672,7 +684,10 @@ actual class LiquidAuthConnectionManager actual constructor(
             }
         }
         creator.rtcServer.onSessionTerminated = { sid -> Napier.d("$TAG: [Creator] onSessionTerminated session=$sid") }
-        creator.rtcServer.onError = { err -> Napier.d("$TAG: [Creator] error: $err") }
+        creator.rtcServer.onError = { err ->
+            Napier.d("$TAG: [Creator] error: $err")
+            viewModel?.onMppPaymentRejected(err.message ?: "Creator error")
+        }
 
         streamCreator = creator
         Napier.d("$TAG: LiquidStreamCreator created — calling start()")
@@ -750,6 +765,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         creatorAddress: String,
         network: String,
     ) {
+        if (!configureHostNetwork(creatorAddress, network)) return
         // This entry point is the common screen's explicit chat-only/free path.
         isPaidStreamingEnabled = false
         val sameCreator = streamCreator != null && activePaymentRecipient == creatorAddress
@@ -812,12 +828,16 @@ actual class LiquidAuthConnectionManager actual constructor(
             val helloJson = """{"type":"segment:handshake","viewer":"$viewer","viewerPublicKey":"$viewerPublicKeyBase64"}"""
             if (streamCreator === creator) tryCaptureViewerAddressFromMessage(helloJson)
         }
+        creator.rtcServer.onError = { error ->
+            viewModel?.onMppPaymentRejected(error.message ?: "Creator setup failed")
+        }
 
         streamCreator = creator
         creator.start()
         activePaymentRecipient = creatorAddress
         activePaymentNetwork = resolvedNetwork
         activePaymentSessionId = sessionId
+        sendPrimarySessionInfo()
         if (activeRequestId in connectedHostViewers &&
             (!meshHostingEnabled || activeRequestId in hostPaymentSenders)
         ) {
@@ -827,6 +847,27 @@ actual class LiquidAuthConnectionManager actual constructor(
 
         Napier.d("$TAG: 💬 Chat initialized for creator=$creatorAddress")
     }
+
+    private fun configureHostNetwork(
+        address: String,
+        network: String,
+    ): Boolean =
+        try {
+            val resolved = resolveLiquidAuthMppNetwork(network)
+            validateLiquidStreamHostNetwork(address, resolved)
+            if (SolanaStreamVault.isSolana(resolved)) {
+                check(iosBroadcastViewerMediaAdmissionHandler != null) {
+                    "Solana hosting requires native per-viewer media admission support"
+                }
+            }
+            viewModel?.configureBillingNetwork(address, resolved)
+            true
+        } catch (e: Exception) {
+            viewModel?.onMppPaymentRejected(e.message ?: "Unsupported creator network")
+            false
+        }
+
+    private val admittedViewerNetworks = mutableMapOf<String, String>()
 
     actual fun setAudioEnabled(enabled: Boolean) {
         iosBroadcastSetAudioEnabledHandler?.invoke(enabled)
@@ -845,12 +886,14 @@ actual class LiquidAuthConnectionManager actual constructor(
             return
         }
         if (requestId != activeRequestId || requestId !in hostInvitations) return
+        iosBroadcastViewerMediaAdmissionHandler?.invoke(requestId, false)
         connectedHostViewers.add(requestId)
         Napier.d("$TAG: notifyClientConnected requestId=$requestId")
         viewModel?.onClientConnected(requestId)
         startConnectionTypePolling()
         // Open the host DC so LiquidStreamCreator (if already started) begins the handshake.
         streamCreatorDataChannel?.notifyOpen()
+        sendPrimarySessionInfo()
     }
 
     @Suppress("unused")
@@ -862,6 +905,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         }
         Napier.d("$TAG: notifyClientDisconnected")
         connectedHostViewers.clear()
+        admittedViewerNetworks.clear()
         paymentRequestJob?.cancel()
         viewerReady.value = false
         stopConnectionTypePolling()
@@ -883,6 +927,7 @@ actual class LiquidAuthConnectionManager actual constructor(
             return
         }
         if (requestId !in hostInvitations || requestId in connectedHostViewers) return
+        iosBroadcastViewerMediaAdmissionHandler?.invoke(requestId, false)
         // Match the VM and Swift: invitation creation/order does not reserve the primary.
         // Set this before notifying the VM's legacy state machine.
         if (activeRequestId == null) activeRequestId = requestId
@@ -899,6 +944,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     fun notifyBroadcastViewerDisconnected(requestId: String) {
+        admittedViewerNetworks.remove(requestId)
         if (requestId !in hostInvitations) return
         if (!meshHostingEnabled) {
             if (requestId == activeRequestId) notifyClientDisconnected()
@@ -962,7 +1008,12 @@ actual class LiquidAuthConnectionManager actual constructor(
             return
         }
         if (requestId in connectedHostViewers) {
-            if (requestId == activeRequestId) streamCreatorDataChannel?.notifyOpen() else sendAdditionalViewerInfo(requestId)
+            if (requestId == activeRequestId) {
+                streamCreatorDataChannel?.notifyOpen()
+                sendPrimarySessionInfo()
+            } else {
+                sendAdditionalViewerInfo(requestId)
+            }
         }
     }
 
@@ -1019,13 +1070,36 @@ actual class LiquidAuthConnectionManager actual constructor(
         requestId: String,
         message: String,
     ): Boolean {
-        if (!meshHostingEnabled) return true
         if (requestId in rejectedHostViewers) {
             sendStreamRejectedNotice(requestId, throttle = true)
             return false
         }
         val address = extractLiquidAuthViewerAddress(message) ?: return true
-        val owner = duplicateAddressOwner(address, requestId) ?: return true
+        val network = activePaymentNetwork ?: return false
+        try {
+            validateLiquidStreamViewerNetwork(
+                network,
+                address,
+                Json.parseToJsonElement(message).jsonObject.readMppNetwork() ?: admittedViewerNetworks[requestId],
+            )
+            if (SolanaStreamVault.isSolana(network)) {
+                check(iosBroadcastViewerMediaAdmissionHandler != null) { "Native media admission unavailable" }
+            }
+        } catch (e: Exception) {
+            iosBroadcastViewerMediaAdmissionHandler?.invoke(requestId, false)
+            val notice = buildLiquidStreamRejectedMessage("network_mismatch", e.message ?: "Incompatible viewer network")
+            (hostPaymentSenders[requestId] ?: iosBroadcastPaymentDCSendMessageHandler)?.invoke(notice)
+            viewModel?.onMeshViewerError(e.message ?: "Incompatible viewer network")
+            iosBroadcastViewerStopHandler?.invoke(requestId)
+            return false
+        }
+        val owner = if (meshHostingEnabled) duplicateAddressOwner(address, requestId) else null
+        if (owner == null) {
+            admittedViewerNetworks[requestId] = network
+            iosBroadcastViewerMediaAdmissionHandler?.invoke(requestId, true)
+            return true
+        }
+        iosBroadcastViewerMediaAdmissionHandler?.invoke(requestId, false)
         Napier.w("$TAG: [HOST_DUPLICATE_VIEWER_REJECTED] requestId=$requestId owner=$owner viewer=$address")
         rejectedHostViewers[requestId] = null
         // Notify first so the viewer sees the reason before any session teardown message.
@@ -1184,7 +1258,14 @@ actual class LiquidAuthConnectionManager actual constructor(
                     val peerConfig = additionalHostViewers[requestId]?.config
                     val creator = (peerConfig?.gating?.payTo ?: activePaymentRecipient)?.takeIf { it.isNotBlank() }
                     val network = (peerConfig?.gating?.network ?: activePaymentNetwork)?.takeIf { it.isNotBlank() }
-                    val salt = if (channelId == null) EscrowSessionVaultHybridManagerClient.defaultSalt?.copyOf() else null
+                    val salt =
+                        if (channelId != null) {
+                            null
+                        } else if (network?.let(SolanaStreamVault::isSolana) == true) {
+                            creator?.let { SolanaStreamVault.salt(identity.address, it, signerKey) }
+                        } else {
+                            EscrowSessionVaultHybridManagerClient.defaultSalt?.copyOf()
+                        }
                     if (creator != previousCreator || network != previousNetwork || !salt.contentEquals(previousSalt)) {
                         val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
                         publishHostViewerDetails(
@@ -1237,7 +1318,11 @@ actual class LiquidAuthConnectionManager actual constructor(
                             if (snapshot != null &&
                                 creator == (currentConfig?.gating?.payTo ?: activePaymentRecipient) &&
                                 network == (currentConfig?.gating?.network ?: activePaymentNetwork) &&
-                                (channelId != null || salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt))
+                                (
+                                    channelId != null ||
+                                        SolanaStreamVault.isSolana(network) ||
+                                        salt.contentEquals(EscrowSessionVaultHybridManagerClient.defaultSalt)
+                                )
                             ) {
                                 val details = hostViewerDetails[requestId] ?: HostViewerDetails(viewerAddress = identity.address)
                                 // A slower poll must not overwrite a settlement callback.
@@ -1379,7 +1464,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                 relayViewerChat(message, creator)
             }
         }
-        creator.rtcServer.onError = { error -> Napier.w("$TAG: extra-viewer protocol error ($requestId): $error") }
+        creator.rtcServer.onError = { error ->
+            Napier.w("$TAG: extra-viewer protocol error ($requestId): $error")
+            viewModel?.onMeshViewerError(error.message ?: "Mesh creator error")
+        }
         creator.start()
         ensureAdditionalViewerBilling(requestId, peer)
         sendAdditionalViewerMetadata(requestId, peer)
@@ -1445,7 +1533,10 @@ actual class LiquidAuthConnectionManager actual constructor(
                         )
                     }
                 },
-                onError = { error -> Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}") },
+                onError = { error ->
+                    Napier.w("$TAG: extra-viewer billing error ($requestId): ${error.message}")
+                    viewModel?.onMeshViewerError(error.message ?: "Mesh vault billing failed")
+                },
                 payoutFrequencyBlocks = payoutFrequencyBlocks,
                 getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
                     creator.rtcServer.voucherCoveredBlockCount(amount, confirmedBlocks)
@@ -1489,7 +1580,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         message: String,
     ) {
         if (additionalHostViewers[requestId] !== peer) return
-        val parsed = parseLiquidAuthHostTransportMessage(message)
+        val parsed = runCatching { parseLiquidAuthHostTransportMessage(message) }.getOrElse { return }
         ensureAdditionalViewerBilling(requestId, peer)
         parsed.paymentVoucher?.let { voucher ->
             val billing = peer.billing ?: return@let
@@ -1548,7 +1639,7 @@ actual class LiquidAuthConnectionManager actual constructor(
         val recipient = config.gating.payTo
         val sessionId = peer.creator?.sessionId ?: return
         val cost = config.gating.amount.toLongOrNull() ?: 0L
-        sender(buildLiquidStreamInfoMessage(hostAddress = recipient, sessionId = sessionId))
+        sender(buildLiquidStreamInfoMessage(hostAddress = recipient, sessionId = sessionId, network = activePaymentNetwork))
         sender(buildLiquidStreamCostUpdateMessage(sessionId = sessionId, costMicroUsdc = cost))
     }
 
@@ -1562,7 +1653,7 @@ actual class LiquidAuthConnectionManager actual constructor(
     }
 
     fun notifyViewerMessageReceived(message: String) {
-        val ref = parseLiquidAuthHostTransportMessage(message).reference ?: "(no-ref)"
+        val ref = message.jsonOptString("reference") ?: "(no-ref)"
         if (ref != "liquid:video:frame") {
             Napier.d(
                 "$TAG: VIEWER_MSG_RECV ref=$ref len=${message.length} " +
@@ -1578,7 +1669,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                 viewModel.applyViewerSharedMessageState(message)
                 return
             }
-            if (parseLiquidAuthHostTransportMessage(message).type == DCMessageType.CHAT_MESSAGE.value) {
+            if (message.jsonOptString("type") == DCMessageType.CHAT_MESSAGE.value) {
                 deliverViewerPaymentMessage(message)
                 return
             }
@@ -1594,14 +1685,17 @@ actual class LiquidAuthConnectionManager actual constructor(
             )
         } else {
             Napier.d("$TAG: VIEWER_MSG_BUFFERED (AnswerViewModel not yet attached) preview=${message.take(120)}")
-            val parsed = parseLiquidAuthHostTransportMessage(message)
+            val parsed = runCatching { parseLiquidAuthHostTransportMessage(message) }.getOrElse { return }
             parsed.address?.let { if (it.isNotBlank()) setViewerHostAddress(it) }
             deliverViewerPaymentMessage(message)
         }
     }
 
     private fun notifyHostMessageReceived(message: String) {
-        val parsed = parseLiquidAuthHostTransportMessage(message)
+        val requestId = activeRequestId ?: return
+        sendPrimarySessionInfo()
+        if (!admitHostViewerIdentity(requestId, message)) return
+        val parsed = runCatching { parseLiquidAuthHostTransportMessage(message) }.getOrElse { return }
         val ref = parsed.reference ?: "(no-ref)"
         val msgType = parsed.type
         Napier.d(
@@ -1629,6 +1723,13 @@ actual class LiquidAuthConnectionManager actual constructor(
                 viewModel?.onClientConnected(requestId)
             }
         }
+    }
+
+    private fun sendPrimarySessionInfo() {
+        val recipient = activePaymentRecipient ?: return
+        val session = activePaymentSessionId ?: return
+        val sender = hostPaymentSenders[activeRequestId] ?: iosBroadcastPaymentDCSendMessageHandler ?: return
+        sender(buildLiquidStreamInfoMessage(recipient, session, activePaymentNetwork))
     }
 
     @Suppress("unused")
@@ -1672,7 +1773,11 @@ actual class LiquidAuthConnectionManager actual constructor(
         if (address.isBlank()) return
         _hostAddress.value = address
         answerViewModel?.setHostAddress(address)
-        EscrowSessionVaultHybridManagerClient.hostAddress = address
+        if (!com.michaeltchuang.walletsdk.core.solana.utils.Base58
+                .isValidSolanaAddress(address)
+        ) {
+            EscrowSessionVaultHybridManagerClient.hostAddress = address
+        }
         maybeSetupViewerPaymentRail()
     }
 

@@ -56,6 +56,10 @@ fun AnswerScreen(
     val connectionType by viewModel.connectionType.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
     val hostAddress by viewModel.hostAddress.collectAsState()
+    val streamNetworkValidated by viewModel.isViewerStreamNetworkValidated.collectAsState()
+    LaunchedEffect(viewModel, accountAddress) {
+        viewModel.initializeViewerStreamValidation()
+    }
     val errorMessage by viewModel.error.collectAsState()
     val signalService by viewModel.signalService.collectAsState()
     val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
@@ -65,6 +69,12 @@ fun AnswerScreen(
     var deliveredMessageCount by remember { mutableIntStateOf(0) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
     val viewerBottomSheetState =
@@ -105,8 +115,8 @@ fun AnswerScreen(
     // its camera/ends the stream and frames stop arriving, the existing STREAM_TIMEOUT_MS watchdog in
     // LiquidAuthViewerStateHolder fires onStreamTimeout -> StreamDisconnected, tearing down
     // the viewer session automatically (handled below).
-    DisposableEffect(remoteVideoTrack) {
-        val track = remoteVideoTrack
+    DisposableEffect(remoteVideoTrack, streamNetworkValidated) {
+        val track = remoteVideoTrack.takeIf { streamNetworkValidated }
         val heartbeatSink = StreamHeartbeatVideoSink(onHeartbeat = { viewModel.markStreamFrameReceived() })
         runCatching { track?.addSink(heartbeatSink) }
         onDispose {
@@ -153,7 +163,7 @@ fun AnswerScreen(
     }
 
     val viewerCameraPreview: (@Composable () -> Unit)? =
-        remoteVideoTrack?.let { track ->
+        remoteVideoTrack?.takeIf { streamNetworkValidated }?.let { track ->
             {
                 WebRtcVideoRenderer(
                     eglBaseContext = eglBaseContext,

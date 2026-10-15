@@ -42,8 +42,12 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
+import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultMessageSigner
+import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.launch
@@ -79,6 +83,24 @@ actual fun AnswerScreenOverlay() {
         LocalViewModelStoreOwner provides viewModelStoreOwner,
     ) {
         val viewModel: AnswerViewModel = koinViewModel()
+        val signSolanaTransaction = rememberSeedVaultTransactionSigner()
+        val signSolanaMessage = rememberSeedVaultMessageSigner()
+        DisposableEffect(viewModel, signSolanaMessage) {
+            viewModel.signSolanaMessage = signSolanaMessage
+            onDispose {
+                if (viewModel.signSolanaMessage === signSolanaMessage) {
+                    viewModel.signSolanaMessage = null
+                }
+            }
+        }
+        DisposableEffect(viewModel, signSolanaTransaction) {
+            viewModel.signSolanaTransaction = signSolanaTransaction
+            onDispose {
+                if (viewModel.signSolanaTransaction === signSolanaTransaction) {
+                    viewModel.signSolanaTransaction = null
+                }
+            }
+        }
         val address = AnswerScreenState.accountAddress
 
         val credentialManager = remember(context) { CredentialManager.create(context) }
@@ -234,7 +256,11 @@ actual fun AnswerScreenOverlay() {
                                     val result = handler(WebAuthnCredential(response.registrationResponseJson), viewModel)
                                     viewModel.handleAttestationResultFromLauncher(result, event.accountAddress)
                                 } catch (e: CancellationException) {
-                                    throw e
+                                    currentCoroutineContext().ensureActive()
+                                    viewModel.handleAttestationResultFromLauncher(
+                                        HandleAttestationResultUseCase.Result.Cancelled("Owner approval cancelled"),
+                                        event.accountAddress,
+                                    )
                                 } catch (_: CreateCredentialCancellationException) {
                                     viewModel.handleAttestationResultFromLauncher(
                                         HandleAttestationResultUseCase.Result.Cancelled("Registration cancelled"),
@@ -274,7 +300,10 @@ actual fun AnswerScreenOverlay() {
                                     val handler: HandleAssertionResultUseCase = KoinPlatform.getKoin().get()
                                     viewModel.handleAssertionResultFromLauncher(handler(credential, viewModel))
                                 } catch (e: CancellationException) {
-                                    throw e
+                                    currentCoroutineContext().ensureActive()
+                                    viewModel.handleAssertionResultFromLauncher(
+                                        HandleAssertionResultUseCase.Result.Cancelled("Owner approval cancelled"),
+                                    )
                                 } catch (_: GetCredentialCancellationException) {
                                     viewModel.handleAssertionResultFromLauncher(
                                         HandleAssertionResultUseCase.Result.Cancelled("Authentication cancelled"),
@@ -412,6 +441,17 @@ private suspend fun handleWebRTCSetup(
     credential: WebAuthnCredential,
 ) {
     val msg = viewModel.authMessage.value ?: return
+    viewModel.resetViewerStreamValidation()
+    viewModel.initializeViewerStreamValidation()
+    val credentialMessage =
+        try {
+            viewModel.getCredentialMessage(address, credential).toString()
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            viewModel.onStreamRejected("payment_setup_failed", e.message)
+            return
+        }
     if (viewModel.signalService.value != null) {
         Napier.d("Setting up WebRTC connection...", tag = TAG)
         // Streaming sessions receive the creator's camera + microphone as native WebRTC
@@ -432,7 +472,7 @@ private suspend fun handleWebRTCSetup(
             val service = viewModel.signalService.value ?: return
             if (credentialSent || service.dataChannel?.state() != org.webrtc.DataChannel.State.OPEN) return
             credentialSent = true
-            service.send(viewModel.getCredentialMessage(address, credential).toString())
+            service.send(credentialMessage)
         }
         viewModel.signalService.value?.handleMessages(
             activity = activity,
@@ -485,7 +525,15 @@ private suspend fun topUpViewerSessionVault(
         return
     }
 
-    val signer = viewModel.buildMppWalletSigner(viewerAddress)
+    val signer =
+        try {
+            viewModel.buildMppWalletSigner(viewerAddress)
+        } catch (ce: kotlinx.coroutines.CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            viewModel.setError(e.message ?: "Failed to build wallet signer")
+            return
+        }
     if (signer == null) {
         Toast.makeText(context, "Failed to build wallet signer", Toast.LENGTH_LONG).show()
         return

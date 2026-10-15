@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInte
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.simulateReadonlyMethodInternal
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -44,14 +45,18 @@ object HostViewerVaultReader {
         network: String,
         salt: ByteArray,
     ): Result<Snapshot> =
-        read(
-            viewerAddress,
-            creatorAddress,
-            authorizedSignerPublicKey,
-            network,
-            salt,
-            ::simulateReadonlyMethodInternal,
-        )
+        if (SolanaStreamVault.isSolana(network)) {
+            SolanaStreamVault.read(viewerAddress, creatorAddress, authorizedSignerPublicKey, network)
+        } else {
+            read(
+                viewerAddress,
+                creatorAddress,
+                authorizedSignerPublicKey,
+                network,
+                salt,
+                ::simulateReadonlyMethodInternal,
+            )
+        }
 
     /**
      * Reads an untrusted channel hint without needing its salt. Validates the session box's
@@ -65,15 +70,19 @@ object HostViewerVaultReader {
         authorizedSignerPublicKey: ByteArray,
         network: String,
     ): Result<Snapshot> =
-        readChannel(
-            channelId,
-            viewerAddress,
-            creatorAddress,
-            authorizedSignerPublicKey,
-            network,
-            ::getSessionBoxBytesInternal,
-            ::simulateReadonlyMethodInternal,
-        )
+        if (SolanaStreamVault.isSolana(network)) {
+            SolanaStreamVault.read(viewerAddress, creatorAddress, authorizedSignerPublicKey, network, channelId)
+        } else {
+            readChannel(
+                channelId,
+                viewerAddress,
+                creatorAddress,
+                authorizedSignerPublicKey,
+                network,
+                ::getSessionBoxBytesInternal,
+                ::simulateReadonlyMethodInternal,
+            )
+        }
 
     internal suspend fun readChannel(
         channelId: ByteArray,
@@ -186,6 +195,9 @@ object HostViewerVaultReader {
         network: String,
         salt: ByteArray,
     ): ByteArray {
+        if (SolanaStreamVault.isSolana(network)) {
+            return SolanaStreamVault.deriveChannel(viewerAddress, creatorAddress, authorizedSignerPublicKey, network)
+        }
         require(authorizedSignerPublicKey.isNotEmpty()) { "authorizedSignerPublicKey must not be empty" }
         val config = networkConfig(network)
         return sha256(

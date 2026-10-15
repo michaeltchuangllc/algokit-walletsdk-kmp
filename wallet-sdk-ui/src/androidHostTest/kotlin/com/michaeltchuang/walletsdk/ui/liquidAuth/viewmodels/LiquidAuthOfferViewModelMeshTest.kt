@@ -8,11 +8,13 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel.OfferEvent
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel.OfferState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel.PaymentState
+import com.michaeltchuang.walletsdk.utils.DataResource
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -21,6 +23,7 @@ import io.mockk.verify
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
@@ -41,6 +44,7 @@ class LiquidAuthOfferViewModelMeshTest {
     private val generateOfferUseCase = mockk<GenerateLiquidAuthOfferUseCase>()
     private val eventDelegate = mockk<EventDelegate<OfferEvent>>()
     private val getCurrentNetworkUseCase = mockk<GetCurrentNetworkUseCase>()
+    private val getCurrentBlockUseCase = mockk<GetCurrentBlockUseCase>()
     private lateinit var vm: LiquidAuthOfferViewModel
 
     @Before
@@ -59,7 +63,7 @@ class LiquidAuthOfferViewModelMeshTest {
                 stateDelegate = StateDelegate(),
                 eventDelegate = eventDelegate,
                 getAccountASABalance = mockk(),
-                getCurrentBlockUseCase = mockk(),
+                getCurrentBlockUseCase = getCurrentBlockUseCase,
                 getCurrentNetworkUseCase = getCurrentNetworkUseCase,
                 mppWalletSignerUseCase = mockk(),
             )
@@ -78,6 +82,53 @@ class LiquidAuthOfferViewModelMeshTest {
         } finally {
             Dispatchers.resetMain()
         }
+    }
+
+    @Test
+    fun `SeedVault creator polls real rounds every second retaining errors rather than incrementing locally`() {
+        vm.configureBillingNetwork("11111111111111111111111111111111", "solana:devnet")
+        var result: DataResource<Long> = DataResource.Success(42_000_000L)
+        every { getCurrentBlockUseCase() } answers { flowOf(result) }
+
+        vm.startRealtimeBlockNumberUpdates()
+        dispatcher.scheduler.runCurrent()
+        verify(exactly = 1) { getCurrentBlockUseCase() }
+        assertEquals(42_000_000L, vm.currentBlockNumber.value)
+
+        result = DataResource.Success(42_000_017L)
+        dispatcher.scheduler.advanceTimeBy(999)
+        dispatcher.scheduler.runCurrent()
+        verify(exactly = 1) { getCurrentBlockUseCase() }
+        assertEquals(42_000_000L, vm.currentBlockNumber.value)
+        dispatcher.scheduler.advanceTimeBy(1)
+        dispatcher.scheduler.runCurrent()
+        verify(exactly = 2) { getCurrentBlockUseCase() }
+        assertEquals(42_000_017L, vm.currentBlockNumber.value)
+
+        result = DataResource.Loading()
+        dispatcher.scheduler.advanceTimeBy(1_000)
+        dispatcher.scheduler.runCurrent()
+        assertEquals(42_000_017L, vm.currentBlockNumber.value)
+
+        result = DataResource.Error.Api(IllegalStateException("Node unavailable"), 503)
+        repeat(3) {
+            dispatcher.scheduler.advanceTimeBy(1_000)
+            dispatcher.scheduler.runCurrent()
+            assertEquals(42_000_017L, vm.currentBlockNumber.value)
+        }
+        verify(exactly = 6) { getCurrentBlockUseCase() }
+
+        result = DataResource.Success(42_000_031L)
+        dispatcher.scheduler.advanceTimeBy(1_000)
+        dispatcher.scheduler.runCurrent()
+        assertEquals(42_000_031L, vm.currentBlockNumber.value)
+        verify(exactly = 7) { getCurrentBlockUseCase() }
+
+        vm.stopRealtimeBlockNumberUpdates()
+        dispatcher.scheduler.advanceTimeBy(5_000)
+        dispatcher.scheduler.runCurrent()
+        verify(exactly = 7) { getCurrentBlockUseCase() }
+        assertEquals(42_000_031L, vm.currentBlockNumber.value)
     }
 
     @Test

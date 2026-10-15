@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.railmpp.utils.VoucherSettlementPolicy
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
@@ -55,6 +56,7 @@ internal class LiquidStreamBlockConsumptionManager(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var blockDrivenConsumptionJob: Job? = null
     private var billing: ViewerVaultBillingSession? = null
+    private var billingChannel: ByteArray? = null
 
     @Volatile
     private var billingGeneration = 0L
@@ -170,8 +172,9 @@ internal class LiquidStreamBlockConsumptionManager(
                     currentSessionId == session &&
                     generation == billingGeneration
                 ) {
+                    billingChannel = channel.copyOf()
                     // Legacy primary UI reads still use this client; never set it from unvalidated input.
-                    EscrowSessionVaultHybridManagerClient.channelId = channel
+                    if (!SolanaStreamVault.isSolana(network)) EscrowSessionVaultHybridManagerClient.channelId = channel
                 }
             }
         }
@@ -184,6 +187,7 @@ internal class LiquidStreamBlockConsumptionManager(
         enqueueBilling {
             billing?.close(refundVault = true)?.join()
             billing = null
+            billingChannel = null
         }
     }
 
@@ -419,6 +423,33 @@ internal class LiquidStreamBlockConsumptionManager(
             getActiveViewerAddress()
                 ?.takeIf { it.isNotBlank() }
 
+        if (SolanaStreamVault.isSolana(viewModel.billingNetwork)) {
+            val current = billing ?: return
+            val channel = billingChannel?.copyOf() ?: return
+            try {
+                val snapshot =
+                    withTimeout(CHAIN_READ_TIMEOUT_MS.milliseconds) {
+                        HostViewerVaultReader
+                            .readChannel(
+                                channel,
+                                current.viewerAddress,
+                                current.creatorAddress,
+                                current.signerPublicKey,
+                                current.network,
+                            ).getOrThrow()
+                    }
+                withContext(Dispatchers.Main.immediate) {
+                    publishSnapshot(sessionId, generation, snapshot)
+                }
+            } catch (e: TimeoutCancellationException) {
+                Napier.w("Solana vault read timed out; retaining confirmed balance", e, tag = tag)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Napier.w("Solana vault read failed; retaining confirmed balance", e, tag = tag)
+            }
+            return
+        }
         val progressSnapshot =
             if (viewerAddress == null) {
                 null
@@ -475,7 +506,8 @@ internal class LiquidStreamBlockConsumptionManager(
         blocksConsumed = acceptedPaid + acceptedFree
 
         lastSettledMicroUsdc = snapshot.lastSettledMicroUsdc
-        snapshot.startRound?.let { startRound = it }
+        // Solana startRound is an on-chain slot, not a billable/displayable interval.
+        if (!SolanaStreamVault.isSolana(viewModel.billingNetwork)) snapshot.startRound?.let { startRound = it }
 
         viewModel.consumeBlock(
             onChainRemainingMicroUsdc = snapshot.remainingBalanceMicroUsdc,

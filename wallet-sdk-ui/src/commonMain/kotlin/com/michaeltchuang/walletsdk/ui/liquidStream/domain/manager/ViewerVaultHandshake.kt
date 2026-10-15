@@ -8,6 +8,7 @@ import kotlin.io.encoding.Base64
 internal class ViewerVaultHandshake(
     private val viewer: String,
     signerPublicKey: ByteArray,
+    private val mppNetwork: String? = null,
 ) {
     private val signerPublicKey = signerPublicKey.copyOf()
     private var lastSent: String? = null
@@ -24,6 +25,7 @@ internal class ViewerVaultHandshake(
                 put("type", "segment:handshake")
                 put("viewer", viewer)
                 put("viewerPublicKey", Base64.encode(signerPublicKey))
+                mppNetwork?.let { put("mppNetwork", it) }
                 if (channelId?.size == 32) {
                     put("channelId", Base64.encode(channelId))
                 }

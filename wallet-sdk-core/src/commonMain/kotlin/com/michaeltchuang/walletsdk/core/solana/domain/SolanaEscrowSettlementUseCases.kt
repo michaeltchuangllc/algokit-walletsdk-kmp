@@ -48,6 +48,20 @@ class SubmitSolanaSettlementVoucherUseCase(
         val cluster =
             runCatching { SolanaClusters.clusterFor(getCurrentNetworkUseCase().first()) }
                 .getOrElse { return Result.failure(it) }
+        return invoke(cluster, payeeAddress, voucher)
+    }
+
+    suspend operator fun invoke(
+        network: String,
+        payeeAddress: String,
+        voucher: SolanaSettlementVoucher,
+    ): Result<String> {
+        val cluster =
+            when (network) {
+                "devnet", "solana:devnet" -> "devnet"
+                "mainnet-beta", "solana:mainnet" -> "mainnet-beta"
+                else -> return Result.failure(IllegalArgumentException("Unsupported Solana network: $network"))
+            }
         return runCatching {
             val channel =
                 manager.getChannel(cluster, voucher.channel)

@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSig
 import com.michaeltchuang.walletsdk.core.solana.utils.Base58
 import com.michaeltchuang.walletsdk.core.solana.utils.SolanaPda
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 
 /** Per-cluster deployment of the `escrow_session_vault_solana_manager` Anchor program. */
 data class SolanaEscrowSessionVaultConfig(
@@ -167,7 +168,31 @@ class SolanaEscrowSessionVaultManager(
     suspend fun getChannel(
         network: String,
         channel: String,
-    ): SolanaEscrowChannel? = rpc.getAccountData(network, channel)?.let { decodeChannel(channel, it) }
+    ): SolanaEscrowChannel? {
+        val config = configFor(network)
+        val account = rpc.getAccountInfo(network, channel) ?: return null
+        require(account.owner == config.programId) { "Channel account has wrong program owner" }
+        return decodeChannel(channel, account.data).also { validateChannelState(network, it) }
+    }
+
+    internal fun validateChannelState(
+        network: String,
+        state: SolanaEscrowChannel,
+    ) {
+        require(state.mint == configFor(network).usdcMint) { "Channel mint mismatch" }
+        val pda =
+            SolanaPda.findProgramAddress(
+                listOf(CHANNEL_SEED, key(state.payer), key(state.payee), key(state.mint), state.salt),
+                configFor(network).programId,
+            )
+        require(state.address == pda.address && state.bump == pda.bump) { "Channel PDA mismatch" }
+        require(
+            state.totalDeposit >= 0 &&
+                state.lastSettled in 0..state.totalDeposit &&
+                state.latestVoucherAmount in 0..state.totalDeposit &&
+                state.startSlot >= 0,
+        ) { "Invalid channel amounts" }
+    }
 
     /** Open channels for [payer] (optionally to [payee]), newest first. */
     suspend fun findChannels(
@@ -183,7 +208,7 @@ class SolanaEscrowSessionVaultManager(
             }
         return rpc
             .getProgramAccounts(network, configFor(network).programId, CHANNEL_ACCOUNT_SIZE, filters)
-            .map { (address, data) -> decodeChannel(address, data) }
+            .map { (address, data) -> decodeChannel(address, data).also { validateChannelState(network, it) } }
             .sortedByDescending { it.startSlot }
     }
 
@@ -368,34 +393,8 @@ class SolanaEscrowSessionVaultManager(
         feePayer: SolanaTransactionSigner,
     ): Result<String> =
         execute("settle") {
-            val state = requireChannel(network, voucher.channel)
-            require(!state.isSignerRevoked && state.authorizedSigner == voucher.authorizedSigner) {
-                "Voucher signer is not the channel's current authorized signer"
-            }
-            require(voucher.feePayer == feePayer.address) { "Voucher was built for fee payer ${voucher.feePayer}" }
-            checkSettleAmount(state, voucher.cumulativeAmount)
-
-            val (signatures, message) = SolanaTransactionBuilder.deserialize(voucher.partiallySignedTransaction)
-            val expected =
-                SolanaTransactionBuilder.compileMessage(
-                    feePayer = feePayer.address,
-                    recentBlockhash = recentBlockhash(message),
-                    instructions =
-                        settleInstructions(
-                            network,
-                            state,
-                            voucher.cumulativeAmount,
-                            feePayer.address,
-                            voucher.ensurePayeeTokenAccount,
-                        ),
-                )
-            require(message.contentEquals(expected)) { "Voucher transaction does not match the expected settle instruction" }
-
-            val signers = SolanaTransactionBuilder.requiredSigners(message)
-            val signerIndex = signers.indexOf(state.authorizedSigner)
-            require(signerIndex >= 0 && verifyEd25519(key(state.authorizedSigner), message, signatures[signerIndex])) {
-                "Invalid session-key signature on voucher"
-            }
+            validateSettlementVoucher(network, voucher, feePayer.address).getOrThrow()
+            val (_, message) = SolanaTransactionBuilder.deserialize(voucher.partiallySignedTransaction)
             val signed =
                 SolanaTransactionBuilder.addSignature(
                     voucher.partiallySignedTransaction,
@@ -404,6 +403,56 @@ class SolanaEscrowSessionVaultManager(
                 )
             rpc.sendTransaction(network, signed).also { rpc.confirmTransaction(network, it) }
         }
+
+    /** Validation-only path: no signing, fee payment or broadcast. */
+    suspend fun validateSettlementVoucher(
+        network: String,
+        voucher: SolanaSettlementVoucher,
+        expectedFeePayer: String,
+    ): Result<SolanaEscrowChannel> =
+        execute("validate") {
+            val state = requireChannel(network, voucher.channel)
+            validateSettlementVoucher(network, state, voucher, expectedFeePayer)
+            state
+        }
+
+    internal fun validateSettlementVoucher(
+        network: String,
+        state: SolanaEscrowChannel,
+        voucher: SolanaSettlementVoucher,
+        expectedFeePayer: String,
+    ) {
+        validateChannelState(network, state)
+        require(voucher.channel == state.address) { "Voucher channel mismatch" }
+        require(!state.isSignerRevoked && state.authorizedSigner == voucher.authorizedSigner) {
+            "Voucher signer is not the channel's current authorized signer"
+        }
+        require(voucher.feePayer == expectedFeePayer) { "Voucher fee payer mismatch" }
+        require(expectedFeePayer != state.authorizedSigner) { "Session signer cannot pay settle fees" }
+        checkSettleAmount(state, voucher.cumulativeAmount)
+
+        val (signatures, message) = SolanaTransactionBuilder.deserialize(voucher.partiallySignedTransaction)
+        val expected =
+            SolanaTransactionBuilder.compileMessage(
+                feePayer = expectedFeePayer,
+                recentBlockhash = recentBlockhash(message),
+                instructions =
+                    settleInstructions(
+                        network,
+                        state,
+                        voucher.cumulativeAmount,
+                        expectedFeePayer,
+                        voucher.ensurePayeeTokenAccount,
+                    ),
+            )
+        require(message.contentEquals(expected)) { "Voucher transaction does not match the expected settle instruction" }
+
+        val signers = SolanaTransactionBuilder.requiredSigners(message)
+        val signerIndex = signers.indexOf(state.authorizedSigner)
+        require(signerIndex >= 0 && verifyEd25519(key(state.authorizedSigner), message, signatures[signerIndex])) {
+            "Invalid session-key signature on voucher"
+        }
+    }
 
     /**
      * Payee closes the channel: refunds the remaining vault balance to the payer and returns rent
@@ -559,6 +608,7 @@ class SolanaEscrowSessionVaultManager(
         block: suspend () -> T,
     ): Result<T> =
         runCatching { block() }
+            .onFailure { if (it is CancellationException) throw it }
             .recoverCatching { throw mapProgramError(it) }
             .onFailure { Napier.e("[SOLANA_ESCROW_${action.uppercase()}_ERR] ${it.message}", it, tag = TAG) }
 

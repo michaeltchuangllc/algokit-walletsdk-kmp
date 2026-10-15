@@ -1121,7 +1121,8 @@ class MppPaymentViewerSingleFlightTest {
                                 amount = "10",
                                 asset = "USDC",
                                 network = MppNetworks.ALGORAND_TESTNET,
-                                payTo = "creator",
+                                // Canonical zero-key address: RTC validates the payee before consent.
+                                payTo = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAY5HFKQ",
                                 ttl = 60,
                                 nonce = "nonce",
                                 meta = PaymentRequestMeta(GatingMode.PARTIAL_TIME, EnforcementMode.TRACK),
