@@ -13,7 +13,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Set up JDK
         uses: actions/setup-java@v5
@@ -22,7 +22,7 @@ jobs:
           distribution: 'zulu'
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Decode Keystore
         run: |
@@ -41,8 +41,8 @@ jobs:
         run: |
           echo "github_run_number is $GITHUB_RUN_NUMBER + offset=8"
           echo "Building and publishing Android app to Play Store internal track..."
-          ./gradlew :composeDemoApp:bundleRelease
-          ./gradlew :composeDemoApp:publishReleaseBundle --track internal
+          ./gradlew :androidDemoApp:bundleRelease
+          ./gradlew :androidDemoApp:publishReleaseBundle --track internal
 
       - name: Cleanup
         if: always()

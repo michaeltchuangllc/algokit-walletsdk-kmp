@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.DefaultPasskeyMapp
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyEntityMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.repository.DefaultPasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.DeterministicBip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
@@ -98,10 +99,13 @@ val passkeyModule =
             )
         }
 
+        singleOf(::AndroidKeyStorePasskeyManager)
+
         // View Model Processors
         single<GetCredentialResponseProcessor> {
             DefaultGetCredentialResponseProcessor(
                 get<Bip39SignManager>(),
+                get<AndroidKeyStorePasskeyManager>(),
                 get<SetPasskeyLastUsedTime>(),
                 get<TimeProvider>(),
             )

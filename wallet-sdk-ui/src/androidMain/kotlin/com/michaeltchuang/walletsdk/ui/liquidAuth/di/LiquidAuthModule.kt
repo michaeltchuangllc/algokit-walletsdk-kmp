@@ -1,8 +1,8 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.di
 
-import com.algorand.algosdk.transaction.Transaction
-import com.algorand.algosdk.util.Encoder
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.LiquidAuthCredentialStore
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AuthenticateWithBiometricsUseCase
@@ -11,18 +11,21 @@ import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignal
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideCookieJarUseCase
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AssertionIntentLauncherUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.AttestationIntentLauncherUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
+import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.module
-import kotlin.io.encoding.Base64
 
 val liquidAuthUIModule =
     module {
@@ -36,56 +39,72 @@ val liquidAuthUIModule =
         singleOf(::HandleAssertionResultUseCase)
         singleOf(::PrepareAuthenticationUseCase)
         single { ProcessBiometricTransactionSigningUseCase(get()) }
+        single { MppPaymentViewerManager(get()) }
+        single { SetupMppPaymentViewerUseCase(get(), get()) }
         singleOf(::LogAppSignatureUseCase)
         single {
-            val getMnemonic: suspend (String) -> String? = { algoAddr ->
-                get<GetAccountMnemonic>()
-                    .invoke(algoAddr)
-                    .getDataOrNull()
-                    ?.words
-                    ?.joinToString(" ")
-            }
-            val decodeUnsignedTransaction: (String) -> Transaction? = { s ->
-                Encoder.decodeFromMsgPack(
-                    Base64.decode(s),
-                    Transaction::class.java,
-                )
-            }
             ProcessSignTransactionsUseCase(
                 getLocalAccount = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
+                getFalcon25Seed = get(),
                 getSeed = get(),
-                getMnemonic = getMnemonic,
-                decodeUnsignedTransaction = decodeUnsignedTransaction,
             )
         }
-        single { AttestationIntentLauncherUseCase(get()) }
-        single { AssertionIntentLauncherUseCase(get()) }
+        single { LiquidAuthCredentialStore(androidContext()) }
         single { AttestationApiUseCase(get<ProvideHttpClientUseCase>()()) }
         single { AssertionApiUseCase(get<ProvideHttpClientUseCase>()()) }
 
         viewModel {
-            AnswerViewModel(
-                addNewPasskey = get(),
+            SolanaEscrowVaultDebugViewModel(get(), get(), get(), get(), get(), get(), get())
+        }
+
+        viewModel {
+            EscrowSessionVaultDebugViewModel(
+                stateDelegate = StateDelegate<EscrowSessionVaultDebugViewModel.ViewState>(),
+                eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
+                mppWalletSignerUseCase = get(),
+                getLocalAccounts = get(),
+                getSessionVaultContextUseCase = get(),
+                debugAddressSelectionsUseCase = get(),
+            )
+        }
+
+        single {
+            LiquidAuthPlatformServices(
+                liquidAuthCredentialStore = get(),
                 passkeyRepository = get(),
                 setPasskeyLastUsedTime = get(),
                 getAccountMnemonic = get(),
                 timeProvider = get(),
-                getFalcon24SecretKey = get(),
-                getLocalAccount = get(),
-                getSeed = get(),
                 processBiometricTransactionSigningUseCase = get(),
                 registerPasskeyUseCase = get(),
                 prepareAuthenticationUseCase = get(),
                 manageSignalServiceUseCase = get(),
-                eventDelegate = get(),
                 processSignTransactionsUseCase = get(),
-                attestationIntentLauncherUseCase = get(),
-                assertionIntentLauncherUseCase = get(),
+                eventDelegate = get(),
                 logAppSignatureUseCase = get(),
                 providerHttpClientUseCase = get(),
+            )
+        }
+
+        viewModel {
+            AnswerViewModel(
+                platformServices = get(),
+                getAlgo25SecretKey = get(),
+                getFalcon24SecretKey = get(),
+                getFalcon25PrivateKey = get(),
+                getLocalAccount = get(),
+                getLocalAccounts = get(),
+                getSeed = get(),
                 getAccountAlgoBalance = get(),
+                getCurrentBlockUseCase = get(),
+                setupMppPaymentViewerUseCase = get(),
+                mppPaymentViewerManager = get(),
+                getCurrentNetworkUseCase = get(),
+                getRemainingSessionVaultBalanceUseCase = get(),
+                getSessionVaultConfigUseCase = get(),
+                mppWalletSignerUseCase = get(),
             )
         }
     }

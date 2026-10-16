@@ -22,6 +22,14 @@ sealed interface AccountRegistrationType {
     data object HdKey : AccountRegistrationType
 
     @Serializable
+    @SerialName("Falcon25")
+    data object Falcon25 : AccountRegistrationType
+
+    @Serializable
     @SerialName("Falcon24")
     data object Falcon24 : AccountRegistrationType
+
+    @Serializable
+    @SerialName("SeedVault")
+    data object SeedVault : AccountRegistrationType
 }

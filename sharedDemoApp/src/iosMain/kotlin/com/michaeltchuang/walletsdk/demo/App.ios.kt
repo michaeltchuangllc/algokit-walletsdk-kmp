@@ -1,0 +1,807 @@
+package com.michaeltchuang.walletsdk.demo
+
+import androidx.compose.ui.window.ComposeUIViewController
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidateMessage
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceCandidatePairStat
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceConnectionClass
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.IceTransportStat
+import com.michaeltchuang.walletsdk.demo.di.provideViewModelModules
+import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSBroadcastConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastDetectConnectionTypeHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastHostChatSendHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastIsConnectedHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastPaymentDCSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStartHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastViewerStopHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosMeshHostingIntegrated
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerDetectConnectionTypeHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerPaymentDCSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerSendMessageHandler
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerStopHandler
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
+import org.koin.core.Koin
+import org.koin.core.context.loadKoinModules
+import org.koin.mp.KoinPlatform
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.classifyIceConnectionType as classifyIceConnectionTypeShared
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.parseIceCandidateMessage as parseIceCandidateMessageShared
+
+// iOS-specific implementations
+object IosApp
+
+/**
+ * Create the main view controller for iOS app.
+ * Initializes WalletSDK before creating the Compose view controller.
+ */
+fun MainViewController(): platform.UIKit.UIViewController {
+    // Initialize WalletSDK and load modules before Compose renders
+    // This ensures Koin is ready when composables try to access it
+    try {
+        getKoin()
+        // Koin already started , just load ViewModel modules
+        loadKoinModules(provideViewModelModules)
+    } catch (e: Exception) {
+        // Koin not started yet, initialize WalletSDK
+        WalletSDK.initialize(
+            context = null, // iOS doesn't need context
+            enableLogging = false, // Set to true for debugging
+        )
+        // Load demo app's ViewModel modules
+        loadKoinModules(provideViewModelModules)
+    }
+
+    // Return the view controller
+    return ComposeUIViewController { App() }
+}
+
+/**
+ * Set the app group directory for sharing data between app and extensions.
+ * MUST be called BEFORE initializeKoin() to take effect.
+ *
+ * @param directory The path to the app group's shared container directory
+ */
+fun setAppGroupDirectory(directory: String) {
+    // Forward to wallet-sdk-core
+    com.michaeltchuang.walletsdk.core.foundation.di
+        .setSharedAppGroupDirectory(directory)
+}
+
+/**
+ * Initialize ONLY Napier logging for iOS (uses NSLog).
+ * Call this at app startup to enable logging BEFORE Compose starts.
+ *
+ * This does NOT initialize Koin - Compose's KoinApplication will handle that.
+ */
+fun initializeNapierLogging() {
+    Napier.base(DebugAntilog())
+    Napier.d("✅ Napier logging initialized for iOS", tag = "Napier")
+}
+
+/**
+ * Initialize Koin for iOS app extensions (e.g., AutofillCredentialExtension).
+ * Call this function before accessing any Koin dependencies from Swift.
+ *
+ * Note: This should only be called once per process. If Koin is already started,
+ * this will stop and restart it.
+ *
+ * WARNING: Don't call this in the main app - Compose's KoinApplication handles Koin init.
+ * This is only for extensions that don't use Compose.
+ */
+fun initializeKoin() {
+    // Initialize Napier for logging (uses NSLog on iOS)
+    initializeNapierLogging()
+
+    try {
+        getKoin()
+    } catch (e: Exception) {
+        // Koin wasn't started - initialize WalletSDK with all modules
+        WalletSDK.initialize(
+            context = null, // iOS doesn't need context
+            enableLogging = true,
+        )
+        // Load demo app's ViewModel modules
+        loadKoinModules(provideViewModelModules)
+    }
+}
+
+/**
+ * Get the Koin instance for dependency injection.
+ * Call initializeKoin() first before using this.
+ */
+fun getKoin(): Koin = KoinPlatform.getKoin()
+
+/**
+ * Get PasskeyRepository instance from Koin.
+ * Call initializeKoin() first before using this.
+ */
+fun getPasskeyRepository(): com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository = KoinPlatform.getKoin().get()
+
+/**
+ * Get all HD seed first addresses from the database (synchronous for iOS).
+ * Call initializeKoin() first before using this.
+ * Throws an exception if the operation fails.
+ */
+@Throws(Exception::class)
+fun getAllHdSeedFirstAddresses(): List<com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstAddress> {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses =
+        KoinPlatform.getKoin().get()
+    return kotlinx.coroutines.runBlocking {
+        useCase()
+    }
+}
+
+/**
+ * Get the mnemonic for a given account address (synchronous for iOS).
+ * Call initializeKoin() first before using this.
+ * Returns AccountMnemonic or throws an exception if not found.
+ */
+@Throws(Exception::class)
+fun getAccountMnemonic(address: String): com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic =
+        KoinPlatform.getKoin().get()
+
+    return kotlinx.coroutines.runBlocking {
+        when (val result = useCase(address)) {
+            is com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult.Success -> result.data
+            is com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult.Error ->
+                throw result.exception
+        }
+    }
+}
+
+/**
+ * Get the account type for FIDO2 (for liquid auth extension).
+ * Returns "falcon-1024" for Falcon24 accounts, "algorand" for all others.
+ */
+fun getAccountTypeForFido2(address: String): String {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount =
+        KoinPlatform.getKoin().get()
+
+    return kotlinx.coroutines.runBlocking {
+        val account = useCase(address)
+        when (account) {
+            is LocalAccount.Falcon24,
+            is LocalAccount.Falcon25,
+            -> "falcon-1024"
+            else -> "algorand"
+        }
+    }
+}
+
+/**
+ * Get the LocalAccount for a given address.
+ * Returns the account or null if not found.
+ */
+fun getLocalAccount(address: String): com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount? {
+    val useCase: com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount =
+        KoinPlatform.getKoin().get()
+
+    return kotlinx.coroutines.runBlocking {
+        useCase(address)
+    }
+}
+
+/**
+ * Sign arbitrary data with an Algorand wallet account.
+ * This handles all account types (Algo25, HD Key, Falcon24).
+ *
+ * @param address The Algorand address to sign with
+ * @param challenge The challenge data to sign
+ * @return The signature bytes, or null if signing fails
+ */
+fun signWithAlgorandWallet(
+    address: String,
+    challenge: ByteArray,
+): ByteArray? {
+    return try {
+        val localAccount =
+            getLocalAccount(address) ?: run {
+                platform.Foundation.NSLog("❌ Account not found: $address")
+                return null
+            }
+
+        val mnemonic =
+            try {
+                getAccountMnemonic(address).words.joinToString(" ")
+            } catch (e: Exception) {
+                platform.Foundation.NSLog("❌ Failed to get mnemonic: ${e.message}")
+                return null
+            }
+
+        platform.Foundation.NSLog("🔐 Signing challenge with ${localAccount::class.simpleName} account")
+        platform.Foundation.NSLog("   Address: $address")
+        platform.Foundation.NSLog("   Challenge size: ${challenge.size} bytes")
+
+        when (localAccount) {
+            is LocalAccount.Algo25 -> {
+                // Algo25 account
+                val algo25Account =
+                    com.michaeltchuang.walletsdk.core.algosdk
+                        .recoverAlgo25Account(mnemonic)
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to recover Algo25 account") }
+
+                val signature =
+                    com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData(
+                        data = challenge,
+                        secretKey = algo25Account.secretKey,
+                    ) ?: return null.also { platform.Foundation.NSLog("❌ Algo25 signing failed") }
+
+                platform.Foundation.NSLog("✅ Signed with Algo25, signature size: ${signature.size} bytes")
+                signature
+            }
+
+            is LocalAccount.HdKey -> {
+                // HD Key account - get seed from database
+                val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
+                    KoinPlatform.getKoin().get()
+
+                val seedData =
+                    kotlinx.coroutines.runBlocking {
+                        hdSeedRepo.getSeed(localAccount.seedId)
+                    } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get HD seed") }
+
+                val signature =
+                    com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData(
+                        data = challenge,
+                        seed = seedData,
+                        account = localAccount.account,
+                        change = localAccount.change,
+                        key = localAccount.keyIndex,
+                    ) ?: return null.also { platform.Foundation.NSLog("❌ HD Key signing failed") }
+
+                platform.Foundation.NSLog("✅ Signed with HD Key, signature size: ${signature.size} bytes")
+                signature
+            }
+
+            is LocalAccount.Falcon24 -> {
+                // Falcon24 account - get private key from database
+                val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
+                    KoinPlatform.getKoin().get()
+
+                val privateKey =
+                    kotlinx.coroutines.runBlocking {
+                        falcon24Repo.getSecretKey(address)
+                    }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
+
+                platform.Foundation.NSLog("🔍 Falcon24 signing debug:")
+                platform.Foundation.NSLog("   Public key size: ${localAccount.publicKey.size} bytes")
+                platform.Foundation.NSLog("   Private key size: ${privateKey.size} bytes")
+                platform.Foundation.NSLog("   Challenge size: ${challenge.size} bytes")
+
+                val signature =
+                    com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData(
+                        data = challenge,
+                        publicKey = localAccount.publicKey,
+                        privateKey = privateKey,
+                    )
+
+                if (signature == null) {
+                    platform.Foundation.NSLog("❌ Falcon24 signing returned null")
+                    return null
+                }
+
+                if (signature.isEmpty()) {
+                    platform.Foundation.NSLog("❌ Falcon24 signing returned empty array!")
+                    return null
+                }
+
+                platform.Foundation.NSLog("✅ Signed with Falcon24, signature size: ${signature.size} bytes")
+                signature
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                val privateKey =
+                    kotlinx.coroutines.runBlocking { falcon25Repo.getPrivateKey(address) }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 private key") }
+                com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData(
+                    data = challenge,
+                    publicKey = localAccount.publicKey,
+                    privateKey = privateKey,
+                ) ?: return null.also { platform.Foundation.NSLog("❌ Falcon25 signing failed") }
+            }
+
+            else -> {
+                platform.Foundation.NSLog("❌ Unsupported account type: ${localAccount::class.simpleName}")
+                null
+            }
+        }
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Signing failed: ${e.message}")
+        null
+    }
+}
+
+/**
+ * Sign a transaction with an Algorand wallet account.
+ * This is specifically for signing transactions received via WebRTC (Liquid Auth).
+ * Uses transaction-specific signing methods for each account type.
+ *
+ * @param address The Algorand address to sign with
+ * @param txnBytes The transaction bytes to sign
+ * @return The signed transaction bytes, or null if signing fails
+ */
+fun signTxnWithAlgorandWallet(
+    address: String,
+    txnBytes: ByteArray,
+): ByteArray? {
+    return try {
+        platform.Foundation.NSLog("🔏 Signing transaction with Algorand wallet")
+        platform.Foundation.NSLog("   Address: $address")
+        platform.Foundation.NSLog("   Transaction size: ${txnBytes.size} bytes")
+
+        // Get the local account
+        val localAccount =
+            getLocalAccount(address) ?: run {
+                platform.Foundation.NSLog("❌ Account not found: $address")
+                return null
+            }
+
+        // Get mnemonic
+        val accountMnemonic = getAccountMnemonic(address)
+        val mnemonic = accountMnemonic.words.joinToString(" ")
+
+        platform.Foundation.NSLog("📋 Account type: ${localAccount::class.simpleName}")
+
+        // Sign based on account type (using transaction-specific signing)
+        when (localAccount) {
+            is LocalAccount.Algo25 -> {
+                // Algo25 account - recover from mnemonic and sign transaction
+                val algo25Account =
+                    com.michaeltchuang.walletsdk.core.algosdk
+                        .recoverAlgo25Account(mnemonic)
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to recover Algo25 account") }
+
+                val signedTxn =
+                    com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction(
+                        secretKey = algo25Account.secretKey,
+                        transactionByteArray = txnBytes,
+                    )
+
+                if (signedTxn == null || signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ Algo25 transaction signing failed")
+                    return null
+                }
+
+                platform.Foundation.NSLog("✅ Signed with Algo25, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+
+            is LocalAccount.HdKey -> {
+                // HD Key account - get seed and sign transaction
+                val hdSeedRepo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdSeedRepository =
+                    KoinPlatform.getKoin().get()
+
+                val seedData =
+                    kotlinx.coroutines.runBlocking {
+                        hdSeedRepo.getSeed(localAccount.seedId)
+                    } ?: return null.also { platform.Foundation.NSLog("❌ Failed to get HD seed") }
+
+                val signedTxn =
+                    com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction(
+                        transactionByteArray = txnBytes,
+                        seed = seedData,
+                        account = localAccount.account,
+                        change = localAccount.change,
+                        key = localAccount.keyIndex,
+                    )
+
+                if (signedTxn == null || signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ HD Key transaction signing failed")
+                    return null
+                }
+
+                platform.Foundation.NSLog("✅ Signed with HD Key, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+
+            is LocalAccount.Falcon24 -> {
+                // Falcon24 account - get private key and sign transaction
+                val falcon24Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon24AccountRepository =
+                    KoinPlatform.getKoin().get()
+
+                val privateKey =
+                    kotlinx.coroutines.runBlocking {
+                        falcon24Repo.getSecretKey(address)
+                    }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon24 private key") }
+
+                platform.Foundation.NSLog("🔍 Falcon24 transaction signing debug:")
+                platform.Foundation.NSLog("   Public key size: ${localAccount.publicKey.size} bytes")
+                platform.Foundation.NSLog("   Private key size: ${privateKey.size} bytes")
+                platform.Foundation.NSLog("   Transaction size: ${txnBytes.size} bytes")
+
+                val signedTxn =
+                    com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction(
+                        transactionByteArray = txnBytes,
+                        publicKey = localAccount.publicKey,
+                        privateKey = privateKey,
+                    )
+
+                if (signedTxn == null) {
+                    platform.Foundation.NSLog("❌ Falcon24 transaction signing returned null")
+                    return null
+                }
+
+                if (signedTxn.isEmpty()) {
+                    platform.Foundation.NSLog("❌ Falcon24 transaction signing returned empty array!")
+                    return null
+                }
+
+                platform.Foundation.NSLog("✅ Signed with Falcon24, signed txn size: ${signedTxn.size} bytes")
+                signedTxn
+            }
+
+            is LocalAccount.Falcon25 -> {
+                val falcon25Repo: com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository =
+                    KoinPlatform.getKoin().get()
+                val seed =
+                    kotlinx.coroutines.runBlocking { falcon25Repo.getSeed(address) }
+                        ?: return null.also { platform.Foundation.NSLog("❌ Failed to get Falcon25 seed") }
+                com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction(
+                    transactionByteArray = txnBytes,
+                    seed = seed,
+                ) ?: return null.also { platform.Foundation.NSLog("❌ Falcon25 transaction signing failed") }
+            }
+
+            else -> {
+                platform.Foundation.NSLog("❌ Unsupported account type: ${localAccount::class.simpleName}")
+                null
+            }
+        }
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Transaction signing failed: ${e.message}")
+        e.printStackTrace()
+        null
+    }
+}
+
+/**
+ * Get Algo25 secret key from mnemonic (for P256 derivation).
+ * Returns the 64-byte Ed25519 secret key.
+ *
+ * @param phrase The 25-word Algorand mnemonic
+ * @return 64-byte Ed25519 secret key, or null if recovery fails
+ */
+fun getAlgo25SecretKeyFromMnemonic(phrase: String): ByteArray? =
+    try {
+        val algo25Account =
+            com.michaeltchuang.walletsdk.core.algosdk
+                .recoverAlgo25Account(phrase)
+        algo25Account?.secretKey
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Failed to recover Algo25 account: ${e.message}")
+        null
+    }
+
+/**
+ * Get the Algorand wallet public key for a given address.
+ * Returns the public key as a base64-encoded string.
+ *
+ * @param address The Algorand address
+ * @return Base64-encoded public key, or null if not found
+ */
+@OptIn(ExperimentalEncodingApi::class)
+fun getPublicKeyForAlgorandWallet(address: String): String? {
+    return try {
+        val localAccount =
+            getLocalAccount(address) ?: run {
+                platform.Foundation.NSLog("❌ Account not found: $address")
+                return null
+            }
+
+        platform.Foundation.NSLog("🔑 Getting public key for ${localAccount::class.simpleName} account")
+
+        val publicKey =
+            when (localAccount) {
+                is LocalAccount.Algo25 -> {
+                    // Algo25 account - derive public key from mnemonic
+                    val mnemonic =
+                        try {
+                            getAccountMnemonic(address).words.joinToString(" ")
+                        } catch (e: Exception) {
+                            platform.Foundation.NSLog("❌ Failed to get mnemonic: ${e.message}")
+                            return null
+                        }
+
+                    val algo25Account =
+                        com.michaeltchuang.walletsdk.core.algosdk
+                            .recoverAlgo25Account(mnemonic)
+                            ?: return null.also { platform.Foundation.NSLog("❌ Failed to recover Algo25 account") }
+
+                    // Ed25519 secret key is 64 bytes: first 32 are seed, last 32 are public key
+                    algo25Account.secretKey.copyOfRange(32, 64)
+                }
+
+                is LocalAccount.HdKey -> {
+                    // HD Key account - public key is already a ByteArray
+                    localAccount.publicKey
+                }
+
+                is LocalAccount.Falcon24 ->
+                    localAccount.publicKey
+
+                is LocalAccount.Falcon25 ->
+                    localAccount.publicKey
+
+                else -> {
+                    platform.Foundation.NSLog("❌ Unsupported account type: ${localAccount::class.simpleName}")
+                    return null
+                }
+            }
+
+        // Convert ByteArray to base64 string
+        val publicKeyBase64 = Base64.encode(publicKey)
+        platform.Foundation.NSLog(
+            "✅ ${localAccount::class.simpleName} public key (${publicKey.size} bytes): ${
+                publicKeyBase64.take(
+                    20,
+                )
+            }...",
+        )
+        publicKeyBase64
+    } catch (e: Exception) {
+        platform.Foundation.NSLog("❌ Failed to get public key: ${e.message}")
+        null
+    }
+}
+
+fun setIosLiquidAuthHandler(handler: (String, String, String) -> Unit) {
+    com.michaeltchuang.walletsdk.ui.liquidAuth.iosLiquidAuthHandler = handler
+    platform.Foundation.NSLog("✅ iOS Liquid Auth handler registered")
+}
+
+fun forwardMessageToActiveViewer(message: String) {
+    activeIOSViewerConnectionManager?.notifyMessageReceived(message)
+}
+
+fun setViewerSendMessageHandler(handler: (String) -> Unit) {
+    iosViewerSendMessageHandler = handler
+}
+
+fun setViewerStopHandler(handler: () -> Unit) {
+    iosViewerStopHandler = {
+        viewerConnectionTypeString = "unknown"
+        handler()
+    }
+}
+
+fun setViewerPaymentSendMessageHandler(handler: ((String) -> Unit)?) {
+    iosViewerPaymentDCSendMessageHandler = handler
+    println("[ViewerHandlers] iosViewerPaymentDCSendMessageHandler ${if (handler != null) "set (payment DC ready)" else "cleared"}")
+    if (handler != null) {
+        activeIOSViewerConnectionManager?.onPaymentDataChannelReady()
+    }
+}
+
+var iosStreamingCleanupHandler: (() -> Unit)? = null
+
+var iosViewerMinimizeHandler: (() -> Unit)? = null
+
+var isBroadcastChannelOpen: Boolean = false
+var broadcastConnectionTypeString: String = "unknown"
+
+/**
+ * Mirrors [broadcastConnectionTypeString] for the viewer (answerer) side of a Liquid Auth
+ * stream: Swift's [SignalService] polls its own `RTCPeerConnection.statistics()` on a timer
+ * and pushes the classified result here via [notifyViewerConnectionType], so the synchronous
+ * [iosViewerDetectConnectionTypeHandler] (invoked by the shared `viewerConnectionTypePollingController`
+ * in `LiquidAuthConnectionManager.ios.kt`) always has a fresh value to return instead of null.
+ */
+var viewerConnectionTypeString: String = "unknown"
+
+fun setIosBroadcastPaymentSendHandler(handler: (String) -> Unit) {
+    // An unkeyed setter cannot tell primary from an additional viewer.
+    if (iosMeshHostingIntegrated) {
+        println("[BroadcastHandlers] ignored unkeyed mesh payment sender; use setIosBroadcastViewerPaymentSendHandler")
+        return
+    }
+    iosBroadcastPaymentDCSendMessageHandler = handler
+    println("[BroadcastHandlers] iosBroadcastPaymentDCSendMessageHandler set (payment DC ready)")
+}
+
+fun registerBroadcastHandlers(
+    startHandler: (String, String) -> Unit,
+    stopHandler: () -> Unit,
+    sendMessageHandler: (String) -> Unit,
+) {
+    iosBroadcastStartHandler = startHandler
+    iosBroadcastStopHandler = {
+        isBroadcastChannelOpen = false
+        broadcastConnectionTypeString = "unknown"
+        stopHandler()
+    }
+    iosBroadcastSendMessageHandler = sendMessageHandler
+    // is-connected and connection-type are driven by Kotlin vars to avoid
+    // () -> Boolean / () -> String interop complications on the Swift side.
+    iosBroadcastIsConnectedHandler = { isBroadcastChannelOpen }
+    iosBroadcastDetectConnectionTypeHandler = { broadcastConnectionTypeString }
+
+    // Host-side voucher settlement (block consumption + on-chain settle via
+    // MppWalletSignerUseCase) is now handled entirely in shared Kotlin by
+    // LiquidStreamBlockConsumptionManager — no Swift callback needed.
+    println("iOS broadcast handlers registered")
+}
+
+/**
+ * Install a stop-one-invitation callback. It must never stop shared capture or other peers.
+ * All invitation callbacks/registrations must be delivered on the main thread.
+ */
+fun setIosBroadcastViewerStopHandler(handler: (String) -> Unit) {
+    iosBroadcastViewerStopHandler = handler
+}
+
+/**
+ * Optional fanout of explicit host chat JSON to all viewers, including the primary, exactly once.
+ * Never use this handler for arbitrary session, payment, voucher, or identity envelopes.
+ */
+fun setIosBroadcastHostChatSendHandler(handler: (String) -> Unit) {
+    iosBroadcastHostChatSendHandler = handler
+}
+
+fun setIosBroadcastViewerPaymentSendHandler(
+    requestId: String,
+    handler: (String) -> Unit,
+) {
+    activeIOSBroadcastConnectionManager?.setBroadcastViewerPaymentSendHandler(requestId, handler)
+}
+
+/**
+ * Call once Swift's invitation-keyed transport, stable shared capture/preview, and callbacks
+ * are integrated, before starting a host. Legacy registerBroadcastHandlers alone does NOT opt in.
+ * startHandler adds an invitation; stopHandler stops ALL invitations and shared capture.
+ * Legacy general send remains primary-only; payment senders and inbound messages MUST be keyed.
+ */
+fun enableIosMeshHosting() {
+    if (iosBroadcastStartHandler == null || iosBroadcastStopHandler == null || iosBroadcastViewerStopHandler == null) {
+        println("[BroadcastHandlers] mesh opt-in deferred: install start, stop-all and stop-viewer handlers first")
+        return
+    }
+    iosMeshHostingIntegrated = true
+    activeIOSBroadcastConnectionManager?.enableMeshHosting()
+}
+
+fun registerIosNativeMediaHandlers(
+    localVideoViewProvider: () -> Any?,
+    remoteVideoViewProvider: () -> Any?,
+    setAudioEnabled: (Boolean) -> Unit,
+    setVideoEnabled: (Boolean) -> Unit,
+    setViewerMediaAdmitted: (String, Boolean) -> Unit,
+) {
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastVideoViewProvider = localVideoViewProvider
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider = remoteVideoViewProvider
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetAudioEnabledHandler = setAudioEnabled
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetVideoEnabledHandler = setVideoEnabled
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastViewerMediaAdmissionHandler = setViewerMediaAdmitted
+    // Self-contained, like iosBroadcastDetectConnectionTypeHandler — no Swift closure needed,
+    // it just reads the Kotlin var that SignalService keeps fresh via notifyViewerConnectionType().
+    iosViewerDetectConnectionTypeHandler = { viewerConnectionTypeString }
+}
+
+/**
+ * Swift calls this from a Timer-driven poll of its own `RTCPeerConnection.statistics()` for the
+ * viewer's (answerer's) peer connection, mirroring [notifyBroadcastViewerConnectionType] on the
+ * host side. Call on the main thread.
+ */
+fun notifyViewerConnectionType(type: String) {
+    viewerConnectionTypeString = type
+}
+
+fun notifyBroadcastClientConnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.notifyClientConnected(requestId)
+}
+
+fun notifyBroadcastClientDisconnected() {
+    activeIOSBroadcastConnectionManager?.notifyClientDisconnected()
+}
+
+fun notifyBroadcastViewerConnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastViewerConnected(requestId)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+fun notifyBroadcastViewerDisconnected(requestId: String) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastViewerDisconnected(requestId)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+/** Invitation-keyed, selected-pair ICE statistics; call on the main thread. */
+fun notifyBroadcastViewerConnectionType(
+    requestId: String,
+    type: String,
+) {
+    activeIOSBroadcastConnectionManager?.notifyBroadcastViewerConnectionType(requestId, type)
+}
+
+/**
+ * Classifies a WebRTC ICE connection's quality from a stats snapshot, delegating to the single
+ * shared implementation in `wallet-sdk-core` (`IceConnectionTypeClassifier.kt`). Swift builds
+ * [IceTransportStat]/[IceCandidatePairStat] from its own `RTCStatisticsReport` and calls this
+ * instead of re-implementing the classification, so Android and iOS can never disagree on the
+ * quality (and therefore x402-style billing tier) of the same connection.
+ *
+ * @return one of "local", "stun", "relay", "unknown" - the same wire format already used by
+ * [notifyBroadcastViewerConnectionType] and `broadcastConnectionTypeString`.
+ */
+fun classifyIceConnectionType(
+    transports: List<IceTransportStat>,
+    candidatePairs: List<IceCandidatePairStat>,
+): String =
+    when (classifyIceConnectionTypeShared(transports, candidatePairs)) {
+        IceConnectionClass.LOCAL -> "local"
+        IceConnectionClass.STUN -> "stun"
+        IceConnectionClass.RELAY -> "relay"
+        IceConnectionClass.UNKNOWN -> "unknown"
+    }
+
+/**
+ * Validates and extracts a trickle ICE candidate from signaling wire fields, delegating to the
+ * single shared implementation in `wallet-sdk-core` (`IceCandidateMessage.kt`). Swift calls this
+ * from `SignalClient.swift.handleIceCandidate` instead of re-implementing the validation, so
+ * malformed/late candidate frames are dropped identically on both platforms.
+ *
+ * @param sdpMLineIndex pass `-1` when the field is missing or not parseable as an integer.
+ * @return `null` if the candidate is malformed (blank candidate, or a missing/negative index).
+ */
+fun parseIceCandidateMessage(
+    candidate: String?,
+    sdpMid: String?,
+    sdpMLineIndex: Int,
+): IceCandidateMessage? = parseIceCandidateMessageShared(candidate, sdpMid, sdpMLineIndex)
+
+fun notifyBroadcastInvitationFailed(
+    requestId: String,
+    message: String,
+) {
+    activeIOSBroadcastConnectionManager?.let {
+        it.notifyBroadcastInvitationFailed(requestId, message)
+        isBroadcastChannelOpen = it.isConnected()
+    }
+}
+
+/** Use this for BOTH general and payment data-channel messages from an identified host peer. */
+fun notifyBroadcastViewerMessageReceived(
+    requestId: String,
+    message: String,
+) {
+    activeIOSBroadcastConnectionManager?.notifyBroadcastViewerMessageReceived(requestId, message)
+}
+
+fun notifyBroadcastMessageReceived(message: String) {
+    activeIOSBroadcastConnectionManager?.notifyLegacyBroadcastMessageReceived(message)
+}
+
+fun getBroadcastCaptureSession(): Any? = com.michaeltchuang.walletsdk.ui.liquidStream.components.iosBroadcastCaptureSession
+
+fun notifyBroadcastFrameReady(
+    data: Any?,
+    width: Int,
+    height: Int,
+) {
+    val nsData = data as? platform.Foundation.NSData ?: return
+    com.michaeltchuang.walletsdk.ui.liquidStream.components
+        .iosOnBroadcastFrameReady
+        ?.invoke(nsData, width, height)
+}
+
+fun registerBroadcastFrameCapture(
+    startCapture: () -> Unit,
+    stopCapture: () -> Unit,
+) {
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosStartBroadcastFrameCapture = startCapture
+    com.michaeltchuang.walletsdk.ui.liquidStream.components.iosStopBroadcastFrameCapture = stopCapture
+    println("📷 iOS broadcast frame capture handlers registered")
+}

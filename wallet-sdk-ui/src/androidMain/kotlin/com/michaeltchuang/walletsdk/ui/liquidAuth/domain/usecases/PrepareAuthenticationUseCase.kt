@@ -1,14 +1,14 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
-import android.util.Log
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import okhttp3.Response
-import okhttp3.ResponseBody
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Use case for preparing FIDO2 authentication
@@ -16,7 +16,7 @@ import okhttp3.ResponseBody
  * Handles the flow of:
  * 1. Fetching assertion options from server
  * 2. Handling credential not found scenarios
- * 3. Converting to PublicKeyCredentialRequestOptions
+ * 3. Preserving server JSON while constraining authentication to the requested credential
  * 4. Extracting session information
  *
  * This separates authentication preparation logic from the Activity
@@ -33,7 +33,7 @@ class PrepareAuthenticationUseCase(
      */
     sealed class Result {
         data class Success(
-            val publicKeyCredentialRequestOptions: PublicKeyCredentialRequestOptions,
+            val requestJson: String,
             val sessionId: String?,
         ) : Result()
 
@@ -65,83 +65,72 @@ class PrepareAuthenticationUseCase(
         onCredentialNotFound: () -> Unit = {},
     ): Result {
         return try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "🔓 PREPARING AUTHENTICATION")
-            Log.d(TAG, "Origin: ${authMessage.origin}")
-            Log.d(TAG, "Credential ID: $credentialId")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("🔓 PREPARING AUTHENTICATION", tag = TAG)
+            Napier.d("Origin: ${authMessage.origin}", tag = TAG)
+            Napier.d("Credential ID: $credentialId", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
-            // Step 1: Fetch assertion options from server
-            val response =
-                assertionApiUseCase.postAssertionOptions(
+            require(credentialId.isNotBlank()) { "Credential ID is required" }
+
+            assertionApiUseCase
+                .postAssertionOptions(
                     authMessage.origin,
                     viewModel.userAgent,
                     credentialId,
-                )
-
-            Log.d(TAG, "Server response received")
-            Log.d(TAG, "HTTP Status: ${response.code} ${response.message}")
-
-            // Step 2: Extract and validate response
-            val responseBodyString = response.body?.string()
-            Log.d(TAG, "Response body length: ${responseBodyString?.length ?: 0} characters")
-
-            // Step 3: Check for credential not found
-            if (!response.isSuccessful) {
-                Log.e(TAG, "Server returned error response: ${response.code} ${response.message}")
-
-                // Special handling for credential not found
-                if (response.code == 401 && responseBodyString?.contains("not_found") == true) {
-                    Log.w(TAG, "⚠️ Credential not found on server")
-                    onCredentialNotFound()
-                    return Result.CredentialNotFound(
-                        "Credential not found on server. Please re-register.",
-                    )
-                }
-
-                return Result.Error(
-                    "Server error: ${response.code} ${response.message}",
-                    response.code,
-                )
-            }
-
-            // Step 4: Extract session
-            val sessionId = extractSessionFromResponse(response)
-            onSessionUpdate(sessionId)
-
-            // Step 5: Convert to PublicKeyCredentialRequestOptions
-            val publicKeyCredentialRequestOptions =
-                try {
-                    // Recreate response body since we consumed it
-                    val recreatedBody =
-                        responseBodyString?.let {
-                            ResponseBody.Companion.create(
-                                response.body?.contentType(),
-                                it,
+                ).use { response ->
+                    val responseBodyString = response.body.string()
+                    if (!response.isSuccessful) {
+                        // Preserve recovery when the server no longer knows the local credential.
+                        if (response.code == 401 && responseBodyString.contains("not_found")) {
+                            onCredentialNotFound()
+                            return Result.CredentialNotFound(
+                                "Credential not found on server. Please re-register.",
                             )
                         }
 
-                    if (recreatedBody == null) {
-                        throw IllegalArgumentException("Response body is null")
+                        return Result.Error(
+                            "Server error: ${response.code} ${response.message}",
+                            response.code,
+                        )
                     }
 
-                    recreatedBody.toPublicKeyCredentialRequestOptions()
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse PublicKeyCredentialRequestOptions", e)
-                    return Result.Error(
-                        "Failed to parse authentication options: ${e.message}",
+                    val sessionId = extractSessionFromResponse(response)
+                    onSessionUpdate(sessionId)
+
+                    val requestOptions = JSONObject(responseBodyString)
+                    val constrainedCredentials = JSONArray()
+                    if (requestOptions.has("allowCredentials") && requestOptions.getJSONArray("allowCredentials").length() > 0) {
+                        val allowedCredentials = requestOptions.getJSONArray("allowCredentials")
+                        for (index in 0 until allowedCredentials.length()) {
+                            val descriptor = allowedCredentials.getJSONObject(index)
+                            // Base64url padding does not change the credential identity.
+                            if (descriptor.getString("id").trimEnd('=') == credentialId.trimEnd('=')) {
+                                constrainedCredentials.put(descriptor)
+                            }
+                        }
+                        if (constrainedCredentials.length() == 0) {
+                            return Result.Error("Server authentication options exclude the requested credential")
+                        }
+                    } else {
+                        constrainedCredentials.put(
+                            JSONObject().apply {
+                                put("type", "public-key")
+                                put("id", credentialId)
+                            },
+                        )
+                    }
+                    requestOptions.put("allowCredentials", constrainedCredentials)
+
+                    Result.Success(
+                        requestJson = requestOptions.toString(),
+                        sessionId = sessionId,
                     )
                 }
-
-            Log.d(TAG, "✅ Authentication preparation successful")
-            Log.d(TAG, "========================================")
-
-            Result.Success(
-                publicKeyCredentialRequestOptions = publicKeyCredentialRequestOptions,
-                sessionId = sessionId,
-            )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error during authentication preparation", e)
+            Napier.e("Error during authentication preparation", e, tag = TAG)
             Result.Error("Authentication preparation failed: ${e.message}")
         }
     }
@@ -153,8 +142,10 @@ class PrepareAuthenticationUseCase(
         try {
             val cookie = Cookie.fromResponse(response)
             cookie?.let { Cookie.getID(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract session from response", e)
+            Napier.w("Failed to extract session from response", e, tag = TAG)
             null
         }
 }

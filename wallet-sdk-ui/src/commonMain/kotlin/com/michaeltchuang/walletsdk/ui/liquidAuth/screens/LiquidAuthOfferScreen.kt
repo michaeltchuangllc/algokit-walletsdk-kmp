@@ -1,0 +1,2069 @@
+package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
+import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.colorHex
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.costTier
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.typicalLatency
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.resolveLiquidStreamAccountNetwork
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.CameraStreamingPreviewController
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
+import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.first
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.jetbrains.compose.ui.tooling.preview.Preview
+import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import qrgenerator.qrkitpainter.rememberQrKitPainter
+import kotlin.time.Clock
+
+enum class StreamHostUiMode {
+    Hidden,
+    Expanded,
+    Minimized,
+}
+
+@Composable
+fun LiquidAuthMiniPlayerOverlay(
+    streamHostUiModeState: MutableState<StreamHostUiMode>,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    miniPlayerSize: DpSize = DpSize(width = 180.dp, height = 320.dp),
+    defaultMargin: Float? = null,
+    defaultBottomPadding: Float? = null,
+) {
+    val density = LocalDensity.current
+    var containerSizePx by remember { mutableStateOf(IntSize.Zero) }
+    var miniPlayerOffsetPx by remember { mutableStateOf<Offset?>(null) }
+    val defaultMarginPx = defaultMargin ?: with(density) { 16.dp.toPx() }
+    val defaultBottomPaddingPx = defaultBottomPadding ?: with(density) { 132.dp.toPx() }
+    val miniPlayerWidthPx = with(density) { miniPlayerSize.width.toPx() }
+    val miniPlayerHeightPx = with(density) { miniPlayerSize.height.toPx() }
+
+    Box(
+        modifier =
+            modifier
+                .fillMaxSize()
+                .onSizeChanged { containerSizePx = it },
+    ) {
+        if (streamHostUiModeState.value == StreamHostUiMode.Minimized) {
+            val maxX = (containerSizePx.width - miniPlayerWidthPx).coerceAtLeast(0f)
+            val maxY = (containerSizePx.height - miniPlayerHeightPx).coerceAtLeast(0f)
+            val anchoredOffset =
+                miniPlayerOffsetPx
+                    ?: Offset(
+                        x = (containerSizePx.width - miniPlayerWidthPx - defaultMarginPx).coerceAtLeast(0f),
+                        y = (containerSizePx.height - miniPlayerHeightPx - defaultBottomPaddingPx).coerceAtLeast(0f),
+                    )
+            val clampedOffset =
+                Offset(
+                    x = anchoredOffset.x.coerceIn(0f, maxX),
+                    y = anchoredOffset.y.coerceIn(0f, maxY),
+                )
+            if (miniPlayerOffsetPx != clampedOffset) {
+                miniPlayerOffsetPx = clampedOffset
+            }
+
+            Box(
+                modifier =
+                    Modifier
+                        .offset {
+                            IntOffset(
+                                x = clampedOffset.x.toInt(),
+                                y = clampedOffset.y.toInt(),
+                            )
+                        }.size(miniPlayerSize)
+                        .shadow(8.dp, RoundedCornerShape(16.dp))
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black)
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(16.dp))
+                        .pointerInput(containerSizePx, miniPlayerSize) {
+                            detectDragGestures(
+                                onDragStart = {},
+                                onDragEnd = {},
+                                onDragCancel = {},
+                            ) { _, dragAmount ->
+                                val current = miniPlayerOffsetPx ?: clampedOffset
+                                miniPlayerOffsetPx =
+                                    Offset(
+                                        x = (current.x + dragAmount.x).coerceIn(0f, maxX),
+                                        y = (current.y + dragAmount.y).coerceIn(0f, maxY),
+                                    )
+                            }
+                        }.clickable {
+                            streamHostUiModeState.value = StreamHostUiMode.Expanded
+                        },
+            ) {
+                miniPlayerCameraPreviewState.value?.invoke()
+                IconButton(
+                    onClick = { streamHostUiModeState.value = StreamHostUiMode.Expanded },
+                    modifier =
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fullscreen,
+                        contentDescription = "Expand mini player",
+                        tint = Color.White,
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        streamHostUiModeState.value = StreamHostUiMode.Hidden
+                        onClose()
+                    },
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(6.dp)
+                            .size(28.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close mini player",
+                        tint = Color.White,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiquidAuthOfferScreen(
+    origin: String,
+    title: @Composable () -> Unit = {},
+    onBackPressed: (() -> Unit)? = null,
+    cameraPreview: @Composable (() -> Unit)? = null,
+    connectionManager: LiquidAuthConnectionManager? = null,
+    showTopBar: Boolean = false,
+    headerContent: @Composable (() -> Unit)? = null,
+    creatorAddress: String? = null, // For X402 paid streaming
+    creatorAssetId: Long = AssetConstants.USDC_TESTNET_ID, // ASA that creator must be opted into
+    enablePaidStreaming: Boolean = false, // Toggle X402 payments
+    paymentCurrencyLabel: String = "ALGO",
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "S",
+    onMinimise: () -> Unit = {},
+    streamHostUiModeState: MutableState<StreamHostUiMode>? = null,
+    miniPlayerCameraPreviewState: MutableState<(@Composable () -> Unit)?>? = null,
+    miniPlayerOnCloseActionState: MutableState<(() -> Unit)?>? = null,
+    cameraPreviewController: CameraStreamingPreviewController? = null,
+    paymentNetworkOverride: String? = null,
+    debugViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
+) {
+    val viewModel: LiquidAuthOfferViewModel = koinViewModel()
+    // Seed Vault creators approve each departing Solana viewer's refund (payee-only `close`).
+    val seedVaultSigner = rememberSeedVaultTransactionSigner()
+    DisposableEffect(viewModel, seedVaultSigner) {
+        if (isSeedVaultTransactionSigningSupported) viewModel.seedVaultTransactionSigner = seedVaultSigner
+        onDispose {
+            if (viewModel.seedVaultTransactionSigner === seedVaultSigner) viewModel.seedVaultTransactionSigner = null
+        }
+    }
+    val getLocalAccount: GetLocalAccount = koinInject()
+    val getCurrentNetwork: GetCurrentNetworkUseCase = koinInject()
+    val appNetwork by remember(getCurrentNetwork) { getCurrentNetwork() }.collectAsStateWithLifecycle(null)
+    var localCreatorAccount by remember(creatorAddress) { mutableStateOf<LocalAccount?>(null) }
+    var creatorRouteReady by remember(creatorAddress, appNetwork, paymentNetworkOverride) { mutableStateOf(false) }
+    var creatorRouteError by remember(creatorAddress, appNetwork, paymentNetworkOverride) { mutableStateOf<String?>(null) }
+    val hostViewModel: LiquidStreamHostViewModel = koinViewModel()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    val pendingMeshOffer by viewModel.pendingMeshOffer.collectAsStateWithLifecycle()
+    val meshViewerIds by viewModel.meshViewerIds.collectAsStateWithLifecycle()
+    val meshViewerDetails by viewModel.meshViewerDetails.collectAsStateWithLifecycle()
+    var managerInitialized by remember(connectionManager, viewModel) { mutableStateOf(false) }
+    val paymentState by viewModel.paymentState.collectAsStateWithLifecycle()
+    val connectionType by viewModel.connectionType.collectAsStateWithLifecycle()
+    val remainingBalanceOnChainMicroUsdc by viewModel.remainingBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val progressBarBalanceMicroUsdc by viewModel.progressBarBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val currentBlockNumber by viewModel.currentBlockNumber.collectAsStateWithLifecycle()
+    val lastSettledMicroUsdc by viewModel.lastSettledMicroUsdc.collectAsStateWithLifecycle()
+    val lastSettledUsdc = lastSettledMicroUsdc?.let { it / 1_000_000.0 }
+    val currentNetworkLabel by viewModel.currentNetworkLabel.collectAsStateWithLifecycle()
+    val creatorAsaBalance by viewModel.creatorAsaBalance.collectAsStateWithLifecycle()
+    val isCheckingCreatorAsaBalance by viewModel.isCheckingCreatorAsaBalance.collectAsStateWithLifecycle()
+    val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val isAnalyticsModalVisible = remember { mutableStateOf(false) }
+    val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
+    // Labels are presentation only; SeedVault accounts never perform Algorand ASA calls.
+    val requiresCreatorAsaOptIn =
+        localCreatorAccount != null && localCreatorAccount !is LocalAccount.SeedVault && creatorAssetId > 0
+    LaunchedEffect(creatorAddress, appNetwork, paymentNetworkOverride, viewModel) {
+        if (creatorAddress.isNullOrBlank()) {
+            creatorRouteReady = true
+            return@LaunchedEffect
+        }
+        val network = appNetwork ?: return@LaunchedEffect
+        try {
+            val account = getLocalAccount(creatorAddress)
+            localCreatorAccount = account
+            val resolved = resolveLiquidStreamAccountNetwork(account, network, paymentNetworkOverride)
+            viewModel.configureBillingNetwork(creatorAddress, resolved)
+            creatorRouteReady = true
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            creatorRouteError = e.message ?: "Could not configure streaming payments."
+            viewModel.onMppPaymentRejected(creatorRouteError!!)
+        }
+    }
+    miniPlayerCameraPreviewState?.value = cameraPreview
+    miniPlayerOnCloseActionState?.value = {
+        viewModel.stopVideoStreaming()
+        connectionManager?.stopBlockConsumption()
+        connectionManager?.stopListening()
+        viewModel.clearMeshHosting()
+        streamHostUiMode.value = StreamHostUiMode.Hidden
+        viewModel.regenerateOffer(origin)
+        hostViewModel.resetMediaToggles()
+    }
+
+    // Host card uses split balances:
+    // - remainingBalanceUsdc: on-chain session balance value
+    // - progressBalanceUsdc: effective remaining for progress behavior
+    val remainingBalanceUsdc = remainingBalanceOnChainMicroUsdc?.let { it / 1_000_000.0 }
+    val progressBalanceUsdc = progressBarBalanceMicroUsdc?.let { it / 1_000_000.0 }
+
+    // Wait for initialize() to set the platform's mesh opt-in before generating.
+    LaunchedEffect(origin, managerInitialized, creatorRouteReady) {
+        if (managerInitialized && creatorRouteReady) viewModel.generateOffer(origin)
+    }
+
+    LaunchedEffect(creatorAddress, creatorAssetId, requiresCreatorAsaOptIn) {
+        if (requiresCreatorAsaOptIn) {
+            viewModel.fetchAccountASABalance(creatorAddress.orEmpty(), creatorAssetId)
+        } else {
+            viewModel.fetchAccountASABalance("", -1L)
+        }
+    }
+
+    // Wire up connection manager to ViewModel - CRITICAL: must happen before listening
+    LaunchedEffect(connectionManager, viewModel) {
+        if (connectionManager != null) {
+            Napier.d("🔗 Initializing connection manager with viewModel")
+            connectionManager.initialize(viewModel)
+            Napier.d("🔗 Connection manager initialized")
+        }
+        managerInitialized = true
+    }
+
+    // Invitations have their own lifecycle: accepting/refreshing one never restarts live state.
+    LaunchedEffect(pendingMeshOffer, connectionManager, managerInitialized, creatorRouteReady) {
+        if (!managerInitialized || !creatorRouteReady || !viewModel.meshHostingEnabled) return@LaunchedEffect
+        pendingMeshOffer?.let { invitation ->
+            connectionManager?.startListening(
+                origin = invitation.origin,
+                requestId = invitation.requestId,
+            )
+        }
+    }
+
+    // Mesh/debug viewers can be live while the primary offer is still waiting for a connection.
+    val hasLiveMeshViewers = meshViewerIds.isNotEmpty() || debugViewerDetails.isNotEmpty()
+    LaunchedEffect(isAnalyticsModalVisible.value, state, streamHostUiMode.value, paymentState, hasLiveMeshViewers) {
+        val isBlockNumberVisible =
+            streamHostUiMode.value == StreamHostUiMode.Expanded || isAnalyticsModalVisible.value
+        when (state) {
+            is LiquidAuthOfferViewModel.OfferState.Connected,
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+            -> {
+                // The expanded host UI (incl. Host Settings sheet) and the stats modal show the block number.
+                viewModel.setBlockNumberDisplayed(isBlockNumberVisible)
+
+                // Ensure billing/deduction loop is running whenever paid streaming is active.
+                if (paymentState is LiquidAuthOfferViewModel.PaymentState.StreamingWithBalance) {
+                    viewModel.getCurrentSessionId()?.let { sessionId ->
+                        connectionManager?.startBlockConsumption(sessionId)
+                    }
+                }
+            }
+            else -> {
+                if (viewModel.meshHostingEnabled && state is LiquidAuthOfferViewModel.OfferState.Loading) {
+                    return@LaunchedEffect
+                }
+                // Mesh/debug viewers still need block numbers for the host sheet and earnings averages.
+                viewModel.setBlockNumberDisplayed(hasLiveMeshViewers && isBlockNumberVisible)
+                connectionManager?.stopBlockConsumption()
+            }
+        }
+    }
+
+    // Start listening after initialization
+    LaunchedEffect(state, connectionManager, managerInitialized, creatorRouteReady) {
+        if (!managerInitialized || !creatorRouteReady) return@LaunchedEffect
+        // Ensure connectionManager is initialized before starting
+        if (connectionManager == null) {
+            Napier.w("⚠️ Cannot start listening - connectionManager is null")
+            return@LaunchedEffect
+        }
+
+        // Startup generation can run earlier in this frame; don't stop a newly
+        // initialized manager using an Idle snapshot from the previous composition.
+        val currentState = viewModel.state.value
+        Napier.d(
+            "🔗 State changed to: ${currentState::class.simpleName}, " +
+                "isConnected=${connectionManager.isConnected()}, enablePaidStreaming=$enablePaidStreaming, creatorAddress=$creatorAddress",
+        )
+
+        when (currentState) {
+            is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
+                Napier.d("🔗 Starting listening for requestId: ${currentState.requestId}")
+                connectionManager.startListening(
+                    origin = currentState.origin,
+                    requestId = currentState.requestId,
+                )
+            }
+
+            is LiquidAuthOfferViewModel.OfferState.Connected,
+            is LiquidAuthOfferViewModel.OfferState.Streaming,
+            -> {
+                // Block polling visibility is owned by the UI-mode effect above.
+                Napier.d("🔗 Connection established - service handling")
+            }
+
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> {
+                Napier.d("🔗 Waiting for payment - keeping connection open")
+            }
+
+            else -> {
+                // Mesh invitation generation must never tear down active peers.
+                if (viewModel.meshHostingEnabled && currentState is LiquidAuthOfferViewModel.OfferState.Loading) {
+                    return@LaunchedEffect
+                }
+                Napier.d("🔗 Stopping listening - state: ${currentState::class.simpleName}")
+                // Block polling visibility is owned by the UI-mode effect above.
+                connectionManager.stopListening()
+            }
+        }
+    }
+
+    // Handle X402 PaymentRequested event - only depend on viewModel to avoid restarts
+    // Use rememberUpdatedState to always get latest parameter values
+    val currentEnablePaidStreaming by rememberUpdatedState(enablePaidStreaming)
+    val currentCreatorAddress by rememberUpdatedState(creatorAddress)
+    val currentConnectionManager by rememberUpdatedState(connectionManager)
+    val currentPaymentNetworkOverride by rememberUpdatedState(paymentNetworkOverride)
+
+    suspend fun withCreatorRoute(
+        address: String,
+        action: (String) -> Unit,
+    ) {
+        try {
+            val network =
+                resolveLiquidStreamAccountNetwork(
+                    getLocalAccount(address),
+                    getCurrentNetwork().first(),
+                    currentPaymentNetworkOverride,
+                )
+            action(network)
+        } catch (ce: CancellationException) {
+            throw ce
+        } catch (e: Exception) {
+            creatorRouteError = e.message ?: "Could not configure streaming payments."
+            viewModel.onMppPaymentRejected(creatorRouteError!!)
+        }
+    }
+
+    LaunchedEffect(viewModel, hostViewModel) {
+        viewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidAuthOfferViewModel.OfferEvent.ClientConnected -> {
+                    // Capture values in local variables for smart cast
+                    val canRequestPayment = currentEnablePaidStreaming
+                    val address = currentCreatorAddress
+                    Napier.d("💰 ClientConnected event received! enablePaidStreaming=$canRequestPayment, creatorAddress=$address")
+                    // Auto-request payment when paid streaming is enabled
+                    if (canRequestPayment && address != null) {
+                        Napier.d("💰 Requesting payment from client...")
+                        withCreatorRoute(address) { network ->
+                            viewModel.requestPaymentFromClient(address, network = network)
+                        }
+                    } else if (address != null) {
+                        Napier.d("💬 Initializing chat only (no payment)...")
+                        withCreatorRoute(address) { network ->
+                            currentConnectionManager?.setupCreator(address, network = network)
+                        }
+                    } else {
+                        Napier.d(
+                            "💰 Paid streaming disabled or no creatorAddress (enablePaidStreaming=$canRequestPayment, creatorAddress=$address)",
+                        )
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferEvent.PaymentRequested -> {
+                    // Send payment request to client via data channel
+                    val connected = currentConnectionManager?.isConnected()
+                    Napier.d("💰 PaymentRequested event received, sending via connectionManager... isConnected=$connected")
+                    currentConnectionManager?.sendPaymentRequest(event.paymentRequest)
+                    Napier.d("💰 Payment request sent: ${event.paymentRequest.amount} micro-units")
+                }
+
+                is LiquidAuthOfferViewModel.OfferEvent.PaymentReceived -> {
+                    // Start block consumption when payment received
+                    Napier.d("💰 PaymentReceived event received!")
+                    // Ensure only one block poller is active (<= 1 network call per second)
+                    viewModel.stopRealtimeBlockNumberUpdates()
+                    val sessionId = viewModel.getCurrentSessionId()
+                    if (sessionId != null) {
+                        currentConnectionManager?.startBlockConsumption(sessionId)
+                        Napier.d("💰 Payment received! Starting block consumption")
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferEvent.FundsDepleted -> {
+                    // Stop billing loop, but keep host UI mounted so stream screen doesn't close/reopen.
+                    currentConnectionManager?.stopBlockConsumption()
+                    viewModel.stopVideoStreaming() // Transition to Connected while keeping live host UI visible
+                    Napier.d("💰 Funds depleted! Stopping stream and block consumption")
+                    Napier.d("💰 Viewer must pay again to resume streaming")
+                    if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                        streamHostUiMode.value = StreamHostUiMode.Expanded
+                    }
+                    currentCreatorAddress?.let { address ->
+                        Napier.d("💰 Requesting additional payment from viewer...")
+                        withCreatorRoute(address) { network ->
+                            viewModel.requestPaymentFromClient(address, network = network)
+                        }
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferEvent.BalanceUpdated -> {
+                    // Update hostViewModel with startRound if available
+                    event.startRound?.let { startRound ->
+                        hostViewModel.updateMetrics(startRound = startRound)
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferEvent.ChatMessageReceived -> {
+                    hostViewModel.receivedChatMessage(event.message)
+                }
+
+                else -> { // other events
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(hostViewModel) {
+        hostViewModel.viewEvent.collect { event ->
+            when (event) {
+                is LiquidStreamHostViewModel.ViewEvent.StreamCostChanged -> {
+                    viewModel.currentCostPerBlockMicroUsdc = event.costMicroUsdc
+                    Napier.d("💰 Stream cost changed to ${event.costMicroUsdc} micro-units")
+                    val isPaid = event.costMicroUsdc > 0L
+                    viewModel.setStreamingPaid(isPaid)
+                    connectionManager?.setIsPaidStreaming(isPaid)
+                    connectionManager?.setStreamCost(event.costMicroUsdc)
+
+                    // Notify client of cost update via data channel
+                    val update = StreamCostUpdate(costMicroUsdc = event.costMicroUsdc)
+                    val envelope =
+                        buildJsonObject {
+                            put("type", DCMessageType.STREAM_COST_UPDATE.value)
+                            put("sessionId", viewModel.getCurrentSessionId() ?: "")
+                            put("payload", Json.encodeToJsonElement(StreamCostUpdate.serializer(), update))
+                        }
+                    connectionManager?.sendMessage(envelope.toString())
+                }
+                else -> { /* other host events */ }
+            }
+        }
+    }
+
+    // Cleanup
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.setBlockNumberDisplayed(false)
+            connectionManager?.stopListening()
+            connectionManager?.stopBlockConsumption()
+            viewModel.clearMeshHosting()
+        }
+    }
+
+    LiquidAuthOfferScreenContent(
+        headerContent = headerContent,
+        state = creatorRouteError?.let { LiquidAuthOfferViewModel.OfferState.Error(it) } ?: state,
+        cameraPreview = cameraPreview,
+        connectionManager = connectionManager,
+        onRegenerate = { viewModel.regenerateOffer(origin) },
+        onStopStreaming = { viewModel.stopVideoStreaming() },
+        onRetry = { viewModel.regenerateOffer(origin) },
+        onMinimise = onMinimise,
+        streamHostUiMode = streamHostUiMode,
+        cameraPreviewController = resolvedCameraPreviewController,
+        paymentCurrencyLabel = paymentCurrencyLabel,
+        networkLabel = currentNetworkLabel,
+        connectionType = connectionType,
+        progressBalanceUsdc = progressBalanceUsdc,
+        remainingBalanceUsdc = remainingBalanceUsdc,
+        currentBlockNumber = currentBlockNumber,
+        blockChainLabel = blockChainLabel,
+        balanceCurrencySymbol = balanceCurrencySymbol,
+        originUrl = origin,
+        onStatsModalVisibilityChanged = { isAnalyticsModalVisible.value = it },
+        hostViewModel = hostViewModel,
+        creatorAsaBalance = creatorAsaBalance,
+        isCheckingCreatorAsaBalance = isCheckingCreatorAsaBalance,
+        requiresCreatorAsaOptIn = requiresCreatorAsaOptIn,
+        lastSettledUsdc = lastSettledUsdc,
+        creatorAddress = creatorAddress.orEmpty(),
+        pendingMeshOffer = pendingMeshOffer,
+        // Debug peers are display-only: never add them to VM membership or primary state.
+        meshViewerIds =
+            when {
+                debugViewerDetails.isNotEmpty() -> (meshViewerIds + debugViewerDetails.keys).distinct()
+                viewModel.meshHostingEnabled -> meshViewerIds
+                else -> null
+            },
+        meshViewerDetails = meshViewerDetails + debugViewerDetails,
+        debugContent = debugContent,
+        debugFullscreen = debugFullscreen,
+        onRefreshInvitation =
+            if (viewModel.meshHostingEnabled) {
+                { viewModel.refreshMeshInvitation(origin) }
+            } else {
+                null
+            },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LiquidAuthOfferScreenContent(
+    headerContent: @Composable (() -> Unit)? = null,
+    state: LiquidAuthOfferViewModel.OfferState,
+    cameraPreview: @Composable (() -> Unit)?,
+    connectionManager: com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager? = null,
+    onRegenerate: () -> Unit,
+    onStopStreaming: () -> Unit,
+    onRetry: () -> Unit,
+    onMinimise: () -> Unit,
+    streamHostUiMode: MutableState<StreamHostUiMode>,
+    cameraPreviewController: CameraStreamingPreviewController,
+    paymentCurrencyLabel: String = "ALGO",
+    networkLabel: String = "TESTNET",
+    connectionType: IceConnectionType,
+    progressBalanceUsdc: Double?,
+    remainingBalanceUsdc: Double?,
+    currentBlockNumber: Long?,
+    blockChainLabel: String = "Algorand",
+    balanceCurrencySymbol: String = "A",
+    originUrl: String = "-",
+    onStatsModalVisibilityChanged: (Boolean) -> Unit = {},
+    hostViewModel: LiquidStreamHostViewModel = koinViewModel(),
+    creatorAsaBalance: String? = null,
+    isCheckingCreatorAsaBalance: Boolean = false,
+    requiresCreatorAsaOptIn: Boolean = false,
+    lastSettledUsdc: Double? = null,
+    creatorAddress: String = "",
+    pendingMeshOffer: LiquidAuthOfferViewModel.OfferState.WaitingForConnection? = null,
+    meshViewerIds: List<String>? = null,
+    onRefreshInvitation: (() -> Unit)? = null,
+    meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
+) {
+    // Keep live-state promotion independent of the optional background UI.
+    when (state) {
+        is LiquidAuthOfferViewModel.OfferState.Streaming,
+        is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+        is LiquidAuthOfferViewModel.OfferState.Connected,
+        -> {
+            if (streamHostUiMode.value == StreamHostUiMode.Hidden) {
+                streamHostUiMode.value = StreamHostUiMode.Expanded
+            }
+        }
+        else -> Unit
+    }
+
+    if (!debugFullscreen) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.Top),
+        ) {
+            Spacer(modifier = Modifier.height(1.dp))
+            headerContent?.invoke()
+
+            // Connection Status Card
+            ConnectionStatusCard(
+                state = state,
+                paymentCurrencyLabel = paymentCurrencyLabel,
+            )
+
+            // Main Content Area - changes based on state
+            val currentState = state
+            when (currentState) {
+                is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> {
+                    if (!requiresCreatorAsaOptIn) {
+                        QRCodeSection(
+                            liquidAuthUrl = currentState.liquidAuthUrl,
+                            requestId = currentState.requestId,
+                            onRegenerate = onRegenerate,
+                        )
+                    } else if (isCheckingCreatorAsaBalance) {
+                        LoadingSection()
+                    } else if (!creatorAsaBalance.isNullOrEmpty()) {
+                        QRCodeSection(
+                            liquidAuthUrl = currentState.liquidAuthUrl,
+                            requestId = currentState.requestId,
+                            onRegenerate = onRegenerate,
+                        )
+                    } else {
+                        NotOptedInSection()
+                    }
+                }
+
+                is LiquidAuthOfferViewModel.OfferState.Streaming,
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment,
+                is LiquidAuthOfferViewModel.OfferState.Connected,
+                -> Unit // Live host UI is rendered below.
+
+                is LiquidAuthOfferViewModel.OfferState.Error -> {
+                    ErrorSection(
+                        message = currentState.message,
+                        onRetry = onRetry,
+                    )
+                }
+
+                else -> {
+                    // Idle or Loading
+                    LoadingSection()
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+
+    if (streamHostUiMode.value == StreamHostUiMode.Expanded) {
+        val sessionIdForStats =
+            when (state) {
+                is LiquidAuthOfferViewModel.OfferState.Connected -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.sessionId
+                is LiquidAuthOfferViewModel.OfferState.Streaming -> state.sessionId
+                else -> null
+            }
+
+        val (currentRequestId, currentLiquidAuthUrl) =
+            if (meshViewerIds != null && (onRefreshInvitation != null || pendingMeshOffer != null)) {
+                // Display-only debug IDs do not imply mesh invitation management.
+                // Never re-display the accepted invitation while waiting for its replacement.
+                pendingMeshOffer?.let { it.requestId to it.liquidAuthUrl }
+                    ?: (state as? LiquidAuthOfferViewModel.OfferState.WaitingForConnection)?.let {
+                        it.requestId to it.liquidAuthUrl
+                    } ?: ("" to "")
+            } else {
+                when (state) {
+                    is LiquidAuthOfferViewModel.OfferState.WaitingForConnection -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.Connected -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.WaitingForPayment -> state.requestId to state.liquidAuthUrl
+                    is LiquidAuthOfferViewModel.OfferState.Streaming -> state.requestId to state.liquidAuthUrl
+                    else -> "" to ""
+                }
+            }
+
+        val activeViewerAddress by connectionManager?.viewerAddress?.collectAsStateWithLifecycle(null) ?: remember { mutableStateOf(null) }
+
+        StreamHostBottomSheet(
+            cameraPreview = cameraPreview,
+            connectionManager = connectionManager,
+            cameraPreviewController = cameraPreviewController,
+            onStatsClick = {},
+            onMinimise = {
+                streamHostUiMode.value = StreamHostUiMode.Minimized
+                onMinimise()
+            },
+            onDismiss = {
+                streamHostUiMode.value = StreamHostUiMode.Minimized
+                onMinimise()
+            },
+            sessionId = sessionIdForStats,
+            progressBalanceUsdc = progressBalanceUsdc,
+            remainingBalanceUsdc = remainingBalanceUsdc,
+            connectionType = connectionType,
+            currentBlockNumber = currentBlockNumber,
+            networkLabel = networkLabel,
+            blockChainLabel = blockChainLabel,
+            balanceCurrencySymbol = balanceCurrencySymbol,
+            originUrl = originUrl,
+            onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+            hostViewModel = hostViewModel,
+            lastSettledUsdc = lastSettledUsdc,
+            creatorAddress = creatorAddress,
+            viewerAddress = activeViewerAddress.orEmpty(),
+            requestId = currentRequestId,
+            liquidAuthUrl = currentLiquidAuthUrl,
+            meshViewerIds = meshViewerIds,
+            meshViewerDetails = meshViewerDetails,
+            onRefreshInvitation = onRefreshInvitation,
+            debugContent = debugContent,
+            debugFullscreen = debugFullscreen,
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun StreamHostBottomSheet(
+    cameraPreview: @Composable (() -> Unit)?,
+    connectionManager: LiquidAuthConnectionManager? = null,
+    cameraPreviewController: CameraStreamingPreviewController,
+    onStatsClick: () -> Unit,
+    onMinimise: () -> Unit,
+    onDismiss: () -> Unit,
+    sessionId: String?,
+    progressBalanceUsdc: Double?,
+    remainingBalanceUsdc: Double?,
+    connectionType: IceConnectionType,
+    currentBlockNumber: Long?,
+    networkLabel: String,
+    blockChainLabel: String,
+    balanceCurrencySymbol: String,
+    originUrl: String,
+    onStatsModalVisibilityChanged: (Boolean) -> Unit,
+    hostViewModel: LiquidStreamHostViewModel,
+    lastSettledUsdc: Double? = null,
+    creatorAddress: String = "",
+    viewerAddress: String = "",
+    requestId: String = "",
+    liquidAuthUrl: String = "",
+    meshViewerIds: List<String>? = null,
+    onRefreshInvitation: (() -> Unit)? = null,
+    meshViewerDetails: Map<String, HostViewerDetails> = emptyMap(),
+    debugContent: (@Composable () -> Unit)? = null,
+    debugFullscreen: Boolean = false,
+) {
+    if (debugFullscreen) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LiquidStreamHostLiveScreen(
+                cameraPreview = cameraPreview,
+                connectionManager = connectionManager,
+                viewModel = hostViewModel,
+                onSettingsClick = {},
+                onMinimise = onMinimise,
+                onRotateCamera = { cameraPreviewController.rotateCamera() },
+                onStatsClick = onStatsClick,
+                onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                sessionId = sessionId,
+                progressBalanceUsdc = progressBalanceUsdc,
+                remainingBalanceUsdc = remainingBalanceUsdc,
+                connectionType = connectionType,
+                currentBlockNumber = currentBlockNumber,
+                blockChainLabel = blockChainLabel,
+                networkLabel = networkLabel,
+                balanceCurrencySymbol = balanceCurrencySymbol,
+                originUrl = originUrl,
+                lastSettledUsdc = lastSettledUsdc,
+                creatorAddress = creatorAddress,
+                viewerAddress = viewerAddress,
+                requestId = requestId,
+                liquidAuthUrl = liquidAuthUrl,
+                meshViewerIds = meshViewerIds,
+                meshViewerDetails = meshViewerDetails,
+                onRefreshInvitation = onRefreshInvitation,
+                onSendClick = { text ->
+                    val senderIdentity =
+                        hostViewModel.state.value.creatorNfdName
+                            ?: creatorAddress.ifBlank { "Creator" }
+                    connectionManager?.sendChatMessage(
+                        ChatMessage(
+                            sender = senderIdentity,
+                            text = text,
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                        ),
+                    )
+                },
+            )
+            if (debugContent != null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                            .padding(top = 100.dp),
+                ) {
+                    debugContent()
+                }
+            }
+        }
+        return
+    }
+
+    val isPreview = LocalInspectionMode.current
+    if (isPreview) {
+        // Avoid modal container in Compose Preview; render content directly for faster preview.
+        Box(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .height(700.dp),
+        ) {
+            LiquidStreamHostLiveScreen(
+                cameraPreview = cameraPreview,
+                connectionManager = connectionManager,
+                viewModel = hostViewModel,
+                onSettingsClick = {},
+                onMinimise = onMinimise,
+                onRotateCamera = { cameraPreviewController.rotateCamera() },
+                onStatsClick = onStatsClick,
+                onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                sessionId = sessionId,
+                progressBalanceUsdc = progressBalanceUsdc,
+                remainingBalanceUsdc = remainingBalanceUsdc,
+                connectionType = connectionType,
+                currentBlockNumber = currentBlockNumber,
+                blockChainLabel = blockChainLabel,
+                networkLabel = networkLabel,
+                balanceCurrencySymbol = balanceCurrencySymbol,
+                originUrl = originUrl,
+                lastSettledUsdc = lastSettledUsdc,
+                creatorAddress = creatorAddress,
+                viewerAddress = viewerAddress,
+                requestId = requestId,
+                liquidAuthUrl = liquidAuthUrl,
+                meshViewerIds = meshViewerIds,
+                meshViewerDetails = meshViewerDetails,
+                onRefreshInvitation = onRefreshInvitation,
+                onSendClick = { text ->
+                    val senderIdentity =
+                        hostViewModel.state.value.creatorNfdName
+                            ?: creatorAddress.ifBlank { "Creator" }
+                    connectionManager?.sendChatMessage(
+                        ChatMessage(
+                            sender = senderIdentity,
+                            text = text,
+                            timestamp = Clock.System.now().toEpochMilliseconds(),
+                        ),
+                    )
+                },
+            )
+        }
+        return
+    }
+
+    val streamHostBottomSheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+        )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = streamHostBottomSheetState,
+        dragHandle = null,
+        shape = RectangleShape,
+        containerColor = Color.Transparent,
+        contentWindowInsets = { WindowInsets(0, 0, 0, 0) },
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = Color.Transparent,
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        ) { innerPadding ->
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding),
+            ) {
+                LiquidStreamHostLiveScreen(
+                    cameraPreview = cameraPreview,
+                    connectionManager = connectionManager,
+                    viewModel = hostViewModel,
+                    onSettingsClick = {},
+                    onMinimise = onMinimise,
+                    onRotateCamera = { cameraPreviewController.rotateCamera() },
+                    onStatsClick = {},
+                    onStatsModalVisibilityChanged = onStatsModalVisibilityChanged,
+                    sessionId = sessionId,
+                    progressBalanceUsdc = progressBalanceUsdc,
+                    remainingBalanceUsdc = remainingBalanceUsdc,
+                    connectionType = connectionType,
+                    currentBlockNumber = currentBlockNumber,
+                    blockChainLabel = blockChainLabel,
+                    networkLabel = networkLabel,
+                    balanceCurrencySymbol = balanceCurrencySymbol,
+                    originUrl = originUrl,
+                    lastSettledUsdc = lastSettledUsdc,
+                    creatorAddress = creatorAddress,
+                    viewerAddress = viewerAddress,
+                    requestId = requestId,
+                    liquidAuthUrl = liquidAuthUrl,
+                    meshViewerIds = meshViewerIds,
+                    meshViewerDetails = meshViewerDetails,
+                    onRefreshInvitation = onRefreshInvitation,
+                    onSendClick = { text ->
+                        connectionManager?.sendChatMessage(
+                            ChatMessage(
+                                sender = "Creator",
+                                text = text,
+                                timestamp = Clock.System.now().toEpochMilliseconds(),
+                            ),
+                        )
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectionStatusCard(
+    state: LiquidAuthOfferViewModel.OfferState,
+    paymentCurrencyLabel: String = "ALGO",
+) {
+    val (statusText, statusColor) =
+        when (state) {
+            is LiquidAuthOfferViewModel.OfferState.Idle,
+            is LiquidAuthOfferViewModel.OfferState.Loading,
+            -> "Initializing..." to TextGray
+
+            is LiquidAuthOfferViewModel.OfferState.WaitingForConnection ->
+                "Waiting for client to scan QR code..." to PendingYellow
+
+            is LiquidAuthOfferViewModel.OfferState.Connected ->
+                "Client connected! Ready to stream" to SuccessGreen
+
+            is LiquidAuthOfferViewModel.OfferState.WaitingForPayment ->
+                "Waiting for 1 $paymentCurrencyLabel deposit..." to PendingYellow
+
+            is LiquidAuthOfferViewModel.OfferState.Streaming ->
+                "Streaming video to client" to SuccessGreen
+
+            is LiquidAuthOfferViewModel.OfferState.Error ->
+                "Error occurred" to MaterialTheme.colorScheme.error
+        }
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Status:",
+                style = MaterialTheme.typography.labelMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.bodyMedium,
+                color = statusColor,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun QRCodeSection(
+    liquidAuthUrl: String,
+    requestId: String,
+    onRegenerate: () -> Unit,
+) {
+    val qrPainter = rememberQrKitPainter(data = liquidAuthUrl)
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // QR Code
+            Box(
+                modifier =
+                    Modifier
+                        .size(250.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White),
+                contentAlignment = Alignment.Center,
+            ) {
+                Image(
+                    painter = qrPainter,
+                    contentDescription = "Liquid Auth QR Code",
+                    modifier = Modifier.size(220.dp),
+                )
+            }
+
+            // Request ID
+            Text(
+                text = "Request ID:",
+                style = MaterialTheme.typography.labelMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+            Text(
+                text = requestId,
+                style = MaterialTheme.typography.bodySmall,
+                color = AlgoKitTheme.colors.textMain,
+                textAlign = TextAlign.Center,
+            )
+
+            // Scan instruction
+            Text(
+                text = "Scan with another device to connect",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textGray,
+                textAlign = TextAlign.Center,
+            )
+
+            // Regenerate button
+            Button(
+                onClick = onRegenerate,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Generate New QR Code")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConnectedSection(
+    sessionId: String,
+    connectionType: IceConnectionType,
+    balanceUsdc: Double?,
+    onStartCamera: () -> Unit,
+    onDisconnect: () -> Unit,
+    onRequestPayment: () -> Unit = {},
+    showStartButton: Boolean = true,
+    paymentCurrencyLabel: String = "ALGO",
+    streamHostUiMode: MutableState<StreamHostUiMode>,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Success indicator
+            Box(
+                modifier =
+                    Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(40.dp))
+                        .background(SuccessGreen.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "✓",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = SuccessGreen,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Session info
+            Text(
+                text = "Client Connected!",
+                style = MaterialTheme.typography.headlineSmall,
+                color = AlgoKitTheme.colors.textMain,
+            )
+
+            Text(
+                text = "Session: ${sessionId.take(8)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+
+            // Connection Type Indicator (for quality/billing visibility)
+            ConnectionTypeIndicator(
+                connectionType = connectionType,
+                balanceUsdc = balanceUsdc,
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Start camera button (only shown when showStartButton is true)
+            if (showStartButton) {
+                // Check if balance is depleted (0 or null means needs payment)
+                val isDepleted = balanceUsdc == null || balanceUsdc <= 0.0
+
+                if (isDepleted) {
+                    streamHostUiMode.value = StreamHostUiMode.Hidden
+                    // Show pay to resume button
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            CardDefaults.cardColors(
+                                containerColor = Color(0xFFF44336).copy(alpha = 0.1f),
+                            ),
+                        border =
+                            androidx.compose.foundation.BorderStroke(
+                                1.dp,
+                                Color(0xFFF44336),
+                            ),
+                    ) {
+                        Column(
+                            modifier =
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = "⛽ Funds Depleted",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color(0xFFF44336),
+                                fontWeight = FontWeight.Bold,
+                            )
+
+                            Text(
+                                text =
+                                    "The viewer has used all their deposit. " +
+                                        "They need to pay 1 $paymentCurrencyLabel again to resume streaming.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = AlgoKitTheme.colors.textGray,
+                                textAlign = TextAlign.Center,
+                            )
+
+                            Button(
+                                onClick = onRequestPayment,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor = Color(0xFFF44336),
+                                    ),
+                            ) {
+                                Text("Request 1 $paymentCurrencyLabel Payment")
+                            }
+                        }
+                    }
+                } else {
+                    // Normal start streaming button
+                    Button(
+                        onClick = onStartCamera,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors =
+                            ButtonDefaults.buttonColors(
+                                containerColor = PrimaryPurple,
+                            ),
+                    ) {
+                        Text("Open Camera & Start Streaming")
+                    }
+
+                    Text(
+                        text = "Stream live video back to the connected device",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Disconnect button
+            Button(
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+            ) {
+                Text("Disconnect")
+            }
+
+            Text(
+                text = "Force client to reconnect",
+                style = MaterialTheme.typography.bodySmall,
+                color = AlgoKitTheme.colors.textGray,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WaitingForPaymentSection(
+    sessionId: String,
+    connectionType: IceConnectionType,
+    balanceUsdc: Double?,
+    paymentRequest: PaymentRequest,
+    onDisconnect: () -> Unit,
+    paymentCurrencyLabel: String = "ALGO",
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            // Payment indicator
+            Box(
+                modifier =
+                    Modifier
+                        .size(80.dp)
+                        .clip(RoundedCornerShape(40.dp))
+                        .background(PendingYellow.copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "💰",
+                    style = MaterialTheme.typography.headlineLarge,
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Session info
+            Text(
+                text = "Client Connected!",
+                style = MaterialTheme.typography.headlineSmall,
+                color = AlgoKitTheme.colors.textMain,
+            )
+
+            Text(
+                text = "Session: ${sessionId.take(8)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+
+            // Connection Type Indicator
+            ConnectionTypeIndicator(connectionType = connectionType)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Payment request card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor = AlgoKitTheme.colors.background,
+                    ),
+            ) {
+                Column(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = "Waiting for Payment",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                        fontWeight = FontWeight.Bold,
+                    )
+
+                    Text(
+                        text = "1 $paymentCurrencyLabel deposit required",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = AlgoKitTheme.colors.textGray,
+                    )
+
+                    Text(
+                        text = "To: ${paymentRequest.payTo.take(8)}...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                    )
+
+                    CircularProgressIndicator(
+                        modifier = Modifier.padding(vertical = 8.dp),
+                        color = PendingYellow,
+                    )
+
+                    Text(
+                        text = "Waiting for client to sign transaction...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AlgoKitTheme.colors.textGray,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Disconnect button
+            Button(
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+            ) {
+                Text("Disconnect")
+            }
+
+            Text(
+                text = "Cancel and force client to reconnect",
+                style = MaterialTheme.typography.bodySmall,
+                color = AlgoKitTheme.colors.textGray,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Suppress("unused")
+@Composable
+private fun StreamingSection(
+    sessionId: String,
+    connectionType: IceConnectionType,
+    onStopStreaming: () -> Unit,
+    onDisconnect: () -> Unit,
+    cameraPreview: @Composable (() -> Unit)?,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(12.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(Color.Red),
+                )
+                Text(
+                    text = "LIVE",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = Color.Red,
+                )
+            }
+
+            ConnectionTypeIndicator(connectionType = connectionType)
+
+            Box(
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .height(300.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.Black),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (cameraPreview != null) {
+                    cameraPreview()
+                } else {
+                    Text(
+                        text = "Camera Preview\n(Implement cameraPreview slot)",
+                        color = Color.White,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            Text(
+                text = "Streaming to: ${sessionId.take(8)}...",
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textGray,
+            )
+
+            Button(
+                onClick = onStopStreaming,
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
+            ) {
+                Text("Stop Streaming")
+            }
+
+            Button(
+                onClick = onDisconnect,
+                modifier = Modifier.fillMaxWidth(),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = AlgoKitTheme.colors.textGray,
+                    ),
+            ) {
+                Text("Disconnect Client")
+            }
+
+            Text(
+                text = "Force client to reconnect",
+                style = MaterialTheme.typography.bodySmall,
+                color = AlgoKitTheme.colors.textGray,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorSection(
+    message: String,
+    onRetry: () -> Unit,
+) {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = "Error",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = AlgoKitTheme.colors.textMain,
+                textAlign = TextAlign.Center,
+            )
+
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Try Again")
+            }
+        }
+    }
+}
+
+@Composable
+private fun LoadingSection() {
+    Column(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        CircularProgressIndicator()
+        Text(
+            text = "Waiting...",
+            style = MaterialTheme.typography.bodyMedium,
+            color = AlgoKitTheme.colors.textGray,
+        )
+    }
+}
+
+@Composable
+private fun NotOptedInSection() {
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray,
+            ),
+    ) {
+        Text(
+            text = "Not Opted into USDC",
+            style = MaterialTheme.typography.bodyLarge,
+            color = AlgoKitTheme.colors.textMain,
+            textAlign = TextAlign.Center,
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+        )
+    }
+}
+
+@Composable
+private fun ConnectionTypeIndicator(
+    connectionType: IceConnectionType,
+    balanceUsdc: Double? = null,
+) {
+    val isDetecting = connectionType == IceConnectionType.UNKNOWN
+
+    val backgroundColor =
+        if (isDetecting) {
+            Color.Gray
+        } else {
+            hexToColor(connectionType.colorHex()) ?: AlgoKitTheme.colors.textGray
+        }
+
+    Card(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        colors =
+            CardDefaults.cardColors(
+                containerColor = AlgoKitTheme.colors.layerGray.copy(alpha = 0.7f),
+            ),
+    ) {
+        Row(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            // Left: Connection type badge
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                // Color indicator dot (animated pulse when detecting)
+                Box(
+                    modifier =
+                        Modifier
+                            .size(10.dp)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(backgroundColor),
+                )
+
+                Text(
+                    text = if (isDetecting) "Detecting..." else connectionType.displayName(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = AlgoKitTheme.colors.textMain,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+
+            // Right: Balance or Cost tier
+            Column(
+                horizontalAlignment = Alignment.End,
+            ) {
+                // Show balance if available, otherwise show cost tier
+                val displayText =
+                    balanceUsdc?.let {
+                        // Format to 1 decimal place KMP-compatible
+                        val rounded = (kotlin.math.round(it * 10) / 10)
+                        val text =
+                            if (rounded == rounded.toInt().toDouble()) {
+                                "${rounded.toInt()}A"
+                            } else {
+                                rounded.toString().take(3) + "A"
+                            }
+                        text
+                    } ?: connectionType.costTier()
+
+                Text(
+                    text = displayText,
+                    style = MaterialTheme.typography.titleMedium,
+                    color =
+                        when {
+                            balanceUsdc != null -> SuccessGreen
+                            isDetecting -> AlgoKitTheme.colors.textGray
+                            connectionType == IceConnectionType.RELAY -> Color(0xFFFF9800)
+                            else -> Color(0xFF4CAF50)
+                        },
+                    fontWeight = FontWeight.Bold,
+                )
+
+                // Latency info
+                Text(
+                    text = if (isDetecting) "..." else "~${connectionType.typicalLatency()}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AlgoKitTheme.colors.textGray,
+                )
+            }
+        }
+    }
+
+    // Help text explaining the cost (only when relay is detected and no balance shown)
+    if (connectionType == IceConnectionType.RELAY && balanceUsdc == null) {
+        Text(
+            text = "⚠️ TURN relay active - higher bandwidth cost",
+            style = MaterialTheme.typography.bodySmall,
+            color = Color(0xFFFF9800),
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(horizontal = 24.dp, vertical = 4.dp),
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferWaitingForConnectionPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.WaitingForConnection(
+                    requestId = "abc123-request-id",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=abc123",
+                    origin = "https://auth.example.com",
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferStreamingDirectPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .background(AlgoKitTheme.colors.background)
+                    .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
+            LiquidStreamHostLiveScreen(
+                cameraPreview = {
+                    Box(
+                        modifier =
+                            Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF1E1E1E)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = "Direct camera stream",
+                            color = Color.White,
+                        )
+                    }
+                },
+            )
+            ConnectedViewersCard(
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-direct-12345678",
+                            remainingBalanceUSDC = 0.8,
+                            connectionType = IceConnectionType.LOCAL,
+                            currentBlockNumber = 45123456L,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferStreamingRelayPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.Streaming(
+                    requestId = "stream-relay-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=stream-relay-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-relay-87654321",
+                    isPaid = true,
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedFundedPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.Connected(
+                    requestId = "connected-funded-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=connected-funded-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-funded-44556677",
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedDepletedPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.Connected(
+                    requestId = "connected-depleted-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=connected-depleted-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-depleted-88990011",
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferWaitingForPaymentPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.WaitingForPayment(
+                    requestId = "payment-wait-req",
+                    liquidAuthUrl = "https://auth.example.com/connect?requestId=payment-wait-req",
+                    origin = "https://auth.example.com",
+                    sessionId = "session-payment-33221100",
+                    paymentRequest =
+                        PaymentRequest(
+                            id = "payment-session-123",
+                            sessionId = "session-payment-33221100",
+                            segmentIndex = 0,
+                            amount = "1000000",
+                            asset = "USDC",
+                            network = "testnet",
+                            payTo = "CREATORADDR1234567890ABCDEFGH",
+                            ttl = 30,
+                            nonce = "nonce-preview-123",
+                            meta =
+                                PaymentRequestMeta(
+                                    gatingMode = GatingMode.PARTIAL_TIME,
+                                    enforcement = EnforcementMode.TRACK,
+                                    segmentDuration = 3,
+                                    voucherSignature = null,
+                                ),
+                        ),
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferErrorPreview() {
+    AlgoKitTheme {
+        LiquidAuthOfferScreenContent(
+            state =
+                LiquidAuthOfferViewModel.OfferState.Error(
+                    message = "Failed to generate offer. Please check your network and try again.",
+                ),
+            cameraPreview = null,
+            onRegenerate = {},
+            onStopStreaming = {},
+            onRetry = {},
+            onMinimise = {},
+            streamHostUiMode = mutableStateOf(StreamHostUiMode.Hidden),
+            cameraPreviewController = remember { CameraStreamingPreviewController() },
+            connectionType = IceConnectionType.UNKNOWN,
+            progressBalanceUsdc = null,
+            remainingBalanceUsdc = null,
+            currentBlockNumber = null,
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedViewersCardWithBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-preview-12345678",
+                            remainingBalanceUSDC = 0.7,
+                            connectionType = IceConnectionType.STUN,
+                            currentBlockNumber = 45123501L,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
+            )
+        }
+    }
+}
+
+@Preview
+@Composable
+private fun LiquidAuthOfferConnectedViewersCardWithoutBlockPreview() {
+    AlgoKitTheme {
+        Column(
+            modifier =
+                Modifier
+                    .fillMaxSize()
+                    .background(AlgoKitTheme.colors.background)
+                    .padding(vertical = 16.dp),
+        ) {
+            ConnectedViewersCard(
+                viewers =
+                    listOf(
+                        ConnectedViewerInfo(
+                            sessionId = "session-preview-87654321",
+                            remainingBalanceUSDC = 0.7,
+                            connectionType = IceConnectionType.STUN,
+                            networkLabel = "TESTNET",
+                            progressBalanceUSDC = 0.2,
+                            originUrl = "michaeltchuang.ngrok.dev",
+                            viewerAddress = "6Z4BAS2WIVUXW4DLEVTTQHFRUMGQZZFZQ4OTIUUZCOGIJH3MEPJHMAYX3U",
+                        ),
+                    ),
+            )
+        }
+    }
+}
+
+// Helper colors
+private val SuccessGreen = Color(0xFF4CAF50)
+private val PendingYellow = Color(0xFFFFC107)
+private val PrimaryPurple = Color(0xFF9966FF)
+private val TextGray = Color(0xFF888888)
+
+/**
+ * Convert hex color string (e.g., "#4CAF50") to Compose Color
+ */
+private fun hexToColor(hex: String): Color? =
+    try {
+        val cleanHex = hex.removePrefix("#")
+        val colorInt = cleanHex.toLong(16)
+        when (cleanHex.length) {
+            6 ->
+                Color(
+                    red = ((colorInt shr 16) and 0xFF) / 255f,
+                    green = ((colorInt shr 8) and 0xFF) / 255f,
+                    blue = (colorInt and 0xFF) / 255f,
+                    alpha = 1f,
+                )
+
+            8 ->
+                Color(
+                    red = ((colorInt shr 16) and 0xFF) / 255f,
+                    green = ((colorInt shr 8) and 0xFF) / 255f,
+                    blue = (colorInt and 0xFF) / 255f,
+                    alpha = ((colorInt shr 24) and 0xFF) / 255f,
+                )
+
+            else -> null
+        }
+    } catch (_: Exception) {
+        null
+    }

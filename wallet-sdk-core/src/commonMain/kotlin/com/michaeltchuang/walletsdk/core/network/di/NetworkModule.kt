@@ -6,11 +6,19 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccount
 import com.michaeltchuang.walletsdk.core.network.domain.NodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRepository
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetTransactionHistoryUrlUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.SaveNetworkPreferenceUseCase
 import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupApiService
 import com.michaeltchuang.walletsdk.core.network.service.AccountFastLookupRepositoryImpl
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiService
 import com.michaeltchuang.walletsdk.core.network.service.AccountInformationApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiService
+import com.michaeltchuang.walletsdk.core.network.service.AssetDetailApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.service.NfdApiService
+import com.michaeltchuang.walletsdk.core.network.service.NfdApiServiceImpl
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddressUseCase
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.logging.LogLevel
@@ -58,7 +66,9 @@ val networkModule =
         }
 
         factoryOf(::GetCurrentNetworkUseCase)
+        factoryOf(::GetTransactionHistoryUrlUseCase)
         factoryOf(::SaveNetworkPreferenceUseCase)
+        factoryOf(::GetCurrentBlockUseCase)
 
         single<AccountFastLookupMapper> {
             AccountFastLookupMapperImpl()
@@ -71,4 +81,17 @@ val networkModule =
             )
         }
         single { GetAccountFastLookup(get<AccountFastLookupApiService>()::getAccountFastLookup) }
+
+        single<AssetDetailApiService> {
+            AssetDetailApiServiceImpl(
+                httpClient = get(),
+            )
+        }
+
+        single<NfdApiService> {
+            NfdApiServiceImpl(
+                httpClient = get(),
+            )
+        }
+        single<GetNfdProfileForAddress> { GetNfdProfileForAddressUseCase(get()) }
     }

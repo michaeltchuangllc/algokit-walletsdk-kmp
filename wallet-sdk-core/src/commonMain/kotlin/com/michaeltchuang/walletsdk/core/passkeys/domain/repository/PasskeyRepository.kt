@@ -17,7 +17,7 @@ interface PasskeyRepository {
 
     suspend fun getCredentialIdBySiteId(url: String): String?
 
-    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String?
+    suspend fun getCredentialIdByAddress(address: String): String?
 
     suspend fun removePasskeyByCredentialId(credId: String)
 
@@ -33,6 +33,6 @@ interface PasskeyRepository {
     suspend fun doesPasskeyExist(
         rpId: String,
         username: String,
-        algoAddress: String,
+        address: String,
     ): Boolean
 }

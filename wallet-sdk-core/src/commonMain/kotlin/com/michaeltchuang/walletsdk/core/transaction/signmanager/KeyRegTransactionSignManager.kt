@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.transaction.signmanager
 
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionSigner
@@ -14,6 +15,7 @@ class KeyRegTransactionSignManager(
     getTransactionSigner: GetTransactionSigner,
     getAlgo25SecretKey: GetAlgo25SecretKey,
     getFalcon24SecretKey: GetFalcon24SecretKey,
+    getFalcon25Seed: GetFalcon25Seed,
     getHdSeed: GetHdSeed,
     getLocalAccount: GetLocalAccount,
 ) : ExternalTransactionSignManager<KeyRegTransaction>(
@@ -21,6 +23,7 @@ class KeyRegTransactionSignManager(
         getTransactionSigner,
         getAlgo25SecretKey,
         getFalcon24SecretKey,
+        getFalcon25Seed,
         getHdSeed,
         getLocalAccount,
     ) {

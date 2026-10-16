@@ -10,7 +10,7 @@ internal class Algo25EntityMapperImpl : Algo25EntityMapper {
         privateKey: ByteArray,
     ): Algo25Entity =
         Algo25Entity(
-            algoAddress = localAccount.algoAddress,
+            algoAddress = localAccount.address,
             encryptedSecretKey = encryptByteArray(privateKey),
         )
 }

@@ -123,7 +123,7 @@ fun OnboardingAccountTypeScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     hasWalletWithNoAccounts: Boolean,
     isLoading: Boolean = false,
     onCreateNewAccount: () -> Unit = {},
@@ -167,9 +167,9 @@ internal fun ScreenContent(
             )
         }
         Spacer(modifier = Modifier.weight(1f))
-        if (hasWalletWithNoAccounts) {
-            CreateNewAccountCard(onClick = onCreateNewAccount)
-        }
+//        if (hasWalletWithNoAccounts) {
+//            CreateNewAccountCard(onClick = onCreateNewAccount)
+//        }
         Spacer(modifier = Modifier.height(20.dp))
 
         GroupChoiceWidget(
@@ -216,7 +216,7 @@ private fun ContentState(
         },
         onCreateWallet = {
             scope.launch {
-                viewModel.createFalcon24Account()
+                viewModel.createFalcon25Account()
             }
         },
         onImportAccount = {

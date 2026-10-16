@@ -4,12 +4,14 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.add_note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.amount
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.asa_balance
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.balance
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.confirm_transaction
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.confirm_transfer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.done
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.enter_your_note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.fee
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.note
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.to
@@ -24,13 +26,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -49,17 +53,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import coil3.compose.AsyncImage
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants.USDC_TESTNET_ID
 import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
 import com.michaeltchuang.walletsdk.core.foundation.utils.toAlgoCurrency
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
+import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -76,8 +84,10 @@ fun AssetTransferConfirmScreen(
     navController: NavController,
     senderAddress: String = "",
     receiverAddress: String = "",
+    assetId: Long = -7L,
     note: String = "",
     amount: String = "0",
+    closeSheet: () -> Unit = {},
 ) {
     val viewModel: AssetTransferConfirmViewModel = koinViewModel()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -85,11 +95,15 @@ fun AssetTransferConfirmScreen(
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
+    var isButtonEnabled by remember { mutableStateOf(false) }
+    var showDialog by remember { mutableStateOf(false) }
+    var dialogMessage by remember { mutableStateOf("") }
 
     // Reset ViewModel state when entering the screen
     LaunchedEffect(Unit) {
         viewModel.reset()
         viewModel.setup(lifecycle = lifecycleOwner.lifecycle)
+        isButtonEnabled = true
     }
 
     LaunchedEffect(events.value) {
@@ -100,6 +114,7 @@ fun AssetTransferConfirmScreen(
                         snackbarHostState.showSnackbar(event.message)
                     }
                 }
+
                 is AssetTransferConfirmViewModel.ViewEvent.TransactionSuccess -> {
                     navController.navigate(
                         AlgoKitScreens.TRANSACTION_SUCCESS_SCREEN.name + "/?transactionId=${event.transactionId}",
@@ -108,12 +123,26 @@ fun AssetTransferConfirmScreen(
                             inclusive = true
                         }
                     }
+                    // Clear resources after successful navigation
+                    viewModel.reset()
+                }
+
+                is AssetTransferConfirmViewModel.ViewEvent.UnrecognizedAsset -> {
+                    viewModel.reset()
+                    dialogMessage = event.message
+                    showDialog = true
+                }
+
+                is AssetTransferConfirmViewModel.ViewEvent.TransactionAlreadyInLedger -> {
+                    viewModel.reset()
+                    dialogMessage = event.message
+                    showDialog = true
                 }
             }
         }
     }
 
-    LaunchedEffect(senderAddress, receiverAddress, amount, note) {
+    LaunchedEffect(senderAddress, receiverAddress, assetId, amount, note) {
         if (senderAddress.isNotEmpty()) {
             viewModel.setSenderAddress(senderAddress)
         }
@@ -126,22 +155,36 @@ fun AssetTransferConfirmScreen(
         if (note.isNotEmpty()) {
             viewModel.setNote(note)
         }
+        viewModel.setAssetId(assetId)
     }
 
     ScreenContent(
         navController = navController,
         viewState = viewState,
         snackbarHostState = snackbarHostState,
+        isButtonEnabled = isButtonEnabled,
+        showDialog = showDialog,
+        dialogMessage = dialogMessage,
+        onDismissDialog = { showDialog = false },
+        onDialogOk = {
+            showDialog = false
+            closeSheet()
+        },
         onSendTransaction = { viewModel.sendTransaction() },
         onSetNote = { viewModel.setNote(it) },
     )
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     viewState: AssetTransferConfirmViewModel.ViewState,
     snackbarHostState: SnackbarHostState = remember { SnackbarHostState() },
+    isButtonEnabled: Boolean = true,
+    showDialog: Boolean = false,
+    dialogMessage: String = "",
+    onDismissDialog: () -> Unit = {},
+    onDialogOk: () -> Unit = {},
     onSendTransaction: () -> Unit = {},
     onSetNote: (String) -> Unit = {},
 ) {
@@ -170,6 +213,7 @@ internal fun ScreenContent(
                     navController = navController,
                     onTransactionClick = onSendTransaction,
                     onSetNote = onSetNote,
+                    isButtonEnabled = isButtonEnabled,
                 )
             }
 
@@ -194,6 +238,21 @@ internal fun ScreenContent(
                     .align(Alignment.BottomCenter)
                     .padding(16.dp),
         )
+
+        // Error Dialog (for both unrecognized asset and duplicate transaction)
+        if (showDialog) {
+            AlertDialog(
+                onDismissRequest = onDismissDialog,
+                containerColor = AlgoKitTheme.colors.background,
+                title = { Text("Transaction Error", color = AlgoKitTheme.colors.textMain) },
+                text = { Text(dialogMessage, color = AlgoKitTheme.colors.textMain) },
+                confirmButton = {
+                    Button(onClick = onDialogOk) {
+                        Text("OK", color = AlgoKitTheme.colors.textMain)
+                    }
+                },
+            )
+        }
     }
 }
 
@@ -203,6 +262,7 @@ fun AssetTransferContent(
     navController: NavController,
     onTransactionClick: () -> Unit,
     onSetNote: (String) -> Unit,
+    isButtonEnabled: Boolean = true,
 ) {
     Box(
         modifier =
@@ -223,6 +283,10 @@ fun AssetTransferContent(
                 accountBalance = state.accountBalance,
                 fee = state.fee,
                 note = state.note,
+                assetId = state.assetId,
+                assetName = state.assetName,
+                assetLogoUrl = state.assetLogoUrl,
+                assetBalance = state.assetBalance,
                 onSetNote = onSetNote,
             )
         }
@@ -234,8 +298,33 @@ fun AssetTransferContent(
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(),
+            state =
+                if (state.isAssetValid &&
+                    isButtonEnabled &&
+                    assetBalanceStatus(
+                        state.assetId,
+                        state.assetBalance,
+                    )
+                ) {
+                    AlgoKitButtonState.ENABLED
+                } else {
+                    AlgoKitButtonState.DISABLED
+                },
         )
     }
+}
+
+private fun assetBalanceStatus(
+    assetId: Long,
+    assetBalance: String?,
+): Boolean {
+    if (assetId == -7L) return true // ALGO is always valid
+
+    // For ASA, check if balance is valid
+    if (assetId > 0 && assetBalance.isNullOrEmpty().not()) {
+        return true
+    }
+    return false
 }
 
 @Composable
@@ -246,6 +335,10 @@ fun AssetTransferContentItems(
     accountBalance: String?,
     fee: String,
     note: String,
+    assetId: Long,
+    assetName: String,
+    assetLogoUrl: String,
+    assetBalance: String?,
     onSetNote: (String) -> Unit,
 ) {
     Column(
@@ -260,6 +353,9 @@ fun AssetTransferContentItems(
         AssetTransferAmountLabeledText(
             label = localizedStringResource(Res.string.amount),
             value = amount.formatAmount(),
+            assetId = assetId,
+            assetName = assetName,
+            assetLogoUrl = assetLogoUrl,
         )
 
         AssetTransferDivider()
@@ -274,11 +370,14 @@ fun AssetTransferContentItems(
             isReceiver = true,
         )
 
-        AssetTransferLabeledText(label = localizedStringResource(Res.string.fee), value = fee.toAlgoCurrency())
+        AssetTransferLabeledText(
+            label = localizedStringResource(Res.string.fee),
+            value = fee.toAlgoCurrency(),
+        )
         Spacer(modifier = Modifier.height(8.dp))
+
         AssetTransferDivider()
 
-//        AssetTransferLabeledText(label = "Current", value = "10.00".toAlgoCurrency())
         AssetTransferLabeledText(
             label = localizedStringResource(Res.string.balance),
             value =
@@ -293,8 +392,18 @@ fun AssetTransferContentItems(
                     }
                 } ?: "Loading...",
         )
-        AssetTransferDivider()
 
+        if (assetId > 0) {
+            AssetTransferDivider()
+            AssetTransferASABalanceRow(
+                assetLogoUrl = assetLogoUrl,
+                assetBalance = assetBalance,
+                assetName = assetName,
+                assetId = assetId,
+            )
+        }
+        AssetTransferDivider()
+        Spacer(modifier = Modifier.height(16.dp))
         AssetTransferAddNote(note, onSetNote)
     }
 }
@@ -303,37 +412,70 @@ fun AssetTransferContentItems(
 fun AssetTransferDivider() {
     HorizontalDivider(
         modifier = Modifier.padding(vertical = 16.dp),
-        thickness = DividerDefaults.Thickness,
+        thickness = 1.dp,
         color = AlgoKitTheme.colors.layerGray,
     )
+}
+
+@Composable
+fun AssetTransferASABalanceRow(
+    assetLogoUrl: String,
+    assetBalance: String?,
+    assetName: String,
+    assetId: Long,
+) {
+    Row(
+        modifier = Modifier.padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            modifier = Modifier.fillMaxWidth(.25f),
+            text = localizedStringResource(Res.string.asa_balance),
+            color = AlgoKitTheme.colors.textGray,
+            style = typography.body.regular.sansMedium,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SetAssetLogo(assetLogoUrl, assetId)
+            Text(
+                text = assetBalance?.let { "${it.formatAmount()} $assetName" } ?: "Not Opted In",
+                fontSize = 16.sp,
+                color = AlgoKitTheme.colors.textMain,
+                style = typography.body.regular.sansMedium,
+            )
+        }
+    }
 }
 
 @Composable
 fun AssetTransferAmountLabeledText(
     label: String,
     value: String,
+    assetId: Long = -7L,
+    assetName: String = "",
+    assetLogoUrl: String = "",
 ) {
-    Row(modifier = Modifier.padding(vertical = 16.dp)) {
+    val displayAssetName = if (assetId != -7L && assetName.isNotEmpty()) assetName else "ALGO"
+    val amountValue = if (assetId != -7L) value else value.toAlgoCurrency()
+
+    Row(
+        modifier = Modifier.padding(vertical = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Text(
             modifier = Modifier.fillMaxWidth(.25f),
             text = label,
             color = AlgoKitTheme.colors.textGray,
             style = typography.body.regular.sansMedium,
         )
-        Column {
-            Text(
-                text = "$value ALGO",
-                fontSize = 18.sp,
-                color = AlgoKitTheme.colors.textMain,
-                style = typography.body.regular.sansMedium,
-            )
-
-//            Text(
-//                text = "\u00A6 $value",
-//                color = AlgoKitTheme.colors.textGray,
-//                style = typography.body.regular.sansMedium,
-//            )
+        if (assetId != -7L) {
+            SetAssetLogo(assetLogoUrl, assetId)
         }
+        Text(
+            text = "$amountValue $displayAssetName",
+            fontSize = 18.sp,
+            color = AlgoKitTheme.colors.textMain,
+            style = typography.body.regular.sansMedium,
+        )
     }
 }
 
@@ -514,12 +656,49 @@ fun AssetTransferAddNoteTextField(
     }
 }
 
+@Composable
+private fun SetAssetLogo(
+    assetLogoUrl: String,
+    assetId: Long,
+) {
+    Box(modifier = Modifier.padding(end = 5.dp), contentAlignment = Alignment.Center) {
+        if (assetLogoUrl.isBlank() && assetId == USDC_TESTNET_ID) {
+            Icon(
+                imageVector = vectorResource(Res.drawable.ic_usdc),
+                contentDescription = "USDC",
+                modifier = Modifier.size(16.dp),
+            )
+        } else {
+            AsyncImage(
+                model = assetLogoUrl,
+                contentDescription = "Asset Logo",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.size(24.dp),
+            )
+        }
+    }
+}
+
 @Preview
 @Composable
 fun PreviewAssetTransferScreen() {
     AlgoKitTheme {
-        AssetTransferConfirmScreen(
+        ScreenContent(
             navController = androidx.navigation.compose.rememberNavController(),
+            viewState =
+                AssetTransferConfirmViewModel.ViewState.Content(
+                    senderAddress = "L4HCUPPXMVJMHZPJSCC7FJV3BP66OKKKNQ5FH4U7RZMZZGOV3R2QM3YSSM",
+                    receiverAddress = "X3B5KQQGQ5XJFGWDKLJ4J7Q2Z4H3YKJ5L6Q2X4D7F8G9H0J1K2L3M4N5O",
+                    amount = "100",
+                    accountBalance = "599000",
+                    note = "Test note",
+                    fee = "0.001",
+                    assetId = 10458941L,
+                    assetName = "USDC",
+                    assetLogoUrl = "https://algorand-wallet-mainnet.b-cdn.net/media/usd-coin-usdc-logo.png",
+                    assetBalance = "0",
+                    isAssetValid = true,
+                ),
         )
     }
 }

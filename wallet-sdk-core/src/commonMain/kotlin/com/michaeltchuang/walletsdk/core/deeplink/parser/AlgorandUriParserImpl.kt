@@ -49,6 +49,6 @@ internal class AlgorandUriParserImpl : AlgorandUriParser {
 
     private companion object {
         val URI_REGEX =
-            Regex("""^([a-zA-Z][a-zA-Z\d+.-]*):\/\/([^\/?#]+)(\/[^?#]*)?(\?[^#]*)?(#.*)?$""")
+            Regex("""^([a-zA-Z][a-zA-Z\d+.-]*):\/\/([^\/?#]+)?(\/[^?#]*)?(\?[^#]*)?(#.*)?$""")
     }
 }

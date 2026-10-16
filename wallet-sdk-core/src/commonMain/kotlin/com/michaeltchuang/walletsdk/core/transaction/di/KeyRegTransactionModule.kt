@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetExplorerB
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionSignerUseCase
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SubmitSolanaSignedTransactionUseCase
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.ExternalTransactionQueuingHelper
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.KeyRegTransactionSignManager
 import org.koin.dsl.module
@@ -26,6 +27,7 @@ val keyRegTransactionModule =
                 getTransactionSigner = get(),
                 getAlgo25SecretKey = get(),
                 getFalcon24SecretKey = get(),
+                getFalcon25Seed = get(),
                 getHdSeed = get(),
                 getLocalAccount = get(),
             )
@@ -34,6 +36,7 @@ val keyRegTransactionModule =
         single { GetTransactionSignerUseCase(get()) }
         single<GetTransactionSigner> { get<GetTransactionSignerUseCase>() }
         single { SendSignedTransactionUseCase(get()) }
+        single { SubmitSolanaSignedTransactionUseCase(get()) }
         factory {
             GetTransactionParams(get<TransactionsApiServiceImpl>()::getTransactionParams)
         }
@@ -42,6 +45,7 @@ val keyRegTransactionModule =
 
         single<CreateKeyRegTransaction> {
             CreateKeyRegTransactionUseCase(
+                get(),
                 get(),
                 get(),
                 get(),

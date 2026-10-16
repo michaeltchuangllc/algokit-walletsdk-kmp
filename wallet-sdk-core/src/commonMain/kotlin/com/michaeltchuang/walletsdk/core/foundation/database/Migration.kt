@@ -24,7 +24,7 @@ val MIGRATION_1_2 =
                 CREATE TABLE IF NOT EXISTS passkey_table (
                     credential_id TEXT PRIMARY KEY NOT NULL,
                     site_id INTEGER NOT NULL,
-                    algo_address TEXT NOT NULL,
+                    address TEXT NOT NULL,
                     user_id TEXT NOT NULL,
                     user_name TEXT NOT NULL,
                     user_display_name TEXT,
@@ -36,7 +36,273 @@ val MIGRATION_1_2 =
 
             // Create index for faster lookups
             connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_site_id ON passkey_table(site_id)")
-            connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_algo_address ON passkey_table(algo_address)")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_address ON passkey_table(address)")
             connection.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_sites_url ON sites(url)")
+        }
+    }
+
+val MIGRATION_2_3 =
+    object : Migration(2, 3) {
+        override fun migrate(connection: SQLiteConnection) {
+            // Drop old solana_account table if it exists
+            connection.execSQL("DROP TABLE IF EXISTS solana_account")
+
+            // Create new seed_vault table with account_name column
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS seed_vault (
+                    public_key TEXT PRIMARY KEY NOT NULL,
+                    address TEXT NOT NULL,
+                    chainId TEXT NOT NULL,
+                    account_name TEXT
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+val MIGRATION_3_4 =
+    object : Migration(3, 4) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS passkey_table_new (
+                    credential_id TEXT PRIMARY KEY NOT NULL,
+                    site_id INTEGER NOT NULL,
+                    address TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    user_name TEXT NOT NULL,
+                    user_display_name TEXT,
+                    last_used_time_ms INTEGER,
+                    FOREIGN KEY(site_id) REFERENCES sites(id) ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+
+            connection.execSQL(
+                """
+                INSERT INTO passkey_table_new (
+                    credential_id,
+                    site_id,
+                    address,
+                    user_id,
+                    user_name,
+                    user_display_name,
+                    last_used_time_ms
+                )
+                SELECT
+                    credential_id,
+                    site_id,
+                    algo_address,
+                    user_id,
+                    user_name,
+                    user_display_name,
+                    last_used_time_ms
+                FROM passkey_table
+                """.trimIndent(),
+            )
+
+            connection.execSQL("DROP TABLE passkey_table")
+            connection.execSQL("ALTER TABLE passkey_table_new RENAME TO passkey_table")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_site_id ON passkey_table(site_id)")
+            connection.execSQL("CREATE INDEX IF NOT EXISTS index_passkey_table_address ON passkey_table(address)")
+        }
+    }
+
+val MIGRATION_4_5 =
+    object : Migration(4, 5) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS falcon_25 (
+                    algo_address TEXT PRIMARY KEY NOT NULL,
+                    public_key BLOB NOT NULL,
+                    encrypted_private_key BLOB NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// Falcon25 entropy is required to reconstruct its 25-word mnemonic. Existing Falcon25 rows
+// cannot supply it, so this intentionally drops only those accounts before recreating the table.
+val MIGRATION_5_6 =
+    object : Migration(5, 6) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("DROP TABLE IF EXISTS falcon_25")
+            connection.execSQL(
+                """
+                CREATE TABLE falcon_25 (
+                    algo_address TEXT PRIMARY KEY NOT NULL,
+                    public_key BLOB NOT NULL,
+                    encrypted_private_key BLOB NOT NULL,
+                    encrypted_entropy BLOB NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// Falcon SDK v0.0.16 signs transactions with a seed derived from entropy. Existing Falcon25
+// accounts are intentionally discarded so all newly created accounts have a persisted seed.
+val MIGRATION_6_7 =
+    object : Migration(6, 7) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("DROP TABLE IF EXISTS falcon_25")
+            connection.execSQL(
+                """
+                CREATE TABLE falcon_25 (
+                    algo_address TEXT PRIMARY KEY NOT NULL,
+                    public_key BLOB NOT NULL,
+                    encrypted_private_key BLOB NOT NULL,
+                    encrypted_entropy BLOB NOT NULL,
+                    encrypted_seed BLOB NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+val MIGRATION_7_8 =
+    object : Migration(7, 8) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mpp_vouchers (
+                    session_id TEXT PRIMARY KEY NOT NULL,
+                    viewer_address TEXT NOT NULL,
+                    viewer_public_key_base64 TEXT NOT NULL,
+                    signature_base64 TEXT NOT NULL,
+                    total_amount_claimed_micro_usdc INTEGER NOT NULL,
+                    creator_address TEXT NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    channel_id_base64 TEXT,
+                    note TEXT NOT NULL DEFAULT 'N/A'
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// channel_id_base64 (deterministic per viewer+creator+signer-key) becomes the primary key so
+// reconnects from the same viewer/creator pair collapse onto a single row instead of
+// accumulating one row per session_id. session_id is no longer unique on its own since
+// multiple viewers may in the future share a liquid-auth requestId (and therefore a
+// fallback session_id); uniqueness is instead enforced on the (session_id, viewer_address)
+// pair. Rows without a resolved channel_id_base64 are dropped since they can no longer
+// satisfy the new NOT NULL primary key.
+val MIGRATION_8_9 =
+    object : Migration(8, 9) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS mpp_vouchers_new (
+                    channel_id_base64 TEXT PRIMARY KEY NOT NULL,
+                    session_id TEXT NOT NULL,
+                    viewer_address TEXT NOT NULL,
+                    viewer_public_key_base64 TEXT NOT NULL,
+                    signature_base64 TEXT NOT NULL,
+                    total_amount_claimed_micro_usdc INTEGER NOT NULL,
+                    creator_address TEXT NOT NULL,
+                    block_number INTEGER NOT NULL,
+                    note TEXT NOT NULL DEFAULT 'N/A'
+                )
+                """.trimIndent(),
+            )
+
+            connection.execSQL(
+                """
+                INSERT OR IGNORE INTO mpp_vouchers_new (
+                    channel_id_base64,
+                    session_id,
+                    viewer_address,
+                    viewer_public_key_base64,
+                    signature_base64,
+                    total_amount_claimed_micro_usdc,
+                    creator_address,
+                    block_number,
+                    note
+                )
+                SELECT
+                    channel_id_base64,
+                    session_id,
+                    viewer_address,
+                    viewer_public_key_base64,
+                    signature_base64,
+                    total_amount_claimed_micro_usdc,
+                    creator_address,
+                    block_number,
+                    note
+                FROM mpp_vouchers
+                WHERE channel_id_base64 IS NOT NULL
+                """.trimIndent(),
+            )
+
+            connection.execSQL("DROP TABLE mpp_vouchers")
+            connection.execSQL("ALTER TABLE mpp_vouchers_new RENAME TO mpp_vouchers")
+            connection.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS index_mpp_vouchers_session_id_viewer_address " +
+                    "ON mpp_vouchers(session_id, viewer_address)",
+            )
+        }
+    }
+
+// Preserve all existing vouchers with an unknown network rather than guessing during recovery.
+val MIGRATION_9_10 =
+    object : Migration(9, 10) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL("ALTER TABLE mpp_vouchers ADD COLUMN network TEXT DEFAULT NULL")
+        }
+    }
+
+// Hot session keys linked to cold Solana (Seed Vault) accounts for auto-signing micro-payments.
+val MIGRATION_10_11 =
+    object : Migration(10, 11) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS solana_linked_signer (
+                    owner_address TEXT PRIMARY KEY NOT NULL,
+                    signer_address TEXT NOT NULL,
+                    encrypted_private_seed BLOB NOT NULL,
+                    source TEXT NOT NULL,
+                    derivation_path TEXT,
+                    created_at_ms INTEGER NOT NULL
+                )
+                """.trimIndent(),
+            )
+        }
+    }
+
+// Session keys are cascade-deleted with their Seed Vault account. SQLite can't add a foreign key
+// to an existing table, so rebuild it. Orphaned keys (Seed Vault account already removed) are dropped.
+val MIGRATION_11_12 =
+    object : Migration(11, 12) {
+        override fun migrate(connection: SQLiteConnection) {
+            connection.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS solana_linked_signer_new (
+                    owner_address TEXT PRIMARY KEY NOT NULL,
+                    signer_address TEXT NOT NULL,
+                    encrypted_private_seed BLOB NOT NULL,
+                    source TEXT NOT NULL,
+                    derivation_path TEXT,
+                    created_at_ms INTEGER NOT NULL,
+                    FOREIGN KEY(owner_address) REFERENCES seed_vault(public_key)
+                        ON UPDATE NO ACTION ON DELETE CASCADE
+                )
+                """.trimIndent(),
+            )
+            connection.execSQL(
+                """
+                INSERT INTO solana_linked_signer_new
+                    (owner_address, signer_address, encrypted_private_seed, source, derivation_path, created_at_ms)
+                SELECT owner_address, signer_address, encrypted_private_seed, source, derivation_path, created_at_ms
+                FROM solana_linked_signer
+                WHERE owner_address IN (SELECT public_key FROM seed_vault)
+                """.trimIndent(),
+            )
+            connection.execSQL("DROP TABLE solana_linked_signer")
+            connection.execSQL("ALTER TABLE solana_linked_signer_new RENAME TO solana_linked_signer")
         }
     }

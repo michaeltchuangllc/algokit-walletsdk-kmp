@@ -44,7 +44,8 @@ class StateDelegate<State> : StateViewModel<State> {
 }
 
 class EventDelegate<ViewEvent> : EventViewModel<ViewEvent> {
-    private val _viewEvent = MutableSharedFlow<ViewEvent>()
+    // Use replay=0 to ensure events are only processed once and not re-emitted on back navigation
+    private val _viewEvent = MutableSharedFlow<ViewEvent>(replay = 0, extraBufferCapacity = 10)
     override val viewEvent: Flow<ViewEvent> = _viewEvent.asSharedFlow()
 
     fun sendEvent(

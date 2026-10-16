@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.deeplink.di
 
 import com.michaeltchuang.walletsdk.core.deeplink.DeeplinkHandler
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AccountAddressDeepLinkBuilder
+import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetOptInDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetTransferDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.FidoDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.KeyRegTransactionDeepLinkBuilder
@@ -14,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.deeplink.parser.CreateDeepLinkImpl
 import com.michaeltchuang.walletsdk.core.deeplink.parser.ParseDeepLinkPayload
 import com.michaeltchuang.walletsdk.core.deeplink.parser.ParseDeepLinkPayloadImpl
 import com.michaeltchuang.walletsdk.core.deeplink.parser.query.AccountAddressQueryParser
+import com.michaeltchuang.walletsdk.core.deeplink.parser.query.AssetIdQueryParser
 import com.michaeltchuang.walletsdk.core.deeplink.parser.query.MnemonicQueryParser
 import org.koin.dsl.module
 
@@ -30,6 +32,7 @@ val deepLinkModules =
                     algorandUriParser = get(),
                     mnemonicQueryParser = MnemonicQueryParser(get()),
                     accountAddressQueryParser = AccountAddressQueryParser(),
+                    assetIdQueryParser = AssetIdQueryParser(),
                 )
             }
 
@@ -39,6 +42,7 @@ val deepLinkModules =
                     parseDeepLinkPayload = get(),
                     mnemonicDeepLinkBuilder = MnemonicDeepLinkBuilder(),
                     keyRegTransactionDeepLinkBuilder = KeyRegTransactionDeepLinkBuilder(),
+                    assetOptInDeepLinkBuilder = AssetOptInDeepLinkBuilder(),
                     assetTransferDeepLinkBuilder = AssetTransferDeepLinkBuilder(),
                     accountAddressDeepLinkBuilder = AccountAddressDeepLinkBuilder(),
                     fidoDeepLinkBuilder = FidoDeepLinkBuilder(),

@@ -1,7 +1,7 @@
 package com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases
 
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.AssertionApi
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.json.JSONObject
@@ -21,7 +21,7 @@ class AssertionApiUseCase(
     suspend fun postAssertionResult(
         origin: String,
         userAgent: String,
-        credential: PublicKeyCredential,
+        credential: WebAuthnCredential,
         liquidExt: JSONObject?,
     ): Response = assertionApi.postAssertionResult(origin, userAgent, credential, liquidExt).await()
 }

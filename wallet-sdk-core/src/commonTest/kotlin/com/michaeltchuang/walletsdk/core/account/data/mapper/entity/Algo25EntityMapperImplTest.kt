@@ -18,7 +18,7 @@ class Algo25EntityMapperImplTest {
     fun `EXPECT Algo25Entity to be created from LocalAccount`() {
         val localAccount =
             LocalAccount.Algo25(
-                algoAddress = ADDRESS,
+                address = ADDRESS,
             )
 
         val result = sut(localAccount, PRIVATE_KEY)
@@ -32,7 +32,7 @@ class Algo25EntityMapperImplTest {
     fun `EXPECT encrypted secret key to be different from original private key`() {
         val localAccount =
             LocalAccount.Algo25(
-                algoAddress = ADDRESS,
+                address = ADDRESS,
             )
 
         val result = sut(localAccount, PRIVATE_KEY)

@@ -1,27 +1,22 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
-import android.app.Activity
-import android.util.Log
-import androidx.activity.result.ActivityResult
-import com.google.android.gms.fido.Fido
-import com.google.android.gms.fido.fido2.api.common.AuthenticatorErrorResponse
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredential
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AssertionApiUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
-import io.ktor.http.origin
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Use case for handling FIDO2 assertion (authentication) result
  *
- * Processes the ActivityResult from the FIDO2 authentication intent and handles:
- * - Result code validation
- * - Credential extraction
- * - Error handling
+ * Processes the provider-neutral authentication credential and handles:
  * - Liquid extension JSON creation
  * - Server submission
- * - Counter update
+ * - Previous counter extraction after server verification
  *
  * This separates assertion result handling from the Activity
  */
@@ -37,7 +32,7 @@ class HandleAssertionResultUseCase(
      */
     sealed class Result {
         data class Success(
-            val credential: PublicKeyCredential,
+            val credential: WebAuthnCredential,
             val responseBody: String,
             val prevCounter: Int,
         ) : Result()
@@ -52,87 +47,63 @@ class HandleAssertionResultUseCase(
     }
 
     /**
-     * Handle the assertion activity result
+     * Submit the assertion credential for server verification
      *
-     * @param activityResult The result from the FIDO2 authentication intent
-     * @param requestId The authentication request ID
-     * @param origin The origin URL
-     * @param algoAddress The Algorand address
+     * @param credential The credential returned by the authentication provider
      * @param viewModel The ViewModel for API calls
      * @return Result indicating success, cancellation, or error
      */
     suspend operator fun invoke(
-        activityResult: ActivityResult,
+        credential: WebAuthnCredential,
         viewModel: AnswerViewModel,
     ): Result {
         try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📱 PROCESSING ASSERTION RESULT")
-            Log.d(TAG, "Result code: ${activityResult.resultCode}")
-            Log.d(TAG, "========================================")
+            val authMessage =
+                viewModel.authMessage.value
+                    ?: return Result.Error("Authentication message is missing")
+            val challengeSignature =
+                viewModel.currentChallenge
+                    ?: return Result.Error("Challenge signature is missing")
 
-            // Step 1: Validate result code
-            if (activityResult.resultCode != Activity.RESULT_OK) {
-                Log.w(TAG, "Assertion cancelled or failed")
-                return Result.Cancelled("Authentication was cancelled")
-            }
-
-            // Step 2: Extract credential bytes
-            val bytes = activityResult.data?.getByteArrayExtra(Fido.FIDO2_KEY_CREDENTIAL_EXTRA)
-            if (bytes == null) {
-                Log.e(TAG, "Credential bytes are null")
-                return Result.Error("No credential data received")
-            }
-
-            // Step 3: Deserialize credential
-            val credential = PublicKeyCredential.deserializeFromBytes(bytes)
-            Log.d(TAG, "✅ Authentication credential received")
-            Log.d(TAG, "Credential ID: ${credential.id}")
-
-            // Step 4: Check for authenticator errors
-            val response = credential.response
-            if (response is AuthenticatorErrorResponse) {
-                Log.e(TAG, "Authenticator error: ${response.errorMessage}")
-                return Result.Error(response.errorMessage ?: "Authentication error")
-            }
-
-            // Step 5: Build liquid extension JSON
             val liquidExtJSON =
                 buildLiquidExtensionJson(
                     accountType = viewModel.getAccountTypeForFido2(viewModel.accountAddress.value),
-                    requestId = viewModel.authMessage.value!!.requestId,
+                    requestId = authMessage.requestId,
+                    accountAddress = viewModel.accountAddress.value,
+                    publicKey = viewModel.getAccountPublicKey(viewModel.accountAddress.value),
+                    challengeSignature = challengeSignature,
                 )
 
-            Log.d(TAG, "Posting authentication assertion to server...")
+            Napier.d("Posting authentication assertion to server...", tag = TAG)
 
-            // Step 6: Submit to server
-            val serverResponse =
-                assertionApiUseCase.postAssertionResult(
-                    viewModel.authMessage.value!!.origin,
+            return assertionApiUseCase
+                .postAssertionResult(
+                    authMessage.origin,
                     viewModel.userAgent,
                     credential,
                     liquidExtJSON,
-                )
+                ).use { response ->
+                    if (!response.isSuccessful) {
+                        return Result.Error(
+                            "Authentication failed: ${response.code} ${response.message}",
+                        )
+                    }
 
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "✅ AUTHENTICATION SUCCESSFUL!")
-            Log.d(TAG, "Server response: ${serverResponse.code}")
-            Log.d(TAG, "Credential was recognized and validated!")
-            Log.d(TAG, "========================================")
-
-            // Step 7: Parse response and extract counter
-            val responseBody = serverResponse.body!!.string()
-            val prevCounter = extractPrevCounter(responseBody, credential.id)
-
-            return Result.Success(
-                credential = credential,
-                responseBody = responseBody,
-                prevCounter = prevCounter,
-            )
+                    val responseBody = response.body.string()
+                    val prevCounter = extractPrevCounter(responseBody, credential.id)
+                    Napier.d("Authentication successful", tag = TAG)
+                    Result.Success(
+                        credential = credential,
+                        responseBody = responseBody,
+                        prevCounter = prevCounter,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Exception in handleAssertionResult", e)
-            Log.e(TAG, "Exception type: ${e.javaClass.name}")
-            Log.e(TAG, "Exception message: ${e.message}")
+            Napier.e("❌ Exception in handleAssertionResult", e, tag = TAG)
+            Napier.e("Exception type: ${e.javaClass.name}", tag = TAG)
+            Napier.e("Exception message: ${e.message}", tag = TAG)
             e.printStackTrace()
             return Result.Error("Error processing authentication: ${e.message}")
         }
@@ -141,13 +112,22 @@ class HandleAssertionResultUseCase(
     /**
      * Build the liquid extension JSON for FIDO2 request
      */
+    @OptIn(ExperimentalEncodingApi::class)
     private fun buildLiquidExtensionJson(
         accountType: String,
         requestId: String,
+        accountAddress: String,
+        publicKey: ByteArray,
+        challengeSignature: ByteArray?,
     ): JSONObject =
         JSONObject().apply {
             put("type", accountType)
             put("requestId", requestId)
+            put("address", accountAddress)
+            put("publicKey", Base64.encode(publicKey))
+            if (challengeSignature != null) {
+                put("signature", Base64.encode(challengeSignature))
+            }
         }
 
     /**
@@ -170,8 +150,10 @@ class HandleAssertionResultUseCase(
                 }
             }
             0
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract prevCounter from response", e)
+            Napier.w("Failed to extract prevCounter from response", e, tag = TAG)
             0
         }
     }

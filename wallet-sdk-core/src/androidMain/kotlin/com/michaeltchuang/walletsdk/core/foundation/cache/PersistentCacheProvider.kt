@@ -1,15 +1,15 @@
 package com.michaeltchuang.walletsdk.core.foundation.cache
 
-import java.lang.reflect.Type
+import kotlinx.serialization.KSerializer
 
 interface PersistentCacheProvider {
     fun <T : Any> getPersistentCache(
-        type: Type,
+        serializer: KSerializer<T>,
         key: String,
     ): PersistentCache<T>
 
     fun <T : Any> getFlowPersistentCache(
-        type: Type,
+        serializer: KSerializer<T>,
         key: String,
         defaultValue: T,
     ): FlowPersistentCache<T>

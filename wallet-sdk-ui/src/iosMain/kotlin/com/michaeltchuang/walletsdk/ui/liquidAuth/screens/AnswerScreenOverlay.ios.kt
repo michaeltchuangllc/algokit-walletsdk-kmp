@@ -1,0 +1,329 @@
+package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.viewinterop.UIKitView
+import androidx.lifecycle.ViewModelStore
+import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25PrivateKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.activeIOSViewerConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerStreamRejectedDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.koin.compose.koinInject
+import org.koin.compose.viewmodel.koinViewModel
+import platform.Foundation.NSLog
+import platform.UIKit.UIView
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
+
+private const val TAG = "AnswerScreenOverlayiOS"
+
+@OptIn(ExperimentalEncodingApi::class)
+@Composable
+actual fun AnswerScreenOverlay() {
+    if (!AnswerScreenState.isVisible) return
+
+    val address = AnswerScreenState.accountAddress
+    val origin = AnswerScreenState.origin
+    val scope = rememberCoroutineScope()
+
+    val viewerManager: LiquidAuthConnectionManager = koinInject()
+    // Inject use cases from Koin so the shared CommonAnswerViewModel can be constructed.
+    val getCurrentBlockUseCase: GetCurrentBlockUseCase = koinInject()
+    val getAccountAlgoBalance: GetAccountAlgoBalance = koinInject()
+    val getLocalAccount: GetLocalAccount = koinInject()
+    val getLocalAccounts: GetLocalAccounts = koinInject()
+    val getAlgo25SecretKey: GetAlgo25SecretKey = koinInject()
+    val getFalcon24SecretKey: GetFalcon24SecretKey = koinInject()
+    val getFalcon25PrivateKey: GetFalcon25PrivateKey = koinInject()
+    val getSeed: GetHdSeed = koinInject()
+    val getCurrentNetworkUseCase: GetCurrentNetworkUseCase = koinInject()
+    val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase = koinInject()
+    val getSessionVaultConfigUseCase: GetSessionVaultConfigUseCase = koinInject()
+    val setupMppPaymentViewerUseCase: SetupMppPaymentViewerUseCase = koinInject()
+    val mppPaymentViewerManager: MppPaymentViewerManager = koinInject()
+    val mppWalletSignerUseCase: MppWalletSignerUseCase = koinInject()
+
+    // Scoped to a per-overlay ViewModelStore so its stream-timeout monitor and block-number
+    // polling are cancelled when the overlay is dismissed.
+    val viewModelStoreOwner =
+        remember {
+            object : ViewModelStoreOwner {
+                override val viewModelStore = ViewModelStore()
+            }
+        }
+
+    // AnswerViewModel is scoped to this overlay so stream-timeout monitoring and block polling
+    // are cancelled when the overlay is dismissed. This avoids the Android-only Compose viewModel API.
+    val stateHolder =
+        remember(viewModelStoreOwner) {
+            AnswerViewModel(
+                getCurrentBlockUseCase = getCurrentBlockUseCase,
+                getAccountAlgoBalance = getAccountAlgoBalance,
+                getLocalAccount = getLocalAccount,
+                getLocalAccounts = getLocalAccounts,
+                getAlgo25SecretKey = getAlgo25SecretKey,
+                getFalcon24SecretKey = getFalcon24SecretKey,
+                getFalcon25PrivateKey = getFalcon25PrivateKey,
+                getSeed = getSeed,
+                getCurrentNetworkUseCase = getCurrentNetworkUseCase,
+                getRemainingSessionVaultBalanceUseCase = getRemainingSessionVaultBalanceUseCase,
+                getSessionVaultConfigUseCase = getSessionVaultConfigUseCase,
+                setupMppPaymentViewerUseCase = setupMppPaymentViewerUseCase,
+                mppPaymentViewerManager = mppPaymentViewerManager,
+                mppWalletSignerUseCase = mppWalletSignerUseCase,
+            ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
+        }
+
+    // iOS has no SeedVault transaction signing capability; never attach its throwing stub.
+    DisposableEffect(stateHolder) {
+        stateHolder.signSolanaTransaction = null
+        onDispose { stateHolder.signSolanaTransaction = null }
+    }
+
+    val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel(viewModelStoreOwner = viewModelStoreOwner)
+
+    // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
+    val remainingBalance by stateHolder.viewerSessionVaultMicroUsdc.collectAsStateWithLifecycle()
+    val progressBalance by stateHolder.viewerProgressBalanceMicroUsdc.collectAsStateWithLifecycle()
+    val vaultSnapshot by stateHolder.viewerVaultSnapshot.collectAsStateWithLifecycle()
+    val currentBlockNumber by stateHolder.currentBlockNumber.collectAsStateWithLifecycle()
+    val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
+    val sessionId by stateHolder.session.collectAsStateWithLifecycle()
+    val hostAddress by stateHolder.hostAddress.collectAsStateWithLifecycle()
+    val streamNetworkValidated by stateHolder.isViewerStreamNetworkValidated.collectAsStateWithLifecycle()
+    var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
+    val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    var deliveredMessageCount by remember { mutableStateOf(0) }
+    LaunchedEffect(viewerManager) {
+        activeIOSViewerConnectionManager = viewerManager
+
+        // Reset shared state for this session and route the holder's stream-timeout to teardown,
+        // mirroring Android's auto-disconnect when no frames arrive for a few seconds.
+        stateHolder.resetViewerStreamValidation()
+        viewerManager.attachAnswerViewModel(stateHolder)
+        stateHolder.onTimeout = { dismissOverlay(viewerManager) }
+        if (address.isNotBlank()) {
+            stateHolder.setAccountAddress(address)
+        }
+        stateHolder.initializeViewerStreamValidation()
+
+        // Start block-number polling so iOS shows the same live block counter as Android.
+        stateHolder.startRealtimeBlockNumberUpdates()
+
+        // Fetch account balance for the viewer address.
+        if (address.isNotBlank()) {
+            stateHolder.fetchAccountBalance()
+        }
+
+        // Provide the Ed25519 public key so the viewer hello message can carry it, enabling
+        // correct on-chain session-vault balance lookups.
+        if (!stateHolder.platformServices.hasViewerPublicKeyProvider()) {
+            stateHolder.platformServices.setViewerPublicKeyProvider { addr ->
+                runCatching {
+                    runBlocking {
+                        stateHolder
+                            .buildMppWalletSigner(addr)
+                            ?.authorizedSignerPublicKey
+                            ?.let { Base64.encode(it) }
+                    }
+                }.getOrNull()
+            }
+        }
+
+        // Set the viewer address BEFORE notifyViewerConnected().
+        if (address.isNotBlank()) {
+            viewerManager.setViewerAddress(address)
+            //  viewerManager.startViewerBalancePollingSafe(address, stateHolder.hostAddress.value)
+        }
+
+        NSLog(
+            "$TAG: init viewerAddress='$address' origin='$origin' " +
+                "_viewerAddress='${stateHolder.viewerAddress.value}'",
+        )
+
+        // The native WebRTC connection is already being established by the Swift handler;
+        // notify the manager so it sends the hello message and starts balance polling.
+        viewerManager.notifyViewerConnected()
+        // The remote track may arrive after the data channel opens, so retry briefly until the
+        // Swift WebRTC service can create its RTCMTLVideoView renderer.
+        while (remoteVideoView == null) {
+            remoteVideoView = iosViewerVideoViewProvider?.invoke() as? UIView
+            if (remoteVideoView == null) kotlinx.coroutines.delay(300.milliseconds)
+        }
+    }
+
+    // Keep the demo app's connection-status bar in sync, mirroring Android.
+    LaunchedEffect(sessionId, origin, address) {
+        ConnectionStatusState.isVisible = AnswerScreenState.isVisible
+        ConnectionStatusState.session = sessionId
+        ConnectionStatusState.origin = origin
+        ConnectionStatusState.requestId = AnswerScreenState.requestId
+        ConnectionStatusState.accountAddress = address
+    }
+
+    DisposableEffect(viewerManager) {
+        ConnectionStatusState.onDisconnect = {
+            dismissOverlay(viewerManager)
+        }
+        onDispose {
+            stateHolder.stopRealtimeBlockNumberUpdates()
+            viewerManager.attachAnswerViewModel(null)
+            viewerManager.disconnectViewer()
+            viewerManager.clearActiveViewerIfCurrent()
+            ConnectionStatusState.onDisconnect = null
+            // Cancels the holder's viewModelScope (stream-timeout monitor + block polling).
+            viewModelStoreOwner.viewModelStore.clear()
+        }
+    }
+
+    LaunchedEffect(stateHolder, viewerViewModel) {
+        stateHolder.chatMessages.collect { messages ->
+            if (messages.size > deliveredMessageCount) {
+                messages.drop(deliveredMessageCount).forEach {
+                    viewerViewModel.receivedChatMessage(it)
+                }
+                deliveredMessageCount = messages.size
+            }
+        }
+    }
+
+    AlgoKitTheme {
+        Box(modifier = Modifier.fillMaxSize()) {
+            val viewerCameraPreview: (@Composable () -> Unit) = {
+                val renderer = remoteVideoView.takeIf { streamNetworkValidated }
+                if (renderer != null) {
+                    UIKitView(
+                        factory = { renderer },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+                }
+            }
+
+            if (streamHostUiModeState.value != StreamHostUiMode.Minimized) {
+                LiquidStreamViewerScreen(
+                    viewModel = viewerViewModel,
+                    sessionId = AnswerScreenState.requestId,
+                    connectionType = connType,
+                    cameraPreview = viewerCameraPreview,
+                    viewerAddress = address.ifBlank { "-" },
+                    creatorAddress = hostAddress,
+                    originUrl = origin.ifBlank { "-" },
+                    remainingBalanceUsdc = remainingBalance / 1_000_000.0,
+                    progressBalanceUsdc = progressBalance / 1_000_000.0,
+                    vaultSnapshot = vaultSnapshot,
+                    currentBlockNumber = currentBlockNumber,
+                    onMinimize = {
+                        miniPlayerCameraPreviewState.value = viewerCameraPreview
+                        streamHostUiModeState.value = StreamHostUiMode.Minimized
+                    },
+                    onTopUpConfirm = { enteredAmount ->
+                        if (address.isNotBlank()) {
+                            scope.launch {
+                                try {
+                                    val signer =
+                                        stateHolder.buildMppWalletSigner(address)
+                                            ?: error("Failed to build wallet signer")
+                                    stateHolder
+                                        .topUpViewerSessionVault(
+                                            enteredAmount = enteredAmount,
+                                            viewerAddress = address,
+                                            signer = signer,
+                                        ).getOrThrow()
+                                } catch (ce: kotlinx.coroutines.CancellationException) {
+                                    throw ce
+                                } catch (e: Exception) {
+                                    stateHolder.onStreamRejected("top_up_failed", e.message)
+                                }
+                            }
+                        }
+                    },
+                    onSendClick = { text, amount, asset ->
+                        stateHolder.sendChatMessage(text, amount, asset)
+                    },
+                )
+            }
+
+            LiquidAuthMiniPlayerOverlay(
+                streamHostUiModeState = streamHostUiModeState,
+                miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+                onClose = {
+                    streamHostUiModeState.value = StreamHostUiMode.Hidden
+                    dismissOverlay(viewerManager)
+                },
+            )
+
+            ViewerMppConsentDialog(stateHolder = stateHolder)
+
+            ViewerStreamRejectedDialog(
+                stateHolder = stateHolder,
+                onAcknowledged = {
+                    streamHostUiModeState.value = StreamHostUiMode.Hidden
+                    dismissOverlay(viewerManager)
+                },
+            )
+        }
+    }
+}
+
+/**
+ * Tears down the active viewer connection and hides the overlay + connection-status bar.
+ */
+private fun dismissOverlay(viewerManager: LiquidAuthConnectionManager) {
+    viewerManager.disconnectViewer()
+    viewerManager.clearActiveViewerIfCurrent()
+    AnswerScreenState.isVisible = false
+    AnswerScreenState.origin = ""
+    AnswerScreenState.requestId = ""
+    ConnectionStatusState.isVisible = false
+    ConnectionStatusState.isExpanded = false
+    ConnectionStatusState.session = ""
+    ConnectionStatusState.origin = ""
+    ConnectionStatusState.requestId = ""
+    ConnectionStatusState.accountAddress = ""
+}

@@ -1,0 +1,368 @@
+package com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerInfo
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.StreamEarningsLedger
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.ZERO_USDC_LABEL
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatRevenueLabel
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatUsdcSixDecimals
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.launch
+import kotlin.time.Clock
+
+class LiquidStreamHostViewModel(
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
+    private val stateDelegate: StateDelegate<UiState>,
+    private val eventDelegate: EventDelegate<ViewEvent>,
+) : ViewModel(),
+    StateViewModel<LiquidStreamHostViewModel.UiState> by stateDelegate,
+    EventViewModel<LiquidStreamHostViewModel.ViewEvent> by eventDelegate {
+    private val earningsLedger = StreamEarningsLedger()
+
+    init {
+        stateDelegate.setDefaultState(UiState())
+    }
+
+    fun loadCreatorNfdProfile(address: String) {
+        if (address.isBlank()) return
+        stateDelegate.updateState { it.copy(creatorAddress = address) }
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorAddress = address,
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile for $address", e, tag = "LiquidStreamHostVM")
+            }
+        }
+    }
+
+    fun loadViewerNfdProfile(address: String) {
+        if (address.isBlank() || state.value.viewerNfdNames.containsKey(address)) return
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                if (nfdProfile?.name != null) {
+                    stateDelegate.updateState { currentState ->
+                        val updatedNfdNames = currentState.viewerNfdNames + (address to nfdProfile.name)
+                        val updatedViewers =
+                            currentState.viewers.map { viewer ->
+                                val rawAddr = viewer.viewerAddress.orEmpty()
+                                if (rawAddr == address || rawAddr == address.toShortenedAddress()) {
+                                    viewer.copy(viewerAddress = nfdProfile.name)
+                                } else {
+                                    viewer
+                                }
+                            }
+                        currentState.copy(
+                            viewerNfdNames = updatedNfdNames,
+                            viewers = updatedViewers,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch viewer NFD profile for $address", e, tag = "LiquidStreamHostVM")
+            }
+        }
+    }
+
+    fun onMessageChanged(message: String) {
+        stateDelegate.updateState { it.copy(message = message) }
+    }
+
+    fun onSendClicked() {
+        val messageText = state.value.message.trim()
+        if (messageText.isEmpty()) {
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Message cannot be empty"))
+            return
+        }
+
+        val creatorSender =
+            state.value.creatorNfdName
+                ?: state.value.creatorAddress.takeIf { it.isNotBlank() }
+                ?: "Creator"
+
+        // Add locally immediately
+        receivedChatMessage(
+            ChatMessage(
+                sender = creatorSender,
+                text = messageText,
+                timestamp = Clock.System.now().toEpochMilliseconds(),
+            ),
+        )
+
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.SendMessage(messageText))
+        stateDelegate.updateState { it.copy(message = "") }
+    }
+
+    fun receivedChatMessage(message: ChatMessage) {
+        val amountStr = message.amount
+        val giftUsdc = amountStr?.toDoubleOrNull()
+        val isTip = giftUsdc != null && giftUsdc > 0.0
+
+        stateDelegate.updateState { currentState ->
+            val isCreator =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
+                    message.sender.contains("host", ignoreCase = true) ||
+                    message.sender.contains("creator", ignoreCase = true)
+            val isLocalUser =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName)
+
+            val newFreeCount = if (isTip) currentState.freeChatCount else currentState.freeChatCount + 1
+            val newTipCount = if (isTip) currentState.tipChatCount + 1 else currentState.tipChatCount
+            val newTipTotal = if (isTip) currentState.tipChatTotalUsdc + giftUsdc else currentState.tipChatTotalUsdc
+
+            val baseState =
+                currentState.copy(
+                    chatMessages =
+                        currentState.chatMessages +
+                            ChatUiMessage(
+                                sender = message.sender,
+                                text = message.text,
+                                timestamp = message.timestamp,
+                                isCreator = isCreator,
+                                isLocalUser = isLocalUser,
+                                amount = message.amount,
+                                asset = message.asset,
+                            ),
+                    freeChatCount = newFreeCount,
+                    tipChatCount = newTipCount,
+                    tipChatTotalUsdc = newTipTotal,
+                )
+            calculateMetrics(baseState)
+        }
+    }
+
+    fun onSettingsClicked() {
+        stateDelegate.updateState {
+            it.copy(
+                isSettingsModalVisible = true,
+                isStatsModalVisible = false,
+                isQrModalVisible = false,
+            )
+        }
+    }
+
+    fun onSettingsDismissed() {
+        stateDelegate.updateState { it.copy(isSettingsModalVisible = false) }
+    }
+
+    fun onStatsClicked() {
+        stateDelegate.updateState {
+            it.copy(
+                isStatsModalVisible = !it.isStatsModalVisible,
+                isSettingsModalVisible = false,
+                isQrModalVisible = false,
+            )
+        }
+    }
+
+    fun onStatsDismissed() {
+        stateDelegate.updateState { it.copy(isStatsModalVisible = false) }
+    }
+
+    fun onQrClicked() {
+        stateDelegate.updateState {
+            it.copy(
+                isQrModalVisible = !it.isQrModalVisible,
+                isSettingsModalVisible = false,
+                isStatsModalVisible = false,
+            )
+        }
+    }
+
+    fun onQrDismissed() {
+        stateDelegate.updateState { it.copy(isQrModalVisible = false) }
+    }
+
+    fun onStreamCostTabSelected(tabId: String) {
+        stateDelegate.updateState {
+            val newState = it.copy(selectedStreamCostTabId = tabId)
+            calculateMetrics(newState)
+        }
+        val cost =
+            if (tabId == STREAM_COST_PAID_TAB_ID) {
+                LiquidStreamConstants.COST_PER_BLOCK_MICRO_USDC
+            } else {
+                0L
+            }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.StreamCostChanged(cost))
+    }
+
+    fun onPayoutFrequencyTabSelected(tabId: String) {
+        stateDelegate.updateState { it.copy(selectedPayoutFrequencyTabId = tabId) }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.PayoutFrequencyChanged(tabId))
+    }
+
+    fun onSubsidizeViewerFeesChanged(enabled: Boolean) {
+        stateDelegate.updateState { it.copy(subsidizeViewerFeesEnabled = enabled) }
+    }
+
+    fun updateMetrics(
+        currentBlockNumber: Long? = null,
+        blockChainLabel: String? = null,
+        networkLabel: String? = null,
+        numbersOfViewer: String? = null,
+        viewers: List<ConnectedViewerInfo>? = null,
+        startRound: Long? = null,
+    ) {
+        stateDelegate.updateState { currentState ->
+            val block = currentBlockNumber ?: currentState.currentBlockNumber
+            val chain = blockChainLabel ?: currentState.blockChainLabel
+            val net = networkLabel ?: currentState.networkLabel
+            val viewerCount = numbersOfViewer ?: currentState.numbersOfViewer
+            val rawViewers =
+                if (startRound != null && viewers == null) {
+                    currentState.viewers.map { it.copy(startRound = startRound) }
+                } else {
+                    viewers ?: currentState.viewers
+                }
+
+            val currentViewers =
+                rawViewers.map { viewer ->
+                    val rawAddress = viewer.viewerAddress
+                    if (rawAddress != null && currentState.viewerNfdNames.containsKey(rawAddress)) {
+                        viewer.copy(viewerAddress = currentState.viewerNfdNames[rawAddress])
+                    } else {
+                        viewer
+                    }
+                }
+
+            val baseState =
+                currentState.copy(
+                    currentBlockNumber = block,
+                    blockChainLabel = chain,
+                    networkLabel = net,
+                    numbersOfViewer = viewerCount,
+                    viewers = currentViewers,
+                )
+
+            // Re-record on every update (incl. block-only ticks) so viewers seen before the
+            // first block number still start the stream clock.
+            earningsLedger.update(viewers ?: currentState.viewers, block)
+            calculateMetrics(baseState)
+        }
+    }
+
+    private fun calculateMetrics(currentState: UiState): UiState {
+        // Revenue = everything viewers have signed for over the whole stream (incl. viewers who left).
+        // Signed vouchers are escrowed in the viewer's vault, so the host is guaranteed to claim them.
+        // Superchats are paid by bumping the same voucher, so they're already included exactly once.
+        // Same basis as AVG RATE: revenue == rate × blocks since the stream started.
+        val calculatedRevenue = earningsLedger.totalAuthorizedMicroUsdc() / MICRO_USDC_PER_USDC
+        val isPaid = currentState.selectedStreamCostTabId == STREAM_COST_PAID_TAB_ID
+        val currentBlock = currentState.currentBlockNumber
+        // Stream average = the same signed total ÷ blocks since the stream started.
+        val rate = formatUsdcSixDecimals(earningsLedger.streamRatePerBlockMicroUsdc(currentBlock) / MICRO_USDC_PER_USDC)
+        val revenueLabel =
+            if (isPaid || calculatedRevenue > 0.0) {
+                formatRevenueLabel(calculatedRevenue)
+            } else {
+                ZERO_USDC_LABEL
+            }
+
+        return currentState.copy(
+            totalRevenue = calculatedRevenue,
+            blockNumberLabel = currentState.currentBlockNumber?.let { "#$it" } ?: "-",
+            securedViaLabel = "Secured via ${currentState.blockChainLabel} ${currentState.networkLabel}",
+            realTimeRate = rate,
+            streamRevenue = revenueLabel,
+        )
+    }
+
+    fun onMicClicked() {
+        val newMutedState = !state.value.isMicMuted
+        stateDelegate.updateState { it.copy(isMicMuted = newMutedState) }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.ToggleMic(isMuted = newMutedState))
+    }
+
+    fun onCameraClicked() {
+        val newEnabledState = !state.value.isCameraEnabled
+        stateDelegate.updateState { it.copy(isCameraEnabled = newEnabledState) }
+        eventDelegate.sendEvent(viewModelScope, ViewEvent.ToggleCamera(isEnabled = newEnabledState))
+    }
+
+    fun resetMediaToggles() {
+        stateDelegate.updateState { it.copy(isMicMuted = false, isCameraEnabled = true) }
+    }
+
+    data class UiState(
+        val message: String = "",
+        val creatorAddress: String = "",
+        val isStatsModalVisible: Boolean = false,
+        val isSettingsModalVisible: Boolean = false,
+        val isQrModalVisible: Boolean = false,
+        val selectedStreamCostTabId: String = STREAM_COST_PAID_TAB_ID,
+        val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
+        val subsidizeViewerFeesEnabled: Boolean = false,
+        /** Stream average: total authorized across all sessions ÷ blocks since the paid stream started. */
+        val realTimeRate: String = ZERO_USDC_LABEL,
+        val streamRevenue: String = ZERO_USDC_LABEL,
+        val securedViaLabel: String = "-",
+        val blockNumberLabel: String = "-",
+        val isMicMuted: Boolean = false,
+        val isCameraEnabled: Boolean = true,
+        val chatMessages: List<ChatUiMessage> = emptyList(),
+        val currentBlockNumber: Long? = null,
+        val blockChainLabel: String = "",
+        val networkLabel: String = "",
+        val numbersOfViewer: String = "0",
+        val totalRevenue: Double = 0.0,
+        val viewers: List<ConnectedViewerInfo> = emptyList(),
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
+        val viewerNfdNames: Map<String, String> = emptyMap(),
+        val freeChatCount: Long = 0L,
+        val tipChatCount: Long = 0L,
+        val tipChatTotalUsdc: Double = 0.0,
+    )
+
+    companion object {
+        const val STREAM_COST_PAID_TAB_ID = "paid"
+        private const val MICRO_USDC_PER_USDC = 1_000_000.0
+    }
+
+    sealed interface ViewEvent {
+        data class SendMessage(
+            val message: String,
+        ) : ViewEvent
+
+        data class ShowError(
+            val message: String,
+        ) : ViewEvent
+
+        data class ToggleMic(
+            val isMuted: Boolean,
+        ) : ViewEvent
+
+        data class ToggleCamera(
+            val isEnabled: Boolean,
+        ) : ViewEvent
+
+        data class StreamCostChanged(
+            val costMicroUsdc: Long,
+        ) : ViewEvent
+
+        data class PayoutFrequencyChanged(
+            val tabId: String,
+        ) : ViewEvent
+    }
+}

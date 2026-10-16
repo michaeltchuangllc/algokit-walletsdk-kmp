@@ -63,7 +63,7 @@ internal class DefaultPasskeyRepository(
         return passkeyDao.getCredentialIdBySiteId(siteId)
     }
 
-    override suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String? = passkeyDao.getCredentialIdByAlgoAddress(algoAddress)
+    override suspend fun getCredentialIdByAddress(address: String): String? = passkeyDao.getCredentialIdByAddress(address)
 
     override suspend fun removePasskeyByCredentialId(credId: String) {
         val passkey = passkeyDao.getByCredId(credId)
@@ -91,10 +91,10 @@ internal class DefaultPasskeyRepository(
     override suspend fun doesPasskeyExist(
         rpId: String,
         username: String,
-        algoAddress: String,
-    ): Boolean = passkeyDao.doesPasskeyExist(rpId, username, algoAddress)
+        address: String,
+    ): Boolean = passkeyDao.doesPasskeyExist(rpId, username, address)
 
     override suspend fun removePasskeyByAddress(address: String) {
-        passkeyDao.deleteByAlgoAddress(address)
+        passkeyDao.deleteByAddress(address)
     }
 }

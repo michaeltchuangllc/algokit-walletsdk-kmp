@@ -9,4 +9,5 @@ data class AccountLite(
     val customName: String,
     val registrationType: AccountRegistrationType,
     val balance: String? = null,
+    val usdcBalance: String? = null,
 )

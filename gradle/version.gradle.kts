@@ -1,5 +1,3 @@
-import java.io.ByteArrayOutputStream
-
 // Shared version calculation functions
 extra["calculateVersionCode"] = fun(): Int {
     val libs = the<org.gradle.accessors.dm.LibrariesForLibs>()
@@ -18,10 +16,10 @@ extra["calculateVersionName"] = fun(): String {
 }
 
 extra["getGitHash"] = fun(): String {
-    val stdout = ByteArrayOutputStream()
-    project.exec {
-        commandLine("git", "rev-parse", "--short", "HEAD")
-        standardOutput = stdout
-    }
-    return stdout.toString().trim()
+    val process =
+        ProcessBuilder("git", "rev-parse", "--short", "HEAD")
+            .directory(rootProject.projectDir)
+            .redirectErrorStream(true)
+            .start()
+    return process.inputStream.bufferedReader().use { it.readText() }.trim()
 }

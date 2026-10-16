@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.foundation.di
 
 import com.michaeltchuang.walletsdk.core.account.di.accountModules
 import com.michaeltchuang.walletsdk.core.deeplink.di.deepLinkModules
+import com.michaeltchuang.walletsdk.core.liquidAuth.di.liquidAuthDomainModule
 import com.michaeltchuang.walletsdk.core.transaction.di.transactionModules
 
 val walletSdkCoreModules =
@@ -9,6 +10,6 @@ val walletSdkCoreModules =
         addAll(foundationModules)
         addAll(deepLinkModules)
         addAll(accountModules)
-        addAll(deepLinkModules)
         addAll(transactionModules)
+        add(liquidAuthDomainModule)
     }

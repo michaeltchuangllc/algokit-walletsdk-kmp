@@ -24,7 +24,7 @@ class HdKeyMapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
         assertTrue(result.publicKey.contentEquals(PUBLIC_KEY))
         assertEquals(SEED_ID, result.seedId)
         assertEquals(ACCOUNT, result.account)

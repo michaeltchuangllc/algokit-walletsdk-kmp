@@ -77,7 +77,9 @@ fun RecoveryPhraseScreen(
 
     val initialWordCount =
         when (accountType) {
-            AccountMnemonic.AccountType.Algo25 -> 25
+            AccountMnemonic.AccountType.Algo25,
+            AccountMnemonic.AccountType.Falcon25,
+            -> 25
             AccountMnemonic.AccountType.Falcon24 -> 24
             else -> 24
         }
@@ -140,6 +142,13 @@ fun RecoveryPhraseScreen(
                     )
                 }
 
+                AccountMnemonic.AccountType.Falcon25 -> {
+                    viewModel.onRecoverAccount(
+                        mnemonicList.joinToString(" "),
+                        OnboardingAccountType.Falcon25,
+                    )
+                }
+
                 AccountMnemonic.AccountType.HdKey -> {
                     viewModel.onRecoverAccount(
                         mnemonicList.joinToString(" "),
@@ -155,7 +164,7 @@ fun RecoveryPhraseScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     accountType: AccountMnemonic.AccountType,
     mnemonicList: List<String>,

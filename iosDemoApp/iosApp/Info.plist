@@ -10,7 +10,9 @@
 	<true/>
 	<!-- Camera permission (for QR code scanning) -->
 	<key>NSCameraUsageDescription</key>
-	<string>WalletSDK Demo needs camera access to scan QR codes for connecting to dApps and signing transactions.</string>
+	<string>WalletSDK Demo needs camera access to scan QR codes and broadcast live streams.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>WalletSDK Demo needs microphone access to broadcast live stream audio.</string>
 	<!-- Photo library permission -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>WalletSDK Demo needs photo library access to save QR codes and transaction receipts.</string>

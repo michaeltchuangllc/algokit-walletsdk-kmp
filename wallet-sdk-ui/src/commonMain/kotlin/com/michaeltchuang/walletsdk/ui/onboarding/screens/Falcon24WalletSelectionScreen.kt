@@ -183,6 +183,7 @@ private fun ContentState(
                 AlgoKitIcon(
                     painter = painterResource(Res.drawable.ic_plus),
                     contentDescription = localizedStringResource(Res.string.plus),
+                    tintColor = AlgoKitTheme.colors.buttonSecondaryText,
                     modifier = Modifier,
                 )
             },

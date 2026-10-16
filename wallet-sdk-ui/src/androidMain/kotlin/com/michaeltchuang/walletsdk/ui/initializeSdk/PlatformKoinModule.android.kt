@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.ui.initializeSdk
 
 import android.content.Context
 import com.michaeltchuang.walletsdk.core.network.domain.AndroidContextHolder
+import io.github.aakira.napier.DebugAntilog
+import io.github.aakira.napier.Napier
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
 import org.koin.core.KoinApplication
@@ -21,4 +23,7 @@ internal actual fun KoinApplication.platformConfiguration(
     if (enableLogging) {
         androidLogger(Level.DEBUG)
     }
+
+    // Initialize Napier for logging
+    Napier.base(DebugAntilog())
 }

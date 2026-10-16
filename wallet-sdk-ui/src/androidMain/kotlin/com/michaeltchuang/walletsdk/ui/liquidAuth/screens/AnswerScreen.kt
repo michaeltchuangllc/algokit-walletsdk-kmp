@@ -1,104 +1,248 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import com.michaeltchuang.walletsdk.ui.R
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import androidx.compose.ui.graphics.Color
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.ConnectionStatusState
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.StreamHeartbeatVideoSink
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerMppConsentDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.ViewerStreamRejectedDialog
+import com.michaeltchuang.walletsdk.ui.liquidStream.components.WebRtcVideoRenderer
+import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamViewerScreen
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.SESSION_LOGGED_OUT
+import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.delay
+import org.koin.compose.viewmodel.koinViewModel
+import org.webrtc.EglBase
+import org.webrtc.VideoTrack
+import kotlin.time.Duration.Companion.milliseconds
 
+/**
+ * Answer Screen for Liquid Auth Client
+ *
+ * Main purpose: Sign transactions from connected dApp.
+ * Optional feature: View broadcaster's camera feed in a compact overlay.
+ * X402 Payment: Pay to watch streaming content.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AnswerScreen(viewModel: AnswerViewModel) {
-    // Collect StateFlow values as Compose state
+fun AnswerScreen(
+    viewModel: AnswerViewModel,
+    onMinimizeToPip: () -> Unit = {},
+    onViewerTopUpConfirm: (String) -> Unit = {},
+    onViewerClose: () -> Unit = {},
+) {
+    val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel()
     val session by viewModel.session.collectAsState()
     val message by viewModel.authMessage.collectAsState()
+    val connectionType by viewModel.connectionType.collectAsState()
     val accountAddress by viewModel.accountAddress.collectAsState()
+    val hostAddress by viewModel.hostAddress.collectAsState()
+    val streamNetworkValidated by viewModel.isViewerStreamNetworkValidated.collectAsState()
+    LaunchedEffect(viewModel, accountAddress) {
+        viewModel.initializeViewerStreamValidation()
+    }
     val errorMessage by viewModel.error.collectAsState()
+    val signalService by viewModel.signalService.collectAsState()
+    val viewerSessionVaultMicroUsdc by viewModel.viewerSessionVaultMicroUsdc.collectAsState()
+    val viewerProgressBalanceMicroUsdc by viewModel.viewerProgressBalanceMicroUsdc.collectAsState()
+    val vaultSnapshot by viewModel.viewerVaultSnapshot.collectAsState()
+    val currentBlockNumber by viewModel.currentBlockNumber.collectAsState()
+    var deliveredMessageCount by remember { mutableIntStateOf(0) }
+    val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
+    val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
+    var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
+    val viewerBottomSheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { it != SheetValue.Hidden },
+        )
 
-    // Determine connection status
-    val isWaiting = message == null && errorMessage == null
+    var isViewerSheetVisible by rememberSaveable { mutableStateOf(true) }
     val hasError = errorMessage != null
-    val isConnected = message != null && session != "Logged Out" && !hasError
-    val isConnecting = message != null && session == "Logged Out" && !hasError
+    val isConnected = message != null && session != SESSION_LOGGED_OUT && !hasError
+    val isPasskeyAuthenticated = session == LIQUID_AUTH_SESSION
+    val shouldShowViewerSheet = isConnected && isPasskeyAuthenticated && isViewerSheetVisible
 
-    ScreenContentAnswer(
-        isConnected = isConnected,
-        isWaiting = isWaiting,
-        isConnecting = isConnecting,
-        hasError = hasError,
-        errorMessage = errorMessage,
-        session = session,
-        origin = message?.origin,
-        requestId = message?.requestId,
-        accountAddress = accountAddress,
-    )
-}
+    LaunchedEffect(signalService) {
+        val service = signalService ?: return@LaunchedEffect
+        service.setOnRemoteVideoTrack { track ->
+            remoteVideoTrack = track
+        }
+        while (true) {
+            if (eglBaseContext == null) {
+                service.eglBaseContext?.let { eglBaseContext = it }
+            }
+            val track = service.remoteVideoTrack
+            if (track !== remoteVideoTrack) {
+                remoteVideoTrack = track
+            }
+            // Re-register the listener once the peerClient exists (it may not have on first pass).
+            if (track == null) {
+                service.setOnRemoteVideoTrack { t -> remoteVideoTrack = t }
+            }
+            delay(300.milliseconds)
+        }
+    }
 
-@Composable
-fun ScreenContentAnswer(
-    isConnected: Boolean,
-    isWaiting: Boolean,
-    isConnecting: Boolean,
-    hasError: Boolean,
-    errorMessage: String?,
-    session: String,
-    origin: String?,
-    requestId: String?,
-    accountAddress: String,
-) {
-    Box(
-        modifier =
-            Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(24.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            // Header
-            Text(
-                text = stringResource(R.string.liquid_auth_header),
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
+    // Detect when the host stops streaming: mark the shared stream-timeout watchdog active
+    // whenever a real frame is delivered on the native remote video track. If the host stops
+    // its camera/ends the stream and frames stop arriving, the existing STREAM_TIMEOUT_MS watchdog in
+    // LiquidAuthViewerStateHolder fires onStreamTimeout -> StreamDisconnected, tearing down
+    // the viewer session automatically (handled below).
+    DisposableEffect(remoteVideoTrack, streamNetworkValidated) {
+        val track = remoteVideoTrack.takeIf { streamNetworkValidated }
+        val heartbeatSink = StreamHeartbeatVideoSink(onHeartbeat = { viewModel.markStreamFrameReceived() })
+        runCatching { track?.addSink(heartbeatSink) }
+        onDispose {
+            runCatching { track?.removeSink(heartbeatSink) }
+        }
+    }
 
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Connection Status Card
-            ConnectionStatusCard(
-                isConnected = isConnected,
-                isWaiting = isWaiting,
-                isConnecting = isConnecting,
-                hasError = hasError,
-                errorMessage = errorMessage,
-                session = session,
-                origin = origin,
-                requestId = requestId,
-                accountAddress = accountAddress,
-            )
-
-            // Account Info Card (if account address exists)
-            if (accountAddress.isNotEmpty()) {
-                AccountInfoCard(accountAddress = accountAddress)
+    LaunchedEffect(viewModel) {
+        viewModel.startRealtimeBlockNumberUpdates()
+        Napier.d("Starting to collect view events...", tag = "AnswerScreen")
+        viewModel.viewEvent.collect { event ->
+            Napier.d("View event received: ${event::class.simpleName}", tag = "AnswerScreen")
+            when (event) {
+                is AnswerViewModel.ViewEvent.StreamDisconnected -> {
+                    Napier.w("Viewer stream disconnected: ${event.reason}", tag = "AnswerScreen")
+                    isViewerSheetVisible = false
+                    ConnectionStatusState.isVisible = false
+                    ConnectionStatusState.isExpanded = false
+                    ConnectionStatusState.session = ""
+                    ConnectionStatusState.origin = ""
+                    ConnectionStatusState.requestId = ""
+                    ConnectionStatusState.accountAddress = ""
+                }
+                else -> { /* other events */ }
             }
         }
+    }
+
+    LaunchedEffect(streamHostUiModeState.value) {
+        if (streamHostUiModeState.value == StreamHostUiMode.Expanded) {
+            isViewerSheetVisible = true
+        }
+    }
+
+    LaunchedEffect(viewModel) {
+        viewModel.chatMessages.collect { messages ->
+            if (messages.size > deliveredMessageCount) {
+                messages.drop(deliveredMessageCount).forEach {
+                    viewerViewModel.receivedChatMessage(it)
+                }
+                deliveredMessageCount = messages.size
+            }
+        }
+    }
+
+    val viewerCameraPreview: (@Composable () -> Unit)? =
+        remoteVideoTrack?.takeIf { streamNetworkValidated }?.let { track ->
+            {
+                WebRtcVideoRenderer(
+                    eglBaseContext = eglBaseContext,
+                    videoTrack = track,
+                    mirror = true,
+                )
+            }
+        }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (shouldShowViewerSheet) {
+            ModalBottomSheet(
+                onDismissRequest = {},
+                sheetState = viewerBottomSheetState,
+                dragHandle = null,
+                containerColor = Color.Transparent,
+                contentWindowInsets = {
+                    androidx.compose.foundation.layout
+                        .WindowInsets(0, 0, 0, 0)
+                },
+            ) {
+                LiquidStreamViewerScreen(
+                    viewModel = viewerViewModel,
+                    sessionId = message?.requestId.orEmpty(),
+                    connectionType = connectionType,
+                    cameraPreview = viewerCameraPreview,
+                    viewerAddress = accountAddress,
+                    creatorAddress = hostAddress,
+                    originUrl = message?.origin.orEmpty().ifBlank { "-" },
+                    currentBlockNumber = currentBlockNumber,
+                    remainingBalanceUsdc = viewerSessionVaultMicroUsdc / 1_000_000.0,
+                    progressBalanceUsdc = viewerProgressBalanceMicroUsdc / 1_000_000.0,
+                    vaultSnapshot = vaultSnapshot,
+                    onMinimize = {
+                        Napier.d("Viewer minimize tapped. hasTrack=${remoteVideoTrack != null}", tag = "AnswerScreen")
+                        isViewerSheetVisible = false
+                        miniPlayerCameraPreviewState.value = viewerCameraPreview
+                        streamHostUiModeState.value = StreamHostUiMode.Minimized
+                        onMinimizeToPip()
+                    },
+                    onTopUpConfirm = onViewerTopUpConfirm,
+                    onSendClick = { text, amount, asset ->
+                        viewModel.sendChatMessage(text, amount, asset)
+                    },
+                )
+            }
+        }
+
+        LiquidAuthMiniPlayerOverlay(
+            streamHostUiModeState = streamHostUiModeState,
+            miniPlayerCameraPreviewState = miniPlayerCameraPreviewState,
+            onClose = {
+                streamHostUiModeState.value = StreamHostUiMode.Hidden
+                viewModel.signalService.value?.stop()
+                ConnectionStatusState.isVisible = false
+                ConnectionStatusState.isExpanded = false
+                ConnectionStatusState.session = ""
+                ConnectionStatusState.origin = ""
+                ConnectionStatusState.requestId = ""
+                ConnectionStatusState.accountAddress = ""
+                onViewerClose()
+            },
+        )
+
+        ViewerMppConsentDialog(stateHolder = viewModel)
+
+        ViewerStreamRejectedDialog(
+            stateHolder = viewModel,
+            onAcknowledged = {
+                streamHostUiModeState.value = StreamHostUiMode.Hidden
+                viewModel.signalService.value?.stop()
+                ConnectionStatusState.isVisible = false
+                ConnectionStatusState.isExpanded = false
+                ConnectionStatusState.session = ""
+                ConnectionStatusState.origin = ""
+                ConnectionStatusState.requestId = ""
+                ConnectionStatusState.accountAddress = ""
+                onViewerClose()
+            },
+        )
     }
 }

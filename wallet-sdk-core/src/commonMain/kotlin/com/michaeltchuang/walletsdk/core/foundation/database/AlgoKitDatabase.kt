@@ -9,22 +9,30 @@ import com.michaeltchuang.walletsdk.core.account.data.database.dao.Algo25NoAuthD
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.CustomAccountInfoDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.CustomHdSeedInfoDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.Falcon24Dao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.Falcon25Dao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdKeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.HdSeedDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.LedgerBleDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.NoAuthDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeyDao
 import com.michaeltchuang.walletsdk.core.account.data.database.dao.PasskeySiteDao
+import com.michaeltchuang.walletsdk.core.account.data.database.dao.SeedVaultDao
 import com.michaeltchuang.walletsdk.core.account.data.database.model.Algo25Entity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomAccountInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.CustomHdSeedInfoEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.Falcon24Entity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.Falcon25Entity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdKeyEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.HdSeedEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.LedgerBleEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.NoAuthEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.PasskeyEntity
+import com.michaeltchuang.walletsdk.core.account.data.database.model.SeedVaultEntity
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
+import com.michaeltchuang.walletsdk.core.railmpp.data.database.dao.MppVoucherDao
+import com.michaeltchuang.walletsdk.core.railmpp.data.database.model.MppVoucherEntity
+import com.michaeltchuang.walletsdk.core.solana.data.database.SolanaLinkedSignerDao
+import com.michaeltchuang.walletsdk.core.solana.data.database.SolanaLinkedSignerEntity
 
 @Database(
     entities = [
@@ -34,10 +42,14 @@ import com.michaeltchuang.walletsdk.core.account.data.database.model.SiteEntity
         HdSeedEntity::class,
         Algo25Entity::class,
         Falcon24Entity::class,
+        Falcon25Entity::class,
         CustomAccountInfoEntity::class,
         CustomHdSeedInfoEntity::class,
         PasskeyEntity::class,
         SiteEntity::class,
+        SeedVaultEntity::class,
+        MppVoucherEntity::class,
+        SolanaLinkedSignerEntity::class,
     ],
     version = AlgoKitDatabase.DATABASE_VERSION,
 )
@@ -55,6 +67,8 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun falcon24Dao(): Falcon24Dao
 
+    abstract fun falcon25Dao(): Falcon25Dao
+
     abstract fun algo25NoAuthDao(): Algo25NoAuthDao
 
     abstract fun customAccountInfoDao(): CustomAccountInfoDao
@@ -65,8 +79,14 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun passkeySiteDao(): PasskeySiteDao
 
+    abstract fun solanaAccountDao(): SeedVaultDao
+
+    abstract fun mppVoucherDao(): MppVoucherDao
+
+    abstract fun solanaLinkedSignerDao(): SolanaLinkedSignerDao
+
     companion object Companion {
-        const val DATABASE_VERSION = 2 // Bumped for passkey tables
+        const val DATABASE_VERSION = 12
         const val DATABASE_NAME = "algokit_database"
     }
 }

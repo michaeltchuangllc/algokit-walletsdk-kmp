@@ -7,7 +7,7 @@ class ValidateWatchAccountUseCase(
         try {
             // Check if address already exists in ANY account type
             val existingAccounts = getLocalAccounts()
-            val addressExists = existingAccounts.any { it.algoAddress == address }
+            val addressExists = existingAccounts.any { it.address == address }
 
             if (addressExists) {
                 Result.failure(AccountAlreadyExistsException())

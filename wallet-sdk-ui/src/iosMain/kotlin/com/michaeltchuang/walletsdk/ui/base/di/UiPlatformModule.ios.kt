@@ -1,6 +1,34 @@
 package com.michaeltchuang.walletsdk.ui.base.di
 
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthConnectionManager
+import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPlatformServices
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
 import org.koin.core.module.Module
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
-actual fun uiPlatformModule(): Module = module { }
+actual fun uiPlatformModule(): Module =
+    module {
+        viewModel {
+            SolanaEscrowVaultDebugViewModel(get(), get(), get(), get(), get(), get(), get())
+        }
+        viewModel {
+            EscrowSessionVaultDebugViewModel(
+                stateDelegate = StateDelegate<EscrowSessionVaultDebugViewModel.ViewState>(),
+                eventDelegate = EventDelegate<EscrowSessionVaultDebugViewModel.ViewEvent>(),
+                mppWalletSignerUseCase = get(),
+                getLocalAccounts = get(),
+                getSessionVaultContextUseCase = get(),
+                debugAddressSelectionsUseCase = get(),
+            )
+        }
+        factory { LiquidAuthPlatformServices() }
+        factory { LiquidAuthConnectionManager(Unit) }
+        single { MppPaymentViewerManager(get()) }
+        single { SetupMppPaymentViewerUseCase(get(), get()) }
+    }

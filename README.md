@@ -10,8 +10,8 @@ This mobile utils library project provides common wallet UI components and scree
 Add the following to your `build.gradle.kts`:
 ```kotlin
 dependencies {
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202601.5")
-    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202601.5")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-ui:3.202603.6")
+    implementation("com.michaeltchuang.algokit.walletsdk:wallet-sdk-core:3.202603.6")
 }
 ```
 
@@ -25,7 +25,7 @@ dependencies {
 title: AlgoKit Wallet SDK High Level Overview
 ---
 graph TD
-    subgraph "Algorand Apps"
+    subgraph "Apps"
         App1["App 1"]
         App2["App 2"]
     end
@@ -40,7 +40,7 @@ graph TD
         Core["AlgoKit-Core Rust SDK"]
         xHD["Algo xHD Kotlin/Swift SDK"]
         JavaSDK["Algo Java SDK"]
-        GoSDK["Algo Go SDK"]
+        GoSDK["Algo Falcon Go SDK"]
     end
 
     App1 <--> wallet
@@ -59,7 +59,7 @@ The demo apps (Android & iOS) in this repo demonstrate `wallet-sdk` library usag
 - Theme customization
 - Network switching between mainnet/testnet (code hasn't been audited, so use mainnet at your own risk)
 - QR code scanning for account imports and keyreg transactions
-- Algo-only experience for now (to swap memecoins...please use Pera app, Haystack app, etc)
+- Algo-only & USDC experience for now (to swap memecoins...please use Pera app, Haystack app, etc)
 - Account detail screen
 - Passphrase management
 - Localization
@@ -97,48 +97,76 @@ timeline
             : ✅ Testing - Setup unit test coverage and screenshot testing foundation infrastructure
             : ✅ Onboarding - ECC Passkeys & Testnet Liquid Auth (Android)
 
-    section In Progress 🔄
     2026Q1  : ✅ Onboarding - ECC Passkeys & Liquid Auth (iOS)
-            : ✅ Transaction - Integrate new algokit-transact rust library (iOS)
-            : 🔄 Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
-            : 🔄 Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Testnet)
-            : 🔄 Android - Wallet SDK as a background service integration
-            : Onboarding - Add Liquid Auth Integration for xGov Website
-            : Onboarding - Integrate new algokit-crypto rust library (iOS/Android)
-            : Onboarding - Mainnet Liquid Auth (Android/iOS)
-            : Transaction - Opt-In / Opt-Out USDC QR flow
-            : Transaction - Send USDC using QR code flow (between accounts)
+            : ✅ Transaction - Integrate new algokit-transact rustFFI library (iOS)
+            : ✅ Android - Wallet SDK as a background service integration
+            : ✅ Onboarding - Upgrade Liquid Auth service to support PQ accounts (Web)
+            : ✅ Transaction - Opt-In / Opt-Out USDC QR flow
+            : ✅ Transaction - Send USDC using QR code flow (between accounts)
+            : ✅ Onboarding - Re-enable Use-Wallet Liquid Auth functionality (Non-Rekey Accounts)
+            : ✅ Onboarding - Add Liquid Auth PQ Account Integration for Lora (Txn Wizard)
+            : ✅ Onboarding - Add Liquid Auth PQ Account Integration for xGov Website (Subscribe to xGov)
+            : ✅ Onboarding - Add Liquid Auth Integration for Android<>Android Connections
 
-    section Future
-    2026Q2  : GitOps - Fix dependencies for new 16KB Android requirement
-            : Account Details - Send USDC in account detail (between accounts)
-            : Onboarding - Rekey flow
-            : Onboarding - Add Use Wallet Liquid Auth Integration for Lora (Dispenser)
-            : Onboarding - PQ Passkeys
-            : Onboarding - Multi-sig flow
-            : Onboarding - Ledger flow
-            : Add In Landscape (Tablet/Desktop) UI Support
-            : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
-            : TBD
-    2026Q3
-            : Research - React Native sample app that can use wallet-sdk (through bridging)
-            : Onboarding - Decentralized Identity
-            : Account Details - Asset Inbox
-            : Account Details - Swap
-            : Onboarding - Fun app animations
-            : TBD
+    2026Q2  : ✅ Transaction - Sign test transactions using Seed Vault in emulator app
+            : ✅ Seed Vault - Modify Seed Vault emulator to allow Algorand seeds (R&D prototype)
+            : ✅ Seed Vault - Integrate cross-chain (Solana & Algorand) account support for passkeys and liquid auth experience
+            : ✅ Design - Create app design system in Figma project
+            : ✅ Liquid Stream - Implement new Figma viewer/host screens and app modals
+            : ✅ Transaction - Upgrade to escrow smart contract manager for account micro-billing (Android)
+            : ✅ GitOps - Fix crypto dependencies for new 16KB Android requirement
+            : ✅ Account Details - Send USDC in account detail (between accounts)
+            : ✅ Onboarding - Add Liquid Stream Integration for Android<>iOS Connections
+            
+    2026Q3  : ✅ Transaction - Upgrade to escrow MPP session standard for micro-billing
+            : ✅ Liquid Stream - Refactor code to be more in common folder
+            : ✅ Android - Upgrade to AGP9 and KMP 2.4
+            : ✅ Onboarding - Create and integrate new algokit-core crypto and composer libraries
+            : ✅ Liquid Stream - Add in audio and muting functionality
+            : ✅ Onboarding - Add Falcon25 (non-lsig) wallet account and escrow session vault flow
+            : ✅ Settings - Add Fnet network support
+            : ✅ Liquid Stream - Add in chat and super-chat functionality
+            : ✅ Testing - Add debug host mode for liquid stream (with multiple bot viewers)
+            : ✅ Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand          
+             
+    section In Progress 🔄
+    2026Q4   
+             : 🔄 Seed Vault - Escrow Session Vault for Solana accounts
+             : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
+             : 🔄 Seed Vault - Create AOSP Service for Algorand Trusty applet
+             : Liquid Stream - Liquid Stream demo app (own repo)
+             : Research - React Native sample app talking to Trusty seed vault
+             : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
+             : Seed Vault - Integrate Use-Wallet v5 with chain-agnostic accounts
+             : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
+             : Liquid Stream - Improve bot commenting in demo mode
+
+    section Future 🔮
+    Backlog  : Liquid Stream - Website showing latest escrow session vault activity
+             : Onboarding - Rekey flow
+             : Onboarding - Liquid Auth (Rekeyed Accounts)
+             : Onboarding - Ledger flow
+             : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
+             : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
+             : Liquid Gossip mobile POC
+             : Liquid Stream - Switch to new Liquid-Auth-Core SDK
+             : Onboarding - PQ Passkeys
+             : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : TBD
+
 ```
 
 ## Project structure
 
 This repo has the following modules:
 
-- **composeDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) sample wallet app that demonstrates `wallet-sdk` usage.
-- **iosDemoApp**: The iOS app for `composeSampleApp`. Open this module in Xcode if needed.
+- **sharedDemoApp**: A [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform) shared demo module that demonstrates `wallet-sdk` usage across platforms. Shared UI, navigation, view models, common abstractions, and reusable Android `actual` implementations live here. Android-specific code in `sharedDemoApp/src/androidMain` should support shared APIs or reusable shared demo behavior.
+- **androidDemoApp**: The installable Android demo app shell. This module owns Android app entry points, manifest/package identity, app icons, Play/App Bundle configuration, and host-only Android wiring while depending on `sharedDemoApp` for reusable demo functionality.
+- **iosDemoApp**: The iOS demo app shell. Open this module in Xcode if needed; it consumes the Kotlin framework produced by `sharedDemoApp`.
 - **wallet-sdk-core**: The AlgoKit Wallet SDK core module - a headless wallet utils library built with [Kotlin Multiplatform](https://developer.android.com/kotlin/multiplatform). It provides foundational wallet functionality and is built on top of [AlgoKit-Core SDK](https://github.com/algorandfoundation/algokit-core), [Algo xHD Swift SDK](https://github.com/algorandfoundation/xHD-Wallet-API-swift), [Algo xHD Kotlin SDK](https://github.com/algorandfoundation/xHD-Wallet-API-kt), [Algo Java SDK](https://github.com/algorand/java-algorand-sdk), and [Algo Go SDK](https://github.com/perawallet/algorand-go-mobile-sdk).
 - **wallet-sdk-ui**: The AlgoKit Wallet SDK UI module - an embedded wallet utils library built with [Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform). This module extends wallet-sdk-core and provides ready-to-use UI components for developers who want an integrated wallet interface in their applications.
-- **wallet-sdk-service**: The AlgoKit Wallet SDK Service - an [Android Service](https://developer.android.com/develop/background-work/services) that provides a headless app that many android applications on the same device can share interact with same wallet-sdk-core wallet-sdk-ui instance (using AIDL).
-- **serviceDemoApp**: A secondary Android only (non-KMP) demo app to be able to test wallet-sdk-service functionality quickly.
+- **serviceDemoApp**: A secondary Android-only demo app that tests service functionality exposed through the shared demo/app integration.
+- **seedVaultDemoApp**: A dummy Android-only Seed Vault app with placeholder Compose screens in the Solana Seed Vault style (settings, seed details, authorized apps). It runs on fake in-memory data behind a `SeedVaultDataSource` interface, so the UI can be worked on without the Trusty applet.
 
 This project is developed using [Android Studio](https://developer.android.com/studio) (stable version) and the [Kotlin Multiplatform Plugin](https://plugins.jetbrains.com/plugin/14936-kotlin-multiplatform). As a mobile development project, it is primarily developed on macOS, support for Windows and Linux is quite limited.  We also follow the [KMP compatibility guide](https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-compatibility-guide.html).
 
@@ -233,6 +261,13 @@ erDiagram
         ByteArray public_key UK
         ByteArray encrypted_secret_key
     }
+    falcon_25 {
+        String algo_address PK
+        ByteArray public_key
+        ByteArray encrypted_private_key
+        ByteArray encrypted_entropy
+        ByteArray encrypted_seed
+    }
     hd_keys {
         String algo_address PK
         ByteArray public_key UK
@@ -251,16 +286,42 @@ erDiagram
     passkey_table {
         String credential_id PK
         Long site_id FK
-        String algo_address
+        String address
         String user_id
         String user_name
         String user_display_name
         Long last_used_time_ms
     }
+    seed_vault {
+        String public_key PK
+        String address
+        String chainId
+        String account_name
+    }
+    mpp_vouchers {
+        String channel_id_base64 PK
+        String session_id UK
+        String viewer_address UK
+        String viewer_public_key_base64
+        String signature_base64
+        Long total_amount_claimed_micro_usdc
+        String creator_address
+        Long block_number
+        String note
+    }
+    solana_linked_signer {
+        String owner_address PK,FK
+        String signer_address
+        ByteArray encrypted_private_seed
+        String source
+        String derivation_path
+        Long created_at_ms
+    }
     custom_hd_seed_info }|--|| hd_seeds : link
     hd_keys }|--|| hd_seeds : link
     falcon_24 }|--|| hd_seeds : link
     passkey_table }|--|| sites : link
+    solana_linked_signer |o--|| seed_vault : link
 ```
 
 ## Contributing
@@ -285,9 +346,19 @@ For QR code importing, you can use a tool like [Cyber Chef](https://gchq.github.
 algorand://ANUR5SYMURBFD3ELITINYNTHVAKKBCWJ7LGHJRPMQM3KQG25ENMIHYEBNY?type=keyreg
 ```
 
-### Asset Transfer (receiver address & amount in microAlgos)
+### Asset Opt-In (select account screen will pop up after scanning) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://?amount=0&asset=10458941
+```
+
+### Algo Transfer (receiver address & amount in microAlgos)
 ```
 algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer
+```
+
+### ASA Transfer (receiver address & amount in microAlgos) - USDC (testnet - 10458941, mainnet - 31566704)
+```
+algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&asset=10458941&note=1_ALGO_Transfer
 ```
 
 ### Liquid Auth (sample uri)

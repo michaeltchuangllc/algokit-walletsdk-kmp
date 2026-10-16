@@ -235,6 +235,8 @@ private fun PasskeyListItem(
         DetailsRow(localizedStringResource(Res.string.last_used), passkey.lastUsed)
         Spacer(modifier = Modifier.height(12.dp))
         DetailsRow(localizedStringResource(Res.string.username), passkey.username)
+        Spacer(modifier = Modifier.height(12.dp))
+        DetailsRow("Account Type", passkey.accountType)
     }
 }
 
@@ -287,6 +289,7 @@ fun PasskeysScreenContentPreview() {
                 domain = "liquid-auth.onrender.com",
                 lastUsed = "Today",
                 username = "kyle007",
+                accountType = "HD Account",
             ),
             PasskeysViewModel.Passkey(
                 credId = "credId123",
@@ -294,6 +297,7 @@ fun PasskeysScreenContentPreview() {
                 domain = "liquid-auth.onrender.com",
                 lastUsed = "5d ago",
                 username = "kyle007",
+                accountType = "SeedVault Account",
             ),
         )
     val fakeViewState = PasskeysViewModel.ViewState.Content(passkeys = fakePasskeys)

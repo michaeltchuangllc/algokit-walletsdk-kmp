@@ -20,7 +20,7 @@ class Falcon24MapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
         assertEquals(SEED_ID, result.seedId)
         assertTrue(result.publicKey.contentEquals(PUBLIC_KEY))
     }

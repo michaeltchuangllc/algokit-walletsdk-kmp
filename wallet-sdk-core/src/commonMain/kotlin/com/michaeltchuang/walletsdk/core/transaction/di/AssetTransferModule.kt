@@ -1,20 +1,21 @@
 package com.michaeltchuang.walletsdk.core.transaction.di
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.TransactionSignSigningHelper
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.TransactionSignManager
-import com.michaeltchuang.walletsdk.core.utils.TransactionSignSigningHelper
 import org.koin.dsl.module
 
 val assetTransferModule =
     module {
-        single { TransactionSignSigningHelper() }
-        single {
+        factory { TransactionSignSigningHelper() }
+        factory {
             TransactionSignManager(
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
-                get(),
+                getTransactionParams = get(),
+                signHelper = get(),
+                getFalcon24SecretKey = get(),
+                getFalcon25Seed = get(),
+                getAlgo25SecretKey = get(),
+                getHdSeed = get(),
+                getLocalAccount = get(),
             )
         }
     }

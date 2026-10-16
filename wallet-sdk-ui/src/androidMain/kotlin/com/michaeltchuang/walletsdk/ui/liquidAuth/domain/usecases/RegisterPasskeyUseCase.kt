@@ -1,13 +1,12 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases
 
 import android.net.Uri
-import android.util.Log
-import com.google.android.gms.fido.fido2.api.common.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.auth.Cookie
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage
-import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.toPublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.AttestationApiUseCase
-import com.michaeltchuang.walletsdk.ui.liquidAuth.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import okhttp3.Response
 import org.json.JSONObject
 
@@ -18,7 +17,7 @@ import org.json.JSONObject
  * 1. Extracting RP ID from origin
  * 2. Building attestation options
  * 3. Fetching attestation options from FIDO2 server
- * 4. Converting to PublicKeyCredentialCreationOptions
+ * 4. Preserving server JSON with the effective RP and discoverable-passkey requirements
  *
  * This separates the complex registration logic from the Activity
  */
@@ -34,7 +33,7 @@ class RegisterPasskeyUseCase(
      */
     sealed class Result {
         data class Success(
-            val pubKeyCredentialCreationOptions: PublicKeyCredentialCreationOptions,
+            val requestJson: String,
             val attestationApiResponse: String,
             val sessionId: String?,
         ) : Result()
@@ -63,12 +62,12 @@ class RegisterPasskeyUseCase(
         onSessionUpdate: (String?) -> Unit = {},
     ): Result {
         return try {
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "🔐 STARTING REGISTRATION PREPARATION")
-            Log.d(TAG, "Account: $algoAddress")
-            Log.d(TAG, "Origin: ${authMessage.origin}")
-            Log.d(TAG, "RequestID: ${authMessage.requestId}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("🔐 STARTING REGISTRATION PREPARATION", tag = TAG)
+            Napier.d("Account: $algoAddress", tag = TAG)
+            Napier.d("Origin: ${authMessage.origin}", tag = TAG)
+            Napier.d("RequestID: ${authMessage.requestId}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
             // Step 1: Extract RP ID from origin
             val rpId =
@@ -77,54 +76,53 @@ class RegisterPasskeyUseCase(
 
             // Step 2: Build attestation options
             val attestationOptions = buildAttestationOptions(algoAddress, rpId, options)
-            Log.d(TAG, "✅ Attestation options built")
+            Napier.d("✅ Attestation options built", tag = TAG)
 
             // Step 3: Fetch attestation options from FIDO2 server
-            Log.d(TAG, "========================================")
-            Log.d(TAG, "📡 FETCHING ATTESTATION OPTIONS")
-            Log.d(TAG, "URL: ${authMessage.origin}/attestation/request")
-            Log.d(TAG, "User-Agent: ${viewModel.userAgent}")
-            Log.d(TAG, "========================================")
+            Napier.d("========================================", tag = TAG)
+            Napier.d("📡 FETCHING ATTESTATION OPTIONS", tag = TAG)
+            Napier.d("URL: ${authMessage.origin}/attestation/request", tag = TAG)
+            Napier.d("User-Agent: ${viewModel.userAgent}", tag = TAG)
+            Napier.d("========================================", tag = TAG)
 
-            val response =
-                attestationApiUseCase.postAttestationOptions(
+            attestationApiUseCase
+                .postAttestationOptions(
                     authMessage.origin,
                     viewModel.userAgent,
                     attestationOptions,
-                )
+                ).use { response ->
+                    if (!response.isSuccessful) {
+                        Napier.e("Server error ${response.code}: ${response.message}", tag = TAG)
+                        return Result.Error("Server error ${response.code}: ${response.message}")
+                    }
 
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string() ?: "Unknown error"
-                Log.e(TAG, "Server error ${response.code}: ${response.message}")
-                return Result.Error("Server error ${response.code}: ${response.message}")
-            }
+                    val sessionId = extractSessionFromResponse(response)
+                    onSessionUpdate(sessionId)
 
-            val attestationApiResponse = response.peekBody(Long.MAX_VALUE).string()
-            Log.d(TAG, "✅ Attestation options received successfully")
+                    val requestOptions = JSONObject(response.body.string())
+                    requestOptions.getJSONObject("rp").put("id", rpId)
+                    val selection =
+                        if (requestOptions.has("authenticatorSelection")) {
+                            requestOptions.getJSONObject("authenticatorSelection")
+                        } else {
+                            JSONObject()
+                        }
+                    selection.put("residentKey", "required")
+                    selection.put("requireResidentKey", true)
+                    requestOptions.put("authenticatorSelection", selection)
 
-            // Step 4: Extract session cookie
-            val sessionId = extractSessionFromResponse(response)
-            onSessionUpdate(sessionId)
-
-            // Step 5: Convert to PublicKeyCredentialCreationOptions
-            val pubKeyCredentialCreationOptions =
-                response.body!!.toPublicKeyCredentialCreationOptions(
-                    overrideRpId = rpId,
-                )
-
-            Log.d(TAG, "✅ PublicKeyCredentialCreationOptions created")
-            Log.d(TAG, "RP ID: ${pubKeyCredentialCreationOptions.rp?.id}")
-            Log.d(TAG, "User: ${pubKeyCredentialCreationOptions.user?.name}")
-            Log.d(TAG, "Challenge length: ${pubKeyCredentialCreationOptions.challenge?.size}")
-            Log.d(TAG, "========================================")
-
-            Result.Success(
-                pubKeyCredentialCreationOptions = pubKeyCredentialCreationOptions,
-                attestationApiResponse = attestationApiResponse,
-                sessionId = sessionId,
-            )
+                    // Persist exactly the effective options passed to the credential provider.
+                    val requestJson = requestOptions.toString()
+                    Result.Success(
+                        requestJson = requestJson,
+                        attestationApiResponse = requestJson,
+                        sessionId = sessionId,
+                    )
+                }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Error during registration preparation", e)
+            Napier.e("Error during registration preparation", e, tag = TAG)
             Result.Error("Registration preparation failed: ${e.message}", e)
         }
     }
@@ -138,11 +136,11 @@ class RegisterPasskeyUseCase(
             val host = parsedUri.host
 
             if (host.isNullOrEmpty()) {
-                Log.e(TAG, "Failed to extract host from origin: $origin")
+                Napier.e("Failed to extract host from origin: $origin", tag = TAG)
                 return null
             }
 
-            Log.d(TAG, "Extracted RP ID: $host from origin: $origin")
+            Napier.d("Extracted RP ID: $host from origin: $origin", tag = TAG)
 
             // Warn about tunneling services
             if (host.contains("ngrok") ||
@@ -150,13 +148,15 @@ class RegisterPasskeyUseCase(
                 host.contains("127.0.0.1") ||
                 host.contains(".local")
             ) {
-                Log.w(TAG, "⚠️ Detected tunneling/local service: $host")
-                Log.w(TAG, "FIDO2 may have issues with tunneling services")
+                Napier.w("⚠️ Detected tunneling/local service: $host", tag = TAG)
+                Napier.w("FIDO2 may have issues with tunneling services", tag = TAG)
             }
 
             host
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse origin URL: $origin", e)
+            Napier.e("Failed to parse origin URL: $origin", e, tag = TAG)
             null
         }
     }
@@ -179,7 +179,8 @@ class RegisterPasskeyUseCase(
                 JSONObject().apply {
                     put("authenticatorAttachment", "platform")
                     put("userVerification", "required")
-                    put("requireResidentKey", false)
+                    put("residentKey", "required")
+                    put("requireResidentKey", true)
                 }
             put("authenticatorSelection", authenticatorSelection)
 
@@ -206,8 +207,10 @@ class RegisterPasskeyUseCase(
         try {
             val cookie = Cookie.fromResponse(response)
             cookie?.let { Cookie.getID(it) }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to extract session from response", e)
+            Napier.w("Failed to extract session from response", e, tag = TAG)
             null
         }
 }

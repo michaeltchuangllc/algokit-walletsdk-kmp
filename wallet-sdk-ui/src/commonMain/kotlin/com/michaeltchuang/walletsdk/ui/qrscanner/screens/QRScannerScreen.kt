@@ -49,11 +49,23 @@ fun QRCodeScannerScreen(
                 }
 
                 is QRScannerViewModel.ViewEvent.NavigateToSelectAccountScreen -> {
-                    // Navigate to SelectAccountScreen with receiver address and amount
+                    // Navigate to SelectAccountScreen with receiver address, amount, and note
+                    // URL encode to handle special characters that might break navigation parsing
+                    val note = it.assetTransfer.note ?: ""
+                    val encodedNote =
+                        note
+                            .replace("%", "%25")
+                            .replace("?", "%3F")
+                            .replace("&", "%26")
+                            .replace("=", "%3D")
+                            .replace("#", "%23")
+                            .replace(" ", "%20")
                     navController.navigate(
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                            "?receiver=${it.assetTransfer.receiverAccountAddress}" +
-                            "&amount=${it.assetTransfer.amount}",
+                            "?assetId=${it.assetTransfer.assetId}" +
+                            "&receiver=${it.assetTransfer.receiverAccountAddress}" +
+                            "&amount=${it.assetTransfer.amount}" +
+                            "&note=$encodedNote",
                     )
                 }
 
@@ -68,10 +80,12 @@ fun QRCodeScannerScreen(
                         onQrScanned(it.accountAddress.address)
                     }
                 }
+
                 is QRScannerViewModel.ViewEvent.NavigateToFidoDeepLink -> {
                     closeSheet()
                     launchFidoDeepLink.value = it.uri
                 }
+
                 is QRScannerViewModel.ViewEvent.NavigateToLiquidAuthScreen -> {
                     // URL encode special characters that confuse navigation parsing
                     // The navigation argument parser uses ? and & to parse, so we must encode these
@@ -88,10 +102,6 @@ fun QRCodeScannerScreen(
                     println("   Encoded URI: $encodedUri")
 
                     navController.navigate(AlgoKitScreens.LIQUID_AUTH_SCREEN.name + "?uri=$encodedUri")
-                }
-
-                is QRScannerViewModel.ViewEvent.ShowLiquidAuthMainnetNotSupported -> {
-                    onQrScanned("Liquid Auth on Mainnet is not supported yet")
                 }
 
                 is QRScannerViewModel.ViewEvent.ShowUnrecognizedDeeplink -> {
@@ -124,7 +134,7 @@ fun QRCodeScannerScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     hasProcessedResult: Boolean = false,
     onQrCodeScanned: (String) -> Unit = {},

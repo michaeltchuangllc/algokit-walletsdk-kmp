@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.signing.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,9 +15,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -41,39 +44,83 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun SelectAccountScreen(
     navController: NavController,
+    assetId: Long = -7L,
     receiverAddress: String,
     amount: String,
+    note: String,
 ) {
     val viewModel: SelectAccountViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
 
-    LaunchedEffect(receiverAddress, amount) {
-        viewModel.setup(receiverAddress, amount)
+    LaunchedEffect(receiverAddress, amount, note) {
+        viewModel.setup(receiverAddress, assetId, amount, note)
     }
 
     LaunchedEffect(events.value) {
         events.value?.let { event ->
             when (event) {
                 is SelectAccountViewModel.ViewEvent.NavigateToAssetTransfer -> {
-                    navController.navigate(
-                        AlgoKitScreens.SEND_ALGO_SCREEN.name +
-                            "?senderAddress=${event.senderAddress}" +
-                            "&receiverAddress=${event.receiverAddress}" +
-                            "&amount=${event.amount}",
-                    ) {
-                        popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
-                            inclusive = true
+                    val shouldSkipToConfirm =
+                        event.receiverAddress.isNotBlank() &&
+                            event.amount.isNotBlank() &&
+                            event.amount != "0" &&
+                            event.amount != "0.00"
+
+                    // URL encode note to handle special characters
+                    val encodedNote =
+                        event.note
+                            .replace("%", "%25")
+                            .replace("?", "%3F")
+                            .replace("&", "%26")
+                            .replace("=", "%3D")
+                            .replace("#", "%23")
+                            .replace(" ", "%20")
+
+                    if (shouldSkipToConfirm) {
+                        // Skip to confirm screen when receiver and amount are provided via deeplink
+                        navController.navigate(
+                            AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
+                                "?sender=${event.senderAddress}" +
+                                "&receiver=${event.receiverAddress}" +
+                                "&assetId=${event.assetId}" +
+                                "&amount=${event.amount}" +
+                                "&note=$encodedNote",
+                        ) {
+                            popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
+                                inclusive = true
+                            }
+                        }
+                    } else {
+                        // Normal flow - go to send asset screen to enter amount
+
+                        if (receiverAddress.isEmpty()) {
+                            navController.navigate(
+                                AlgoKitScreens.ADD_ASSET_SCREEN.name +
+                                    "?assetId=$assetId" +
+                                    "&accountAddress=${event.senderAddress}",
+                            )
+                        } else {
+                            navController.navigate(
+                                AlgoKitScreens.SEND_ASSET_SCREEN.name +
+                                    "?sender=${event.senderAddress}" +
+                                    "&receiver=${event.receiverAddress}" +
+                                    "&assetId=${event.assetId}" +
+                                    "&amount=${event.amount}" +
+                                    "&note=$encodedNote",
+                            ) {
+                                popUpTo(AlgoKitScreens.QR_CODE_SCANNER_SCREEN.name) {
+                                    inclusive = true
+                                }
+                            }
                         }
                     }
                 }
-
                 is SelectAccountViewModel.ViewEvent.ShowError -> {
                     // Error is already shown in the UI
                 }
@@ -90,7 +137,6 @@ fun SelectAccountScreen(
     )
 }
 
-@Preview()
 @Composable
 fun ScreenContent(
     viewState: SelectAccountViewModel.AccountsState,
@@ -244,12 +290,22 @@ private fun AccountItem(
             Column(
                 horizontalAlignment = Alignment.End,
             ) {
-                Text(
-                    text = "\u00A6${account.balance?.formatAmount() ?: "0.00"}",
-                    fontSize = 16.sp,
-                    style = typography.footnote.sansMedium,
-                    color = AlgoKitTheme.colors.textMain,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                            contentDescription = "Solana",
+                            modifier = Modifier.size(14.dp),
+                            tint = Color.Unspecified,
+                        )
+                    }
+                    Text(
+                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                    )
+                }
             }
         }
     }
@@ -266,6 +322,14 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.HdKey -> "HD Account"
         is AccountRegistrationType.Algo25 -> "Algo25"
         is AccountRegistrationType.Falcon24 -> "Falcon24"
+        is AccountRegistrationType.Falcon25 -> "Falcon25"
         is AccountRegistrationType.NoAuth -> "Watch"
         is AccountRegistrationType.LedgerBle -> "Ledger"
+        is AccountRegistrationType.SeedVault -> "SeedVault"
+    }
+
+private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.SeedVault -> ""
+        else -> "\u00A6"
     }

@@ -4,6 +4,7 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.app_preferences
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.get_help
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.github_repository
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_code
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_feedback
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_localization
@@ -47,6 +48,7 @@ import androidx.navigation.compose.rememberNavController
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.BuildInfo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -136,6 +138,11 @@ fun SettingsScreen(navController: NavController) {
             Res.drawable.ic_text_document,
             localizedStringResource(Res.string.terms_and_services),
             WalletSdkConstants.TERMS_AND_SERVICES_URL,
+        )
+        SettingsWebviewItem(
+            Res.drawable.ic_text_document,
+            localizedStringResource(Res.string.github_repository),
+            REPO_URL,
         )
         SettingsItem(
             Res.drawable.ic_code,

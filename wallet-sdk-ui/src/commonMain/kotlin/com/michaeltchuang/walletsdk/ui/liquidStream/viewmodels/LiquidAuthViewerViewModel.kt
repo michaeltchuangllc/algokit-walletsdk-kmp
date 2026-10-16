@@ -1,0 +1,281 @@
+package com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
+import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
+import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.network.usecase.GetNfdProfileForAddress
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ChatUiMessage
+import com.michaeltchuang.walletsdk.ui.liquidStream.domain.model.ViewerVaultProgress
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_BLOCK_TAB_ID
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.launch
+
+class LiquidAuthViewerViewModel(
+    private val getNfdProfileForAddress: GetNfdProfileForAddress,
+    private val stateDelegate: StateDelegate<UiState>,
+    private val eventDelegate: EventDelegate<ViewEvent>,
+    private val getCurrentNetworkUseCase: GetCurrentNetworkUseCase,
+) : ViewModel(),
+    StateViewModel<LiquidAuthViewerViewModel.UiState> by stateDelegate,
+    EventViewModel<LiquidAuthViewerViewModel.ViewEvent> by eventDelegate {
+    init {
+        stateDelegate.setDefaultState(UiState())
+        observeNetwork()
+    }
+
+    fun loadCreatorNfdProfile(address: String) {
+        if (address.isBlank()) return
+        stateDelegate.updateState { it.copy(creatorAddress = address) }
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                stateDelegate.updateState {
+                    it.copy(
+                        creatorAddress = address,
+                        creatorNfdName = nfdProfile?.name,
+                        creatorNfdAvatarUrl = nfdProfile?.avatarUrl,
+                    )
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch creator NFD profile for $address", e, tag = "LiquidAuthViewerVM")
+            }
+        }
+    }
+
+    fun loadViewerNfdProfile(address: String) {
+        if (address.isBlank() || address == "-") return
+        stateDelegate.updateState { it.copy(viewerAddress = address) }
+        viewModelScope.launch {
+            try {
+                val nfdProfile = getNfdProfileForAddress(address)
+                if (nfdProfile?.name != null) {
+                    stateDelegate.updateState {
+                        it.copy(
+                            viewerAddress = address,
+                            viewerNfdName = nfdProfile.name,
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Napier.e("Failed to fetch viewer NFD profile for $address", e, tag = "LiquidAuthViewerVM")
+            }
+        }
+    }
+
+    fun onSettingsClicked() {
+        stateDelegate.updateState {
+            it.copy(
+                showViewerSettingsSheet = true,
+                showAnalyticsModal = false,
+            )
+        }
+    }
+
+    fun onViewerSettingsDismissed() {
+        stateDelegate.updateState { it.copy(showViewerSettingsSheet = false) }
+    }
+
+    fun onTopUpClicked() {
+        stateDelegate.updateState { it.copy(showTopUpSheet = true) }
+    }
+
+    fun onTopUpDismissed() {
+        stateDelegate.updateState { it.copy(showTopUpSheet = false) }
+    }
+
+    fun onGiftSupportClicked() {
+        stateDelegate.updateState { it.copy(showGiftSupportSheet = true) }
+    }
+
+    fun onGiftSupportDismissed() {
+        stateDelegate.updateState { it.copy(showGiftSupportSheet = false) }
+    }
+
+    fun onGiftAmountSelected(amount: String) {
+        stateDelegate.updateState { it.copy(giftAmountTag = amount) }
+    }
+
+    fun onGiftConfirm(
+        amount: String,
+        availableBalance: Double = Double.MAX_VALUE,
+    ) {
+        val giftAmount = amount.toDoubleOrNull()?.takeIf { it > 0.0 }
+        if (giftAmount == null) {
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Please enter a valid gift amount"))
+            return
+        }
+        if (giftAmount > availableBalance) {
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Insufficient balance for gift"))
+            return
+        }
+
+        stateDelegate.updateState {
+            it.copy(
+                giftAmountTag = amount,
+                showGiftSupportSheet = false,
+            )
+        }
+        val messageText =
+            state.value.message
+                .trim()
+                .ifEmpty { "Gift Support" }
+        eventDelegate.sendEvent(
+            viewModelScope,
+            ViewEvent.SendMessage(
+                message = messageText,
+                amount = amount,
+                asset = "USDC",
+            ),
+        )
+        stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
+    }
+
+    fun onAnalyticsClicked() {
+        stateDelegate.updateState { it.copy(showAnalyticsModal = !it.showAnalyticsModal) }
+    }
+
+    fun onAnalyticsDismissed() {
+        stateDelegate.updateState { it.copy(showAnalyticsModal = false) }
+    }
+
+    fun onPayoutFrequencyTabSelected(tabId: String) {
+        stateDelegate.updateState { it.copy(selectedPayoutFrequencyTabId = tabId) }
+    }
+
+    fun updateVaultProgress(
+        sessionId: String,
+        remainingUsdc: Double,
+    ) {
+        stateDelegate.updateState {
+            it.copy(vaultProgress = it.vaultProgress.update(sessionId, remainingUsdc))
+        }
+    }
+
+    fun updateVaultProgress(
+        sessionId: String,
+        snapshot: com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.SessionProgressSnapshot,
+    ) {
+        stateDelegate.updateState {
+            it.copy(vaultProgress = it.vaultProgress.update(sessionId, snapshot))
+        }
+    }
+
+    fun onWillingToBeRelayerChanged(enabled: Boolean) {
+        stateDelegate.updateState { it.copy(willingToBeRelayerEnabled = enabled) }
+    }
+
+    fun onMessageChanged(message: String) {
+        stateDelegate.updateState { it.copy(message = message) }
+    }
+
+    fun onSendClicked() {
+        val messageText = state.value.message.trim()
+        val giftAmount =
+            state.value.giftAmountTag
+                .toDoubleOrNull()
+                ?.takeIf { it > 0.0 }
+
+        if (messageText.isEmpty() && giftAmount == null) {
+            stateDelegate.updateState { it.copy(giftAmountTag = ZERO_GIFT_AMOUNT) }
+            eventDelegate.sendEvent(viewModelScope, ViewEvent.ShowError("Message cannot be empty"))
+            return
+        }
+
+        val text = messageText.ifEmpty { "Gift Support" }
+        val amountStr = giftAmount?.let { state.value.giftAmountTag }
+        val assetStr = if (amountStr != null) "USDC" else null
+
+        eventDelegate.sendEvent(
+            viewModelScope,
+            ViewEvent.SendMessage(
+                message = text,
+                amount = amountStr,
+                asset = assetStr,
+            ),
+        )
+        stateDelegate.updateState { it.copy(message = "", giftAmountTag = ZERO_GIFT_AMOUNT) }
+    }
+
+    fun receivedChatMessage(message: ChatMessage) {
+        stateDelegate.updateState { currentState ->
+            val isCreator =
+                (currentState.creatorAddress.isNotBlank() && message.sender == currentState.creatorAddress) ||
+                    (!currentState.creatorNfdName.isNullOrBlank() && message.sender == currentState.creatorNfdName) ||
+                    message.sender.contains("host", ignoreCase = true) ||
+                    message.sender.contains("creator", ignoreCase = true)
+            val isLocalUser =
+                (currentState.viewerAddress.isNotBlank() && message.sender == currentState.viewerAddress) ||
+                    (!currentState.viewerNfdName.isNullOrBlank() && message.sender == currentState.viewerNfdName) ||
+                    message.sender.equals("You", ignoreCase = true)
+
+            currentState.copy(
+                chatMessages =
+                    currentState.chatMessages +
+                        ChatUiMessage(
+                            sender = message.sender,
+                            text = message.text,
+                            timestamp = message.timestamp,
+                            isCreator = isCreator,
+                            isLocalUser = isLocalUser,
+                            amount = message.amount,
+                            asset = message.asset,
+                        ),
+            )
+        }
+    }
+
+    private fun observeNetwork() {
+        viewModelScope.launch {
+            getCurrentNetworkUseCase().collect { network ->
+                stateDelegate.updateState { it.copy(network = network) }
+            }
+        }
+    }
+
+    data class UiState(
+        val creatorAddress: String = "",
+        val viewerAddress: String = "",
+        val showAnalyticsModal: Boolean = false,
+        val showViewerSettingsSheet: Boolean = false,
+        val showTopUpSheet: Boolean = false,
+        val showGiftSupportSheet: Boolean = false,
+        val giftAmountTag: String = ZERO_GIFT_AMOUNT,
+        val selectedPayoutFrequencyTabId: String = PAYOUT_EVERY_BLOCK_TAB_ID,
+        val vaultProgress: ViewerVaultProgress = ViewerVaultProgress(),
+        val willingToBeRelayerEnabled: Boolean = false,
+        val message: String = "",
+        val realTimeRate: String = "0.42",
+        val streamRevenue: String = "+1.402.15",
+        val blockNumberLabel: String = "#--------",
+        val network: AlgorandNetwork = AlgorandNetwork.TESTNET,
+        val chatMessages: List<ChatUiMessage> = emptyList(),
+        val creatorNfdName: String? = null,
+        val creatorNfdAvatarUrl: String? = null,
+        val viewerNfdName: String? = null,
+    ) {
+        val networkLabel: String
+            get() = network.name
+    }
+
+    companion object {
+        private const val ZERO_GIFT_AMOUNT = "0.00"
+    }
+
+    sealed interface ViewEvent {
+        data class SendMessage(
+            val message: String,
+            val amount: String? = null,
+            val asset: String? = null,
+        ) : ViewEvent
+
+        data class ShowError(
+            val message: String,
+        ) : ViewEvent
+    }
+}

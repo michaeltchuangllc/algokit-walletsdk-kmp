@@ -2,8 +2,6 @@ package com.michaeltchuang.walletsdk.core.encryption.di
 
 import android.content.Context
 import android.content.SharedPreferences
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
 import com.michaeltchuang.walletsdk.core.encryption.data.manager.Base64ManagerImpl
 import com.michaeltchuang.walletsdk.core.encryption.data.repository.StrongBoxRepositoryImpl
 import com.michaeltchuang.walletsdk.core.encryption.domain.manager.AESPlatformManager
@@ -17,6 +15,7 @@ import com.michaeltchuang.walletsdk.core.encryption.domain.usecase.GetStrongBoxU
 import com.michaeltchuang.walletsdk.core.encryption.domain.usecase.SaveStrongBoxUsedCheck
 import com.michaeltchuang.walletsdk.core.foundation.cache.PersistentCacheProvider
 import com.michaeltchuang.walletsdk.core.foundation.cache.PersistentCacheProviderImpl
+import kotlinx.serialization.builtins.serializer
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.module
 
@@ -29,14 +28,9 @@ val encryptionModule =
             androidContext().getSharedPreferences(SETTINGS, Context.MODE_PRIVATE)
         }
 
-        single<Gson> {
-            GsonBuilder().create()
-        }
-
         single {
             PersistentCacheProviderImpl(
                 sharedPreferences = get(),
-                gson = get(),
             )
         }
 
@@ -50,7 +44,7 @@ val encryptionModule =
             StrongBoxRepositoryImpl(
                 strongBoxUsedStorage =
                     get<PersistentCacheProvider>()
-                        .getPersistentCache(Boolean::class.java, key = "strongbox_used"),
+                        .getPersistentCache(Boolean.serializer(), key = "strongbox_used"),
             )
         }
 

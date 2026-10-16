@@ -19,7 +19,7 @@ suspend fun AccountInformationApiService.getBasicAccountInformation(address: Str
 suspend fun AccountInformationApiService.getAccountBalance(address: String): ApiResult<AccountInformationResponse> =
     getAccountInformation(
         address = address,
-        excludes = "apps-local-state,created-apps,assets,created-assets,participation",
+        excludes = "apps-local-state,created-apps,created-assets",
     )
 
 /**

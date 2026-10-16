@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 internal class Falcon24MapperImpl : Falcon24Mapper {
     override fun invoke(entity: Falcon24Entity): LocalAccount.Falcon24 =
         LocalAccount.Falcon24(
-            algoAddress = entity.algoAddress,
+            address = entity.algoAddress,
             seedId = entity.seedId,
             publicKey = entity.publicKey,
         )

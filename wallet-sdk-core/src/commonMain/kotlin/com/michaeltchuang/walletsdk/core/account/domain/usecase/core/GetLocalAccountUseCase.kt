@@ -7,5 +7,5 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAc
 internal class GetLocalAccountUseCase(
     private val getLocalAccounts: GetLocalAccounts,
 ) : GetLocalAccount {
-    override suspend fun invoke(address: String): LocalAccount? = getLocalAccounts().firstOrNull { it.algoAddress == address }
+    override suspend fun invoke(address: String): LocalAccount? = getLocalAccounts().firstOrNull { it.address == address }
 }

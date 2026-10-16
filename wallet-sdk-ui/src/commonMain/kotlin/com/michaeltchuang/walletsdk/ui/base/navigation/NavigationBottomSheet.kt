@@ -14,25 +14,35 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.savedstate.SavedState
+import androidx.savedstate.read
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSendSolScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSessionKeyScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreen
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.webview.AlgoKitWebViewPlatformScreen
@@ -42,24 +52,31 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.AddressNamingScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateAccountNameScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.CreateWatchAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.Falcon24WalletSelectionScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.FalconRecoveryMnemonicTypeScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.ImportSeedVaultAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingAccountTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.EscrowSessionVaultDebugToolScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.GithubRepoScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.HdWalletSelectionScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.LanguageScreen
+import com.michaeltchuang.walletsdk.ui.settings.screens.LiquidStreamHostDebugToolScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.NodeSettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.PasskeysScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.SettingsScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.ThemeScreen
+import com.michaeltchuang.walletsdk.ui.signing.screens.AddAssetScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.AssetTransferConfirmScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.ConfirmTransactionRequestScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SelectAccountScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreen
-import com.michaeltchuang.walletsdk.ui.signing.screens.SendAlgoScreen
+import com.michaeltchuang.walletsdk.ui.signing.screens.SendAssetScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreen
 import kotlinx.coroutines.async
@@ -81,6 +98,7 @@ enum class AlgoKitScreens {
     QR_CODE_SCANNER_SCREEN,
     QR_CODE_SCREEN,
     RECOVER_AN_ACCOUNT_SCREEN,
+    FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN,
     RECOVER_PHRASE_SCREEN,
     RECOVER_REGISTERED_ACCOUNTS_SCREEN,
     SETTINGS_SCREEN,
@@ -97,12 +115,20 @@ enum class AlgoKitScreens {
     FALCON24_WALLET_SELECTION_SCREEN,
     ASSET_TRANSFER_SCREEN,
     SELECT_ACCOUNT_SCREEN,
-    SEND_ALGO_SCREEN,
+    SEND_ASSET_SCREEN,
     SELECT_RECEIVER_SCREEN,
     TRANSACTING_TIPS_SCREEN,
     ADDRESS_NAMING_SCREEN,
     PASSKEYS_SCREEN,
     LIQUID_AUTH_SCREEN,
+    ADD_ASSET_SCREEN,
+    SELECT_SEED_SCREEN,
+    IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
+    ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
+    LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
+    GITHUB_REPO_SCREEN,
+    SOLANA_SESSION_KEY_SCREEN,
+    SOLANA_SEND_SOL_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,19 +137,35 @@ fun OnBoardingBottomSheet(
     accounts: Int,
     initialScreen: AlgoKitScreens? = null,
     address: String? = null,
+    screensToBlockDismissal: List<AlgoKitScreens> = emptyList(),
     onAccountDeleted: () -> Unit,
     onAlgoKitEvent: (event: AlgoKitEvent) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var canDismiss by remember { mutableStateOf(false) }
+    var currentScreen by remember { mutableStateOf<String?>(null) }
+    val isDismissBlocked =
+        screensToBlockDismissal.any {
+            currentScreen?.startsWith(it.name) == true
+        }
+
+    val sheetState =
+        rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { targetValue ->
+                targetValue != SheetValue.Hidden || !isDismissBlocked || canDismiss
+            },
+        )
     ModalBottomSheet(
         onDismissRequest = {
-            scope.launch {
-                scope
-                    .async {
-                        sheetState.hide()
-                    }.await()
-                onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
+            if (canDismiss || !isDismissBlocked) {
+                scope.launch {
+                    scope
+                        .async {
+                            sheetState.hide()
+                        }.await()
+                    onAlgoKitEvent(AlgoKitEvent.CLOSE_BOTTOMSHEET)
+                }
             }
         },
         sheetState = sheetState,
@@ -134,11 +176,13 @@ fun OnBoardingBottomSheet(
         NavigationBottomSheetNavHost(
             startDestination = startDestination(accounts, initialScreen),
             address = address,
+            onScreenChanged = { currentScreen = it },
             onAccountDeleted = {
                 onAccountDeleted()
             },
             closeSheet = {
                 scope.launch {
+                    canDismiss = true
                     scope
                         .async {
                             sheetState.hide()
@@ -156,6 +200,7 @@ fun OnBoardingBottomSheet(
 fun NavigationBottomSheetNavHost(
     startDestination: String = AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN.name,
     address: String?,
+    onScreenChanged: (String?) -> Unit,
     closeSheet: () -> Unit,
     onAccountDeleted: () -> Unit,
     onFinish: () -> Unit,
@@ -163,9 +208,16 @@ fun NavigationBottomSheetNavHost(
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
     val navController = rememberNavController()
+    val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentScreen = navBackStackEntry?.destination?.route
+    val heightFraction = getBottomSheetHeightFraction(currentScreen)
+
+    LaunchedEffect(navBackStackEntry) {
+        onScreenChanged(currentScreen)
+    }
 
     Scaffold(
-        modifier = Modifier.fillMaxHeight(.9f),
+        modifier = Modifier.fillMaxHeight(heightFraction),
         containerColor = AlgoKitTheme.colors.background,
         snackbarHost = {
             SnackbarHost(
@@ -253,7 +305,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val scannedAddress = backStackEntry.arguments?.getString("scannedAddress")
+                    val scannedAddress = backStackEntry.arguments.stringArgument("scannedAddress")
                     CreateWatchAccountScreen(
                         navController = navController,
                         showSnackBar = { message ->
@@ -285,7 +337,7 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val isForWatchAccount =
-                        backStackEntry.arguments?.getBoolean("isForWatchAccount") ?: false
+                        backStackEntry.arguments.booleanArgument("isForWatchAccount", false)
                     QRCodeScannerScreen(
                         navController = navController,
                         onQrScanned = {
@@ -308,6 +360,9 @@ fun NavigationBottomSheetNavHost(
                         )
                     }
                 }
+                composable(route = AlgoKitScreens.FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN.name) {
+                    FalconRecoveryMnemonicTypeScreen(navController = navController)
+                }
                 composable(
                     route = AlgoKitScreens.RECOVER_PHRASE_SCREEN.name + "/{accountType}?mnemonic={mnemonic}",
                     arguments =
@@ -323,21 +378,25 @@ fun NavigationBottomSheetNavHost(
                         ),
                 ) { backStackEntry ->
                     val accountTypeString =
-                        backStackEntry.arguments?.getString("accountType", "falcon24")
-                    val scannedMnemonic = backStackEntry.arguments?.getString("mnemonic", "") ?: ""
+                        backStackEntry.arguments.stringArgument("accountType", "falcon24")
+                    val scannedMnemonic =
+                        backStackEntry.arguments.stringArgument("mnemonic", "") ?: ""
 
                     val accountType =
                         when {
                             scannedMnemonic.isNotEmpty() -> {
                                 val wordCount = scannedMnemonic.trim().split("\\s+".toRegex()).size
                                 when (wordCount) {
-                                    25 -> AccountMnemonic.AccountType.Algo25
-                                    else -> AccountMnemonic.AccountType.Falcon24 // 24 words default
+                                    25 -> AccountMnemonic.AccountType.Falcon25
+                                    24 -> AccountMnemonic.AccountType.Falcon24
+                                    else -> AccountMnemonic.AccountType.Falcon24
                                 }
                             }
 
                             accountTypeString == "algo25" -> AccountMnemonic.AccountType.Algo25
                             accountTypeString == "hdkey" -> AccountMnemonic.AccountType.HdKey
+                            accountTypeString == "falcon24" -> AccountMnemonic.AccountType.Falcon24
+                            accountTypeString == "falcon25" -> AccountMnemonic.AccountType.Falcon25
                             else -> AccountMnemonic.AccountType.Falcon24
                         }
 
@@ -383,7 +442,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) {
-                    val transactionId = it.arguments?.getString("transactionId")
+                    val transactionId = it.arguments.stringArgument("transactionId")
                     transactionId?.let {
                         TransactionSuccessScreen(transactionId = it) {
                             closeSheet()
@@ -434,7 +493,9 @@ fun NavigationBottomSheetNavHost(
                     }
                 }
                 composable(
-                    route = AlgoKitScreens.ASSET_TRANSFER_SCREEN.name + "?sender={sender}&receiver={receiver}&amount={amount}&note={note}",
+                    route =
+                        AlgoKitScreens.ASSET_TRANSFER_SCREEN.name +
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -457,24 +518,39 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = "0" // in microalgos big integer
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
-                    val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
-                    val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val receiver = backStackEntry.arguments.stringArgument("receiver") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
                     AssetTransferConfirmScreen(
                         navController = navController,
                         senderAddress = sender,
                         receiverAddress = receiver,
+                        assetId = assetId,
                         note = note,
                         amount = amount,
+                        closeSheet = closeSheet,
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name + "?receiver={receiver}&amount={amount}",
+                    route =
+                        AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
+                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
                     arguments =
                         listOf(
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                             navArgument("receiver") {
                                 type = NavType.StringType
                                 nullable = false
@@ -485,19 +561,30 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = "0" // in microalgos big integer
                             },
+                            navArgument("note") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
                         ),
                 ) { backStackEntry ->
-                    val receiver = backStackEntry.arguments?.getString("receiver") ?: ""
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
+                    val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
+                    val receiver = backStackEntry.arguments.stringArgument("receiver") ?: ""
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
 
                     SelectAccountScreen(
                         navController = navController,
+                        assetId = assetId,
                         receiverAddress = receiver,
                         amount = amount,
+                        note = note,
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SEND_ALGO_SCREEN.name + "?sender={sender}",
+                    route =
+                        AlgoKitScreens.SEND_ASSET_SCREEN.name +
+                            "?sender={sender}&receiver={receiver}&assetId={assetId}&amount={amount}&note={note}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -510,17 +597,34 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = ""
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
+                            navArgument("amount") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                            navArgument("note") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
 
-                    SendAlgoScreen(
+                    SendAssetScreen(
                         navController = navController,
                         senderAddress = sender,
+                        assetId = assetId,
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}",
+                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}&assetId={assetId}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -538,16 +642,23 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = ""
                             },
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = -7L
+                            },
                         ),
                 ) { backStackEntry ->
-                    val sender = backStackEntry.arguments?.getString("sender") ?: ""
-                    val amount = backStackEntry.arguments?.getString("amount") ?: "0.00"
-                    val note = backStackEntry.arguments?.getString("note") ?: ""
+                    val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
+                    val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
+                    val note = backStackEntry.arguments.stringArgument("note") ?: ""
+                    val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
                     SelectReceiverScreen(
                         navController = navController,
                         amount = amount,
                         note = note,
                         senderAddress = sender,
+                        assetId = assetId,
                     )
                 }
                 composable(route = AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) {
@@ -580,7 +691,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val address = backStackEntry.arguments?.getString("address") ?: ""
+                    val address = backStackEntry.arguments.stringArgument("address") ?: ""
                     AddressNamingScreen(
                         navController,
                         address,
@@ -608,13 +719,143 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val uri = backStackEntry.arguments?.getString("uri")
-                    LiquidAuthScreen(navController = navController, uri = uri)
+                    val uri = backStackEntry.arguments.stringArgument("uri")
+                    LiquidAuthScreen(
+                        navController = navController,
+                        uri = uri,
+                        showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        },
+                        closeSheet = { closeSheet() },
+                    )
+                }
+                composable(
+                    route = AlgoKitScreens.ADD_ASSET_SCREEN.name + "?assetId={assetId}&accountAddress={accountAddress}",
+                    arguments =
+                        listOf(
+                            navArgument("assetId") {
+                                type = NavType.LongType
+                                nullable = false
+                                defaultValue = 0L
+                            },
+                            navArgument("accountAddress") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
+                    val accountAddress =
+                        backStackEntry.arguments.stringArgument("accountAddress") ?: ""
+                    AddAssetScreen(
+                        navController = navController,
+                        assetId = assetId,
+                        accountAddress = accountAddress,
+                    )
+                }
+                composable(route = AlgoKitScreens.SELECT_SEED_SCREEN.name) {
+                    SelectSeedScreenPlatform(navController = navController)
+                }
+                composable(
+                    route = AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name + "?selectedSeedIds={selectedSeedIds}",
+                    arguments =
+                        listOf(
+                            navArgument("selectedSeedIds") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = null
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val selectedSeedIdsRaw =
+                        backStackEntry.arguments.stringArgument("selectedSeedIds")
+                    val selectedSeedIds =
+                        selectedSeedIdsRaw
+                            ?.split(",")
+                            ?.map { it.trim() }
+                            ?.filter { it.isNotEmpty() }
+                            ?.toSet()
+                            .orEmpty()
+                    ImportSeedVaultAccountsScreen(
+                        navController = navController,
+                        selectedSeedIds = selectedSeedIds,
+                        showSnackBar = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar(it)
+                            }
+                        },
+                        onAccountsImported = onFinish,
+                    )
+                }
+                composable(route = AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name) {
+                    EscrowSessionVaultDebugToolScreen(navController)
+                }
+                composable(route = AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name) {
+                    LiquidStreamHostDebugToolScreen(
+                        onMinimise = { navController.navigateUp() },
+                    )
+                }
+                composable(route = AlgoKitScreens.GITHUB_REPO_SCREEN.name) {
+                    GithubRepoScreen(navController)
+                }
+                composable(route = AlgoKitScreens.SOLANA_SESSION_KEY_SCREEN.name) {
+                    address?.let { addr ->
+                        SolanaSessionKeyScreen(
+                            address = addr,
+                            onBack = { navController.popBackStack() },
+                            showSnackBar = { message ->
+                                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
+                            onAddSol = { sessionKey ->
+                                navController.navigate("${AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name}?receiver=$sessionKey")
+                            },
+                        )
+                    }
+                }
+                composable(
+                    route = AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name + "?receiver={receiver}",
+                    arguments =
+                        listOf(
+                            navArgument("receiver") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                        ),
+                ) { backStackEntry ->
+                    address?.let { addr ->
+                        SolanaSendSolScreen(
+                            address = addr,
+                            prefillReceiver = backStackEntry.arguments.stringArgument("receiver"),
+                            onBack = { navController.popBackStack() },
+                            showSnackBar = { message ->
+                                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
+                        )
+                    }
                 }
             }
         }
     }
 }
+
+private fun SavedState?.stringArgument(
+    key: String,
+    defaultValue: String? = null,
+): String? = this?.read { getStringOrNull(key) } ?: defaultValue
+
+private fun SavedState?.longArgument(
+    key: String,
+    defaultValue: Long,
+): Long = this?.read { getLongOrNull(key) } ?: defaultValue
+
+private fun SavedState?.booleanArgument(
+    key: String,
+    defaultValue: Boolean,
+): Boolean = this?.read { getBooleanOrNull(key) } ?: defaultValue
 
 fun startDestination(
     accounts: Int,
@@ -624,4 +865,24 @@ fun startDestination(
         initialScreen != null -> initialScreen.name
         accounts == 0 -> AlgoKitScreens.INITIAL_REGISTER_INTRO_SCREEN.name
         else -> AlgoKitScreens.ON_BOARDING_ACCOUNT_TYPE_SCREEN.name
+    }
+
+/**
+ * Returns a list of screens that should block the swipe-to-dismiss gesture
+ * in the AlgoKit wallet bottom sheet.
+ */
+fun getScreensToBlockDismissal(): List<AlgoKitScreens> =
+    listOf(
+        AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
+        AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
+    )
+
+/**
+ * Returns the height fraction (0.0 to 1.0) for the bottom sheet
+ * based on the current screen.
+ */
+fun getBottomSheetHeightFraction(screenName: String?): Float =
+    when (screenName) {
+        AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name -> 1f
+        else -> 0.9f
     }

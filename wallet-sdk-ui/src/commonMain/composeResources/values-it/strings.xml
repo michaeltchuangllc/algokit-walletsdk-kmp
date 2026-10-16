@@ -215,6 +215,7 @@
     <string name="date">Data</string>
     <string name="copy">Copia</string>
     <string name="developer_settings">Impostazioni Sviluppatore</string>
+    <string name="escrow_session_vault_debug_tool">Strumento di debug per il Vault delle sessioni Escrow</string>
     <string name="localization_settings">Lingua</string>
     <string name="currency">Valuta</string>
     <string name="algorand_dispenser">Dispenser Algorand</string>
@@ -601,7 +602,7 @@
     <string name="create_a_new_wallet_desc">Crea un nuovo wallet Algorand con un nuovo indirizzo e recovery passphrase</string>
     <string name="create_a_new_algorand_account_with">Crea un nuovo account Algorand con un nuovo wallet e recovery passphrase</string>
     <string name="recover_an_account">Recupera un account</string>
-    <string name="i_want_to_recover">Voglio recuperare un account Algorand usando la mia passphrase di 24 parole</string>
+    <string name="i_want_to_recover">Voglio recuperare un account Algorand usando la mia frase di recupero di 24 o 25 parole</string>
     <string name="pair_ledger_device">Abbina dispositivo Ledger</string>
     <string name="operation_completed">Operazione completata</string>
     <string name="asset_transfer_completed">Trasferimento asset completato</string>
@@ -934,7 +935,7 @@
     <string name="this_is_the_fee_charged">Questa è la commissione addebitata dall\'exchange decentralizzato. Viene detratta automaticamente dall\'importo che invii e considerata nell\'importo minimo ricevuto. Non sarà un costo aggiuntivo.</string>
     <string name="we_encountered_an_unexpected">Abbiamo riscontrato un errore inatteso, riprova più tardi.</string>
     <string name="algo_balance_is_too_low">Il saldo di Algo è troppo basso. Il saldo minimo dovrebbe essere <annotation replacement="algo_icon">ALGO_ICON_PLACEHOLDER</annotation> <annotation replacement="min_balance">MIN_BALANCE_PLACEHOLDER</annotation></string>
-    <string name="discover">Scopri</string>
+    <string name="github_repository">Repository GitHub</string>
     <string name="search_for_any_asa_by">Cerca qualsiasi ASA per nome o ID</string>
     <string name="we_are_not_able_to_find">Non riusciamo a trovare questo asset. Riprova più tardi.</string>
     <string name="no_internet_connection">Nessuna Connessione Internet</string>
@@ -1359,9 +1360,14 @@
     <string name="download_started">Download avviato: ID %1$d</string>
     <string name="download_completed">Download completato: ID %1$d</string>
     <string name="you_dont_have_any">Non hai alcun account autorizzato corrispondente a %1$s</string>
-    <string name="mnemonic_type_falcon24_title">Falcon24</string>
+    <string name="mnemonic_type_falcon24_title">Falcon24Lsig</string>
     <string name="mnemonic_type_falcon24_description">Nuovo formato interoperabile che abilita importanti funzionalità come wallet e account resistenti post-quantistici</string>
-    <string name="mnemonic_type_falcon24_footer">Mnemonic a 24 chiavi</string>
+    <string name="mnemonic_type_falcon24_footer">24 parole</string>
+    <string name="falcon25_recovery_title">Falcon25</string>
+    <string name="falcon25_recovery_description">Formato di account post-quantistico protetto da Falcon25</string>
+    <string name="recovery_phrase_24_words">24 parole</string>
+    <string name="recovery_phrase_25_words">25 parole</string>
+    <string name="select_your_recovery_phrase_type">Seleziona il tipo di frase di recupero</string>
     <string name="mnemonic_type_universal_title">Universale</string>
     <string name="mnemonic_type_universal_description">Nuovo formato interoperabile che abilita importanti funzionalità come HD Wallet</string>
     <string name="mnemonic_type_universal_footer">Mnemonic a 24 chiavi</string>
@@ -1376,6 +1382,7 @@
     <string name="create_your_new_account_under">Crea il tuo nuovo account sotto un HD wallet che già possiedi</string>
     <string name="create_legacy_algo25_account">Crea un account Algo25 non post-quantico</string>
     <string name="create_legacy_hd_account">Crea un account Universal HD non post-quantico</string>
+    <string name="create_post_quantum_lsig_falcon24_account">Crea un account Falcon24 LSIG post-quantico</string>
     <string name="migration_viewer">Visualizzatore Migrazione</string>
     <string name="migration_troubleshooter">Risoluzione Problemi Migrazione</string>
     <string name="clear_new_accounts">Svuota Nuovi Account (Post v6)</string>
@@ -1475,15 +1482,21 @@
     <string name="account_type_hd">Account HD</string>
     <string name="account_type_algo25">Account Algo25</string>
     <string name="account_type_falcon24">Account Falcon24</string>
+    <string name="account_type_falcon25">Account Falcon25</string>
     <string name="account_type_watch">Account Osservato</string>
     <string name="account_type_ledger">Account Ledger</string>
+    <string name="account_type_seedvault">Account SeedVault</string>
 
     <string name="error_account_already_exists">Un account con questo indirizzo esiste già</string>
     <string name="error_invalid_algorand_address">Indirizzo Algorand non valido</string>
     <string name="error_failed_to_validate_watch_account">Impossibile convalidare l\'account di osservazione</string>
 
-    <string name="send_funds_to_another_account">Invia fondi a un altro account</string>
-    <string name="dispenser_add_funds_to_your_account">Dispenser - Aggiungi fondi al tuo account</string>
+    <string name="send_funds_to_another_account">Invia ALGO a un altro account</string>
+    <string name="send_usdc_to_another_account">Invia USDC a un altro account</string>
+    <string name="opt_into_usdc">Aderisci a USDC</string>
+    <string name="dispenser_add_algo_to_your_account">Dispenser - Aggiungi ALGO al tuo account</string>
+    <string name="dispenser_add_sol_to_your_account">Dispenser - Aggiungi SOL al tuo account</string>
+    <string name="dispenser_add_usdc_to_your_account">Dispenser - Aggiungi USDC al tuo account</string>
     <string name="send_algo">Invia ALGO</string>
 
     <string name="liquid_auth_header">Autenticazione Liquida</string>
@@ -1497,4 +1510,14 @@
     <string name="account_info">Informazioni Account</string>
     <string name="provider">Fornitore</string>
     <string name="close_popup">Chiudi popup</string>
+    <string name="asa_balance">Saldo ASA</string>
+
+    <!-- Liquid Stream QR Modal -->
+    <string name="stream_is_live">STREAM IN DIRETTA</string>
+    <string name="invite_viewers">Invita spettatori</string>
+    <string name="scan_qr_to_join_stream">Scansiona questo codice QR con un altro\ndispositivo per unirti a questo stream.</string>
+    <string name="session_id_label">ID SESSIONE:</string>
+    <string name="secured_by_algorand_testnet">Protetto da Algorand Testnet</string>
+    <string name="copy_session_id">Copia ID Sessione</string>
+    <string name="stream_qr_code">Codice QR Stream</string>
 </resources>

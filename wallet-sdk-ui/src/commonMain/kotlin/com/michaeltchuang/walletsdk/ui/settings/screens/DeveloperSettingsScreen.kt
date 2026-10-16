@@ -3,9 +3,13 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_algo25_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_legacy_hd_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.create_post_quantum_lsig_falcon24_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_session_vault_debug_tool
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_node
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_session_vault_inspect
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.liquid_stream_creator_debug_tool
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.node_settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -26,6 +31,7 @@ import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -37,6 +43,7 @@ fun DeveloperSettingsScreen(
     onClick: (message: String) -> Unit,
 ) {
     val viewModel: DeveloperSettingsViewModel = koinViewModel()
+    val coroutineScope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect {
             when (it) {
@@ -47,6 +54,7 @@ fun DeveloperSettingsScreen(
 
                 is DeveloperSettingsViewModel.ViewEvent.Error -> {
                     Log.d(TAG, it.message)
+                    onClick(it.message)
                 }
             }
         }
@@ -55,17 +63,21 @@ fun DeveloperSettingsScreen(
     ScreenContent(
         navController = navController,
         onCreateAlgoAccount = { viewModel.createAlgoAccount() },
-        onNavigateToNodeSettings = { navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name) },
-        onNavigateToHDWalletSelection = { navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name) },
+        onNavigateToDebugTool = {
+            coroutineScope.launch {
+                if (viewModel.checkBalancesAndNavigateToDebugTool()) {
+                    navController.navigate(AlgoKitScreens.LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN.name)
+                }
+            }
+        },
     )
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     onCreateAlgoAccount: () -> Unit = {},
-    onNavigateToNodeSettings: () -> Unit = {},
-    onNavigateToHDWalletSelection: () -> Unit = {},
+    onNavigateToDebugTool: () -> Unit = {},
 ) {
     Column(
         modifier =
@@ -84,7 +96,7 @@ internal fun ScreenContent(
             Res.drawable.ic_node,
             localizedStringResource(Res.string.node_settings),
         ) {
-            onNavigateToNodeSettings()
+            navController.navigate(AlgoKitScreens.NODE_SETTINGS_SCREEN.name)
         }
 
         SettingsItem(
@@ -98,7 +110,28 @@ internal fun ScreenContent(
             Res.drawable.ic_wallet,
             localizedStringResource(Res.string.create_legacy_hd_account),
         ) {
-            onNavigateToHDWalletSelection()
+            navController.navigate(AlgoKitScreens.HD_WALLET_SELECTION_SCREEN.name)
+        }
+
+        SettingsItem(
+            Res.drawable.ic_wallet,
+            localizedStringResource(Res.string.create_post_quantum_lsig_falcon24_account),
+        ) {
+            navController.navigate(AlgoKitScreens.FALCON24_WALLET_SELECTION_SCREEN.name)
+        }
+
+        SettingsItem(
+            Res.drawable.ic_session_vault_inspect,
+            localizedStringResource(Res.string.escrow_session_vault_debug_tool),
+        ) {
+            navController.navigate(AlgoKitScreens.ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN.name)
+        }
+
+        SettingsItem(
+            Res.drawable.ic_session_vault_inspect,
+            localizedStringResource(Res.string.liquid_stream_creator_debug_tool),
+        ) {
+            onNavigateToDebugTool()
         }
     }
 }

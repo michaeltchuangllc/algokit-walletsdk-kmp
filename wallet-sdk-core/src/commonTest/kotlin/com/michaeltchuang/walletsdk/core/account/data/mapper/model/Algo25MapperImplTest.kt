@@ -17,7 +17,7 @@ class Algo25MapperImplTest {
 
         val result = sut(entity)
 
-        assertEquals(ADDRESS, result.algoAddress)
+        assertEquals(ADDRESS, result.address)
     }
 
     private companion object {

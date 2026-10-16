@@ -1,0 +1,429 @@
+package com.michaeltchuang.walletsdk.ui.liquidAuth.service
+
+import android.content.Context
+import android.content.ServiceConnection
+import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountMnemonic
+import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
+import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.LiquidAuthCredentialStore
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.SignalService
+import com.michaeltchuang.walletsdk.core.liquidAuth.auth.fido2.WebAuthnCredential
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.LogAppSignatureUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ManageSignalServiceUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProcessSignTransactionsUseCase
+import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecases.ProvideHttpClientUseCase
+import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
+import com.michaeltchuang.walletsdk.core.railmpp.core.PAYMENT_CHANNEL_LABEL
+import com.michaeltchuang.walletsdk.core.railmpp.core.WebRtcDataChannel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.displayName
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAssertionResultUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.HandleAttestationResultUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.PrepareAuthenticationUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.ProcessBiometricTransactionSigningUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.usecases.RegisterPasskeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AnswerViewModel
+import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+import foundation.algorand.provider.Message
+import foundation.algorand.provider.avm.models.SignTransactionsParams
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import okhttp3.OkHttpClient
+import org.json.JSONObject
+import org.webrtc.DataChannel
+import kotlin.coroutines.resume
+import kotlin.time.Duration.Companion.milliseconds
+
+actual class LiquidAuthPlatformServices(
+    val liquidAuthCredentialStore: LiquidAuthCredentialStore,
+    val passkeyRepository: PasskeyRepository,
+    val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
+    val getAccountMnemonic: GetAccountMnemonic,
+    val timeProvider: TimeProvider,
+    val processBiometricTransactionSigningUseCase: ProcessBiometricTransactionSigningUseCase,
+    val registerPasskeyUseCase: RegisterPasskeyUseCase,
+    val prepareAuthenticationUseCase: PrepareAuthenticationUseCase,
+    val manageSignalServiceUseCase: ManageSignalServiceUseCase,
+    val processSignTransactionsUseCase: ProcessSignTransactionsUseCase,
+    val eventDelegate: EventDelegate<AnswerViewModel.ViewEvent>,
+    val logAppSignatureUseCase: LogAppSignatureUseCase,
+    val providerHttpClientUseCase: ProvideHttpClientUseCase,
+) {
+    companion object {
+        private const val TAG = "LiquidAuthPlatformServices"
+    }
+
+    private var signalServiceConnection: ServiceConnection? = null
+    private val _signalService = MutableStateFlow<SignalService?>(null)
+    val signalService = _signalService
+
+    // Polls the viewer's own ICE connection type (LOCAL/STUN/RELAY) from the bound SignalService's
+    // WebRTC stats. The polling harness (LiquidAuthPollingJobController) is shared with the host
+    // side (LiquidAuthConnectionManager) and iOS's viewer path; only this Android-specific
+    // detection call differs, since it reads stats off org.webrtc.PeerConnection directly, whereas
+    // iOS delegates to a native Swift callback.
+    private var viewerConnectionTypeTarget: AnswerViewModel? = null
+    private val viewerConnectionTypePollingController =
+        LiquidAuthPollingJobController(
+            scope = CoroutineScope(Dispatchers.Default),
+            runImmediately = true,
+            onPoll = { detectAndPublishViewerConnectionType() },
+        )
+
+    val viewEvent get() = eventDelegate.viewEvent
+
+    fun getProvideHttpClient(): OkHttpClient = providerHttpClientUseCase.invoke()
+
+    fun logAppSignature(context: Context) {
+        logAppSignatureUseCase(context, context.javaClass.simpleName)
+    }
+
+    fun bindSignalService(context: Context) {
+        signalServiceConnection = manageSignalServiceUseCase(context) { _signalService.value = it }
+    }
+
+    fun unbindSignalService(
+        context: Context,
+        viewModel: AnswerViewModel,
+    ) {
+        stopViewerConnectionTypePolling()
+        viewModel.stopMppPaymentViewer()
+        _signalService.value?.stop()
+        signalServiceConnection?.let { manageSignalServiceUseCase.unbind(context, it) }
+        signalServiceConnection = null
+        _signalService.value = null
+    }
+
+    fun stopSignalService() {
+        _signalService.value?.stop()
+    }
+
+    /**
+     * Starts polling [viewModel]'s viewer connection type from the bound SignalService's WebRTC
+     * stats, mirroring the host-side detection so the "Connected Viewers" analytics card shows the
+     * real network type instead of always defaulting to UNKNOWN.
+     */
+    fun startViewerConnectionTypePolling(viewModel: AnswerViewModel) {
+        viewerConnectionTypeTarget = viewModel
+        viewerConnectionTypePollingController.start()
+    }
+
+    fun stopViewerConnectionTypePolling() {
+        viewerConnectionTypePollingController.stop()
+        viewerConnectionTypeTarget = null
+    }
+
+    private fun detectAndPublishViewerConnectionType() {
+        val viewModel = viewerConnectionTypeTarget ?: return
+        val service = _signalService.value ?: return
+        if (service.peerConnection == null) return
+        service.detectConnectionType { type ->
+            val mappedType =
+                when (type) {
+                    SignalService.IceConnectionType.LOCAL -> IceConnectionType.LOCAL
+                    SignalService.IceConnectionType.STUN -> IceConnectionType.STUN
+                    SignalService.IceConnectionType.RELAY -> IceConnectionType.RELAY
+                    SignalService.IceConnectionType.FAILED -> IceConnectionType.FAILED
+                    SignalService.IceConnectionType.UNKNOWN -> IceConnectionType.UNKNOWN
+                }
+            if (viewModel.connectionType.value != mappedType) {
+                viewModel.setConnectionType(mappedType)
+                Napier.d(tag = TAG, message = "🌐 Viewer connection type changed: ${mappedType.displayName()}")
+            }
+        }
+    }
+
+    fun isHostPeerConnectionReady(service: SignalService?): Boolean = service?.peerConnection != null
+
+    fun getOrCreateHostPaymentDataChannel(service: SignalService?): DataChannel? {
+        if (!isHostPeerConnectionReady(service)) return null
+        return service?.getDataChannel(PAYMENT_CHANNEL_LABEL) ?: service?.createDataChannel(PAYMENT_CHANNEL_LABEL)
+    }
+
+    fun wrapPaymentDataChannel(dataChannel: DataChannel): WebRtcDataChannel = WebRtcDataChannel(dataChannel)
+
+    /**
+     * Awaits the payment data channel on the viewer side, where the channel is created by the
+     * remote host peer asynchronously (unlike the host, which can create it locally on demand).
+     * Polls briefly, then falls back to a longer-lived listener-based wait.
+     */
+    suspend fun awaitViewerPaymentDataChannel(service: SignalService): DataChannel? {
+        service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+        repeat(20) {
+            service.getDataChannel(PAYMENT_CHANNEL_LABEL)?.let { channel -> return channel }
+            delay(100L.milliseconds)
+        }
+        service.createDataChannel(PAYMENT_CHANNEL_LABEL)?.let { return it }
+
+        return suspendCancellableCoroutine { continuation ->
+            val handler = Handler(Looper.getMainLooper())
+            val poll =
+                object : Runnable {
+                    override fun run() {
+                        val channel = service.getDataChannel(PAYMENT_CHANNEL_LABEL)
+                        if (!continuation.isActive) return
+                        if (channel != null) {
+                            continuation.resume(channel)
+                        } else {
+                            handler.postDelayed(this, 100L)
+                        }
+                    }
+                }
+            handler.postDelayed(poll, 100L)
+            continuation.invokeOnCancellation { handler.removeCallbacks(poll) }
+        }
+    }
+
+    fun sendHostMessage(
+        service: SignalService?,
+        message: String,
+    ) {
+        service?.send(message)
+    }
+
+    fun hostDataChannelState(service: SignalService?): String? = service?.dataChannel?.state()?.toString()
+
+    fun isHostConnected(service: SignalService?): Boolean = hostDataChannelState(service) == "OPEN"
+
+    fun onStreamTimeout(
+        viewModel: AnswerViewModel,
+        reason: String,
+    ) {
+        stopSignalService()
+        viewModel.viewModelScope.launch {
+            eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast(reason))
+            eventDelegate.sendEvent(AnswerViewModel.ViewEvent.StreamDisconnected(reason))
+        }
+    }
+
+    suspend fun saveCredential(
+        account: String,
+        credential: WebAuthnCredential,
+        response: String,
+    ) {
+        val rpId = JSONObject(response).getJSONObject("rp").getString("id")
+        liquidAuthCredentialStore.saveCredentialId(rpId, account, credential.id)
+        Napier.d(tag = TAG, message = "Credential saved to local storage")
+        eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast("Credential saved to local storage"))
+    }
+
+    suspend fun getCredentialIdByAccountAddress(
+        accountAddress: String,
+        origin: String,
+    ): String? {
+        val rpId = Uri.parse(origin).host ?: return null
+        return liquidAuthCredentialStore.getCredentialId(rpId, accountAddress)
+            // Read legacy metadata without advertising new external credentials through our provider.
+            ?: passkeyRepository.getSitePasskeys(rpId).firstOrNull { it.address == accountAddress }?.credId
+    }
+
+    suspend fun deleteCredentialByAccountAddress(
+        accountAddress: String,
+        origin: String,
+    ) {
+        val rpId = Uri.parse(origin).host ?: return
+        // Only remove the binding, never a provider's signing key/metadata.
+        liquidAuthCredentialStore.removeCredentialId(rpId, accountAddress)
+    }
+
+    suspend fun getMnemonic(address: String): String? {
+        var mnemonicValue: String? = null
+        getAccountMnemonic(address).use(
+            onSuccess = { mnemonic -> mnemonicValue = mnemonic.words.joinToString(" ") },
+            onFailed = { _, _ -> return@use null },
+        )
+        return mnemonicValue
+    }
+
+    suspend fun processBiometricTransactionSigning(
+        viewModel: AnswerViewModel,
+        activity: FragmentActivity,
+        params: SignTransactionsParams,
+        message: Message,
+    ) {
+        when (
+            val result =
+                processBiometricTransactionSigningUseCase(
+                    activity = activity,
+                    viewModel = viewModel,
+                    params = params,
+                    message = message,
+                )
+        ) {
+            is ProcessBiometricTransactionSigningUseCase.Result.Success -> {
+                eventDelegate.sendEvent(
+                    AnswerViewModel.ViewEvent.TransactionSigned(result.resultMessage, result.signResult),
+                )
+            }
+
+            is ProcessBiometricTransactionSigningUseCase.Result.Cancelled ->
+                eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast(result.reason))
+
+            is ProcessBiometricTransactionSigningUseCase.Result.Error ->
+                eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+        }
+    }
+
+    suspend fun preparePasskeyRegistration(
+        viewModel: AnswerViewModel,
+        authMessage: AuthMessage,
+        accountAddress: String,
+        options: JSONObject = JSONObject(),
+        onSessionUpdate: (String?) -> Unit = {},
+    ): RegisterPasskeyUseCase.Result {
+        val result =
+            registerPasskeyUseCase(
+                authMessage = authMessage,
+                algoAddress = accountAddress,
+                viewModel = viewModel,
+                options = options,
+                onSessionUpdate = onSessionUpdate,
+            )
+        when (result) {
+            is RegisterPasskeyUseCase.Result.Success -> { /* NOOP: navigation handled by caller */ }
+            is RegisterPasskeyUseCase.Result.Error ->
+                eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+        }
+        return result
+    }
+
+    fun registerPasskey(
+        viewModel: AnswerViewModel,
+        authMessage: AuthMessage,
+        accountAddress: String,
+        options: JSONObject = JSONObject(),
+    ) {
+        viewModel.viewModelScope.launch {
+            val result =
+                preparePasskeyRegistration(
+                    viewModel = viewModel,
+                    authMessage = authMessage,
+                    accountAddress = accountAddress,
+                    options = options,
+                    onSessionUpdate = { sessionId -> sessionId?.let { viewModel.setSession(it) } },
+                )
+            when (result) {
+                is RegisterPasskeyUseCase.Result.Success -> {
+                    viewModel.setAttestationApiResponse(result.attestationApiResponse)
+                    eventDelegate.sendEvent(
+                        AnswerViewModel.ViewEvent.RegistrationSuccess(result.requestJson, accountAddress),
+                    )
+                }
+
+                is RegisterPasskeyUseCase.Result.Error ->
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+            }
+        }
+    }
+
+    suspend fun prepareAuthentication(
+        viewModel: AnswerViewModel,
+        authMessage: AuthMessage,
+        credentialId: String,
+        onSessionUpdate: (String?) -> Unit = {},
+        onCredentialNotFound: () -> Unit = {},
+    ): PrepareAuthenticationUseCase.Result =
+        prepareAuthenticationUseCase(
+            authMessage = authMessage,
+            credentialId = credentialId,
+            viewModel = viewModel,
+            onSessionUpdate = onSessionUpdate,
+            onCredentialNotFound = onCredentialNotFound,
+        )
+
+    fun authenticate(
+        viewModel: AnswerViewModel,
+        authMessage: AuthMessage,
+        credentialId: String,
+        setSession: ((String?) -> Unit)? = null,
+        onCredentialNotFound: (() -> Unit)? = null,
+    ) {
+        viewModel.viewModelScope.launch {
+            val result =
+                prepareAuthentication(
+                    viewModel = viewModel,
+                    authMessage = authMessage,
+                    credentialId = credentialId,
+                    onSessionUpdate = { sessionId -> setSession?.invoke(sessionId) },
+                    onCredentialNotFound = { onCredentialNotFound?.invoke() },
+                )
+            when (result) {
+                is PrepareAuthenticationUseCase.Result.Success -> {
+                    eventDelegate.sendEvent(
+                        AnswerViewModel.ViewEvent.AuthenticationSuccess(result.requestJson, credentialId),
+                    )
+                }
+
+                is PrepareAuthenticationUseCase.Result.CredentialNotFound ->
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+
+                is PrepareAuthenticationUseCase.Result.Error ->
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+            }
+        }
+    }
+
+    fun handleAssertionResultFromLauncher(
+        viewModel: AnswerViewModel,
+        result: HandleAssertionResultUseCase.Result,
+    ) {
+        viewModel.viewModelScope.launch {
+            when (result) {
+                is HandleAssertionResultUseCase.Result.Success -> {
+                    setPasskeyLastUsedTime(result.credential.id, timeProvider.getCurrentTimeMillis())
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast("Authentication Successful!"))
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.AssertionSuccess(result.credential))
+                }
+
+                is HandleAssertionResultUseCase.Result.Cancelled ->
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowToast(result.message))
+
+                is HandleAssertionResultUseCase.Result.Error ->
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.ShowError(result.message))
+            }
+        }
+    }
+
+    fun handleAttestationResultFromLauncher(
+        viewModel: AnswerViewModel,
+        result: HandleAttestationResultUseCase.Result,
+        accountAddress: String?,
+    ) {
+        when (result) {
+            is HandleAttestationResultUseCase.Result.Success -> {
+                val apiResponse = viewModel.getAttestationApiResponse()
+                if (accountAddress != null && apiResponse != null) {
+                    viewModel.viewModelScope.launch {
+                        saveCredential(accountAddress, result.credential, apiResponse)
+                        eventDelegate.sendEvent(AnswerViewModel.ViewEvent.AttestationSuccess(result.credential))
+                    }
+                } else {
+                    viewModel.viewModelScope.launch {
+                        eventDelegate.sendEvent(
+                            AnswerViewModel.ViewEvent.AttestationError("Missing account or API response for credential save"),
+                        )
+                    }
+                }
+            }
+
+            is HandleAttestationResultUseCase.Result.Cancelled ->
+                viewModel.viewModelScope.launch { eventDelegate.sendEvent(AnswerViewModel.ViewEvent.AttestationCancelled) }
+
+            is HandleAttestationResultUseCase.Result.Error ->
+                viewModel.viewModelScope.launch {
+                    eventDelegate.sendEvent(AnswerViewModel.ViewEvent.AttestationError(result.message))
+                }
+        }
+    }
+}

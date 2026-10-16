@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdSeedFirstA
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.HdWalletSummary
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.RegisteredHdKey
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.foundation.WalletSdkResult
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
 import com.michaeltchuang.walletsdk.core.network.model.AccountInformation
@@ -23,6 +24,31 @@ internal fun interface SaveAlgo25Account {
 
 internal fun interface DeleteAlgo25Account {
     suspend operator fun invoke(address: String)
+}
+
+internal fun interface SaveFalcon25Account {
+    suspend operator fun invoke(
+        account: LocalAccount.Falcon25,
+        privateKey: ByteArray,
+        entropy: ByteArray,
+        seed: ByteArray,
+    )
+}
+
+internal fun interface DeleteFalcon25Account {
+    suspend operator fun invoke(address: String)
+}
+
+fun interface GetFalcon25PrivateKey {
+    suspend operator fun invoke(address: String): ByteArray?
+}
+
+fun interface GetFalcon25Entropy {
+    suspend operator fun invoke(address: String): ByteArray?
+}
+
+fun interface GetFalcon25Seed {
+    suspend operator fun invoke(address: String): ByteArray?
 }
 
 internal fun interface SaveFalcon24Account {
@@ -118,8 +144,19 @@ fun interface GetAccountAlgoBalance {
     suspend operator fun invoke(address: String): BigInteger?
 }
 
+fun interface GetAccountASABalance {
+    suspend operator fun invoke(
+        address: String,
+        assetId: Long,
+    ): BigInteger?
+}
+
 fun interface GetAccountMinimumBalance {
     suspend operator fun invoke(address: String): Long?
+}
+
+fun interface GetTransactionFeeForAccount {
+    suspend operator fun invoke(address: String): TransactionFee
 }
 
 fun interface GetBasicAccountInformationUseCase {

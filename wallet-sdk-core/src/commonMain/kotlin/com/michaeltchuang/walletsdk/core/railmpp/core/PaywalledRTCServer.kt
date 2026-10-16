@@ -1,0 +1,1227 @@
+package com.michaeltchuang.walletsdk.core.railmpp.core
+
+import com.ionspin.kotlin.bignum.integer.BigInteger
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.core.PaywalledRTCServer.Companion.VIEWER_KEY_WAIT_TIMEOUT_MS
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.BillingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.RailPayment
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
+import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SessionStats
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaEscrowSessionVaultConfig
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
+import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import kotlin.concurrent.Volatile
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+/**
+ * PaywalledRTCServer — provider-side payment-channel orchestration.
+ *
+ * Manages gating, segment timing, payment requests/verification, and optional
+ * track enforcement over a platform-agnostic [RtcDataChannel].
+ */
+class PaywalledRTCServer
+    @OptIn(ExperimentalUuidApi::class)
+    constructor(
+        private val paymentRail: PaymentRail,
+        private var config: ServerConfig,
+        private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+        private val nonceStore: NonceStore = InMemoryNonceStore(),
+        private val vaultReader: suspend (String, String, ByteArray, String, ByteArray) -> Result<HostViewerVaultReader.Snapshot> =
+            HostViewerVaultReader::read,
+        private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
+        private val blockRounds: (String) -> Flow<Long> = ::liquidStreamBlockRounds,
+        private val solanaFeePayerResolver: suspend (String) -> String = SolanaStreamVault::feePayer,
+    ) {
+        private companion object {
+            const val TAG = "PaywalledRTCServer"
+            const val DEFAULT_SEGMENT_DURATION_SECONDS = 30
+
+            /**
+             * How long to wait for [ServerConfig.viewerAuthorizedSignerPublicKey] to arrive
+             * (via the viewer's first voucher message → [updateConfig]) before proceeding
+             * without it. Required for an accurate funded-skip check.
+             */
+            const val VIEWER_KEY_WAIT_TIMEOUT_MS = 5_000L
+        }
+
+        // ─── Callbacks ──────────────────────────────────────────
+        var onSessionStarted: ((sessionId: String) -> Unit)? = null
+        var onViewerHello: ((viewer: String, viewerPublicKeyBase64: String) -> Unit)? = null
+
+        /** Raw handshake metadata; does not authorize or settle payments. */
+        var onViewerHelloMessage: ((String) -> Unit)? = null
+        var onVoucherReceived: ((voucherJson: String) -> Unit)? = null
+        var onPaymentRequested: ((PaymentRequest) -> Unit)? = null
+        var onPaymentReceived: ((RailPayment) -> Unit)? = null
+        var onPaymentSettled: ((PaymentReceipt) -> Unit)? = null
+        var onPaymentRejected: ((reason: String) -> Unit)? = null
+        var onSegmentStarted: ((segmentIndex: Int) -> Unit)? = null
+        var onSegmentGated: ((segmentIndex: Int) -> Unit)? = null
+        var onSegmentResumed: ((segmentIndex: Int) -> Unit)? = null
+        var onChatMessageReceived: ((ChatMessage) -> Unit)? = null
+        var onSessionTerminated: ((sessionId: String) -> Unit)? = null
+        var onError: ((Throwable) -> Unit)? = null
+
+        // ─── State ──────────────────────────────────────────────
+        @OptIn(ExperimentalUuidApi::class)
+        val sessionId: String = config.sessionId ?: Uuid.random().toString()
+        private var dc: RtcDataChannel? = null
+        private var senders: List<RtcRtpSender> = emptyList()
+        private var segmentIndex = 0
+        private var pendingRequest: PaymentRequest? = null
+        private var gated = true
+        private var started = false
+        private var disposed = false
+        private val stats = SessionStats(sessionId = sessionId)
+
+        private var segmentTimer: Job? = null
+        private var graceTimer: Job? = null
+        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+        private var cachedChannelIdBase64: String? = null
+        private var cachedSaltBase64: String? = null
+        private val vaultRequestMutex = Mutex()
+        private var vaultAcknowledgedCumulative = 0L
+        private var awaitingVaultIdentity = false
+        private var blockJob: Job? = null
+        private var paymentFlowStarted = false
+        private var lastBillingRound: Long? = null
+        private val blockChargeCheckpoints = ArrayDeque<Pair<Long, Long>>()
+        private var acceptedBlockCount = 0L
+        private var awaitingVaultFunding = false
+        private var handshakeValidated = false
+        private var solanaFeePayer: String? = null
+        private var initialSolanaRequestSent = false
+        private val isSolana: Boolean get() = SolanaStreamVault.isSolana(config.gating.network)
+
+        private sealed class VaultFundingStatus {
+            data class Funded(
+                val amount: String,
+            ) : VaultFundingStatus()
+
+            data object RequestRequired : VaultFundingStatus()
+
+            data object Exhausted : VaultFundingStatus()
+        }
+
+        suspend fun voucherCoveredBlockCount(
+            cumulativeAmount: Long,
+            confirmedBlockCount: Long,
+        ): Long =
+            vaultRequestMutex.withLock {
+                while (blockChargeCheckpoints.firstOrNull()?.first?.let { it <= confirmedBlockCount } == true) {
+                    blockChargeCheckpoints.removeFirst()
+                }
+                blockChargeCheckpoints.lastOrNull { it.second <= cumulativeAmount }?.first ?: confirmedBlockCount
+            }
+
+        @Volatile
+        var paidBlockCount: Int = 0
+            private set
+
+        @Volatile
+        var freeBlockCount: Int = 0
+            private set
+
+        init {
+            require(!config.blockDrivenBilling || (config.vaultOnlyBilling && config.gating.mode == GatingMode.PARTIAL_TIME))
+            if (isSolana) {
+                SolanaStreamVault.cluster(config.gating.network)
+                require(config.vaultOnlyBilling && !config.blockDrivenBilling) { "Solana requires timer-driven vault billing" }
+            }
+        }
+
+        /**
+         * Resolved as soon as [ServerConfig.viewerAuthorizedSignerPublicKey] becomes non-null.
+         * On the first session the key is null at construction time — it arrives later via
+         * the viewer's first voucher message ([updateConfig]). [handleDataChannelOpen] awaits
+         * this (bounded by [VIEWER_KEY_WAIT_TIMEOUT_MS]) so the funded-skip check has the key.
+         */
+        private val viewerKeyDeferred: CompletableDeferred<Unit> =
+            CompletableDeferred<Unit>().also { deferred ->
+                if (config.viewerAuthorizedSignerPublicKey != null) deferred.complete(Unit)
+            }
+
+        private val segmentDurationMs: Long
+            get() = (config.gating.segmentDuration ?: DEFAULT_SEGMENT_DURATION_SECONDS) * 1000L
+
+        // ─── Public API ─────────────────────────────────────────
+
+        /**
+         * Update gating config at runtime. Also resolves [viewerKeyDeferred] the first time
+         * [ServerConfig.viewerAuthorizedSignerPublicKey] transitions null → non-null.
+         */
+        fun updateConfig(newConfig: ServerConfig) {
+            require(config.gating.network == newConfig.gating.network) { "Cannot switch stream networks" }
+            if (handshakeValidated) {
+                require(config.viewerAddress == newConfig.viewerAddress) { "Cannot switch stream viewers" }
+                require(config.gating.payTo == newConfig.gating.payTo) { "Cannot switch stream payees" }
+            }
+            val hadKey = config.viewerAuthorizedSignerPublicKey != null
+            require(!config.vaultOnlyBilling || newConfig.vaultOnlyBilling) { "Cannot downgrade vault-only billing" }
+            require(config.blockDrivenBilling == newConfig.blockDrivenBilling) { "Cannot change the billing clock of an active session" }
+            require(!newConfig.blockDrivenBilling || newConfig.gating.mode == GatingMode.PARTIAL_TIME) {
+                "Block billing requires partial-time gating"
+            }
+            require(!config.blockDrivenBilling || config.gating.network == newConfig.gating.network) {
+                "A block-billed session cannot switch networks"
+            }
+            if (config.viewerAddress != newConfig.viewerAddress ||
+                config.gating.payTo != newConfig.gating.payTo ||
+                config.gating.network != newConfig.gating.network ||
+                !config.viewerAuthorizedSignerPublicKey.contentEquals(newConfig.viewerAuthorizedSignerPublicKey)
+            ) {
+                cachedChannelIdBase64 = null
+                cachedSaltBase64 = null
+            }
+            if (config.blockDrivenBilling && config.gating != newConfig.gating) {
+                lastBillingRound = null
+                pendingRequest = null
+                awaitingVaultIdentity = false
+                cancelGraceTimer()
+            }
+            config = newConfig
+            if (!hadKey && newConfig.viewerAuthorizedSignerPublicKey != null) {
+                Napier.d("🔑 viewerAuthorizedSignerPublicKey received — resolving viewerKeyDeferred", tag = TAG)
+                viewerKeyDeferred.complete(Unit)
+            }
+            if (awaitingVaultIdentity &&
+                !newConfig.viewerAddress.isNullOrBlank() &&
+                newConfig.viewerAuthorizedSignerPublicKey?.isNotEmpty() == true
+            ) {
+                awaitingVaultIdentity = false
+                requestPayment()
+            }
+        }
+
+        fun updateGating(gating: GatingConfig) {
+            updateConfig(config.copy(gating = gating))
+        }
+
+        fun updateGracePeriod(seconds: Int) {
+            config = config.copy(gracePeriod = seconds)
+        }
+
+        /** Start the paywalled session with an existing DataChannel and the RTP senders to gate. */
+        fun listen(
+            dataChannel: RtcDataChannel,
+            rtpSenders: List<RtcRtpSender>,
+        ) {
+            if (started) return
+            started = true
+
+            this.dc = dataChannel
+            this.senders = rtpSenders
+            gate()
+            if (!isSolana && !config.viewerAddress.isNullOrBlank()) {
+                try {
+                    requireStreamAddress(config.gating.network, config.viewerAddress!!)
+                    requireStreamAddress(config.gating.network, config.gating.payTo)
+                    handshakeValidated = true
+                } catch (e: Exception) {
+                    sendStreamRejected("network_mismatch", e.message ?: "Invalid viewer")
+                    terminate("Invalid viewer address")
+                    return
+                }
+            }
+
+            dataChannel.registerObserver(
+                object : RtcDataChannelObserver {
+                    override fun onStateChange() {
+                        val state = dataChannel.state()
+                        Napier.d("DC state: $state", tag = TAG)
+                        when (state) {
+                            RtcDataChannelState.OPEN -> scope.launch { handleDataChannelOpen() }
+                            RtcDataChannelState.CLOSED -> scope.launch { handleDisconnect() }
+                            else -> {}
+                        }
+                    }
+
+                    override fun onMessage(data: ByteArray) {
+                        val text = data.decodeToString()
+                        scope.launch { handleDataChannelMessage(text) }
+                    }
+                },
+            )
+
+            // If DC is already open, start immediately.
+            if (dataChannel.state() == RtcDataChannelState.OPEN) {
+                scope.launch { handleDataChannelOpen() }
+            }
+
+            onSessionStarted?.invoke(sessionId)
+        }
+
+        /** Gate the stream — disable tracks. */
+        fun gate() {
+            gated = true
+            for (sender in senders) {
+                sender.setTrackEnabled(false)
+            }
+            onSegmentGated?.invoke(segmentIndex)
+        }
+
+        /** Ungate the stream — enable tracks. */
+        fun ungate() {
+            if (!handshakeValidated) return
+            gated = false
+            for (sender in senders) {
+                sender.setTrackEnabled(true)
+            }
+            onSegmentResumed?.invoke(segmentIndex)
+        }
+
+        /** Terminate the session and notify the consumer. */
+        fun terminate(reason: String? = null) {
+            if (disposed) return
+            if (isSolana) {
+                Napier.i(
+                    "[SOLANA_REFUND_SKIPPED] Automatic owner close requires explicit creator approval; " +
+                        "payer requestClose/withdraw remains the manual escape hatch.",
+                    tag = TAG,
+                )
+            }
+            disposed = true
+            blockJob?.cancel()
+            cancelTimers()
+            gate()
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.SESSION_TERMINATE.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", reason ?: "") })
+                },
+            )
+            try {
+                dc?.close()
+            } catch (_: Exception) {
+            }
+            onSessionTerminated?.invoke(sessionId)
+        }
+
+        fun sendChatMessage(message: ChatMessage) {
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.CHAT_MESSAGE.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.PAYLOAD, Json.encodeToJsonElement(ChatMessage.serializer(), message))
+                },
+            )
+        }
+
+        /** Tells the viewer the host refuses to serve it (e.g. duplicate wallet address). */
+        fun sendStreamRejected(
+            reason: String,
+            message: String,
+        ) {
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.STREAM_REJECTED.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(
+                        DCFieldKey.PAYLOAD,
+                        buildJsonObject {
+                            put("reason", reason)
+                            put("message", message)
+                        },
+                    )
+                },
+            )
+        }
+
+        // ─── Internal ───────────────────────────────────────────
+
+        private fun handleDataChannelOpen() {
+            if (disposed) return
+            // Small delay to ensure the remote side has set up its onmessage handler.
+            scope.launch {
+                delay(100L.milliseconds)
+                // If skipPaymentRequestWhenSessionFunded is enabled but the viewer's authorized
+                // signer key is not yet known, wait for it before running the funded-skip check.
+                val needsKey =
+                    (config.skipPaymentRequestWhenSessionFunded || config.vaultOnlyBilling) &&
+                        !config.viewerAddress.isNullOrBlank() &&
+                        config.viewerAuthorizedSignerPublicKey == null
+
+                if (needsKey) {
+                    Napier.d(
+                        "⏳ Waiting up to ${VIEWER_KEY_WAIT_TIMEOUT_MS}ms for viewerAuthorizedSignerPublicKey before first payment check…",
+                        tag = TAG,
+                    )
+                    val received = withTimeoutOrNull(VIEWER_KEY_WAIT_TIMEOUT_MS) { viewerKeyDeferred.await() }
+                    if (received == null) {
+                        Napier.w(
+                            "⚠️ Timed out waiting for viewerAuthorizedSignerPublicKey — proceeding without it.",
+                            tag = TAG,
+                        )
+                    } else {
+                        Napier.d("✅ viewerAuthorizedSignerPublicKey ready — proceeding with payment flow", tag = TAG)
+                    }
+                }
+
+                startPaymentFlow()
+            }
+        }
+
+        /** Kick off the payment flow based on the configured [GatingMode]. */
+        private fun startPaymentFlow() {
+            if (disposed || paymentFlowStarted) return
+            if (!handshakeValidated) {
+                gate()
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
+                        put("billingMode", if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null)
+                        put("requestViewerIdentity", true)
+                        put("mppNetwork", config.gating.network)
+                    },
+                )
+                return
+            }
+            paymentFlowStarted = true
+            if (config.blockDrivenBilling) {
+                gate()
+                blockJob =
+                    scope.launch {
+                        blockRounds(config.gating.network).collect { round ->
+                            vaultRequestMutex.withLock {
+                                if (disposed || dc?.state() != RtcDataChannelState.OPEN) return@withLock
+                                if (round < 0L) {
+                                    lastBillingRound = null
+                                    gate()
+                                    return@withLock
+                                }
+                                val previous = lastBillingRound
+                                if (previous != null && round <= previous) return@withLock
+                                lastBillingRound = round
+                                if (previous == null || pendingRequest != null || awaitingVaultIdentity) return@withLock
+                                val intervalConfig = config
+                                var next = previous
+                                while (next < round && !disposed && pendingRequest == null && !awaitingVaultIdentity) {
+                                    if (config != intervalConfig) break
+                                    val index = segmentIndex
+                                    val wasAwaitingBalance = awaitingVaultFunding
+                                    requestPaymentNow()
+                                    // Paused rounds must not be back-billed after a top-up.
+                                    if (segmentIndex == index || wasAwaitingBalance) break
+                                    next++
+                                }
+                            }
+                        }
+                    }
+                return
+            }
+            if (config.gating.mode == GatingMode.WHOLE_STREAM) {
+                requestPayment()
+            } else {
+                ungate()
+                val leadTime =
+                    (config.gating.leadTime ?: config.gating.segmentDuration ?: DEFAULT_SEGMENT_DURATION_SECONDS) * 1000L
+                scheduleSegmentTimer(leadTime) { requestPaymentWithGrace() }
+            }
+        }
+
+        private fun handleDataChannelMessage(msgStr: String) {
+            if (disposed) return
+            try {
+                // Guard against plain-text keepalive strings (e.g. "ping") that are not JSON.
+                val trimmed = msgStr.trim()
+                if (!trimmed.startsWith("{")) {
+                    Napier.d("[DC_PLAIN_MESSAGE_IGNORED] session=$sessionId message=$trimmed", tag = TAG)
+                    return
+                }
+
+                val msg = Json.parseToJsonElement(msgStr).jsonObject
+                val rawType = msg[DCFieldKey.TYPE]?.jsonPrimitive?.content
+                val msgType = DCMessageType.fromStringOrNull(rawType)
+                Napier.d("[DC_MESSAGE_RECEIVED] session=$sessionId type=$rawType bytes=${msgStr.length}", tag = TAG)
+                when (msgType) {
+                    DCMessageType.SEGMENT_HANDSHAKE -> {
+                        val viewer = msg["viewer"]?.jsonPrimitive?.content.orEmpty()
+                        val viewerPublicKey = msg["viewerPublicKey"]?.jsonPrimitive?.content.orEmpty()
+                        try {
+                            requireStreamNetwork(config.gating.network, msg.readMppNetwork(), isSolana)
+                            requireStreamAddress(config.gating.network, viewer)
+                            requireStreamAddress(config.gating.network, config.gating.payTo)
+                            require(config.viewerAddress.isNullOrBlank() || config.viewerAddress == viewer) { "Viewer mismatch" }
+                        } catch (e: Exception) {
+                            sendStreamRejected("network_mismatch", e.message ?: "Invalid viewer identity")
+                            terminate("Invalid viewer network or address")
+                            return
+                        }
+                        Napier.d("[VIEWER_HELLO_RECEIVED] session=$sessionId viewer=$viewer keyLen=${viewerPublicKey.length}", tag = TAG)
+                        onViewerHelloMessage?.invoke(msgStr)
+                        onViewerHello?.invoke(viewer, viewerPublicKey)
+                        if (!disposed) {
+                            // Callbacks may have populated the session signer; pin the checked viewer.
+                            config = config.copy(viewerAddress = viewer)
+                            handshakeValidated = true
+                            startPaymentFlow()
+                        }
+                    }
+
+                    DCMessageType.SEGMENT_VOUCHER -> {
+                        if (!handshakeValidated) return
+                        Napier.d("[SEGMENT_VOUCHER_RECEIVED] session=$sessionId bytes=${msgStr.length}", tag = TAG)
+                        onVoucherReceived?.invoke(msgStr)
+                    }
+
+                    DCMessageType.SEGMENT_PAYMENT -> {
+                        if (config.vaultOnlyBilling) {
+                            // Even an old/malicious viewer must never reach rail settlement.
+                            onPaymentRejected?.invoke("Direct payments are disabled for session-vault billing")
+                            return
+                        }
+                        val payload = msg[DCFieldKey.PAYLOAD]
+                        if (payload == null || payload is JsonNull) {
+                            Napier.d("[SEGMENT_PAYMENT_DENIED] session=$sessionId segment=$segmentIndex", tag = TAG)
+                            onPaymentRejected?.invoke("Consumer denied payment")
+                            terminate("Payment denied")
+                        } else {
+                            val railPayment = railPaymentFromJson(payload.jsonObject)
+                            Napier.d(
+                                "[SEGMENT_PAYMENT_PAYLOAD_PARSED] session=$sessionId segment=$segmentIndex " +
+                                    "nonce=${railPayment.nonce} railId=${railPayment.railId}",
+                                tag = TAG,
+                            )
+                            scope.launch { handlePayment(railPayment) }
+                        }
+                    }
+
+                    DCMessageType.VIEWER_VAULT_FUNDED -> {
+                        if (config.vaultOnlyBilling) {
+                            scope.launch { handleVaultFunded(msg) }
+                            return
+                        }
+                        Napier.d(
+                            "[VIEWER_VAULT_FUNDED_RECEIVED] session=$sessionId segment=$segmentIndex gated=$gated pending=${pendingRequest != null}",
+                            tag = TAG,
+                        )
+                        if (gated || pendingRequest != null) {
+                            cancelTimers()
+                            requestPayment()
+                        }
+                    }
+
+                    DCMessageType.CHAT_MESSAGE -> {
+                        val payload = msg[DCFieldKey.PAYLOAD]?.jsonObject
+                        if (payload != null) {
+                            val chatMsg = Json.decodeFromJsonElement(ChatMessage.serializer(), payload)
+                            onChatMessageReceived?.invoke(chatMsg)
+                        }
+                    }
+                    else -> Unit
+                }
+            } catch (e: Exception) {
+                Napier.e("handleDataChannelMessage error", e, tag = TAG)
+            }
+        }
+
+        private fun handleDisconnect() {
+            if (disposed) return
+            disposed = true
+            blockJob?.cancel()
+            cancelTimers()
+            gate()
+            onSessionTerminated?.invoke(sessionId)
+        }
+
+        private fun requestPayment() {
+            scope.launch(workDispatcher) {
+                if (config.vaultOnlyBilling) {
+                    vaultRequestMutex.withLock { requestPaymentNow() }
+                } else {
+                    requestPaymentNow()
+                }
+            }
+        }
+
+        private suspend fun requestPaymentNow() {
+            try {
+                if (disposed) return
+                if (!handshakeValidated) return
+                val requestConfig = config
+                if (config.vaultOnlyBilling &&
+                    (config.viewerAddress.isNullOrBlank() || config.viewerAuthorizedSignerPublicKey?.isNotEmpty() != true)
+                ) {
+                    awaitingVaultIdentity = true
+                    if (config.blockDrivenBilling) gate()
+                    // No channel can be derived until hello supplies the signer. Ask the
+                    // viewer to resend hello; updateConfig retries this same unpaid segment.
+                    sendDC(
+                        buildJsonObject {
+                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
+                            put(DCFieldKey.SESSION_ID, sessionId)
+                            put("billingMode", BillingMode.SESSION_VAULT)
+                            put("requestViewerIdentity", true)
+                            put("mppNetwork", config.gating.network)
+                        },
+                    )
+                    return
+                }
+                val channelIdBase64 = resolveChannelIdBase64()
+                if (isSolana && solanaFeePayer == null) {
+                    solanaFeePayer = solanaFeePayerResolver(config.gating.payTo)
+                }
+                if (config.vaultOnlyBilling) {
+                    requireNotNull(channelIdBase64) { "Session-vault billing requires a viewer channel" }
+                    requireNotNull(resolveSaltBase64()) { "Session-vault billing requires a salt" }
+                }
+
+                val fundingStatus =
+                    if (isSolana && !initialSolanaRequestSent) {
+                        VaultFundingStatus.RequestRequired
+                    } else {
+                        sessionVaultFundingStatus()
+                    }
+                if (disposed || config != requestConfig) return
+                if (fundingStatus == VaultFundingStatus.Exhausted) {
+                    awaitingVaultFunding = true
+                    pendingRequest = null
+                    cancelGraceTimer()
+                    gate()
+                    // A status notification, not a payment request. The viewer verifies its own
+                    // balance and owns consent/funding; vouchers and chat remain active.
+                    sendDC(
+                        buildJsonObject {
+                            put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                            put(DCFieldKey.SESSION_ID, sessionId)
+                            put("billingMode", BillingMode.SESSION_VAULT)
+                            put("channelId", channelIdBase64)
+                            put("salt", resolveSaltBase64())
+                            put("payTo", config.gating.payTo)
+                            put("mppNetwork", config.gating.network)
+                            put("feePayer", solanaFeePayer)
+                            put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "Session balance exhausted") })
+                        },
+                    )
+                    if (!config.blockDrivenBilling) {
+                        scheduleSegmentTimer(1000L) { requestPayment() }
+                    }
+                    return
+                }
+                awaitingVaultFunding = false
+                val shouldSkipPrompt = fundingStatus is VaultFundingStatus.Funded
+                Napier.d(
+                    "[REQUEST_PAYMENT_SKIP_CHECK] session=$sessionId skip=$shouldSkipPrompt channelIdPresent=${channelIdBase64 != null}",
+                    tag = TAG,
+                )
+                if (fundingStatus is VaultFundingStatus.Funded) {
+                    Napier.d(
+                        "💸 Skipping payment request: session vault still funded for viewer=${config.viewerAddress}",
+                        tag = TAG,
+                    )
+                    val syntheticReceipt =
+                        createSessionVaultReceipt(
+                            txIdPrefix = "session-vault-funded-skip",
+                            segmentIndex = segmentIndex,
+                            amount = fundingStatus.amount,
+                            asset = config.gating.asset,
+                            payTo = config.gating.payTo,
+                            payFrom = config.viewerAddress.orEmpty(),
+                            network = config.gating.network,
+                            channelId = channelIdBase64,
+                        )
+                    pendingRequest = null
+                    completePaidSegment(syntheticReceipt, fundingStatus.amount)
+                    return
+                }
+
+                val request =
+                    (
+                        if (config.vaultOnlyBilling) {
+                            createVaultPaymentRequest()
+                        } else {
+                            paymentRail
+                                .createPaymentRequest(
+                                    PaymentRailRequestParams(
+                                        sessionId = sessionId,
+                                        segmentIndex = segmentIndex,
+                                        amount = config.gating.amount,
+                                        asset = config.gating.asset,
+                                        network = config.gating.network,
+                                        payTo = config.gating.payTo,
+                                        ttl = config.paymentTTL,
+                                        meta =
+                                            PaymentRequestMeta(
+                                                gatingMode = config.gating.mode,
+                                                enforcement = config.enforcement,
+                                                segmentDuration = config.gating.segmentDuration,
+                                                segmentBytes = config.gating.segmentBytes,
+                                                viewerAddress = config.viewerAddress,
+                                                voucherSignature = null,
+                                            ),
+                                    ),
+                                )
+                        }
+                    ).copy(
+                        channelId = channelIdBase64,
+                        salt = resolveSaltBase64(),
+                        billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
+                    )
+
+                if (disposed || config != requestConfig) return
+                pendingRequest = request
+                if (isSolana) initialSolanaRequestSent = true
+                if (config.blockDrivenBilling) gate()
+                onPaymentRequested?.invoke(request)
+                Napier.d(
+                    "[REQUEST_PAYMENT_SENT] session=$sessionId segment=${request.segmentIndex} nonce=${request.nonce} " +
+                        "amount=${request.amount} asset=${request.asset} network=${request.network} payTo=${request.payTo} " +
+                        "ttl=${request.ttl} channelId=${request.channelId} salt=${request.salt}",
+                    tag = TAG,
+                )
+
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REQUEST.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, request.toJson())
+                    },
+                )
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Napier.e(
+                    "[REQUEST_PAYMENT_FAILED] session=$sessionId segment=$segmentIndex amount=${config.gating.amount} " +
+                        "asset=${config.gating.asset} network=${config.gating.network} payTo=${config.gating.payTo} error=${e.message}",
+                    e,
+                    tag = TAG,
+                )
+                onError?.invoke(e)
+            }
+        }
+
+        @OptIn(ExperimentalUuidApi::class)
+        private fun createVaultPaymentRequest(): PaymentRequest =
+            PaymentRequest(
+                id = Uuid.random().toString(),
+                sessionId = sessionId,
+                segmentIndex = segmentIndex,
+                amount = config.gating.amount,
+                asset = config.gating.asset,
+                network = config.gating.network,
+                payTo = config.gating.payTo,
+                ttl = config.paymentTTL,
+                nonce = Uuid.random().toString(),
+                meta =
+                    PaymentRequestMeta(
+                        gatingMode = config.gating.mode,
+                        enforcement = config.enforcement,
+                        segmentDuration = config.gating.segmentDuration,
+                        segmentBytes = config.gating.segmentBytes,
+                        viewerAddress = config.viewerAddress,
+                        voucherSignature = null,
+                    ),
+                railPayload =
+                    if (isSolana) {
+                        buildJsonObject {
+                            put("solanaFeePayer", requireNotNull(solanaFeePayer))
+                            put("solanaProgramId", SolanaEscrowSessionVaultConfig.DEVNET_PROGRAM_ID)
+                            put("solanaMint", SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT)
+                        }
+                    } else {
+                        null
+                    },
+            )
+
+        /** Notification is only a wake-up hint. Never trust a viewer-reported balance. */
+        private suspend fun handleVaultFunded(msg: JsonObject) {
+            vaultRequestMutex.withLock {
+                val request = pendingRequest ?: return
+                if (disposed ||
+                    msg[DCFieldKey.SESSION_ID]?.jsonPrimitive?.content != sessionId ||
+                    msg["nonce"]?.jsonPrimitive?.content != request.nonce ||
+                    msg["billingMode"]?.jsonPrimitive?.content != BillingMode.SESSION_VAULT ||
+                    msg["channelId"]?.jsonPrimitive?.content != request.channelId ||
+                    msg["salt"]?.jsonPrimitive?.content != request.salt
+                ) {
+                    return
+                }
+                // A price/identity update must not validate an old request against a new vault.
+                if (request.channelId != resolveChannelIdBase64() ||
+                    request.payTo != config.gating.payTo ||
+                    request.network != config.gating.network
+                ) {
+                    return
+                }
+                val fundingStatus = sessionVaultFundingStatus(request.amount)
+                if (fundingStatus !is VaultFundingStatus.Funded) {
+                    onPaymentRejected?.invoke("Session vault is not sufficiently funded")
+                    return
+                }
+                if (disposed || pendingRequest !== request) return
+                pendingRequest = null
+                cancelGraceTimer()
+                completePaidSegment(
+                    createSessionVaultReceipt(
+                        txIdPrefix = "session-vault-funded",
+                        segmentIndex = request.segmentIndex,
+                        amount = fundingStatus.amount,
+                        asset = request.asset,
+                        payTo = request.payTo,
+                        payFrom = config.viewerAddress.orEmpty(),
+                        network = request.network,
+                        channelId = request.channelId,
+                    ),
+                    fundingStatus.amount,
+                )
+            }
+        }
+
+        /**
+         * Request payment with grace period — stream stays ungated while waiting.
+         * First payment (segmentsPaid == 0) skips the grace timer — consent may take longer.
+         */
+        private fun requestPaymentWithGrace() {
+            val gracePeriod = config.gracePeriod * 1000L
+            if (gracePeriod <= 0) {
+                gate()
+                requestPayment()
+                return
+            }
+
+            requestPayment()
+
+            // First payment — no grace timer.
+            if (stats.segmentsPaid == 0) return
+
+            cancelGraceTimer()
+            graceTimer =
+                scope.launch {
+                    delay(gracePeriod)
+                    graceTimer = null
+                    if (pendingRequest != null) {
+                        gate()
+                    }
+                }
+        }
+
+        @OptIn(ExperimentalEncodingApi::class)
+        private fun resolveChannelIdBase64(): String? {
+            cachedChannelIdBase64?.let { return it }
+
+            val viewer =
+                config.viewerAddress?.takeIf { it.isNotBlank() } ?: run {
+                    Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_viewer session=$sessionId", tag = TAG)
+                    return null
+                }
+            val payTo =
+                config.gating.payTo.takeIf { it.isNotBlank() } ?: run {
+                    Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_payTo session=$sessionId", tag = TAG)
+                    return null
+                }
+            val signerKey =
+                config.viewerAuthorizedSignerPublicKey?.takeIf { it.isNotEmpty() } ?: run {
+                    Napier.w("[RESOLVE_CHANNEL_ID_FAILED] reason=blank_signer session=$sessionId viewer=$viewer payTo=$payTo", tag = TAG)
+                    return null
+                }
+
+            return runCatching {
+                val channelId =
+                    if (config.vaultOnlyBilling) {
+                        HostViewerVaultReader.deriveChannelId(
+                            viewer,
+                            payTo,
+                            signerKey,
+                            config.gating.network,
+                            Base64.decode(requireNotNull(resolveSaltBase64())),
+                        )
+                    } else {
+                        EscrowSessionVaultHybridManagerClient
+                            // Each server belongs to one viewer. Derivation must not switch the
+                            // process-wide legacy channel used by another viewer's settlement.
+                            .deriveChannelId(
+                                payerAddress = viewer,
+                                payeeAddress = payTo,
+                                authorizedSignerPublicKey = signerKey,
+                            )
+                    }
+                Base64.encode(channelId)
+            }.onFailure {
+                Napier.e("[RESOLVE_CHANNEL_ID_FAILED] session=$sessionId viewer=$viewer payTo=$payTo", it, tag = TAG)
+            }.getOrNull()
+                ?.also { cachedChannelIdBase64 = it }
+        }
+
+        @OptIn(ExperimentalEncodingApi::class)
+        private fun resolveSaltBase64(): String? {
+            cachedSaltBase64?.let { return it }
+            if (isSolana) {
+                val viewer = config.viewerAddress ?: return null
+                val signer = config.viewerAuthorizedSignerPublicKey ?: return null
+                return Base64
+                    .encode(SolanaStreamVault.salt(viewer, config.gating.payTo, signer))
+                    .also { cachedSaltBase64 = it }
+            }
+            return runCatching {
+                Base64.encode(
+                    EscrowSessionVaultHybridManagerClient.defaultSalt
+                        ?: error("defaultSalt is not configured"),
+                )
+            }.onFailure {
+                Napier.e("[RESOLVE_SALT_FAILED] session=$sessionId", it, tag = TAG)
+            }.getOrNull()
+                ?.also { cachedSaltBase64 = it }
+        }
+
+        private fun sessionVaultAppIdForNetwork(network: String): Long =
+            when (network) {
+                MppNetworks.ALGORAND_MAINNET -> RailMppConstants.MAINNET_MPP_SESSION_VAULT_APP_ID
+                MppNetworks.ALGORAND_FUTURENET -> RailMppConstants.FUTURENET_MPP_SESSION_VAULT_APP_ID
+                else -> RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID
+            }
+
+        @OptIn(ExperimentalEncodingApi::class)
+        private suspend fun sessionVaultFundingStatus(requiredAmount: String = config.gating.amount): VaultFundingStatus {
+            if (config.vaultOnlyBilling) {
+                val viewer = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return VaultFundingStatus.RequestRequired
+                val signer = config.viewerAuthorizedSignerPublicKey ?: return VaultFundingStatus.RequestRequired
+                val salt = resolveSaltBase64() ?: return VaultFundingStatus.RequestRequired
+                val amount = requiredAmount.toLongOrNull()?.takeIf { it >= 0L } ?: return VaultFundingStatus.RequestRequired
+                if (amount == 0L) return VaultFundingStatus.Funded("0")
+                val snapshot =
+                    vaultReader(
+                        viewer,
+                        config.gating.payTo,
+                        signer.copyOf(),
+                        config.gating.network,
+                        Base64.decode(salt),
+                    ).getOrNull()
+                if (snapshot == null) {
+                    // A transient lookup error cannot turn an exhausted pause into a request.
+                    return if (awaitingVaultFunding) VaultFundingStatus.Exhausted else VaultFundingStatus.RequestRequired
+                }
+                if (isSolana && snapshot.startRound == null && snapshot.totalDepositMicroUsdc == 0L) {
+                    return VaultFundingStatus.RequestRequired
+                }
+                // Reserve acknowledged consumption even before the billing engine settles its vouchers.
+                val previousReserved = vaultAcknowledgedCumulative
+                vaultAcknowledgedCumulative =
+                    maxOf(
+                        vaultAcknowledgedCumulative,
+                        snapshot.totalDepositMicroUsdc - snapshot.progressBalanceMicroUsdc,
+                    )
+                val available = snapshot.totalDepositMicroUsdc - vaultAcknowledgedCumulative
+                Napier.d(
+                    "HOST_BALANCE_DECISION session=$sessionId segment=$segmentIndex " +
+                        "totalDepositMicro=${snapshot.totalDepositMicroUsdc} " +
+                        "chainCommittedMicro=${snapshot.totalDepositMicroUsdc - snapshot.progressBalanceMicroUsdc} " +
+                        "previousReservedMicro=$previousReserved reservedMicro=$vaultAcknowledgedCumulative " +
+                        "availableMicro=$available costMicro=$amount",
+                    tag = "LS_VAULT_DEBUG",
+                )
+                if (available <= 0L) return VaultFundingStatus.Exhausted
+                // The final receipt authorizes only the remaining balance. Use the same
+                // amount for the voucher checkpoint, reservation, and spend statistics.
+                val charge = minOf(amount, available)
+                if (charge < amount) {
+                    Napier.d(
+                        "HOST_FINAL_PARTIAL_BLOCK session=$sessionId costMicro=$amount chargeMicro=$charge",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                }
+                return VaultFundingStatus.Funded(charge.toString())
+            }
+            if (!config.skipPaymentRequestWhenSessionFunded) return VaultFundingStatus.RequestRequired
+            val viewerAddress = config.viewerAddress?.takeIf { it.isNotBlank() } ?: return VaultFundingStatus.RequestRequired
+            val remaining =
+                getRemainingSessionVaultBalanceUseCase(
+                    GetRemainingSessionVaultBalanceUseCase.Params(
+                        viewerAddress = viewerAddress,
+                        appId = sessionVaultAppIdForNetwork(config.gating.network),
+                        authorizedSignerPublicKey = config.viewerAuthorizedSignerPublicKey,
+                    ),
+                ).getOrDefault(0L)
+            return if (remaining > 0L) VaultFundingStatus.Funded(requiredAmount) else VaultFundingStatus.RequestRequired
+        }
+
+        private suspend fun handlePayment(railPayment: RailPayment) {
+            if (config.vaultOnlyBilling) {
+                onPaymentRejected?.invoke("Direct payments are disabled for session-vault billing")
+                return
+            }
+            val request =
+                pendingRequest ?: run {
+                    Napier.e("[HANDLE_PAYMENT_NO_PENDING_REQUEST] session=$sessionId segment=$segmentIndex", tag = TAG)
+                    onPaymentRejected?.invoke("No pending request")
+                    return
+                }
+
+            onPaymentReceived?.invoke(railPayment)
+
+            cancelGraceTimer()
+
+            // Nonce check.
+            if (railPayment.nonce != request.nonce) {
+                Napier.e(
+                    "[HANDLE_PAYMENT_NONCE_MISMATCH] session=$sessionId segment=$segmentIndex expected=${request.nonce} actual=${railPayment.nonce}",
+                    tag = TAG,
+                )
+                onPaymentRejected?.invoke("Nonce mismatch")
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "nonce_mismatch") })
+                    },
+                )
+                terminate("Nonce mismatch")
+                return
+            }
+
+            // Replay protection.
+            val isNew = nonceStore.checkAndStore(railPayment.nonce, config.paymentTTL)
+            if (!isNew) {
+                Napier.e("[HANDLE_PAYMENT_NONCE_REPLAY] session=$sessionId segment=$segmentIndex nonce=${railPayment.nonce}", tag = TAG)
+                onPaymentRejected?.invoke("Nonce replay detected")
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_REJECTED.value)
+                        put(DCFieldKey.SESSION_ID, sessionId)
+                        put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                        put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "nonce_replay") })
+                    },
+                )
+                return
+            }
+
+            val receipt =
+                withContext(workDispatcher) {
+                    verifyAndSettleOrCreateFallbackReceipt(request, railPayment)
+                }
+
+            // Verify and settle via rail.
+            try {
+                pendingRequest = null
+                completePaidSegment(receipt, request.amount)
+            } catch (e: Throwable) {
+                Napier.e(
+                    "[HANDLE_PAYMENT_SETTLE_FAILED] session=$sessionId segment=$segmentIndex amount=${request.amount} " +
+                        "asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}",
+                    e,
+                    tag = TAG,
+                )
+                onError?.invoke(e)
+                onPaymentRejected?.invoke(e.message ?: "Payment failed")
+                terminate("Payment failed: ${e.message}")
+            }
+        }
+
+        // ─── Helpers ────────────────────────────────────────────
+
+        private fun sendDC(msg: JsonObject) {
+            val isReceipt = msg[DCFieldKey.TYPE]?.jsonPrimitive?.content == DCMessageType.SEGMENT_ACCEPTED.value
+            try {
+                val dc = this.dc
+                if (dc != null && dc.state() == RtcDataChannelState.OPEN) {
+                    dc.send(msg.toString().encodeToByteArray())
+                    if (isReceipt) {
+                        Napier.d("HOST_RECEIPT_SENT session=$sessionId segment=$segmentIndex", tag = "LS_VAULT_DEBUG")
+                    }
+                } else if (isReceipt) {
+                    Napier.w(
+                        "HOST_RECEIPT_NOT_SENT session=$sessionId segment=$segmentIndex state=${dc?.state()}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                }
+            } catch (e: Exception) {
+                if (isReceipt) {
+                    Napier.w(
+                        "HOST_RECEIPT_SEND_ERROR session=$sessionId segment=$segmentIndex errorType=${e::class.simpleName}",
+                        tag = "LS_VAULT_DEBUG",
+                    )
+                }
+                Napier.e("sendDC failed", e, tag = TAG)
+            }
+        }
+
+        private suspend fun verifyAndSettleOrCreateFallbackReceipt(
+            request: PaymentRequest,
+            railPayment: RailPayment,
+        ): PaymentReceipt {
+            check(!config.vaultOnlyBilling) { "Direct settlement is disabled for session-vault billing" }
+            return try {
+                paymentRail.verifyAndSettle(railPayment, request)
+            } catch (e: Throwable) {
+                Napier.e(
+                    "[HANDLE_PAYMENT_SETTLE_FALLBACK] session=$sessionId segment=$segmentIndex amount=${request.amount} " +
+                        "asset=${request.asset} network=${request.network} payTo=${request.payTo} error=${e.message}",
+                    e,
+                    tag = TAG,
+                )
+                createSessionVaultReceipt(
+                    txIdPrefix = "session-vault-fallback",
+                    segmentIndex = request.segmentIndex,
+                    amount = request.amount,
+                    asset = request.asset,
+                    payTo = request.payTo,
+                    payFrom = config.viewerAddress.orEmpty(),
+                    network = request.network,
+                    sessionId = request.sessionId,
+                )
+            }
+        }
+
+        private fun completePaidSegment(
+            receipt: PaymentReceipt,
+            amount: String,
+        ) {
+            if (disposed) return
+            if (config.vaultOnlyBilling) {
+                vaultAcknowledgedCumulative += amount.toLong()
+                Napier.d(
+                    "HOST_BLOCK_RESERVED session=$sessionId segment=${receipt.segmentIndex} " +
+                        "debitMicro=$amount reservedMicro=$vaultAcknowledgedCumulative",
+                    tag = "LS_VAULT_DEBUG",
+                )
+            }
+            stats.segmentsPaid++
+            if (config.blockDrivenBilling) {
+                acceptedBlockCount++
+                blockChargeCheckpoints.addLast(acceptedBlockCount to vaultAcknowledgedCumulative)
+                if (amount.toLong() > 0L) paidBlockCount++ else freeBlockCount++
+                Napier.d(
+                    "[BLOCK_BILLING_ACCEPTED] session=$sessionId round=$lastBillingRound " +
+                        "paid=$paidBlockCount free=$freeBlockCount amountMicroUsdc=$amount",
+                    tag = TAG,
+                )
+            }
+            stats.totalAmountReceived =
+                (BigInteger.parseString(stats.totalAmountReceived) + BigInteger.parseString(amount)).toString()
+
+            onPaymentSettled?.invoke(receipt)
+
+            if (gated) ungate()
+
+            sendAcceptedReceipt(receipt)
+
+            stats.segmentsDelivered++
+            onSegmentStarted?.invoke(segmentIndex)
+
+            scheduleNextSegmentIfNeeded()
+        }
+
+        private fun sendAcceptedReceipt(receipt: PaymentReceipt) {
+            // Ensure the receipt always carries the creator-derived channel id for the viewer.
+            val receiptWithChannelId =
+                if (receipt.channelId != null) receipt else receipt.copy(channelId = resolveChannelIdBase64())
+            sendDC(
+                buildJsonObject {
+                    put(DCFieldKey.TYPE, DCMessageType.SEGMENT_ACCEPTED.value)
+                    put(DCFieldKey.SESSION_ID, sessionId)
+                    put(DCFieldKey.SEGMENT_INDEX, segmentIndex)
+                    put(DCFieldKey.PAYLOAD, receiptWithChannelId.toJson())
+                },
+            )
+        }
+
+        private fun scheduleNextSegmentIfNeeded() {
+            if (config.gating.mode == GatingMode.WHOLE_STREAM) return
+
+            segmentIndex++
+            if (config.blockDrivenBilling) return
+            val duration = segmentDurationMs
+            Napier.d("⏱️ Segment timer scheduled: session=$sessionId nextSegment=$segmentIndex in=${duration}ms", tag = TAG)
+            scheduleSegmentTimer(duration) {
+                Napier.d("⏱️ Segment timer tick: session=$sessionId segment=$segmentIndex", tag = TAG)
+                requestPaymentWithGrace()
+            }
+        }
+
+        private fun createSessionVaultReceipt(
+            txIdPrefix: String,
+            segmentIndex: Int,
+            amount: String,
+            asset: String,
+            payTo: String,
+            payFrom: String,
+            network: String,
+            sessionId: String = this.sessionId,
+            channelId: String? = null,
+        ): PaymentReceipt =
+            PaymentReceipt(
+                // Empty txId is deliberate: settlement belongs to the voucher billing engine.
+                txId = if (config.vaultOnlyBilling) "" else "$txIdPrefix-${mppNowMs()}",
+                sessionId = sessionId,
+                segmentIndex = segmentIndex,
+                amount = amount,
+                asset = asset,
+                payTo = payTo,
+                payFrom = payFrom,
+                feePayer = solanaFeePayer,
+                facilitator = null,
+                network = network,
+                timestamp = mppNowMs(),
+                channelId = channelId,
+                salt = if (config.vaultOnlyBilling) resolveSaltBase64() else null,
+                billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
+                settlementDeferred = config.vaultOnlyBilling,
+            )
+
+        private fun scheduleSegmentTimer(
+            delayMs: Long,
+            action: () -> Unit,
+        ) {
+            cancelSegmentTimer()
+            segmentTimer =
+                scope.launch {
+                    delay(delayMs)
+                    action()
+                }
+        }
+
+        private fun cancelSegmentTimer() {
+            segmentTimer?.cancel()
+            segmentTimer = null
+        }
+
+        private fun cancelGraceTimer() {
+            graceTimer?.cancel()
+            graceTimer = null
+        }
+
+        private fun cancelTimers() {
+            cancelSegmentTimer()
+            cancelGraceTimer()
+        }
+    }

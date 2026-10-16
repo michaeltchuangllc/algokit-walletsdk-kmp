@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.signing.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.done
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.operation_completed
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_transaction_detail_in_lora_explorer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_transaction_detail_in_pera_explorer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.your_transaction_was
 import androidx.compose.foundation.background
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
+import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.EXPLORER_FUTURENET_BASE_URL
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typography
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
@@ -44,16 +48,27 @@ fun TransactionSuccessScreen(
     onDoneClick: () -> Unit,
 ) {
     val viewModel: TransactionSuccessViewModel = koinViewModel()
+    val explorerBaseUrl by produceState<String?>(initialValue = null) {
+        value = viewModel.getExplorerBaseUrl()
+    }
     val scope = rememberCoroutineScope()
     val webViewController by rememberWebViewController()
     WebViewPlatform(webViewController = webViewController)
 
     ScreenContent(
         transactionId = transactionId,
+        isLoraExplorer = explorerBaseUrl == EXPLORER_FUTURENET_BASE_URL,
         onDoneClick = onDoneClick,
         onViewInExplorer = { txId ->
             scope.launch {
-                webViewController.openUrl(viewModel.getExplorerBaseUrl() + "/tx/$txId")
+                val baseUrl = explorerBaseUrl ?: return@launch
+                val transactionUrl =
+                    if (baseUrl == EXPLORER_FUTURENET_BASE_URL) {
+                        "$baseUrl/fnet/transaction/$txId"
+                    } else {
+                        "$baseUrl/tx/$txId"
+                    }
+                webViewController.openUrl(transactionUrl)
             }
         },
     )
@@ -62,6 +77,7 @@ fun TransactionSuccessScreen(
 @Composable
 fun ScreenContent(
     transactionId: String,
+    isLoraExplorer: Boolean = false,
     onDoneClick: () -> Unit,
     onViewInExplorer: (String) -> Unit,
 ) {
@@ -119,7 +135,14 @@ fun ScreenContent(
                     .padding(16.dp),
         ) {
             Text(
-                text = localizedStringResource(Res.string.view_transaction_detail_in_pera_explorer),
+                text =
+                    localizedStringResource(
+                        if (isLoraExplorer) {
+                            Res.string.view_transaction_detail_in_lora_explorer
+                        } else {
+                            Res.string.view_transaction_detail_in_pera_explorer
+                        },
+                    ),
                 color = AlgoKitTheme.colors.textMain,
                 style = typography.footnote.sansMedium,
                 modifier =

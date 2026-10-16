@@ -32,8 +32,8 @@ internal interface PasskeyDao {
     @Query("SELECT credential_id FROM passkey_table WHERE site_id = :siteId LIMIT 1")
     suspend fun getCredentialIdBySiteId(siteId: Long): String?
 
-    @Query("SELECT credential_id FROM passkey_table WHERE algo_address = :algoAddress LIMIT 1")
-    suspend fun getCredentialIdByAlgoAddress(algoAddress: String): String?
+    @Query("SELECT credential_id FROM passkey_table WHERE address = :address LIMIT 1")
+    suspend fun getCredentialIdByAddress(address: String): String?
 
     @Query(
         """
@@ -43,16 +43,16 @@ internal interface PasskeyDao {
             INNER JOIN sites ON passkey_table.site_id = sites.id 
             WHERE sites.url = :siteUrl 
                 AND passkey_table.user_name = :username
-                AND passkey_table.algo_address = :algoAddress
+                AND passkey_table.address = :address
         )
         """,
     )
     suspend fun doesPasskeyExist(
         siteUrl: String,
         username: String,
-        algoAddress: String,
+        address: String,
     ): Boolean
 
-    @Query("DELETE FROM passkey_table WHERE algo_address = :algoAddress")
-    suspend fun deleteByAlgoAddress(algoAddress: String): Int
+    @Query("DELETE FROM passkey_table WHERE address = :address")
+    suspend fun deleteByAddress(address: String): Int
 }

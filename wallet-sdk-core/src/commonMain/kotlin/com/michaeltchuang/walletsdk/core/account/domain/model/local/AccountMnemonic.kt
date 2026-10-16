@@ -9,6 +9,8 @@ data class AccountMnemonic(
 
         data object HdKey : AccountType
 
+        data object Falcon25 : AccountType
+
         data object Falcon24 : AccountType
     }
 }

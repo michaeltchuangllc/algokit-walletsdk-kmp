@@ -26,7 +26,7 @@ fun interface GetSitePasskeys {
 
 fun interface AddNewPasskey {
     suspend operator fun invoke(
-        algoAddress: String,
+        address: String,
         requestOptions: PublicKeyCredentialCreationOptions,
         credId: ByteArray,
     )
@@ -51,6 +51,6 @@ fun interface DoesPasskeyExist {
     suspend operator fun invoke(
         rpId: String,
         username: String,
-        algoAddress: String,
+        address: String,
     ): Boolean
 }

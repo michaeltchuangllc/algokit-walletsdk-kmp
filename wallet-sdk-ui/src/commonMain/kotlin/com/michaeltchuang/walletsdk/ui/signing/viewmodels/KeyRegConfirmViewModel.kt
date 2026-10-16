@@ -10,7 +10,11 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.MIN_FEE
+import com.michaeltchuang.walletsdk.core.foundation.utils.Result
+import com.michaeltchuang.walletsdk.core.foundation.utils.formatAmount
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.CreateKeyRegTransaction
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SendSignedTransactionUseCase
 import com.michaeltchuang.walletsdk.core.transaction.model.KeyRegTransaction
 import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
@@ -19,27 +23,25 @@ import com.michaeltchuang.walletsdk.core.transaction.signmanager.KeyRegTransacti
 import com.michaeltchuang.walletsdk.core.transaction.signmanager.PendingTransactionRequestManger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class KeyRegConfirmViewModel(
     private val sendSignedTransactionUseCase: SendSignedTransactionUseCase,
     private val createKeyRegTransaction: CreateKeyRegTransaction,
     private val keyRegTransactionSignManager: KeyRegTransactionSignManager,
     private val getLocalAccount: GetLocalAccount,
+    private val getTransactionParams: GetTransactionParams,
     private val stateDelegate: StateDelegate<ViewState>,
     private val eventDelegate: EventDelegate<ViewEvent>,
 ) : ViewModel(),
     StateViewModel<KeyRegConfirmViewModel.ViewState> by stateDelegate,
     EventViewModel<KeyRegConfirmViewModel.ViewEvent> by eventDelegate {
-    private val _minimumFee = MutableStateFlow("0.001")
-    val minimumFee: StateFlow<String> = _minimumFee.asStateFlow()
+    private val minimumFee = MIN_FEE.toString().formatAmount()
 
     init {
-        stateDelegate.setDefaultState(ViewState.Content)
+        stateDelegate.setDefaultState(ViewState.Content(minimumFee = minimumFee))
         viewModelScope.launch {
             keyRegTransactionSignManager.keyRegTransactionSignResultFlow.collect {
                 when (it) {
@@ -98,24 +100,34 @@ class KeyRegConfirmViewModel(
     }
 
     fun calculateMinimumFee(txnDetail: KeyRegTransactionDetail?) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val account = getLocalAccount.invoke(txnDetail?.address ?: return@launch)
-            val isOnlineKeyReg =
-                !txnDetail.voteKey.isNullOrEmpty() &&
-                    !txnDetail.selectionPublicKey.isNullOrEmpty() &&
-                    !txnDetail.voteFirstRound.isNullOrEmpty() &&
-                    !txnDetail.voteLastRound.isNullOrEmpty() &&
-                    !txnDetail.voteKeyDilution.isNullOrEmpty() &&
-                    !txnDetail.sprfkey.isNullOrEmpty()
-
+        viewModelScope.launch {
             val fee =
-                when {
-                    account is LocalAccount.Falcon24 && isOnlineKeyReg -> "2.003"
-                    account is LocalAccount.Falcon24 && !isOnlineKeyReg -> "0.004"
-                    isOnlineKeyReg -> "2.000"
-                    else -> "0.001"
-                }
-            _minimumFee.value = fee
+                withContext(Dispatchers.IO) {
+                    txnDetail?.fee?.toLongOrNull()?.takeIf { it > 0L }?.let {
+                        return@withContext it
+                    }
+
+                    val accountAddress = txnDetail?.address?.trim() ?: return@withContext null
+                    val account = getLocalAccount.invoke(accountAddress)
+                    val paramsResult = getTransactionParams()
+                    if (paramsResult !is Result.Success) return@withContext null
+
+                    val minimumFee = (paramsResult.data.minFee ?: MIN_FEE).coerceAtLeast(MIN_FEE)
+                    when (account) {
+                        is LocalAccount.Falcon24 -> minimumFee * FALCON24_BUNDLE_TXN_COUNT
+                        else -> minimumFee
+                    }
+                } ?: return@launch
+            updateMinimumFee(fee.toString().formatAmount())
+        }
+    }
+
+    private fun updateMinimumFee(fee: String) {
+        stateDelegate.updateState { currentState ->
+            when (currentState) {
+                is ViewState.Content -> ViewState.Content(minimumFee = fee)
+                is ViewState.Loading -> ViewState.Loading
+            }
         }
     }
 
@@ -148,17 +160,23 @@ class KeyRegConfirmViewModel(
     }
 
     private fun transactionFailed(error: String) {
-        stateDelegate.updateState { ViewState.Content }
+        stateDelegate.updateState { ViewState.Content(minimumFee = minimumFee) }
         viewModelScope.launch {
             eventDelegate.sendEvent(ViewEvent.SendSignedTransactionFailed(error))
         }
         println("confirmTransaction Failed: $error")
     }
 
+    private companion object {
+        const val FALCON24_BUNDLE_TXN_COUNT = 4L
+    }
+
     sealed interface ViewState {
         data object Loading : ViewState
 
-        data object Content : ViewState
+        data class Content(
+            val minimumFee: String,
+        ) : ViewState
     }
 
     sealed interface ViewEvent {

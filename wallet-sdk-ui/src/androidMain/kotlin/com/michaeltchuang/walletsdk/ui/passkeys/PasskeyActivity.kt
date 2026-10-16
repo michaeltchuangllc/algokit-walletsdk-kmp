@@ -2,26 +2,36 @@ package com.michaeltchuang.walletsdk.ui.passkeys
 
 import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.flowWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
+import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService.Companion.CREATE_PASSKEY_INTENT
 import com.michaeltchuang.walletsdk.ui.passkeys.PasskeyProviderService.Companion.GET_PASSKEY_INTENT
 import com.michaeltchuang.walletsdk.ui.passkeys.biometric.PasskeyBiometricAuthenticator
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.CreatePasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel
+import com.michaeltchuang.walletsdk.ui.signing.screens.ScreenContent
+import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.koin.android.ext.android.getKoin
 import org.koin.android.ext.koin.androidContext
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.context.startKoin
 import java.security.Security
+import kotlin.coroutines.resume
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class PasskeyActivity :
@@ -96,7 +106,18 @@ class PasskeyActivity :
 
     private fun processCreatePasskeyRequest() {
         observeCreatePasskeyViewEvents()
-        createPasskeyViewModel.processIntent(intent)
+        lifecycleScope.launch {
+            val selectedAddress =
+                ensureCreatePasskeyAccountSelected() ?: run {
+                    finishWithCreateCredentialError("Account selection cancelled")
+                    return@launch
+                }
+            val extras =
+                intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY) ?: Bundle()
+            extras.putString(PasskeyProviderService.ADDRESS_KEY, selectedAddress)
+            intent.putExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY, extras)
+            createPasskeyViewModel.processIntent(intent)
+        }
     }
 
     private fun processGetPasskeyRequest() {
@@ -114,6 +135,50 @@ class PasskeyActivity :
         PasskeyBiometricAuthenticator(onFinishActivity = { finish() }) {
             getPasskeyViewModel.createGetCredentialResponse(params)
         }.authenticate(this)
+    }
+
+    private suspend fun ensureCreatePasskeyAccountSelected(): String? {
+        val requestExtras = intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY)
+        val existingAddress = requestExtras?.getString(PasskeyProviderService.ADDRESS_KEY)
+
+        val hdFirstAddresses = getKoin().get<GetAllHdSeedFirstAddresses>()().map { it.firstAddress }
+        val seedVaultAddresses =
+            getKoin()
+                .get<GetLocalAccounts>()()
+                .filterIsInstance<LocalAccount.SeedVault>()
+                .map { it.address }
+
+        val selectableAddresses = (hdFirstAddresses + seedVaultAddresses).distinct()
+        if (selectableAddresses.isEmpty()) {
+            return existingAddress
+        }
+
+        val allAccounts = getKoin().get<NameRegistrationUseCase>().getAccountLite()
+        val selectableAccounts = allAccounts.filter { it.address in selectableAddresses }
+
+        if (selectableAccounts.isEmpty()) {
+            return existingAddress
+        }
+
+        return suspendCancellableCoroutine { continuation ->
+            setContent {
+                AlgoKitTheme {
+                    ScreenContent(
+                        viewState = SelectAccountViewModel.AccountsState.Content(selectableAccounts),
+                        onAccountSelected = { address ->
+                            if (continuation.isActive) {
+                                continuation.resume(address)
+                            }
+                        },
+                        onBack = {
+                            if (continuation.isActive) {
+                                continuation.resume(null)
+                            }
+                        },
+                    )
+                }
+            }
+        }
     }
 
     private fun observeCreatePasskeyViewEvents() {

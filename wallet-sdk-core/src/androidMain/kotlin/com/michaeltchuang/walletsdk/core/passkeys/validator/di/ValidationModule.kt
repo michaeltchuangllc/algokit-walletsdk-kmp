@@ -1,4 +1,3 @@
-
 package com.michaeltchuang.walletsdk.core.passkeys.validator.di
 
 import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValidator

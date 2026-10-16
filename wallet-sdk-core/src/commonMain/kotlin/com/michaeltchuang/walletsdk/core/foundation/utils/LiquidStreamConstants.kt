@@ -1,0 +1,11 @@
+package com.michaeltchuang.walletsdk.core.foundation.utils
+
+object LiquidStreamConstants {
+    const val DEPOSIT_AMOUNT_MICRO_USDC = 1_000_000L
+    const val COST_PER_BLOCK_MICRO_USDC = 8L // 0.000008 USDC
+}
+
+enum class AppId {
+    LIQUID_AUTH_STREAM,
+    NONE,
+}

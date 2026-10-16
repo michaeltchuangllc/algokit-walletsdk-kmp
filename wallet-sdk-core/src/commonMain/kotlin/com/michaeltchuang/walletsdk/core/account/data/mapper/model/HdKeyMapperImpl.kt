@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 internal class HdKeyMapperImpl : HdKeyMapper {
     override fun invoke(entity: HdKeyEntity): LocalAccount.HdKey =
         LocalAccount.HdKey(
-            algoAddress = entity.algoAddress,
+            address = entity.algoAddress,
             publicKey = entity.publicKey,
             seedId = entity.seedId,
             account = entity.account,

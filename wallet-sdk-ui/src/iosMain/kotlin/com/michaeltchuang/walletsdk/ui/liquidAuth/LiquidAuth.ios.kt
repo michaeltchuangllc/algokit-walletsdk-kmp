@@ -1,49 +1,58 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 import platform.Foundation.NSLog
 
 /**
  * Global handler for iOS Liquid Auth.
  * This should be set by the iOS app during initialization.
+ *
+ * The handler is responsible for establishing the native WebRTC connection (via
+ * `LiquidAuthService.swift`). The viewer UI itself is rendered in Compose by
+ * [com.michaeltchuang.walletsdk.ui.liquidAuth.screens.AnswerScreenOverlay], driven by
+ * [AnswerScreenState] — mirroring the Android implementation.
  */
-var iosLiquidAuthHandler: ((origin: String, requestId: String, algoAddress: String) -> Unit)? = null
+var iosLiquidAuthHandler: ((origin: String, requestId: String, accountAddress: String) -> Unit)? =
+    null
 
-@Composable
-actual fun connect(
+actual fun connectLiquidAuth(
     authMessage: AuthMessage,
-    algoAddress: String,
+    accountAddress: String,
 ) {
-    LaunchedEffect(authMessage, algoAddress) {
-        NSLog("🔗 iOS Liquid Auth connect() called")
-        NSLog("   Origin: '${authMessage.origin}'")
-        NSLog("   RequestID: '${authMessage.requestId}'")
-        NSLog("   RequestID length: ${authMessage.requestId.length}")
-        NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
-        NSLog("   AlgoAddress: '$algoAddress'")
+    NSLog("🔗 iOS Liquid Auth connect() called")
+    NSLog("   Origin: '${authMessage.origin}'")
+    NSLog("   RequestID: '${authMessage.requestId}'")
+    NSLog("   RequestID length: ${authMessage.requestId.length}")
+    NSLog("   RequestID isEmpty: ${authMessage.requestId.isEmpty()}")
+    NSLog("   AlgoAddress: '$accountAddress'")
 
-        // Verify requestId is not empty
-        if (authMessage.requestId.isEmpty()) {
-            NSLog("❌ ERROR: RequestID is empty!")
-            NSLog("   This usually means the URL wasn't parsed correctly")
-            NSLog("   Expected URL format: liquid://host/?requestId=...")
-            return@LaunchedEffect
-        }
+    // Verify requestId is not empty
+    if (authMessage.requestId.isEmpty()) {
+        NSLog("❌ ERROR: RequestID is empty!")
+        NSLog("   This usually means the URL wasn't parsed correctly")
+        NSLog("   Expected URL format: liquid://host/?requestId=...")
+    }
 
-        // Call the registered handler
-        val handler = iosLiquidAuthHandler
-        if (handler != null) {
-            NSLog("✅ Calling iOS handler with:")
-            NSLog("   - origin: '${authMessage.origin}'")
-            NSLog("   - requestId: '${authMessage.requestId}'")
-            NSLog("   - algoAddress: '$algoAddress'")
-            handler(authMessage.origin, authMessage.requestId, algoAddress)
-        } else {
-            NSLog("⚠️ No iOS Liquid Auth handler registered!")
-            NSLog("📝 Call setIosLiquidAuthHandler() from Swift app initialization")
-        }
+    // Drive the Compose overlay exactly like Android does (see LiquidAuth.android.kt).
+    AnswerScreenState.accountAddress = accountAddress
+    AnswerScreenState.origin = authMessage.origin
+    AnswerScreenState.requestId = authMessage.requestId
+    AnswerScreenState.isVisible = true
+
+    // Notify the native handler so Swift (LiquidAuthService) can establish the WebRTC
+    // connection. The handler should no longer present its own UI — the Compose
+    // AnswerScreenOverlay now renders the viewer screen.
+    val handler = iosLiquidAuthHandler
+    if (handler != null) {
+        NSLog("✅ Calling iOS handler with:")
+        NSLog("   - origin: '${authMessage.origin}'")
+        NSLog("   - requestId: '${authMessage.requestId}'")
+        NSLog("   - address: '$accountAddress'")
+        handler(authMessage.origin, authMessage.requestId, accountAddress)
+    } else {
+        NSLog("⚠️ No iOS Liquid Auth handler registered!")
+        NSLog("📝 Call setIosLiquidAuthHandler() from Swift app initialization")
     }
 }
 

@@ -6,19 +6,24 @@ import androidx.annotation.RequiresApi
 import androidx.credentials.GetPublicKeyCredentialOption
 import androidx.credentials.provider.PendingIntentHandler
 import androidx.credentials.provider.ProviderGetCredentialRequest
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetPasskeyByCredentialId
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetPasskeyIntentValidationResult
+import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 import com.michaeltchuang.walletsdk.core.passkeys.validator.AppInfoValidationResult
 import com.michaeltchuang.walletsdk.core.passkeys.validator.CallingAppInfoValidator
 import com.michaeltchuang.walletsdk.core.passkeys.validator.GetPasskeyIntentValidator
+import org.json.JSONException
 
 @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class DefaultGetPasskeyIntentValidator(
     private val appInfoValidator: CallingAppInfoValidator,
     private val getPasskeyByCredentialId: GetPasskeyByCredentialId,
+    private val getLocalAccount: GetLocalAccount,
 ) : GetPasskeyIntentValidator {
     override suspend fun validate(intent: Intent): GetPasskeyIntentValidationResult {
         val request = PendingIntentHandler.Companion.retrieveProviderGetCredentialRequest(intent)
@@ -29,13 +34,17 @@ class DefaultGetPasskeyIntentValidator(
             return GetPasskeyIntentValidationResult.UnableToExtractData
         }
 
-        val publicKeyCredentialOption = request.credentialOptions.firstOrNull()
-        val publicKeyRequest = publicKeyCredentialOption as? GetPublicKeyCredentialOption
-        if (publicKeyRequest == null) {
+        val publicKeyRequests = request.credentialOptions.filterIsInstance<GetPublicKeyCredentialOption>()
+        if (publicKeyRequests.isEmpty()) {
             return GetPasskeyIntentValidationResult.InvalidRequestType
         }
 
-        return getIntentResultValidatingAppInfo(request, publicKeyRequest, credentialIdB64)
+        var result: GetPasskeyIntentValidationResult = GetPasskeyIntentValidationResult.PasskeyNotFound
+        for (publicKeyRequest in publicKeyRequests) {
+            result = getIntentResultValidatingAppInfo(request, publicKeyRequest, credentialIdB64)
+            if (result is GetPasskeyIntentValidationResult.Success) return result
+        }
+        return result
     }
 
     private suspend fun getIntentResultValidatingAppInfo(
@@ -44,40 +53,56 @@ class DefaultGetPasskeyIntentValidator(
         credId: String,
     ): GetPasskeyIntentValidationResult {
         val publicKeyRequestOptions =
-            PublicKeyCredentialRequestOptions(publicKeyRequest.requestJson)
+            try {
+                PublicKeyCredentialRequestOptions(publicKeyRequest.requestJson)
+            } catch (_: JSONException) {
+                return GetPasskeyIntentValidationResult.UnableToExtractData
+            } catch (_: IllegalArgumentException) {
+                return GetPasskeyIntentValidationResult.UnableToExtractData
+            }
+        val passkey =
+            getPasskeyByCredentialId(credId)
+                ?: return GetPasskeyIntentValidationResult.PasskeyNotFound
+        if (publicKeyRequestOptions.rpId.isBlank() || passkey.site.url != publicKeyRequestOptions.rpId) {
+            return GetPasskeyIntentValidationResult.FailedToValidateRP
+        }
+        if (!publicKeyRequestOptions.allows(passkey)) {
+            return GetPasskeyIntentValidationResult.PasskeyNotFound
+        }
         val validationResult = appInfoValidator.validateCallingApp(publicKeyRequestOptions.rpId, request.callingAppInfo)
         return when (validationResult) {
             is AppInfoValidationResult.AppInfoNotFound -> GetPasskeyIntentValidationResult.AppInfoNotFound
             is AppInfoValidationResult.FailedToValidateRP -> GetPasskeyIntentValidationResult.FailedToValidateRP
             is AppInfoValidationResult.FailedToValidateOrigin -> GetPasskeyIntentValidationResult.FailedToValidateOrigin
             is AppInfoValidationResult.Success -> {
-                val passkey = getPasskeyByCredentialId(credId)
-                if (passkey == null) {
-                    GetPasskeyIntentValidationResult.PasskeyNotFound
-                } else {
-                    val params =
-                        getGetCredentialsParams(
-                            request,
-                            publicKeyRequest,
-                            publicKeyRequestOptions,
-                            validationResult.callingAppInfoOrigin,
-                            passkey,
-                        )
-                    GetPasskeyIntentValidationResult.Success(request, params)
-                }
+                val params =
+                    getGetCredentialsParams(
+                        request,
+                        publicKeyRequest,
+                        publicKeyRequestOptions,
+                        validationResult.callingAppInfoOrigin,
+                        passkey,
+                    )
+                GetPasskeyIntentValidationResult.Success(request, params)
             }
         }
     }
 
-    private fun getGetCredentialsParams(
+    private suspend fun getGetCredentialsParams(
         request: ProviderGetCredentialRequest,
         publicKeyRequest: GetPublicKeyCredentialOption,
         publicKeyRequestOptions: PublicKeyCredentialRequestOptions,
         appInfoOrigin: String,
         passkey: Passkey,
-    ): GetCredentialsParams =
-        GetCredentialsParams(
-            algoAddress = passkey.algoAddress,
+    ): GetCredentialsParams {
+        val signingProvider =
+            when (getLocalAccount(passkey.address)) {
+                is LocalAccount.SeedVault -> PasskeySigningProvider.SOLANA_SEED_VAULT
+                else -> PasskeySigningProvider.BIP39_DETERMINISTIC
+            }
+
+        return GetCredentialsParams(
+            address = passkey.address,
             credId = passkey.credId,
             origin = appInfoOrigin,
             request = publicKeyRequestOptions,
@@ -86,5 +111,7 @@ class DefaultGetPasskeyIntentValidator(
             packageName = request.callingAppInfo.packageName,
             callingAppInfo = appInfoOrigin,
             clientDataHash = publicKeyRequest.clientDataHash.takeIf { appInfoOrigin.isNotBlank() },
+            signingProvider = signingProvider,
         )
+    }
 }

@@ -72,6 +72,7 @@ interface SignalInterface {
         requestId: String,
         type: String,
         iceServers: List<PeerConnection.IceServer>?,
+        enableMedia: Boolean = false,
     ): DataChannel?
 
     /**

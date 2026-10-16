@@ -1,15 +1,13 @@
 plugins {
     alias(libs.plugins.multiplatform)
 
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlinx.serialization)
     alias(libs.plugins.ktlint)
     alias(libs.plugins.maven.publish)
 }
-
-apply(plugin = "shot")
 
 // Apply shared version calculation script
 apply(from = rootProject.file("gradle/version.gradle.kts"))
@@ -22,24 +20,40 @@ fun calculateVersionName(): String = (extra["calculateVersionName"] as () -> Str
 fun getGitHash(): String = (extra["getGitHash"] as () -> String).invoke()
 
 kotlin {
-    androidTarget {
-        publishLibraryVariants(
-            "release",
-        )
-        compilations.all {
-            compileTaskProvider {
-                compilerOptions {
-                    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-                    freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
-                }
+    android {
+        namespace = "com.michaeltchuang.walletsdk.ui"
+        compileSdk =
+            libs.versions.android.compileSdk
+                .get()
+                .toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        androidResources.enable = true
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
+        }
+        packaging {
+            resources {
+                excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             }
+        }
+        withHostTest {
+            isIncludeAndroidResources = true
+        }
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }.configure {
+            applicationId = "com.michaeltchuang.walletsdk.ui.test"
+            instrumentationRunner = "com.karumi.shot.ShotTestRunner"
         }
     }
 
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
-        iosX64(),
     ).forEach { target ->
         target.compilations.all {
             compileTaskProvider.configure {
@@ -66,13 +80,14 @@ kotlin {
                 implementation(compose.animation)
                 implementation(compose.components.resources)
                 implementation(compose.components.uiToolingPreview)
+                implementation(compose.preview)
                 implementation(compose.foundation)
                 implementation(compose.material)
                 implementation(compose.material3)
                 implementation(compose.materialIconsExtended)
                 implementation(compose.runtime)
-                implementation(libs.bitcoin.kmp)
                 implementation(libs.coil.compose)
+                implementation(libs.coil.network.ktor)
                 implementation(project.dependencies.platform(libs.koin.bom))
                 implementation(libs.koin.core)
                 implementation(libs.koin.compose)
@@ -119,29 +134,44 @@ kotlin {
                 implementation(libs.ktor.client.okhttp)
                 implementation(compose.uiTooling)
                 implementation(compose.components.uiToolingPreview)
+                implementation(compose.preview)
                 implementation(libs.koin.android)
                 implementation(libs.androidx.credentials)
                 implementation(libs.biometric)
                 implementation(libs.bcprov.jdk18on)
-                implementation(libs.androidx.credentials)
-                implementation(libs.algosdk)
-                implementation(libs.algorand.go.mobile)
+                implementation(libs.algorand.falcon)
 
                 implementation(libs.algorand.foundation.crypto)
                 implementation(libs.algorand.foundation.provider)
 
-                implementation(libs.play.services.fido)
-                implementation(libs.kotlinx.coroutines.play.services)
                 implementation(libs.okhttp)
                 implementation(libs.okhttp.logging.interceptor)
                 implementation(libs.coroutines.okhttp)
                 implementation(libs.socketio.client)
                 implementation(libs.stream.webrtc.android)
                 implementation(libs.uuid.generator)
+                implementation(libs.sol4k)
+
+                // Solana Mobile Seed Vault
+                implementation(libs.seedvault.wallet.sdk)
+
+                // CameraX for video streaming (Android actual implementation)
+                implementation(libs.camerax.core)
+                implementation(libs.camerax.camera2)
+                implementation(libs.camerax.lifecycle)
+                implementation(libs.camerax.view)
             }
         }
 
-        androidInstrumentedTest {
+        val androidHostTest by getting {
+            dependencies {
+                implementation(libs.mockk)
+                implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.junit)
+            }
+        }
+
+        val androidDeviceTest by getting {
             dependencies {
                 implementation(compose.uiTooling)
                 implementation(compose.material3)
@@ -154,6 +184,7 @@ kotlin {
                 implementation(libs.compose.ui.testManifest)
                 implementation(libs.compose.ui.test.junit4)
                 implementation(libs.androidx.uiautomator)
+                implementation(libs.shot.android)
             }
         }
 
@@ -170,42 +201,6 @@ configurations.all {
 
         // Exclude the older version
         exclude(group = "org.bouncycastle", module = "bcprov-jdk15to18")
-    }
-}
-
-android {
-    namespace = "com.michaeltchuang.walletsdk.ui"
-    compileSdk = 36
-
-    packagingOptions {
-        exclude("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
-    }
-
-    defaultConfig {
-        minSdk =
-            libs.versions.android.minSdk
-                .get()
-                .toInt()
-        testApplicationId = "com.michaeltchuang.walletsdk.ui.test"
-        testInstrumentationRunner = "com.karumi.shot.ShotTestRunner"
-    }
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.4"
-    }
-
-    sourceSets["main"].res.srcDirs("src/commonMain/composeResources", "src/androidMain/res")
-    sourceSets["main"].resources.srcDirs("src/commonMain/composeResources")
-
-    testOptions {
-        unitTests {
-            isIncludeAndroidResources = true
-        }
     }
 }
 
@@ -311,6 +306,45 @@ mavenPublishing {
             url.set("https://github.com/michaeltchuangllc/algokit-walletsdk-kmp")
         }
     }
+}
+
+val screenshotDevicePath =
+    "/sdcard/Download/screenshots/com.michaeltchuang.walletsdk.ui.test/screenshots-compose-default"
+
+val androidSdkDirectory =
+    sequenceOf(
+        providers.environmentVariable("ANDROID_HOME").orNull,
+        providers.environmentVariable("ANDROID_SDK_ROOT").orNull,
+        providers.gradleProperty("android.sdk.path").orNull,
+    ).filterNotNull().firstOrNull()
+
+val adbExecutable = androidSdkDirectory?.let { "$it/platform-tools/adb" } ?: "adb"
+
+val clearDeviceScreenshots by tasks.registering(Exec::class) {
+    commandLine(adbExecutable, "shell", "rm", "-rf", screenshotDevicePath)
+}
+
+val pullRecordedScreenshots by tasks.registering(Exec::class) {
+    val screenshotsDirectory = layout.projectDirectory.dir("screenshots/debug").asFile
+    onlyIf { project.hasProperty("record") }
+    doFirst {
+        screenshotsDirectory.mkdirs()
+    }
+    commandLine(adbExecutable, "pull", "$screenshotDevicePath/.", screenshotsDirectory.absolutePath)
+}
+
+tasks.configureEach {
+    if (name == "connectedAndroidDeviceTest") {
+        dependsOn(clearDeviceScreenshots)
+    }
+}
+
+val executeScreenshotTests by tasks.registering {
+    group = "verification"
+    description =
+        "Runs Android device screenshot tests. Use -Precord to copy captured screenshots to screenshots/debug."
+    dependsOn("connectedAndroidDeviceTest")
+    finalizedBy(pullRecordedScreenshots)
 }
 
 // Task to copy screenshots to GitHub Pages directory

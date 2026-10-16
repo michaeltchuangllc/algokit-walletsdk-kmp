@@ -22,5 +22,10 @@ internal actual fun platformKoinModule(): Module =
         single<AlgoKitDatabase> {
             createAlgoKitDatabase(customDirectory = sharedAppGroupDirectory).build()
         }
-        includes(passkeyModule)
+        includes(
+            com.michaeltchuang.walletsdk.core.account.di.solanaAccountModule,
+            passkeyModule,
+            com.michaeltchuang.walletsdk.core.railmpp.di.railMppModule,
+            com.michaeltchuang.walletsdk.core.solana.di.solanaLinkedSignerModule,
+        )
     }

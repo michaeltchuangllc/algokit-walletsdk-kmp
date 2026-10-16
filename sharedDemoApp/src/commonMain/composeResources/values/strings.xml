@@ -1,0 +1,31 @@
+<resources>
+    <string name="app_name_topbar">WalletSDK Playground</string>
+    <string name="open_github">Open github</string>
+
+    <!-- Bottom Navigation Screen -->
+    <string name="nav_discover">GitHub Repo</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_broadcast">Broadcast</string>
+    <string name="no_account_list">No accounts found. \nTap + to add one!</string>
+
+    <!-- Account Types -->
+    <string name="account_type_hd">HD Account</string>
+    <string name="account_type_algo25">Algo25 Account</string>
+    <string name="account_type_falcon24">Falcon24 Account</string>
+    <string name="account_type_falcon25">Falcon25 Account</string>
+    <string name="account_type_watch">Watch Account</string>
+    <string name="account_type_ledger">Ledger Account</string>
+    <string name="account_type_seedvault">SeedVault Account</string>
+
+    <!-- Content Descriptions -->
+    <string name="wallet_icon">Wallet Icon</string>
+    <string name="qr_icon">QR Icon</string>
+    <string name="add_account">Add Account</string>
+
+    <!-- Messages -->
+    <string name="account_deleted">Account deleted successfully.</string>
+    <string name="failed_to_delete">Failed to delete account.</string>
+    <string name="failed_to_fetch">Failed to fetch accounts.</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="loading_accounts">Ready to load accounts...</string>
+</resources>

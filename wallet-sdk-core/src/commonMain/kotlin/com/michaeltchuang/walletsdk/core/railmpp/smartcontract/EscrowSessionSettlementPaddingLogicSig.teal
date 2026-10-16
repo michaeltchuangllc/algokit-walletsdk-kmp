@@ -1,0 +1,134 @@
+#pragma version 13
+#pragma typetrack false
+
+// smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts::program() -> uint64:
+main:
+    intcblock 1 0 TMPL_HYBRID_APP_ID
+    bytecblock TMPL_SWEEP_DESTINATION TMPL_CHANNEL_ID
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:31
+    // if (op.Global.groupSize === 1) {
+    global GroupSize
+    intc_0 // 1
+    ==
+    bz main_after_if_else@2
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:34
+    // assert(Txn.typeEnum === TransactionType.Payment, 'Sweep must be a payment')
+    txn TypeEnum
+    intc_0 // 1
+    ==
+    assert // Sweep must be a payment
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:35
+    // assert(Txn.receiver === Txn.sender, 'Sweep receiver must be self')
+    txn Receiver
+    txn Sender
+    ==
+    assert // Sweep receiver must be self
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:36
+    // assert(Txn.amount === 0, 'Sweep amount must be zero')
+    txn Amount
+    !
+    assert // Sweep amount must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:37
+    // assert(Txn.closeRemainderTo === SWEEP_DESTINATION, 'Sweep must return funds to the funder')
+    txn CloseRemainderTo
+    bytec_0 // TMPL_SWEEP_DESTINATION
+    ==
+    assert // Sweep must return funds to the funder
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:38
+    // assert(Txn.rekeyTo === Account(), 'Rekey not allowed')
+    txn RekeyTo
+    global ZeroAddress
+    ==
+    assert // Rekey not allowed
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:39
+    // return true
+    intc_0 // 1
+    return
+
+main_after_if_else@2:
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:42
+    // assert(op.Global.groupSize === 2, 'Padding requires a two-LogicSig transaction group')
+    global GroupSize
+    pushint 2 // 2
+    ==
+    assert // Padding requires a two-LogicSig transaction group
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:43
+    // assert(Txn.groupIndex === 1, 'Padding must be second in group')
+    txn GroupIndex
+    intc_0 // 1
+    ==
+    assert // Padding must be second in group
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:44
+    // assert(Txn.receiver === Txn.sender, 'Padding payment must be self-payment')
+    txn Receiver
+    txn Sender
+    ==
+    assert // Padding payment must be self-payment
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:45
+    // assert(Txn.amount === 0, 'Padding payment amount must be zero')
+    txn Amount
+    !
+    assert // Padding payment amount must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:46
+    // assert(Txn.fee === 0, 'Padding payment fee must be zero')
+    txn Fee
+    !
+    assert // Padding payment fee must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:47
+    // assert(Txn.rekeyTo === Account(), 'Padding rekey not allowed')
+    txn RekeyTo
+    global ZeroAddress
+    ==
+    assert // Padding rekey not allowed
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:50
+    // const settlementTxn = gtxn.ApplicationCallTxn(0)
+    intc_1 // 0
+    gtxns TypeEnum
+    pushint 6 // appl
+    ==
+    assert // transaction type is appl
+    intc_1 // 0
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:51
+    // assert(settlementTxn.appId === Application(HYBRID_APP_ID), 'Wrong hybrid application')
+    gtxns ApplicationID
+    intc_2 // TMPL_HYBRID_APP_ID
+    ==
+    assert // Wrong hybrid application
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:50
+    // const settlementTxn = gtxn.ApplicationCallTxn(0)
+    intc_1 // 0
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:52
+    // assert(settlementTxn.numAppArgs === 3, 'Unexpected settlement arguments')
+    gtxns NumAppArgs
+    pushint 3 // 3
+    ==
+    assert // Unexpected settlement arguments
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:50
+    // const settlementTxn = gtxn.ApplicationCallTxn(0)
+    intc_1 // 0
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:54
+    // settlementTxn.appArgs(0) === op.sha512_256(Bytes('settleFromLogicSig(byte[],uint64)void')).slice(0, 4),
+    dup
+    gtxnsas ApplicationArgs
+    pushbytes 0x439c5fb1
+    ==
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:53-56
+    // assert(
+    //   settlementTxn.appArgs(0) === op.sha512_256(Bytes('settleFromLogicSig(byte[],uint64)void')).slice(0, 4),
+    //   'Wrong method',
+    // )
+    assert // Wrong method
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:50
+    // const settlementTxn = gtxn.ApplicationCallTxn(0)
+    intc_1 // 0
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:57
+    // assert(settlementTxn.appArgs(1) === CHANNEL_ID, 'Wrong channel')
+    intc_0 // 1
+    gtxnsas ApplicationArgs
+    bytec_1 // TMPL_CHANNEL_ID
+    ==
+    assert // Wrong channel
+    // smart_contracts/escrow_session_vault_hybrid_manager/padding_logic_sig.algo.ts:58
+    // return true
+    intc_0 // 1
+    return

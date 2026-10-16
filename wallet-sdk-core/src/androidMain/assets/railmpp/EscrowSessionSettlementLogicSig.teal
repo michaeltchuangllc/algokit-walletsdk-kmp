@@ -1,0 +1,238 @@
+#pragma version 13
+#pragma typetrack false
+
+// smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts::program() -> uint64:
+main:
+    intcblock 1 2 TMPL_HYBRID_APP_ID
+    bytecblock TMPL_CHANNEL_ID TMPL_AUTHORIZED_PUBLIC_KEY TMPL_PAYEE
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:52
+    // if (op.Global.groupSize === 1) {
+    global GroupSize
+    intc_0 // 1
+    ==
+    bz main_after_if_else@2
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:56
+    // assert(Txn.typeEnum === TransactionType.Payment, 'Sweep must be a payment')
+    txn TypeEnum
+    intc_0 // 1
+    ==
+    assert // Sweep must be a payment
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:57
+    // assert(Txn.receiver === Txn.sender, 'Sweep receiver must be self')
+    txn Receiver
+    txn Sender
+    ==
+    assert // Sweep receiver must be self
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:58
+    // assert(Txn.amount === 0, 'Sweep amount must be zero')
+    txn Amount
+    !
+    assert // Sweep amount must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:59
+    // assert(Txn.closeRemainderTo === PAYEE, 'Sweep must return funds to the payee')
+    txn CloseRemainderTo
+    bytec_2 // TMPL_PAYEE
+    ==
+    assert // Sweep must return funds to the payee
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:60
+    // assert(Txn.rekeyTo === Account(), 'Rekey not allowed')
+    txn RekeyTo
+    global ZeroAddress
+    ==
+    assert // Rekey not allowed
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:61
+    // return true
+    intc_0 // 1
+    return
+
+main_after_if_else@2:
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:66
+    // assert(op.Global.groupSize === 2, 'Settlement requires a two-LogicSig transaction group')
+    global GroupSize
+    intc_1 // 2
+    ==
+    assert // Settlement requires a two-LogicSig transaction group
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:67
+    // assert(Txn.groupIndex === 0, 'Settlement must be first in group')
+    txn GroupIndex
+    !
+    assert // Settlement must be first in group
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:68
+    // assert(Txn.rekeyTo === Account(), 'Rekey not allowed')
+    txn RekeyTo
+    global ZeroAddress
+    ==
+    assert // Rekey not allowed
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:69
+    // assert(Txn.applicationId === Application(HYBRID_APP_ID), 'Wrong hybrid application')
+    txn ApplicationID
+    intc_2 // TMPL_HYBRID_APP_ID
+    ==
+    assert // Wrong hybrid application
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:72
+    // const paddingTxn = gtxn.PaymentTxn(1)
+    intc_0 // 1
+    gtxns TypeEnum
+    intc_0 // pay
+    ==
+    assert // transaction type is pay
+    intc_0 // 1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:73
+    // assert(paddingTxn.receiver === paddingTxn.sender, 'Padding payment must be self-payment')
+    gtxns Receiver
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:72
+    // const paddingTxn = gtxn.PaymentTxn(1)
+    intc_0 // 1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:73
+    // assert(paddingTxn.receiver === paddingTxn.sender, 'Padding payment must be self-payment')
+    gtxns Sender
+    ==
+    assert // Padding payment must be self-payment
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:72
+    // const paddingTxn = gtxn.PaymentTxn(1)
+    intc_0 // 1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:74
+    // assert(paddingTxn.amount === 0, 'Padding payment amount must be zero')
+    gtxns Amount
+    !
+    assert // Padding payment amount must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:72
+    // const paddingTxn = gtxn.PaymentTxn(1)
+    intc_0 // 1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:75
+    // assert(paddingTxn.fee === 0, 'Padding payment fee must be zero')
+    gtxns Fee
+    !
+    assert // Padding payment fee must be zero
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:72
+    // const paddingTxn = gtxn.PaymentTxn(1)
+    intc_0 // 1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:76
+    // assert(paddingTxn.rekeyTo === Account(), 'Padding rekey not allowed')
+    gtxns RekeyTo
+    global ZeroAddress
+    ==
+    assert // Padding rekey not allowed
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:77
+    // assert(Txn.numAppArgs === 3, 'Unexpected settlement arguments')
+    txn NumAppArgs
+    pushint 3 // 3
+    ==
+    assert // Unexpected settlement arguments
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:78
+    // assert(Txn.applicationArgs(0) === op.sha512_256(Bytes('settleFromLogicSig(byte[],uint64)void')).slice(0, 4), 'Wrong method')
+    pushint 0 // 0
+    txnas ApplicationArgs
+    pushbytes 0x439c5fb1
+    ==
+    assert // Wrong method
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:79
+    // assert(Txn.applicationArgs(1) === CHANNEL_ID, 'Wrong channel')
+    intc_0 // 1
+    txnas ApplicationArgs
+    bytec_0 // TMPL_CHANNEL_ID
+    ==
+    assert // Wrong channel
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:81
+    // const cumulativeAmount = op.extractUint64(op.arg(1), 0)
+    arg_1
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:82
+    // assert(op.arg(1).length === 8, 'Amount argument must be uint64')
+    dup
+    len
+    pushint 8 // 8
+    ==
+    assert // Amount argument must be uint64
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:83
+    // assert(Txn.applicationArgs(2) === op.itob(cumulativeAmount), 'Amount argument mismatch')
+    intc_1 // 2
+    txnas ApplicationArgs
+    swap
+    extract 0 8
+    swap
+    dig 1
+    ==
+    assert // Amount argument mismatch
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:86
+    // .itob(HYBRID_APP_ID)
+    intc_2 // TMPL_HYBRID_APP_ID
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:85-86
+    // const message = op
+    //   .itob(HYBRID_APP_ID)
+    itob
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:87
+    // .concat(CHANNEL_ID.slice(2))
+    bytec_0 // TMPL_CHANNEL_ID
+    len
+    intc_1 // 2
+    dig 1
+    >=
+    intc_1 // 2
+    dig 2
+    uncover 2
+    select
+    bytec_0 // TMPL_CHANNEL_ID
+    swap
+    uncover 2
+    substring3
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:85-87
+    // const message = op
+    //   .itob(HYBRID_APP_ID)
+    //   .concat(CHANNEL_ID.slice(2))
+    concat
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:85-88
+    // const message = op
+    //   .itob(HYBRID_APP_ID)
+    //   .concat(CHANNEL_ID.slice(2))
+    //   .concat(op.itob(cumulativeAmount))
+    swap
+    concat
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:89
+    // .concat(PAYEE.bytes)
+    bytec_2 // TMPL_PAYEE
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:85-89
+    // const message = op
+    //   .itob(HYBRID_APP_ID)
+    //   .concat(CHANNEL_ID.slice(2))
+    //   .concat(op.itob(cumulativeAmount))
+    //   .concat(PAYEE.bytes)
+    concat
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:90
+    // .concat(Bytes('settle-lsig-v1'))
+    pushbytes "settle-lsig-v1"
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:85-90
+    // const message = op
+    //   .itob(HYBRID_APP_ID)
+    //   .concat(CHANNEL_ID.slice(2))
+    //   .concat(op.itob(cumulativeAmount))
+    //   .concat(PAYEE.bytes)
+    //   .concat(Bytes('settle-lsig-v1'))
+    concat
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:92
+    // if (op.arg(0).length === ED25519_SIGNATURE_LENGTH) {
+    arg_0
+    len
+    pushint 64 // 64
+    ==
+    bz main_after_if_else@4
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:93
+    // assert(AUTHORIZED_PUBLIC_KEY.length === ED25519_PUBLIC_KEY_LENGTH, 'Ed25519 public key must be 32 bytes')
+    bytec_1 // TMPL_AUTHORIZED_PUBLIC_KEY
+    len
+    pushint 32 // 32
+    ==
+    assert // Ed25519 public key must be 32 bytes
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:94
+    // return op.ed25519verifyBare(message, op.arg(0), AUTHORIZED_PUBLIC_KEY)
+    arg_0
+    bytec_1 // TMPL_AUTHORIZED_PUBLIC_KEY
+    ed25519verify_bare
+    return
+
+main_after_if_else@4:
+    // smart_contracts/escrow_session_vault_hybrid_manager/settlement_logic_sig.algo.ts:97
+    // return falconVerify(message, op.arg(0), AUTHORIZED_PUBLIC_KEY)
+    arg_0
+    bytec_1 // TMPL_AUTHORIZED_PUBLIC_KEY
+    falcon_verify
+    return

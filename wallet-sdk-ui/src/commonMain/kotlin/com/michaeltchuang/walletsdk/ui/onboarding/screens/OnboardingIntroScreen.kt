@@ -68,7 +68,7 @@ fun OnboardingIntroScreen(navController: NavController = rememberNavController()
     ScreenContent(
         navController = navController,
         onCreateNewWallet = {
-            viewModel.createFalcon24Account()
+            viewModel.createFalcon25Account()
         },
         onImportAccount = {
             navController.navigate(AlgoKitScreens.ACCOUNT_RECOVERY_TYPE_SCREEN.name)

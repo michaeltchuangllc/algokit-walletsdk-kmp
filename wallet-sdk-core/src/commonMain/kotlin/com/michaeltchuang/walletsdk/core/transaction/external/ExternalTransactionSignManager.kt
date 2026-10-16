@@ -4,11 +4,13 @@ import androidx.lifecycle.Lifecycle
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionSigner
 import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24Transaction
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyTransaction
 import com.michaeltchuang.walletsdk.core.foundation.utils.ListQueuingHelper
 import com.michaeltchuang.walletsdk.core.foundation.utils.clearFromMemory
@@ -28,6 +30,7 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
     private val getTransactionSigner: GetTransactionSigner,
     private val getAlgo25SecretKey: GetAlgo25SecretKey,
     private val getFalcon24SecretKey: GetFalcon24SecretKey,
+    private val getFalcon25Seed: GetFalcon25Seed,
     private val getHdSeed: GetHdSeed,
     private val getLocalAccount: GetLocalAccount,
 ) : LifecycleScopedCoroutineOwner() {
@@ -93,6 +96,9 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
                 }
                 is TransactionSigner.Falcon24 -> {
                     signFalconTransaction(this@signTransaction, transactionSigner.address)
+                }
+                is TransactionSigner.Falcon25 -> {
+                    signFalcon25Transaction(this@signTransaction, transactionSigner.address)
                 }
                 is TransactionSigner.LedgerBle -> {
                     //       sendTransactionWithLedger(transactionSigner, currentTransactionIndex, totalTransactionCount)
@@ -165,6 +171,22 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
 
         falcon24SecretKey.clearFromMemory()
         onTransactionSigned(transaction, transactionSignedByteArray)
+    }
+
+    private suspend fun signFalcon25Transaction(
+        transaction: ExternalTransaction,
+        accountAddress: String,
+    ) {
+        val transactionBytes = transaction.transactionByteArray ?: return handleSignError(transaction)
+        getLocalAccount(accountAddress) as? LocalAccount.Falcon25 ?: return handleSignError(transaction)
+        val seed = getFalcon25Seed(accountAddress) ?: return handleSignError(transaction)
+        val signedTransaction =
+            signFalcon25Transaction(
+                transactionByteArray = transactionBytes,
+                seed = seed,
+            ) ?: return handleSignError(transaction)
+        seed.clearFromMemory()
+        onTransactionSigned(transaction, signedTransaction)
     }
 
     private fun handleSignError(transaction: ExternalTransaction) {

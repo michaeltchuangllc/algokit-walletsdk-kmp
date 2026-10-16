@@ -2,6 +2,8 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_account
 import androidx.compose.foundation.background
@@ -15,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,8 +47,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
-import com.michaeltchuang.walletsdk.ui.liquidAuth.connect
+import com.michaeltchuang.walletsdk.ui.liquidAuth.connectLiquidAuth
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.checkMinimumBalanceRequired
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
+import io.github.aakira.napier.Napier
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
@@ -55,11 +61,11 @@ import org.koin.compose.viewmodel.koinViewModel
 fun LiquidAuthScreen(
     navController: NavController,
     uri: String?,
+    showSnackBar: (message: String) -> Unit,
+    closeSheet: () -> Unit = {},
 ) {
     val viewModel: LiquidAuthViewModel = koinViewModel()
     val viewState = viewModel.state.collectAsStateWithLifecycle().value
-    val onConnect = remember { mutableStateOf(false) }
-    var selectedAccount by remember { mutableStateOf("") }
 
     LaunchedEffect(uri) {
         // Decode the URI if it was encoded during navigation
@@ -73,9 +79,9 @@ fun LiquidAuthScreen(
                     .replace("%25", "%") // Must be last to avoid double-decoding!
             }
 
-        println("📥 LiquidAuthScreen received URI:")
-        println("   Encoded: $uri")
-        println("   Decoded: $decodedUri")
+        Napier.d("📥 LiquidAuthScreen received URI:")
+        Napier.d("   Encoded: $uri")
+        Napier.d("   Decoded: $decodedUri")
 
         viewModel.initialize(decodedUri)
     }
@@ -92,20 +98,28 @@ fun LiquidAuthScreen(
             }
         }
     }
+    val onConnect = remember { mutableStateOf(false) }
+    var selectedAccount by remember { mutableStateOf("") }
+
     ScreenContentLiquidAuth(
         viewState,
         onAccountSelected = {
             onConnect.value = true
             selectedAccount = it
         },
+        showSnackBar = showSnackBar,
         onBack = {
             navController.popBackStack()
         },
     )
 
     if (onConnect.value) {
-        connect(viewModel.authMessage, selectedAccount)
         onConnect.value = false
+        closeSheet()
+        navController.popBackStack()
+        viewModel.authMessage?.let {
+            connectLiquidAuth(it, selectedAccount)
+        }
     }
 }
 
@@ -114,7 +128,7 @@ private fun CenteredMessage(message: String) {
     CenteredContent {
         Text(
             text = message,
-            style = AlgoKitTheme.typography.body.regular.sans,
+            style = typography.body.regular.sans,
             color = AlgoKitTheme.colors.textGray,
         )
     }
@@ -185,6 +199,7 @@ private fun InfoField(
 fun ScreenContentLiquidAuth(
     viewState: LiquidAuthViewModel.ViewState,
     onAccountSelected: (String) -> Unit,
+    showSnackBar: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     Box(
@@ -222,7 +237,12 @@ fun ScreenContentLiquidAuth(
                             onAccountItemClick = { address ->
                                 val account = accounts.find { it.address == address }
                                 if (account != null) {
-                                    onAccountSelected(account.address)
+                                    val errorMessage = checkMinimumBalanceRequired(account)
+                                    if (errorMessage != null) {
+                                        showSnackBar(errorMessage)
+                                    } else {
+                                        onAccountSelected(account.address)
+                                    }
                                 }
                             },
                         )
@@ -335,13 +355,37 @@ private fun AccountItem(
 
             Column(
                 horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
-                Text(
-                    text = "\u00A6${account.balance?.formatAmount() ?: "0.00"}",
-                    fontSize = 16.sp,
-                    style = typography.footnote.sansMedium,
-                    color = AlgoKitTheme.colors.textMain,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = vectorResource(Res.drawable.ic_usdc),
+                        contentDescription = "USDC",
+                        modifier = Modifier.size(16.dp),
+                    )
+                    Text(
+                        text = account.usdcBalance?.formatAmount() ?: "N/A",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                        Icon(
+                            imageVector = vectorResource(Res.drawable.ic_solana_sign),
+                            contentDescription = "Solana",
+                            modifier = Modifier.size(14.dp),
+                            tint = AlgoKitTheme.colors.textMain,
+                        )
+                    }
+                    Text(
+                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        fontSize = 16.sp,
+                        style = typography.footnote.sansMedium,
+                        color = AlgoKitTheme.colors.textMain,
+                    )
+                }
             }
         }
     }
@@ -358,8 +402,16 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.HdKey -> "HD Account"
         is AccountRegistrationType.Algo25 -> "Algo25"
         is AccountRegistrationType.Falcon24 -> "Falcon24"
+        is AccountRegistrationType.Falcon25 -> "Falcon25"
         is AccountRegistrationType.NoAuth -> "Watch"
         is AccountRegistrationType.LedgerBle -> "Ledger"
+        is AccountRegistrationType.SeedVault -> "SeedVault"
+    }
+
+private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
+    when (registrationType) {
+        is AccountRegistrationType.SeedVault -> ""
+        else -> "\u00A6"
     }
 
 @Preview
@@ -381,6 +433,7 @@ fun LiquidAuthScreenPreview() {
                     customName = "Account 1",
                     registrationType = AccountRegistrationType.HdKey,
                     balance = "1",
+                    usdcBalance = "1",
                 ),
             )
         }
@@ -388,6 +441,7 @@ fun LiquidAuthScreenPreview() {
         viewState = LiquidAuthViewModel.ViewState.Content(accounts),
         onAccountSelected = {
         },
+        showSnackBar = {},
         onBack = { },
     )
 }

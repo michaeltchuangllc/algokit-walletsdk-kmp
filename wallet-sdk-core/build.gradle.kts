@@ -6,7 +6,7 @@ plugins {
     // this needs to be first in list
     alias(libs.plugins.multiplatform)
 
-    alias(libs.plugins.android.library)
+    alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.compose)
     alias(libs.plugins.kotlinx.serialization)
@@ -21,28 +21,88 @@ plugins {
 
 kotlin {
 
-    androidTarget {
-        publishLibraryVariants("release")
-        compilations.all {
-            compileTaskProvider {
-                compilerOptions {
-                    jvmTarget.set(JvmTarget.JVM_21)
-                    freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
-                }
+    android {
+        namespace = "com.michaeltchuang.walletsdk.core"
+        compileSdk =
+            libs.versions.android.compileSdk
+                .get()
+                .toInt()
+        minSdk =
+            libs.versions.android.minSdk
+                .get()
+                .toInt()
+        androidResources.enable = true
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_21)
+            freeCompilerArgs.add("-Xjdk-release=${JavaVersion.VERSION_21}")
+        }
+        withHostTest {}
+        withDeviceTestBuilder {
+            sourceSetTreeName = "test"
+        }.configure {
+            applicationId = "com.michaeltchuang.walletsdk.core.test"
+            instrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        }
+        packaging {
+            resources {
+                // Exclude duplicate files from multiple dependencies
+                excludes.addAll(
+                    listOf(
+                        "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                        "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
+                        "META-INF/DEPENDENCIES",
+                        "META-INF/LICENSE",
+                        "META-INF/LICENSE.txt",
+                        "META-INF/license.txt",
+                        "META-INF/NOTICE",
+                        "META-INF/NOTICE.txt",
+                        "META-INF/notice.txt",
+                        "META-INF/ASL2.0",
+                        "META-INF/*.kotlin_module",
+                    ),
+                )
+                // Pick first occurrence of duplicate files
+                pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
             }
+        }
+        lint {
+            // Disable problematic rules for KMP
+            disable.addAll(
+                listOf(
+                    "NullSafeMutableLiveData",
+                    "UnusedResources",
+                    "MissingTranslation",
+                    "Instantiatable",
+                    "InvalidPackage",
+                    "TypographyFractions",
+                    "TypographyQuotes",
+                    "TrustAllX509TrustManager",
+                    "UseTomlInstead",
+                    "AndroidGradlePluginVersion",
+                    "GradleDependency",
+                ),
+            )
+
+            // Continue on lint errors instead of failing the build
+            abortOnError = false
+
+            // Skip lint for release builds to speed up builds
+            checkReleaseBuilds = false
+
+            // Only run lint on changed files
+            checkDependencies = false
         }
     }
 
     @OptIn(ExperimentalKotlinGradlePluginApi::class)
     compilerOptions {
-        languageVersion.set(KotlinVersion.KOTLIN_2_1)
+        languageVersion.set(KotlinVersion.KOTLIN_2_4)
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
 
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
-        iosX64(),
     ).forEach { iosTarget ->
         iosTarget.compilations {
             val main by getting {
@@ -58,18 +118,6 @@ kotlin {
             customPackageSourcePath = "${layout.projectDirectory.asFile.path}/src/iosMain/swift"
             minIos = "16.2"
             dependency {
-                localBinary(
-                    path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoSDK.xcframework.zip",
-                    packageName = "AlgoSDK",
-                    exportToKotlin = false,
-                )
-                // AlgoKitTransact as Swift package (for accessing Swift types)
-                localPackage(
-                    path = "${layout.projectDirectory.asFile.path}/src/iosMain/xcframeworks/AlgoKitTransact",
-                    products = {
-                        add("AlgoKitTransact")
-                    },
-                )
                 remotePackageVersion(
                     url = uri("https://github.com/Electric-Coin-Company/MnemonicSwift.git"),
                     products = {
@@ -77,12 +125,29 @@ kotlin {
                     },
                     version = "2.2.5",
                 )
-                remotePackageBranch(
-                    url = uri("https://github.com/michaeltchuang/algorand-devrel-xHD-Wallet-API-swift.git"),
+                remotePackageVersion(
+                    url = uri("https://github.com/algorandecosystem/falcon-signatures-mobile.git"),
                     products = {
-                        add("x-hd-wallet-api")
+                        add("FalconMobileSDK")
                     },
-                    branch = "fix/upgrade_sodium",
+                    version =
+                        libs.versions.falcon.sdk
+                            .get(),
+                )
+                remotePackageVersion(
+                    url = uri("https://github.com/algorandecosystem/algokit-core-swift.git"),
+                    products = {
+                        add("AlgoKitTransact")
+                        add("AlgoKitCrypto")
+                        add("AlgoKitComposer")
+                        add("AlgoKitUtils")
+                    },
+                    // Pinned to the same release Android uses (`algokit-core` in
+                    // libs.versions.toml) so both platforms build against identical
+                    // algokit-core Rust logic instead of iOS silently tracking `main`.
+                    version =
+                        libs.versions.algokit.core
+                            .get(),
                 )
             }
         }
@@ -90,14 +155,16 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
-            implementation(libs.algosdk)
-            implementation(libs.algorand.go.mobile)
+            implementation(libs.algokit.composer)
+            implementation(libs.algokit.crypto)
+            implementation(libs.algokit.transact)
+
+            implementation(libs.algorand.falcon)
             implementation(libs.androidx.credentials)
             implementation(libs.biometric)
 
             // toml files don't support aar files yet
             implementation("net.java.dev.jna:jna:5.17.0@aar")
-            implementation(libs.xhdwalletapi)
             implementation(libs.kotlin.bip39)
             implementation(libs.bcprov.jdk18on)
             implementation(libs.androidx.activityCompose)
@@ -116,11 +183,13 @@ kotlin {
             implementation(libs.algorand.foundation.provider)
             implementation(libs.p256)
 
+            // Solana Mobile Seed Vault
+            implementation(libs.seedvault.wallet.sdk)
+
             implementation(libs.socketio.client)
             implementation(libs.stream.webrtc.android)
             implementation(libs.qrcode.kotlin)
             implementation(libs.uuid.generator)
-            implementation(libs.play.services.fido)
             implementation(libs.mlkit.barcode.scanning.common)
             implementation(libs.mlkit.camera)
             implementation(libs.socketio.client)
@@ -129,12 +198,15 @@ kotlin {
             implementation(libs.jackson.dataformat.msgpack)
             implementation(libs.jackson.dataformat.cbor)
             implementation(libs.json.kotlin.schema)
+
+            // JCS (RFC 8785) JSON canonicalization — required for challenge HMAC input and
+            // `request` field serialization per draft-algorand-charge.
+            implementation(libs.json.canonicalization)
         }
         commonMain.dependencies {
             api(libs.napier)
 
             implementation(compose.runtime)
-            implementation(libs.bitcoin.kmp)
             implementation(libs.coil.compose)
             implementation(project.dependencies.platform(libs.koin.bom))
             implementation(libs.koin.core)
@@ -167,87 +239,23 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
         }
-        val androidUnitTest by getting {
+        val androidHostTest by getting {
             dependencies {
                 implementation(libs.junit)
                 implementation(libs.mockk)
                 implementation(libs.kotlin.test)
                 implementation(libs.kotlinx.coroutines.test)
+                implementation(libs.sol4k)
             }
         }
-    }
-}
-
-android {
-    namespace = "com.michaeltchuang.walletsdk.core"
-    compileSdk =
-        libs.versions.android.compileSdk
-            .get()
-            .toInt()
-    defaultConfig {
-        minSdk =
-            libs.versions.android.minSdk
-                .get()
-                .toInt()
-    }
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_21
-        targetCompatibility = JavaVersion.VERSION_21
-    }
-    buildFeatures {
-        // enables a Compose tooling support in the AndroidStudio
-        compose = true
-    }
-
-    packaging {
-        resources {
-            // Exclude duplicate files from multiple dependencies
-            excludes.addAll(
-                listOf(
-                    "/META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                    "META-INF/versions/9/OSGI-INF/MANIFEST.MF",
-                    "META-INF/DEPENDENCIES",
-                    "META-INF/LICENSE",
-                    "META-INF/LICENSE.txt",
-                    "META-INF/license.txt",
-                    "META-INF/NOTICE",
-                    "META-INF/NOTICE.txt",
-                    "META-INF/notice.txt",
-                    "META-INF/ASL2.0",
-                    "META-INF/*.kotlin_module",
-                ),
-            )
-            // Pick first occurrence of duplicate files
-            pickFirsts.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+        val androidDeviceTest by getting {
+            dependencies {
+                implementation(libs.junit)
+                implementation(libs.androidx.junit)
+                implementation(libs.runner)
+                implementation(libs.kotlin.test)
+            }
         }
-    }
-
-    lint {
-        // Disable problematic rules for KMP
-        disable.addAll(
-            listOf(
-                "NullSafeMutableLiveData",
-                "UnusedResources",
-                "MissingTranslation",
-                "Instantiatable",
-                "InvalidPackage",
-                "TypographyFractions",
-                "TypographyQuotes",
-                "TrustAllX509TrustManager",
-                "UseTomlInstead",
-                "AndroidGradlePluginVersion",
-                "GradleDependency",
-            ),
-        )
-
-        // Continue on lint errors instead of failing the build
-        abortOnError = false
-
-        // Skip lint for release builds to speed up builds
-        checkReleaseBuilds = false
-
-        // Only run lint on changed files
-        checkDependencies = false
     }
 }
 
@@ -282,7 +290,6 @@ dependencies {
     add("kspAndroid", libs.room.compiler)
     add("kspIosSimulatorArm64", libs.room.compiler)
     add("kspIosArm64", libs.room.compiler)
-    add("kspIosX64", libs.room.compiler)
 }
 
 mavenPublishing {

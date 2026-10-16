@@ -1,25 +1,23 @@
 package com.michaeltchuang.walletsdk.core.foundation.cache
 
 import android.content.SharedPreferences
-import com.google.gson.Gson
-import java.lang.reflect.Type
+import kotlinx.serialization.KSerializer
 
 internal class PersistentCacheProviderImpl(
     private val sharedPreferences: SharedPreferences,
-    private val gson: Gson,
 ) : PersistentCacheProvider {
     override fun <T : Any> getPersistentCache(
-        type: Type,
+        serializer: KSerializer<T>,
         key: String,
-    ): PersistentCache<T> = SharedPrefPersistentCache(type, key, sharedPreferences, gson)
+    ): PersistentCache<T> = SharedPrefPersistentCache(serializer, key, sharedPreferences)
 
     override fun <T : Any> getFlowPersistentCache(
-        type: Type,
+        serializer: KSerializer<T>,
         key: String,
         defaultValue: T,
     ): FlowPersistentCache<T> =
         DefaultFlowPersistentCache(
-            SharedPrefPersistentCache(type, key, sharedPreferences, gson),
+            SharedPrefPersistentCache(serializer, key, sharedPreferences),
             defaultValue,
         )
 }

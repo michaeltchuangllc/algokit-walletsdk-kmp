@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.deeplink.parser
 
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AccountAddressDeepLinkBuilder
+import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetOptInDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.AssetTransferDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.FidoDeepLinkBuilder
 import com.michaeltchuang.walletsdk.core.deeplink.builder.KeyRegTransactionDeepLinkBuilder
@@ -13,6 +14,7 @@ internal class CreateDeepLinkImpl(
     private val mnemonicDeepLinkBuilder: MnemonicDeepLinkBuilder,
     private val keyRegTransactionDeepLinkBuilder: KeyRegTransactionDeepLinkBuilder,
     private val assetTransferDeepLinkBuilder: AssetTransferDeepLinkBuilder,
+    private val assetOptInDeepLinkBuilder: AssetOptInDeepLinkBuilder,
     private val accountAddressDeepLinkBuilder: AccountAddressDeepLinkBuilder,
     private val fidoDeepLinkBuilder: FidoDeepLinkBuilder,
     private val liquidAuthDeepLinkBuilder: LiquidAuthDeepLinkBuilder,
@@ -26,6 +28,9 @@ internal class CreateDeepLinkImpl(
             }
             keyRegTransactionDeepLinkBuilder.doesDeeplinkMeetTheRequirements(payload) -> {
                 keyRegTransactionDeepLinkBuilder.createDeepLink(payload)
+            }
+            assetOptInDeepLinkBuilder.doesDeeplinkMeetTheRequirements(payload) -> {
+                assetOptInDeepLinkBuilder.createDeepLink(payload)
             }
             assetTransferDeepLinkBuilder.doesDeeplinkMeetTheRequirements(payload) -> {
                 assetTransferDeepLinkBuilder.createDeepLink(payload)

@@ -1,27 +1,22 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth
 
-import android.content.Intent
-import androidx.compose.runtime.Composable
+import com.michaeltchuang.walletsdk.ui.liquidAuth.state.AnswerScreenState
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
 
 object AuthMessageStorage {
-    var authMessage =
-        com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect
-            .AuthMessage("", "")
+    var authMessage = AuthMessage("", "", "")
 }
 
-@Composable
-actual fun connect(
+actual fun connectLiquidAuth(
     authMessage: AuthMessage,
-    algoAddress: String,
+    accountAddress: String,
 ) {
     AuthMessageStorage.authMessage =
-        com.michaeltchuang.walletsdk.core.liquidAuth.auth.connect.AuthMessage(
+        AuthMessage(
             authMessage.origin,
             authMessage.requestId,
+            authMessage.appId,
         )
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val intent = Intent(context, AnswerActivity::class.java)
-    intent.putExtra(AnswerActivity.EXTRA_ALGO_ADDRESS, algoAddress)
-    context.startActivity(intent)
+    AnswerScreenState.accountAddress = accountAddress
+    AnswerScreenState.isVisible = true
 }

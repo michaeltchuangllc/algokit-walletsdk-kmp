@@ -4,7 +4,9 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.address_copied_to_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.copy_address
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_funds_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_algo_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_sol_to_your_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_usdc_to_your_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_algo_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_copy
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_edit
@@ -12,9 +14,14 @@ import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_receipt
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_send
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_solana_sign
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_unlink
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_usdc
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.opt_into_usdc
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.remove_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.rename_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_funds_to_another_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.send_usdc_to_another_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.show_address_qr
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.transaction_history
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.view_passphrase
@@ -49,8 +56,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.foundation.utils.Log
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.components.AccountDetailWebviewItem
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
@@ -106,7 +115,7 @@ fun AccountDetailScreen(
 }
 
 @Composable
-internal fun ScreenContent(
+fun ScreenContent(
     navController: NavController,
     address: String,
     viewState: AccountDetailViewModel.ViewState,
@@ -172,7 +181,7 @@ internal fun ScreenContent(
                     AccountDetailWebviewItem(
                         icon = Res.drawable.ic_receipt,
                         title = localizedStringResource(Res.string.transaction_history),
-                        url = "${state.explorerBaseUrl}/transactions/?transaction_list_address=$address",
+                        url = state.transactionHistoryUrl,
                     )
 
                     // Only show "View passphrase" for non-NoAuth accounts
@@ -189,14 +198,51 @@ internal fun ScreenContent(
                         }
                     }
 
-                    // Only show dispenser on TestNet
-                    if (state.isTestNet) {
+                    // Seed Vault keys can't auto-sign; a linked session key handles MPP / streaming payments.
+                    if (state.isSolanaAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_key,
+                            title = "Session signing key",
+                        ) {
+                            navController.navigate(AlgoKitScreens.SOLANA_SESSION_KEY_SCREEN.name)
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_send,
+                            isRemoveAccount = false,
+                            title = "Send SOL to another account",
+                        ) {
+                            navController.navigate(AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name)
+                        }
+                    }
+
+                    // Show the network-specific dispenser when available.
+                    if (state.dispenserBaseUrl != null && (!state.isSolanaAccount || state.isTestNet)) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AccountDetailWebviewItem(
-                            icon = Res.drawable.ic_algo_sign,
-                            title = localizedStringResource(Res.string.dispenser_add_funds_to_your_account),
-                            url = "https://lora.algokit.io/testnet/fund?address=$address",
+                            icon =
+                                if (state.isSolanaAccount) {
+                                    Res.drawable.ic_solana_sign
+                                } else {
+                                    Res.drawable.ic_algo_sign
+                                },
+                            title =
+                                if (state.isSolanaAccount) {
+                                    localizedStringResource(Res.string.dispenser_add_sol_to_your_account)
+                                } else {
+                                    localizedStringResource(Res.string.dispenser_add_algo_to_your_account)
+                                },
+                            url =
+                                if (state.isSolanaAccount) {
+                                    WalletSdkConstants.SOLANA_DISPENSER_BASE_URL
+                                } else {
+                                    "${state.dispenserBaseUrl}/?account=$address"
+                                },
                         )
                     }
 
@@ -210,19 +256,62 @@ internal fun ScreenContent(
                             title = localizedStringResource(Res.string.send_funds_to_another_account),
                         ) {
                             navController.navigate(
-                                "${AlgoKitScreens.SEND_ALGO_SCREEN.name}?sender=$address",
+                                "${AlgoKitScreens.SEND_ASSET_SCREEN.name}?sender=$address&assetId=-7",
+                            )
+                        }
+                    }
+
+                    if (!state.isNoAuthAccount && !state.isSolanaAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        val usdcAssetId =
+                            when (state.currentNetwork) {
+                                AlgorandNetwork.MAINNET -> AssetConstants.USDC_MAINNET_ID
+                                AlgorandNetwork.TESTNET -> AssetConstants.USDC_TESTNET_ID
+                                AlgorandNetwork.FUTURENET -> AssetConstants.USDC_FUTURENET_ID
+                            }
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_usdc,
+                            isRemoveAccount = false,
+                            title =
+                                if (state.isUsdcOptedIn) {
+                                    localizedStringResource(Res.string.send_usdc_to_another_account)
+                                } else {
+                                    localizedStringResource(Res.string.opt_into_usdc)
+                                },
+                        ) {
+                            if (state.isUsdcOptedIn) {
+                                navController.navigate(
+                                    "${AlgoKitScreens.SEND_ASSET_SCREEN.name}?sender=$address&assetId=$usdcAssetId",
+                                )
+                            } else {
+                                navController.navigate(
+                                    "${AlgoKitScreens.ADD_ASSET_SCREEN.name}?assetId=$usdcAssetId&accountAddress=$address",
+                                )
+                            }
+                        }
+
+                        if (state.isTestNet && state.isUsdcOptedIn) {
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            AccountDetailWebviewItem(
+                                icon = Res.drawable.ic_usdc,
+                                title = localizedStringResource(Res.string.dispenser_add_usdc_to_your_account),
+                                url = "https://faucet.circle.com/",
                             )
                         }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    AccountDetailItem(
-                        icon = Res.drawable.ic_edit,
-                        isRemoveAccount = false,
-                        title = "Rename Account",
-                    ) {
-                        onRenameAccount()
+                    if (!state.isSolanaAccount) {
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_edit,
+                            isRemoveAccount = false,
+                            title = localizedStringResource(Res.string.rename_account),
+                        ) {
+                            onRenameAccount()
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(16.dp))
@@ -297,8 +386,9 @@ fun SettingsScreenPreview() {
                 AccountDetailViewModel.ViewState.Content(
                     currentNetwork = com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork.TESTNET,
                     isTestNet = true,
-                    explorerBaseUrl = "https://testnet.algoexplorer.io",
                     isNoAuthAccount = false,
+                    isSolanaAccount = false,
+                    isUsdcOptedIn = true,
                 ),
             onDeleteAccount = {},
             showSnackBar = {},
