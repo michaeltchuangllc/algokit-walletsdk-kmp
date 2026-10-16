@@ -10,7 +10,9 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Binder
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat.Builder
 import androidx.core.app.ServiceCompat
@@ -62,6 +64,7 @@ class SignalService : Service() {
     var peerConnection: PeerConnection? = null
 
     private val hostScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private val mainHandler = Handler(Looper.getMainLooper())
     private val hostPeers = HostPeerRegistry<HostViewerSession>()
     private var hostMedia: SharedBroadcastMedia? = null
     private var hostOrigin: String? = null
@@ -517,7 +520,16 @@ class SignalService : Service() {
      * - UNKNOWN: Connection type not yet determined
      */
     fun detectConnectionType(onResult: ((IceConnectionType) -> Unit)? = null) {
-        val pc = peerConnection
+        // PeerConnections are disposed on the main thread (SignalClient.disconnect / host teardown).
+        // Touching one from a background poller can race dispose() and SIGSEGV inside native
+        // code, so confine every native call here to the main thread as well.
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            mainHandler.post { detectConnectionType(onResult) }
+            return
+        }
+        // Read through PeerApi, which nulls its field *before* dispose(); the cached
+        // [peerConnection] projection can still point at a disposed native object.
+        val pc = peerClient?.peerConnection
         if (pc == null) {
             Log.d(TAG, "⚠️ Cannot detect connection type - peerConnection is null")
             onResult?.invoke(IceConnectionType.UNKNOWN)
