@@ -86,7 +86,8 @@ fun LiquidStreamViewerScreen(
     originUrl: String = "-",
     currentBlockNumber: Long? = null,
     remainingBalanceUsdc: Double = 0.0,
-    progressBalanceUsdc: Double = 0.0,
+    // Retained for caller compatibility; pending-voucher spendable funds are not vault progress.
+    @Suppress("UNUSED_PARAMETER") progressBalanceUsdc: Double = 0.0,
     viewModel: LiquidAuthViewerViewModel = koinViewModel(),
     vaultSnapshot: com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments.SessionProgressSnapshot? = null,
 ) {
@@ -94,8 +95,9 @@ fun LiquidStreamViewerScreen(
     val vaultProgress =
         vaultSnapshot?.let { uiState.vaultProgress.update(sessionId, it) }
             ?: uiState.vaultProgress.update(sessionId, remainingBalanceUsdc)
-    val displayedRemainingUsdc = vaultSnapshot?.remainingSettledMicroUsdc?.div(1_000_000.0) ?: remainingBalanceUsdc
-    val displayedProgressUsdc = vaultSnapshot?.progressBalanceMicroUsdc?.div(1_000_000.0) ?: progressBalanceUsdc
+    // This bar describes SESSION VAULT, not spendable funds after pending vouchers.
+    // Keep its numerator and capacity on the same settled-balance basis as the label.
+    val displayedRemainingUsdc = vaultProgress.remainingUsdc
     val revenueCapacityUsdc = vaultProgress.revenueCapacityUsdc
     val progressCapacityUsdc = vaultProgress.capacityUsdc
 
@@ -161,7 +163,7 @@ fun LiquidStreamViewerScreen(
         networkLabel = uiState.networkLabel,
         currentBlockNumber = currentBlockNumber,
         remainingBalanceUsdc = displayedRemainingUsdc,
-        progressBalanceUsdc = displayedProgressUsdc,
+        progressBalanceUsdc = displayedRemainingUsdc,
         progressCapacityUsdc = progressCapacityUsdc,
         revenueCapacityUsdc = revenueCapacityUsdc,
         streamRevenue = streamRevenueLabel,

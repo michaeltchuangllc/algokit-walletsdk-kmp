@@ -144,7 +144,10 @@ class SharedBroadcastMedia(
      * callers must not cache those wrappers across this call.
      */
     @Synchronized
-    fun attachTracks(peerConnection: PeerConnection) {
+    fun attachTracks(
+        peerConnection: PeerConnection,
+        initiallyActive: Boolean = true,
+    ) {
         check(!disposed) { "SharedBroadcastMedia is disposed" }
         check(captureStarted) { "Call startCapture before attachTracks" }
         val attachedTrackIds = peerConnection.senders.mapNotNull { it.track()?.id() }.toSet()
@@ -152,7 +155,7 @@ class SharedBroadcastMedia(
             if (track.id() !in attachedTrackIds) {
                 // addTrack creates a separate sender-owned wrapper/native reference. Disposing
                 // the peer releases that reference, not this owner's track or its capture source.
-                peerConnection.addTrack(track, listOf(LOCAL_MEDIA_STREAM_ID))
+                addBroadcastTrack(peerConnection, track, listOf(LOCAL_MEDIA_STREAM_ID), initiallyActive)
             }
         }
     }

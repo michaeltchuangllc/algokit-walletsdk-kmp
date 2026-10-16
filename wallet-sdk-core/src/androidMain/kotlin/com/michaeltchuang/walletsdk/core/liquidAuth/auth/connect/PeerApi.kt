@@ -35,6 +35,7 @@ class PeerApi
 
         private val ownsMedia = sharedMedia == null
         private val media = sharedMedia ?: SharedBroadcastMedia(context)
+        private var mediaAdmitted = ownsMedia
 
         @Volatile
         private var destroyed = false
@@ -85,6 +86,7 @@ class PeerApi
         ) {
             check(!destroyed) { "PeerApi is destroyed" }
             releasePeerConnection()
+            mediaAdmitted = ownsMedia
             val generation = connectionGeneration
 
             val rtcConfig =
@@ -419,8 +421,31 @@ class PeerApi
                     return null
                 }
             val track = media.startCapture(width, height, fps)
-            media.attachTracks(pc)
+            media.attachTracks(pc, initiallyActive = mediaAdmitted)
             return track
+        }
+
+        fun setMediaAdmitted(admitted: Boolean): Boolean {
+            if (destroyed) return false
+            val pc = peerConnection ?: return false
+            val senders = pc.senders.filter { it.track() != null }
+            if (senders.isEmpty()) return false
+            val updated =
+                senders
+                    .map { sender ->
+                        val parameters = sender.parameters
+                        parameters.encodings.forEach { it.active = admitted }
+                        parameters.encodings.isNotEmpty() && sender.setParameters(parameters)
+                    }.all { it }
+            if (!updated) {
+                // A failed native parameter update must never leave a partially admitted
+                // peer transmitting. Closing this connection does not stop shared capture.
+                pc.close()
+                mediaAdmitted = false
+                return false
+            }
+            mediaAdmitted = admitted
+            return true
         }
 
         fun addReceiveOnlyMediaTransceivers() {

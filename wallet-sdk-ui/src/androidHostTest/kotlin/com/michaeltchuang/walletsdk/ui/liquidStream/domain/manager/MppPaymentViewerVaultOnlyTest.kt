@@ -1,3 +1,5 @@
+@file:Suppress("INVISIBLE_REFERENCE", "INVISIBLE_MEMBER")
+
 package com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager
 
 import com.michaeltchuang.walletsdk.core.railmpp.LiquidStreamViewer
@@ -12,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -45,6 +48,9 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class, ExperimentalEncodingApi::class)
 class MppPaymentViewerVaultOnlyTest {
+    private val viewerAddress = encodeAlgorandAddress(ByteArray(32) { 1 })
+    private val creator = encodeAlgorandAddress(ByteArray(32) { 2 })
+
     @Test
     fun `EXPECT blocked receipt replay after topup confirmation to exhaust 171 with final partial 3`() =
         runTest {
@@ -89,7 +95,7 @@ class MppPaymentViewerVaultOnlyTest {
                 manager.start(
                     MppPaymentViewerManager.StartParams(
                         dataChannel = dc,
-                        viewerAddress = "viewer",
+                        viewerAddress = viewerAddress,
                         scope = this,
                         signer = signer,
                         mppNetwork = MppNetworks.ALGORAND_TESTNET,
@@ -130,8 +136,8 @@ class MppPaymentViewerVaultOnlyTest {
                             segmentIndex = segment,
                             amount = amount,
                             asset = "USDC",
-                            payTo = "creator",
-                            payFrom = "viewer",
+                            payTo = creator,
+                            payFrom = viewerAddress,
                             network = MppNetworks.ALGORAND_TESTNET,
                             timestamp = 1,
                             channelId = Base64.encode(channel),
@@ -163,7 +169,7 @@ class MppPaymentViewerVaultOnlyTest {
                 assertEquals(80L, cumulative.last())
                 manager.startViewerOnChainRefresh(
                     scope = this,
-                    viewerAddress = "viewer",
+                    viewerAddress = viewerAddress,
                     sessionVaultAppId = 123,
                     setViewerSessionVaultProgress = { _, available -> progress += available },
                 )
@@ -286,7 +292,7 @@ class MppPaymentViewerVaultOnlyTest {
                 manager.start(
                     MppPaymentViewerManager.StartParams(
                         dataChannel = dc,
-                        viewerAddress = "viewer",
+                        viewerAddress = viewerAddress,
                         scope = this,
                         signer = signer,
                         mppNetwork = MppNetworks.ALGORAND_TESTNET,
@@ -316,8 +322,8 @@ class MppPaymentViewerVaultOnlyTest {
                             segmentIndex = segment,
                             amount = amount,
                             asset = "USDC",
-                            payTo = "creator",
-                            payFrom = "viewer",
+                            payTo = creator,
+                            payFrom = viewerAddress,
                             network = MppNetworks.ALGORAND_TESTNET,
                             timestamp = 1,
                             channelId = Base64.encode(channel),

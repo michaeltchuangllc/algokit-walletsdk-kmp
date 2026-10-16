@@ -675,11 +675,13 @@ fun registerIosNativeMediaHandlers(
     remoteVideoViewProvider: () -> Any?,
     setAudioEnabled: (Boolean) -> Unit,
     setVideoEnabled: (Boolean) -> Unit,
+    setViewerMediaAdmitted: (String, Boolean) -> Unit,
 ) {
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastVideoViewProvider = localVideoViewProvider
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosViewerVideoViewProvider = remoteVideoViewProvider
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetAudioEnabledHandler = setAudioEnabled
     com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastSetVideoEnabledHandler = setVideoEnabled
+    com.michaeltchuang.walletsdk.ui.liquidAuth.service.iosBroadcastViewerMediaAdmissionHandler = setViewerMediaAdmitted
     // Self-contained, like iosBroadcastDetectConnectionTypeHandler — no Swift closure needed,
     // it just reads the Kotlin var that SignalService keeps fresh via notifyViewerConnectionType().
     iosViewerDetectConnectionTypeHandler = { viewerConnectionTypeString }

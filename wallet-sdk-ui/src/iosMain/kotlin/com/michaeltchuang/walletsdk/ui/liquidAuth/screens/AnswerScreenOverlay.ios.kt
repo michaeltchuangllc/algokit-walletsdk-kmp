@@ -111,6 +111,12 @@ actual fun AnswerScreenOverlay() {
             ).also { viewModelStoreOwner.viewModelStore.put("AnswerViewModel", it) }
         }
 
+    // iOS has no SeedVault transaction signing capability; never attach its throwing stub.
+    DisposableEffect(stateHolder) {
+        stateHolder.signSolanaTransaction = null
+        onDispose { stateHolder.signSolanaTransaction = null }
+    }
+
     val viewerViewModel: LiquidAuthViewerViewModel = koinViewModel(viewModelStoreOwner = viewModelStoreOwner)
 
     // Viewer UI state is read from the shared holder; the iOS manager only pushes transport updates into it.
@@ -121,21 +127,29 @@ actual fun AnswerScreenOverlay() {
     val connType by stateHolder.connectionType.collectAsStateWithLifecycle()
     val sessionId by stateHolder.session.collectAsStateWithLifecycle()
     val hostAddress by stateHolder.hostAddress.collectAsStateWithLifecycle()
+    val streamNetworkValidated by stateHolder.isViewerStreamNetworkValidated.collectAsStateWithLifecycle()
     var remoteVideoView by remember { mutableStateOf<UIView?>(null) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
+    LaunchedEffect(streamNetworkValidated) {
+        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
+    }
     var deliveredMessageCount by remember { mutableStateOf(0) }
     LaunchedEffect(viewerManager) {
         activeIOSViewerConnectionManager = viewerManager
 
         // Reset shared state for this session and route the holder's stream-timeout to teardown,
         // mirroring Android's auto-disconnect when no frames arrive for a few seconds.
-        stateHolder.clearVideoFrame()
+        stateHolder.resetViewerStreamValidation()
         viewerManager.attachAnswerViewModel(stateHolder)
         stateHolder.onTimeout = { dismissOverlay(viewerManager) }
         if (address.isNotBlank()) {
             stateHolder.setAccountAddress(address)
         }
+        stateHolder.initializeViewerStreamValidation()
 
         // Start block-number polling so iOS shows the same live block counter as Android.
         stateHolder.startRealtimeBlockNumberUpdates()
@@ -220,7 +234,7 @@ actual fun AnswerScreenOverlay() {
     AlgoKitTheme {
         Box(modifier = Modifier.fillMaxSize()) {
             val viewerCameraPreview: (@Composable () -> Unit) = {
-                val renderer = remoteVideoView
+                val renderer = remoteVideoView.takeIf { streamNetworkValidated }
                 if (renderer != null) {
                     UIKitView(
                         factory = { renderer },
@@ -251,13 +265,20 @@ actual fun AnswerScreenOverlay() {
                     onTopUpConfirm = { enteredAmount ->
                         if (address.isNotBlank()) {
                             scope.launch {
-                                val signer = stateHolder.buildMppWalletSigner(address)
-                                if (signer != null) {
-                                    stateHolder.topUpViewerSessionVault(
-                                        enteredAmount = enteredAmount,
-                                        viewerAddress = address,
-                                        signer = signer,
-                                    )
+                                try {
+                                    val signer =
+                                        stateHolder.buildMppWalletSigner(address)
+                                            ?: error("Failed to build wallet signer")
+                                    stateHolder
+                                        .topUpViewerSessionVault(
+                                            enteredAmount = enteredAmount,
+                                            viewerAddress = address,
+                                            signer = signer,
+                                        ).getOrThrow()
+                                } catch (ce: kotlinx.coroutines.CancellationException) {
+                                    throw ce
+                                } catch (e: Exception) {
+                                    stateHolder.onStreamRejected("top_up_failed", e.message)
                                 }
                             }
                         }

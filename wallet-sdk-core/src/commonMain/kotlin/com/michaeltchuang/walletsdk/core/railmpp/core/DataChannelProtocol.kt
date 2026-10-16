@@ -35,7 +35,7 @@ private val decodeJson =
 internal fun PaymentRequest.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject
 
 /** Parse a PaymentRequest from JSON. */
-internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest = decodeJson.decodeFromJsonElement(json)
+internal fun paymentRequestFromJson(json: JsonObject): PaymentRequest = decodeJson.decodeFromJsonElement(json.normalizeMppNetwork())
 
 /** Serialize a RailPayment to JSON. */
 internal fun RailPayment.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject
@@ -45,3 +45,6 @@ internal fun railPaymentFromJson(json: JsonObject): RailPayment = decodeJson.dec
 
 /** Serialize a PaymentReceipt to JSON. */
 internal fun PaymentReceipt.toJson(): JsonObject = encodeJson.encodeToJsonElement(this).jsonObject
+
+/** Parse a PaymentReceipt, rejecting malformed or conflicting network aliases. */
+internal fun paymentReceiptFromJson(json: JsonObject): PaymentReceipt = decodeJson.decodeFromJsonElement(json.normalizeMppNetwork())

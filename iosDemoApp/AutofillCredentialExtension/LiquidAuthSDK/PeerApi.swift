@@ -43,14 +43,16 @@ final class SharedBroadcastMedia {
         // Separate tracks allow a future per-peer gate without muting other viewers.
         let video = factory.videoTrack(with: videoSource, trackId: "local_video")
         let audio = factory.audioTrack(with: audioSource, trackId: "local_audio")
-        video.isEnabled = videoEnabled
-        audio.isEnabled = audioEnabled
+        video.isEnabled = false
+        audio.isEnabled = false
         connection.add(video, streamIds: ["liquid_stream"])
         connection.add(audio, streamIds: ["liquid_stream"])
         peer.videoSource = videoSource
         peer.audioSource = audioSource
         peer.localVideoTrack = video
         peer.localAudioTrack = audio
+        peer.setAudioEnabled(audioEnabled)
+        peer.setVideoEnabled(videoEnabled)
     }
 
     func makeRenderer() -> RTCMTLVideoView {
@@ -113,6 +115,9 @@ class PeerApi {
     var audioSource: RTCAudioSource?
     var localVideoTrack: RTCVideoTrack?
     var localAudioTrack: RTCAudioTrack?
+    private var mediaAdmitted = false
+    private var requestedAudioEnabled = true
+    private var requestedVideoEnabled = true
 
     init(
         iceServers: [RTCIceServer],
@@ -286,11 +291,19 @@ class PeerApi {
     }
 
     func setAudioEnabled(_ enabled: Bool) {
-        localAudioTrack?.isEnabled = enabled
+        requestedAudioEnabled = enabled
+        localAudioTrack?.isEnabled = enabled && mediaAdmitted
     }
 
     func setVideoEnabled(_ enabled: Bool) {
-        localVideoTrack?.isEnabled = enabled
+        requestedVideoEnabled = enabled
+        localVideoTrack?.isEnabled = enabled && mediaAdmitted
+    }
+
+    func setMediaAdmitted(_ admitted: Bool) {
+        mediaAdmitted = admitted
+        localAudioTrack?.isEnabled = admitted && requestedAudioEnabled
+        localVideoTrack?.isEnabled = admitted && requestedVideoEnabled
     }
 
     func makeLocalVideoRenderer() -> RTCMTLVideoView? {

@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ServerConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.SetLiquidStreamViewerAutoPayUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StartLiquidStreamCreatorUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.usecases.StartLiquidStreamViewerUseCase
@@ -67,7 +68,18 @@ class LiquidStreamCreator(
     }
 
     private fun blockBillingConfig(config: ServerConfig): ServerConfig =
-        config.copy(blockDrivenBilling = config.vaultOnlyBilling && config.gating.mode == GatingMode.PARTIAL_TIME)
+        config.copy(
+            blockDrivenBilling =
+                !SolanaStreamVault.isSolana(config.gating.network) &&
+                    config.vaultOnlyBilling &&
+                    config.gating.mode == GatingMode.PARTIAL_TIME,
+            gating =
+                if (SolanaStreamVault.isSolana(config.gating.network)) {
+                    config.gating.copy(segmentDuration = 3, leadTime = 3)
+                } else {
+                    config.gating
+                },
+        )
 
     fun sendChatMessage(message: ChatMessage) {
         rtcServer.sendChatMessage(message)

@@ -79,6 +79,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             },
             setVideoEnabled: { enabled in
                 DispatchQueue.main.async { SignalService.shared.setLocalVideoEnabled(enabled.boolValue) }
+            },
+            setViewerMediaAdmitted: { requestId, admitted in
+                SignalService.shared.setHostViewerMediaAdmitted(requestId: requestId, admitted: admitted.boolValue)
             }
         )
 
