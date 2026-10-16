@@ -38,6 +38,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
+import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -242,6 +244,14 @@ fun LiquidAuthOfferScreen(
     debugFullscreen: Boolean = false,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
+    // Seed Vault creators approve each departing Solana viewer's refund (payee-only `close`).
+    val seedVaultSigner = rememberSeedVaultTransactionSigner()
+    DisposableEffect(viewModel, seedVaultSigner) {
+        if (isSeedVaultTransactionSigningSupported) viewModel.seedVaultTransactionSigner = seedVaultSigner
+        onDispose {
+            if (viewModel.seedVaultTransactionSigner === seedVaultSigner) viewModel.seedVaultTransactionSigner = null
+        }
+    }
     val getLocalAccount: GetLocalAccount = koinInject()
     val getCurrentNetwork: GetCurrentNetworkUseCase = koinInject()
     val appNetwork by remember(getCurrentNetwork) { getCurrentNetwork() }.collectAsStateWithLifecycle(null)

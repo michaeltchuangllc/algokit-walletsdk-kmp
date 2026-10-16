@@ -165,6 +165,7 @@ internal class LiquidStreamBlockConsumptionManager(
                         getMppVoucherNoteUseCase = getMppVoucherNoteUseCase,
                         payoutFrequencyBlocks = payoutFrequencyBlocks,
                         getVoucherCoveredBlockCount = getVoucherCoveredBlockCount,
+                        getSolanaOwnerSigner = { getViewModel()?.solanaOwnerSigner },
                     ).also { billing = it }
                 if (current == null) target.restorePending(channel)
                 round?.let { target.onBlock(it, paid, cost).join() }

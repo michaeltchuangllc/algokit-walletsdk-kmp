@@ -21,6 +21,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.int
@@ -66,6 +67,23 @@ class SolanaRpcClient private constructor(
         return result.jsonObject["value"]!!
             .jsonObject["blockhash"]!!
             .jsonPrimitive.content
+    }
+
+    /** Whether [blockhash] can still be used to land a transaction (`processed` = most recent view). */
+    suspend fun isBlockhashValid(
+        network: String,
+        blockhash: String,
+    ): Boolean {
+        val result =
+            call(
+                network,
+                "isBlockhashValid",
+                buildJsonArray {
+                    add(JsonPrimitive(blockhash))
+                    add(buildJsonObject { put("commitment", "processed") })
+                },
+            )
+        return result.jsonObject["value"]!!.jsonPrimitive.boolean
     }
 
     suspend fun getBalance(
@@ -361,6 +379,7 @@ class SolanaRpcClient private constructor(
         private val READ_METHODS =
             setOf(
                 "getLatestBlockhash",
+                "isBlockhashValid",
                 "getBalance",
                 "getTokenAccountsByOwner",
                 "getAccountInfo",

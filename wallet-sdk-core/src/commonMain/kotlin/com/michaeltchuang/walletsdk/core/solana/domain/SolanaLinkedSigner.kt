@@ -33,6 +33,14 @@ object SolanaClusters {
     const val USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     const val USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
     const val LAMPORTS_PER_SIGNATURE = 5_000L
+    const val LAMPORTS_PER_SOL = 1_000_000_000L
+
+    /**
+     * Rent-exempt minimum for a 0-data system account. The runtime rejects any transaction that
+     * leaves a system account with a balance in (0, this), so an empty account can't be funded
+     * with less, and a funded account can't pay fees that would drop it below this.
+     */
+    const val RENT_EXEMPT_MINIMUM_LAMPORTS = 890_880L
 
     /** Seed Vault accounts follow the app-wide network toggle: TestNet -> devnet, MainNet -> mainnet-beta. */
     fun clusterFor(network: AlgorandNetwork): String =

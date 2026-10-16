@@ -47,6 +47,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import org.koin.mp.KoinPlatform
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.ExperimentalUuidApi
@@ -70,6 +73,29 @@ class LiquidAuthOfferViewModel(
 
     // Android opts in during manager initialization. iOS keeps the single-peer path.
     var meshHostingEnabled: Boolean = false
+
+    /** Seed Vault transaction signer attached by the host screen while it is composed. */
+    var seedVaultTransactionSigner: (suspend (address: String, message: ByteArray) -> ByteArray)? = null
+
+    // Seed Vault accepts one request at a time; several viewers can drop together (mesh).
+    private val seedVaultSigningMutex = Mutex()
+
+    /**
+     * Owner signer for payee-side Solana vault refunds, or null when no host screen is attached.
+     * Each call re-reads the current signer so a recomposed screen is picked up.
+     */
+    val solanaOwnerSigner: (suspend (String, ByteArray) -> ByteArray)?
+        get() =
+            if (seedVaultTransactionSigner == null) {
+                null
+            } else {
+                { address, message ->
+                    seedVaultSigningMutex.withLock {
+                        val sign = seedVaultTransactionSigner ?: throw CancellationException("Host screen closed before Seed Vault approval")
+                        withContext(Dispatchers.Main.immediate) { sign(address, message) }
+                    }
+                }
+            }
 
     // The initial invitation stays in OfferState; subsequent invitations must not replace
     // Connected/WaitingForPayment/Streaming or their singleton payment session.

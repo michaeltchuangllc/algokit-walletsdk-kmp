@@ -208,6 +208,16 @@ fun ScreenContent(
                         ) {
                             navController.navigate(AlgoKitScreens.SOLANA_SESSION_KEY_SCREEN.name)
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_send,
+                            isRemoveAccount = false,
+                            title = "Send SOL to another account",
+                        ) {
+                            navController.navigate(AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name)
+                        }
                     }
 
                     // Show the network-specific dispenser when available.

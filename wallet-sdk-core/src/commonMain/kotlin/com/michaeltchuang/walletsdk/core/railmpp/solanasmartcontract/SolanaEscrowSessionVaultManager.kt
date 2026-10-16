@@ -110,6 +110,19 @@ class SolanaEscrowVaultException(
 ) : IllegalStateException("${error.name}: ${error.message}", cause)
 
 /**
+ * A pre-signed settlement voucher whose recent blockhash is no longer valid (~60–90 s lifetime).
+ * It can never land; the payee must wait for the payer's next re-signed voucher for the same
+ * (or higher) cumulative amount. Nothing was broadcast.
+ */
+class SolanaVoucherExpiredException(
+    val cumulativeAmount: Long,
+    cause: Throwable? = null,
+) : IllegalStateException(
+        "Settlement voucher for $cumulativeAmount micro-USDC has an expired blockhash; waiting for the viewer's next re-signed voucher",
+        cause,
+    )
+
+/**
  * Kotlin client for the Solana escrow session vault — the Solana counterpart of
  * [com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient].
  *
@@ -395,13 +408,31 @@ class SolanaEscrowSessionVaultManager(
         execute("settle") {
             validateSettlementVoucher(network, voucher, feePayer.address).getOrThrow()
             val (_, message) = SolanaTransactionBuilder.deserialize(voucher.partiallySignedTransaction)
+            // A stale voucher can never land; fail fast (nothing broadcast) instead of burning the
+            // settle window on a doomed submit + confirmation poll.
+            if (!rpc.isBlockhashValid(network, recentBlockhash(message))) {
+                throw SolanaVoucherExpiredException(voucher.cumulativeAmount)
+            }
             val signed =
                 SolanaTransactionBuilder.addSignature(
                     voucher.partiallySignedTransaction,
                     feePayer.address,
                     feePayer.signMessage(message),
                 )
-            rpc.sendTransaction(network, signed).also { rpc.confirmTransaction(network, it) }
+            val signature =
+                try {
+                    rpc.sendTransaction(network, signed)
+                } catch (e: IllegalStateException) {
+                    // Preflight rejects an expired (or not-yet-propagated) blockhash; either way
+                    // this exact transaction is not landing — wait for the next voucher.
+                    if (e.message?.contains("BlockhashNotFound", ignoreCase = true) == true ||
+                        e.message?.contains("Blockhash not found", ignoreCase = true) == true
+                    ) {
+                        throw SolanaVoucherExpiredException(voucher.cumulativeAmount, e)
+                    }
+                    throw e
+                }
+            signature.also { rpc.confirmTransaction(network, it) }
         }
 
     /** Validation-only path: no signing, fee payment or broadcast. */

@@ -163,6 +163,28 @@ object SolanaStreamVault : KoinComponent {
             get<SubmitSolanaSettlementVoucherUseCase>()(cluster(network), payee, voucher).getOrThrow()
         }
 
+    /**
+     * Payee-initiated `close` after a viewer leaves: refunds the remaining deposit (and channel
+     * rent) to the payer. The program only accepts the payee itself as caller, so [ownerSigner]
+     * (the payee's Seed Vault account) must sign — one approval. The payee also pays the fee, so
+     * the transaction carries a single signature and never touches the session key's SOL.
+     * Returns null when the channel is already closed.
+     */
+    suspend fun closeChannel(
+        network: String,
+        payer: String,
+        payee: String,
+        signer: ByteArray,
+        channel: ByteArray,
+        ownerSigner: SolanaTransactionSigner,
+    ): Result<String?> =
+        result {
+            require(ownerSigner.address == payee) { "Only the channel payee can close the channel" }
+            val cluster = cluster(network)
+            val state = findState(payer, payee, signer, network, channel) ?: return@result null
+            manager.close(cluster, ownerSigner, state.address, feePayer = ownerSigner).getOrThrow()
+        }
+
     private suspend fun localFeePayer(payee: String): String =
         get<GetSolanaSessionSignerUseCase>()(payee)?.address ?: error("No local Solana session key linked to $payee")
 

@@ -1292,6 +1292,7 @@ actual class LiquidAuthConnectionManager actual constructor(
                     getVoucherCoveredBlockCount = { amount, confirmedBlocks ->
                         viewer.creator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
                     },
+                    getSolanaOwnerSigner = { viewModel?.solanaOwnerSigner },
                 )
         }
         drainAdditionalViewerVouchers(viewer)

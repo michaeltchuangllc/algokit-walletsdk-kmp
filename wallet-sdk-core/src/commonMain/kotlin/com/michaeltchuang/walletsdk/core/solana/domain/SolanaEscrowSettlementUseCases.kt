@@ -88,14 +88,18 @@ class SubmitSolanaSettlementVoucherUseCase(
         )
     }
 
-    /** Two signatures (fee payer + authorized signer), plus ATA rent if the payee's USDC account is missing. */
+    /**
+     * Two signatures (fee payer + authorized signer), plus ATA rent if the payee's USDC account is
+     * missing. The fee payer must also stay rent-exempt afterwards, otherwise the runtime rejects
+     * the transaction (a balance can't drop into (0, rent-exempt minimum)).
+     */
     private suspend fun requiredLamports(
         cluster: String,
         payee: String,
         mint: String,
         ensurePayeeTokenAccount: Boolean,
     ): Long {
-        val fees = SolanaClusters.LAMPORTS_PER_SIGNATURE * 2
+        val fees = SolanaClusters.LAMPORTS_PER_SIGNATURE * 2 + SolanaClusters.RENT_EXEMPT_MINIMUM_LAMPORTS
         if (!ensurePayeeTokenAccount) return fees
         val ataMissing = rpcClient.getAccountData(cluster, SolanaPda.associatedTokenAddress(payee, mint)) == null
         return if (ataMissing) fees + SolanaTransactionBuilder.TOKEN_ACCOUNT_RENT_LAMPORTS else fees
