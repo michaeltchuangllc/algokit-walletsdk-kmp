@@ -16,6 +16,7 @@ import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RenameSeed
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RenameSeedUseCase
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RevokeAuthorizedApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RevokeAuthorizedAppUseCase
+import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.SignBytes
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.AddSeedViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.AuthorizedAppsViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.RevealSeedPhraseViewModel
@@ -39,6 +40,7 @@ val seedVaultModule =
         factory<GenerateSeedPhrase> { GenerateSeedPhraseUseCase() }
         factory { AddSeed(get<SeedVaultRepository>()::addSeed) }
         factory { GetSeedPhrase(get<SeedVaultRepository>()::getSeedPhrase) }
+        factory { SignBytes(get<SeedVaultRepository>()::signBytes) }
         factory<RenameSeed> { RenameSeedUseCase(get()) }
         factory { DeleteSeed(get<SeedVaultRepository>()::deleteSeed) }
         factory<RevokeAuthorizedApp> { RevokeAuthorizedAppUseCase(get()) }

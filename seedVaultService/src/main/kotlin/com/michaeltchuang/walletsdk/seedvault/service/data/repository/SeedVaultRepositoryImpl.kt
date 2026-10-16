@@ -1,14 +1,14 @@
 package com.michaeltchuang.walletsdk.seedvault.service.data.repository
 
-import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25EntropyFromMnemonic
 import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25MnemonicFromEntropy
+import com.michaeltchuang.walletsdk.core.algosdk.recoverFalcon25Account
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedDao
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedEntity
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedWithApps
-import com.michaeltchuang.walletsdk.seedvault.service.data.database.defaultSeedName
 import com.michaeltchuang.walletsdk.seedvault.service.domain.model.AuthorizedApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.model.VaultSeed
 import com.michaeltchuang.walletsdk.seedvault.service.domain.repository.SeedVaultRepository
@@ -21,8 +21,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Room backed [SeedVaultRepository]. Only the Falcon-1024 entropy behind each 25-word seed phrase
- * is stored, encrypted with the AES-GCM Android Keystore key from wallet-sdk-core.
+ * Room backed [SeedVaultRepository]. The Falcon-1024 entropy behind each 25-word seed phrase and
+ * the private key derived from it are stored encrypted with the AES-GCM Android Keystore key from
+ * wallet-sdk-core, next to the public key and address.
  */
 internal class SeedVaultRepositoryImpl(
     private val seedDao: SeedDao,
@@ -41,18 +42,40 @@ internal class SeedVaultRepositoryImpl(
     ): VaultSeed =
         withContext(coroutineDispatcher) {
             ensureEncryptionKey()
-            val entropy = getFalcon25EntropyFromMnemonic(seedPhrase.joinToString(" "))
-            val encryptedEntropy =
+            val account = checkNotNull(recoverFalcon25Account(seedPhrase.joinToString(" "))) { "Could not derive the Falcon-1024 account" }
+            val entity =
                 try {
-                    encryptByteArray(entropy)
+                    SeedEntity(
+                        name = "",
+                        isBackedUp = isBackedUp,
+                        encryptedEntropy = encryptByteArray(account.entropy),
+                        address = account.address,
+                        publicKey = account.publicKey,
+                        encryptedPrivateKey = encryptByteArray(account.privateKey),
+                    )
                 } finally {
-                    entropy.fill(0)
+                    account.entropy.fill(0)
+                    account.seed.fill(0)
+                    account.privateKey.fill(0)
                 }
-            val id =
-                seedDao.insertWithDefaultName(
-                    SeedEntity(name = "", isBackedUp = isBackedUp, encryptedEntropy = encryptedEntropy),
-                )
-            VaultSeed(id = id, name = defaultSeedName(id), isBackedUp = isBackedUp, authorizedApps = emptyList())
+            val id = seedDao.insertWithDefaultName(entity)
+            checkNotNull(seedDao.get(id)) { "Seed $id was not saved" }.toVaultSeed()
+        }
+
+    override suspend fun signBytes(
+        seedId: Long,
+        data: ByteArray,
+    ): ByteArray? =
+        withContext(coroutineDispatcher) {
+            val publicKey = seedDao.getPublicKey(seedId) ?: return@withContext null
+            val encryptedPrivateKey = seedDao.getEncryptedPrivateKey(seedId) ?: return@withContext null
+            ensureEncryptionKey()
+            val privateKey = decryptByteArray(encryptedPrivateKey)
+            try {
+                signFalcon25ArbitraryData(data, publicKey, privateKey)
+            } finally {
+                privateKey.fill(0)
+            }
         }
 
     override suspend fun getSeedPhrase(seedId: Long): List<String>? =
@@ -108,5 +131,6 @@ internal class SeedVaultRepositoryImpl(
                 apps.map {
                     AuthorizedApp(packageName = it.packageName, label = it.label, isPrivileged = it.isPrivileged)
                 },
+            address = seed.address,
         )
 }

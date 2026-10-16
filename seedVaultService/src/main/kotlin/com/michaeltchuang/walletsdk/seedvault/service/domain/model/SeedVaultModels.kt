@@ -2,13 +2,16 @@ package com.michaeltchuang.walletsdk.seedvault.service.domain.model
 
 /**
  * A seed stored in the vault, as shown on the Seed Vault settings screens.
- * Only display data lives here: no seed phrase, keys or derivation material.
+ * Only display data lives here: no seed phrase, private key or derivation material.
+ *
+ * @param address the Falcon-1024 account address, or empty for a seed that has not been used yet
  */
 data class VaultSeed(
     val id: Long,
     val name: String,
     val isBackedUp: Boolean,
     val authorizedApps: List<AuthorizedApp>,
+    val address: String = "",
 )
 
 /**

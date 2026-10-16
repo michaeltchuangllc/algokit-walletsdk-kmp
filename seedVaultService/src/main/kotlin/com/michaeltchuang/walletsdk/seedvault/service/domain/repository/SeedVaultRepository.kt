@@ -20,6 +20,15 @@ interface SeedVaultRepository {
     /** Returns the decrypted seed phrase, or null if the seed no longer exists. */
     suspend fun getSeedPhrase(seedId: Long): List<String>?
 
+    /**
+     * Signs [data] with the Falcon-1024 private key of the seed. Returns null if the seed no longer
+     * exists or signing fails.
+     */
+    suspend fun signBytes(
+        seedId: Long,
+        data: ByteArray,
+    ): ByteArray?
+
     suspend fun renameSeed(
         seedId: Long,
         name: String,

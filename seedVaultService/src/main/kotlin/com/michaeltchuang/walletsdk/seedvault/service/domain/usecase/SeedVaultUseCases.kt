@@ -27,6 +27,14 @@ fun interface GetSeedPhrase {
     suspend operator fun invoke(seedId: Long): List<String>?
 }
 
+/** Signs a byte array with the Falcon-1024 key of a seed. */
+fun interface SignBytes {
+    suspend operator fun invoke(
+        seedId: Long,
+        data: ByteArray,
+    ): ByteArray?
+}
+
 fun interface RenameSeed {
     suspend operator fun invoke(
         seedId: Long,

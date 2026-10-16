@@ -48,6 +48,14 @@ class FakeSeedVaultRepository(
         return seedPhrases[seedId]
     }
 
+    override suspend fun signBytes(
+        seedId: Long,
+        data: ByteArray,
+    ): ByteArray? {
+        failure?.let { throw it }
+        return if (seedPhrases.containsKey(seedId)) data.reversedArray() else null
+    }
+
     override suspend fun renameSeed(
         seedId: Long,
         name: String,

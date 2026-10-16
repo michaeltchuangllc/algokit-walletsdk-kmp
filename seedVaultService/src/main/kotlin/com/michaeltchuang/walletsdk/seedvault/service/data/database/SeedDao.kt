@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.seedvault.service.data.database
 
 import androidx.room.Dao
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import kotlinx.coroutines.flow.Flow
@@ -15,13 +16,31 @@ internal interface SeedDao {
     @Query("SELECT encrypted_entropy FROM seed WHERE id = :seedId")
     suspend fun getEncryptedEntropy(seedId: Long): ByteArray?
 
-    @Insert
+    @Query("SELECT public_key FROM seed WHERE id = :seedId")
+    suspend fun getPublicKey(seedId: Long): ByteArray?
+
+    @Query("SELECT encrypted_private_key FROM seed WHERE id = :seedId")
+    suspend fun getEncryptedPrivateKey(seedId: Long): ByteArray?
+
+    @Transaction
+    @Query("SELECT * FROM seed WHERE id = :seedId")
+    suspend fun get(seedId: Long): SeedWithApps?
+
+    @Query("SELECT id FROM seed WHERE address = :address")
+    suspend fun getIdByAddress(address: String): Long?
+
+    /** Returns the new row id, or -1 if a seed with the same address is already stored. */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(seed: SeedEntity): Long
 
-    /** Inserts [seed] and names it after its new id, e.g. "Seed 3". Ids are never reused. */
+    /**
+     * Inserts [seed] and names it after its new id, e.g. "Seed 3". Ids are never reused. If a seed
+     * with the same address is already stored, nothing is changed and its id is returned.
+     */
     @Transaction
     suspend fun insertWithDefaultName(seed: SeedEntity): Long {
         val id = insert(seed)
+        if (id == -1L) return checkNotNull(getIdByAddress(seed.address))
         rename(id, defaultSeedName(id))
         return id
     }
