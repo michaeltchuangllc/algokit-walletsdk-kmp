@@ -604,7 +604,13 @@ class VaultOnlyProtocolTest {
                     ?.jsonPrimitive
                     ?.content,
             )
-            assertEquals(MppNetworks.ALGORAND_TESTNET, dc.sent.single()["mppNetwork"]?.jsonPrimitive?.content)
+            assertEquals(
+                MppNetworks.ALGORAND_TESTNET,
+                dc.sent
+                    .single()["mppNetwork"]
+                    ?.jsonPrimitive
+                    ?.content,
+            )
             assertFalse("network" in dc.sent.single())
             server.updateConfig(config())
             runCurrent()

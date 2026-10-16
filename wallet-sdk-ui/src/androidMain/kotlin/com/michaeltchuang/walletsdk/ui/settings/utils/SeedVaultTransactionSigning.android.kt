@@ -35,14 +35,18 @@ import org.koin.compose.koinInject
 actual val isSeedVaultTransactionSigningSupported: Boolean = true
 
 @Composable
-actual fun rememberSeedVaultTransactionSigner(): suspend (address: String, message: ByteArray) -> ByteArray {
-    return rememberSeedVaultSigner(signMessages = false)
-}
+actual fun rememberSeedVaultTransactionSigner(): suspend (
+    address: String,
+    message: ByteArray,
+) -> ByteArray =
+    rememberSeedVaultSigner(signMessages = false)
 
 @Composable
-internal fun rememberSeedVaultMessageSigner(): suspend (address: String, message: ByteArray) -> ByteArray {
-    return rememberSeedVaultSigner(signMessages = true)
-}
+internal fun rememberSeedVaultMessageSigner(): suspend (
+    address: String,
+    message: ByteArray,
+) -> ByteArray =
+    rememberSeedVaultSigner(signMessages = true)
 
 @Composable
 private fun rememberSeedVaultSigner(signMessages: Boolean): suspend (address: String, message: ByteArray) -> ByteArray {

@@ -38,8 +38,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
-import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
@@ -91,6 +89,8 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewerIn
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersCard
 import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLiveScreen
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
+import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
