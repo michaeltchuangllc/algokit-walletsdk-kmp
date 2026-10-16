@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.SpendTransaction
 import com.michaeltchuang.walletsdk.core.railmpp.internal.ensureCryptoProvider
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
@@ -28,15 +29,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-
-private val receiptDecodeJson = Json { ignoreUnknownKeys = true }
 
 /**
  * PaywalledRTCClient — consumer-side payment-channel orchestration.
@@ -56,6 +54,7 @@ class PaywalledRTCClient(
 
     // ─── Callbacks ──────────────────────────────────────────
     var onPaymentRequested: ((PaymentRequest) -> Unit)? = null
+    var onVaultPaymentRequest: ((PaymentRequest) -> Unit)? = null
     var onPaymentSubmitted: ((RailPayment) -> Unit)? = null
     var onPaymentReceipt: ((PaymentReceipt) -> Unit)? = null
     var onConsentRequested: ((ConsentTerms) -> Unit)? = null
@@ -81,6 +80,9 @@ class PaywalledRTCClient(
     private var vaultOnlySession = false
     private var vaultRequest: PaymentRequest? = null
     private var vaultIdentity: Triple<String, String, String>? = null
+    private var sessionNetwork: String? = config.expectedNetwork
+    private var sessionPayee: String? = null
+    private var viewerAddress: String? = config.expectedViewerAddress
     private val consumedVaultSegments = mutableSetOf<Pair<String, Int>>()
 
     // Keep individual debits (not cumulative vouchers) until the approved budget covers them.
@@ -200,12 +202,21 @@ class PaywalledRTCClient(
     fun sendHello(
         viewer: String,
         viewerPublicKey: String,
+        network: String? = config.expectedNetwork,
     ) {
+        if (network != null) {
+            requireStreamNetwork(sessionNetwork ?: network, network, SolanaStreamVault.isSolana(network))
+            requireStreamAddress(network, viewer)
+            sessionNetwork = network
+        }
+        require(config.expectedViewerAddress == null || config.expectedViewerAddress == viewer) { "Viewer identity mismatch" }
+        viewerAddress = viewer
         sendDC(
             buildJsonObject {
                 put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
                 put("viewer", viewer)
                 put("viewerPublicKey", viewerPublicKey)
+                network?.let { put("mppNetwork", it) }
             },
         )
     }
@@ -250,6 +261,9 @@ class PaywalledRTCClient(
             Napier.d("[DC_MESSAGE_RECEIVED] type=$rawType bytes=${msgStr.length}", tag = TAG)
             when (msgType) {
                 DCMessageType.SEGMENT_HANDSHAKE -> {
+                    msg.readMppNetwork()?.let { network ->
+                        requireStreamNetwork(sessionNetwork, network, SolanaStreamVault.isSolana(network))
+                    }
                     if (msg["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT &&
                         msg["requestViewerIdentity"]?.jsonPrimitive?.content == "true"
                     ) {
@@ -271,14 +285,20 @@ class PaywalledRTCClient(
                             }
                         }
                     val request = paymentRequestFromJson(merged)
+                    require(!SolanaStreamVault.isSolana(request.network) || request.billingMode == BillingMode.SESSION_VAULT) {
+                        "Solana streaming requires session-vault billing"
+                    }
+                    validatePaymentIdentity(request.network, request.payTo, request.meta.viewerAddress)
                     acceptBillingMode(request.billingMode)
                     if (vaultOnlySession) {
                         validateVaultIdentity(request.sessionId, request.channelId, request.salt)
                         vaultRequest = request
                     }
-                    captureChannelId(request.channelId)
-                    captureSalt(request.salt)
-                    EscrowSessionVaultHybridManagerClient.hostAddress = request.payTo
+                    if (!SolanaStreamVault.isSolana(request.network)) {
+                        captureChannelId(request.channelId)
+                        captureSalt(request.salt)
+                        EscrowSessionVaultHybridManagerClient.hostAddress = request.payTo
+                    }
                     Napier.d(
                         "[VIEWER_SEGMENT_REQUEST_RECEIVED] session=${request.sessionId} segment=${request.segmentIndex} " +
                             "nonce=${request.nonce} amount=${request.amount} asset=${request.asset} network=${request.network}" +
@@ -291,7 +311,15 @@ class PaywalledRTCClient(
 
                 DCMessageType.SEGMENT_ACCEPTED -> {
                     val payload = msg[DCFieldKey.PAYLOAD]!!.jsonObject
-                    val receipt = receiptDecodeJson.decodeFromJsonElement<PaymentReceipt>(payload)
+                    val receipt = paymentReceiptFromJson(payload)
+                    require(!SolanaStreamVault.isSolana(receipt.network) || receipt.billingMode == BillingMode.SESSION_VAULT) {
+                        "Solana streaming requires session-vault billing"
+                    }
+                    // Reject noncanonical assets before queuing, deduplicating or accounting for the receipt.
+                    require(!SolanaStreamVault.isSolana(receipt.network) || receipt.asset == "USDC") {
+                        "Solana receipt asset mismatch: expected=USDC, received=${receipt.asset}"
+                    }
+                    validatePaymentIdentity(receipt.network, receipt.payTo, receipt.payFrom.takeIf { it.isNotBlank() })
                     Napier.d(
                         "RECEIPT_RECEIVED session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
                             "amountMicro=${receipt.amount} handlerPresent=${onPaymentReceipt != null}",
@@ -319,16 +347,22 @@ class PaywalledRTCClient(
                 }
 
                 DCMessageType.SEGMENT_REJECTED -> {
+                    val explicitNetwork = msg.readMppNetwork()
                     if (msg["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT) {
                         val session = requireNotNull(msg[DCFieldKey.SESSION_ID]?.jsonPrimitive?.content)
                         val channel = msg["channelId"]?.jsonPrimitive?.content
                         val salt = msg["salt"]?.jsonPrimitive?.content
                         val payTo = requireNotNull(msg["payTo"]?.jsonPrimitive?.content).also { require(it.isNotBlank()) }
+                        val network = explicitNetwork ?: sessionNetwork
+                        require(network != null) { "Missing stream network" }
+                        validatePaymentIdentity(network, payTo, null)
                         acceptBillingMode(BillingMode.SESSION_VAULT)
                         validateVaultIdentity(session, channel, salt)
-                        captureChannelId(channel)
-                        captureSalt(salt)
-                        EscrowSessionVaultHybridManagerClient.hostAddress = payTo
+                        if (!SolanaStreamVault.isSolana(network)) {
+                            captureChannelId(channel)
+                            captureSalt(salt)
+                            EscrowSessionVaultHybridManagerClient.hostAddress = payTo
+                        }
                     }
                     val reason = (msg[DCFieldKey.PAYLOAD] as? JsonObject)?.optStr("reason", "rejected") ?: "rejected"
                     onStreamGated?.invoke(reason)
@@ -358,11 +392,13 @@ class PaywalledRTCClient(
             }
         } catch (e: Exception) {
             Napier.e("handleDataChannelMessage error", e, tag = TAG)
+            onError?.invoke(e)
         }
     }
 
     private suspend fun handlePaymentRequest(request: PaymentRequest) {
         onPaymentRequested?.invoke(request)
+        if (vaultOnlySession) onVaultPaymentRequest?.invoke(request)
 
         // Auto-pay configured + usage payment (not access gate) → skip consent entirely.
         if (!vaultOnlySession &&
@@ -501,6 +537,25 @@ class PaywalledRTCClient(
         if (mode == BillingMode.SESSION_VAULT) vaultOnlySession = true
     }
 
+    private fun validatePaymentIdentity(
+        network: String,
+        payee: String,
+        viewer: String?,
+    ) {
+        val solana = SolanaStreamVault.isSolana(network)
+        requireStreamNetwork(sessionNetwork, network, solana)
+        requireStreamAddress(network, payee)
+        viewerAddress?.let { requireStreamAddress(network, it) }
+        if (solana) require(viewerAddress != null) { "Solana requires the local viewer address" }
+        viewer?.let {
+            requireStreamAddress(network, it)
+            require(viewerAddress == null || viewerAddress == it) { "Viewer identity mismatch" }
+        }
+        require(sessionPayee == null || sessionPayee == payee) { "Stream payee changed" }
+        sessionNetwork = network
+        sessionPayee = payee
+    }
+
     @OptIn(ExperimentalEncodingApi::class)
     private fun validateVaultIdentity(
         sessionId: String,
@@ -519,6 +574,7 @@ class PaywalledRTCClient(
 
     @OptIn(ExperimentalEncodingApi::class)
     private fun captureChannelId(channelIdBase64: String?) {
+        if (sessionNetwork?.let(SolanaStreamVault::isSolana) == true) return
         val encoded = channelIdBase64?.takeIf { it.isNotBlank() } ?: return
         runCatching { Base64.decode(encoded) }
             .onSuccess { decoded ->
@@ -533,6 +589,7 @@ class PaywalledRTCClient(
 
     @OptIn(ExperimentalEncodingApi::class)
     private fun captureSalt(saltBase64: String?) {
+        if (sessionNetwork?.let(SolanaStreamVault::isSolana) == true) return
         val encoded = saltBase64?.takeIf { it.isNotBlank() } ?: return
         runCatching { Base64.decode(encoded) }
             .onSuccess { decoded ->
@@ -588,7 +645,9 @@ class PaywalledRTCClient(
                 )
                 captureSalt(receipt.salt)
                 captureChannelId(receipt.channelId)
-                EscrowSessionVaultHybridManagerClient.hostAddress = receipt.payTo
+                if (!SolanaStreamVault.isSolana(receipt.network)) {
+                    EscrowSessionVaultHybridManagerClient.hostAddress = receipt.payTo
+                }
                 Napier.d(
                     "RECEIPT_BUDGET_ACCEPTED session=${receipt.sessionId} segment=${receipt.segmentIndex} " +
                         "amountMicro=${receipt.amount} spentMicro=$newTotal",

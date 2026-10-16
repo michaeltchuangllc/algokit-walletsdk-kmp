@@ -36,12 +36,22 @@ actual val isSeedVaultTransactionSigningSupported: Boolean = true
 
 @Composable
 actual fun rememberSeedVaultTransactionSigner(): suspend (address: String, message: ByteArray) -> ByteArray {
+    return rememberSeedVaultSigner(signMessages = false)
+}
+
+@Composable
+internal fun rememberSeedVaultMessageSigner(): suspend (address: String, message: ByteArray) -> ByteArray {
+    return rememberSeedVaultSigner(signMessages = true)
+}
+
+@Composable
+private fun rememberSeedVaultSigner(signMessages: Boolean): suspend (address: String, message: ByteArray) -> ByteArray {
     val context = LocalContext.current
     val repository = koinInject<SeedVaultRepository>()
     // The ActivityResultRegistry also restores its launch key. Reserve that key after recreation
     // until the old result arrives, even though its original coroutine can no longer be resumed.
     val launchOutstanding = rememberSaveable { mutableStateOf(false) }
-    val state = remember { SeedVaultSigningState(launchOutstanding) }
+    val state = remember(signMessages) { SeedVaultSigningState(launchOutstanding, signMessages) }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             state.onResult(result)
@@ -56,12 +66,13 @@ actual fun rememberSeedVaultTransactionSigner(): suspend (address: String, messa
             // Snapshot before any dispatcher hop or repository suspension.
             val messageSnapshot = message.copyOf()
             state.sign(address, messageSnapshot, repository) { authToken, path ->
+                val requests = arrayListOf(SigningRequest(messageSnapshot, listOf(path)))
                 launcher.launch(
-                    Wallet.signTransactions(
-                        context,
-                        authToken,
-                        arrayListOf(SigningRequest(messageSnapshot, listOf(path))),
-                    ),
+                    if (signMessages) {
+                        Wallet.signMessages(context, authToken, requests)
+                    } else {
+                        Wallet.signTransactions(context, authToken, requests)
+                    },
                 )
             }
         }
@@ -71,6 +82,7 @@ actual fun rememberSeedVaultTransactionSigner(): suspend (address: String, messa
 /** All mutable state is confined to the main dispatcher, including activity results and disposal. */
 private class SeedVaultSigningState(
     private val launchOutstanding: MutableState<Boolean>,
+    private val signMessages: Boolean,
 ) {
     private var disposed = false
     private var operation: Job? = null
@@ -93,7 +105,7 @@ private class SeedVaultSigningState(
                 operation = currentCoroutineContext().job
                 var request: PendingSignature? = null
                 try {
-                    require(message.isNotEmpty()) { "Solana transaction message must not be empty" }
+                    require(message.isNotEmpty()) { "Seed Vault signing payload must not be empty" }
                     require(address.length in 32..44) { "Invalid Solana address length" }
                     val publicKey = Base58.decode(address)
                     require(publicKey.size == 32) { "Solana address must encode a 32-byte public key" }
@@ -160,7 +172,8 @@ private class SeedVaultSigningState(
         resultCode: Int,
         data: Intent?,
     ): ByteArray {
-        val responses = Wallet.onSignTransactionsResult(resultCode, data)
+        val responses =
+            if (signMessages) Wallet.onSignMessagesResult(resultCode, data) else Wallet.onSignTransactionsResult(resultCode, data)
         check(responses.size == 1) { "Seed Vault must return exactly one signing response" }
         val response = responses.single()
         check(response.signatures.size == 1 && response.resolvedDerivationPaths.size == 1) {
@@ -172,7 +185,7 @@ private class SeedVaultSigningState(
         verifier.init(false, Ed25519PublicKeyParameters(request.publicKey, 0))
         verifier.update(request.message, 0, request.message.size)
         check(verifier.verifySignature(signature)) {
-            "Seed Vault signature does not match the requested address and transaction message"
+            "Seed Vault signature does not match the requested address and signing payload"
         }
         return signature
     }

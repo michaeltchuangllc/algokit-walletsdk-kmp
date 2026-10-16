@@ -16,6 +16,7 @@ import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSettlementFeePay
 import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSignerBalanceUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.RegenerateSolanaSessionKeyUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.ReturnSolanaSessionKeyFundsUseCase
+import com.michaeltchuang.walletsdk.core.solana.domain.SendSolanaSolUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.SubmitSolanaSettlementVoucherUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.SweepSolanaLinkedSignerUseCase
 import org.koin.core.module.dsl.factoryOf
@@ -44,4 +45,5 @@ val solanaLinkedSignerModule =
         factoryOf(::GetSolanaSessionSignerUseCase)
         factoryOf(::GetSolanaSettlementFeePayerUseCase)
         factoryOf(::SubmitSolanaSettlementVoucherUseCase)
+        factoryOf(::SendSolanaSolUseCase)
     }

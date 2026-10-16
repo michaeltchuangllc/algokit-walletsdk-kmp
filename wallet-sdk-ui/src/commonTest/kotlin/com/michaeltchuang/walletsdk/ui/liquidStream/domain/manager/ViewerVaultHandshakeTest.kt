@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager
 
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -12,6 +13,19 @@ import kotlin.test.assertTrue
 class ViewerVaultHandshakeTest {
     private val key = byteArrayOf(1, 2, 3)
     private val channel = ByteArray(32) { it.toByte() }
+
+    @Test
+    fun `EXPECT advertised network to use only mppNetwork`() {
+        val hello = ViewerVaultHandshake("viewer", key, MppNetworks.SOLANA_DEVNET)
+        assertTrue(
+            hello.send(channel, true) {
+                val fields = Json.parseToJsonElement(it).jsonObject
+                assertEquals(MppNetworks.SOLANA_DEVNET, fields["mppNetwork"]?.jsonPrimitive?.content)
+                assertFalse("network" in fields)
+                true
+            },
+        )
+    }
 
     @Test
     fun `EXPECT known identity to be sent before any receipt without balance or session claims`() {

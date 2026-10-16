@@ -14,9 +14,8 @@ import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
-import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
-import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.core.readMppNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.StreamCostUpdate
@@ -25,10 +24,16 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultConfigUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.solana.domain.EnsureSolanaSessionKeyUseCase
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.parseLiquidStreamDepositAmount
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.resolveLiquidStreamAccountNetwork
+import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.validateLiquidStreamMetadataNetwork
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.manager.MppPaymentViewerManager
 import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaymentViewerUseCase
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import com.michaeltchuang.walletsdk.utils.DataResource
 import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -41,9 +46,9 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.koin.mp.KoinPlatform.getKoin
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
-import kotlin.math.roundToLong
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -76,6 +81,47 @@ open class CommonAnswerViewModel(
     val pendingSignTransactionRequest: StateFlow<PendingSignTransactionRequest?> = _pendingSignTransactionRequest
 
     var showConfirmationDialog = MutableStateFlow(false)
+
+    var signSolanaTransaction: (suspend (String, ByteArray) -> ByteArray)? = null
+
+    var signSolanaMessage: (suspend (String, ByteArray) -> ByteArray)? = null
+
+    protected val signSolanaTransactionDelegate: suspend (String, ByteArray) -> ByteArray = { address, message ->
+        check(isSeedVaultTransactionSigningSupported) { "SeedVault transaction signing is not supported on this platform." }
+        val sign = signSolanaTransaction ?: error("SeedVault transaction signing is not available.")
+        sign(address, message).also {
+            check(it.size == 64) { "SeedVault must return a raw Ed25519 signature." }
+        }
+    }
+
+    private var streamInfoValidationJob: Job? = null
+    private val _isViewerStreamNetworkValidated = MutableStateFlow(false)
+    val isViewerStreamNetworkValidated: StateFlow<Boolean> = _isViewerStreamNetworkValidated
+    private var advertisedStreamNetwork: String? = null
+    private var streamNetworkRejected = false
+    private var viewerConnectionGeneration = 0L
+
+    fun resetViewerStreamValidation() {
+        viewerConnectionGeneration++
+        streamInfoValidationJob?.cancel()
+        streamInfoValidationJob = null
+        advertisedStreamNetwork = null
+        streamNetworkRejected = false
+        _isViewerStreamNetworkValidated.value = false
+        clearVideoFrame()
+    }
+
+    suspend fun initializeViewerStreamValidation() {
+        val generation = viewerConnectionGeneration
+        // Legacy Algorand hosts may omit metadata. Solana must wait for explicit network metadata.
+        val account = getLocalAccount(accountAddress.value)
+        if (generation != viewerConnectionGeneration) return
+        if (streamInfoValidationJob?.isActive != true && !streamNetworkRejected) {
+            _isViewerStreamNetworkValidated.value =
+                account != null &&
+                (account !is LocalAccount.SeedVault || advertisedStreamNetwork != null)
+        }
+    }
 
     /**
      * Shared DataChannel message handling used by Android and iOS.
@@ -129,8 +175,10 @@ open class CommonAnswerViewModel(
                 return
             }
 
+            val generation = viewerConnectionGeneration
             viewModelScope.launch {
                 val request = handleCborRequestMessage(cborBytes)
+                if (generation != viewerConnectionGeneration) return@launch
                 when (request) {
                     is DataChannelRequest.SignTransactions -> {
                         _pendingSignTransactionRequest.value = request.pendingRequest
@@ -155,8 +203,7 @@ open class CommonAnswerViewModel(
         val jsonObject = json.parseToJsonElement(msgStr).jsonObject
         val type = jsonObject.optString("type")
         if (jsonObject.optString("reference") == "liquid:stream:info") {
-            // Stream metadata must not replace the LiquidAuth authentication sentinel.
-            jsonObject.optString("hostAddress")?.let(::setHostAddress)
+            handleStreamInfo(msgStr)
             return
         }
 
@@ -233,6 +280,29 @@ open class CommonAnswerViewModel(
         msgStr: String,
         onVideoFrame: ((VideoFrameData) -> Unit)?,
     ) {
+        val generation = viewerConnectionGeneration
+        viewModelScope.launch {
+            streamInfoValidationJob?.join()
+            if (generation != viewerConnectionGeneration) return@launch
+            if (streamNetworkRejected) return@launch
+            if (!_isViewerStreamNetworkValidated.value) {
+                val account = getLocalAccount(accountAddress.value)
+                if (generation != viewerConnectionGeneration) return@launch
+                if (account is LocalAccount.SeedVault) {
+                    streamNetworkRejected = true
+                    stopMppPaymentViewer()
+                    onStreamRejected("network_mismatch", "Solana streams must advertise their payment network.")
+                    return@launch
+                }
+            }
+            decodeVideoFrameMessage(msgStr, onVideoFrame)
+        }
+    }
+
+    private fun decodeVideoFrameMessage(
+        msgStr: String,
+        onVideoFrame: ((VideoFrameData) -> Unit)?,
+    ) {
         try {
             val jsonObject = json.parseToJsonElement(msgStr).jsonObject
             val dataBase64 = jsonObject.reqString("data")
@@ -269,9 +339,7 @@ open class CommonAnswerViewModel(
 
         when {
             reference == "liquid:stream:info" -> {
-                val host = message.jsonOptString("hostAddress")
-                if (!host.isNullOrBlank()) setHostAddress(host)
-                onHostDiscovered(host)
+                handleStreamInfo(message, onHostDiscovered)
             }
             reference == "liquid:video:frame" -> handleViewerSharedMessage(message, onHostDiscovered)
             reference == "ping" -> onPongRequested()
@@ -280,6 +348,55 @@ open class CommonAnswerViewModel(
             reference == null -> handleViewerPaymentMessage(message, onPaymentMessage, onHostDiscovered)
             else -> Unit
         }
+    }
+
+    private fun handleStreamInfo(
+        message: String,
+        onHostDiscovered: (String?) -> Unit = {},
+    ) {
+        streamInfoValidationJob?.cancel()
+        _isViewerStreamNetworkValidated.value = false
+        val address = accountAddress.value
+        val currentSession = session.value
+        val generation = viewerConnectionGeneration
+        streamInfoValidationJob =
+            viewModelScope.launch {
+                try {
+                    val info = json.parseToJsonElement(message).jsonObject
+                    val network = info.readMppNetwork()
+                    validateLiquidStreamMetadataNetwork(
+                        getLocalAccount(address),
+                        getCurrentNetworkUseCase().first(),
+                        network,
+                    )
+                    if (generation != viewerConnectionGeneration ||
+                        address != accountAddress.value ||
+                        currentSession != session.value
+                    ) {
+                        return@launch
+                    }
+                    if (streamNetworkRejected) return@launch
+                    advertisedStreamNetwork = network
+                    _isViewerStreamNetworkValidated.value = true
+                    val host = info.optString("hostAddress")
+                    // Metadata must not replace the LiquidAuth authentication sentinel.
+                    if (!host.isNullOrBlank()) setHostAddress(host)
+                    onHostDiscovered(host)
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (e: Exception) {
+                    if (generation != viewerConnectionGeneration ||
+                        address != accountAddress.value ||
+                        currentSession != session.value
+                    ) {
+                        return@launch
+                    }
+                    streamNetworkRejected = true
+                    clearVideoFrame()
+                    stopMppPaymentViewer()
+                    onStreamRejected("network_mismatch", e.message)
+                }
+            }
     }
 
     fun applyViewerSharedMessageState(message: String) {
@@ -303,16 +420,33 @@ open class CommonAnswerViewModel(
         message: String,
         onHostDiscovered: (hostAddress: String?) -> Unit,
     ) {
-        val hostAddress = message.jsonOptString("hostAddress")
-        applyViewerSharedMessageState(message)
-        if (!hostAddress.isNullOrBlank()) onHostDiscovered(hostAddress)
-        handleMessages(message)
+        val generation = viewerConnectionGeneration
+        viewModelScope.launch {
+            streamInfoValidationJob?.join()
+            if (generation != viewerConnectionGeneration) return@launch
+            if (streamNetworkRejected) return@launch
+            val account = getLocalAccount(accountAddress.value)
+            if (generation != viewerConnectionGeneration) return@launch
+            if (account is LocalAccount.SeedVault && !_isViewerStreamNetworkValidated.value) {
+                streamNetworkRejected = true
+                stopMppPaymentViewer()
+                onStreamRejected("network_mismatch", "Solana streams must advertise their payment network.")
+                return@launch
+            }
+            val hostAddress = message.jsonOptString("hostAddress")
+            applyViewerSharedMessageState(message)
+            if (!hostAddress.isNullOrBlank()) onHostDiscovered(hostAddress)
+            handleMessages(message)
+        }
     }
 
     private suspend fun getExistingViewerSessionVaultBalance(hostAddress: String): Long {
         val viewer = viewerAddress.value
         val host = hostAddress.takeIf { it.isNotBlank() } ?: this.hostAddress.value
         if (viewer.isBlank() || host.isBlank()) return 0L
+        if (getLocalAccount(viewer) is LocalAccount.SeedVault) {
+            return viewerSessionVaultMicroUsdc.value
+        }
         return runCatching {
             getRemainingSessionVaultBalanceUseCase(
                 GetRemainingSessionVaultBalanceUseCase.Params(
@@ -369,6 +503,7 @@ open class CommonAnswerViewModel(
     fun fetchAccountBalance() {
         viewModelScope.launch {
             try {
+                if (getLocalAccount(accountAddress.value) is LocalAccount.SeedVault) return@launch
                 val balance = getAccountAlgoBalance(accountAddress.value)
                 setAccountBalance(balance?.toString())
                 Napier.d("$TAG: fetched balance=${balance?.toString() ?: "0"}")
@@ -502,8 +637,11 @@ open class CommonAnswerViewModel(
             }
 
             is LocalAccount.SeedVault -> {
-                Napier.d("$TAG: SeedVault account — FIDO2 signing not supported")
-                null
+                require(challenge.isNotEmpty()) { "Registration/authentication challenge must not be empty" }
+                val sign = checkNotNull(signSolanaMessage) { "Seed Vault owner message signing is not available." }
+                sign(address, challenge.copyOf()).also {
+                    check(it.size == 64) { "Seed Vault must return a raw Ed25519 challenge signature." }
+                }
             }
 
             else -> null
@@ -517,10 +655,17 @@ open class CommonAnswerViewModel(
         viewerAddress: String,
         signer: MppWalletSigner,
     ): Result<Long?> {
-        val amountUsdc = enteredAmount.toDoubleOrNull()?.takeIf { it > 0.0 } ?: 1.0
-        val depositMicroUsdc = (amountUsdc * 1_000_000.0).roundToLong().coerceAtLeast(1L)
-        val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
         return try {
+            val depositMicroUsdc = parseLiquidStreamDepositAmount(enteredAmount)
+            val account = getLocalAccount(viewerAddress)
+            resolveLiquidStreamAccountNetwork(account, getCurrentNetworkUseCase().first())
+            if (account is LocalAccount.SeedVault) {
+                checkNotNull(signSolanaTransaction) { "SeedVault transaction signing is not available." }
+                val remaining = mppPaymentViewerManager.topUpSolanaViewerSessionVault(viewerAddress, depositMicroUsdc)
+                remaining?.let(::setViewerSessionVaultBalance)
+                return Result.success(remaining)
+            }
+            val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             val remaining =
                 mppPaymentViewerManager.topUpViewerSessionVault(
                     viewerAddress = viewerAddress,
@@ -557,10 +702,18 @@ open class CommonAnswerViewModel(
     }
 
     /** Build an [MppWalletSigner] for the given account address. */
-    suspend fun buildMppWalletSigner(address: String): MppWalletSigner? = mppWalletSignerUseCase(address)
+    suspend fun buildMppWalletSigner(address: String): MppWalletSigner? {
+        if (getLocalAccount(address) is LocalAccount.SeedVault) {
+            resolveMppClientNetwork(address)
+            getKoin().get<EnsureSolanaSessionKeyUseCase>()(address)
+        }
+        return mppWalletSignerUseCase(address)
+    }
 
     fun startViewerOnChainRefresh(viewerAddress: String) {
         viewModelScope.launch {
+            // The Solana session owns its RPC refresh loop and publishes the shared snapshots.
+            if (getLocalAccount(viewerAddress) is LocalAccount.SeedVault) return@launch
             val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             mppPaymentViewerManager.startViewerOnChainRefresh(
                 scope = viewModelScope,
@@ -576,16 +729,15 @@ open class CommonAnswerViewModel(
         mppPaymentViewerManager.stop()
     }
 
-    protected suspend fun resolveMppClientNetwork(address: String): String =
-        if (getLocalAccount(address) is LocalAccount.SeedVault) {
-            MppNetworks.SOLANA_DEVNET
-        } else {
-            when (getCurrentNetworkUseCase().first()) {
-                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
-                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
-                AlgorandNetwork.FUTURENET -> MppNetworks.ALGORAND_FUTURENET
-            }
+    protected suspend fun resolveMppClientNetwork(address: String): String {
+        check(!streamNetworkRejected) { "The stream network was rejected." }
+        val account = getLocalAccount(address)
+        val network = resolveLiquidStreamAccountNetwork(account, getCurrentNetworkUseCase().first())
+        if (account is LocalAccount.SeedVault) {
+            checkNotNull(signSolanaTransaction) { "SeedVault transaction signing is not available." }
         }
+        return network
+    }
 
     private fun Byte.toHexByteString(): String {
         val value = toInt() and 0xFF

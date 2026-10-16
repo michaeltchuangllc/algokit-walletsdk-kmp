@@ -1,12 +1,15 @@
 package com.michaeltchuang.walletsdk.ui.liquidAuth.service
 
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
+import com.michaeltchuang.walletsdk.core.railmpp.core.readMppNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.CreatorVoucherClaimSnapshot
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.DCMessageType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
+import com.michaeltchuang.walletsdk.core.solana.utils.Base58
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -15,7 +18,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
@@ -169,6 +174,7 @@ class LiquidAuthViewerHelloMessage(
     val viewerPublicKey: ByteArray?,
     /** Optional actual vault channel, independent of voucher/payment session metadata. */
     val channelId: ByteArray? = null,
+    val network: String? = null,
 )
 
 class LiquidAuthPaymentVoucherMessage(
@@ -195,7 +201,13 @@ fun resolveLiquidAuthPaymentRequest(paymentRequest: PaymentRequest): ResolvedLiq
     val isSolanaNetwork = network.startsWith("solana:", ignoreCase = true)
     val asset =
         if (isSolanaNetwork) {
-            if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
+            // The stream protocol uses a currency symbol, not an SPL mint address.
+            // The chain-specific mint is supplied separately in railPayload.solanaMint.
+            val mint = if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
+            require(paymentRequest.asset.isBlank() || paymentRequest.asset == "USDC" || paymentRequest.asset == mint) {
+                "Unsupported Solana stream asset: ${paymentRequest.asset}"
+            }
+            "USDC"
         } else {
             paymentRequest.asset.takeIf { it.isNotBlank() } ?: "USDC"
         }
@@ -243,6 +255,7 @@ fun parseLiquidAuthHostTransportMessage(message: String): LiquidAuthHostTranspor
                 viewerAddress = message.jsonOptString("viewer"),
                 viewerPublicKey = viewerPublicKeyBase64?.decodeLiquidAuthBase64OrNull(),
                 channelId = message.jsonOptString("channelId")?.decodeLiquidAuthBase64OrNull(),
+                network = Json.parseToJsonElement(message).jsonObject.readMppNetwork(),
             )
         } else {
             null
@@ -383,12 +396,39 @@ fun evaluateLiquidAuthVoucher(
 fun buildLiquidStreamInfoMessage(
     hostAddress: String,
     sessionId: String,
+    network: String? = null,
 ): String =
     buildJsonObject {
         put("reference", "liquid:stream:info")
         put("hostAddress", hostAddress)
         put("sessionId", sessionId)
+        network?.let { put("mppNetwork", it) }
     }.toString()
+
+/** Validate even free streams: a valid payment is not the media admission boundary. */
+internal fun validateLiquidStreamHostNetwork(
+    address: String,
+    network: String,
+) {
+    val solana = SolanaStreamVault.isSolana(network)
+    require(Base58.isValidSolanaAddress(address) == solana) { "Creator account and stream network must use the same chain" }
+    if (solana) SolanaStreamVault.cluster(network)
+}
+
+internal fun validateLiquidStreamViewerNetwork(
+    hostNetwork: String,
+    viewerAddress: String,
+    viewerNetwork: String?,
+) {
+    val solana = SolanaStreamVault.isSolana(hostNetwork)
+    require(Base58.isValidSolanaAddress(viewerAddress) == solana) { "Viewer and creator must use the same account family" }
+    if (solana) {
+        SolanaStreamVault.cluster(hostNetwork)
+        require(viewerNetwork == hostNetwork) { "Solana viewer must advertise the same devnet network as the creator" }
+    } else if (viewerNetwork != null) {
+        require(!SolanaStreamVault.isSolana(viewerNetwork)) { "Viewer and creator must use the same account family" }
+    }
+}
 
 /**
  * Builds the `STREAM_COST_UPDATE` message broadcasting the current per-segment cost to a
@@ -443,13 +483,18 @@ fun buildLiquidStreamRejectedMessage(
  * Extracts the wallet address a viewer claims in any identity-bearing message (credential,
  * `segment:handshake`, or `segment:voucher`). Returns null for non-identity messages.
  */
-fun extractLiquidAuthViewerAddress(message: String): String? =
-    runCatching {
-        val parsed = parseLiquidAuthHostTransportMessage(message)
-        parsed.paymentVoucher?.viewerAddress
-            ?: parsed.viewerHello?.viewerAddress
-            ?: parsed.address.takeIf { parsed.reference == null && (parsed.type == null || parsed.type == "credential") }
-    }.getOrNull()?.takeIf { it.isNotBlank() }
+fun extractLiquidAuthViewerAddress(message: String): String? {
+    // Do not parse network metadata here: a failure must reach the admission gate's rejection
+    // path, not turn an identity-bearing message into an apparently non-identity message.
+    val type = message.jsonOptString("type")
+    val address =
+        when (type) {
+            DCMessageType.SEGMENT_HANDSHAKE.value, DCMessageType.SEGMENT_VOUCHER.value -> message.jsonOptString("viewer")
+            null, "credential" -> message.jsonOptString("address").takeIf { message.jsonOptString("reference") == null }
+            else -> null
+        }
+    return address?.takeIf { it.isNotBlank() }
+}
 
 /**
  * Factory function to create the default LiquidAuthConnectionManager.

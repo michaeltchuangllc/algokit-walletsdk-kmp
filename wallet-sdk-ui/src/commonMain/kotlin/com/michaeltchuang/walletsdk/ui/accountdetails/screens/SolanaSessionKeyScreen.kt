@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import com.michaeltchuang.walletsdk.core.solana.domain.SolanaLinkedSigner
 import com.michaeltchuang.walletsdk.core.solana.domain.SolanaLinkedSignerSource
 import com.michaeltchuang.walletsdk.core.solana.domain.SolanaSignerBalance
@@ -53,6 +54,7 @@ fun SolanaSessionKeyScreen(
     address: String,
     onBack: () -> Unit,
     showSnackBar: (String) -> Unit,
+    onAddSol: (sessionKeyAddress: String) -> Unit = {},
 ) {
     val viewModel: SolanaSessionKeyViewModel = koinViewModel()
     val state by viewModel.state.collectAsState()
@@ -73,6 +75,7 @@ fun SolanaSessionKeyScreen(
         onRegenerate = viewModel::regenerate,
         onRefreshBalance = viewModel::refreshBalance,
         onSweep = viewModel::sweep,
+        onAddSol = onAddSol,
     )
 }
 
@@ -84,6 +87,7 @@ private fun SolanaSessionKeyContent(
     onRegenerate: () -> Unit,
     onRefreshBalance: () -> Unit,
     onSweep: () -> Unit,
+    onAddSol: (String) -> Unit = {},
 ) {
     Column(
         modifier =
@@ -102,6 +106,7 @@ private fun SolanaSessionKeyContent(
             onRegenerate = onRegenerate,
             onRefreshBalance = onRefreshBalance,
             onSweep = onSweep,
+            onAddSol = onAddSol,
         )
     }
 }
@@ -113,6 +118,7 @@ private fun SolanaSessionKeyBody(
     onRegenerate: () -> Unit,
     onRefreshBalance: () -> Unit,
     onSweep: () -> Unit,
+    onAddSol: (String) -> Unit,
 ) {
     Column(
         modifier =
@@ -145,6 +151,7 @@ private fun SolanaSessionKeyBody(
                     onRefreshBalance = onRefreshBalance,
                     onSweep = onSweep,
                     onRegenerate = onRegenerate,
+                    onAddSol = { onAddSol(state.linkedSigner.signerAddress) },
                 )
             }
 
@@ -177,12 +184,16 @@ private fun SessionKeySection(
     onRefreshBalance: () -> Unit,
     onSweep: () -> Unit,
     onRegenerate: () -> Unit,
+    onAddSol: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     var confirmRegenerate by remember { mutableStateOf(false) }
     val hasFunds = balance?.hasFunds == true
     val hasStrayUsdc = (balance?.usdcBaseUnits ?: 0L) > 0L
-    val needsSol = balance != null && !balance.canSweep
+    // Settlement needs two signature fees and the key must stay rent-exempt afterwards.
+    val needsSol =
+        balance != null &&
+            balance.lamports < SolanaClusters.RENT_EXEMPT_MINIMUM_LAMPORTS + 2 * SolanaClusters.LAMPORTS_PER_SIGNATURE
 
     SectionCard {
         SectionTitle("Voucher signing is on")
@@ -220,11 +231,19 @@ private fun SessionKeySection(
         BodyText("${formatUnits(balance?.lamports, 9)} SOL", color = AlgoKitTheme.colors.textMain)
         if (needsSol) {
             BodyText(
-                "Receiving Liquid Stream payments? Send a little SOL to this address so it can pay settlement fees.",
+                "Receiving Liquid Stream payments? Add SOL to this address so it can pay settlement fees " +
+                    "(about 0.01 SOL is plenty; new keys need at least 0.0009 SOL).",
                 color = AlgoKitTheme.colors.textMain,
                 fontSize = 12.sp,
             )
         }
+        Spacer(Modifier.height(8.dp))
+        AlgoKitPrimaryButton(
+            modifier = Modifier.fillMaxWidth(),
+            onClick = onAddSol,
+            text = "Add SOL from Seed Vault",
+            state = if (isBusy) AlgoKitButtonState.DISABLED else AlgoKitButtonState.ENABLED,
+        )
         Spacer(Modifier.height(8.dp))
         BodyText(
             "When you pay: it only signs vouchers. No SOL needed — the receiver pays the settlement fees.",

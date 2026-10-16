@@ -18,6 +18,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaEscrowSessionVaultConfig
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
@@ -65,6 +67,7 @@ class PaywalledRTCServer
             HostViewerVaultReader::read,
         private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
         private val blockRounds: (String) -> Flow<Long> = ::liquidStreamBlockRounds,
+        private val solanaFeePayerResolver: suspend (String) -> String = SolanaStreamVault::feePayer,
     ) {
         private companion object {
             const val TAG = "PaywalledRTCServer"
@@ -123,6 +126,10 @@ class PaywalledRTCServer
         private val blockChargeCheckpoints = ArrayDeque<Pair<Long, Long>>()
         private var acceptedBlockCount = 0L
         private var awaitingVaultFunding = false
+        private var handshakeValidated = false
+        private var solanaFeePayer: String? = null
+        private var initialSolanaRequestSent = false
+        private val isSolana: Boolean get() = SolanaStreamVault.isSolana(config.gating.network)
 
         private sealed class VaultFundingStatus {
             data class Funded(
@@ -155,6 +162,10 @@ class PaywalledRTCServer
 
         init {
             require(!config.blockDrivenBilling || (config.vaultOnlyBilling && config.gating.mode == GatingMode.PARTIAL_TIME))
+            if (isSolana) {
+                SolanaStreamVault.cluster(config.gating.network)
+                require(config.vaultOnlyBilling && !config.blockDrivenBilling) { "Solana requires timer-driven vault billing" }
+            }
         }
 
         /**
@@ -178,6 +189,11 @@ class PaywalledRTCServer
          * [ServerConfig.viewerAuthorizedSignerPublicKey] transitions null → non-null.
          */
         fun updateConfig(newConfig: ServerConfig) {
+            require(config.gating.network == newConfig.gating.network) { "Cannot switch stream networks" }
+            if (handshakeValidated) {
+                require(config.viewerAddress == newConfig.viewerAddress) { "Cannot switch stream viewers" }
+                require(config.gating.payTo == newConfig.gating.payTo) { "Cannot switch stream payees" }
+            }
             val hadKey = config.viewerAuthorizedSignerPublicKey != null
             require(!config.vaultOnlyBilling || newConfig.vaultOnlyBilling) { "Cannot downgrade vault-only billing" }
             require(config.blockDrivenBilling == newConfig.blockDrivenBilling) { "Cannot change the billing clock of an active session" }
@@ -193,6 +209,7 @@ class PaywalledRTCServer
                 !config.viewerAuthorizedSignerPublicKey.contentEquals(newConfig.viewerAuthorizedSignerPublicKey)
             ) {
                 cachedChannelIdBase64 = null
+                cachedSaltBase64 = null
             }
             if (config.blockDrivenBilling && config.gating != newConfig.gating) {
                 lastBillingRound = null
@@ -232,6 +249,18 @@ class PaywalledRTCServer
 
             this.dc = dataChannel
             this.senders = rtpSenders
+            gate()
+            if (!isSolana && !config.viewerAddress.isNullOrBlank()) {
+                try {
+                    requireStreamAddress(config.gating.network, config.viewerAddress!!)
+                    requireStreamAddress(config.gating.network, config.gating.payTo)
+                    handshakeValidated = true
+                } catch (e: Exception) {
+                    sendStreamRejected("network_mismatch", e.message ?: "Invalid viewer")
+                    terminate("Invalid viewer address")
+                    return
+                }
+            }
 
             dataChannel.registerObserver(
                 object : RtcDataChannelObserver {
@@ -271,6 +300,7 @@ class PaywalledRTCServer
 
         /** Ungate the stream — enable tracks. */
         fun ungate() {
+            if (!handshakeValidated) return
             gated = false
             for (sender in senders) {
                 sender.setTrackEnabled(true)
@@ -281,6 +311,13 @@ class PaywalledRTCServer
         /** Terminate the session and notify the consumer. */
         fun terminate(reason: String? = null) {
             if (disposed) return
+            if (isSolana) {
+                Napier.i(
+                    "[SOLANA_REFUND_SKIPPED] Automatic owner close requires explicit creator approval; " +
+                        "payer requestClose/withdraw remains the manual escape hatch.",
+                    tag = TAG,
+                )
+            }
             disposed = true
             blockJob?.cancel()
             cancelTimers()
@@ -366,6 +403,18 @@ class PaywalledRTCServer
         /** Kick off the payment flow based on the configured [GatingMode]. */
         private fun startPaymentFlow() {
             if (disposed || paymentFlowStarted) return
+            if (!handshakeValidated) {
+                gate()
+                sendDC(
+                    buildJsonObject {
+                        put(DCFieldKey.TYPE, DCMessageType.SEGMENT_HANDSHAKE.value)
+                        put("billingMode", if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null)
+                        put("requestViewerIdentity", true)
+                        put("mppNetwork", config.gating.network)
+                    },
+                )
+                return
+            }
             paymentFlowStarted = true
             if (config.blockDrivenBilling) {
                 gate()
@@ -410,6 +459,7 @@ class PaywalledRTCServer
         }
 
         private fun handleDataChannelMessage(msgStr: String) {
+            if (disposed) return
             try {
                 // Guard against plain-text keepalive strings (e.g. "ping") that are not JSON.
                 val trimmed = msgStr.trim()
@@ -426,12 +476,29 @@ class PaywalledRTCServer
                     DCMessageType.SEGMENT_HANDSHAKE -> {
                         val viewer = msg["viewer"]?.jsonPrimitive?.content.orEmpty()
                         val viewerPublicKey = msg["viewerPublicKey"]?.jsonPrimitive?.content.orEmpty()
+                        try {
+                            requireStreamNetwork(config.gating.network, msg.readMppNetwork(), isSolana)
+                            requireStreamAddress(config.gating.network, viewer)
+                            requireStreamAddress(config.gating.network, config.gating.payTo)
+                            require(config.viewerAddress.isNullOrBlank() || config.viewerAddress == viewer) { "Viewer mismatch" }
+                        } catch (e: Exception) {
+                            sendStreamRejected("network_mismatch", e.message ?: "Invalid viewer identity")
+                            terminate("Invalid viewer network or address")
+                            return
+                        }
                         Napier.d("[VIEWER_HELLO_RECEIVED] session=$sessionId viewer=$viewer keyLen=${viewerPublicKey.length}", tag = TAG)
                         onViewerHelloMessage?.invoke(msgStr)
                         onViewerHello?.invoke(viewer, viewerPublicKey)
+                        if (!disposed) {
+                            // Callbacks may have populated the session signer; pin the checked viewer.
+                            config = config.copy(viewerAddress = viewer)
+                            handshakeValidated = true
+                            startPaymentFlow()
+                        }
                     }
 
                     DCMessageType.SEGMENT_VOUCHER -> {
+                        if (!handshakeValidated) return
                         Napier.d("[SEGMENT_VOUCHER_RECEIVED] session=$sessionId bytes=${msgStr.length}", tag = TAG)
                         onVoucherReceived?.invoke(msgStr)
                     }
@@ -509,6 +576,7 @@ class PaywalledRTCServer
         private suspend fun requestPaymentNow() {
             try {
                 if (disposed) return
+                if (!handshakeValidated) return
                 val requestConfig = config
                 if (config.vaultOnlyBilling &&
                     (config.viewerAddress.isNullOrBlank() || config.viewerAuthorizedSignerPublicKey?.isNotEmpty() != true)
@@ -523,17 +591,26 @@ class PaywalledRTCServer
                             put(DCFieldKey.SESSION_ID, sessionId)
                             put("billingMode", BillingMode.SESSION_VAULT)
                             put("requestViewerIdentity", true)
+                            put("mppNetwork", config.gating.network)
                         },
                     )
                     return
                 }
                 val channelIdBase64 = resolveChannelIdBase64()
+                if (isSolana && solanaFeePayer == null) {
+                    solanaFeePayer = solanaFeePayerResolver(config.gating.payTo)
+                }
                 if (config.vaultOnlyBilling) {
                     requireNotNull(channelIdBase64) { "Session-vault billing requires a viewer channel" }
                     requireNotNull(resolveSaltBase64()) { "Session-vault billing requires a salt" }
                 }
 
-                val fundingStatus = sessionVaultFundingStatus()
+                val fundingStatus =
+                    if (isSolana && !initialSolanaRequestSent) {
+                        VaultFundingStatus.RequestRequired
+                    } else {
+                        sessionVaultFundingStatus()
+                    }
                 if (disposed || config != requestConfig) return
                 if (fundingStatus == VaultFundingStatus.Exhausted) {
                     awaitingVaultFunding = true
@@ -550,6 +627,8 @@ class PaywalledRTCServer
                             put("channelId", channelIdBase64)
                             put("salt", resolveSaltBase64())
                             put("payTo", config.gating.payTo)
+                            put("mppNetwork", config.gating.network)
+                            put("feePayer", solanaFeePayer)
                             put(DCFieldKey.PAYLOAD, buildJsonObject { put("reason", "Session balance exhausted") })
                         },
                     )
@@ -586,34 +665,41 @@ class PaywalledRTCServer
                 }
 
                 val request =
-                    paymentRail
-                        .createPaymentRequest(
-                            PaymentRailRequestParams(
-                                sessionId = sessionId,
-                                segmentIndex = segmentIndex,
-                                amount = config.gating.amount,
-                                asset = config.gating.asset,
-                                network = config.gating.network,
-                                payTo = config.gating.payTo,
-                                ttl = config.paymentTTL,
-                                meta =
-                                    PaymentRequestMeta(
-                                        gatingMode = config.gating.mode,
-                                        enforcement = config.enforcement,
-                                        segmentDuration = config.gating.segmentDuration,
-                                        segmentBytes = config.gating.segmentBytes,
-                                        viewerAddress = config.viewerAddress,
-                                        voucherSignature = null,
+                    (
+                        if (config.vaultOnlyBilling) {
+                            createVaultPaymentRequest()
+                        } else {
+                            paymentRail
+                                .createPaymentRequest(
+                                    PaymentRailRequestParams(
+                                        sessionId = sessionId,
+                                        segmentIndex = segmentIndex,
+                                        amount = config.gating.amount,
+                                        asset = config.gating.asset,
+                                        network = config.gating.network,
+                                        payTo = config.gating.payTo,
+                                        ttl = config.paymentTTL,
+                                        meta =
+                                            PaymentRequestMeta(
+                                                gatingMode = config.gating.mode,
+                                                enforcement = config.enforcement,
+                                                segmentDuration = config.gating.segmentDuration,
+                                                segmentBytes = config.gating.segmentBytes,
+                                                viewerAddress = config.viewerAddress,
+                                                voucherSignature = null,
+                                            ),
                                     ),
-                            ),
-                        ).copy(
-                            channelId = channelIdBase64,
-                            salt = resolveSaltBase64(),
-                            billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
-                        )
+                                )
+                        }
+                    ).copy(
+                        channelId = channelIdBase64,
+                        salt = resolveSaltBase64(),
+                        billingMode = if (config.vaultOnlyBilling) BillingMode.SESSION_VAULT else null,
+                    )
 
                 if (disposed || config != requestConfig) return
                 pendingRequest = request
+                if (isSolana) initialSolanaRequestSent = true
                 if (config.blockDrivenBilling) gate()
                 onPaymentRequested?.invoke(request)
                 Napier.d(
@@ -643,6 +729,39 @@ class PaywalledRTCServer
                 onError?.invoke(e)
             }
         }
+
+        @OptIn(ExperimentalUuidApi::class)
+        private fun createVaultPaymentRequest(): PaymentRequest =
+            PaymentRequest(
+                id = Uuid.random().toString(),
+                sessionId = sessionId,
+                segmentIndex = segmentIndex,
+                amount = config.gating.amount,
+                asset = config.gating.asset,
+                network = config.gating.network,
+                payTo = config.gating.payTo,
+                ttl = config.paymentTTL,
+                nonce = Uuid.random().toString(),
+                meta =
+                    PaymentRequestMeta(
+                        gatingMode = config.gating.mode,
+                        enforcement = config.enforcement,
+                        segmentDuration = config.gating.segmentDuration,
+                        segmentBytes = config.gating.segmentBytes,
+                        viewerAddress = config.viewerAddress,
+                        voucherSignature = null,
+                    ),
+                railPayload =
+                    if (isSolana) {
+                        buildJsonObject {
+                            put("solanaFeePayer", requireNotNull(solanaFeePayer))
+                            put("solanaProgramId", SolanaEscrowSessionVaultConfig.DEVNET_PROGRAM_ID)
+                            put("solanaMint", SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT)
+                        }
+                    } else {
+                        null
+                    },
+            )
 
         /** Notification is only a wake-up hint. Never trust a viewer-reported balance. */
         private suspend fun handleVaultFunded(msg: JsonObject) {
@@ -766,6 +885,13 @@ class PaywalledRTCServer
         @OptIn(ExperimentalEncodingApi::class)
         private fun resolveSaltBase64(): String? {
             cachedSaltBase64?.let { return it }
+            if (isSolana) {
+                val viewer = config.viewerAddress ?: return null
+                val signer = config.viewerAuthorizedSignerPublicKey ?: return null
+                return Base64
+                    .encode(SolanaStreamVault.salt(viewer, config.gating.payTo, signer))
+                    .also { cachedSaltBase64 = it }
+            }
             return runCatching {
                 Base64.encode(
                     EscrowSessionVaultHybridManagerClient.defaultSalt
@@ -803,6 +929,9 @@ class PaywalledRTCServer
                 if (snapshot == null) {
                     // A transient lookup error cannot turn an exhausted pause into a request.
                     return if (awaitingVaultFunding) VaultFundingStatus.Exhausted else VaultFundingStatus.RequestRequired
+                }
+                if (isSolana && snapshot.startRound == null && snapshot.totalDepositMicroUsdc == 0L) {
+                    return VaultFundingStatus.RequestRequired
                 }
                 // Reserve acknowledged consumption even before the billing engine settles its vouchers.
                 val previousReserved = vaultAcknowledgedCumulative
@@ -1059,7 +1188,7 @@ class PaywalledRTCServer
                 asset = asset,
                 payTo = payTo,
                 payFrom = payFrom,
-                feePayer = null,
+                feePayer = solanaFeePayer,
                 facilitator = null,
                 network = network,
                 timestamp = mppNowMs(),

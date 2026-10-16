@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.QRCodeViewModel
+import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.SolanaSendSolViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.SolanaSessionKeyViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.ViewPassphraseViewModel
 import org.koin.core.module.dsl.viewModel
@@ -33,6 +34,14 @@ internal val accountDetailModules =
                     regenerateSessionKey = get(),
                     getSignerBalance = get(),
                     sweepSigner = get(),
+                    stateDelegate = StateDelegate(),
+                    eventDelegate = EventDelegate(),
+                )
+            }
+            viewModel {
+                SolanaSendSolViewModel(
+                    sendSol = get(),
+                    ensureSessionKey = get(),
                     stateDelegate = StateDelegate(),
                     eventDelegate = EventDelegate(),
                 )

@@ -47,6 +47,8 @@ class SetupMppPaymentViewerUseCase(
         val onVaultSnapshot: (MppPayments.SessionProgressSnapshot) -> Unit = {},
         val getConnectionType: () -> IceConnectionType = { IceConnectionType.UNKNOWN },
         val onStreamRejected: (reason: String, message: String?) -> Unit = { _, _ -> },
+        val signSolanaTransaction: (suspend (String, ByteArray) -> ByteArray)? = null,
+        val onPaymentError: (String) -> Unit = {},
     )
 
     operator fun invoke(params: Params) {
@@ -56,9 +58,14 @@ class SetupMppPaymentViewerUseCase(
                     Napier.w("[VIEWER_MPP_SETUP_SKIP] reason=blank_viewer host=${params.hostAddress}", tag = TAG)
                     return
                 }
-        val sessionVaultNetwork = params.mppNetwork.toAlgorandNetwork()
-        EscrowSessionVaultHybridManagerClient.configureForNetwork(sessionVaultNetwork)
-        val sessionVaultConfig = getSessionVaultConfigUseCase(sessionVaultNetwork)
+        val appId =
+            if (params.mppNetwork.startsWith("solana", ignoreCase = true)) {
+                0L // Solana setup must never configure or read the Algo singleton.
+            } else {
+                val sessionVaultNetwork = params.mppNetwork.toAlgorandNetwork()
+                EscrowSessionVaultHybridManagerClient.configureForNetwork(sessionVaultNetwork)
+                getSessionVaultConfigUseCase(sessionVaultNetwork).appId
+            }
         viewerManager.start(
             MppPaymentViewerManager.StartParams(
                 dataChannel = params.dataChannel,
@@ -66,7 +73,7 @@ class SetupMppPaymentViewerUseCase(
                 scope = params.scope,
                 signer = params.signer,
                 mppNetwork = params.mppNetwork,
-                sessionVaultAppId = sessionVaultConfig.appId,
+                sessionVaultAppId = appId,
                 requestMppConsent = params.requestMppConsent,
                 setViewerSessionVaultProgress = params.setViewerSessionVaultProgress,
                 signFido2Challenge = params.signFido2Challenge,
@@ -77,6 +84,8 @@ class SetupMppPaymentViewerUseCase(
                 onVaultSnapshot = params.onVaultSnapshot,
                 getConnectionType = params.getConnectionType,
                 onStreamRejected = params.onStreamRejected,
+                signSolanaTransaction = params.signSolanaTransaction,
+                onPaymentError = params.onPaymentError,
             ),
         )
     }

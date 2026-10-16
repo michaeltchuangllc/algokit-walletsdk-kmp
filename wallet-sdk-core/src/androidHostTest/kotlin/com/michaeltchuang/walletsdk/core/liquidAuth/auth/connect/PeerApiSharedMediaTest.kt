@@ -107,8 +107,8 @@ class PeerApiSharedMediaTest {
         assertSame(videoTrack, first.startLocalCapture())
         assertSame(videoTrack, second.startLocalCapture())
         verify(exactly = 2) { sharedMedia.startCapture(1280, 720, 30) }
-        verify(exactly = 1) { sharedMedia.attachTracks(firstConnection) }
-        verify(exactly = 1) { sharedMedia.attachTracks(secondConnection) }
+        verify(exactly = 1) { sharedMedia.attachTracks(firstConnection, initiallyActive = false) }
+        verify(exactly = 1) { sharedMedia.attachTracks(secondConnection, initiallyActive = false) }
         // Owner is mocked: the two delegate calls above do not prove native capture starts once.
     }
 
@@ -146,7 +146,7 @@ class PeerApiSharedMediaTest {
         second.createOffer(onSessionDescription = {})
 
         verify(exactly = 1) { sharedMedia.startCapture(640, 480, 15) }
-        verify(exactly = 2) { sharedMedia.attachTracks(secondConnection) }
+        verify(exactly = 2) { sharedMedia.attachTracks(secondConnection, initiallyActive = false) }
         verify(exactly = 1) { sharedMedia.switchCamera() }
         verify(exactly = 1) { sharedMedia.setAudioEnabled(false) }
         verify(exactly = 1) { sharedMedia.setVideoEnabled(false) }

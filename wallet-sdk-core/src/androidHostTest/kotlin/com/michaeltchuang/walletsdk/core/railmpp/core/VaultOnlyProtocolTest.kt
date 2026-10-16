@@ -575,7 +575,8 @@ class VaultOnlyProtocolTest {
             dc.receive(hint)
             runCurrent()
             assertEquals(2, dc.sent.size)
-            coVerify(exactly = 1) { rail.createPaymentRequest(any()) }
+            // Vault-only requests are transport metadata, never direct rail challenges.
+            coVerify(exactly = 0) { rail.createPaymentRequest(any()) }
             coVerify(exactly = 0) { rail.verifyAndSettle(any(), any()) }
             coVerify(exactly = 0) { balance(any()) }
             server.terminate()
@@ -603,6 +604,8 @@ class VaultOnlyProtocolTest {
                     ?.jsonPrimitive
                     ?.content,
             )
+            assertEquals(MppNetworks.ALGORAND_TESTNET, dc.sent.single()["mppNetwork"]?.jsonPrimitive?.content)
+            assertFalse("network" in dc.sent.single())
             server.updateConfig(config())
             runCurrent()
             assertEquals(2, dc.sent.size)
@@ -1346,6 +1349,8 @@ class VaultOnlyProtocolTest {
         assertEquals(request().channelId, message["channelId"]?.jsonPrimitive?.content)
         assertEquals(request().salt, message["salt"]?.jsonPrimitive?.content)
         assertEquals(creator, message["payTo"]?.jsonPrimitive?.content)
+        assertEquals(MppNetworks.ALGORAND_TESTNET, message["mppNetwork"]?.jsonPrimitive?.content)
+        assertFalse("network" in message)
         assertFalse(message.containsKey("nonce"))
         val payload = message.getValue("payload").jsonObject
         assertTrue(payload["reason"]?.jsonPrimitive?.content?.isNotBlank() == true)

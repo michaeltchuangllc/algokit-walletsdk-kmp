@@ -724,6 +724,14 @@ public class LiquidAuthService {
             onError?(NSError(domain: "SignalService not initialized", code: -1))
             return
         }
+
+        let identityNetwork: String
+        do {
+            identityNetwork = try await LiquidStreamIdentityKt.resolveViewerIdentityNetwork(address: self.algoAddress)
+        } catch {
+            onError?(error)
+            return
+        }
         
         // Configure ICE servers (Google's public STUN servers)
         let iceServers = [
@@ -743,7 +751,7 @@ public class LiquidAuthService {
             let keyField = (publicKeyBase64 != nil && !publicKeyBase64!.isEmpty)
                 ? ",\"viewerPublicKey\":\"\(publicKeyBase64!)\""
                 : ""
-            let helloJson = "{\"type\":\"segment:handshake\",\"viewer\":\"\(self.algoAddress)\"\(keyField)}"
+            let helloJson = "{\"type\":\"segment:handshake\",\"viewer\":\"\(self.algoAddress)\",\"mppNetwork\":\"\(identityNetwork)\"\(keyField)}"
             self.signalService?.sendPaymentMessage(helloJson)
             NSLog("[VIEWER_HELLO_SENT] viewer=\(self.algoAddress) keyPresent=\(publicKeyBase64 != nil)")
         }
@@ -784,7 +792,7 @@ public class LiquidAuthService {
                     }
                     NSLog("iosViewerSendMessageHandler wired to signalService.sendMessage")
                     
-                    self.sendCredentialMessage(credential: credential)
+                    self.sendCredentialMessage(credential: credential, network: identityNetwork)
                 } else if state == "connecting" {
                     NSLog("Data channel is CONNECTING...")
                 } else if state == "closed" || state == "failed" {
@@ -810,7 +818,7 @@ public class LiquidAuthService {
         return renderer
     }
 
-    private func sendCredentialMessage(credential: Any) {
+    private func sendCredentialMessage(credential: Any, network: String) {
         NSLog("📤 Sending credential message as JSON")
         NSLog("   requestId: '\(self.requestId)'")
         NSLog("   address: '\(self.algoAddress)'")
@@ -819,6 +827,7 @@ public class LiquidAuthService {
         // Note: Transaction responses use CBOR, but credential handshake uses JSON
         let credentialMessage: [String: Any] = [
             "type": "credential",
+            "mppNetwork": network,
             "address": self.algoAddress,  // Explicitly use self.algoAddress
             "requestId": self.requestId,  // Explicitly use self.requestId
             "provider": "WalletSDK-iOS"

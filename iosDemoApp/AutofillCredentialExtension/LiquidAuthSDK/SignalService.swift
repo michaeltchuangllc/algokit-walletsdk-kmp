@@ -519,6 +519,10 @@ public class SignalService {
 
     var localPeerApi: PeerApi? { peerClient }
 
+    func setHostViewerMediaAdmitted(requestId: String, admitted: Bool) {
+        hostViewers[requestId]?.peer?.setMediaAdmitted(admitted)
+    }
+
     func setLocalAudioEnabled(_ enabled: Bool) {
         sharedHostMedia?.audioEnabled = enabled
         for viewer in hostViewers.values { viewer.peer?.setAudioEnabled(enabled) }

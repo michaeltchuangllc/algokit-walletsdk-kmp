@@ -4,7 +4,10 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegist
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
+import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
+import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import io.github.aakira.napier.Napier
 
 /**
@@ -95,6 +98,7 @@ fun fromUri(uri: String): AuthMessage {
 fun getSupportedAccountsByAppId(
     appId: String,
     accountLite: List<AccountLite>,
+    seedVaultSigningSupported: Boolean = isSeedVaultTransactionSigningSupported,
 ): List<AccountLite> =
     accountLite
         .takeIf {
@@ -106,12 +110,14 @@ fun getSupportedAccountsByAppId(
                     AccountRegistrationType.HdKey,
                     AccountRegistrationType.Falcon24,
                     AccountRegistrationType.Falcon25,
-                )
+                ) ||
+                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault)
         } ?: accountLite
 
 fun getSupportedLocalAccountsByAppId(
     appId: String,
     localAccount: List<LocalAccount>,
+    seedVaultSigningSupported: Boolean = isSeedVaultTransactionSigningSupported,
 ): List<LocalAccount> =
     localAccount
         .takeIf {
@@ -120,5 +126,73 @@ fun getSupportedLocalAccountsByAppId(
             it is LocalAccount.HdKey ||
                 it is LocalAccount.Algo25 ||
                 it is LocalAccount.Falcon24 ||
-                it is LocalAccount.Falcon25
+                it is LocalAccount.Falcon25 ||
+                (seedVaultSigningSupported && it is LocalAccount.SeedVault)
         } ?: localAccount
+
+fun resolveLiquidStreamAccountNetwork(
+    account: LocalAccount?,
+    network: AlgorandNetwork,
+    paymentNetworkOverride: String? = null,
+    seedVaultSigningSupported: Boolean = isSeedVaultTransactionSigningSupported,
+): String {
+    requireNotNull(account) { "The streaming account is not available locally." }
+    require(
+        getSupportedLocalAccountsByAppId(
+            AppId.LIQUID_AUTH_STREAM.name,
+            listOf(account),
+            seedVaultSigningSupported,
+        ).isNotEmpty(),
+    ) { "This account cannot sign LiquidStream transactions on this platform." }
+    val resolved =
+        if (account is LocalAccount.SeedVault) {
+            require(network != AlgorandNetwork.MAINNET) { "Solana mainnet streaming is not supported." }
+            MppNetworks.SOLANA_DEVNET
+        } else {
+            when (network) {
+                AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET
+                AlgorandNetwork.TESTNET -> MppNetworks.ALGORAND_TESTNET
+                AlgorandNetwork.FUTURENET -> MppNetworks.ALGORAND_FUTURENET
+            }
+        }
+    if (paymentNetworkOverride != null) {
+        require(normalizeLiquidStreamNetwork(paymentNetworkOverride) == resolved) {
+            "The stream network does not match the selected account and network."
+        }
+    }
+    return resolved
+}
+
+fun normalizeLiquidStreamNetwork(network: String): String =
+    when (network.trim().lowercase()) {
+        MppNetworks.ALGORAND_MAINNET.lowercase(), "mainnet", "algorand:mainnet" -> MppNetworks.ALGORAND_MAINNET
+        MppNetworks.ALGORAND_TESTNET.lowercase(), "testnet", "algorand:testnet" -> MppNetworks.ALGORAND_TESTNET
+        MppNetworks.ALGORAND_FUTURENET.lowercase(), "futurenet", "algorand:futurenet" -> MppNetworks.ALGORAND_FUTURENET
+        "solana:devnet" -> MppNetworks.SOLANA_DEVNET
+        "solana:mainnet", "solana:mainnet-beta" -> MppNetworks.SOLANA_MAINNET
+        "solana:testnet" -> MppNetworks.SOLANA_TESTNET
+        else -> throw IllegalArgumentException("Unsupported stream network: $network")
+    }
+
+fun parseLiquidStreamDepositAmount(enteredAmount: String): Long {
+    val value = enteredAmount.trim()
+    require(Regex("[0-9]+(?:\\.[0-9]{1,6})?").matches(value)) {
+        "Enter a positive amount with at most six decimal places."
+    }
+    val parts = value.split('.', limit = 2)
+    val units = (parts[0] + parts.getOrElse(1) { "" }.padEnd(6, '0')).toLongOrNull()
+    require(units != null && units > 0L) { "The deposit amount is zero or too large." }
+    return units
+}
+
+fun validateLiquidStreamMetadataNetwork(
+    account: LocalAccount?,
+    network: AlgorandNetwork,
+    advertisedNetwork: String?,
+    seedVaultSigningSupported: Boolean = isSeedVaultTransactionSigningSupported,
+): String {
+    require(account !is LocalAccount.SeedVault || !advertisedNetwork.isNullOrBlank()) {
+        "Solana streams must advertise their payment network."
+    }
+    return resolveLiquidStreamAccountNetwork(account, network, advertisedNetwork, seedVaultSigningSupported)
+}

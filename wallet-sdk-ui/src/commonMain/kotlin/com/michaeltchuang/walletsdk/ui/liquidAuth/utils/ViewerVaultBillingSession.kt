@@ -7,7 +7,10 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.ViewerVaultSettlement
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
+import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaVoucherExpiredException
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
@@ -50,6 +53,9 @@ internal class ViewerVaultBillingSession(
     private val operationTimeoutMillis: Long = 25_000,
     private val finalDrainTimeoutMillis: Long = 30_000,
     private val onSettlementError: (Throwable?) -> Unit = { error -> if (error != null) onError(error) },
+    // Solana: the program only lets the payee itself `close`, so a Seed Vault creator must approve
+    // each refund. Resolved lazily because the signer lives with the host screen's composition.
+    private val getSolanaOwnerSigner: () -> (suspend (address: String, message: ByteArray) -> ByteArray)? = { null },
 ) {
     interface Adapter {
         suspend fun validateAuthorization(voucher: Voucher): Result<HostViewerVaultReader.Snapshot>
@@ -119,6 +125,12 @@ internal class ViewerVaultBillingSession(
     }
 
     private val key = signerPublicKey.copyOf()
+    private val isSolana = SolanaStreamVault.isSolana(network)
+
+    // A Solana settle is ~6 paced RPC reads + broadcast + confirmation polling (and public devnet
+    // 429 back-off). 25 s routinely cut it off mid-confirmation; a blockhash lives ~60–90 s.
+    private val settleTimeoutMillis =
+        if (isSolana) maxOf(operationTimeoutMillis, SOLANA_SETTLE_TIMEOUT_MILLIS) else operationTimeoutMillis
     val signerPublicKey: ByteArray get() = key.copyOf()
     private val mutex = Mutex()
     private val acceptanceMutex = Mutex()
@@ -141,6 +153,7 @@ internal class ViewerVaultBillingSession(
 
     // Live/reconnecting sessions must re-read the chain serially for the same channel.
     companion object {
+        private const val SOLANA_SETTLE_TIMEOUT_MILLIS = 90_000L
         private val registryMutex = Mutex()
         private val settlementLocks = mutableMapOf<String, ChannelLock>()
         private val recoveryMutex = Mutex()
@@ -377,7 +390,8 @@ internal class ViewerVaultBillingSession(
     private fun isDuplicate(voucher: Voucher): Boolean =
         latest?.let {
             it.channelId.contentEquals(voucher.channelId) &&
-                it.totalAmountClaimedMicroUsdc == voucher.totalAmountClaimedMicroUsdc
+                it.totalAmountClaimedMicroUsdc == voucher.totalAmountClaimedMicroUsdc &&
+                (!isSolana || it.signature.contentEquals(voucher.signature))
         } == true
 
     /**
@@ -416,7 +430,7 @@ internal class ViewerVaultBillingSession(
                     )
                 val snapshot = adapter.readChannel(voucher).getOrThrow()
                 val startRound = snapshot.startRound
-                if (startRound != null && row.blockNumber > 0 && row.blockNumber < startRound) {
+                if (!isSolana && startRound != null && row.blockNumber > 0 && row.blockNumber < startRound) {
                     // Its old cumulative voucher must never be replayed against the new deposit.
                     voucherRepository.deleteVouchersBeforeRound(row.channelIdBase64, network, startRound)
                     return@withTimeout 0L
@@ -529,6 +543,10 @@ internal class ViewerVaultBillingSession(
      * back to the departing viewer.
      */
     private suspend fun refundRemainingVaultBalance() {
+        if (isSolana) {
+            refundSolanaVault()
+            return
+        }
         val channelId = mutex.withLock { latest?.channelId } ?: return
         try {
             val signer = buildCreatorWalletSigner(creatorAddress)
@@ -552,6 +570,48 @@ internal class ViewerVaultBillingSession(
         }
     }
 
+    /**
+     * Seed Vault payee closes the channel (one approval), refunding the viewer's leftover deposit.
+     * If no signer is available (host screen gone, iOS) or the creator dismisses the prompt, the
+     * deposit stays put and the viewer's requestClose/withdraw escape hatch still applies.
+     */
+    private suspend fun refundSolanaVault() {
+        val sign = getSolanaOwnerSigner()
+        if (sign == null) {
+            Napier.w(
+                "Solana vault refund skipped: no Seed Vault signer on the host screen; deposit stays refundable " +
+                    "through the payer escape hatch. session=$sessionId",
+            )
+            return
+        }
+        val owner =
+            object : SolanaTransactionSigner {
+                override val address = creatorAddress
+
+                override suspend fun signMessage(message: ByteArray) = sign(creatorAddress, message)
+            }
+        val channel = SolanaStreamVault.deriveChannel(viewerAddress, creatorAddress, key, network)
+        try {
+            SolanaStreamVault
+                .closeChannel(network, viewerAddress, creatorAddress, key, channel, owner)
+                .onSuccess { txId ->
+                    if (txId == null) {
+                        Napier.d("Solana vault already closed for $sessionId", tag = "LS_VAULT_DEBUG")
+                    } else {
+                        Napier.d("Solana vault closed (refund) for $sessionId. txId=$txId", tag = "LS_VAULT_DEBUG")
+                    }
+                }.onFailure { error ->
+                    Napier.e("Failed to close Solana vault (refund) for $sessionId", error)
+                    report(error)
+                }
+        } catch (e: CancellationException) {
+            // A dismissed Seed Vault prompt surfaces as cancellation; only rethrow real teardown.
+            currentCoroutineContext().ensureActive()
+            Napier.w("Solana vault refund not approved for $sessionId; deposit stays refundable", tag = "LS_VAULT_DEBUG")
+            report(IllegalStateException("Viewer refund was not approved in Seed Vault; their deposit stays in the channel", e))
+        }
+    }
+
     private suspend fun attemptSettlement(force: Boolean): Boolean {
         var batchReady = true
         var nextBlockCost = 0L
@@ -563,7 +623,9 @@ internal class ViewerVaultBillingSession(
                 val boundary = paidRound
                 val coveredBlocks = getVoucherCoveredBlockCount?.invoke(voucher.totalAmountClaimedMicroUsdc, confirmedBlockCount)
                 nextBlockCost = costPerPaidBlock
-                if (!force) {
+                // Solana transactions carry expiring recent blockhashes. The displayed
+                // payout/pricing interval is unchanged, but submission must never wait for it.
+                if (!force && !isSolana) {
                     if (coveredBlocks != null) {
                         batchReady = coveredBlocks - confirmedBlockCount >= payoutFrequencyBlocks
                     } else if (round == null || boundary == null || round - boundary < payoutFrequencyBlocks) {
@@ -575,7 +637,7 @@ internal class ViewerVaultBillingSession(
         var awaitingConfirmation = false
         var completed = false
         try {
-            withTimeout(operationTimeoutMillis.milliseconds) {
+            withTimeout(settleTimeoutMillis.milliseconds) {
                 val voucher = candidate.first
                 withChannelLock("$network/$viewerAddress/$creatorAddress/${Base64.encode(voucher.channelId)}") {
                     val before = adapter.readChannel(voucher).getOrThrow()
@@ -590,7 +652,9 @@ internal class ViewerVaultBillingSession(
                     }
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
-                        require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
+                        // Solana's signer address is the linked fee-payer key, not the
+                        // SeedVault owner. Core resolves and validates that linkage locally.
+                        if (!isSolana) require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
                         Napier.d(
                             "HOST_SETTLEMENT_START session=$sessionId cumulativeMicro=${voucher.totalAmountClaimedMicroUsdc} " +
                                 "previouslySettledMicro=${before.lastSettledMicroUsdc}",
@@ -622,20 +686,37 @@ internal class ViewerVaultBillingSession(
                 if (awaitingConfirmation) {
                     IllegalStateException("Voucher settlement confirmation timed out; payment may still be pending", e)
                 } else {
-                    e
+                    IllegalStateException(
+                        "Voucher settlement timed out after ${settleTimeoutMillis / 1000}s (RPC slow or rate-limited); " +
+                            "will retry with the next voucher",
+                        e,
+                    )
                 },
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            reportSettlementError(e)
+            if (isSolana && e.causeChain().any { it is SolanaVoucherExpiredException }) {
+                // Expected when settlement was blocked for a while (e.g. unfunded fee payer) or a
+                // persisted voucher is replayed. The persisted row is kept; the viewer re-signs the
+                // same cumulative amount every ~20 s, and acceptVoucher wakes us again.
+                Napier.w(
+                    "HOST_SETTLEMENT_STALE_VOUCHER session=$sessionId cumulativeMicro=${candidate.first.totalAmountClaimedMicroUsdc}",
+                    tag = "LS_VAULT_DEBUG",
+                )
+                reportSettlementError(e.causeChain().first { it is SolanaVoucherExpiredException })
+            } else {
+                reportSettlementError(e)
+            }
         }
         return false
     }
 
+    private fun Throwable.causeChain(): Sequence<Throwable> = generateSequence(this) { it.cause }.take(8)
+
     private fun reportSettlementError(error: Throwable?) {
         try {
-            onSettlementError(error)
+            onSettlementError(if (error != null) explainSolanaExpiry(error) else null)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -676,10 +757,35 @@ internal class ViewerVaultBillingSession(
 
     private fun report(error: Throwable) {
         try {
-            onError(error)
+            onError(explainSolanaExpiry(error))
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
+        }
+    }
+
+    // Only blockhash-expiry style failures get the "reconnect" hint; validation errors such as an
+    // unfunded fee payer are already actionable and would be misdiagnosed by the prefix.
+    private fun explainSolanaExpiry(error: Throwable): Throwable =
+        if (isSolana && looksLikeBlockhashExpiry(error)) {
+            IllegalStateException(
+                "Solana voucher not confirmed; its recent blockhash may have expired. " +
+                    "Persisted authorization is retained; reconnect for a fresh transaction at the same cumulative amount. ${error.message}",
+                error,
+            )
+        } else {
+            error
+        }
+
+    // Timeouts and typed stale-voucher errors carry their own accurate messages; only untyped
+    // on-chain expiry text (e.g. "block height exceeded") still gets the generic hint.
+    private fun looksLikeBlockhashExpiry(error: Throwable): Boolean {
+        if (error.causeChain().any { it is SolanaVoucherExpiredException || it is TimeoutCancellationException }) return false
+        val messages = error.causeChain().mapNotNull { it.message?.lowercase() }
+        return messages.any {
+            "blockhash" in it ||
+                "block height exceeded" in it ||
+                "timed out waiting for solana transaction" in it
         }
     }
 }

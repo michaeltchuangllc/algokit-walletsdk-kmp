@@ -41,6 +41,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REP
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSendSolScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSessionKeyScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ViewPassphraseScreen
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -127,6 +128,7 @@ enum class AlgoKitScreens {
     LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
     GITHUB_REPO_SCREEN,
     SOLANA_SESSION_KEY_SCREEN,
+    SOLANA_SEND_SOL_SCREEN,
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -803,6 +805,31 @@ fun NavigationBottomSheetNavHost(
                     address?.let { addr ->
                         SolanaSessionKeyScreen(
                             address = addr,
+                            onBack = { navController.popBackStack() },
+                            showSnackBar = { message ->
+                                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
+                            onAddSol = { sessionKey ->
+                                navController.navigate("${AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name}?receiver=$sessionKey")
+                            },
+                        )
+                    }
+                }
+                composable(
+                    route = AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name + "?receiver={receiver}",
+                    arguments =
+                        listOf(
+                            navArgument("receiver") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
+                        ),
+                ) { backStackEntry ->
+                    address?.let { addr ->
+                        SolanaSendSolScreen(
+                            address = addr,
+                            prefillReceiver = backStackEntry.arguments.stringArgument("receiver"),
                             onBack = { navController.popBackStack() },
                             showSnackBar = { message ->
                                 coroutineScope.launch { snackbarHostState.showSnackbar(message) }
