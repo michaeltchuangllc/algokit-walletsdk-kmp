@@ -91,7 +91,8 @@ class LiquidAuthOfferViewModel(
             } else {
                 { address, message ->
                     seedVaultSigningMutex.withLock {
-                        val sign = seedVaultTransactionSigner ?: throw CancellationException("Host screen closed before Seed Vault approval")
+                        val sign =
+                            seedVaultTransactionSigner ?: throw CancellationException("Host screen closed before Seed Vault approval")
                         withContext(Dispatchers.Main.immediate) { sign(address, message) }
                     }
                 }

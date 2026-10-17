@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Client apps need this to bind to SeedVaultService. The user still has to authorize each seed. -->
+    <permission
+        android:name="com.michaeltchuang.seedvault.service.ACCESS_SEED_VAULT"
+        android:description="@string/permission_access_seed_vault_description"
+        android:label="@string/permission_access_seed_vault_label"
+        android:protectionLevel="dangerous" />
+
+    <!-- Seed Vault app: seeds are stored in Room, encrypted with an Android Keystore key -->
+    <application
+        android:name=".SeedVaultApplication"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:theme="@style/Theme.SeedVaultService"
+        tools:replace="android:name,android:allowBackup">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".AuthorizeAppActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.SeedVaultService">
+            <intent-filter>
+                <action android:name="com.michaeltchuang.seedvault.service.AUTHORIZE_APP" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".remote.SeedVaultService"
+            android:exported="true"
+            android:permission="com.michaeltchuang.seedvault.service.ACCESS_SEED_VAULT">
+            <intent-filter>
+                <action android:name="com.michaeltchuang.seedvault.service.SEED_VAULT_SERVICE" />
+            </intent-filter>
+        </service>
+
+    </application>
+
+</manifest>

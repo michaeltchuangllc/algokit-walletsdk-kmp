@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.michaeltchuang.walletsdk.service.demo"
+    namespace = "com.michaeltchuang.seedvault.demo"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "com.michaeltchuang.walletsdk.service.demo"
+        applicationId = "com.michaeltchuang.seedvault.demo"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1

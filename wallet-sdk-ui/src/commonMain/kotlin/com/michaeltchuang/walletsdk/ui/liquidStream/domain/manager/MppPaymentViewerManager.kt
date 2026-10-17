@@ -208,6 +208,7 @@ class MppPaymentViewerManager(
         val job = runtime.job
         val scope = runtime.scope
         val mutex = Mutex()
+
         // A user request reserves its slot before waiting for a background Solana read.
         val paymentRequestMutex = Mutex()
         val voucherMutex = Mutex()
@@ -309,7 +310,9 @@ class MppPaymentViewerManager(
         vaultHandshake?.send(
             channelId =
                 if (session.solana != null) {
-                    session.solana.route?.channel?.let(Base64::decode)
+                    session.solana.route
+                        ?.channel
+                        ?.let(Base64::decode)
                 } else {
                     params.channelIdProvider()?.copyOf()
                 },
@@ -319,8 +322,7 @@ class MppPaymentViewerManager(
             runCatching {
                 session.runtime.checkAlive()
                 params.dataChannel.send(message.encodeToByteArray())
-            }
-                .onFailure { Napier.w("[VIEWER_VAULT_HELLO_SEND_ERR]", it, tag = TAG) }
+            }.onFailure { Napier.w("[VIEWER_VAULT_HELLO_SEND_ERR]", it, tag = TAG) }
                 .isSuccess
         }
     }
@@ -421,112 +423,119 @@ class MppPaymentViewerManager(
         )
 
         try {
-            session.runtime.createViewer(
-                signer = session.signer,
-                consentHandler =
-                    object : ConsentHandler {
-                        override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval {
-                            return ownedPayment(session) {
+            session.runtime
+                .createViewer(
+                    signer = session.signer,
+                    consentHandler =
+                        object : ConsentHandler {
+                            override suspend fun requestConsent(terms: ConsentTerms): ConsentApproval =
+                                ownedPayment(session) {
+                                    try {
+                                        requestConsent(session, terms)
+                                    } catch (ce: CancellationException) {
+                                        throw ce
+                                    } catch (err: Throwable) {
+                                        // Recheck after an unavailable read without requesting another deposit.
+                                        startRefresh(session)
+                                        throw err
+                                    }
+                                }
+                        },
+                    clientConfig =
+                        ClientConfig(
+                            autoPaySegments = false,
+                            expectedNetwork = params.mppNetwork.takeIf { session.solana != null },
+                            expectedViewerAddress = viewerAddress.takeIf { session.solana != null },
+                        ),
+                ).also { viewer ->
+                    session.viewer = viewer
+                    liquidStreamViewer = viewer
+                    viewer.rtcClient.onDataChannelOpen = {
+                        if (activeStartParams === params) {
+                            refreshVaultIdentity(viewerAddress, force = true)
+                        }
+                    }
+
+                    viewer.rtcClient.onPaymentRequested = { request ->
+                        if (session.solana != null) {
+                            try {
+                                session.runtime.checkAlive()
+                                acceptSolanaRoute(session, request)
+                                refreshVaultIdentity(viewerAddress)
+                                startRefresh(session)
+                            } catch (err: Throwable) {
+                                rejectSolana(session, err)
+                                endPaymentSession(session)
+                                throw err // Abort before consent or direct payment.
+                            }
+                        } else {
+                            trace("PAYMENT_REQUEST request=${request.id} amountMicro=${request.amount}")
+                            if (activeStartParams === params) {
+                                refreshVaultIdentity(viewerAddress)
+                            }
+                            Napier.d(
+                                "[VIEWER_PAYMENT_REQUEST_RECEIVED] session=${request.id} payTo=${request.payTo} amount=${request.amount} asset=${request.asset}",
+                                tag = TAG,
+                            )
+                        }
+                    }
+
+                    viewer.rtcClient.onPaymentReceipt = { receipt ->
+                        trace(
+                            "RECEIPT_QUEUED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} amountMicro=${receipt.amount}",
+                        )
+                        launchSession(session) {
+                            session.voucherMutex.withLock {
                                 try {
-                                    requestConsent(session, terms)
+                                    ensureCurrent(session)
+                                    if (session.solana != null) {
+                                        acceptSolanaReceipt(session, receipt)
+                                    } else {
+                                        handlePaymentReceipt(
+                                            session = session,
+                                            receiptSessionId = receipt.sessionId,
+                                            receiptSegmentIndex = receipt.segmentIndex,
+                                            receiptAmount = receipt.amount,
+                                            receiptPayFrom = receipt.payFrom,
+                                            receiptPayTo = receipt.payTo,
+                                            txId = receipt.txId,
+                                            vaultChannelId =
+                                                if (receipt.billingMode ==
+                                                    BillingMode.SESSION_VAULT
+                                                ) {
+                                                    receipt.channelId
+                                                } else {
+                                                    null
+                                                },
+                                        )
+                                    }
                                 } catch (ce: CancellationException) {
+                                    trace("RECEIPT_CANCELLED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex}")
                                     throw ce
                                 } catch (err: Throwable) {
-                                    // Recheck after an unavailable read without requesting another deposit.
-                                    startRefresh(session)
+                                    trace(
+                                        "RECEIPT_PROCESSING_ERROR receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} " +
+                                            "errorType=${err::class.simpleName}",
+                                    )
                                     throw err
                                 }
                             }
                         }
-                    },
-                clientConfig =
-                    ClientConfig(
-                        autoPaySegments = false,
-                        expectedNetwork = params.mppNetwork.takeIf { session.solana != null },
-                        expectedViewerAddress = viewerAddress.takeIf { session.solana != null },
-                    ),
-            ).also { viewer ->
-                session.viewer = viewer
-                liquidStreamViewer = viewer
-                viewer.rtcClient.onDataChannelOpen = {
-                    if (activeStartParams === params) {
-                        refreshVaultIdentity(viewerAddress, force = true)
                     }
-                }
 
-                viewer.rtcClient.onPaymentRequested = { request ->
-                    if (session.solana != null) {
-                        try {
-                            session.runtime.checkAlive()
-                            acceptSolanaRoute(session, request)
-                            refreshVaultIdentity(viewerAddress)
-                            startRefresh(session)
-                        } catch (err: Throwable) {
-                            rejectSolana(session, err)
-                            endPaymentSession(session)
-                            throw err // Abort before consent or direct payment.
-                        }
-                    } else {
-                        trace("PAYMENT_REQUEST request=${request.id} amountMicro=${request.amount}")
-                        if (activeStartParams === params) {
-                            refreshVaultIdentity(viewerAddress)
-                        }
-                        Napier.d(
-                            "[VIEWER_PAYMENT_REQUEST_RECEIVED] session=${request.id} payTo=${request.payTo} amount=${request.amount} asset=${request.asset}",
-                            tag = TAG,
-                        )
-                    }
-                }
-
-                viewer.rtcClient.onPaymentReceipt = { receipt ->
-                    trace(
-                        "RECEIPT_QUEUED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} amountMicro=${receipt.amount}",
-                    )
-                    launchSession(session) {
-                        session.voucherMutex.withLock {
-                            try {
-                                ensureCurrent(session)
-                                if (session.solana != null) {
-                                    acceptSolanaReceipt(session, receipt)
-                                } else {
-                                    handlePaymentReceipt(
-                                        session = session,
-                                        receiptSessionId = receipt.sessionId,
-                                        receiptSegmentIndex = receipt.segmentIndex,
-                                        receiptAmount = receipt.amount,
-                                        receiptPayFrom = receipt.payFrom,
-                                        receiptPayTo = receipt.payTo,
-                                        txId = receipt.txId,
-                                        vaultChannelId = if (receipt.billingMode == BillingMode.SESSION_VAULT) receipt.channelId else null,
-                                    )
-                                }
-                            } catch (ce: CancellationException) {
-                                trace("RECEIPT_CANCELLED receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex}")
-                                throw ce
-                            } catch (err: Throwable) {
-                                trace(
-                                    "RECEIPT_PROCESSING_ERROR receiptSession=${receipt.sessionId} segment=${receipt.segmentIndex} " +
-                                        "errorType=${err::class.simpleName}",
-                                )
-                                throw err
-                            }
+                    viewer.rtcClient.onStreamGated = { reason ->
+                        trace("STREAM_GATED reason=$reason")
+                        Napier.w("[VIEWER_STREAM_GATED] viewer=$viewerAddress reason=$reason", tag = TAG)
+                        launchSession(session) {
+                            handleStreamGated(session)
                         }
                     }
-                }
 
-                viewer.rtcClient.onStreamGated = { reason ->
-                    trace("STREAM_GATED reason=$reason")
-                    Napier.w("[VIEWER_STREAM_GATED] viewer=$viewerAddress reason=$reason", tag = TAG)
-                    launchSession(session) {
-                        handleStreamGated(session)
-                    }
+                    Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress network=${params.mppNetwork}", tag = TAG)
+                    if (session.solana != null) viewer.rtcClient.onError = { reportSolana(session, it) }
+                    viewer.start()
+                    Napier.d("[VIEWER_MPP_STARTED] viewer=$viewerAddress", tag = TAG)
                 }
-
-                Napier.d("[VIEWER_MPP_START] viewer=$viewerAddress network=${params.mppNetwork}", tag = TAG)
-                if (session.solana != null) viewer.rtcClient.onError = { reportSolana(session, it) }
-                viewer.start()
-                Napier.d("[VIEWER_MPP_STARTED] viewer=$viewerAddress", tag = TAG)
-            }
         } catch (err: Throwable) {
             if (session.solana == null) throw err
             rejectSolana(session, err)
@@ -1211,7 +1220,9 @@ class MppPaymentViewerManager(
         }
         val balance = spendableBalance(data, state.cumulative)
         if (balance < required) return ConsentApproval(false, autoPaySegments = false)
-        val spent = session.viewer.rtcClient.spend.totalAmount.toLongOrNull() ?: 0L
+        val spent =
+            session.viewer.rtcClient.spend.totalAmount
+                .toLongOrNull() ?: 0L
         check(spent <= Long.MAX_VALUE - balance) { "Solana budget overflow" }
         return ConsentApproval(true, autoPaySegments = true, budgetCap = BudgetCap((spent + balance).toString(), "USDC"))
     }
