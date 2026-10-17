@@ -15,6 +15,7 @@ import uniffi.seed_vault_ffi.ProtocolVersion
 import uniffi.seed_vault_ffi.SeedVaultClientInterface
 import uniffi.seed_vault_ffi.SeedVaultException
 import uniffi.seed_vault_ffi.SeedVaultStatus
+import uniffi.seed_vault_ffi.SignedArbitraryData
 import uniffi.seed_vault_ffi.SignedTransaction
 
 class TrustySeedKeyVaultTest {
@@ -68,9 +69,33 @@ class TrustySeedKeyVaultTest {
         }
 
     @Test
-    fun signBytesIsNotSupported() =
+    fun signBytesReturnsTheAppletSignature() =
         runTest {
-            assertThrows(UnsupportedOperationException::class.java) {
+            val data = byteArrayOf(9, 8, 7)
+
+            val signature = vault.signBytes(storedSeed(), data)
+
+            assertArrayEquals(data.reversedArray(), signature)
+            assertEquals(ADDRESS, applet.signedAddress)
+            assertEquals(INDEX, applet.signedIndex)
+        }
+
+    @Test
+    fun signBytesTurnsAReservedPrefixIntoAnIllegalArgument() =
+        runTest {
+            applet.signError = SeedVaultException.Applet(AppletErrorCode.RESERVED_DOMAIN_PREFIX)
+
+            assertThrows(IllegalArgumentException::class.java) {
+                kotlinx.coroutines.runBlocking { vault.signBytes(storedSeed(), byteArrayOf(1)) }
+            }
+        }
+
+    @Test
+    fun signBytesKeepsOtherAppletErrors() =
+        runTest {
+            applet.signError = SeedVaultException.Applet(AppletErrorCode.SIGNING_FAILED)
+
+            assertThrows(SeedVaultException.Applet::class.java) {
                 kotlinx.coroutines.runBlocking { vault.signBytes(storedSeed(), byteArrayOf(1)) }
             }
         }
@@ -105,6 +130,9 @@ class TrustySeedKeyVaultTest {
         var status: SeedVaultStatus = SeedVaultStatus.Available(ProtocolVersion(1u, 0u))
         var mnemonic = ""
         var deleteError: SeedVaultException? = null
+        var signError: SeedVaultException? = null
+        var signedAddress: String? = null
+        var signedIndex: UByte? = null
         var importedMnemonic: String? = null
         var importedAlgorithm: KeyAlgorithm? = null
         var importedIndex: UByte? = null
@@ -139,7 +167,18 @@ class TrustySeedKeyVaultTest {
             address: String,
             addressIndex: UByte,
             txn: ByteArray,
-        ) = SignedTransaction(KeyAlgorithm.FALCON1024, txn)
+        ) = SignedTransaction(KeyAlgorithm.FALCON1024, txn, ByteArray(0))
+
+        override fun signArbitraryData(
+            address: String,
+            addressIndex: UByte,
+            data: ByteArray,
+        ): SignedArbitraryData {
+            signError?.let { throw it }
+            signedAddress = address
+            signedIndex = addressIndex
+            return SignedArbitraryData(KeyAlgorithm.FALCON1024, data.reversedArray())
+        }
 
         override fun createAccount(
             algorithm: KeyAlgorithm,

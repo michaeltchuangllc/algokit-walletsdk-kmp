@@ -16,8 +16,6 @@ import uniffi.seed_vault_ffi.humanSignIndex
  * The private keys never leave the TEE, so the seed row only holds the address and public key.
  * It is only available on devices that have the applet and let this app talk to it.
  *
- * The applet signs transactions, not raw bytes, so [signBytes] is not supported.
- *
  * The applet keeps one key per address index: the human sign index needs the user to approve each
  * signature in the TEE, the autosign index does not. A seed vault wants approval, so seeds use the
  * human sign index.
@@ -64,7 +62,18 @@ internal class TrustySeedKeyVault(
     override suspend fun signBytes(
         seed: StoredSeed,
         data: ByteArray,
-    ): ByteArray? = throw UnsupportedOperationException("The Trusty applet signs transactions only, not raw bytes")
+    ): ByteArray? {
+        val listed = listAccount(seed.address)
+        return try {
+            client.signArbitraryData(listed.account.address, listed.account.addressIndex.toUByte(), data).signature
+        } catch (e: SeedVaultException.Applet) {
+            // The applet keeps data that looks like a transaction from being signed as arbitrary data
+            if (e.code == AppletErrorCode.RESERVED_DOMAIN_PREFIX) {
+                throw IllegalArgumentException("The data starts with a prefix the Trusty applet reserves", e)
+            }
+            throw e
+        }
+    }
 
     override suspend fun signAlgorandPayment(
         seed: StoredSeed,

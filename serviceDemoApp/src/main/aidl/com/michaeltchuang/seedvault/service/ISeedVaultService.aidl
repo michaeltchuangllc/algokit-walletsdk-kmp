@@ -28,6 +28,7 @@ interface ISeedVaultService {
      * @param data the bytes to sign
      * @return the signature, or null if signing failed
      * @throws SecurityException if the calling app is not authorized for the seed
+     * @throws IllegalArgumentException if the vault refuses the data, e.g. it looks like a transaction
      */
     byte[] signBytes(long seedId, in byte[] data);
 

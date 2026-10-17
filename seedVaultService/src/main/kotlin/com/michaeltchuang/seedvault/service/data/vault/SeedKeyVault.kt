@@ -38,7 +38,7 @@ internal interface SeedKeyVault {
 
     suspend fun revealSeedPhrase(seed: StoredSeed): List<String>
 
-    /** Signs raw bytes. Throws [UnsupportedOperationException] if this vault can only sign transactions. */
+    /** Signs raw bytes. Throws [IllegalArgumentException] if the vault refuses the data. */
     suspend fun signBytes(
         seed: StoredSeed,
         data: ByteArray,
