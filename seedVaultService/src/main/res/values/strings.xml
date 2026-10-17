@@ -5,10 +5,14 @@
     <string name="placeholder_not_built">Placeholder only, not built yet</string>
     <string name="generic_error">Something went wrong with this seed. Please try again.</string>
 
+    <string name="permission_access_seed_vault_label">Access Seed Vault</string>
+    <string name="permission_access_seed_vault_description">Lets the app ask Seed Vault for the seeds you authorize and for signatures from them.</string>
+
     <!-- Seed Vault settings -->
     <string name="seed_vault_title">Seed Vault</string>
     <string name="section_seeds">Seeds</string>
-    <string name="add_seed">Add a seed</string>
+    <string name="create_seed">Create a seed</string>
+    <string name="import_seed">Import a seed</string>
     <string name="no_seeds">No seeds yet</string>
     <string name="section_settings">Settings</string>
     <string name="security_and_fingerprint">Security and fingerprint</string>
@@ -26,6 +30,15 @@
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     <string name="done">Done</string>
+
+    <!-- Import a seed -->
+    <string name="import_seed_title">Import a seed</string>
+    <string name="import_seed_description">Enter the 25 words of your Falcon-1024 seed phrase in order, or paste them from the clipboard.</string>
+    <string name="paste_from_clipboard">Paste from clipboard</string>
+    <string name="import_seed_button">Import seed</string>
+    <string name="invalid_seed_phrase">That is not a valid 25-word seed phrase. Please check your words and try again.</string>
+    <string name="invalid_clipboard">The clipboard does not hold a 25-word seed phrase.</string>
+    <string name="word_number">Word %1$d</string>
 
     <!-- Add a seed -->
     <string name="new_seed_title">Your new seed</string>
@@ -46,6 +59,11 @@
     <string name="reveal_ack_losing">My funds are permanently lost if I lose my seed phrase and lose access to this device.</string>
     <string name="reveal_ack_never_ask">Algorand Foundation and Pera employees will NEVER ask for my seed phrase.</string>
     <string name="reveal_seed_phrase">Reveal seed phrase</string>
+
+    <!-- Authorize an app -->
+    <string name="authorize_title">Allow %1$s to use your seeds?</string>
+    <string name="authorize_description">Choose the seeds this app may request signatures from. It never sees your seed phrase or private key, and you can revoke it later from the seed\'s authorized apps.</string>
+    <string name="authorize_allow">Allow</string>
 
     <!-- Authorized apps -->
     <string name="authorized_apps">Authorized apps</string>

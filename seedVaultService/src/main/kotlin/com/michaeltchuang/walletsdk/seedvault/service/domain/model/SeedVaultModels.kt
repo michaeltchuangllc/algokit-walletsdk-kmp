@@ -14,6 +14,14 @@ data class VaultSeed(
     val address: String = "",
 )
 
+/** Network values from algod that go into an Algorand payment. */
+class AlgorandPaymentParams(
+    val genesisId: String,
+    val genesisHash: ByteArray,
+    val firstValid: Long,
+    val lastValid: Long,
+)
+
 /**
  * An app that is allowed to request signatures from a seed.
  *

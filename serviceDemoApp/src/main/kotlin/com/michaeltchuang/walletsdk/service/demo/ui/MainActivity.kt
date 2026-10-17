@@ -29,6 +29,7 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
         private const val REQUEST_CODE_AUTHORIZE_SEED = 100
         private const val REQUEST_CODE_SIGN_TRANSACTION = 101
+        private const val REQUEST_CODE_AUTHORIZE_APP = 102
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,7 +51,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    WalletServiceDemoScreen(viewModel)
+                    WalletServiceDemoScreen(viewModel, onAuthorizeApp = ::authorizeApp)
                 }
             }
         }
@@ -83,6 +84,11 @@ class MainActivity : ComponentActivity() {
         startActivityForResult(intent, REQUEST_CODE_SIGN_TRANSACTION)
     }
 
+    /** Asks the user in Seed Vault Service which seeds this app may use. */
+    private fun authorizeApp() {
+        startActivityForResult(viewModel.authorizeAppIntent(), REQUEST_CODE_AUTHORIZE_APP)
+    }
+
     private fun authorizeNewSeed() {
         val intent = Wallet.authorizeSeed(this, WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION)
         startActivityForResult(intent, REQUEST_CODE_AUTHORIZE_SEED)
@@ -94,6 +100,9 @@ class MainActivity : ComponentActivity() {
         super.onActivityResult(requestCode, resultCode, data)
 
         when (requestCode) {
+            REQUEST_CODE_AUTHORIZE_APP -> {
+                if (resultCode == RESULT_OK) viewModel.fetchSeedVaultSeeds()
+            }
             REQUEST_CODE_AUTHORIZE_SEED -> {
                 try {
                     val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)

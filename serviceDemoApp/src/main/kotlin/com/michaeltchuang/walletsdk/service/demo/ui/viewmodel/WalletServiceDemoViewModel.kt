@@ -9,11 +9,12 @@ import android.util.Log
 import android.util.Base64
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.service.demo.client.WalletServiceClient
-import com.michaeltchuang.walletsdk.service.demo.data.model.AccountLite
+import com.michaeltchuang.walletsdk.service.demo.client.SeedVaultServiceClient
+import com.michaeltchuang.walletsdk.service.demo.data.model.SeedVaultSeed
 import com.michaeltchuang.walletsdk.service.demo.data.model.SolanaAccount
 import com.michaeltchuang.walletsdk.service.demo.data.model.SolanaSeed
 import com.michaeltchuang.walletsdk.service.demo.data.model.SeedVaultLimits
+import com.michaeltchuang.walletsdk.service.demo.data.repository.AlgorandRepository
 import com.michaeltchuang.walletsdk.service.demo.data.repository.SolanaBalanceRepository
 import com.michaeltchuang.walletsdk.service.demo.data.repository.SolanaTransferRepository
 import com.solanamobile.seedvault.Bip32DerivationPath
@@ -30,7 +31,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
 import com.michaeltchuang.walletsdk.service.demo.data.repository.SolanaBalanceRepository.Cluster
 
 /**
@@ -41,7 +41,13 @@ data class WalletServiceDemoUiState(
     val loading: Boolean = false,
     val balanceLoading: Boolean = false,  // Separate loading state for balance fetching
     val errorMessage: String? = null,
-    val accounts: List<AccountLite> = emptyList(),
+    val seedVaultSeeds: List<SeedVaultSeed> = emptyList(),  // Falcon-1024 seeds from Seed Vault Service
+    val signResult: String? = null,
+    // Algorand (TestNet) balances in microAlgos by address, and the last payment sent
+    val algorandBalances: Map<String, Long> = emptyMap(),
+    val algorandBalanceLoading: Boolean = false,
+    val algorandPaymentResult: String? = null,
+    val algorandPaymentTxId: String? = null,
     val seeds: List<SolanaSeed> = emptyList(),
     val hasUnauthorizedSeeds: Boolean = false,
     val seedVaultLimits: SeedVaultLimits? = null,
@@ -70,18 +76,14 @@ class WalletServiceDemoViewModel(
     private val _viewModelEvents = MutableSharedFlow<ViewModelEvent>()
     val viewModelEvents: SharedFlow<ViewModelEvent> = _viewModelEvents.asSharedFlow()
 
-    private val walletClient = WalletServiceClient(application)
+    private val seedVaultClient = SeedVaultServiceClient(application)
+    private val algorandRepository = AlgorandRepository()
     private val balanceRepository = SolanaBalanceRepository()
     private val transferRepository = SolanaTransferRepository()
 
     // Store pending transaction data for signing
     private var pendingTransaction: org.sol4k.Transaction? = null
     private var pendingSerializedMessage: ByteArray? = null
-
-    private val json = Json {
-        ignoreUnknownKeys = true
-        classDiscriminator = "type"
-    }
 
     init {
         // Auto-connect on start
@@ -99,7 +101,7 @@ class WalletServiceDemoViewModel(
 
         viewModelScope.launch {
             try {
-                walletClient.bindAsync()
+                seedVaultClient.bindAsync()
                 _uiState.update {
                     it.copy(
                         serviceConnected = true,
@@ -111,7 +113,7 @@ class WalletServiceDemoViewModel(
                 _uiState.update {
                     it.copy(
                         serviceConnected = false,
-                        errorMessage = "Failed to connect: ${e.message}\n\nIs wallet-sdk-service installed?",
+                        errorMessage = "Failed to connect: ${e.message}\n\nIs Seed Vault Service installed, and is its permission granted?",
                         loading = false
                     )
                 }
@@ -120,9 +122,9 @@ class WalletServiceDemoViewModel(
     }
 
     /**
-     * Fetch accounts with balances from the wallet service.
+     * Fetch the Falcon-1024 seeds this app is authorized to use from Seed Vault Service.
      */
-    fun fetchAccounts() {
+    fun fetchSeedVaultSeeds() {
         if (!_uiState.value.serviceConnected) {
             _uiState.update { it.copy(errorMessage = "Not connected to service") }
             return
@@ -132,25 +134,121 @@ class WalletServiceDemoViewModel(
 
         viewModelScope.launch {
             try {
-                val accountsJson = walletClient.getAccountsWithBalances()
-                val accounts = json.decodeFromString<List<AccountLite>>(accountsJson)
+                val seeds = withContext(Dispatchers.IO) { seedVaultClient.getAuthorizedSeeds() }
                 _uiState.update {
                     it.copy(
-                        accounts = accounts,
-                        errorMessage = if (accounts.isEmpty()) "No accounts found" else null,
+                        seedVaultSeeds = seeds,
+                        errorMessage = if (seeds.isEmpty()) "No authorized seeds. Tap Authorize App to choose seeds." else null,
                         loading = false
                     )
                 }
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
-                        errorMessage = "Failed to fetch accounts: ${e.message}",
+                        errorMessage = "Failed to fetch seeds: ${e.message}",
                         loading = false
                     )
                 }
             }
         }
     }
+
+    /**
+     * Sign [SIGN_DEMO_MESSAGE] with a seed over AIDL and show the size and start of the signature.
+     */
+    fun signDemoMessage(seed: SeedVaultSeed) {
+        _uiState.update { it.copy(loading = true, errorMessage = null, signResult = null) }
+
+        viewModelScope.launch {
+            try {
+                val signature = withContext(Dispatchers.IO) {
+                    seedVaultClient.signBytes(seed.id, SIGN_DEMO_MESSAGE.toByteArray())
+                }
+                _uiState.update {
+                    it.copy(
+                        signResult = if (signature == null) {
+                            "Signing failed for ${seed.name}"
+                        } else {
+                            "${seed.name} signed \"$SIGN_DEMO_MESSAGE\": ${signature.size} bytes, " +
+                                signature.take(16).joinToString("") { b -> "%02x".format(b) } + "..."
+                        },
+                        loading = false
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(errorMessage = "Failed to sign: ${e.message}", loading = false)
+                }
+            }
+        }
+    }
+
+    /** Fetch the TestNet ALGO balance of every authorized seed's account from algod. */
+    fun refreshAlgorandBalances() {
+        val seeds = _uiState.value.seedVaultSeeds
+        if (seeds.isEmpty()) {
+            _uiState.update { it.copy(errorMessage = "No authorized seeds. Tap Fetch Seeds first.") }
+            return
+        }
+
+        _uiState.update { it.copy(algorandBalanceLoading = true, errorMessage = null) }
+
+        viewModelScope.launch {
+            val balances = mutableMapOf<String, Long>()
+            var failed = 0
+            seeds.forEach { seed ->
+                try {
+                    balances[seed.address] = algorandRepository.getBalanceMicroAlgos(seed.address)
+                } catch (e: Exception) {
+                    failed++
+                    Log.e("WalletServiceDemo", "Algorand balance failed for ${seed.address}", e)
+                }
+            }
+            _uiState.update {
+                it.copy(
+                    algorandBalances = it.algorandBalances + balances,
+                    algorandBalanceLoading = false,
+                    errorMessage = if (failed > 0) "Failed to fetch $failed Algorand balance(s)" else null
+                )
+            }
+        }
+    }
+
+    /**
+     * Send a 0 ALGO payment from a seed's account to itself on TestNet. The vault builds and signs
+     * the transaction, this app only supplies the network values and sends the result.
+     */
+    fun sendZeroAlgoPayment(seed: SeedVaultSeed) {
+        _uiState.update {
+            it.copy(loading = true, errorMessage = null, algorandPaymentResult = null, algorandPaymentTxId = null)
+        }
+
+        viewModelScope.launch {
+            try {
+                val paramsJson = algorandRepository.getPaymentParamsJson()
+                val signed = withContext(Dispatchers.IO) {
+                    seedVaultClient.signAlgorandPayment(seed.id, seed.address, 0L, paramsJson)
+                } ?: error("Seed Vault Service could not sign the payment")
+                val txId = algorandRepository.sendSignedTransaction(signed)
+                _uiState.update {
+                    it.copy(
+                        algorandPaymentResult = "${seed.name} sent a 0 ALGO payment to itself",
+                        algorandPaymentTxId = txId,
+                        loading = false
+                    )
+                }
+                refreshAlgorandBalances()
+            } catch (e: Exception) {
+                Log.e("WalletServiceDemo", "Algorand payment failed", e)
+                _uiState.update {
+                    it.copy(errorMessage = "Algorand payment failed: ${e.message}", loading = false)
+                }
+            }
+        }
+    }
+
+    /** Intent for the Seed Vault Service screen where the user authorizes this app. */
+    fun authorizeAppIntent() = seedVaultClient.authorizeAppIntent()
 
     /**
      * Clear any error message.
@@ -250,49 +348,21 @@ class WalletServiceDemoViewModel(
      * Call this after refreshSolanaSeeds() to get on-chain balances.
      */
     fun fetchAllAccountBalances() {
-        val seeds = _uiState.value.seeds
-        if (seeds.isEmpty()) {
+        if (_uiState.value.seeds.isEmpty()) {
             _uiState.update { it.copy(errorMessage = "No seeds available. Call refreshSolanaSeeds() first.") }
             return
         }
 
         if (!balanceRepository.isInitialized()) {
-            _uiState.update { it.copy(errorMessage = "Balance repository not initialized. Call initializeBalanceRepository() first.") }
-            return
+            balanceRepository.initialize(Cluster.DEVNET)
+            _uiState.update { it.copy(currentNetwork = Cluster.DEVNET.name) }
         }
 
-        _uiState.update { it.copy(loading = true, errorMessage = null) }
+        _uiState.update { it.copy(errorMessage = null) }
 
+        // Writes the balances into the account cards, which is what the button is for
         viewModelScope.launch {
-            try {
-                val allAccounts = seeds.flatMap { it.accounts }
-                val publicKeys = allAccounts.map { it.publicKeyEncoded }
-
-                Log.d("WalletServiceDemo", "Fetching balances for ${publicKeys.size} accounts")
-
-                val balances = balanceRepository.fetchBalances(publicKeys)
-
-                // Log results
-                balances.forEach { (pubKey, balance) ->
-                    Log.d("WalletServiceDemo", "Account $pubKey: ${balance ?: "N/A"} SOL")
-                }
-
-                val totalBalance = balances.values.filterNotNull().sum()
-
-                _uiState.update {
-                    it.copy(
-                        errorMessage = "Fetched ${balances.size} balances. Total: $totalBalance SOL",
-                        loading = false
-                    )
-                }
-            } catch (e: Exception) {
-                _uiState.update {
-                    it.copy(
-                        errorMessage = "Error fetching balances: ${e.message}",
-                        loading = false
-                    )
-                }
-            }
+            fetchBalancesForSeeds()
         }
     }
 
@@ -304,11 +374,6 @@ class WalletServiceDemoViewModel(
      * Automatically initializes the balance repository and fetches on-chain balances.
      */
     fun refreshSolanaSeeds() {
-        if (!_uiState.value.serviceConnected) {
-            _uiState.update { it.copy(errorMessage = "Not connected to service") }
-            return
-        }
-
         _uiState.update { it.copy(loading = true, errorMessage = null) }
 
         viewModelScope.launch {
@@ -712,9 +777,9 @@ class WalletServiceDemoViewModel(
         }
 
         // Validate inputs
-        if (amountSol <= 0) {
+        if (amountSol < 0) {
             _uiState.update {
-                it.copy(transferError = "Amount must be greater than 0")
+                it.copy(transferError = "Amount cannot be negative")
             }
             return
         }
@@ -889,12 +954,14 @@ class WalletServiceDemoViewModel(
 
     override fun onCleared() {
         super.onCleared()
-        walletClient.unbind()
+        seedVaultClient.unbind()
         balanceRepository.close()
         transferRepository.close()
+        algorandRepository.close()
     }
 
     companion object {
+        private const val SIGN_DEMO_MESSAGE = "Hello from serviceDemoApp"
         private const val FIRST_REQUESTED_PUBLIC_KEY_INDEX = 1000
         private const val IMPLEMENTATION_LIMITS_MAX_BIP32_PATH_DEPTH = "MaxBip32PathDepth"
     }

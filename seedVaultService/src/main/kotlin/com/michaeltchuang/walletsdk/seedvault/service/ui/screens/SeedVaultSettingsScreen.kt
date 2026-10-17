@@ -38,13 +38,14 @@ import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.SeedVaultSett
 import org.koin.compose.viewmodel.koinViewModel
 
 /**
- * Seed Vault landing / settings screen: the list of seeds, "Add a seed" and the settings entries.
+ * Seed Vault landing / settings screen: the list of seeds, "Create a seed", "Import a seed" and the settings entries.
  */
 @Composable
 fun SeedVaultSettingsScreen(
     onBack: () -> Unit,
     onSeedClick: (VaultSeed) -> Unit,
     onAddSeed: () -> Unit,
+    onImportSeed: () -> Unit,
     onSecurityClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: SeedVaultSettingsViewModel = koinViewModel(),
@@ -55,6 +56,7 @@ fun SeedVaultSettingsScreen(
         onBack = onBack,
         onSeedClick = onSeedClick,
         onAddSeed = onAddSeed,
+        onImportSeed = onImportSeed,
         onSecurityClick = onSecurityClick,
         modifier = modifier,
     )
@@ -69,6 +71,7 @@ private fun SeedVaultSettingsContent(
     onBack: () -> Unit,
     onSeedClick: (VaultSeed) -> Unit,
     onAddSeed: () -> Unit,
+    onImportSeed: () -> Unit,
     onSecurityClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -107,9 +110,15 @@ private fun SeedVaultSettingsContent(
 
         Spacer(modifier = Modifier.height(24.dp))
         SeedVaultWideButton(
-            text = stringResource(R.string.add_seed),
+            text = stringResource(R.string.create_seed),
             iconRes = R.drawable.ic_add,
             onClick = onAddSeed,
+        )
+        SeedVaultWideButton(
+            text = stringResource(R.string.import_seed),
+            iconRes = R.drawable.ic_content_paste,
+            onClick = onImportSeed,
+            modifier = Modifier.padding(top = 12.dp),
         )
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -170,6 +179,7 @@ private fun SeedVaultSettingsScreenPreview() {
             onBack = {},
             onSeedClick = {},
             onAddSeed = {},
+            onImportSeed = {},
             onSecurityClick = {},
         )
     }

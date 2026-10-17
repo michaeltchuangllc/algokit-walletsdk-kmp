@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.seedvault.service.data
 
+import com.michaeltchuang.walletsdk.seedvault.service.domain.model.AlgorandPaymentParams
+import com.michaeltchuang.walletsdk.seedvault.service.domain.model.AuthorizedApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.model.VaultSeed
 import com.michaeltchuang.walletsdk.seedvault.service.domain.repository.SeedVaultRepository
 import com.michaeltchuang.walletsdk.seedvault.service.ui.preview.SeedVaultPreviewData
@@ -54,6 +56,34 @@ class FakeSeedVaultRepository(
     ): ByteArray? {
         failure?.let { throw it }
         return if (seedPhrases.containsKey(seedId)) data.reversedArray() else null
+    }
+
+    override suspend fun signAlgorandPayment(
+        seedId: Long,
+        receiver: String,
+        amountMicroAlgos: Long,
+        params: AlgorandPaymentParams,
+    ): ByteArray? {
+        failure?.let { throw it }
+        return if (seedPhrases.containsKey(seedId)) "$receiver:$amountMicroAlgos".toByteArray() else null
+    }
+
+    override suspend fun getPublicKey(seedId: Long): ByteArray? =
+        if (seedPhrases.containsKey(seedId)) byteArrayOf(seedId.toByte()) else null
+
+    override suspend fun authorizeApp(
+        seedId: Long,
+        packageName: String,
+        label: String,
+    ) {
+        failure?.let { throw it }
+        updateSeed(seedId) { seed ->
+            seed.copy(
+                authorizedApps =
+                    seed.authorizedApps.filterNot { it.packageName == packageName } +
+                        AuthorizedApp(packageName = packageName, label = label),
+            )
+        }
     }
 
     override suspend fun renameSeed(

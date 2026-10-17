@@ -16,6 +16,11 @@ fun interface GenerateSeedPhrase {
     suspend operator fun invoke(): List<String>
 }
 
+/** Checks that [words] are a complete, correctly checksummed 25-word Falcon-1024 seed phrase. */
+fun interface ValidateSeedPhrase {
+    suspend operator fun invoke(words: List<String>): Boolean
+}
+
 fun interface AddSeed {
     suspend operator fun invoke(
         seedPhrase: List<String>,
@@ -33,6 +38,15 @@ fun interface SignBytes {
         seedId: Long,
         data: ByteArray,
     ): ByteArray?
+}
+
+/** Lets an app request signatures from a seed. */
+fun interface AuthorizeApp {
+    suspend operator fun invoke(
+        seedId: Long,
+        packageName: String,
+        label: String,
+    )
 }
 
 fun interface RenameSeed {

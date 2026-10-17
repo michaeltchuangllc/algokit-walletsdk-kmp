@@ -1,14 +1,22 @@
 package com.michaeltchuang.walletsdk.seedvault.service.data.repository
 
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
+import com.michaeltchuang.walletsdk.core.algosdk.SuggestedParams
 import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25MnemonicFromEntropy
+import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25SeedFromEntropy
+import com.michaeltchuang.walletsdk.core.algosdk.isValidAlgorandAddress
+import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
 import com.michaeltchuang.walletsdk.core.algosdk.recoverFalcon25Account
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
+import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
 import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
 import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
+import com.michaeltchuang.walletsdk.seedvault.service.data.database.AuthorizedAppEntity
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedDao
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedEntity
 import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedWithApps
+import com.michaeltchuang.walletsdk.seedvault.service.domain.model.AlgorandPaymentParams
 import com.michaeltchuang.walletsdk.seedvault.service.domain.model.AuthorizedApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.model.VaultSeed
 import com.michaeltchuang.walletsdk.seedvault.service.domain.repository.SeedVaultRepository
@@ -78,6 +86,51 @@ internal class SeedVaultRepositoryImpl(
             }
         }
 
+    override suspend fun signAlgorandPayment(
+        seedId: Long,
+        receiver: String,
+        amountMicroAlgos: Long,
+        params: AlgorandPaymentParams,
+    ): ByteArray? =
+        withContext(coroutineDispatcher) {
+            if (amountMicroAlgos < 0 || !isValidAlgorandAddress(receiver)) return@withContext null
+            val address = seedDao.getAddress(seedId) ?: return@withContext null
+            val encryptedEntropy = seedDao.getEncryptedEntropy(seedId) ?: return@withContext null
+            ensureEncryptionKey()
+            val entropy = decryptByteArray(encryptedEntropy)
+            val seed =
+                try {
+                    getFalcon25SeedFromEntropy(entropy)
+                } finally {
+                    entropy.fill(0)
+                } ?: return@withContext null
+            try {
+                // The vault sets the fee, a Falcon-1024 account needs more than the minimum
+                val fee = TransactionFee.FALCON25_FEE_MICRO_ALGOS
+                val transaction =
+                    makePaymentTxn(
+                        senderAddress = address,
+                        receiverAddress = receiver,
+                        amount = amountMicroAlgos.toString(),
+                        isMax = false,
+                        noteInByteArray = null,
+                        suggestedParams =
+                            SuggestedParams(
+                                fee = fee,
+                                genesisID = params.genesisId,
+                                firstRoundValid = params.firstValid,
+                                lastRoundValid = params.lastValid,
+                                genesisHash = params.genesisHash,
+                                flatFee = true,
+                            ),
+                        staticFee = fee,
+                    )
+                signFalcon25Transaction(transaction, seed)
+            } finally {
+                seed.fill(0)
+            }
+        }
+
     override suspend fun getSeedPhrase(seedId: Long): List<String>? =
         withContext(coroutineDispatcher) {
             val encryptedEntropy = seedDao.getEncryptedEntropy(seedId) ?: return@withContext null
@@ -90,6 +143,18 @@ internal class SeedVaultRepositoryImpl(
                 entropy.fill(0)
             }
         }
+
+    override suspend fun getPublicKey(seedId: Long): ByteArray? = seedDao.getPublicKey(seedId)
+
+    override suspend fun authorizeApp(
+        seedId: Long,
+        packageName: String,
+        label: String,
+    ) {
+        seedDao.insertAuthorizedApp(
+            AuthorizedAppEntity(seedId = seedId, packageName = packageName, label = label, isPrivileged = false),
+        )
+    }
 
     override suspend fun renameSeed(
         seedId: Long,

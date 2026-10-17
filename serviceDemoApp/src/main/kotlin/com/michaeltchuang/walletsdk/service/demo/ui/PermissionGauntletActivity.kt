@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
+import com.michaeltchuang.walletsdk.service.demo.SeedVaultServiceConstants
 import com.solanamobile.seedvault.WalletContractV1
 
 /**
@@ -23,7 +24,15 @@ class PermissionGauntletActivity : AppCompatActivity() {
             return
         }
 
-        requestPermissions(arrayOf(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT), 0)
+        // Also ask for the Seed Vault Service permission. It is only defined while that app is installed,
+        // and the connect button reports the problem if it is not.
+        requestPermissions(
+            arrayOf(
+                WalletContractV1.PERMISSION_ACCESS_SEED_VAULT,
+                SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT
+            ),
+            0
+        )
     }
 
     override fun onRequestPermissionsResult(
@@ -33,7 +42,9 @@ class PermissionGauntletActivity : AppCompatActivity() {
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
-        when (grantResults[0]) {
+        // Only the Solana Seed Vault permission is required to continue
+        val solanaIndex = permissions.indexOf(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+        when (grantResults.getOrNull(solanaIndex)) {
             PackageManager.PERMISSION_GRANTED -> {
                 Log.d(TAG, "Access Seed Vault permission granted")
                 startActivity(Intent(this, MainActivity::class.java))

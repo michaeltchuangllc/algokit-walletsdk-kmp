@@ -31,6 +31,7 @@ android {
     }
 
     buildFeatures {
+        aidl = true
         compose = true
     }
 
@@ -79,6 +80,9 @@ dependencies {
     implementation(project.dependencies.platform(libs.koin.bom))
     implementation(libs.koin.android)
     implementation(libs.koin.compose.viewmodel)
+
+    // JSON returned over AIDL
+    implementation(libs.kotlinx.serialization.json)
 
     // Seed storage
     implementation(libs.room.runtime)

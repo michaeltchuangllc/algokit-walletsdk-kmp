@@ -6,6 +6,7 @@ import com.michaeltchuang.walletsdk.seedvault.service.data.database.SeedVaultDat
 import com.michaeltchuang.walletsdk.seedvault.service.data.repository.SeedVaultRepositoryImpl
 import com.michaeltchuang.walletsdk.seedvault.service.domain.repository.SeedVaultRepository
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.AddSeed
+import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.AuthorizeApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.DeleteSeed
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.GenerateSeedPhrase
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.GenerateSeedPhraseUseCase
@@ -17,8 +18,12 @@ import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RenameSeedU
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RevokeAuthorizedApp
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.RevokeAuthorizedAppUseCase
 import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.SignBytes
+import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.ValidateSeedPhrase
+import com.michaeltchuang.walletsdk.seedvault.service.domain.usecase.ValidateSeedPhraseUseCase
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.AddSeedViewModel
+import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.AuthorizeAppViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.AuthorizedAppsViewModel
+import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.ImportSeedViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.RevealSeedPhraseViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.SeedDetailsViewModel
 import com.michaeltchuang.walletsdk.seedvault.service.ui.viewmodel.SeedPhraseViewModel
@@ -38,8 +43,10 @@ val seedVaultModule =
         factory { GetSeeds(get<SeedVaultRepository>()::getSeeds) }
         factory { GetSeed(get<SeedVaultRepository>()::getSeed) }
         factory<GenerateSeedPhrase> { GenerateSeedPhraseUseCase() }
+        factory<ValidateSeedPhrase> { ValidateSeedPhraseUseCase() }
         factory { AddSeed(get<SeedVaultRepository>()::addSeed) }
         factory { GetSeedPhrase(get<SeedVaultRepository>()::getSeedPhrase) }
+        factory { AuthorizeApp(get<SeedVaultRepository>()::authorizeApp) }
         factory { SignBytes(get<SeedVaultRepository>()::signBytes) }
         factory<RenameSeed> { RenameSeedUseCase(get()) }
         factory { DeleteSeed(get<SeedVaultRepository>()::deleteSeed) }
@@ -62,6 +69,16 @@ val seedVaultModule =
                 eventDelegate = EventDelegate(),
             )
         }
+        viewModel { (appPackageName: String, appLabel: String) ->
+            AuthorizeAppViewModel(
+                appPackageName = appPackageName,
+                appLabel = appLabel,
+                getSeeds = get(),
+                authorizeApp = get(),
+                stateDelegate = StateDelegate(),
+                eventDelegate = EventDelegate(),
+            )
+        }
         viewModel { (seedId: Long) ->
             AuthorizedAppsViewModel(
                 seedId = seedId,
@@ -73,6 +90,14 @@ val seedVaultModule =
         viewModel {
             AddSeedViewModel(
                 generateSeedPhrase = get(),
+                addSeed = get(),
+                stateDelegate = StateDelegate(),
+                eventDelegate = EventDelegate(),
+            )
+        }
+        viewModel {
+            ImportSeedViewModel(
+                validateSeedPhrase = get(),
                 addSeed = get(),
                 stateDelegate = StateDelegate(),
                 eventDelegate = EventDelegate(),

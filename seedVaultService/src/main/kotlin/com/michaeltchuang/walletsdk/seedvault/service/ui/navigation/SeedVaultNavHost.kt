@@ -11,6 +11,7 @@ import androidx.navigation.toRoute
 import com.michaeltchuang.walletsdk.seedvault.service.R
 import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.AddSeedScreen
 import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.AuthorizedAppsScreen
+import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.ImportSeedScreen
 import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.RevealSeedPhraseScreen
 import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.SeedDetailsScreen
 import com.michaeltchuang.walletsdk.seedvault.service.ui.screens.SeedPhraseScreen
@@ -22,6 +23,9 @@ data object SeedVaultSettings
 
 @Serializable
 data object AddSeed
+
+@Serializable
+data object ImportSeed
 
 @Serializable
 data class SeedDetails(
@@ -69,11 +73,15 @@ fun SeedVaultNavHost(
                 onBack = onExit,
                 onSeedClick = { seed -> navController.navigate(SeedDetails(seed.id)) },
                 onAddSeed = { navController.navigate(AddSeed) },
+                onImportSeed = { navController.navigate(ImportSeed) },
                 onSecurityClick = showPlaceholder,
             )
         }
         composable<AddSeed> {
             AddSeedScreen(onBack = { navController.navigateUp() })
+        }
+        composable<ImportSeed> {
+            ImportSeedScreen(onBack = { navController.navigateUp() })
         }
         composable<SeedDetails> { entry ->
             val seedId = entry.toRoute<SeedDetails>().seedId
