@@ -10,14 +10,14 @@ plugins {
 }
 
 android {
-    namespace = "com.michaeltchuang.walletsdk.seedvault.service"
+    namespace = "com.michaeltchuang.seedvault.service"
     compileSdk =
         libs.versions.android.compileSdk
             .get()
             .toInt()
 
     defaultConfig {
-        applicationId = "com.michaeltchuang.walletsdk.seedvault.service"
+        applicationId = "com.michaeltchuang.seedvault.service"
         minSdk =
             libs.versions.android.minSdk
                 .get()

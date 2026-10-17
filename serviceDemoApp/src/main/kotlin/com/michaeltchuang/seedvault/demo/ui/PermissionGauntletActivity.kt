@@ -1,0 +1,62 @@
+package com.michaeltchuang.seedvault.demo.ui
+
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.util.Log
+import androidx.appcompat.app.AppCompatActivity
+import com.michaeltchuang.seedvault.demo.SeedVaultServiceConstants
+import com.solanamobile.seedvault.WalletContractV1
+
+/**
+ * Permission Gauntlet Activity that requests Seed Vault permission at runtime.
+ * This ensures the app has ACCESS_SEED_VAULT permission before proceeding to MainActivity.
+ */
+class PermissionGauntletActivity : AppCompatActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        if (checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) == PackageManager.PERMISSION_GRANTED
+            || checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT_PRIVILEGED) == PackageManager.PERMISSION_GRANTED
+        ) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
+        // Also ask for the Seed Vault Service permission. It is only defined while that app is installed,
+        // and the connect button reports the problem if it is not.
+        requestPermissions(
+            arrayOf(
+                WalletContractV1.PERMISSION_ACCESS_SEED_VAULT,
+                SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT
+            ),
+            0
+        )
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+
+        // Only the Solana Seed Vault permission is required to continue
+        val solanaIndex = permissions.indexOf(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+        when (grantResults.getOrNull(solanaIndex)) {
+            PackageManager.PERMISSION_GRANTED -> {
+                Log.d(TAG, "Access Seed Vault permission granted")
+                startActivity(Intent(this, MainActivity::class.java))
+            }
+            else -> {
+                Log.e(TAG, "Access Seed Vault permission not granted")
+            }
+        }
+        finish()
+    }
+
+    companion object {
+        private val TAG = PermissionGauntletActivity::class.simpleName
+    }
+}

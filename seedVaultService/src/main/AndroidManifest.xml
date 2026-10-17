@@ -6,7 +6,7 @@
 
     <!-- Client apps need this to bind to SeedVaultService. The user still has to authorize each seed. -->
     <permission
-        android:name="com.michaeltchuang.walletsdk.seedvault.service.ACCESS_SEED_VAULT"
+        android:name="com.michaeltchuang.seedvault.service.ACCESS_SEED_VAULT"
         android:description="@string/permission_access_seed_vault_description"
         android:label="@string/permission_access_seed_vault_label"
         android:protectionLevel="dangerous" />
@@ -36,7 +36,7 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.SeedVaultService">
             <intent-filter>
-                <action android:name="com.michaeltchuang.walletsdk.seedvault.service.AUTHORIZE_APP" />
+                <action android:name="com.michaeltchuang.seedvault.service.AUTHORIZE_APP" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -44,9 +44,9 @@
         <service
             android:name=".remote.SeedVaultService"
             android:exported="true"
-            android:permission="com.michaeltchuang.walletsdk.seedvault.service.ACCESS_SEED_VAULT">
+            android:permission="com.michaeltchuang.seedvault.service.ACCESS_SEED_VAULT">
             <intent-filter>
-                <action android:name="com.michaeltchuang.walletsdk.seedvault.service.SEED_VAULT_SERVICE" />
+                <action android:name="com.michaeltchuang.seedvault.service.SEED_VAULT_SERVICE" />
             </intent-filter>
         </service>
 
