@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "059f0682f270a0e41cf68924a59fcbbf",
+    "identityHash": "e1e4e49f4cb570b66750ec0d273708ff",
     "entities": [
       {
         "tableName": "seed",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `is_backed_up` INTEGER NOT NULL, `encrypted_entropy` BLOB NOT NULL, `address` TEXT NOT NULL, `public_key` BLOB NOT NULL, `encrypted_private_key` BLOB NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `is_backed_up` INTEGER NOT NULL, `encrypted_entropy` BLOB NOT NULL, `address` TEXT NOT NULL, `public_key` BLOB NOT NULL, `encrypted_private_key` BLOB NOT NULL, `storage` TEXT NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -48,6 +48,12 @@
             "fieldPath": "encryptedPrivateKey",
             "columnName": "encrypted_private_key",
             "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "storage",
+            "columnName": "storage",
+            "affinity": "TEXT",
             "notNull": true
           }
         ],
@@ -122,7 +128,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '059f0682f270a0e41cf68924a59fcbbf')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e1e4e49f4cb570b66750ec0d273708ff')"
     ]
   }
 }

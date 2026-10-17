@@ -13,20 +13,14 @@ internal interface SeedDao {
     @Query("SELECT * FROM seed ORDER BY id")
     fun getAllAsFlow(): Flow<List<SeedWithApps>>
 
-    @Query("SELECT encrypted_entropy FROM seed WHERE id = :seedId")
-    suspend fun getEncryptedEntropy(seedId: Long): ByteArray?
-
-    @Query("SELECT address FROM seed WHERE id = :seedId")
-    suspend fun getAddress(seedId: Long): String?
+    @Query("SELECT * FROM seed WHERE id = :seedId")
+    suspend fun getSeed(seedId: Long): SeedEntity?
 
     @Query("SELECT public_key FROM seed WHERE id = :seedId")
     suspend fun getPublicKey(seedId: Long): ByteArray?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAuthorizedApp(app: AuthorizedAppEntity)
-
-    @Query("SELECT encrypted_private_key FROM seed WHERE id = :seedId")
-    suspend fun getEncryptedPrivateKey(seedId: Long): ByteArray?
 
     @Transaction
     @Query("SELECT * FROM seed WHERE id = :seedId")

@@ -13,6 +13,9 @@ import androidx.room.Relation
  * derived from it are stored encrypted with the wallet-sdk-core Android Keystore key. The address
  * and public key are not secret and are stored as is. The address is unique, so the same seed
  * phrase is only stored once.
+ *
+ * [storage] says where the secret keys live. For a seed kept in the Trusty applet the encrypted
+ * columns are empty.
  */
 @Entity(tableName = "seed", indices = [Index(value = ["address"], unique = true)])
 internal class SeedEntity(
@@ -23,6 +26,7 @@ internal class SeedEntity(
     @ColumnInfo("address") val address: String,
     @ColumnInfo("public_key", typeAffinity = ColumnInfo.BLOB) val publicKey: ByteArray,
     @ColumnInfo("encrypted_private_key", typeAffinity = ColumnInfo.BLOB) val encryptedPrivateKey: ByteArray,
+    @ColumnInfo("storage") val storage: String,
 )
 
 @Entity(

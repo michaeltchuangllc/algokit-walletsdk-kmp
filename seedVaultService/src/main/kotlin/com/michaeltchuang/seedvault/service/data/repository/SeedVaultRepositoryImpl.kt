@@ -1,45 +1,35 @@
 package com.michaeltchuang.seedvault.service.data.repository
 
+import android.util.Log
 import com.michaeltchuang.seedvault.service.data.database.AuthorizedAppEntity
 import com.michaeltchuang.seedvault.service.data.database.SeedDao
 import com.michaeltchuang.seedvault.service.data.database.SeedEntity
 import com.michaeltchuang.seedvault.service.data.database.SeedWithApps
+import com.michaeltchuang.seedvault.service.data.vault.SeedKeyVault
+import com.michaeltchuang.seedvault.service.data.vault.SeedStorage
+import com.michaeltchuang.seedvault.service.data.vault.StoredSeed
 import com.michaeltchuang.seedvault.service.domain.model.AlgorandPaymentParams
 import com.michaeltchuang.seedvault.service.domain.model.AuthorizedApp
 import com.michaeltchuang.seedvault.service.domain.model.VaultSeed
 import com.michaeltchuang.seedvault.service.domain.repository.SeedVaultRepository
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
-import com.michaeltchuang.walletsdk.core.algosdk.SuggestedParams
-import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25MnemonicFromEntropy
-import com.michaeltchuang.walletsdk.core.algosdk.getFalcon25SeedFromEntropy
-import com.michaeltchuang.walletsdk.core.algosdk.isValidAlgorandAddress
-import com.michaeltchuang.walletsdk.core.algosdk.makePaymentTxn
-import com.michaeltchuang.walletsdk.core.algosdk.recoverFalcon25Account
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
-import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25Transaction
-import com.michaeltchuang.walletsdk.core.encryption.decryptByteArray
-import com.michaeltchuang.walletsdk.core.encryption.encryptByteArray
-import com.michaeltchuang.walletsdk.core.encryption.initializeEncryptionManager
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * Room backed [SeedVaultRepository]. The Falcon-1024 entropy behind each 25-word seed phrase and
- * the private key derived from it are stored encrypted with the AES-GCM Android Keystore key from
- * wallet-sdk-core, next to the public key and address.
+ * Room backed [SeedVaultRepository]. Names, backup state, addresses, public keys and authorized
+ * apps live in Room. The secret keys live in a [SeedKeyVault]: the Trusty applet in the TEE when the
+ * device has one, otherwise encrypted in the database with the Android Keystore. Each seed
+ * remembers which one holds its keys.
  */
 internal class SeedVaultRepositoryImpl(
     private val seedDao: SeedDao,
+    private val roomVault: SeedKeyVault,
+    private val trustyVault: SeedKeyVault,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : SeedVaultRepository {
-    private val keyMutex = Mutex()
-    private var isKeyReady = false
-
     override fun getSeeds(): Flow<List<VaultSeed>> = seedDao.getAllAsFlow().map { seeds -> seeds.map { it.toVaultSeed() } }
 
     override fun getSeed(seedId: Long): Flow<VaultSeed?> = getSeeds().map { seeds -> seeds.firstOrNull { it.id == seedId } }
@@ -49,25 +39,27 @@ internal class SeedVaultRepositoryImpl(
         isBackedUp: Boolean,
     ): VaultSeed =
         withContext(coroutineDispatcher) {
-            ensureEncryptionKey()
-            val account = checkNotNull(recoverFalcon25Account(seedPhrase.joinToString(" "))) { "Could not derive the Falcon-1024 account" }
-            val entity =
-                try {
+            val vault = if (trustyVault.isAvailable()) trustyVault else roomVault
+            Log.i(TAG, "Storing the keys of a new seed in ${vault.storage}")
+            val stored = vault.addSeed(seedPhrase)
+            val id =
+                seedDao.insertWithDefaultName(
                     SeedEntity(
                         name = "",
                         isBackedUp = isBackedUp,
-                        encryptedEntropy = encryptByteArray(account.entropy),
-                        address = account.address,
-                        publicKey = account.publicKey,
-                        encryptedPrivateKey = encryptByteArray(account.privateKey),
-                    )
-                } finally {
-                    account.entropy.fill(0)
-                    account.seed.fill(0)
-                    account.privateKey.fill(0)
-                }
-            val id = seedDao.insertWithDefaultName(entity)
-            checkNotNull(seedDao.get(id)) { "Seed $id was not saved" }.toVaultSeed()
+                        encryptedEntropy = stored.encryptedEntropy,
+                        address = stored.address,
+                        publicKey = stored.publicKey,
+                        encryptedPrivateKey = stored.encryptedPrivateKey,
+                        storage = vault.storage.name,
+                    ),
+                )
+            val saved = checkNotNull(seedDao.get(id)) { "Seed $id was not saved" }
+            if (saved.seed.storage != vault.storage.name) {
+                // The phrase was already stored somewhere else, so the keys just added are not needed
+                vault.deleteSeed(stored)
+            }
+            saved.toVaultSeed()
         }
 
     override suspend fun signBytes(
@@ -75,15 +67,8 @@ internal class SeedVaultRepositoryImpl(
         data: ByteArray,
     ): ByteArray? =
         withContext(coroutineDispatcher) {
-            val publicKey = seedDao.getPublicKey(seedId) ?: return@withContext null
-            val encryptedPrivateKey = seedDao.getEncryptedPrivateKey(seedId) ?: return@withContext null
-            ensureEncryptionKey()
-            val privateKey = decryptByteArray(encryptedPrivateKey)
-            try {
-                signFalcon25ArbitraryData(data, publicKey, privateKey)
-            } finally {
-                privateKey.fill(0)
-            }
+            val seed = seedDao.getSeed(seedId) ?: return@withContext null
+            vaultFor(seed).signBytes(seed.toStoredSeed(), data)
         }
 
     override suspend fun signAlgorandPayment(
@@ -93,55 +78,14 @@ internal class SeedVaultRepositoryImpl(
         params: AlgorandPaymentParams,
     ): ByteArray? =
         withContext(coroutineDispatcher) {
-            if (amountMicroAlgos < 0 || !isValidAlgorandAddress(receiver)) return@withContext null
-            val address = seedDao.getAddress(seedId) ?: return@withContext null
-            val encryptedEntropy = seedDao.getEncryptedEntropy(seedId) ?: return@withContext null
-            ensureEncryptionKey()
-            val entropy = decryptByteArray(encryptedEntropy)
-            val seed =
-                try {
-                    getFalcon25SeedFromEntropy(entropy)
-                } finally {
-                    entropy.fill(0)
-                } ?: return@withContext null
-            try {
-                // The vault sets the fee, a Falcon-1024 account needs more than the minimum
-                val fee = TransactionFee.FALCON25_FEE_MICRO_ALGOS
-                val transaction =
-                    makePaymentTxn(
-                        senderAddress = address,
-                        receiverAddress = receiver,
-                        amount = amountMicroAlgos.toString(),
-                        isMax = false,
-                        noteInByteArray = null,
-                        suggestedParams =
-                            SuggestedParams(
-                                fee = fee,
-                                genesisID = params.genesisId,
-                                firstRoundValid = params.firstValid,
-                                lastRoundValid = params.lastValid,
-                                genesisHash = params.genesisHash,
-                                flatFee = true,
-                            ),
-                        staticFee = fee,
-                    )
-                signFalcon25Transaction(transaction, seed)
-            } finally {
-                seed.fill(0)
-            }
+            val seed = seedDao.getSeed(seedId) ?: return@withContext null
+            vaultFor(seed).signAlgorandPayment(seed.toStoredSeed(), receiver, amountMicroAlgos, params)
         }
 
     override suspend fun getSeedPhrase(seedId: Long): List<String>? =
         withContext(coroutineDispatcher) {
-            val encryptedEntropy = seedDao.getEncryptedEntropy(seedId) ?: return@withContext null
-            ensureEncryptionKey()
-            val entropy = decryptByteArray(encryptedEntropy)
-            try {
-                checkNotNull(getFalcon25MnemonicFromEntropy(entropy)) { "Could not encode the Falcon-1024 seed phrase" }
-                    .split(" ")
-            } finally {
-                entropy.fill(0)
-            }
+            val seed = seedDao.getSeed(seedId) ?: return@withContext null
+            vaultFor(seed).revealSeedPhrase(seed.toStoredSeed())
         }
 
     override suspend fun getPublicKey(seedId: Long): ByteArray? = seedDao.getPublicKey(seedId)
@@ -164,7 +108,11 @@ internal class SeedVaultRepositoryImpl(
     }
 
     override suspend fun deleteSeed(seedId: Long) {
-        seedDao.delete(seedId)
+        withContext(coroutineDispatcher) {
+            // The keys go first: if they cannot be removed the seed stays, so it can be tried again
+            seedDao.getSeed(seedId)?.let { vaultFor(it).deleteSeed(it.toStoredSeed()) }
+            seedDao.delete(seedId)
+        }
     }
 
     override suspend fun revokeApp(
@@ -174,18 +122,24 @@ internal class SeedVaultRepositoryImpl(
         seedDao.revokeApp(seedId, packageName)
     }
 
-    /**
-     * Creates the Keystore key before the first encrypt / decrypt. wallet-sdk-core also does this
-     * from a background coroutine when its AES manager is created, which could race the first write.
-     */
-    private suspend fun ensureEncryptionKey() {
-        keyMutex.withLock {
-            if (!isKeyReady) {
-                initializeEncryptionManager()
-                isKeyReady = true
+    /** The vault that holds the keys of [seed]. */
+    private suspend fun vaultFor(seed: SeedEntity): SeedKeyVault {
+        val vault =
+            when (SeedStorage.valueOf(seed.storage)) {
+                SeedStorage.ROOM -> roomVault
+                SeedStorage.TRUSTY -> trustyVault
             }
-        }
+        check(vault.isAvailable()) { "The keys of this seed are in ${seed.storage}, which is not available on this device" }
+        return vault
     }
+
+    private fun SeedEntity.toStoredSeed() =
+        StoredSeed(
+            address = address,
+            publicKey = publicKey,
+            encryptedEntropy = encryptedEntropy,
+            encryptedPrivateKey = encryptedPrivateKey,
+        )
 
     private fun SeedWithApps.toVaultSeed() =
         VaultSeed(
@@ -198,4 +152,8 @@ internal class SeedVaultRepositoryImpl(
                 },
             address = seed.address,
         )
+
+    private companion object {
+        const val TAG = "SeedVaultRepository"
+    }
 }

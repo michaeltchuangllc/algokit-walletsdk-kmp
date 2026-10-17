@@ -2,6 +2,8 @@ package com.michaeltchuang.seedvault.service.di
 
 import com.michaeltchuang.seedvault.service.data.database.SeedVaultDatabase
 import com.michaeltchuang.seedvault.service.data.repository.SeedVaultRepositoryImpl
+import com.michaeltchuang.seedvault.service.data.vault.RoomSeedKeyVault
+import com.michaeltchuang.seedvault.service.data.vault.TrustySeedKeyVault
 import com.michaeltchuang.seedvault.service.domain.repository.SeedVaultRepository
 import com.michaeltchuang.seedvault.service.domain.usecase.AddSeed
 import com.michaeltchuang.seedvault.service.domain.usecase.AuthorizeApp
@@ -37,7 +39,9 @@ val seedVaultModule =
         // Data
         single { SeedVaultDatabase.build(androidContext()) }
         single { get<SeedVaultDatabase>().seedDao() }
-        single<SeedVaultRepository> { SeedVaultRepositoryImpl(get()) }
+        single { RoomSeedKeyVault() }
+        single { TrustySeedKeyVault() }
+        single<SeedVaultRepository> { SeedVaultRepositoryImpl(get(), get<RoomSeedKeyVault>(), get<TrustySeedKeyVault>()) }
 
         // Domain
         factory { GetSeeds(get<SeedVaultRepository>()::getSeeds) }

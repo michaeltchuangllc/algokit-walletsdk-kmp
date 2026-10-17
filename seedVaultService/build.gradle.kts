@@ -81,6 +81,11 @@ dependencies {
     implementation(libs.koin.android)
     implementation(libs.koin.compose.viewmodel)
 
+    // Trusty applet client (Falcon-1024 keys in the TEE). Replace with the Maven coordinate once published.
+    // A local aar carries no transitive dependencies, so its JNA runtime is declared here.
+    implementation(files("libs/algokit_seed_vault.aar"))
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
+
     // JSON returned over AIDL
     implementation(libs.kotlinx.serialization.json)
 
