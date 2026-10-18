@@ -46,6 +46,7 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
+import com.michaeltchuang.walletsdk.ui.base.utils.isValidDecimalInput
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.GiftAmountValidation
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.sanitizeGiftAmountInput
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.validateGiftAmount
@@ -292,7 +293,9 @@ private fun GiftAmountInput(
             BasicTextField(
                 value = amount,
                 onValueChange = { value ->
-                    onAmountChange(sanitizeGiftAmountInput(value))
+                    if (isValidDecimalInput(value)) {
+                        onAmountChange(sanitizeGiftAmountInput(value))
+                    }
                 },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 singleLine = true,
