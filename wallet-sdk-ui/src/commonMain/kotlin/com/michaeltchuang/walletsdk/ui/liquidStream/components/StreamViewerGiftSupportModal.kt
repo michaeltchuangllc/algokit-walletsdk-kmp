@@ -55,7 +55,7 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun StreamViewerGiftSupportModal(
-    balanceLabel: String = "42.85",
+    balanceLabel: String = "42.850000",
     quickAmounts: List<String> = listOf("0.888", "8.88"),
     initialSelectedAmount: String = "0.888",
     onDismiss: () -> Unit,
@@ -154,7 +154,10 @@ private fun GiftSupportHeader(balanceLabel: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = "GIFT SUPPORTER",
                 style =
@@ -167,7 +170,7 @@ private fun GiftSupportHeader(balanceLabel: String) {
                 color = colors.streamHostTitle,
                 style =
                     AlgoKitTheme.typography.title.regular.sansBold
-                        .copy(fontSize = 28.sp, lineHeight = 24.sp),
+                        .copy(fontSize = 20.sp, lineHeight = 22.sp),
             )
         }
 
@@ -182,18 +185,22 @@ private fun GiftSupportHeader(balanceLabel: String) {
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     text = balanceLabel,
+                    maxLines = 1,
+                    softWrap = false,
                     color = colors.streamHostTitle,
                     style =
                         AlgoKitTheme.typography.title.regular.sansBold
-                            .copy(fontSize = 28.sp, lineHeight = 24.sp),
+                            .copy(fontSize = 18.sp, lineHeight = 20.sp),
                 )
                 Text(
                     text = "USDC",
+                    maxLines = 1,
+                    softWrap = false,
                     color = colors.streamHostAccent,
                     style =
                         AlgoKitTheme.typography.caption.sansBold
                             .copy(fontSize = 12.sp),
-                    modifier = Modifier.padding(bottom = 3.dp),
+                    modifier = Modifier.padding(bottom = 2.dp),
                 )
             }
         }
