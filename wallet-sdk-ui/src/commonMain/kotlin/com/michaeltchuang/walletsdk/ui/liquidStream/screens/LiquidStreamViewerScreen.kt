@@ -62,13 +62,13 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.ConnectedViewersC
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerGiftSupportModal
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerSettingsSheet
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamViewerTopUpModel
+import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatUsdcSixDecimals
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidAuthViewerViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
-import kotlin.math.round
 
 @Composable
 fun LiquidStreamViewerScreen(
@@ -346,7 +346,7 @@ private fun LiquidStreamViewerScreenContent(
         }
 
         if (uiState.showTopUpSheet) {
-            val sessionVaultBalanceLabel = ((round(remainingBalanceUsdc * 100) / 100)).toString()
+            val sessionVaultBalanceLabel = formatUsdcSixDecimals(remainingBalanceUsdc)
             StreamViewerTopUpModel(
                 balanceLabel = sessionVaultBalanceLabel,
                 networkLabel = networkLabel,
@@ -359,7 +359,7 @@ private fun LiquidStreamViewerScreenContent(
         }
 
         if (uiState.showGiftSupportSheet) {
-            val sessionVaultBalanceLabel = ((round(remainingBalanceUsdc * 100) / 100)).toString()
+            val sessionVaultBalanceLabel = formatUsdcSixDecimals(remainingBalanceUsdc)
             StreamViewerGiftSupportModal(
                 balanceLabel = sessionVaultBalanceLabel,
                 initialSelectedAmount = uiState.giftAmountTag.takeIf { it.toDoubleOrNull()?.let { d -> d > 0.0 } == true } ?: "0.888",
