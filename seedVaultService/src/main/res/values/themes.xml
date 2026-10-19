@@ -3,4 +3,10 @@
     <style name="Theme.SeedVaultService" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/seed_vault_background</item>
     </style>
+
+    <!-- MainActivity: see-through, so the confirm sign sheet floats over the app that asked for the signature -->
+    <style name="Theme.SeedVaultService.Translucent" parent="Theme.SeedVaultService">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>

@@ -35,9 +35,11 @@ Rules:
 
 - The contract is `ISeedVaultService.aidl` in `seedVaultService/src/main/aidl/...`. **`serviceDemoApp` has a copy; edit both together.** Keep `SeedVaultContract` (service) and `SeedVaultServiceConstants` (client) in sync with the manifests.
 - The service is exported and protected by the dangerous permission `<package>.ACCESS_SEED_VAULT`. Every call also checks the caller's uid, resolved with `Binder.getCallingUid()`, against the seed's `authorized_app` rows. Throw `SecurityException` for an unauthorized caller. Never trust a package name the caller sends.
+- Every AIDL signature needs a matching one-time approval (`SignApprovalCoordinator`, 60 s, per app and exact operation) from the confirm sign screen, where the user verifies with fingerprint / screen lock (`UserAuthenticators`: Trusty applet if it can, else the system prompt). No way to verify means no. Clients call `CONFIRM_SIGN` before every sign call.
 - AIDL returns only public data (id, name, address, public key) and signatures. Never return a seed phrase, entropy, seed or private key.
 - The vault builds what it signs when it can: `signAlgorandPayment` takes a receiver, amount and network values, and sets the sender and fee itself, so a caller cannot get an arbitrary transaction signed.
-- Authorization happens in `AuthorizeAppActivity`, started by the client with `startActivityForResult`. The caller package comes from `callingActivity`, never from an extra.
+- `MainActivity` is the only activity: a Compose `NavHost` that also hosts the authorize screen (`AUTHORIZE_APP` action) and the confirm sign screen (`CONFIRM_SIGN`, started by the client with `startActivityForResult`; a service cannot open a screen from the background). Do not add activities.
+- Authorization is started by the client with `startActivityForResult`. The caller package comes from `callingActivity`, never from an extra.
 - The vault never talks to the network. The client fetches algod params and sends the signed transaction.
 - Anything that can reach a seed phrase or key shows `SecureScreen()` (FLAG_SECURE).
 

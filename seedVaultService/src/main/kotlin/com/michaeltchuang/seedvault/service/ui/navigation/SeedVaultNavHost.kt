@@ -9,10 +9,14 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.michaeltchuang.seedvault.service.R
+import com.michaeltchuang.seedvault.service.ui.components.SecureScreen
 import com.michaeltchuang.seedvault.service.ui.screens.AddSeedScreen
+import com.michaeltchuang.seedvault.service.ui.screens.AuthorizeAppScreen
 import com.michaeltchuang.seedvault.service.ui.screens.AuthorizedAppsScreen
+import com.michaeltchuang.seedvault.service.ui.screens.ConfirmSignScreen
 import com.michaeltchuang.seedvault.service.ui.screens.ImportSeedScreen
 import com.michaeltchuang.seedvault.service.ui.screens.RevealSeedPhraseScreen
+import com.michaeltchuang.seedvault.service.ui.screens.SecurityScreen
 import com.michaeltchuang.seedvault.service.ui.screens.SeedDetailsScreen
 import com.michaeltchuang.seedvault.service.ui.screens.SeedPhraseScreen
 import com.michaeltchuang.seedvault.service.ui.screens.SeedVaultSettingsScreen
@@ -47,6 +51,22 @@ data class SeedPhrase(
     val seedId: Long,
 )
 
+@Serializable
+data object Security
+
+/** Start destination when an app asked to be authorized (AUTHORIZE_APP intent). */
+@Serializable
+data class AuthorizeApp(
+    val appPackageName: String,
+    val appLabel: String,
+)
+
+/** Start destination when the service needs the user to approve a signature. */
+@Serializable
+data class ConfirmSign(
+    val requestId: String,
+)
+
 /**
  * Every screen gets its own ViewModel scoped to its back stack entry, so the seed phrase screens
  * drop the words from memory as soon as they are popped.
@@ -55,6 +75,8 @@ data class SeedPhrase(
 fun SeedVaultNavHost(
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
+    startDestination: Any = SeedVaultSettings,
+    onFlowFinished: (approved: Boolean) -> Unit = {},
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -65,7 +87,7 @@ fun SeedVaultNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = SeedVaultSettings,
+        startDestination = startDestination,
         modifier = modifier,
     ) {
         composable<SeedVaultSettings> {
@@ -74,7 +96,27 @@ fun SeedVaultNavHost(
                 onSeedClick = { seed -> navController.navigate(SeedDetails(seed.id)) },
                 onAddSeed = { navController.navigate(AddSeed) },
                 onImportSeed = { navController.navigate(ImportSeed) },
-                onSecurityClick = showPlaceholder,
+                onSecurityClick = { navController.navigate(Security) },
+            )
+        }
+        composable<Security> {
+            SecurityScreen(onBack = { navController.navigateUp() })
+        }
+        composable<AuthorizeApp> { entry ->
+            val route = entry.toRoute<AuthorizeApp>()
+            SecureScreen()
+            AuthorizeAppScreen(
+                appPackageName = route.appPackageName,
+                appLabel = route.appLabel,
+                onAllowed = { onFlowFinished(true) },
+                onDeny = { onFlowFinished(false) },
+            )
+        }
+        composable<ConfirmSign> { entry ->
+            SecureScreen()
+            ConfirmSignScreen(
+                requestId = entry.toRoute<ConfirmSign>().requestId,
+                onGone = onFlowFinished,
             )
         }
         composable<AddSeed> {

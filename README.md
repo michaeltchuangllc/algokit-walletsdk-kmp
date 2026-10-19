@@ -134,7 +134,7 @@ timeline
              : ✅ Seed Vault - Escrow Session Vault for Solana accounts
              : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
              : 🔄 Seed Vault - Create AOSP android service for seed vault (trusty) applet
-             : 🔄 Seed Vault - Seed vault service (own repo)
+             : 🔄 Seed Vault - Migrate to seed vault service own repo
              : Seed Vault - Create seed vault sdk
              : Research - React Native sample app talking to seed vault service
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
