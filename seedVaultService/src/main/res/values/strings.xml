@@ -75,4 +75,23 @@
     <string name="no_authorized_apps">No apps are authorized for this seed.</string>
     <string name="revoke">Revoke</string>
     <string name="authorized">Authorized</string>
+
+    <string name="auth_unavailable">Set up a fingerprint or screen lock on this device to continue.</string>
+    <string name="reveal_auth_title">Verify it\'s you</string>
+    <string name="authorize_auth_title">Allow %1$s</string>
+    <string name="confirm_sign_auth_title">Approve signature</string>
+    <string name="confirm_sign_title">%1$s wants a signature</string>
+    <string name="confirm_sign_seed">Seed: %1$s</string>
+    <string name="confirm_sign_bytes">Sign %1$d bytes of data</string>
+    <string name="confirm_sign_payment">Send %1$s ALGO to %2$s</string>
+    <string name="confirm_sign_approve">Verify and sign</string>
+    <string name="confirm_sign_deny">Deny</string>
+    <string name="security_title">Security and fingerprint</string>
+    <string name="security_description">Seed Vault asks you to verify yourself before it shows a seed phrase, lets an app use your seeds, or signs for an app.</string>
+    <string name="security_status_ready">Ready: your fingerprint or screen lock is used.</string>
+    <string name="security_status_missing">Not set up: add a fingerprint or screen lock, or Seed Vault refuses these actions.</string>
+    <string name="security_test">Test verification</string>
+    <string name="security_test_title">Test verification</string>
+    <string name="security_test_ok">Verified</string>
+    <string name="security_open_settings">Open device security settings</string>
 </resources>

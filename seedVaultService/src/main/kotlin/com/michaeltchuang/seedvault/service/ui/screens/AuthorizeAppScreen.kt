@@ -27,6 +27,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.seedvault.service.R
+import com.michaeltchuang.seedvault.service.ui.auth.rememberRequireAuth
 import com.michaeltchuang.seedvault.service.ui.components.SeedChip
 import com.michaeltchuang.seedvault.service.ui.components.SeedVaultPrimaryButton
 import com.michaeltchuang.seedvault.service.ui.components.SeedVaultWideButton
@@ -51,6 +52,7 @@ fun AuthorizeAppScreen(
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val requireAuth = rememberRequireAuth(title = stringResource(R.string.authorize_auth_title, appLabel))
 
     LaunchedEffect(Unit) {
         viewModel.viewEvent.collect { event ->
@@ -66,7 +68,7 @@ fun AuthorizeAppScreen(
     AuthorizeAppContent(
         content = content,
         onToggleSeed = viewModel::onToggleSeed,
-        onAllow = viewModel::onAllow,
+        onAllow = { requireAuth(viewModel::onAllow) },
         onDeny = onDeny,
         modifier = modifier,
     )

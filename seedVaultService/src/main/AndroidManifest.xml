@@ -21,22 +21,21 @@
         android:theme="@style/Theme.SeedVaultService"
         tools:replace="android:name,android:allowBackup">
 
+        <!-- The only activity. Also hosts the authorize (AUTHORIZE_APP) and confirm sign (CONFIRM_SIGN) screens -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:theme="@style/Theme.SeedVaultService.Translucent">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".AuthorizeAppActivity"
-            android:exported="true"
-            android:excludeFromRecents="true"
-            android:theme="@style/Theme.SeedVaultService">
             <intent-filter>
                 <action android:name="com.michaeltchuang.seedvault.service.AUTHORIZE_APP" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.michaeltchuang.seedvault.service.CONFIRM_SIGN" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>

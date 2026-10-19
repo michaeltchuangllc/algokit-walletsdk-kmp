@@ -42,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.seedvault.service.R
+import com.michaeltchuang.seedvault.service.ui.auth.rememberRequireAuth
 import com.michaeltchuang.seedvault.service.ui.components.GlowingIcon
 import com.michaeltchuang.seedvault.service.ui.components.SeedVaultBackButton
 import com.michaeltchuang.seedvault.service.ui.components.SeedVaultPrimaryButton
@@ -62,11 +63,12 @@ fun RevealSeedPhraseScreen(
     viewModel: RevealSeedPhraseViewModel = koinViewModel(),
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
+    val requireAuth = rememberRequireAuth(title = stringResource(R.string.reveal_auth_title))
     RevealSeedPhraseContent(
         viewState = viewState,
         onAcknowledgementChanged = viewModel::onAcknowledgementChanged,
         onBack = onBack,
-        onReveal = onReveal,
+        onReveal = { requireAuth(onReveal) },
         modifier = modifier,
     )
 }
