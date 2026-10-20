@@ -95,6 +95,15 @@ open class CommonAnswerViewModel(
     }
 
     private var streamInfoValidationJob: Job? = null
+
+    private data class StreamInfoValidationKey(
+        val metadata: JsonObject,
+        val account: String,
+        val session: String,
+        val generation: Long,
+    )
+
+    private var streamInfoValidationKey: StreamInfoValidationKey? = null
     private val _isViewerStreamNetworkValidated = MutableStateFlow(false)
     val isViewerStreamNetworkValidated: StateFlow<Boolean> = _isViewerStreamNetworkValidated
     private var advertisedStreamNetwork: String? = null
@@ -105,6 +114,7 @@ open class CommonAnswerViewModel(
         viewerConnectionGeneration++
         streamInfoValidationJob?.cancel()
         streamInfoValidationJob = null
+        streamInfoValidationKey = null
         advertisedStreamNetwork = null
         streamNetworkRejected = false
         _isViewerStreamNetworkValidated.value = false
@@ -354,15 +364,25 @@ open class CommonAnswerViewModel(
         message: String,
         onHostDiscovered: (String?) -> Unit = {},
     ) {
-        streamInfoValidationJob?.cancel()
-        _isViewerStreamNetworkValidated.value = false
         val address = accountAddress.value
         val currentSession = session.value
         val generation = viewerConnectionGeneration
+        val metadata = runCatching { json.parseToJsonElement(message).jsonObject }.getOrNull()
+        val key = metadata?.let { StreamInfoValidationKey(it, address, currentSession, generation) }
+        if (key != null && key == streamInfoValidationKey && !streamNetworkRejected) {
+            if (streamInfoValidationJob?.isActive == true) return
+            if (_isViewerStreamNetworkValidated.value) {
+                onHostDiscovered(metadata.optString("hostAddress"))
+                return
+            }
+        }
+        streamInfoValidationJob?.cancel()
+        streamInfoValidationKey = key
+        _isViewerStreamNetworkValidated.value = false
         streamInfoValidationJob =
             viewModelScope.launch {
                 try {
-                    val info = json.parseToJsonElement(message).jsonObject
+                    val info = metadata ?: json.parseToJsonElement(message).jsonObject
                     val network = info.readMppNetwork()
                     validateLiquidStreamMetadataNetwork(
                         getLocalAccount(address),

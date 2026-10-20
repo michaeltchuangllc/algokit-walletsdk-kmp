@@ -1693,7 +1693,6 @@ actual class LiquidAuthConnectionManager actual constructor(
 
     private fun notifyHostMessageReceived(message: String) {
         val requestId = activeRequestId ?: return
-        sendPrimarySessionInfo()
         if (!admitHostViewerIdentity(requestId, message)) return
         val parsed = runCatching { parseLiquidAuthHostTransportMessage(message) }.getOrElse { return }
         val ref = parsed.reference ?: "(no-ref)"

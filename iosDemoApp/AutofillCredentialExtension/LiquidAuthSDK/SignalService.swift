@@ -298,6 +298,24 @@ public class SignalService {
                       self.hostViewers[viewer.requestId] === viewer,
                       viewer.peer?.peerConnection === connection, viewer.connected else { return }
                 viewer.connectionTypeReadInFlight = false
+                #if DEBUG
+                for entry in report.statistics.values where entry.type == "outbound-rtp" &&
+                    (entry.values["kind"] as? String ?? entry.values["mediaType"] as? String) == "video" {
+                    let codecId = entry.values["codecId"] as? String ?? ""
+                    let codec = report.statistics[codecId]?.values["mimeType"] as? String ?? "unknown"
+                    let sourceId = entry.values["mediaSourceId"] as? String ?? ""
+                    let sourceFrames = report.statistics[sourceId]?.values["frames"] as? NSNumber
+                    func counter(_ name: String) -> String {
+                        (entry.values[name] as? NSNumber)?.stringValue ?? "unknown"
+                    }
+                    Logger.info(
+                        "Broadcast video: enabled=\(viewer.peer?.localVideoTrack?.isEnabled ?? false) " +
+                        "codec=\(codec) sourceFrames=\(sourceFrames?.stringValue ?? "unknown") " +
+                        "framesEncoded=\(counter("framesEncoded")) bytesSent=\(counter("bytesSent")) " +
+                        "size=\(counter("frameWidth"))x\(counter("frameHeight"))"
+                    )
+                }
+                #endif
                 self.onHostViewerConnectionType?(
                     viewer.requestId, Self.selectedConnectionType(report)
                 )

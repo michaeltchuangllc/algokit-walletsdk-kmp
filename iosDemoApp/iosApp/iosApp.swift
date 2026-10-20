@@ -351,20 +351,40 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         let capturer = RTCCameraVideoCapturer(delegate: media.videoSource)
         guard let camera = RTCCameraVideoCapturer.captureDevices().first(where: { $0.position == .front })
             ?? RTCCameraVideoCapturer.captureDevices().first,
-            let format = RTCCameraVideoCapturer.supportedFormats(for: camera).max(by: {
-                CMVideoFormatDescriptionGetDimensions($0.formatDescription).width <
-                    CMVideoFormatDescriptionGetDimensions($1.formatDescription).width
+            let format = RTCCameraVideoCapturer.supportedFormats(for: camera).min(by: {
+                func distance(_ format: AVCaptureDevice.Format) -> Int32 {
+                    let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                    return abs(size.width - SharedBroadcastMedia.captureWidth) +
+                        abs(size.height - SharedBroadcastMedia.captureHeight)
+                }
+                let firstDistance = distance($0)
+                let secondDistance = distance($1)
+                if firstDistance != secondDistance { return firstDistance < secondDistance }
+                let preferred = capturer.preferredOutputPixelFormat()
+                return CMFormatDescriptionGetMediaSubType($0.formatDescription) == preferred &&
+                    CMFormatDescriptionGetMediaSubType($1.formatDescription) != preferred
             }) else {
             NSLog("❌ Broadcast: no camera available for WebRTC capture")
             return
         }
 
-        let fps = min(format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 30, 30)
+        let fps = min(
+            format.videoSupportedFrameRateRanges.map(\.maxFrameRate).max() ?? 30,
+            Double(SharedBroadcastMedia.captureFPS)
+        )
         broadcastVideoCapturer = capturer
-        capturer.startCapture(with: camera, format: format, fps: Int(fps)) { error in
-            if let error { NSLog("❌ Broadcast camera start failed: \(error)") }
+        capturer.startCapture(with: camera, format: format, fps: Int(fps)) { [weak self, weak capturer] error in
+            DispatchQueue.main.async {
+                guard let self, let capturer, self.broadcastVideoCapturer === capturer else { return }
+                if let error {
+                    NSLog("❌ Broadcast camera start failed: \(error)")
+                    self.stopBroadcastMedia()
+                    return
+                }
+                let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+                NSLog("✅ Broadcast: WebRTC camera started at \(size.width)x\(size.height) @ \(Int(fps)) fps")
+            }
         }
-        NSLog("✅ Broadcast: shared WebRTC camera and microphone source started")
     }
 
     private func isViewerBootstrapMessage(_ message: String) -> Bool {
