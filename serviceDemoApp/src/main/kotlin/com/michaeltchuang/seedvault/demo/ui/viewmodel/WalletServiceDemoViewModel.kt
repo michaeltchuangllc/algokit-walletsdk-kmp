@@ -3,6 +3,7 @@ package com.michaeltchuang.seedvault.demo.ui.viewmodel
 import android.app.Application
 import android.database.ContentObserver
 import android.database.Cursor
+import android.content.Intent
 import android.net.Uri
 import android.os.Handler
 import android.util.Log
@@ -157,6 +158,11 @@ class WalletServiceDemoViewModel(
      * Sign [SIGN_DEMO_MESSAGE] with a seed over AIDL and show the size and start of the signature.
      */
     fun signDemoMessage(seed: SeedVaultSeed) {
+        val data = SIGN_DEMO_MESSAGE.toByteArray()
+        requestConfirmation(seedVaultClient.confirmSignBytesIntent(seed.id, data)) { signDemoMessageApproved(seed) }
+    }
+
+    private fun signDemoMessageApproved(seed: SeedVaultSeed) {
         _uiState.update { it.copy(loading = true, errorMessage = null, signResult = null) }
 
         viewModelScope.launch {
@@ -226,6 +232,22 @@ class WalletServiceDemoViewModel(
         viewModelScope.launch {
             try {
                 val paramsJson = algorandRepository.getPaymentParamsJson()
+                requestConfirmation(seedVaultClient.confirmSignPaymentIntent(seed.id, seed.address, 0L, paramsJson)) {
+                    signAndSendPayment(seed, paramsJson)
+                }
+            } catch (e: Exception) {
+                Log.e("WalletServiceDemo", "Algorand payment failed", e)
+                _uiState.update {
+                    it.copy(errorMessage = "Algorand payment failed: ${e.message}", loading = false)
+                }
+            }
+        }
+    }
+
+    private fun signAndSendPayment(seed: SeedVaultSeed, paramsJson: String) {
+        _uiState.update { it.copy(loading = true, errorMessage = null) }
+        viewModelScope.launch {
+            try {
                 val signed = withContext(Dispatchers.IO) {
                     seedVaultClient.signAlgorandPayment(seed.id, seed.address, 0L, paramsJson)
                 } ?: error("Seed Vault Service could not sign the payment")
@@ -244,6 +266,24 @@ class WalletServiceDemoViewModel(
                     it.copy(errorMessage = "Algorand payment failed: ${e.message}", loading = false)
                 }
             }
+        }
+    }
+
+    /**
+     * Seed Vault Service only signs what the user approved on its confirm screen, which this app has
+     * to open itself. [onApproved] runs when the user approved and verified themselves.
+     */
+    private fun requestConfirmation(intent: Intent, onApproved: () -> Unit) {
+        viewModelScope.launch {
+            _viewModelEvents.emit(
+                ViewModelEvent.ConfirmSign(
+                    intent = intent,
+                    onApproved = onApproved,
+                    onDenied = {
+                        _uiState.update { it.copy(loading = false, errorMessage = "Signature not approved") }
+                    }
+                )
+            )
         }
     }
 
@@ -972,6 +1012,11 @@ class WalletServiceDemoViewModel(
  */
 sealed interface ViewModelEvent {
     data object AuthorizeNewSeed : ViewModelEvent
+    data class ConfirmSign(
+        val intent: Intent,
+        val onApproved: () -> Unit,
+        val onDenied: () -> Unit
+    ) : ViewModelEvent
     data class SignTransferTransaction(
         val transactionBase64: String,
         val authToken: Long,

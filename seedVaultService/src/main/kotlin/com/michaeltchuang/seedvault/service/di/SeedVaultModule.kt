@@ -1,5 +1,8 @@
 package com.michaeltchuang.seedvault.service.di
 
+import com.michaeltchuang.seedvault.service.data.auth.OsUserAuthenticator
+import com.michaeltchuang.seedvault.service.data.auth.TrustyUserAuthenticator
+import com.michaeltchuang.seedvault.service.data.auth.UserAuthenticators
 import com.michaeltchuang.seedvault.service.data.database.SeedVaultDatabase
 import com.michaeltchuang.seedvault.service.data.repository.SeedVaultRepositoryImpl
 import com.michaeltchuang.seedvault.service.data.vault.RoomSeedKeyVault
@@ -20,6 +23,7 @@ import com.michaeltchuang.seedvault.service.domain.usecase.RevokeAuthorizedAppUs
 import com.michaeltchuang.seedvault.service.domain.usecase.SignBytes
 import com.michaeltchuang.seedvault.service.domain.usecase.ValidateSeedPhrase
 import com.michaeltchuang.seedvault.service.domain.usecase.ValidateSeedPhraseUseCase
+import com.michaeltchuang.seedvault.service.remote.SignApprovalCoordinator
 import com.michaeltchuang.seedvault.service.ui.viewmodel.AddSeedViewModel
 import com.michaeltchuang.seedvault.service.ui.viewmodel.AuthorizeAppViewModel
 import com.michaeltchuang.seedvault.service.ui.viewmodel.AuthorizedAppsViewModel
@@ -41,7 +45,10 @@ val seedVaultModule =
         single { get<SeedVaultDatabase>().seedDao() }
         single { RoomSeedKeyVault() }
         single { TrustySeedKeyVault() }
+        single { UserAuthenticators(trusty = TrustyUserAuthenticator(), os = OsUserAuthenticator(androidContext())) }
         single<SeedVaultRepository> { SeedVaultRepositoryImpl(get(), get<RoomSeedKeyVault>(), get<TrustySeedKeyVault>()) }
+
+        single { SignApprovalCoordinator() }
 
         // Domain
         factory { GetSeeds(get<SeedVaultRepository>()::getSeeds) }

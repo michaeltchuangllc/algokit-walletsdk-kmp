@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -33,6 +34,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
@@ -41,12 +43,13 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalCustomColors
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.LocalThemeIsDark
+import com.michaeltchuang.walletsdk.ui.base.utils.isValidDecimalInput
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun StreamViewerTopUpModel(
-    balanceLabel: String = "42.85",
+    balanceLabel: String = "42.850000",
     quickAmounts: List<String> = listOf("0.888", "8.88"),
     initialTopUpAmount: String = "2.22",
     networkLabel: String = "TESTNET",
@@ -138,7 +141,10 @@ private fun TopUpHeader(balanceLabel: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             Text(
                 text = "LIQUID STREAM",
                 style =
@@ -153,8 +159,8 @@ private fun TopUpHeader(balanceLabel: String) {
                 color = colors.streamHostTitle,
                 style =
                     AlgoKitTheme.typography.title.regular.sansBold.copy(
-                        fontSize = 28.sp,
-                        lineHeight = 24.sp,
+                        fontSize = 20.sp,
+                        lineHeight = 22.sp,
                     ),
             )
         }
@@ -178,20 +184,24 @@ private fun TopUpHeader(balanceLabel: String) {
             ) {
                 Text(
                     text = balanceLabel,
+                    maxLines = 1,
+                    softWrap = false,
                     color = colors.streamHostTitle,
                     style =
                         AlgoKitTheme.typography.title.regular.sansBold.copy(
-                            fontSize = 28.sp,
-                            lineHeight = 24.sp,
+                            fontSize = 18.sp,
+                            lineHeight = 20.sp,
                         ),
                 )
                 Text(
                     text = "USDC",
+                    maxLines = 1,
+                    softWrap = false,
                     color = colors.streamHostAccent,
                     style =
                         AlgoKitTheme.typography.caption.sansBold
                             .copy(fontSize = 12.sp),
-                    modifier = Modifier.padding(bottom = 3.dp),
+                    modifier = Modifier.padding(bottom = 2.dp),
                 )
             }
         }
@@ -322,9 +332,10 @@ private fun TopUpInput(
             BasicTextField(
                 value = amount,
                 onValueChange = { value ->
-                    onAmountChange(value.filter { it.isDigit() || it == '.' }.take(7))
+                    if (isValidDecimalInput(value)) onAmountChange(value.take(7))
                 },
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 textStyle =
                     AlgoKitTheme.typography.title.regular.sansBold.copy(
                         color = colors.streamHostTitle,

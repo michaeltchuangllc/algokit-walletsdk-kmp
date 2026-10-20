@@ -16,6 +16,19 @@ object SeedVaultContract {
 
     /** Action of the activity where the user authorizes the calling app. Start it with startActivityForResult. */
     const val ACTION_AUTHORIZE_APP = "$PACKAGE.AUTHORIZE_APP"
+
+    /**
+     * Action of the activity where the user approves a signature and verifies themselves. Start it
+     * with startActivityForResult with the values you are about to pass to the sign method, then
+     * call that method after RESULT_OK. Extras: [EXTRA_SEED_ID] and either [EXTRA_DATA] (signBytes)
+     * or [EXTRA_RECEIVER], [EXTRA_AMOUNT_MICRO_ALGOS] and [EXTRA_PARAMS_JSON] (signAlgorandPayment).
+     */
+    const val ACTION_CONFIRM_SIGN = "$PACKAGE.CONFIRM_SIGN"
+    const val EXTRA_SEED_ID = "seed_id"
+    const val EXTRA_DATA = "data"
+    const val EXTRA_RECEIVER = "receiver"
+    const val EXTRA_AMOUNT_MICRO_ALGOS = "amount_micro_algos"
+    const val EXTRA_PARAMS_JSON = "params_json"
 }
 
 /** Algod values for `signAlgorandPayment`. [genesisHash] is Base64 encoded. */

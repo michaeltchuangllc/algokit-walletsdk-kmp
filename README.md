@@ -131,18 +131,20 @@ timeline
              
     section In Progress 🔄
     2026Q4   
-             : 🔄 Seed Vault - Escrow Session Vault for Solana accounts
+             : ✅ Seed Vault - Escrow Session Vault for Solana accounts
              : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
-             : 🔄 Seed Vault - Create AOSP Service for Algorand Trusty applet
-             : Liquid Stream - Liquid Stream demo app (own repo)
-             : Research - React Native sample app talking to Trusty seed vault
+             : 🔄 Seed Vault - Create AOSP android service for seed vault (trusty) applet
+             : 🔄 Seed Vault - Migrate to seed vault service own repo
+             : Seed Vault - Create seed vault sdk
+             : Research - React Native sample app talking to seed vault service
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
              : Seed Vault - Integrate Use-Wallet v5 with chain-agnostic accounts
-             : AlgoKit-Core - KMP wallet app (own repo and separate Algo SDK)
+             : Liquid Stream - Liquid Stream demo app (own repo)
              : Liquid Stream - Improve bot commenting in demo mode
 
     section Future 🔮
-    Backlog  : Liquid Stream - Website showing latest escrow session vault activity
+    Backlog  : Onboarding - PQ Passkeys
+             : Liquid Stream - Website showing latest escrow session vault activity
              : Onboarding - Rekey flow
              : Onboarding - Liquid Auth (Rekeyed Accounts)
              : Onboarding - Ledger flow
@@ -150,7 +152,6 @@ timeline
              : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
              : Liquid Gossip mobile POC
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
-             : Onboarding - PQ Passkeys
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
              : TBD
 

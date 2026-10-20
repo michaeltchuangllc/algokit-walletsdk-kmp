@@ -24,12 +24,14 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: WalletServiceDemoViewModel by viewModels()
+    private var pendingConfirmation: ViewModelEvent.ConfirmSign? = null
 
     companion object {
         private const val TAG = "MainActivity"
         private const val REQUEST_CODE_AUTHORIZE_SEED = 100
         private const val REQUEST_CODE_SIGN_TRANSACTION = 101
         private const val REQUEST_CODE_AUTHORIZE_APP = 102
+        private const val REQUEST_CODE_CONFIRM_SIGN = 103
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,6 +64,10 @@ class MainActivity : ComponentActivity() {
             is ViewModelEvent.AuthorizeNewSeed -> {
                 Log.d(TAG, "Handling AuthorizeNewSeed event")
                 authorizeNewSeed()
+            }
+            is ViewModelEvent.ConfirmSign -> {
+                pendingConfirmation = event
+                startActivityForResult(event.intent, REQUEST_CODE_CONFIRM_SIGN)
             }
             is ViewModelEvent.SignTransferTransaction -> {
                 Log.d(TAG, "Handling SignTransferTransaction event for authToken=${event.authToken}")
@@ -102,6 +108,11 @@ class MainActivity : ComponentActivity() {
         when (requestCode) {
             REQUEST_CODE_AUTHORIZE_APP -> {
                 if (resultCode == RESULT_OK) viewModel.fetchSeedVaultSeeds()
+            }
+            REQUEST_CODE_CONFIRM_SIGN -> {
+                val confirmation = pendingConfirmation
+                pendingConfirmation = null
+                if (resultCode == RESULT_OK) confirmation?.onApproved?.invoke() else confirmation?.onDenied?.invoke()
             }
             REQUEST_CODE_AUTHORIZE_SEED -> {
                 try {

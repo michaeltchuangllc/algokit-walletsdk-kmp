@@ -118,6 +118,33 @@ class SeedVaultServiceClient(
             setPackage(SeedVaultServiceConstants.PACKAGE)
         }
 
+    /**
+     * Intent for the screen where the user approves signing [data] and verifies themselves. Start it
+     * with startActivityForResult and call [signBytes] with the same values after RESULT_OK.
+     */
+    fun confirmSignBytesIntent(
+        seedId: Long,
+        data: ByteArray,
+    ): Intent =
+        confirmSignIntent(seedId).putExtra(SeedVaultServiceConstants.EXTRA_DATA, data)
+
+    /** Same for [signAlgorandPayment]: pass the same values to it after RESULT_OK. */
+    fun confirmSignPaymentIntent(
+        seedId: Long,
+        receiver: String,
+        amountMicroAlgos: Long,
+        paramsJson: String,
+    ): Intent =
+        confirmSignIntent(seedId)
+            .putExtra(SeedVaultServiceConstants.EXTRA_RECEIVER, receiver)
+            .putExtra(SeedVaultServiceConstants.EXTRA_AMOUNT_MICRO_ALGOS, amountMicroAlgos)
+            .putExtra(SeedVaultServiceConstants.EXTRA_PARAMS_JSON, paramsJson)
+
+    private fun confirmSignIntent(seedId: Long): Intent =
+        Intent(SeedVaultServiceConstants.ACTION_CONFIRM_SIGN)
+            .setPackage(SeedVaultServiceConstants.PACKAGE)
+            .putExtra(SeedVaultServiceConstants.EXTRA_SEED_ID, seedId)
+
     private companion object {
         const val TAG = "SeedVaultServiceClient"
     }

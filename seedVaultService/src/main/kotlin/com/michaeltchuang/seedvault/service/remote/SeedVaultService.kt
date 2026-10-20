@@ -23,6 +23,7 @@ import org.koin.android.ext.android.inject
  */
 class SeedVaultService : Service() {
     private val seedVaultRepository: SeedVaultRepository by inject()
+    private val signApprovals: SignApprovalCoordinator by inject()
 
     override fun onBind(intent: Intent?): IBinder = binder
 
@@ -48,6 +49,7 @@ class SeedVaultService : Service() {
                 val packages = callerPackages()
                 return runBlocking(Dispatchers.IO) {
                     requireAuthorized(packages, seedId)
+                    requireUserApproval(packages, SignOperation.bytes(seedId, data))
                     seedVaultRepository.signBytes(seedId, data)
                 }
             }
@@ -65,6 +67,7 @@ class SeedVaultService : Service() {
                         .getOrElse { throw IllegalArgumentException("Invalid Algorand parameters", it) }
                 return runBlocking(Dispatchers.IO) {
                     requireAuthorized(packages, seedId)
+                    requireUserApproval(packages, SignOperation.payment(seedId, receiver, amountMicroAlgos, paramsJson))
                     seedVaultRepository.signAlgorandPayment(seedId, receiver, amountMicroAlgos, params)
                 }
             }
@@ -85,9 +88,17 @@ class SeedVaultService : Service() {
     private suspend fun requireAuthorized(
         packages: Set<String>,
         seedId: Long,
+    ): VaultSeed =
+        authorizedSeeds(packages).firstOrNull { it.id == seedId }
+            ?: throw SecurityException("The calling app is not authorized for seed $seedId")
+
+    /** Every signature needs one the user approved on the confirm sign screen, which the client starts first. */
+    private fun requireUserApproval(
+        packages: Set<String>,
+        operation: SignOperation,
     ) {
-        if (authorizedSeeds(packages).none { it.id == seedId }) {
-            throw SecurityException("The calling app is not authorized for seed $seedId")
+        if (!signApprovals.consume(packages, operation)) {
+            throw SecurityException("The user has not approved this signature. Start ${SeedVaultContract.ACTION_CONFIRM_SIGN} first")
         }
     }
 
