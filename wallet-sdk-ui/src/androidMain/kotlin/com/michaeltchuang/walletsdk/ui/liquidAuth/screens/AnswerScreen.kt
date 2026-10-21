@@ -69,12 +69,6 @@ fun AnswerScreen(
     var deliveredMessageCount by remember { mutableIntStateOf(0) }
     val streamHostUiModeState = remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val miniPlayerCameraPreviewState = remember { mutableStateOf<(@Composable () -> Unit)?>(null) }
-    LaunchedEffect(streamNetworkValidated) {
-        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
-    }
-    LaunchedEffect(streamNetworkValidated) {
-        if (!streamNetworkValidated) miniPlayerCameraPreviewState.value = null
-    }
     var remoteVideoTrack by remember { mutableStateOf<VideoTrack?>(null) }
     var eglBaseContext by remember { mutableStateOf<EglBase.Context?>(null) }
     val viewerBottomSheetState =
@@ -163,15 +157,23 @@ fun AnswerScreen(
     }
 
     val viewerCameraPreview: (@Composable () -> Unit)? =
-        remoteVideoTrack?.takeIf { streamNetworkValidated }?.let { track ->
-            {
-                WebRtcVideoRenderer(
-                    eglBaseContext = eglBaseContext,
-                    videoTrack = track,
-                    mirror = true,
-                )
+        remember(remoteVideoTrack, eglBaseContext, streamNetworkValidated) {
+            remoteVideoTrack?.takeIf { streamNetworkValidated }?.let { track ->
+                {
+                    WebRtcVideoRenderer(
+                        eglBaseContext = eglBaseContext,
+                        videoTrack = track,
+                        mirror = true,
+                    )
+                }
             }
         }
+
+    LaunchedEffect(viewerCameraPreview, streamHostUiModeState.value) {
+        if (streamHostUiModeState.value == StreamHostUiMode.Minimized || viewerCameraPreview == null) {
+            miniPlayerCameraPreviewState.value = viewerCameraPreview
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (shouldShowViewerSheet) {

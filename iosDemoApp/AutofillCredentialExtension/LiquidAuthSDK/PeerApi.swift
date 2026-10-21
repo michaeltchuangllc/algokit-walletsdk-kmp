@@ -21,6 +21,10 @@ import WebRTC
 /// One source/factory per broadcast, retained independently of the viewer registry.
 /// Camera ownership stays in the app (this SDK is also built into the extension).
 final class SharedBroadcastMedia {
+    static let captureWidth: Int32 = 1280
+    static let captureHeight: Int32 = 720
+    static let captureFPS: Int32 = 30
+
     let factory: RTCPeerConnectionFactory
     let videoSource: RTCVideoSource
     let audioSource: RTCAudioSource
@@ -30,8 +34,14 @@ final class SharedBroadcastMedia {
 
     init() {
         RTCPeerConnectionFactory.initialize()
-        factory = RTCPeerConnectionFactory()
+        factory = RTCPeerConnectionFactory(
+            encoderFactory: RTCDefaultVideoEncoderFactory(),
+            decoderFactory: RTCDefaultVideoDecoderFactory()
+        )
         videoSource = factory.videoSource()
+        videoSource.adaptOutputFormat(
+            toWidth: Self.captureWidth, height: Self.captureHeight, fps: Self.captureFPS
+        )
         audioSource = factory.audioSource(
             with: RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
         )
