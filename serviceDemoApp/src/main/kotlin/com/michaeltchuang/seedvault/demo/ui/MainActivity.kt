@@ -17,13 +17,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.michaeltchuang.seedvault.demo.ui.viewmodel.ViewModelEvent
 import com.michaeltchuang.seedvault.demo.ui.viewmodel.WalletServiceDemoViewModel
-import com.solanamobile.seedvault.SigningRequest
-import com.solanamobile.seedvault.Wallet
-import com.solanamobile.seedvault.WalletContractV1
+import com.michaeltchuang.seedvault.sdk.client.SolanaSeedVaultClient
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private val viewModel: WalletServiceDemoViewModel by viewModels()
+    private val solanaVaultClient by lazy { SolanaSeedVaultClient(this) }
     private var pendingConfirmation: ViewModelEvent.ConfirmSign? = null
 
     companion object {
@@ -51,7 +50,7 @@ class MainActivity : ComponentActivity() {
             MaterialTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = MaterialTheme.colorScheme.background,
                 ) {
                     WalletServiceDemoScreen(viewModel, onAuthorizeApp = ::authorizeApp)
                 }
@@ -67,7 +66,13 @@ class MainActivity : ComponentActivity() {
             }
             is ViewModelEvent.ConfirmSign -> {
                 pendingConfirmation = event
-                startActivityForResult(event.intent, REQUEST_CODE_CONFIRM_SIGN)
+                try {
+                    startActivityForResult(event.intent, REQUEST_CODE_CONFIRM_SIGN)
+                } catch (e: Exception) {
+                    pendingConfirmation = null
+                    event.onDenied()
+                    Log.e(TAG, "Could not open signing confirmation", e)
+                }
             }
             is ViewModelEvent.SignTransferTransaction -> {
                 Log.d(TAG, "Handling SignTransferTransaction event for authToken=${event.authToken}")
@@ -76,18 +81,18 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun signTransferTransaction(transactionBase64: String, authToken: Long, derivationPath: Uri) {
-        // Decode the base64 transaction message
-        val transactionBytes = android.util.Base64.decode(transactionBase64, android.util.Base64.DEFAULT)
-
-        // Create a SigningRequest
-        val paths = arrayListOf(derivationPath)
-        val signingRequest = SigningRequest(transactionBytes, paths)
-        val signingRequests = arrayListOf(signingRequest)
-
-        // Launch the signing intent
-        val intent = Wallet.signTransactions(this, authToken, signingRequests)
-        startActivityForResult(intent, REQUEST_CODE_SIGN_TRANSACTION)
+    private fun signTransferTransaction(
+        transactionBase64: String,
+        authToken: Long,
+        derivationPath: Uri,
+    ) {
+        try {
+            val intent = solanaVaultClient.signingIntent(transactionBase64, authToken, derivationPath)
+            startActivityForResult(intent, REQUEST_CODE_SIGN_TRANSACTION)
+        } catch (e: Exception) {
+            viewModel.onTransferSigningFailed("Could not start transaction signing: ${e.message}")
+            Log.e(TAG, "Could not start transaction signing", e)
+        }
     }
 
     /** Asks the user in Seed Vault Service which seeds this app may use. */
@@ -96,12 +101,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun authorizeNewSeed() {
-        val intent = Wallet.authorizeSeed(this, WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION)
+        val intent = solanaVaultClient.authorizeSeedIntent()
         startActivityForResult(intent, REQUEST_CODE_AUTHORIZE_SEED)
     }
 
     @Deprecated("Deprecated in Java")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?,
+    ) {
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -116,36 +125,20 @@ class MainActivity : ComponentActivity() {
             }
             REQUEST_CODE_AUTHORIZE_SEED -> {
                 try {
-                    val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
+                    val authToken = solanaVaultClient.authorizationResult(resultCode, data)
                     Log.d(TAG, "Seed authorized successfully, authToken=$authToken")
                     // Mark accounts as user wallets (required for them to appear in queries)
                     viewModel.markAccountsAsUserWallets(authToken)
-                } catch (e: Wallet.ActionFailedException) {
+                } catch (e: Exception) {
                     Log.e(TAG, "Seed authorization failed: ${e.message}")
                 }
             }
             REQUEST_CODE_SIGN_TRANSACTION -> {
                 try {
-                    val signingResponses = Wallet.onSignTransactionsResult(resultCode, data)
-                    Log.d(TAG, "Transaction signed successfully, responses count=${signingResponses.size}")
-
-                    // Get the signatures from the response
-                    val response = signingResponses.firstOrNull()
-                    val signatures = response?.signatures
-
-                    if (signatures != null && signatures.isNotEmpty()) {
-                        // Get the first signature and send it to the ViewModel
-                        val signature = signatures.first()
-
-                        Log.d(TAG, "Got signature: ${signature.size} bytes")
-
-                        // Encode the signature and send to ViewModel
-                        val signatureBase64 = android.util.Base64.encodeToString(signature, android.util.Base64.DEFAULT)
-                        viewModel.sendSignedTransferTransaction(signatureBase64)
-                    } else {
-                        Log.e(TAG, "No signatures returned from Seed Vault")
-                    }
-                } catch (e: Wallet.ActionFailedException) {
+                    val signatureBase64 = solanaVaultClient.signatureResult(resultCode, data)
+                    viewModel.sendSignedTransferTransaction(signatureBase64)
+                } catch (e: Exception) {
+                    viewModel.onTransferSigningFailed("Transaction signing failed: ${e.message}")
                     Log.e(TAG, "Transaction signing failed: ${e.message}")
                 }
             }

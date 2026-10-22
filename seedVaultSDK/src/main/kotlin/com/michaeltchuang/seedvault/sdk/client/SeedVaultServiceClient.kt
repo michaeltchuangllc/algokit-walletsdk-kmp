@@ -1,4 +1,4 @@
-package com.michaeltchuang.seedvault.demo.client
+package com.michaeltchuang.seedvault.sdk.client
 
 import android.content.ComponentName
 import android.content.Context
@@ -6,9 +6,9 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.os.IBinder
 import android.util.Log
+import com.michaeltchuang.seedvault.sdk.SeedVaultServiceConstants
+import com.michaeltchuang.seedvault.sdk.domain.model.SeedVaultSeed
 import com.michaeltchuang.seedvault.service.ISeedVaultService
-import com.michaeltchuang.seedvault.demo.SeedVaultServiceConstants
-import com.michaeltchuang.seedvault.demo.data.model.SeedVaultSeed
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlin.coroutines.resume
@@ -87,7 +87,8 @@ class SeedVaultServiceClient(
 
     fun isConnected(): Boolean = service != null
 
-    private fun requireService(): ISeedVaultService = service ?: throw IllegalStateException("Not connected to Seed Vault Service. Call bindAsync() first.")
+    private fun requireService(): ISeedVaultService =
+        service ?: throw IllegalStateException("Not connected to Seed Vault Service. Call bindAsync() first.")
 
     /** Seeds the user has authorized this app to use. */
     fun getAuthorizedSeeds(): List<SeedVaultSeed> = json.decodeFromString(requireService().authorizedSeeds)
@@ -125,8 +126,7 @@ class SeedVaultServiceClient(
     fun confirmSignBytesIntent(
         seedId: Long,
         data: ByteArray,
-    ): Intent =
-        confirmSignIntent(seedId).putExtra(SeedVaultServiceConstants.EXTRA_DATA, data)
+    ): Intent = confirmSignIntent(seedId).putExtra(SeedVaultServiceConstants.EXTRA_DATA, data)
 
     /** Same for [signAlgorandPayment]: pass the same values to it after RESULT_OK. */
     fun confirmSignPaymentIntent(

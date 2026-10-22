@@ -13,7 +13,7 @@ package com.michaeltchuang.seedvault.service;
  * sees them, verifies themselves (fingerprint or screen lock) and approves. After RESULT_OK, call
  * the sign method with the same values within a minute. An approval works once, for one call.
  *
- * Keep a copy of this file in sync in every client app.
+ * Keep the SeedVaultSDK and seedVaultService copies in sync. Client apps depend on SeedVaultSDK.
  */
 interface ISeedVaultService {
 

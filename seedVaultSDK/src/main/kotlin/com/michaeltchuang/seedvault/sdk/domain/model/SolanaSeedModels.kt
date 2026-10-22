@@ -1,4 +1,4 @@
-package com.michaeltchuang.seedvault.demo.data.model
+package com.michaeltchuang.seedvault.sdk.domain.model
 
 import android.net.Uri
 
@@ -10,8 +10,7 @@ data class SolanaAccount(
     val name: String,
     val derivationPath: Uri,
     val publicKeyEncoded: String,
-    val balance: Double? = null,  // Balance in SOL, null if not fetched
-    val isBalanceLoading: Boolean = false
+    val balance: Double? = null, // Balance in SOL, null if not fetched
 )
 
 /**
@@ -22,7 +21,7 @@ data class SolanaSeed(
     val name: String,
     val authPurpose: Int,
     val isBackedUp: Boolean,
-    val accounts: List<SolanaAccount>
+    val accounts: List<SolanaAccount>,
 )
 
 /**
@@ -33,5 +32,5 @@ data class SeedVaultLimits(
     val maxRequestedSignatures: Int,
     val maxRequestedPublicKeys: Int,
     val firstRequestedPublicKey: String,
-    val lastRequestedPublicKey: String
+    val lastRequestedPublicKey: String,
 )

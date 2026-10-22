@@ -5,8 +5,8 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
-import com.michaeltchuang.seedvault.demo.SeedVaultServiceConstants
-import com.solanamobile.seedvault.WalletContractV1
+import com.michaeltchuang.seedvault.sdk.SeedVaultServiceConstants
+import com.michaeltchuang.seedvault.sdk.client.SolanaSeedVaultClient
 
 /**
  * Permission Gauntlet Activity that requests Seed Vault permission at runtime.
@@ -20,10 +20,14 @@ class PermissionGauntletActivity : AppCompatActivity() {
         // for it even when the Solana one is already granted. It is only defined while that app is
         // installed, and the connect button reports the problem if it is not.
         val missing =
-            listOf(
-                WalletContractV1.PERMISSION_ACCESS_SEED_VAULT,
-                SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT
-            ).filter { !isGranted(it) }
+            buildList {
+                if (!SolanaSeedVaultClient.hasPermission(this@PermissionGauntletActivity)) {
+                    add(SolanaSeedVaultClient.PERMISSION_ACCESS_SEED_VAULT)
+                }
+                if (!isGranted(SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT)) {
+                    add(SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT)
+                }
+            }
         if (missing.isEmpty()) {
             continueToMain()
             return
@@ -34,12 +38,12 @@ class PermissionGauntletActivity : AppCompatActivity() {
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
-        grantResults: IntArray
+        grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         // Only the Solana Seed Vault permission is required to continue
-        if (solanaGranted()) {
+        if (SolanaSeedVaultClient.hasPermission(this)) {
             Log.d(TAG, "Access Seed Vault permission granted")
             startActivity(Intent(this, MainActivity::class.java))
         } else {
@@ -54,10 +58,6 @@ class PermissionGauntletActivity : AppCompatActivity() {
     }
 
     private fun isGranted(permission: String) = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
-
-    private fun solanaGranted() =
-        isGranted(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) ||
-            isGranted(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT_PRIVILEGED)
 
     companion object {
         private val TAG = PermissionGauntletActivity::class.simpleName
