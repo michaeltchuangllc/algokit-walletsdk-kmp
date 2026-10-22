@@ -1,4 +1,4 @@
-package com.michaeltchuang.seedvault.demo.data.repository
+package com.michaeltchuang.seedvault.sdk.data.repository
 
 import android.util.Log
 import io.ktor.client.HttpClient
@@ -14,6 +14,7 @@ import io.ktor.client.request.url
 import io.ktor.http.ContentType
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -25,7 +26,6 @@ import kotlinx.serialization.json.jsonPrimitive
  * Uses Ktor for HTTP communication with Solana RPC endpoints.
  */
 class SolanaBalanceRepository {
-
     companion object {
         private const val TAG = "SolanaBalanceRepository"
         private const val LAMPORTS_PER_SOL = 1_000_000_000.0
@@ -35,11 +35,12 @@ class SolanaBalanceRepository {
         const val DEVNET_RPC = "https://api.devnet.solana.com"
         const val TESTNET_RPC = "https://api.testnet.solana.com"
 
-        private val json = Json {
-            ignoreUnknownKeys = true
-            prettyPrint = false
-            isLenient = true
-        }
+        private val json =
+            Json {
+                ignoreUnknownKeys = true
+                prettyPrint = false
+                isLenient = true
+            }
     }
 
     private var httpClient: HttpClient? = null
@@ -51,7 +52,7 @@ class SolanaBalanceRepository {
     enum class Cluster {
         MAINNET_BETA,
         DEVNET,
-        TESTNET
+        TESTNET,
     }
 
     /**
@@ -59,29 +60,33 @@ class SolanaBalanceRepository {
      * @param cluster The network cluster (default: DEVNET)
      */
     fun initialize(cluster: Cluster = Cluster.DEVNET) {
-        rpcEndpoint = when (cluster) {
-            Cluster.MAINNET_BETA -> MAINNET_RPC
-            Cluster.DEVNET -> DEVNET_RPC
-            Cluster.TESTNET -> TESTNET_RPC
-        }
+        close()
+        rpcEndpoint =
+            when (cluster) {
+                Cluster.MAINNET_BETA -> MAINNET_RPC
+                Cluster.DEVNET -> DEVNET_RPC
+                Cluster.TESTNET -> TESTNET_RPC
+            }
 
-        httpClient = HttpClient(Android) {
-            install(ContentNegotiation) {
-                json(json)
-            }
-            install(Logging) {
-                logger = object : Logger {
-                    override fun log(message: String) {
-                        Log.d(TAG, message)
-                    }
+        httpClient =
+            HttpClient(Android) {
+                install(ContentNegotiation) {
+                    json(json)
                 }
-                level = LogLevel.INFO
+                install(Logging) {
+                    logger =
+                        object : Logger {
+                            override fun log(message: String) {
+                                Log.d(TAG, message)
+                            }
+                        }
+                    level = LogLevel.INFO
+                }
+                engine {
+                    connectTimeout = 30_000
+                    socketTimeout = 30_000
+                }
             }
-            engine {
-                connectTimeout = 30_000
-                socketTimeout = 30_000
-            }
-        }
 
         Log.d(TAG, "Initialized connection to ${cluster.name} at $rpcEndpoint")
     }
@@ -91,48 +96,56 @@ class SolanaBalanceRepository {
      * @param publicKeyBase58 The account's public key in base58 format
      * @return Balance in SOL, or null if error
      */
-    suspend fun fetchBalance(publicKeyBase58: String): Double? = withContext(Dispatchers.IO) {
-        try {
-            val client = httpClient ?: run {
-                Log.e(TAG, "HTTP client not initialized. Call initialize() first.")
-                return@withContext null
+    suspend fun fetchBalance(publicKeyBase58: String): Double? =
+        withContext(Dispatchers.IO) {
+            try {
+                val client =
+                    httpClient ?: run {
+                        Log.e(TAG, "HTTP client not initialized. Call initialize() first.")
+                        return@withContext null
+                    }
+
+                // Create JSON request
+                val requestJson = """{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["$publicKeyBase58"]}"""
+
+                Log.d(TAG, "Sending request to: $rpcEndpoint")
+                Log.d(TAG, "Request body: $requestJson")
+                Log.d(TAG, "Public key: $publicKeyBase58")
+
+                // Execute Ktor request
+                val response: String =
+                    client
+                        .post {
+                            url(rpcEndpoint)
+                            contentType(ContentType.Application.Json)
+                            setBody(requestJson)
+                        }.body()
+
+                Log.d(TAG, "Response received - length: ${response.length}")
+
+                if (response.length > 500) {
+                    Log.d(TAG, "Raw response (truncated): ${response.take(500)}...")
+                } else {
+                    Log.d(TAG, "Raw response: $response")
+                }
+
+                // Parse JSON response
+                parseBalanceResponse(response, publicKeyBase58)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Error fetching balance for $publicKeyBase58", e)
+                null
             }
-
-            // Create JSON request
-            val requestJson = """{"jsonrpc":"2.0","id":1,"method":"getBalance","params":["$publicKeyBase58"]}"""
-
-            Log.d(TAG, "Sending request to: $rpcEndpoint")
-            Log.d(TAG, "Request body: $requestJson")
-            Log.d(TAG, "Public key: $publicKeyBase58")
-
-            // Execute Ktor request
-            val response: String = client.post {
-                url(rpcEndpoint)
-                contentType(ContentType.Application.Json)
-                setBody(requestJson)
-            }.body()
-
-            Log.d(TAG, "Response received - length: ${response.length}")
-
-            if (response.length > 500) {
-                Log.d(TAG, "Raw response (truncated): ${response.take(500)}...")
-            } else {
-                Log.d(TAG, "Raw response: $response")
-            }
-
-            // Parse JSON response
-            parseBalanceResponse(response, publicKeyBase58)
-
-        } catch (e: Exception) {
-            Log.e(TAG, "Error fetching balance for $publicKeyBase58", e)
-            null
         }
-    }
 
     /**
      * Parse balance from JSON-RPC response
      */
-    private fun parseBalanceResponse(responseString: String, publicKeyBase58: String): Double? {
+    private fun parseBalanceResponse(
+        responseString: String,
+        publicKeyBase58: String,
+    ): Double? {
         return try {
             // Parse JSON manually
             val jsonElement = json.parseToJsonElement(responseString)
@@ -146,7 +159,12 @@ class SolanaBalanceRepository {
 
             // Extract balance from result.value
             val resultObj = (jsonElement as? JsonObject)?.get("result") as? JsonObject
-            val value = resultObj?.get("value")?.jsonPrimitive?.content?.toLongOrNull()
+            val value =
+                resultObj
+                    ?.get("value")
+                    ?.jsonPrimitive
+                    ?.content
+                    ?.toLongOrNull()
 
             if (value == null) {
                 Log.e(TAG, "No balance value in response. Result: $resultObj")
@@ -168,15 +186,16 @@ class SolanaBalanceRepository {
      * @param publicKeyBase58List List of public keys
      * @return Map of public key to balance in SOL
      */
-    suspend fun fetchBalances(publicKeyBase58List: List<String>): Map<String, Double?> = withContext(Dispatchers.IO) {
-        val results = mutableMapOf<String, Double?>()
+    suspend fun fetchBalances(publicKeyBase58List: List<String>): Map<String, Double?> =
+        withContext(Dispatchers.IO) {
+            val results = mutableMapOf<String, Double?>()
 
-        publicKeyBase58List.forEach { publicKey ->
-            results[publicKey] = fetchBalance(publicKey)
+            publicKeyBase58List.forEach { publicKey ->
+                results[publicKey] = fetchBalance(publicKey)
+            }
+
+            results
         }
-
-        results
-    }
 
     /**
      * Check if repository is initialized.

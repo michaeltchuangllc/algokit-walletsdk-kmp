@@ -1,4 +1,4 @@
-package com.michaeltchuang.seedvault.demo.data.model
+package com.michaeltchuang.seedvault.sdk.domain.model
 
 import kotlinx.serialization.Serializable
 

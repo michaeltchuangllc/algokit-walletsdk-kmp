@@ -4,7 +4,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.kotlinx.serialization)
+    alias(libs.plugins.ktlint)
 }
 
 android {
@@ -28,38 +28,26 @@ android {
             )
         }
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_21
         targetCompatibility = JavaVersion.VERSION_21
     }
-    
+
     kotlin {
         compilerOptions {
             jvmTarget.set(JvmTarget.JVM_21)
         }
     }
-    
+
     buildFeatures {
-        aidl = true
         compose = true
     }
 }
 
 dependencies {
-    // Solana Mobile Seed Vault SDK
-    implementation(libs.seedvault.wallet.sdk)
-    
-    // Solana Kotlin SDK for network calls
-    implementation(libs.sol4k)
+    implementation(project(":seedVaultSDK"))
 
-    // Ktor for HTTP client
-    implementation(libs.ktor.client.core)
-    implementation(libs.ktor.client.android)
-    implementation(libs.ktor.client.content.negotiation)
-    implementation(libs.ktor.kotlinx.serialization)
-    implementation(libs.ktor.client.logging)
-    
     // Compose
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -70,17 +58,14 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     debugImplementation(libs.compose.ui.tooling)
-    
+
     // Android - needed for Material theme in AndroidManifest
     implementation(libs.material)
-    
+
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
-    
-    // JSON Serialization
-    implementation(libs.kotlinx.serialization.json)
-    
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

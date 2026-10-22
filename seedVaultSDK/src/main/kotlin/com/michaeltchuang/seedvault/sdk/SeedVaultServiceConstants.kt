@@ -1,4 +1,4 @@
-package com.michaeltchuang.seedvault.demo
+package com.michaeltchuang.seedvault.sdk
 
 /**
  * Names for reaching the Seed Vault Service app. Must match SeedVaultContract in seedVaultService.
