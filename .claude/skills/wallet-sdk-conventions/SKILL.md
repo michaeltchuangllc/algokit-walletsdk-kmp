@@ -7,8 +7,6 @@ description: Shared coding conventions for the AlgoKit Wallet SDK repo. Use befo
 
 Follow the patterns that are already in the code. When in doubt, open a neighbouring file and copy its shape. Do not introduce a new library or pattern without a reason.
 
-For the Seed Vault app and its sample client (`seedVaultService`, `serviceDemoApp`), also read `seed-vault-conventions`.
-
 ## Modules
 
 | Module | What it is |
