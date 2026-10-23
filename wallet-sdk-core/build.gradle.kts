@@ -58,7 +58,6 @@ kotlin {
                         "META-INF/NOTICE.txt",
                         "META-INF/notice.txt",
                         "META-INF/ASL2.0",
-                        "META-INF/*.kotlin_module",
                     ),
                 )
                 // Pick first occurrence of duplicate files
