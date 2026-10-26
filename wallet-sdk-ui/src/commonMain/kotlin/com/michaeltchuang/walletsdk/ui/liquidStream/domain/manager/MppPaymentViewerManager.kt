@@ -18,7 +18,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
-import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaEscrowSessionVaultConfig
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
@@ -1090,7 +1089,7 @@ class MppPaymentViewerManager(
         val state = checkNotNull(session.solana)
         val signerKey = state.signerKey
         require(request.network == params.mppNetwork) { "Solana payment network mismatch" }
-        SolanaStreamVault.cluster(request.network)
+        val vault = SolanaStreamVault.config(request.network)
         require(request.billingMode == BillingMode.SESSION_VAULT) {
             "Solana request billing mode mismatch: expected=${BillingMode.SESSION_VAULT}, received=${request.billingMode}"
         }
@@ -1103,10 +1102,10 @@ class MppPaymentViewerManager(
         require(state.expectedHost.isBlank() || request.payTo == state.expectedHost) { "Solana creator changed" }
         require(request.meta.viewerAddress == null || request.meta.viewerAddress == params.viewerAddress) { "Solana viewer mismatch" }
         val payload = requireNotNull(request.railPayload).jsonObject
-        require(payload["solanaProgramId"]?.jsonPrimitive?.content == SolanaEscrowSessionVaultConfig.DEVNET_PROGRAM_ID) {
+        require(payload["solanaProgramId"]?.jsonPrimitive?.content == vault.programId) {
             "Solana vault program mismatch"
         }
-        require(payload["solanaMint"]?.jsonPrimitive?.content == SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT) {
+        require(payload["solanaMint"]?.jsonPrimitive?.content == vault.usdcMint) {
             "Solana vault mint mismatch"
         }
         val feePayer = requireNotNull(payload["solanaFeePayer"]?.jsonPrimitive?.content) { "Missing Solana creator fee payer" }

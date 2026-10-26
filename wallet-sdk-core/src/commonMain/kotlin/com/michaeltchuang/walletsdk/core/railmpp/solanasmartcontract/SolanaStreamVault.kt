@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultRe
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSessionSignerUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSettlementFeePayerUseCase
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import com.michaeltchuang.walletsdk.core.solana.domain.SubmitSolanaSettlementVoucherUseCase
 import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
 import com.michaeltchuang.walletsdk.core.solana.utils.Base58
@@ -20,10 +21,21 @@ object SolanaStreamVault : KoinComponent {
 
     fun isSolana(network: String): Boolean = network.startsWith("solana:", ignoreCase = true)
 
-    fun cluster(network: String): String {
-        require(network == MppNetworks.SOLANA_DEVNET) { "LiquidStream supports SOLANA_DEVNET only: $network" }
-        return "devnet"
-    }
+    /** Maps a LiquidStream MPP network to its Solana cluster; only devnet and mainnet-beta have the vault. */
+    fun cluster(network: String): String =
+        when (network) {
+            MppNetworks.SOLANA_DEVNET -> SolanaClusters.DEVNET
+            MppNetworks.SOLANA_MAINNET -> SolanaClusters.MAINNET
+            else -> throw IllegalArgumentException("LiquidStream supports Solana devnet and mainnet only: $network")
+        }
+
+    /** Vault program and USDC mint for [network]; the payee advertises these and the viewer checks them. */
+    fun config(network: String): SolanaEscrowSessionVaultConfig =
+        if (cluster(network) == SolanaClusters.MAINNET) {
+            SolanaEscrowSessionVaultConfig.MAINNET
+        } else {
+            SolanaEscrowSessionVaultConfig.DEVNET
+        }
 
     fun salt(
         payer: String,
@@ -40,8 +52,7 @@ object SolanaStreamVault : KoinComponent {
         signer: ByteArray,
         network: String,
     ): ByteArray {
-        cluster(network)
-        val config = SolanaEscrowSessionVaultConfig.DEVNET
+        val config = config(network)
         return Base58.decode(
             SolanaPda
                 .findProgramAddress(

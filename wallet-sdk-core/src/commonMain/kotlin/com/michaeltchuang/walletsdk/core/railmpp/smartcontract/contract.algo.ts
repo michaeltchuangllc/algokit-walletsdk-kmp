@@ -57,6 +57,12 @@ export class EscrowSessionVaultHybridManager extends Contract {
   settlementLogicSig = BoxMap<bytes, Account>({ keyPrefix: 'l' })
 
   /**
+   * Optional payee-controlled delegate allowed to call close on the payee's behalf
+   * (e.g. a hot key when the payee is a Seed Vault / biometric-gated account), keyed by channelId.
+   */
+  authorizedPayeeSigner = BoxMap<bytes, Account>({ keyPrefix: 'e' })
+
+  /**
    * Opens a channel with initial USDC deposit and returns derived channelId.
    * Caller becomes payer.
    * authorizedSigner is signer pubkey hash (32 bytes) computed client-side.
@@ -120,9 +126,10 @@ export class EscrowSessionVaultHybridManager extends Contract {
   }
 
   /**
-   * Set full authorized signer public key and update channel.authorizedSigner hash.
+   * Payer-controlled: set full authorized payer signer public key and update
+   * channel.authorizedSigner hash.
    */
-  setAuthorizedSignerPublicKey(channelId: bytes, authorizedSignerPublicKey: bytes): void {
+  setAuthorizedPayerSigner(channelId: bytes, authorizedSignerPublicKey: bytes): void {
     const channel = this.getChannel(channelId)
     assert(channel.exists, 'Channel does not exist')
 
@@ -135,6 +142,38 @@ export class EscrowSessionVaultHybridManager extends Contract {
 
     data.authorizedSigner = authorizedSignerHash
     channel.value = clone(data)
+  }
+
+  /**
+   * Payee-controlled: registers a delegate account that may call close on the
+   * payee's behalf (e.g. so a Seed Vault payee can close without a fingerprint).
+   * If unset, only the payee account itself can close. Only the payee (never the
+   * delegate) can set, replace, or revoke it.
+   */
+  setAuthorizedPayeeSigner(channelId: bytes, payeeSigner: Account): void {
+    const channel = this.getChannel(channelId)
+    assert(channel.exists, 'Channel does not exist')
+
+    const data = clone(channel.value)
+    assert(Txn.sender === data.payee, 'Only payee can set payee signer')
+    assert(payeeSigner !== Account(), 'Payee signer account required')
+
+    this.authorizedPayeeSigner(channelId).value = payeeSigner
+  }
+
+  /**
+   * Payee-controlled: removes the payee delegate so only the payee can close.
+   */
+  revokeAuthorizedPayeeSigner(channelId: bytes): void {
+    const channel = this.getChannel(channelId)
+    assert(channel.exists, 'Channel does not exist')
+
+    const data = clone(channel.value)
+    assert(Txn.sender === data.payee, 'Only payee can revoke payee signer')
+
+    const payeeSigner = this.authorizedPayeeSigner(channelId)
+    assert(payeeSigner.exists, 'Payee signer not set')
+    payeeSigner.delete()
   }
 
   /**
@@ -190,8 +229,9 @@ export class EscrowSessionVaultHybridManager extends Contract {
   }
 
   /**
-   * Payee closes channel.
-   * Honors the latest on-chain voucher before refunding the payer.
+   * Payee (or the payee's registered authorizedPayeeSigner) closes channel.
+   * Honors the latest on-chain voucher before refunding the payer. Payouts
+   * always go to data.payee, never to the delegate.
    */
   close(channelId: bytes): void {
     const channel = this.getChannel(channelId)
@@ -199,7 +239,9 @@ export class EscrowSessionVaultHybridManager extends Contract {
 
     const data = clone(channel.value)
 
-    assert(Txn.sender === data.payee, 'Only payee can close')
+    const payeeSigner = this.authorizedPayeeSigner(channelId)
+    const isPayeeSigner = payeeSigner.exists ? Txn.sender === payeeSigner.value : false
+    assert(Txn.sender === data.payee || isPayeeSigner, 'Only payee or payee signer can close')
 
     this.finalizeChannel(channelId, data)
   }
@@ -289,6 +331,18 @@ export class EscrowSessionVaultHybridManager extends Contract {
   }
 
   /**
+   * Returns the payee's delegated close signer, or the zero address if unset.
+   */
+  @abimethod({ readonly: true })
+  getAuthorizedPayeeSigner(channelId: bytes): Account {
+    const channel = this.getChannel(channelId)
+    assert(channel.exists, 'Channel does not exist')
+
+    const payeeSigner = this.authorizedPayeeSigner(channelId)
+    return payeeSigner.exists ? payeeSigner.value : Account()
+  }
+
+  /**
    * Read-only helper for clients: deterministic channelId derivation.
    * authorizedSigner must be signer pubkey hash (32 bytes).
    */
@@ -368,6 +422,10 @@ export class EscrowSessionVaultHybridManager extends Contract {
     if (logicSig.exists) {
       logicSig.delete()
     }
+    const payeeSigner = this.authorizedPayeeSigner(channelId)
+    if (payeeSigner.exists) {
+      payeeSigner.delete()
+    }
   }
 
   private setAuthorizedSignerPublicKeyIfProvided(
@@ -381,4 +439,5 @@ export class EscrowSessionVaultHybridManager extends Contract {
       authorizedSignerKey.value = authorizedSignerPublicKey
     }
   }
+
 }

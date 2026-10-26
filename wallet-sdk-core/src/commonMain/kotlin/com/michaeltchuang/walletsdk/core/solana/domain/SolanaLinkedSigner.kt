@@ -29,7 +29,15 @@ data class SolanaSignerBalance(
     val canSweep: Boolean get() = lamports > SolanaClusters.LAMPORTS_PER_SIGNATURE
 }
 
+/**
+ * Single source of truth for which Solana cluster the app talks to. Only two clusters are used:
+ * Algorand MainNet -> Solana mainnet-beta, everything else (TestNet, FutureNet) -> Solana devnet.
+ */
 object SolanaClusters {
+    const val MAINNET = "mainnet-beta"
+    const val DEVNET = "devnet"
+    const val MAINNET_RPC_URL = "https://api.mainnet-beta.solana.com"
+    const val DEVNET_RPC_URL = "https://api.devnet.solana.com"
     const val USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
     const val USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
     const val LAMPORTS_PER_SIGNATURE = 5_000L
@@ -42,12 +50,23 @@ object SolanaClusters {
      */
     const val RENT_EXEMPT_MINIMUM_LAMPORTS = 890_880L
 
-    /** Seed Vault accounts follow the app-wide network toggle: TestNet -> devnet, MainNet -> mainnet-beta. */
+    /** Seed Vault accounts follow the app-wide network toggle: MainNet -> mainnet-beta, TestNet/FutureNet -> devnet. */
     fun clusterFor(network: AlgorandNetwork): String =
         when (network) {
-            AlgorandNetwork.MAINNET -> "mainnet-beta"
-            AlgorandNetwork.TESTNET, AlgorandNetwork.FUTURENET -> "devnet"
+            AlgorandNetwork.MAINNET -> MAINNET
+            AlgorandNetwork.TESTNET, AlgorandNetwork.FUTURENET -> DEVNET
         }
 
-    fun usdcMintFor(cluster: String): String = if (cluster.contains("mainnet", ignoreCase = true)) USDC_MINT_MAINNET else USDC_MINT_DEVNET
+    /** Accepts bare cluster names and MPP CAIP-style ids (`solana:mainnet-beta`); anything not mainnet is devnet. */
+    fun isMainnet(cluster: String): Boolean = cluster.contains("mainnet", ignoreCase = true)
+
+    fun rpcUrlFor(cluster: String): String = if (isMainnet(cluster)) MAINNET_RPC_URL else DEVNET_RPC_URL
+
+    fun usdcMintFor(cluster: String): String = if (isMainnet(cluster)) USDC_MINT_MAINNET else USDC_MINT_DEVNET
+
+    /** Solana Explorer defaults to mainnet, so only non-mainnet clusters need the query. */
+    fun explorerAddressUrl(
+        address: String,
+        cluster: String,
+    ): String = "https://explorer.solana.com/address/$address" + if (isMainnet(cluster)) "" else "?cluster=$DEVNET"
 }

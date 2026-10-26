@@ -29,10 +29,17 @@ object EscrowSessionVaultHybridManagerClient {
     private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
     private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
+    private val AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX = "e".encodeToByteArray()
+
+    /** App-account MBR for the payee-signer box: 2,500 + 400 * (1-byte prefix + 32 key + 32 value). */
+    const val PAYEE_SIGNER_BOX_MBR_MICRO_ALGO = 28_500L
 
     private val ABI_OPEN = byteArrayOf(0x48, 0xd5.toByte(), 0x3e, 0x32)
     private val ABI_TOP_UP = byteArrayOf(0xbd.toByte(), 0xcf.toByte(), 0xac.toByte(), 0x58)
-    private val ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY = byteArrayOf(0x4b, 0x1d, 0xbb.toByte(), 0x67)
+    private val ABI_SET_AUTHORIZED_PAYER_SIGNER = byteArrayOf(0x3d, 0xfb.toByte(), 0x17, 0x72)
+    private val ABI_SET_AUTHORIZED_PAYEE_SIGNER = byteArrayOf(0x65, 0xbc.toByte(), 0xc5.toByte(), 0x4c)
+    private val ABI_REVOKE_AUTHORIZED_PAYEE_SIGNER = byteArrayOf(0xae.toByte(), 0x89.toByte(), 0xa7.toByte(), 0xf8.toByte())
+    private val ABI_GET_AUTHORIZED_PAYEE_SIGNER = byteArrayOf(0x6d, 0x35, 0x09, 0xc6.toByte())
     private val ABI_SET_SETTLEMENT_LOGIC_SIG = byteArrayOf(0x42, 0xd9.toByte(), 0x75, 0xa6.toByte())
     private val ABI_REVOKE_SETTLEMENT_LOGIC_SIG = byteArrayOf(0x20, 0xb9.toByte(), 0xbe.toByte(), 0x9b.toByte())
     private val ABI_CLOSE = byteArrayOf(0xe8.toByte(), 0x6a, 0xe9.toByte(), 0xe9.toByte())
@@ -151,7 +158,8 @@ object EscrowSessionVaultHybridManagerClient {
             )
         }
 
-    suspend fun setAuthorizedSignerPublicKey(
+    /** Payer-controlled: sets the session public key whose vouchers may settle the channel. */
+    suspend fun setAuthorizedPayerSigner(
         signer: MppWalletSigner,
         channelId: ByteArray,
         authorizedSignerPublicKey: ByteArray,
@@ -164,7 +172,7 @@ object EscrowSessionVaultHybridManagerClient {
                 algodUrl = algodUrl,
                 args =
                     listOf(
-                        ABI_SET_AUTHORIZED_SIGNER_PUBLIC_KEY,
+                        ABI_SET_AUTHORIZED_PAYER_SIGNER,
                         encodeArc4DynamicBytes(channelId),
                         encodeArc4DynamicBytes(authorizedSignerPublicKey),
                     ),
@@ -175,6 +183,82 @@ object EscrowSessionVaultHybridManagerClient {
                     ),
                 foreignAssets = emptyList(),
             )
+        }
+
+    /**
+     * Payee-controlled: registers [payeeSignerAddress] as a delegate allowed to [close] on the
+     * payee's behalf (e.g. a hot key for a Seed Vault payee). Payouts still go to the payee.
+     * [signer] must be the channel's payee. The first registration creates a box, so the app
+     * account must hold an extra [PAYEE_SIGNER_BOX_MBR_MICRO_ALGO] (see [fundMbrPool]).
+     */
+    suspend fun setAuthorizedPayeeSigner(
+        signer: MppWalletSigner,
+        channelId: ByteArray,
+        payeeSignerAddress: String,
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                algodUrl = algodUrl,
+                args =
+                    listOf(
+                        ABI_SET_AUTHORIZED_PAYEE_SIGNER,
+                        encodeArc4DynamicBytes(channelId),
+                        decodeAlgorandAddressPublicKey(payeeSignerAddress),
+                    ),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            )
+        }
+
+    /** Payee-controlled: removes the payee delegate so only the payee itself can [close]. */
+    suspend fun revokeAuthorizedPayeeSigner(
+        signer: MppWalletSigner,
+        channelId: ByteArray,
+    ): Result<String> =
+        runCatching {
+            submitAppCallInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                algodUrl = algodUrl,
+                args = listOf(ABI_REVOKE_AUTHORIZED_PAYEE_SIGNER, encodeArc4DynamicBytes(channelId)),
+                boxKeys =
+                    listOf(
+                        Pair(appId, channelId),
+                        Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
+                    ),
+                foreignAssets = emptyList(),
+            )
+        }
+
+    /**
+     * Reads the channel's payee delegate via a free readonly simulate call. Returns null when no
+     * delegate is registered (the contract returns the zero address).
+     */
+    fun getAuthorizedPayeeSigner(channelId: ByteArray): Result<String?> =
+        runCatching {
+            val simulated =
+                simulateReadonlyMethodInternal(
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    selector = ABI_GET_AUTHORIZED_PAYEE_SIGNER,
+                    args = listOf(encodeArc4DynamicBytes(channelId)),
+                    boxKeys =
+                        listOf(
+                            Pair(appId, channelId),
+                            Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
+                        ),
+                ) ?: error("getAuthorizedPayeeSigner: readonly simulate call failed for appId=$appId")
+            check(simulated.size >= 32) { "getAuthorizedPayeeSigner: unexpected return size=${simulated.size}" }
+            val publicKey = simulated.copyOfRange(0, 32)
+            if (publicKey.all { it == 0.toByte() }) null else encodeAlgorandAddress(publicKey)
         }
 
     /**
@@ -298,7 +382,7 @@ object EscrowSessionVaultHybridManagerClient {
             )
         }
 
-    // payee/creator side
+    /** Payee/creator side: [signer] is the payee or its registered [setAuthorizedPayeeSigner] delegate. */
     suspend fun close(
         signer: MppWalletSigner,
         channelId: ByteArray,
@@ -315,6 +399,7 @@ object EscrowSessionVaultHybridManagerClient {
                         Pair(appId, channelId),
                         Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
                         Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                        Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
                     ),
                 foreignAssets = listOf(usdcAssetId),
                 foreignAccounts = getChannelParticipants(channelId),
@@ -354,6 +439,7 @@ object EscrowSessionVaultHybridManagerClient {
                         Pair(appId, channelId),
                         Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + channelId),
                         Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + channelId),
+                        Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
                     ),
                 foreignAssets = listOf(usdcAssetId),
                 foreignAccounts = getChannelParticipants(channelId),

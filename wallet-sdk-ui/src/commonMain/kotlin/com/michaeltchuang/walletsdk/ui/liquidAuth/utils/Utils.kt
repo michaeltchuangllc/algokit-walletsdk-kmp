@@ -146,8 +146,8 @@ fun resolveLiquidStreamAccountNetwork(
     ) { "This account cannot sign LiquidStream transactions on this platform." }
     val resolved =
         if (account is LocalAccount.SeedVault) {
-            require(network != AlgorandNetwork.MAINNET) { "Solana mainnet streaming is not supported." }
-            MppNetworks.SOLANA_DEVNET
+            // Seed Vault accounts follow the app-wide toggle: MainNet -> Solana mainnet, else devnet.
+            if (network == AlgorandNetwork.MAINNET) MppNetworks.SOLANA_MAINNET else MppNetworks.SOLANA_DEVNET
         } else {
             when (network) {
                 AlgorandNetwork.MAINNET -> MppNetworks.ALGORAND_MAINNET

@@ -59,7 +59,7 @@ class SubmitSolanaSettlementVoucherUseCase(
         val cluster =
             when (network) {
                 "devnet", "solana:devnet" -> "devnet"
-                "mainnet-beta", "solana:mainnet" -> "mainnet-beta"
+                "mainnet-beta", "solana:mainnet", "solana:mainnet-beta" -> "mainnet-beta"
                 else -> return Result.failure(IllegalArgumentException("Unsupported Solana network: $network"))
             }
         return runCatching {

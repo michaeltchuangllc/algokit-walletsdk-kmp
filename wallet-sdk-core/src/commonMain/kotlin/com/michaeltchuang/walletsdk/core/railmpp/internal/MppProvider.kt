@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequest
 import com.michaeltchuang.walletsdk.core.railmpp.spec.ChargeRequestCodec
 import com.michaeltchuang.walletsdk.core.railmpp.spec.SuggestedParams
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import io.github.aakira.napier.Napier
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -353,12 +354,7 @@ internal class MppProvider(
         signedTransaction: ByteArray,
         network: String,
     ): String {
-        val endpoint =
-            when {
-                network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
-                network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
-                else -> "https://api.devnet.solana.com"
-            }
+        val endpoint = SolanaClusters.rpcUrlFor(network)
 
         val rpcPayload =
             JsonObject(

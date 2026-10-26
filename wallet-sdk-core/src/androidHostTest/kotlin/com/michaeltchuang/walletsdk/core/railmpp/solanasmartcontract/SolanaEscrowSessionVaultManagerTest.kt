@@ -52,8 +52,10 @@ class SolanaEscrowSessionVaultManagerTest {
             listOf(
                 SolanaEscrowSessionVaultManager.IX_OPEN,
                 SolanaEscrowSessionVaultManager.IX_TOP_UP,
-                SolanaEscrowSessionVaultManager.IX_SET_AUTHORIZED_SIGNER,
-                SolanaEscrowSessionVaultManager.IX_REVOKE_AUTHORIZED_SIGNER,
+                SolanaEscrowSessionVaultManager.IX_SET_AUTHORIZED_PAYER_SIGNER,
+                SolanaEscrowSessionVaultManager.IX_REVOKE_AUTHORIZED_PAYER_SIGNER,
+                SolanaEscrowSessionVaultManager.IX_SET_AUTHORIZED_PAYEE_SIGNER,
+                SolanaEscrowSessionVaultManager.IX_REVOKE_AUTHORIZED_PAYEE_SIGNER,
                 SolanaEscrowSessionVaultManager.IX_SETTLE,
                 SolanaEscrowSessionVaultManager.IX_REQUEST_CLOSE,
                 SolanaEscrowSessionVaultManager.IX_CLOSE,
@@ -69,12 +71,13 @@ class SolanaEscrowSessionVaultManagerTest {
         val mint = Base58.decode(SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT)
         val signer = randomKey()
         val salt = randomKey()
+        val payeeSigner = randomKey()
 
         fun u64(v: Long) = ByteArray(8) { i -> (v ushr (8 * i)).toByte() }
         val data =
             SolanaEscrowSessionVaultManager.CHANNEL_ACCOUNT_DISCRIMINATOR + payer + payee + mint + signer +
                 u64(3_000_000) + u64(1_200_001) + u64(1_200_001) + u64(12345) + u64(1_700_000_000) + u64(0) +
-                byteArrayOf(253.toByte()) + salt
+                byteArrayOf(253.toByte()) + salt + payeeSigner
         assertEquals(SolanaEscrowSessionVaultManager.CHANNEL_ACCOUNT_SIZE, data.size)
 
         val channel = SolanaEscrowSessionVaultManager.decodeChannel("chan", data)
@@ -88,6 +91,33 @@ class SolanaEscrowSessionVaultManagerTest {
         assertNull(channel.withdrawAvailableAt)
         assertEquals(253, channel.bump)
         assertContentEquals(salt, channel.salt)
+        assertEquals(Base58.encode(payeeSigner), channel.payeeSigner)
+        assertTrue(channel.canClose(Base58.encode(payee)))
+        assertTrue(channel.canClose(Base58.encode(payeeSigner)))
+        assertTrue(!channel.canClose(Base58.encode(payer)))
+    }
+
+    @Test
+    fun unsetPayeeSignerOnlyLetsPayeeClose() {
+        fun u64(v: Long) = ByteArray(8) { i -> (v ushr (8 * i)).toByte() }
+        val payee = randomKey()
+        val data =
+            SolanaEscrowSessionVaultManager.CHANNEL_ACCOUNT_DISCRIMINATOR + randomKey() + payee +
+                Base58.decode(SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT) + randomKey() +
+                u64(1) + u64(0) + u64(0) + u64(1) + u64(1) + u64(0) + byteArrayOf(1) + randomKey() + ByteArray(32)
+
+        val channel = SolanaEscrowSessionVaultManager.decodeChannel("chan", data)
+        assertEquals(SolanaEscrowSessionVaultManager.REVOKED_SIGNER, channel.payeeSigner)
+        assertTrue(!channel.hasPayeeSigner)
+        assertTrue(channel.canClose(Base58.encode(payee)))
+        assertTrue(!channel.canClose(SolanaEscrowSessionVaultManager.REVOKED_SIGNER))
+    }
+
+    @Test
+    fun mapsInvalidPayeeSignerError() {
+        val mapped = SolanaEscrowSessionVaultManager.mapProgramError(IllegalStateException("custom program error: 0x177c"))
+        assertIs<SolanaEscrowVaultException>(mapped)
+        assertEquals(SolanaEscrowVaultError.InvalidPayeeSigner, mapped.error)
     }
 
     @Test

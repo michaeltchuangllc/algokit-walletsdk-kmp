@@ -18,7 +18,6 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSess
 import com.michaeltchuang.walletsdk.core.railmpp.internal.mppNowMs
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
-import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaEscrowSessionVaultConfig
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import io.github.aakira.napier.Napier
@@ -753,10 +752,11 @@ class PaywalledRTCServer
                     ),
                 railPayload =
                     if (isSolana) {
+                        val vault = SolanaStreamVault.config(config.gating.network)
                         buildJsonObject {
                             put("solanaFeePayer", requireNotNull(solanaFeePayer))
-                            put("solanaProgramId", SolanaEscrowSessionVaultConfig.DEVNET_PROGRAM_ID)
-                            put("solanaMint", SolanaEscrowSessionVaultConfig.DEVNET_USDC_MINT)
+                            put("solanaProgramId", vault.programId)
+                            put("solanaMint", vault.usdcMint)
                         }
                     } else {
                         null
