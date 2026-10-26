@@ -83,7 +83,7 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    "Creator fee payer (creator's linked signer) — pays settle fees and token-account rent:\n" +
+                    "Creator fee payer / payee signer (creator's linked key) — pays settle fees and token-account rent:\n" +
                         state.payeeFeePayer.ifBlank { "Not selected" } +
                         (state.payeeFeePayerLamports?.let { "\nBalance: ${formatSolanaDebugSol(it)} SOL" } ?: ""),
                     color = AlgoKitTheme.colors.textMain,
@@ -130,9 +130,16 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             viewModel::settle,
         )
         VaultAction("Authorize viewer voucher signer (on-chain)", hasChannel) { viewModel.authorizeSigner(sign) }
+        VaultAction("Revoke viewer voucher signer", hasChannel) { viewModel.revokeSigner(sign) }
+        VaultAction("Authorize creator payee signer (on-chain)", hasChannel) { viewModel.authorizePayeeSigner(sign) }
+        VaultAction("Revoke creator payee signer", hasChannel) { viewModel.revokePayeeSigner(sign) }
         VaultAction("Fund creator fee payer 0.01 SOL · creator", hasChannel) { viewModel.fundFeePayer(sign) }
-        VaultAction("Revoke voucher signer", hasChannel) { viewModel.revokeSigner(sign) }
         VaultAction("Close & refund · creator", hasChannel) { viewModel.close(sign) }
+        VaultAction(
+            "Close & refund · creator payee signer (hot wallet)",
+            hasChannel && state.channel?.payeeSigner == state.payeeFeePayer,
+            viewModel::closeWithPayeeSigner,
+        )
         VaultAction("Request close · viewer", hasChannel) { viewModel.requestClose(sign) }
         VaultAction("Withdraw after 888 seconds", hasChannel) { viewModel.withdraw(sign) }
         if (state.isLoading) CircularProgressIndicator()
@@ -142,7 +149,8 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
                     Text(
                         "Remaining: ${formatDebugUsdc(channel.remainingDeposit)} USDC\n" +
                             "Settled: ${formatDebugUsdc(channel.lastSettled)} USDC\n" +
-                            "Authorized signer: ${channel.authorizedSigner}" +
+                            "Viewer voucher signer: ${if (channel.isSignerRevoked) "Revoked" else channel.authorizedSigner}\n" +
+                            "Creator payee signer: ${if (channel.hasPayeeSigner) channel.payeeSigner else "Not set"}" +
                             (channel.withdrawAvailableAt?.let { "\nWithdraw available at Unix time: $it" } ?: ""),
                         color = AlgoKitTheme.colors.textMain,
                     )

@@ -152,7 +152,7 @@ object MppPayments {
                 ?: EscrowSessionVaultHybridManagerClient.channelId
                 ?: return Result.failure(Exception("channelId is null"))
         val result =
-            EscrowSessionVaultHybridManagerClient.setAuthorizedSignerPublicKey(
+            EscrowSessionVaultHybridManagerClient.setAuthorizedPayerSigner(
                 signer,
                 resolvedChannelId,
                 authorizedSignerPublicKey,
