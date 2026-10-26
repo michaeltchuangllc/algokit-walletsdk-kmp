@@ -128,31 +128,31 @@ timeline
             : ✅ Liquid Stream - Add in chat and super-chat functionality
             : ✅ Testing - Add debug host mode for liquid stream (with multiple bot viewers)
             : ✅ Liquid Stream - Research lowering cost of (Lsig / smart contract) session vault for Algorand          
-             
+
     section In Progress 🔄
     2026Q4   
              : ✅ Seed Vault - Escrow Session Vault for Solana accounts
-             : ✅ Seed Vault - Create seed vault sdk
-             : 🔄 Seed Vault - Sign Liquid Auth using Algorand Trusty seed vault seeds
-             : 🔄 Seed Vault - Create AOSP android service for seed vault (trusty) applet
-             : 🔄 Seed Vault - Migrate to seed vault service own repo
-             : Research - React Native sample app talking to seed vault service
+             : ✅ Seed Vault - Create Seed Vault SDK and AOSP service
+             : ✅ Seed Vault - Migrate seed vault related modules to own repo
+             : 🔄 Seed Vault - Support Algorand Seed Vault seeds in Liquid Auth/Stream
+             : Research - React Native sample app talking to Seed Vault SDK
              : Liquid Auth - Docs site is chain agnostic with use-wallet v5 (Algorand, Solana, etc)
+             : Seed Vault - Add in WASM runtime into TEE
              : Seed Vault - Integrate Use-Wallet v5 with chain-agnostic accounts
-             : Liquid Stream - Liquid Stream demo app (own repo)
-             : Liquid Stream - Improve bot commenting in demo mode
+             
 
     section Future 🔮
     Backlog  : Onboarding - PQ Passkeys
              : Liquid Stream - Website showing latest escrow session vault activity
              : Onboarding - Rekey flow
              : Onboarding - Liquid Auth (Rekeyed Accounts)
-             : Onboarding - Ledger flow
              : Settings - Localization (Chinese, Spanish, French, Portuguese, Japanese, Korean, German)
              : Transaction - Upgrade to GoPlausible escrow MPP session standard for micro-billing
              : Liquid Gossip mobile POC
              : Liquid Stream - Switch to new Liquid-Auth-Core SDK
              : Liquid Stream - Implement new landscape Figma Liquid Stream app screens
+             : Liquid Stream - Liquid Stream demo app (own repo)
+             : Liquid Stream - Improve bot commenting in demo mode
              : TBD
 
 ```
