@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingConfig
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import com.michaeltchuang.walletsdk.core.solana.utils.Base58
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthOfferViewModel
@@ -158,9 +159,6 @@ class LiquidAuthPollingJobController(
     }
 }
 
-private const val SOLANA_USDC_DEVNET_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
-private const val SOLANA_USDC_MAINNET_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-
 data class ResolvedLiquidAuthPaymentRequest(
     val network: String,
     val amount: String,
@@ -203,7 +201,7 @@ fun resolveLiquidAuthPaymentRequest(paymentRequest: PaymentRequest): ResolvedLiq
         if (isSolanaNetwork) {
             // The stream protocol uses a currency symbol, not an SPL mint address.
             // The chain-specific mint is supplied separately in railPayload.solanaMint.
-            val mint = if (network == MppNetworks.SOLANA_MAINNET) SOLANA_USDC_MAINNET_MINT else SOLANA_USDC_DEVNET_MINT
+            val mint = SolanaClusters.usdcMintFor(network)
             require(paymentRequest.asset.isBlank() || paymentRequest.asset == "USDC" || paymentRequest.asset == mint) {
                 "Unsupported Solana stream asset: ${paymentRequest.asset}"
             }

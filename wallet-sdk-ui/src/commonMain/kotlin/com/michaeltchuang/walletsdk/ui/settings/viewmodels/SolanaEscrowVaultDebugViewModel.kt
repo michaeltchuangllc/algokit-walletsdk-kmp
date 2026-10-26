@@ -279,13 +279,75 @@ class SolanaEscrowVaultDebugViewModel(
 
     fun authorizeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
         ownerAction("Authorize signer", sign, clearsPending = true) { current, channel, signer ->
-            manager.setAuthorizedSigner(current.cluster, signer, channel.address, current.payerSessionKey).getOrThrow()
+            manager.setAuthorizedPayerSigner(current.cluster, signer, channel.address, current.payerSessionKey).getOrThrow()
         }
     }
 
     fun revokeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
         ownerAction("Revoke signer", sign, clearsPending = true) { current, channel, signer ->
-            manager.revokeAuthorizedSigner(current.cluster, signer, channel.address).getOrThrow()
+            manager.revokeAuthorizedPayerSigner(current.cluster, signer, channel.address).getOrThrow()
+        }
+    }
+
+    /**
+     * Payee (creator Seed Vault) registers its linked hot key ([State.payeeFeePayer]) as the on-chain
+     * payee signer, so that key can close the channel without a Seed Vault prompt.
+     */
+    fun authorizePayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
+        ownerAction("Authorize creator payee signer", sign, payeeSigns = true) { current, channel, signer ->
+            val payeeSigner = current.payeeFeePayer
+            check(payeeSigner.isNotBlank()) { "Creator linked key is not available yet. Refresh first." }
+            manager.setAuthorizedPayeeSigner(current.cluster, signer, channel.address, payeeSigner).getOrThrow()
+        }
+    }
+
+    fun revokePayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
+        ownerAction("Revoke creator payee signer", sign, payeeSigns = true) { current, channel, signer ->
+            manager.revokeAuthorizedPayeeSigner(current.cluster, signer, channel.address).getOrThrow()
+        }
+    }
+
+    /** Closes the channel using the creator's linked hot key (must be the registered payee signer). */
+    fun closeWithPayeeSigner() {
+        val label = "Close via creator payee signer"
+        runOperation("$label…") { token, _ ->
+            refreshContext(token)
+            val current = state.value
+            val channel = requireSelected(current)
+            val linked =
+                getSessionSigner(current.payee)?.asSolanaTransactionSigner()
+                    ?: error("No linked key for creator ${current.payee}.")
+            checkCurrent(token)
+            check(linked.address == current.payeeFeePayer) { "Creator linked key changed. Refresh and try again." }
+            check(channel.hasPayeeSigner && channel.payeeSigner == linked.address) {
+                "The creator linked key is not the channel's payee signer. Use Authorize Creator Payee Signer first."
+            }
+            checkNetwork(token, current.cluster)
+            val signature =
+                manager
+                    .close(
+                        current.cluster,
+                        object : SolanaTransactionSigner {
+                            override val address: String = linked.address
+
+                            override suspend fun signMessage(message: ByteArray): ByteArray {
+                                checkNetwork(token, current.cluster)
+                                val signature = linked.signMessage(message)
+                                checkNetwork(token, current.cluster)
+                                return signature
+                            }
+                        },
+                        channel.address,
+                    ).getOrThrow()
+            checkCurrent(token)
+            mutableState.update {
+                it.copy(
+                    pendingVoucher = null,
+                    channel = null,
+                    channels = it.channels.filterNot { candidate -> candidate.address == channel.address },
+                )
+            }
+            afterWrite(token, "$label confirmed: $signature")
         }
     }
 
@@ -700,6 +762,7 @@ class SolanaEscrowVaultDebugViewModel(
                 left.startSlot == right.startSlot &&
                 left.startTimestamp == right.startTimestamp &&
                 left.closeRequestedAt == right.closeRequestedAt &&
+                left.payeeSigner == right.payeeSigner &&
                 left.bump == right.bump
         }
     }

@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.core.solana.data
 
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.expectSuccess
 import io.ktor.client.request.post
@@ -388,11 +389,6 @@ class SolanaRpcClient private constructor(
             )
 
         /** Accepts MPP CAIP-style ids (`solana:devnet`) as well as bare cluster names. */
-        fun rpcEndpoint(network: String): String =
-            when {
-                network.contains("mainnet", ignoreCase = true) -> "https://api.mainnet-beta.solana.com"
-                network.contains("testnet", ignoreCase = true) -> "https://api.testnet.solana.com"
-                else -> "https://api.devnet.solana.com"
-            }
+        fun rpcEndpoint(network: String): String = SolanaClusters.rpcUrlFor(network)
     }
 }

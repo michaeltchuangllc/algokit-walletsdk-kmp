@@ -31,6 +31,8 @@ import {
 // SOLANA_SESSION_KEYPAIR optionally loads an agent key; otherwise generate an ephemeral signer.
 // Public clusters never mint tokens or request airdrops. Never deploy local-testing there.
 // WAIT_FOR_WITHDRAW=true tests successful forced withdrawal too (takes at least 888 seconds).
+// Payee close is delegated to an ephemeral authorized payee signer by default (it needs no SOL;
+// the payer pays fees). TEST_PAYEE_SIGNER=false closes as the payee directly.
 
 const DEVNET_USDC = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
 const MAINNET_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
@@ -48,6 +50,7 @@ interface ChannelData {
   startSlot: BN
   startTimestamp: BN
   closeRequestedAt: BN
+  payeeSigner: PublicKey
 }
 
 function amount(name: string, fallback: string): bigint {
@@ -159,6 +162,7 @@ async function main(): Promise<void> {
   let data = await state()
   assert(data.payer.equals(payer.publicKey) && data.payee.equals(payee.publicKey) && data.mint.equals(mint))
   assert(data.authorizedSigner.equals(session.publicKey))
+  assert(data.payeeSigner.equals(PublicKey.default), 'New channels must not have a payee signer')
   assert.equal(data.totalDeposit.toString(), deposit.toString())
   assert.equal(data.lastSettled.toString(), '0')
   assert(data.startSlot.gtn(0) && data.startTimestamp.gtn(0))
@@ -179,7 +183,7 @@ async function main(): Promise<void> {
   console.log('Top-up deposited USDC and cancelled the pending close request.')
 
   await expectError(() => settle(step, payee), 'UnauthorizedSigner')
-  await expectError(() => program.methods.revokeAuthorizedSigner()
+  await expectError(() => program.methods.revokeAuthorizedPayerSigner()
     .accountsStrict({ channel, payer: payee.publicKey }).signers([payee]).rpc(), 'UnauthorizedPayer')
   await expectError(() => program.methods.close()
     .accountsStrict({ ...finalize, caller: payer.publicKey }).rpc(), 'UnauthorizedPayee')
@@ -196,16 +200,47 @@ async function main(): Promise<void> {
   }
   await expectError(() => settle(step * 3n), 'NothingNewToSettle')
   await expectError(() => settle(step), 'NothingNewToSettle')
-  await program.methods.revokeAuthorizedSigner().accountsStrict(manage).rpc()
+  await program.methods.revokeAuthorizedPayerSigner().accountsStrict(manage).rpc()
   assert((await state()).authorizedSigner.equals(PublicKey.default))
   await expectError(() => settle(step * 3n + 1n), 'UnauthorizedSigner')
   const replacement = Keypair.generate()
-  await program.methods.setAuthorizedSigner(replacement.publicKey).accountsStrict(manage).rpc()
+  await program.methods.setAuthorizedPayerSigner(replacement.publicKey).accountsStrict(manage).rpc()
   await expectError(() => settle(step * 3n + 1n), 'UnauthorizedSigner')
   const finalSettled = step * 3n + 1n
   await settle(finalSettled, replacement)
   assert.equal(await balance(payeeToken), payeeBefore + finalSettled)
   console.log('Revocation and session-key rotation verified.')
+
+  // Payee-controlled close delegate (e.g. hot key for a Seed Vault payee).
+  const useDelegate = process.env.TEST_PAYEE_SIGNER !== 'false'
+  const payeeSigner = Keypair.generate()
+  const managePayee = { channel, payee: payee.publicKey }
+  const closeAs = (caller: Keypair): Promise<string> => program.methods.close()
+    .accountsStrict({ ...finalize, caller: caller.publicKey }).signers([caller]).rpc()
+  if (useDelegate) {
+    await expectError(() => program.methods.setAuthorizedPayeeSigner(payer.publicKey)
+      .accountsStrict({ channel, payee: payer.publicKey }).rpc(), 'UnauthorizedPayee')
+    await expectError(() => program.methods.setAuthorizedPayeeSigner(PublicKey.default)
+      .accountsStrict(managePayee).signers([payee]).rpc(), 'InvalidPayeeSigner')
+    await expectError(() => closeAs(payeeSigner), 'UnauthorizedPayee')
+    await program.methods.setAuthorizedPayeeSigner(payeeSigner.publicKey)
+      .accountsStrict(managePayee).signers([payee]).rpc()
+    assert((await state()).payeeSigner.equals(payeeSigner.publicKey))
+    // The delegate may close, but never re-delegate or revoke; the payer has no control over it.
+    await expectError(() => program.methods.setAuthorizedPayeeSigner(payer.publicKey)
+      .accountsStrict({ channel, payee: payeeSigner.publicKey }).signers([payeeSigner]).rpc(), 'UnauthorizedPayee')
+    await expectError(() => program.methods.revokeAuthorizedPayeeSigner()
+      .accountsStrict({ channel, payee: payeeSigner.publicKey }).signers([payeeSigner]).rpc(), 'UnauthorizedPayee')
+    await expectError(() => program.methods.revokeAuthorizedPayeeSigner()
+      .accountsStrict({ channel, payee: payer.publicKey }).rpc(), 'UnauthorizedPayee')
+    // Revoke disables the delegate; re-registering restores it.
+    await program.methods.revokeAuthorizedPayeeSigner().accountsStrict(managePayee).signers([payee]).rpc()
+    assert((await state()).payeeSigner.equals(PublicKey.default))
+    await expectError(() => closeAs(payeeSigner), 'UnauthorizedPayee')
+    await program.methods.setAuthorizedPayeeSigner(payeeSigner.publicKey)
+      .accountsStrict(managePayee).signers([payee]).rpc()
+    console.log(`Payee signer controls verified; delegate ${payeeSigner.publicKey} registered.`)
+  }
 
   // Unsolicited tokens must not prevent teardown or increase the spendable deposit watermark.
   let extra = 0n
@@ -233,7 +268,7 @@ async function main(): Promise<void> {
     }
     signature = await withdraw()
   } else {
-    signature = await program.methods.close().accountsStrict(finalize).signers([payee]).rpc()
+    signature = await closeAs(useDelegate ? payeeSigner : payee)
   }
   assert.equal(await balance(payerToken), beforeRefund + expectedRefund)
   assert.equal(await balance(payerToken), payerBefore - finalSettled + extra)
@@ -246,11 +281,16 @@ async function main(): Promise<void> {
   if (!forcedWithdraw) {
     assert.equal(await connection.getBalance(payer.publicKey), payerSolBefore + rent - tx.meta.fee)
   }
-  console.log(`Closed via ${forcedWithdraw ? 'payer withdrawal' : 'payee close'}; refunded ${expectedRefund} raw USDC and reclaimed vault/channel rent.`)
+  const closedBy = forcedWithdraw ? 'payer withdrawal' : useDelegate ? 'payee signer close' : 'payee close'
+  console.log(`Closed via ${closedBy}; refunded ${expectedRefund} raw USDC and reclaimed vault/channel rent.`)
   console.log('All lifecycle assertions passed.')
 }
 
-main().catch((error: unknown) => {
-  console.error(error)
-  process.exitCode = 1
-})
+// Exit explicitly: the web3 Connection's websocket keeps the event loop alive after success.
+main().then(
+  () => process.exit(0),
+  (error: unknown) => {
+    console.error(error)
+    process.exit(1)
+  },
+)

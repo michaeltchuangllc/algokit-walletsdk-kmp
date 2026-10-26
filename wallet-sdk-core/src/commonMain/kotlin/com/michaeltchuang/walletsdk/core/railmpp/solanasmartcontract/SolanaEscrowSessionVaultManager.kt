@@ -19,10 +19,14 @@ data class SolanaEscrowSessionVaultConfig(
 ) {
     companion object {
         const val DEVNET_PROGRAM_ID = "EJkkvypbdeRWdFQuf8gm7K65xPsHTUtDsFxsKZceW71B"
+
+        /** Deployed with the same program keypair as devnet. */
+        const val MAINNET_PROGRAM_ID = DEVNET_PROGRAM_ID
         const val DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
         const val MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
 
         val DEVNET = SolanaEscrowSessionVaultConfig(DEVNET_PROGRAM_ID, DEVNET_USDC_MINT)
+        val MAINNET = SolanaEscrowSessionVaultConfig(MAINNET_PROGRAM_ID, MAINNET_USDC_MINT)
     }
 }
 
@@ -43,9 +47,15 @@ data class SolanaEscrowChannel(
     val closeRequestedAt: Long,
     val bump: Int,
     val salt: ByteArray,
+    /** Base58 payee-controlled close delegate; [SolanaEscrowSessionVaultManager.REVOKED_SIGNER] when unset. */
+    val payeeSigner: String = SolanaEscrowSessionVaultManager.REVOKED_SIGNER,
 ) {
     val remainingDeposit: Long get() = totalDeposit - lastSettled
     val isSignerRevoked: Boolean get() = authorizedSigner == SolanaEscrowSessionVaultManager.REVOKED_SIGNER
+    val hasPayeeSigner: Boolean get() = payeeSigner != SolanaEscrowSessionVaultManager.REVOKED_SIGNER
+
+    /** True if [address] may call [SolanaEscrowSessionVaultManager.close]: the payee or its registered delegate. */
+    fun canClose(address: String): Boolean = address == payee || (hasPayeeSigner && address == payeeSigner)
 
     /** Earliest unix time the payer may [SolanaEscrowSessionVaultManager.withdraw], or null if no close is pending. */
     val withdrawAvailableAt: Long?
@@ -82,7 +92,7 @@ enum class SolanaEscrowVaultError(
     val message: String,
 ) {
     UnauthorizedPayer("Only the channel payer can perform this action"),
-    UnauthorizedPayee("Only the channel payee can close the channel"),
+    UnauthorizedPayee("Only the channel payee (or its authorized payee signer, for close) can perform this action"),
     UnauthorizedSigner("Settlement requires the nonzero registered authorized signer"),
     NothingNewToSettle("Cumulative amount must exceed the last settled amount"),
     VoucherExceedsDeposit("Cumulative voucher amount exceeds the total deposit"),
@@ -93,6 +103,7 @@ enum class SolanaEscrowVaultError(
     CloseNotRequested("Payer must request closure before withdrawing"),
     WithdrawalTooEarly("The 888-second withdrawal delay has not elapsed"),
     InvalidDeposit("Deposit must be greater than zero"),
+    InvalidPayeeSigner("Payee signer must be a nonzero public key"),
     ;
 
     val code: Int get() = ANCHOR_ERROR_OFFSET + ordinal
@@ -127,8 +138,8 @@ class SolanaVoucherExpiredException(
  * [com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient].
  *
  * Roles (Liquid Stream):
- * - **Payer / viewer** — the Seed Vault account. Signs [open], [topUp], [setAuthorizedSigner],
- *   [revokeAuthorizedSigner], [requestClose] and [withdraw] (each one Seed Vault approval).
+ * - **Payer / viewer** — the Seed Vault account. Signs [open], [topUp], [setAuthorizedPayerSigner],
+ *   [revokeAuthorizedPayerSigner], [requestClose] and [withdraw] (each one Seed Vault approval).
  *   [open] registers the session key in the same transaction, so opening is a single approval.
  * - **Authorized signer** — the payer's linked session key. Signs settlement vouchers silently via
  *   [createSettlementVoucher]; it never pays fees, so it needs no SOL.
@@ -137,10 +148,13 @@ class SolanaVoucherExpiredException(
  *   as fee payer (see `SubmitSolanaSettlementVoucherUseCase`), so settling needs no prompt.
  *   Settled USDC goes to the payee account itself. The payee calls [close] to refund the
  *   leftover deposit to the payer.
+ * - **Payee signer** — optional payee-controlled delegate (e.g. the payee's linked session key)
+ *   registered with [setAuthorizedPayeeSigner]; it may call [close] without a Seed Vault prompt.
+ *   Only the payee can set or [revokeAuthorizedPayeeSigner] it.
  */
 class SolanaEscrowSessionVaultManager(
     private val rpc: SolanaRpcClient,
-    private val mainnetConfig: SolanaEscrowSessionVaultConfig? = null,
+    private val mainnetConfig: SolanaEscrowSessionVaultConfig? = SolanaEscrowSessionVaultConfig.MAINNET,
 ) {
     fun configFor(network: String): SolanaEscrowSessionVaultConfig =
         when {
@@ -297,23 +311,51 @@ class SolanaEscrowSessionVaultManager(
             sendAndConfirm(network, payer, listOf(instruction))
         }
 
-    /** Rotates the session key allowed to settle vouchers. */
-    suspend fun setAuthorizedSigner(
+    /** Payer-controlled: rotates the session key allowed to settle vouchers. */
+    suspend fun setAuthorizedPayerSigner(
         network: String,
         payer: SolanaTransactionSigner,
         channel: String,
         authorizedSigner: String,
     ): Result<String> =
-        execute("set_authorized_signer") {
-            manage(network, payer, channel, IX_SET_AUTHORIZED_SIGNER + key(authorizedSigner))
+        execute("set_authorized_payer_signer") {
+            manage(network, payer, channel, IX_SET_AUTHORIZED_PAYER_SIGNER + key(authorizedSigner))
         }
 
-    /** Disables settlement until a new signer is set (e.g. if the session key is lost/compromised). */
-    suspend fun revokeAuthorizedSigner(
+    /** Payer-controlled: disables settlement until a new signer is set (e.g. if the session key is lost/compromised). */
+    suspend fun revokeAuthorizedPayerSigner(
         network: String,
         payer: SolanaTransactionSigner,
         channel: String,
-    ): Result<String> = execute("revoke_authorized_signer") { manage(network, payer, channel, IX_REVOKE_AUTHORIZED_SIGNER) }
+    ): Result<String> =
+        execute("revoke_authorized_payer_signer") {
+            manage(network, payer, channel, IX_REVOKE_AUTHORIZED_PAYER_SIGNER)
+        }
+
+    /**
+     * Payee-controlled: registers [payeeSigner] as a delegate allowed to [close] on the payee's
+     * behalf (e.g. the payee's linked session key, so closing needs no Seed Vault prompt).
+     */
+    suspend fun setAuthorizedPayeeSigner(
+        network: String,
+        payee: SolanaTransactionSigner,
+        channel: String,
+        payeeSigner: String,
+    ): Result<String> =
+        execute("set_authorized_payee_signer") {
+            require(payeeSigner != REVOKED_SIGNER) { SolanaEscrowVaultError.InvalidPayeeSigner.message }
+            managePayee(network, payee, channel, IX_SET_AUTHORIZED_PAYEE_SIGNER + key(payeeSigner))
+        }
+
+    /** Payee-controlled: removes the close delegate so only the payee itself can close. */
+    suspend fun revokeAuthorizedPayeeSigner(
+        network: String,
+        payee: SolanaTransactionSigner,
+        channel: String,
+    ): Result<String> =
+        execute("revoke_authorized_payee_signer") {
+            managePayee(network, payee, channel, IX_REVOKE_AUTHORIZED_PAYEE_SIGNER)
+        }
 
     /** Starts the [WITHDRAW_DELAY_SECONDS] countdown for a payer-initiated [withdraw]. */
     suspend fun requestClose(
@@ -486,9 +528,10 @@ class SolanaEscrowSessionVaultManager(
     }
 
     /**
-     * Payee closes the channel: refunds the remaining vault balance to the payer and returns rent
-     * to the payer (mirrors the Algorand host-side `refundRemainingVaultBalance`). [feePayer]
-     * defaults to the payee and funds the payer's USDC ATA if it no longer exists.
+     * Payee (or its registered payee signer) closes the channel: refunds the remaining vault
+     * balance to the payer and returns rent to the payer (mirrors the Algorand host-side
+     * `refundRemainingVaultBalance`). [feePayer] defaults to the caller and funds the payer's
+     * USDC ATA if it no longer exists.
      */
     suspend fun close(
         network: String,
@@ -498,9 +541,30 @@ class SolanaEscrowSessionVaultManager(
     ): Result<String> =
         execute("close") {
             val state = requireChannel(network, channel)
-            require(state.payee == payee.address) { "Only the channel payee can close the channel" }
+            require(state.canClose(payee.address)) { "Only the channel payee or its payee signer can close the channel" }
             finalize(network, IX_CLOSE, state, caller = payee, feePayer = feePayer)
         }
+
+    private suspend fun managePayee(
+        network: String,
+        payee: SolanaTransactionSigner,
+        channel: String,
+        data: ByteArray,
+    ): String {
+        val state = requireChannel(network, channel)
+        require(state.payee == payee.address) { "Only the channel payee can manage the payee signer" }
+        val instruction =
+            SolanaInstruction(
+                programId = configFor(network).programId,
+                accounts =
+                    listOf(
+                        writable(channel),
+                        SolanaAccountMeta(payee.address, isSigner = true, isWritable = false),
+                    ),
+                data = data,
+            )
+        return sendAndConfirm(network, payee, listOf(instruction))
+    }
 
     private suspend fun manage(
         network: String,
@@ -649,8 +713,8 @@ class SolanaEscrowSessionVaultManager(
         const val WITHDRAW_DELAY_SECONDS = 888L
         const val REVOKED_SIGNER = "11111111111111111111111111111111"
 
-        /** 8 discriminator + 4 pubkeys + 6 u64/i64 + bump + 32-byte salt. */
-        const val CHANNEL_ACCOUNT_SIZE = 8 + 32 * 4 + 8 * 6 + 1 + 32
+        /** 8 discriminator + 4 pubkeys + 6 u64/i64 + bump + 32-byte salt + payee_signer pubkey. */
+        const val CHANNEL_ACCOUNT_SIZE = 8 + 32 * 4 + 8 * 6 + 1 + 32 + 32
         private const val PAYER_OFFSET = 8
         private const val PAYEE_OFFSET = 40
 
@@ -658,8 +722,10 @@ class SolanaEscrowSessionVaultManager(
 
         internal val IX_OPEN = anchorDiscriminator("global:open")
         internal val IX_TOP_UP = anchorDiscriminator("global:top_up")
-        internal val IX_SET_AUTHORIZED_SIGNER = anchorDiscriminator("global:set_authorized_signer")
-        internal val IX_REVOKE_AUTHORIZED_SIGNER = anchorDiscriminator("global:revoke_authorized_signer")
+        internal val IX_SET_AUTHORIZED_PAYER_SIGNER = anchorDiscriminator("global:set_authorized_payer_signer")
+        internal val IX_REVOKE_AUTHORIZED_PAYER_SIGNER = anchorDiscriminator("global:revoke_authorized_payer_signer")
+        internal val IX_SET_AUTHORIZED_PAYEE_SIGNER = anchorDiscriminator("global:set_authorized_payee_signer")
+        internal val IX_REVOKE_AUTHORIZED_PAYEE_SIGNER = anchorDiscriminator("global:revoke_authorized_payee_signer")
         internal val IX_SETTLE = anchorDiscriminator("global:settle")
         internal val IX_REQUEST_CLOSE = anchorDiscriminator("global:request_close")
         internal val IX_CLOSE = anchorDiscriminator("global:close")
@@ -706,7 +772,8 @@ class SolanaEscrowSessionVaultManager(
                 startTimestamp = u64(),
                 closeRequestedAt = u64(),
                 bump = (data[offset++].toInt() and 0xFF),
-                salt = data.copyOfRange(offset, offset + SALT_SIZE),
+                salt = data.copyOfRange(offset, offset + SALT_SIZE).also { offset += SALT_SIZE },
+                payeeSigner = pubkey(),
             )
         }
 

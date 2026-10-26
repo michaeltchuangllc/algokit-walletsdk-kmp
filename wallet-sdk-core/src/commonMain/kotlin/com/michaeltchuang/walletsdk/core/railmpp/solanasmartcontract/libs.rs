@@ -40,6 +40,7 @@ pub mod escrow_session_vault_solana_manager {
         channel.close_requested_at = 0;
         channel.bump = ctx.bumps.channel;
         channel.salt = salt;
+        channel.payee_signer = Pubkey::default();
 
         token::transfer_checked(
             CpiContext::new(
@@ -83,13 +84,30 @@ pub mod escrow_session_vault_solana_manager {
         Ok(())
     }
 
-    pub fn set_authorized_signer(ctx: Context<Manage>, authorized_signer: Pubkey) -> Result<()> {
+    /// Payer-controlled: sets the session key allowed to sign settlements.
+    pub fn set_authorized_payer_signer(ctx: Context<Manage>, authorized_signer: Pubkey) -> Result<()> {
         ctx.accounts.channel.authorized_signer = authorized_signer;
         Ok(())
     }
 
-    pub fn revoke_authorized_signer(ctx: Context<Manage>) -> Result<()> {
+    /// Payer-controlled emergency stop: disables settlement until a new payer signer is set.
+    pub fn revoke_authorized_payer_signer(ctx: Context<Manage>) -> Result<()> {
         ctx.accounts.channel.authorized_signer = Pubkey::default();
+        Ok(())
+    }
+
+    /// Payee-controlled: registers a delegate allowed to call `close` on the payee's
+    /// behalf (e.g. a hot key when the payee is a Seed Vault / biometric-gated wallet).
+    /// If unset, only the payee itself can close. The delegate cannot change or revoke itself.
+    pub fn set_authorized_payee_signer(ctx: Context<ManagePayee>, payee_signer: Pubkey) -> Result<()> {
+        require!(payee_signer != Pubkey::default(), VaultError::InvalidPayeeSigner);
+        ctx.accounts.channel.payee_signer = payee_signer;
+        Ok(())
+    }
+
+    /// Payee-controlled: removes the delegate so only the payee can close.
+    pub fn revoke_authorized_payee_signer(ctx: Context<ManagePayee>) -> Result<()> {
+        ctx.accounts.channel.payee_signer = Pubkey::default();
         Ok(())
     }
 
@@ -141,10 +159,13 @@ pub mod escrow_session_vault_solana_manager {
         Ok(())
     }
 
+    /// Payee, or the payee's registered `payee_signer`, closes the channel.
     pub fn close(ctx: Context<Finalize>) -> Result<()> {
-        require_keys_eq!(
-            ctx.accounts.caller.key(),
-            ctx.accounts.channel.payee,
+        let caller = ctx.accounts.caller.key();
+        let channel = &ctx.accounts.channel;
+        let is_payee_signer = channel.payee_signer != Pubkey::default() && caller == channel.payee_signer;
+        require!(
+            caller == channel.payee || is_payee_signer,
             VaultError::UnauthorizedPayee
         );
         refund_and_close_vault(&ctx.accounts)
@@ -248,6 +269,18 @@ pub struct Manage<'info> {
 }
 
 #[derive(Accounts)]
+pub struct ManagePayee<'info> {
+    #[account(
+        mut,
+        seeds = [b"channel", channel.payer.as_ref(), channel.payee.as_ref(), channel.mint.as_ref(), channel.salt.as_ref()],
+        bump = channel.bump,
+        has_one = payee @ VaultError::UnauthorizedPayee
+    )]
+    pub channel: Account<'info, Channel>,
+    pub payee: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct TopUp<'info> {
     #[account(
         mut,
@@ -323,6 +356,8 @@ pub struct Channel {
     pub close_requested_at: i64,
     pub bump: u8,
     pub salt: [u8; 32],
+    /// Optional payee-controlled close delegate; `Pubkey::default()` means none.
+    pub payee_signer: Pubkey,
 }
 
 impl Channel {
@@ -342,7 +377,7 @@ impl Channel {
 pub enum VaultError {
     #[msg("Only the channel payer can perform this action")]
     UnauthorizedPayer,
-    #[msg("Only the channel payee can close the channel")]
+    #[msg("Only the channel payee (or its authorized payee signer, for close) can perform this action")]
     UnauthorizedPayee,
     #[msg("Settlement requires the nonzero registered authorized signer")]
     UnauthorizedSigner,
@@ -364,4 +399,6 @@ pub enum VaultError {
     WithdrawalTooEarly,
     #[msg("Deposit must be greater than zero")]
     InvalidDeposit,
+    #[msg("Payee signer must be a nonzero public key")]
+    InvalidPayeeSigner,
 }

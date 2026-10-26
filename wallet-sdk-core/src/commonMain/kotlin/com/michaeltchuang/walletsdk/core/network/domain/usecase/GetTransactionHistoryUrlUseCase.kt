@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.EXP
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.EXPLORER_MAINNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.EXPLORER_TESTNET_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 
 class GetTransactionHistoryUrlUseCase {
     operator fun invoke(
@@ -12,8 +13,7 @@ class GetTransactionHistoryUrlUseCase {
         isSolanaAccount: Boolean,
     ): String =
         if (isSolanaAccount) {
-            val clusterQuery = if (network == AlgorandNetwork.TESTNET) "?cluster=devnet" else ""
-            "https://explorer.solana.com/address/$address$clusterQuery"
+            SolanaClusters.explorerAddressUrl(address, SolanaClusters.clusterFor(network))
         } else {
             when (network) {
                 AlgorandNetwork.FUTURENET -> "$EXPLORER_FUTURENET_BASE_URL/fnet/account/$address"
