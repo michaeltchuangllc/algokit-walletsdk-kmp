@@ -111,7 +111,7 @@ fun getSupportedAccountsByAppId(
                     AccountRegistrationType.Falcon24,
                     AccountRegistrationType.Falcon25,
                 ) ||
-                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault)
+                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault && it.isSolana)
         } ?: accountLite
 
 fun getSupportedLocalAccountsByAppId(
@@ -127,7 +127,7 @@ fun getSupportedLocalAccountsByAppId(
                 it is LocalAccount.Algo25 ||
                 it is LocalAccount.Falcon24 ||
                 it is LocalAccount.Falcon25 ||
-                (seedVaultSigningSupported && it is LocalAccount.SeedVault)
+                (seedVaultSigningSupported && it is LocalAccount.SeedVault && it.chainId == "501")
         } ?: localAccount
 
 fun resolveLiquidStreamAccountNetwork(

@@ -46,8 +46,9 @@ class AccountDetailViewModel(
                 // Get account information
                 val localAccount = getLocalAccount(address)
                 val isNoAuthAccount =
-                    localAccount is LocalAccount.NoAuth || localAccount is LocalAccount.SeedVault
-                val isSolanaAccount = localAccount is LocalAccount.SeedVault
+                    localAccount is LocalAccount.NoAuth ||
+                        (localAccount is LocalAccount.SeedVault && localAccount.chainId != "283")
+                val isSolanaAccount = localAccount is LocalAccount.SeedVault && localAccount.chainId == "501"
 
                 getCurrentNetworkUseCase().collect { network ->
                     val usdcAssetId =
@@ -74,6 +75,7 @@ class AccountDetailViewModel(
                                     isSolanaAccount = isSolanaAccount,
                                 ),
                             isNoAuthAccount = isNoAuthAccount,
+                            canExportPassphrase = !isNoAuthAccount && localAccount !is LocalAccount.SeedVault,
                             isSolanaAccount = isSolanaAccount,
                             isUsdcOptedIn = isUsdcOptedIn,
                         )
@@ -113,6 +115,7 @@ class AccountDetailViewModel(
             val dispenserBaseUrl: String? = null,
             val transactionHistoryUrl: String = "",
             val isNoAuthAccount: Boolean = false,
+            val canExportPassphrase: Boolean = !isNoAuthAccount,
             val isSolanaAccount: Boolean = false,
             val isUsdcOptedIn: Boolean = false,
         ) : ViewState

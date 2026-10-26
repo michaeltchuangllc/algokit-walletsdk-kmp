@@ -3,11 +3,13 @@ package com.michaeltchuang.walletsdk.ui.onboarding.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgorandSeedVaultSeeds
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.launch
@@ -17,18 +19,22 @@ class SelectSeedViewModel(
     private val eventDelegate: EventDelegate<ViewEvent>,
     private val getSolanaAccountsFromSeedVaultUseCase: GetSolanaAccountsFromSeedVaultUseCase,
     private val seedVaultRepository: SeedVaultRepository,
+    private val getAlgorandSeedVaultSeeds: GetAlgorandSeedVaultSeeds,
 ) : ViewModel(),
     StateViewModel<SelectSeedViewModel.ViewState> by stateDelegate,
     EventViewModel<SelectSeedViewModel.ViewEvent> by eventDelegate {
     init {
         stateDelegate.setDefaultState(ViewState.Idle)
-        loadSeeds()
     }
 
-    fun loadSeeds() {
+    fun loadSeeds(accountType: String = "solana") {
         stateDelegate.updateState { ViewState.Loading }
         viewModelScope.launch(Dispatchers.IO) {
             try {
+                if (accountType.equals("algorand", ignoreCase = true)) {
+                    setSeedItems(getAlgorandSeedVaultSeeds().map { SeedItem(id = it.id, name = it.name) })
+                    return@launch
+                }
                 val seeds = getSolanaAccountsFromSeedVaultUseCase()
 
                 if (seeds.isEmpty()) {
@@ -69,6 +75,8 @@ class SelectSeedViewModel(
                         hasMoreSeedsAvailable = hasUnauthorizedSeeds,
                     )
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 // Check if this is a permission/security error
                 val errorMessage =
@@ -85,6 +93,39 @@ class SelectSeedViewModel(
                     ViewState.Error(errorMessage)
                 }
             }
+        }
+    }
+
+    fun setSeedItems(
+        seedItems: List<SeedItem>,
+        hasMoreSeedsAvailable: Boolean = true,
+    ) {
+        if (seedItems.isEmpty()) {
+            stateDelegate.updateState {
+                ViewState.NoAuthorizedSeeds(
+                    message = "No authorized seeds found. Please authorize a seed in Seed Vault.",
+                    canAuthorize = true,
+                )
+            }
+        } else {
+            stateDelegate.updateState {
+                ViewState.Content(
+                    seeds = seedItems,
+                    hasMoreSeedsAvailable = hasMoreSeedsAvailable,
+                )
+            }
+        }
+    }
+
+    fun setError(message: String) {
+        stateDelegate.updateState {
+            ViewState.Error(message)
+        }
+    }
+
+    fun setLoading() {
+        stateDelegate.updateState {
+            ViewState.Loading
         }
     }
 

@@ -1,4 +1,8 @@
 <resources>
+    <string name="seed_vault_select_algorand_accounts">Select Algorand accounts to add</string>
+    <string name="seed_vault_select_solana_accounts">Select Solana accounts to add</string>
+    <string name="seed_vault_loading_algorand_accounts">Loading Algorand accounts…</string>
+    <string name="seed_vault_loading_solana_accounts">Loading Solana accounts…</string>
     <string name="app_name_topbar">WalletSDK Playground</string>
     <!-- Account Details -->
     <string name="account_header">Account Information</string>

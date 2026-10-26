@@ -291,7 +291,7 @@ private fun AccountItem(
                 horizontalAlignment = Alignment.End,
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                    if (account.isSolana) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_solana_sign),
                             contentDescription = "Solana",
@@ -300,7 +300,7 @@ private fun AccountItem(
                         )
                     }
                     Text(
-                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        text = "${getBalancePrefix(account)}${account.balance?.formatAmount() ?: "0.00"}",
                         fontSize = 16.sp,
                         style = typography.footnote.sansMedium,
                         color = AlgoKitTheme.colors.textMain,
@@ -328,8 +328,4 @@ private fun getAccountTypeText(registrationType: AccountRegistrationType): Strin
         is AccountRegistrationType.SeedVault -> "SeedVault"
     }
 
-private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
-    when (registrationType) {
-        is AccountRegistrationType.SeedVault -> ""
-        else -> "\u00A6"
-    }
+private fun getBalancePrefix(account: AccountLite): String = if (account.isSolana) "" else "\u00A6"

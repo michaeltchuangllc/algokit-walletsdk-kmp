@@ -16,7 +16,12 @@ internal class GetTransactionSignerUseCase(
             is LocalAccount.Falcon25 -> TransactionSigner.Falcon25(address)
             is LocalAccount.Falcon24 -> getFalcon24Signer(address)
             is LocalAccount.NoAuth -> TransactionSigner.SignerNotFound.NoAuth(address)
-            is LocalAccount.SeedVault -> TransactionSigner.SignerNotFound.NoAuth(address)
+            is LocalAccount.SeedVault ->
+                if (accountDetail.chainId == "283") {
+                    TransactionSigner.AlgorandSeedVault(address)
+                } else {
+                    TransactionSigner.SignerNotFound.NoAuth(address)
+                }
             else -> {
                 TransactionSigner.SignerNotFound.AccountNotFound(address)
             }

@@ -24,7 +24,9 @@ class MppWalletSignerUseCase(
     suspend operator fun invoke(address: String): MppWalletSigner? {
         val localAccount = getLocalAccount(address) ?: return null
         // Seed Vault keys never leave secure hardware; auto-signing only works via a linked session key.
-        if (localAccount is LocalAccount.SeedVault) return getSolanaSessionSigner(address)
+        if (localAccount is LocalAccount.SeedVault) {
+            return if (localAccount.chainId == "501") getSolanaSessionSigner(address) else null
+        }
 
         val authorizedSignerPublicKey: ByteArray =
             when (localAccount) {

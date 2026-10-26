@@ -59,6 +59,7 @@ import com.michaeltchuang.walletsdk.ui.onboarding.screens.OnboardingIntroScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverAnAccountScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoverRegisteredAccountsScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.RecoveryPhraseScreen
+import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectAccountTypeScreen
 import com.michaeltchuang.walletsdk.ui.onboarding.screens.SelectSeedScreenPlatform
 import com.michaeltchuang.walletsdk.ui.qrscanner.screens.QRCodeScannerScreen
 import com.michaeltchuang.walletsdk.ui.settings.screens.DeveloperSettingsScreen
@@ -122,6 +123,7 @@ enum class AlgoKitScreens {
     PASSKEYS_SCREEN,
     LIQUID_AUTH_SCREEN,
     ADD_ASSET_SCREEN,
+    SELECT_ACCOUNT_TYPE_ONBOARDING_SCREEN,
     SELECT_SEED_SCREEN,
     IMPORT_SEED_VAULT_ACCOUNTS_SCREEN,
     ESCROW_SESSION_VAULT_DEBUG_TOOL_SCREEN,
@@ -756,13 +758,34 @@ fun NavigationBottomSheetNavHost(
                         accountAddress = accountAddress,
                     )
                 }
-                composable(route = AlgoKitScreens.SELECT_SEED_SCREEN.name) {
-                    SelectSeedScreenPlatform(navController = navController)
+                composable(route = AlgoKitScreens.SELECT_ACCOUNT_TYPE_ONBOARDING_SCREEN.name) {
+                    SelectAccountTypeScreen(navController = navController)
                 }
                 composable(
-                    route = AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name + "?selectedSeedIds={selectedSeedIds}",
+                    route = AlgoKitScreens.SELECT_SEED_SCREEN.name + "?accountType={accountType}",
                     arguments =
                         listOf(
+                            navArgument("accountType") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "solana"
+                            },
+                        ),
+                ) { backStackEntry ->
+                    val accountType = backStackEntry.arguments.stringArgument("accountType") ?: "solana"
+                    SelectSeedScreenPlatform(navController = navController, accountType = accountType)
+                }
+                composable(
+                    route =
+                        AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name +
+                            "?accountType={accountType}&selectedSeedIds={selectedSeedIds}",
+                    arguments =
+                        listOf(
+                            navArgument("accountType") {
+                                type = NavType.StringType
+                                nullable = true
+                                defaultValue = "solana"
+                            },
                             navArgument("selectedSeedIds") {
                                 type = NavType.StringType
                                 nullable = true
@@ -770,6 +793,7 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
+                    val accountType = backStackEntry.arguments.stringArgument("accountType") ?: "solana"
                     val selectedSeedIdsRaw =
                         backStackEntry.arguments.stringArgument("selectedSeedIds")
                     val selectedSeedIds =
@@ -781,6 +805,7 @@ fun NavigationBottomSheetNavHost(
                             .orEmpty()
                     ImportSeedVaultAccountsScreen(
                         navController = navController,
+                        accountType = accountType,
                         selectedSeedIds = selectedSeedIds,
                         showSnackBar = {
                             coroutineScope.launch {

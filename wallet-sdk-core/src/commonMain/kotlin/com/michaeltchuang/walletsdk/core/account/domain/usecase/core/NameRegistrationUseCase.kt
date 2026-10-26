@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.custom.GetAccountsCustomInfo
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
-import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteSolanaAccountUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteSeedVaultAccountUseCase
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 
 class NameRegistrationUseCase(
@@ -19,7 +19,7 @@ class NameRegistrationUseCase(
     private val deleteFalcon24AccountUseCase: DeleteFalcon24AccountUseCase,
     private val deleteFalcon25AccountUseCase: DeleteFalcon25AccountUseCase,
     private val deleteNoAuthAccountUseCase: DeleteNoAuthAccountUseCase,
-    private val deleteSolanaAccountUseCase: DeleteSolanaAccountUseCase,
+    private val deleteSeedVaultAccountUseCase: DeleteSeedVaultAccountUseCase,
     private val passkeyRepository: PasskeyRepository,
 ) {
     suspend fun addNewAccount(accountCreation: AccountCreation) {
@@ -32,15 +32,11 @@ class NameRegistrationUseCase(
         val localAccounts = getLocalAccountsUseCase()
         val customInfoMap = getAccountsCustomInfo(localAccounts.map { it.address })
         return localAccounts.map { account ->
-            val fallbackName =
-                when (account) {
-                    is LocalAccount.SeedVault -> account.accountName ?: ""
-                    else -> ""
-                }
             AccountLite(
                 account.address,
-                customInfoMap[account.address]?.customName ?: fallbackName,
+                customInfoMap[account.address]?.customName.orEmpty(),
                 getAccountRegistrationTypeUseCase(account),
+                chainId = (account as? LocalAccount.SeedVault)?.chainId ?: "283",
             )
         }
     }
@@ -52,7 +48,7 @@ class NameRegistrationUseCase(
             AccountRegistrationType.Falcon25 -> deleteFalcon25AccountUseCase(address)
             AccountRegistrationType.Falcon24 -> deleteFalcon24AccountUseCase(address)
             AccountRegistrationType.NoAuth -> deleteNoAuthAccountUseCase(address).getOrThrow()
-            AccountRegistrationType.SeedVault -> deleteSolanaAccountUseCase(address).getOrThrow()
+            AccountRegistrationType.SeedVault -> deleteSeedVaultAccountUseCase(address).getOrThrow()
             AccountRegistrationType.LedgerBle -> error("Delete is not supported for Ledger BLE accounts.")
             null -> error("Account not found for address: $address")
         }

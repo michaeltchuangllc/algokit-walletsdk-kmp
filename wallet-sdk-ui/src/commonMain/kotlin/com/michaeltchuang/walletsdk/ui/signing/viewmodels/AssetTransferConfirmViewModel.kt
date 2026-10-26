@@ -388,6 +388,10 @@ class AssetTransferConfirmViewModel(
         transactionSignManager.setup(lifecycle)
     }
 
+    fun setSeedVaultSigner(signer: com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction?) {
+        transactionSignManager.algorandSeedVaultSigner = signer
+    }
+
     fun reset() {
         isSendingTransaction = false
         senderAddress = ""
@@ -406,8 +410,8 @@ class AssetTransferConfirmViewModel(
 
     fun sendTransaction() {
         if (isSendingTransaction) return
+        isSendingTransaction = true
         viewModelScope.launch {
-            isSendingTransaction = true
             val transactionData = createSendTransactionData()
             if (transactionData == null) {
                 isSendingTransaction = false

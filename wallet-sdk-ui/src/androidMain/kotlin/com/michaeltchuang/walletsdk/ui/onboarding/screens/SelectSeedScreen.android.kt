@@ -18,6 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
+import com.michaeltchuang.seedvault.sdk.SeedVaultServiceConstants
+import com.michaeltchuang.seedvault.sdk.client.SeedVaultServiceClient
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SelectSeedViewModel
 import com.solanamobile.seedvault.Wallet
@@ -39,6 +41,7 @@ private fun Context.findActivity(): Activity? {
 private val seedVaultTestPackages =
     setOf(
         "com.solanamobile.seedvaultimpl",
+        SeedVaultServiceConstants.PACKAGE,
     )
 
 private fun isSeedVaultTestPackageInstalled(context: Context): Boolean =
@@ -63,7 +66,7 @@ private fun showSeedVaultUnsupportedAlert(context: Context) {
     Toast
         .makeText(
             context,
-            "Seed Vault is only available on Solana Saga/Seeker devices or test builds.",
+            "Seed Vault is only available on supported devices or test builds.",
             Toast.LENGTH_LONG,
         ).show()
 }
@@ -73,24 +76,32 @@ private fun showSeedVaultUnsupportedAlert(context: Context) {
  * Automatically requests Seed Vault permission when the screen is shown.
  */
 @Composable
-actual fun SelectSeedScreenPlatform(navController: NavController) {
+actual fun SelectSeedScreenPlatform(
+    navController: NavController,
+    accountType: String,
+) {
     val context = LocalContext.current
     val viewModel: SelectSeedViewModel = koinViewModel()
+    val isAlgorand = accountType.equals("algorand", ignoreCase = true)
 
-    // Find the Activity from context
-    val activity =
-        remember(context) {
-            context.findActivity()
-        }
-
+    val activity = remember(context) { context.findActivity() }
     val isSeedVaultSupportedDevice = remember(context) { isSupportedSeedVaultDevice(context) }
 
-    var permissionGranted by remember(isSeedVaultSupportedDevice) {
+    val requiredPermission =
+        if (isAlgorand) {
+            SeedVaultServiceConstants.PERMISSION_ACCESS_SEED_VAULT
+        } else {
+            WalletContractV1.PERMISSION_ACCESS_SEED_VAULT
+        }
+
+    var permissionGranted by remember(isSeedVaultSupportedDevice, requiredPermission) {
         mutableStateOf(
-            isSeedVaultSupportedDevice &&
-                context.checkSelfPermission(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT) ==
-                PackageManager.PERMISSION_GRANTED,
+            context.checkSelfPermission(requiredPermission) == PackageManager.PERMISSION_GRANTED,
         )
+    }
+
+    fun loadSeeds() {
+        viewModel.loadSeeds(accountType)
     }
 
     // Permission launcher for runtime permission
@@ -98,10 +109,7 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission(),
         ) { isGranted ->
-            permissionGranted = isSeedVaultSupportedDevice && isGranted
-            if (permissionGranted) {
-                viewModel.loadSeeds()
-            }
+            permissionGranted = isGranted
         }
 
     // Activity result launcher for seed authorization
@@ -112,32 +120,37 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
             val resultCode = result.resultCode
             val data = result.data
 
-            try {
-                val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
-                Log.d("SelectSeedScreen", "Seed authorized successfully, authToken=$authToken")
-                // Reload seeds to show the newly authorized seed
-                viewModel.loadSeeds()
-            } catch (e: Wallet.ActionFailedException) {
-                Log.e("SelectSeedScreen", "Seed authorization failed: ${e.message}")
-                // Don't reload - user might want to try again
+            if (isAlgorand) {
+                Log.d("SelectSeedScreen", "Algorand seed authorize result code=$resultCode")
+                loadSeeds()
+            } else {
+                try {
+                    val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
+                    Log.d("SelectSeedScreen", "Solana seed authorized successfully, authToken=$authToken")
+                    viewModel.loadSeeds()
+                } catch (e: Wallet.ActionFailedException) {
+                    Log.e("SelectSeedScreen", "Solana seed authorization failed: ${e.message}")
+                }
             }
         }
 
-    // Check permission on first launch and request if needed
-    LaunchedEffect(Unit) {
-        if (isSeedVaultSupportedDevice && !permissionGranted) {
-            permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+    // Check permission on first launch and request if needed, or load seeds if granted
+    LaunchedEffect(accountType, permissionGranted) {
+        if (!permissionGranted) {
+            permissionLauncher.launch(requiredPermission)
+        } else {
+            loadSeeds()
         }
     }
 
     val viewState by viewModel.state.collectAsState()
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(accountType) {
         viewModel.viewEvent.collect { event ->
             when (event) {
                 is SelectSeedViewModel.ViewEvent.SeedSelected -> {
                     navController.navigate(
-                        "${AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name}?selectedSeedIds=${event.seed.id}",
+                        "${AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name}?accountType=$accountType&selectedSeedIds=${event.seed.id}",
                     )
                 }
                 is SelectSeedViewModel.ViewEvent.AllSeedsConnected -> {
@@ -147,27 +160,33 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
                     // Show error snackbar
                 }
                 is SelectSeedViewModel.ViewEvent.SeedAuthorized -> {
-                    // Seed was authorized, reload seeds
-                    viewModel.loadSeeds()
+                    loadSeeds()
                 }
                 is SelectSeedViewModel.ViewEvent.RequestAuthorizeSeed -> {
-                    // Launch the seed authorization intent
-                    if (!isSeedVaultSupportedDevice) {
-                        Log.w("SelectSeedScreen", "Seed authorization requested on unsupported device")
-                        return@collect
-                    }
-
-                    val currentActivity = activity
-                    if (currentActivity != null) {
-                        val intent =
-                            Wallet.authorizeSeed(
-                                currentActivity,
-                                WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION,
-                            )
-                        authorizeSeedLauncher.launch(intent)
+                    if (isAlgorand) {
+                        try {
+                            val client = SeedVaultServiceClient(context)
+                            val intent = client.authorizeAppIntent()
+                            authorizeSeedLauncher.launch(intent)
+                        } catch (e: Exception) {
+                            Log.e("SelectSeedScreen", "Cannot authorize Algorand seed", e)
+                        }
                     } else {
-                        Log.e("SelectSeedScreen", "Cannot authorize seed - no Activity found")
-                        // Could emit an error event here
+                        if (!isSeedVaultSupportedDevice) {
+                            Log.w("SelectSeedScreen", "Solana seed authorization requested on unsupported device")
+                            return@collect
+                        }
+                        val currentActivity = activity
+                        if (currentActivity != null) {
+                            val intent =
+                                Wallet.authorizeSeed(
+                                    currentActivity,
+                                    WalletContractV1.PURPOSE_SIGN_SOLANA_TRANSACTION,
+                                )
+                            authorizeSeedLauncher.launch(intent)
+                        } else {
+                            Log.e("SelectSeedScreen", "Cannot authorize seed - no Activity found")
+                        }
                     }
                 }
             }
@@ -181,26 +200,16 @@ actual fun SelectSeedScreenPlatform(navController: NavController) {
         onSeedSelected = { viewModel.onSeedSelected(it) },
         onAllSeedsConnected = { viewModel.onAllSeedsConnected() },
         onRetry = {
-            if (!isSeedVaultSupportedDevice) {
-                showSeedVaultUnsupportedAlert(context)
-                return@SelectSeedScreenContent
-            }
-
             if (!permissionGranted) {
-                permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
+                permissionLauncher.launch(requiredPermission)
             } else {
-                viewModel.loadSeeds()
+                loadSeeds()
             }
         },
         onRequestPermission = {
-            if (isSeedVaultSupportedDevice) {
-                permissionLauncher.launch(WalletContractV1.PERMISSION_ACCESS_SEED_VAULT)
-            } else {
-                showSeedVaultUnsupportedAlert(context)
-            }
+            permissionLauncher.launch(requiredPermission)
         },
         onAuthorizeSeed = {
-            // This triggers the event that launches the authorization intent
             viewModel.authorizeNewSeed()
         },
     )

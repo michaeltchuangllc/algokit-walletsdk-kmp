@@ -6,7 +6,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon2
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.Falcon25AccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.HdKeyAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.NoAuthAccountRepository
-import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SeedVaultAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.async
@@ -19,7 +19,7 @@ class GetLocalAccountsUseCase(
     private val hdKeyAccountRepository: HdKeyAccountRepository,
     private val algo25AccountRepository: Algo25AccountRepository,
     private val noAuthAccountRepository: NoAuthAccountRepository,
-    private val solanaAccountRepository: SolanaAccountRepository,
+    private val seedVaultAccountRepository: SeedVaultAccountRepository,
     private val dispatcher: CoroutineDispatcher,
 ) : GetLocalAccounts {
     override suspend fun invoke(): List<LocalAccount> =
@@ -31,7 +31,7 @@ class GetLocalAccountsUseCase(
             val deferredNoAuthAccounts = async { noAuthAccountRepository.getAll() }
             val deferredSeedVaultAccounts =
                 async {
-                    solanaAccountRepository
+                    seedVaultAccountRepository
                         .getAll()
                         .map { account ->
                             LocalAccount.SeedVault(

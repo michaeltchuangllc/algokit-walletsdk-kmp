@@ -550,4 +550,7 @@ fun NoAuthorizedSeedsScreenPreview() {
  * On iOS, this just shows the regular SelectSeedScreen (Seed Vault is Android-only).
  */
 @Composable
-expect fun SelectSeedScreenPlatform(navController: NavController)
+expect fun SelectSeedScreenPlatform(
+    navController: NavController,
+    accountType: String = "solana",
+)

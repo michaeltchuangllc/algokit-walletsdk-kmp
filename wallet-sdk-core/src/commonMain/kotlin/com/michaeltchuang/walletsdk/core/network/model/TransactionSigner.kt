@@ -25,6 +25,10 @@ sealed interface TransactionSigner {
         override val address: String,
     ) : TransactionSigner
 
+    data class AlgorandSeedVault(
+        override val address: String,
+    ) : TransactionSigner
+
     sealed interface SignerNotFound : TransactionSigner {
         data class NoAuth(
             override val address: String,

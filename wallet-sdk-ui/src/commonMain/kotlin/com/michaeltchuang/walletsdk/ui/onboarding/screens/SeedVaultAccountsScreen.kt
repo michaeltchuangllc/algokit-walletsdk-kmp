@@ -3,6 +3,10 @@ package com.michaeltchuang.walletsdk.ui.onboarding.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.already_imported
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.continue_text
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.seed_vault_loading_algorand_accounts
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.seed_vault_loading_solana_accounts
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.seed_vault_select_algorand_accounts
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.seed_vault_select_solana_accounts
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.select_all
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,32 +48,33 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitBody
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHeadlineText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHighlightedGrayText
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
-import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SolanaAccountsViewModel
+import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SeedVaultAccountsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
 fun ImportSeedVaultAccountsScreen(
-    viewModel: SolanaAccountsViewModel = koinViewModel(),
+    viewModel: SeedVaultAccountsViewModel = koinViewModel(),
     navController: NavController = rememberNavController(),
+    accountType: String = "solana",
     selectedSeedIds: Set<String> = emptySet(),
     showSnackBar: (message: String) -> Unit,
     onAccountsImported: () -> Unit,
 ) {
     val viewState by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(selectedSeedIds) {
-        viewModel.loadSolanaAccounts(selectedSeedIds)
+    LaunchedEffect(selectedSeedIds, accountType) {
+        viewModel.loadAccounts(accountType, selectedSeedIds)
     }
 
     LaunchedEffect(viewModel.viewEvent) {
         viewModel.viewEvent.collect { event ->
             when (event) {
-                is SolanaAccountsViewModel.ViewEvent.AccountsImported -> {
+                is SeedVaultAccountsViewModel.ViewEvent.AccountsImported -> {
                     onAccountsImported()
                 }
-                is SolanaAccountsViewModel.ViewEvent.Error -> {
+                is SeedVaultAccountsViewModel.ViewEvent.Error -> {
                     showSnackBar(event.message)
                 }
             }
@@ -77,30 +82,40 @@ fun ImportSeedVaultAccountsScreen(
     }
 
     when (val currentState = viewState) {
-        is SolanaAccountsViewModel.ViewState.Idle -> Unit
-        is SolanaAccountsViewModel.ViewState.Loading -> LoadingStateContent()
-        is SolanaAccountsViewModel.ViewState.Content ->
+        is SeedVaultAccountsViewModel.ViewState.Idle -> Unit
+        is SeedVaultAccountsViewModel.ViewState.Loading -> LoadingStateContent(accountType)
+        is SeedVaultAccountsViewModel.ViewState.Content ->
             ContentStateContent(
                 viewModel = viewModel,
                 state = currentState,
+                accountType = accountType,
                 onBackClick = { navController.popBackStack() },
             )
-        is SolanaAccountsViewModel.ViewState.Error ->
+        is SeedVaultAccountsViewModel.ViewState.Error ->
             ErrorStateContent(
                 message = currentState.message,
                 onBackClick = { navController.popBackStack() },
-                onRetry = { viewModel.loadSolanaAccounts(selectedSeedIds) },
+                onRetry = { viewModel.loadAccounts(accountType, selectedSeedIds) },
             )
     }
 }
 
 @Composable
-private fun LoadingStateContent() {
+private fun LoadingStateContent(accountType: String) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        AlgoKitBodyText(text = "Loading Solana accounts...")
+        AlgoKitBodyText(
+            text =
+                localizedStringResource(
+                    if (accountType.equals("algorand", ignoreCase = true)) {
+                        Res.string.seed_vault_loading_algorand_accounts
+                    } else {
+                        Res.string.seed_vault_loading_solana_accounts
+                    },
+                ),
+        )
     }
 }
 
@@ -156,8 +171,9 @@ private fun ErrorStateContent(
 
 @Composable
 private fun ContentStateContent(
-    viewModel: SolanaAccountsViewModel,
-    state: SolanaAccountsViewModel.ViewState.Content,
+    viewModel: SeedVaultAccountsViewModel,
+    state: SeedVaultAccountsViewModel.ViewState.Content,
+    accountType: String,
     onBackClick: () -> Unit = {},
 ) {
     Scaffold(
@@ -165,7 +181,7 @@ private fun ContentStateContent(
         containerColor = AlgoKitTheme.colors.background,
         bottomBar = {
             val isPrimaryButtonEnabled =
-                state.selectedAddresses.isNotEmpty()
+                state.selectedAddresses.isNotEmpty() && !state.isImporting
             Column(
                 modifier =
                     Modifier
@@ -197,8 +213,8 @@ private fun ContentStateContent(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            TitleText()
-            DescriptionText(state.solanaAccounts.size)
+            TitleText(accountType)
+            DescriptionText(state.accounts.size)
 
             Spacer(modifier = Modifier.height(34.dp))
 
@@ -211,7 +227,7 @@ private fun ContentStateContent(
             LazyColumn(
                 modifier = Modifier.weight(1f),
             ) {
-                itemsIndexed(state.solanaAccounts) { index, account ->
+                itemsIndexed(state.accounts) { index, account ->
                     AddressItem(
                         selectedAddresses = state.selectedAddresses,
                         account = account,
@@ -219,7 +235,7 @@ private fun ContentStateContent(
                             viewModel.toggleAccountSelection(account.address, isChecked)
                         },
                     )
-                    if (index != state.solanaAccounts.lastIndex) {
+                    if (index != state.accounts.lastIndex) {
                         HorizontalDivider(
                             color = AlgoKitTheme.colors.layerGrayLighter,
                             thickness = 1.dp,
@@ -232,9 +248,16 @@ private fun ContentStateContent(
 }
 
 @Composable
-private fun TitleText() {
+private fun TitleText(accountType: String = "solana") {
     AlgoKitHeadlineText(
-        text = "Select solana accounts to add",
+        text =
+            localizedStringResource(
+                if (accountType.equals("algorand", ignoreCase = true)) {
+                    Res.string.seed_vault_select_algorand_accounts
+                } else {
+                    Res.string.seed_vault_select_solana_accounts
+                },
+            ),
     )
 }
 
@@ -250,11 +273,11 @@ private fun DescriptionText(accountCount: Int) {
 
 @Composable
 private fun ListHeaderContainer(
-    state: SolanaAccountsViewModel.ViewState.Content,
+    state: SeedVaultAccountsViewModel.ViewState.Content,
     onSelectAllAccounts: () -> Unit,
     onUnselectAllAccounts: () -> Unit,
 ) {
-    val notImportedCount = state.solanaAccounts.count { !it.isImported }
+    val notImportedCount = state.accounts.count { !it.isImported }
     val allSelected = state.selectedAddresses.size == notImportedCount && notImportedCount > 0
     val isSelectAllEnabled = notImportedCount > 0
 
@@ -264,7 +287,7 @@ private fun ListHeaderContainer(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         AlgoKitTitleText(
-            text = "${state.solanaAccounts.size} ${if (state.solanaAccounts.size == 1) "address" else "addresses"}",
+            text = "${state.accounts.size} ${if (state.accounts.size == 1) "address" else "addresses"}",
         )
 
         Row(
@@ -315,7 +338,7 @@ private fun ListHeaderContainer(
 @Composable
 private fun AddressItem(
     selectedAddresses: Set<String>,
-    account: SolanaAccountsViewModel.SolanaAccountItem,
+    account: SeedVaultAccountsViewModel.SeedVaultAccountItem,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     val isSelected = selectedAddresses.contains(account.address)
@@ -359,7 +382,7 @@ private fun AddressItem(
             ) {
                 // Derivation path displayed as a badge
                 AlgoKitHighlightedGrayText(
-                    text = formatDerivationPath(account.derivationPath),
+                    text = if (account.chainId == "283") "ALGO" else formatDerivationPath(account.derivationPath),
                 )
                 Spacer(modifier = Modifier.width(16.dp))
 
@@ -391,10 +414,6 @@ private fun AddressItem(
     }
 }
 
-/**
- * Formats a Solana address to short form (first 4 + ... + last 4)
- * Example: HN7cABqLq46Es1jh92dQQisAq662SmxELLLsHHe4YWrH -> HN7c...YWrH
- */
 private fun formatShortAddress(address: String): String =
     if (address.length >= 8) {
         "${address.take(4)}...${address.takeLast(4)}"
@@ -402,10 +421,6 @@ private fun formatShortAddress(address: String): String =
         address
     }
 
-/**
- * Formats a derivation path to show just the account index
- * Example: m/44/501/0/0 -> 0, m/44/501/1/0 -> 1
- */
 private fun formatDerivationPath(derivationPath: String): String {
     val chainId =
         derivationPath
@@ -424,16 +439,16 @@ private fun formatDerivationPath(derivationPath: String): String {
 @Composable
 private fun ImportSeedVaultAccountsScreenPreview() {
     val fakeViewState =
-        SolanaAccountsViewModel.ViewState.Content(
-            solanaAccounts =
+        SeedVaultAccountsViewModel.ViewState.Content(
+            accounts =
                 listOf(
-                    SolanaAccountsViewModel.SolanaAccountItem(
+                    SeedVaultAccountsViewModel.SeedVaultAccountItem(
                         address = "IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E",
                         accountName = "Main Account",
                         derivationPath = "m/44/501/0/0",
                         isImported = false,
                     ),
-                    SolanaAccountsViewModel.SolanaAccountItem(
+                    SeedVaultAccountsViewModel.SeedVaultAccountItem(
                         address = "B7DFJHGK8LMNPQR9STUVWXYZ123456789",
                         accountName = "Secondary Account",
                         derivationPath = "m/44/501/1/0",
@@ -449,7 +464,7 @@ private fun ImportSeedVaultAccountsScreenPreview() {
 }
 
 @Composable
-private fun ContentStatePreview(state: SolanaAccountsViewModel.ViewState.Content) {
+private fun ContentStatePreview(state: SeedVaultAccountsViewModel.ViewState.Content) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = AlgoKitTheme.colors.background,
@@ -481,7 +496,7 @@ private fun ContentStatePreview(state: SolanaAccountsViewModel.ViewState.Content
             Spacer(modifier = Modifier.height(24.dp))
 
             TitleText()
-            DescriptionText(state.solanaAccounts.size)
+            DescriptionText(state.accounts.size)
 
             Spacer(modifier = Modifier.height(34.dp))
 
@@ -490,12 +505,12 @@ private fun ContentStatePreview(state: SolanaAccountsViewModel.ViewState.Content
             LazyColumn(
                 modifier = Modifier.weight(1f),
             ) {
-                itemsIndexed(state.solanaAccounts) { index, account ->
+                itemsIndexed(state.accounts) { index, account ->
                     AddressItemPreview(
                         selectedAddresses = state.selectedAddresses,
                         account = account,
                     )
-                    if (index != state.solanaAccounts.lastIndex) {
+                    if (index != state.accounts.lastIndex) {
                         HorizontalDivider(
                             color = AlgoKitTheme.colors.layerGrayLighter,
                             thickness = 1.dp,
@@ -508,8 +523,8 @@ private fun ContentStatePreview(state: SolanaAccountsViewModel.ViewState.Content
 }
 
 @Composable
-private fun ListHeaderContainerPreview(state: SolanaAccountsViewModel.ViewState.Content) {
-    val notImportedCount = state.solanaAccounts.count { !it.isImported }
+private fun ListHeaderContainerPreview(state: SeedVaultAccountsViewModel.ViewState.Content) {
+    val notImportedCount = state.accounts.count { !it.isImported }
     val allSelected = state.selectedAddresses.size == notImportedCount && notImportedCount > 0
     val isSelectAllEnabled = notImportedCount > 0
 
@@ -519,7 +534,7 @@ private fun ListHeaderContainerPreview(state: SolanaAccountsViewModel.ViewState.
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         AlgoKitTitleText(
-            text = "${state.solanaAccounts.size} ${if (state.solanaAccounts.size == 1) "address" else "addresses"}",
+            text = "${state.accounts.size} ${if (state.accounts.size == 1) "address" else "addresses"}",
         )
 
         Row(
@@ -561,7 +576,7 @@ private fun ListHeaderContainerPreview(state: SolanaAccountsViewModel.ViewState.
 @Composable
 private fun AddressItemPreview(
     selectedAddresses: Set<String>,
-    account: SolanaAccountsViewModel.SolanaAccountItem,
+    account: SeedVaultAccountsViewModel.SeedVaultAccountItem,
 ) {
     val isSelected = selectedAddresses.contains(account.address)
 
@@ -600,7 +615,7 @@ private fun AddressItemPreview(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                account.derivationPath.let { name ->
+                (if (account.chainId == "283") "ALGO" else formatDerivationPath(account.derivationPath)).let { name ->
                     AlgoKitHighlightedGrayText(
                         text = name,
                     )

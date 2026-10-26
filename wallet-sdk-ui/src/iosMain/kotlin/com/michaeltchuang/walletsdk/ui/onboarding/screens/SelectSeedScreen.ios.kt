@@ -16,7 +16,10 @@ import org.koin.compose.viewmodel.koinViewModel
  * with permissionGranted = false (will show "Not Available" message).
  */
 @Composable
-actual fun SelectSeedScreenPlatform(navController: NavController) {
+actual fun SelectSeedScreenPlatform(
+    navController: NavController,
+    accountType: String,
+) {
     val viewModel: SelectSeedViewModel = koinViewModel()
     val showUnsupportedAlert = remember { mutableStateOf(false) }
 

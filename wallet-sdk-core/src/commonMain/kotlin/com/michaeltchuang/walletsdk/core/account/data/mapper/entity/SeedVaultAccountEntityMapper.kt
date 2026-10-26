@@ -1,12 +1,12 @@
 package com.michaeltchuang.walletsdk.core.account.data.mapper.entity
 
 import com.michaeltchuang.walletsdk.core.account.data.database.model.SeedVaultEntity
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.SolanaAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.SeedVaultAccount
 
-internal fun interface SolanaAccountEntityMapper : (SolanaAccount) -> SeedVaultEntity
+internal fun interface SeedVaultAccountEntityMapper : (SeedVaultAccount) -> SeedVaultEntity
 
-internal class SolanaAccountEntityMapperImpl : SolanaAccountEntityMapper {
-    override fun invoke(account: SolanaAccount): SeedVaultEntity =
+internal class SeedVaultAccountEntityMapperImpl : SeedVaultAccountEntityMapper {
+    override fun invoke(account: SeedVaultAccount): SeedVaultEntity =
         SeedVaultEntity(
             publicKey = account.publicKey,
             address = account.address,

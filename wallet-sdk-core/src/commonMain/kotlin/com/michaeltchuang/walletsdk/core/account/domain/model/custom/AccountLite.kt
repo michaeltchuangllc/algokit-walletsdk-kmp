@@ -10,4 +10,8 @@ data class AccountLite(
     val registrationType: AccountRegistrationType,
     val balance: String? = null,
     val usdcBalance: String? = null,
-)
+    val chainId: String = if (registrationType is AccountRegistrationType.SeedVault) "501" else "283",
+) {
+    val isSolana: Boolean
+        get() = chainId == "501"
+}

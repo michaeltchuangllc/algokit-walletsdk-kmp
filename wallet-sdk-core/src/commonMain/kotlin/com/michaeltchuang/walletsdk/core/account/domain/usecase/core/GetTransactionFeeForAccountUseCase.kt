@@ -10,13 +10,13 @@ internal class GetTransactionFeeForAccountUseCase(
 ) : GetTransactionFeeForAccount {
     override suspend fun invoke(address: String): TransactionFee {
         val account = getLocalAccount(address)
-        return when (account) {
-            is LocalAccount.Falcon24 ->
+        return when {
+            account is LocalAccount.Falcon24 ->
                 TransactionFee(
                     feeInMicroAlgos = TransactionFee.FALCON24_FEE_MICRO_ALGOS,
                     feeInAlgos = TransactionFee.FALCON24_FEE_ALGOS,
                 )
-            is LocalAccount.Falcon25 ->
+            account is LocalAccount.Falcon25 || (account is LocalAccount.SeedVault && account.chainId == "283") ->
                 TransactionFee(
                     feeInMicroAlgos = TransactionFee.FALCON25_FEE_MICRO_ALGOS,
                     feeInAlgos = TransactionFee.FALCON25_FEE_ALGOS,
