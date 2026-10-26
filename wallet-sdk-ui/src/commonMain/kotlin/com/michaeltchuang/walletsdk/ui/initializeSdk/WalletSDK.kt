@@ -17,6 +17,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaB
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import com.michaeltchuang.walletsdk.ui.base.di.walletSdkUiModules
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitEvent
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -26,6 +27,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import org.koin.core.context.loadKoinModules
 import org.koin.core.context.startKoin
 import org.koin.mp.KoinPlatform.getKoin
@@ -162,12 +164,17 @@ object WalletSDK {
         nameRegistrationUseCase.deleteAccount(address)
     }
 
-    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> = getSolanaBalancesUseCase(addresses)
+    /** SOL balances on the Solana cluster matching the current network (MainNet -> mainnet-beta, else devnet). */
+    suspend fun getSolanaBalances(addresses: List<String>): Map<String, String?> =
+        getSolanaBalancesUseCase(addresses, currentSolanaCluster())
 
+    /** USDC balances on the Solana cluster matching the current network (MainNet -> mainnet-beta, else devnet). */
     suspend fun getSolanaUsdcBalances(addresses: List<String>): Map<String, String?> =
         getSolanaBalancesUseCase
-            .getUsdcBalances(addresses)
+            .getUsdcBalances(addresses, currentSolanaCluster())
             .mapValues { (_, balance) -> balance?.toString() }
+
+    private suspend fun currentSolanaCluster(): String = SolanaClusters.clusterFor(getCurrentNetworkUseCase().first())
 
     suspend fun getAccountASABalance(
         address: String,

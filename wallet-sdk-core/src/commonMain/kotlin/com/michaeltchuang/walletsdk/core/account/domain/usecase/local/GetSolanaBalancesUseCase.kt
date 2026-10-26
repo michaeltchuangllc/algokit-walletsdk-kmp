@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
 
 import com.ionspin.kotlin.bignum.integer.BigInteger
 import com.ionspin.kotlin.bignum.integer.toBigInteger
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import io.ktor.client.HttpClient
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -26,11 +27,13 @@ import kotlinx.serialization.json.putJsonArray
 class GetSolanaBalancesUseCase(
     private val httpClient: HttpClient,
 ) {
+    /** [cluster] is a Solana cluster name, see [SolanaClusters.clusterFor]. */
     suspend operator fun invoke(
         addresses: List<String>,
-        rpcEndpoint: String = SOLANA_DEVNET_RPC,
+        cluster: String,
     ): Map<String, String?> =
         coroutineScope {
+            val rpcEndpoint = SolanaClusters.rpcUrlFor(cluster)
             addresses
                 .map { address ->
                     async {
@@ -46,10 +49,11 @@ class GetSolanaBalancesUseCase(
 
     suspend fun getUsdcBalances(
         addresses: List<String>,
-        rpcEndpoint: String = SOLANA_DEVNET_RPC,
-        usdcMintAddress: String = USDC_MINT_DEVNET,
+        cluster: String,
     ): Map<String, BigInteger?> =
         coroutineScope {
+            val rpcEndpoint = SolanaClusters.rpcUrlFor(cluster)
+            val usdcMintAddress = SolanaClusters.usdcMintFor(cluster)
             addresses
                 .map { address ->
                     async {
@@ -200,8 +204,6 @@ class GetSolanaBalancesUseCase(
 
     companion object {
         private val json = Json { ignoreUnknownKeys = true }
-        private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"
         private const val LAMPORTS_TO_MICRO_DIVISOR = 1_000L
-        private const val USDC_MINT_DEVNET = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU"
     }
 }

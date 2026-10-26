@@ -1,5 +1,6 @@
 package com.michaeltchuang.walletsdk.core.transaction.domain.usecase
 
+import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.post
@@ -19,15 +20,9 @@ class SubmitSolanaSignedTransactionUseCase(
     @OptIn(ExperimentalEncodingApi::class)
     suspend operator fun invoke(
         signedTransaction: ByteArray,
-        network: String = "devnet",
+        network: String = SolanaClusters.DEVNET,
     ): String {
-        val rpcEndpoint =
-            when (network.lowercase()) {
-                "mainnet", "mainnet-beta" -> SOLANA_MAINNET_RPC
-                "devnet" -> SOLANA_DEVNET_RPC
-                "testnet" -> SOLANA_TESTNET_RPC
-                else -> SOLANA_DEVNET_RPC
-            }
+        val rpcEndpoint = SolanaClusters.rpcUrlFor(network)
 
         val rpcPayload =
             JsonObject(
@@ -69,11 +64,5 @@ class SubmitSolanaSignedTransactionUseCase(
 
         return json["result"]?.toString()?.trim('"')
             ?: throw IllegalStateException("Missing Solana transaction signature in RPC response")
-    }
-
-    companion object {
-        private const val SOLANA_MAINNET_RPC = "https://api.mainnet-beta.solana.com"
-        private const val SOLANA_DEVNET_RPC = "https://api.devnet.solana.com"
-        private const val SOLANA_TESTNET_RPC = "https://api.testnet.solana.com"
     }
 }

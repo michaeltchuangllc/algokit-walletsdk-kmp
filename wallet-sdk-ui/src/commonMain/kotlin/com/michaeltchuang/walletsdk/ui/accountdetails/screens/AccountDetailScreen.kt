@@ -220,8 +220,9 @@ fun ScreenContent(
                         }
                     }
 
-                    // Show the network-specific dispenser when available.
-                    if (state.dispenserBaseUrl != null && (!state.isSolanaAccount || state.isTestNet)) {
+                    // Show the network-specific dispenser when available (none on MainNet).
+                    // Solana accounts use devnet on both TestNet and FutureNet, so they get the Solana faucet on both.
+                    if (state.dispenserBaseUrl != null) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AccountDetailWebviewItem(
