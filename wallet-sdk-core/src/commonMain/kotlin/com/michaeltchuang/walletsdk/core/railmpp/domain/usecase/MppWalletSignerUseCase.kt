@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon2
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Seed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.railmpp.data.MppWalletSignerImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
@@ -25,7 +26,7 @@ class MppWalletSignerUseCase(
         val localAccount = getLocalAccount(address) ?: return null
         // Seed Vault keys never leave secure hardware; auto-signing only works via a linked session key.
         if (localAccount is LocalAccount.SeedVault) {
-            return if (localAccount.chainId == "501") getSolanaSessionSigner(address) else null
+            return if (localAccount.chainId == Chain.SOLANA.id) getSolanaSessionSigner(address) else null
         }
 
         val authorizedSignerPublicKey: ByteArray =

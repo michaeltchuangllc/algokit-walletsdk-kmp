@@ -4,7 +4,7 @@ import android.content.Context
 import com.michaeltchuang.seedvault.sdk.client.SeedVaultServiceClient
 import com.michaeltchuang.seedvault.sdk.domain.model.SeedVaultSeed
 import com.michaeltchuang.walletsdk.core.account.domain.model.algorand.AlgorandSeedVaultSeed
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.SeedVaultAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.algorand.AlgorandSeedVaultSeedAccount
 import com.michaeltchuang.walletsdk.core.account.domain.repository.algorand.AlgorandSeedVaultRepository
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -42,11 +42,10 @@ internal fun SeedVaultSeed.toAlgorandSeedVaultSeed(): AlgorandSeedVaultSeed =
         name = name,
         accounts =
             accounts.map { account ->
-                SeedVaultAccount(
-                    publicKey = account.publicKey,
+                AlgorandSeedVaultSeedAccount(
+                    index = account.index,
                     address = account.address,
-                    chainId = "283",
-                    accountName = name,
+                    publicKey = account.publicKey,
                 )
             },
     )

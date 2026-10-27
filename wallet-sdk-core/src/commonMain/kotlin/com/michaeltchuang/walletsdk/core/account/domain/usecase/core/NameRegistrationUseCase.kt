@@ -7,6 +7,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.custom.GetAccountsCustomInfo
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteNoAuthAccountUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.DeleteSeedVaultAccountUseCase
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 
 class NameRegistrationUseCase(
@@ -36,7 +37,7 @@ class NameRegistrationUseCase(
                 account.address,
                 customInfoMap[account.address]?.customName.orEmpty(),
                 getAccountRegistrationTypeUseCase(account),
-                chainId = (account as? LocalAccount.SeedVault)?.chainId ?: "283",
+                chainId = (account as? LocalAccount.SeedVault)?.chainId ?: Chain.ALGORAND.id,
             )
         }
     }

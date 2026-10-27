@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.SeedVaultAcc
 import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SeedVaultAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.solana.domain.EnsureSolanaSessionKeyUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.ReturnSolanaSessionKeyFundsUseCase
 import kotlinx.coroutines.CancellationException
@@ -77,12 +78,12 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
                     SeedVaultAccount(
                         publicKey = account.address,
                         address = account.address,
-                        chainId = extractChainIdFromDerivationPath(account.derivationPath),
+                        chainId = Chain.SOLANA.id,
                         accountName = account.accountName,
                     )
                 }.distinctBy { it.address }
         val latestAddresses = latestSolanaAccounts.map { it.address }.toSet()
-        val localAccounts = seedVaultAccountRepository.getAll().filter { it.chainId == "501" }
+        val localAccounts = seedVaultAccountRepository.getAll().filter { it.chainId == Chain.SOLANA.id }
         val localAccountsByAddress = localAccounts.associateBy { it.address }
 
         // Deleting the account cascade-deletes its session key. The account is gone from Seed Vault
@@ -116,11 +117,4 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
         } catch (e: Exception) {
             true
         }
-
-    private fun extractChainIdFromDerivationPath(derivationPath: String): String =
-        derivationPath
-            .split("/")
-            .getOrNull(2)
-            ?.replace("'", "")
-            ?: "501"
 }

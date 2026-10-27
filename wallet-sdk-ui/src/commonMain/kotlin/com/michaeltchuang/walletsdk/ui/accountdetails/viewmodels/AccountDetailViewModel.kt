@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.FUTURENET_DISPENSER_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.TESTNET_DISPENSER_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
@@ -47,8 +48,8 @@ class AccountDetailViewModel(
                 val localAccount = getLocalAccount(address)
                 val isNoAuthAccount =
                     localAccount is LocalAccount.NoAuth ||
-                        (localAccount is LocalAccount.SeedVault && localAccount.chainId != "283")
-                val isSolanaAccount = localAccount is LocalAccount.SeedVault && localAccount.chainId == "501"
+                        (localAccount is LocalAccount.SeedVault && localAccount.chainId != Chain.ALGORAND.id)
+                val isSolanaAccount = localAccount is LocalAccount.SeedVault && localAccount.chainId == Chain.SOLANA.id
 
                 getCurrentNetworkUseCase().collect { network ->
                     val usdcAssetId =

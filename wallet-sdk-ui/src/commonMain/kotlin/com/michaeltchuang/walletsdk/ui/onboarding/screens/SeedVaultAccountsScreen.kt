@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
@@ -382,7 +383,7 @@ private fun AddressItem(
             ) {
                 // Derivation path displayed as a badge
                 AlgoKitHighlightedGrayText(
-                    text = if (account.chainId == "283") "ALGO" else formatDerivationPath(account.derivationPath),
+                    text = chainBadgeText(account),
                 )
                 Spacer(modifier = Modifier.width(16.dp))
 
@@ -421,19 +422,15 @@ private fun formatShortAddress(address: String): String =
         address
     }
 
-private fun formatDerivationPath(derivationPath: String): String {
-    val chainId =
-        derivationPath
-            .split("/")
-            .map { it.removeSuffix("'") }
-            .firstOrNull { it == "501" || it == "283" }
+private fun chainBadgeText(account: SeedVaultAccountsViewModel.SeedVaultAccountItem): String =
+    Chain.fromId(account.chainId)?.ticker ?: formatDerivationPath(account.derivationPath)
 
-    return when (chainId) {
-        "501" -> "SOL"
-        "283" -> "ALGO"
-        else -> derivationPath
-    }
-}
+private fun formatDerivationPath(derivationPath: String): String =
+    derivationPath
+        .split("/")
+        .firstNotNullOfOrNull { Chain.fromId(it.removeSuffix("'")) }
+        ?.ticker
+        ?: derivationPath
 
 @Preview
 @Composable
@@ -615,7 +612,7 @@ private fun AddressItemPreview(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                (if (account.chainId == "283") "ALGO" else formatDerivationPath(account.derivationPath)).let { name ->
+                chainBadgeText(account).let { name ->
                     AlgoKitHighlightedGrayText(
                         text = name,
                     )

@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.core.transaction.domain.usecase
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionSigner
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 
 internal class GetTransactionSignerUseCase(
@@ -17,7 +18,7 @@ internal class GetTransactionSignerUseCase(
             is LocalAccount.Falcon24 -> getFalcon24Signer(address)
             is LocalAccount.NoAuth -> TransactionSigner.SignerNotFound.NoAuth(address)
             is LocalAccount.SeedVault ->
-                if (accountDetail.chainId == "283") {
+                if (accountDetail.chainId == Chain.ALGORAND.id) {
                     TransactionSigner.AlgorandSeedVault(address)
                 } else {
                     TransactionSigner.SignerNotFound.NoAuth(address)

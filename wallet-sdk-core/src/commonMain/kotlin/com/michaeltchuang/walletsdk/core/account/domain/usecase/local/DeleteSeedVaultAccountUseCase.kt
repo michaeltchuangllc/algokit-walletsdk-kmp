@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
 
 import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SeedVaultAccountRepository
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.solana.domain.ReturnSolanaSessionKeyFundsUseCase
 import kotlinx.coroutines.CancellationException
 
@@ -16,7 +17,7 @@ class DeleteSeedVaultAccountUseCase(
     suspend operator fun invoke(address: String): Result<Unit> =
         try {
             val account = seedVaultAccountRepository.getAll().firstOrNull { it.address == address }
-            if (account?.chainId == "501") {
+            if (account?.chainId == Chain.SOLANA.id) {
                 returnSessionKeyFunds(address)
             }
             seedVaultAccountRepository.deleteAccountByAddress(address)

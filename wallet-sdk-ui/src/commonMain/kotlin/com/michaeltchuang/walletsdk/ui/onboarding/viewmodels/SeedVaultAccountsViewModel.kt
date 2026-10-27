@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -81,14 +82,15 @@ class SeedVaultAccountsViewModel(
                             "algorand" ->
                                 getAlgorandSeedVaultSeeds()
                                     .filter { selectedSeedIds.isEmpty() || it.id in selectedSeedIds }
-                                    .flatMap { seed ->
-                                        seed.accounts.map { account ->
+                                    // Only the primary (index 0) account of each seed is importable.
+                                    .mapNotNull { seed ->
+                                        seed.primaryAccount?.let { account ->
                                             SeedVaultAccountItem(
                                                 address = account.address,
                                                 publicKey = account.publicKey,
-                                                accountName = account.accountName ?: seed.name,
+                                                accountName = account.address,
                                                 derivationPath = "",
-                                                chainId = "283",
+                                                chainId = Chain.ALGORAND.id,
                                             )
                                         }
                                     }
@@ -188,8 +190,10 @@ class SeedVaultAccountsViewModel(
                         }
 
                     when {
-                        accountsToImport.all { it.chainId == "283" } -> importAlgorandSeedVaultAccounts(accountsToImport)
-                        accountsToImport.all { it.chainId == "501" } -> importSolanaAccountsUseCase(accountsToImport)
+                        accountsToImport.all { it.chainId == Chain.ALGORAND.id } ->
+                            importAlgorandSeedVaultAccounts(accountsToImport)
+                        accountsToImport.all { it.chainId == Chain.SOLANA.id } ->
+                            importSolanaAccountsUseCase(accountsToImport)
                         else -> error("Cannot import mixed or unsupported Seed Vault chains")
                     }
                     stateDelegate.updateState {
@@ -219,7 +223,7 @@ class SeedVaultAccountsViewModel(
         val derivationPath: String,
         val isImported: Boolean = false,
         val publicKey: String = address,
-        val chainId: String = "501",
+        val chainId: String = Chain.SOLANA.id,
     )
 
     sealed interface ViewState {
