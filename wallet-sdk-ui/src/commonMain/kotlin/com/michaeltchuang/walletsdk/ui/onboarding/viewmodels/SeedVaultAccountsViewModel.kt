@@ -65,10 +65,10 @@ class SeedVaultAccountsViewModel(
 
     suspend fun checkImportedAddresses(addresses: List<String>): Set<String> = getImportedSolanaAddressesUseCase(addresses)
 
-    fun loadSolanaAccounts(selectedSeedIds: Set<String> = emptySet()) = loadAccounts("solana", selectedSeedIds)
+    fun loadSolanaAccounts(selectedSeedIds: Set<String> = emptySet()) = loadAccounts(Chain.SOLANA, selectedSeedIds)
 
     fun loadAccounts(
-        accountType: String,
+        accountType: Chain,
         selectedSeedIds: Set<String> = emptySet(),
     ) {
         if ((state.value as? ViewState.Content)?.isImporting == true) return
@@ -78,8 +78,8 @@ class SeedVaultAccountsViewModel(
             viewModelScope.launch(dispatcher) {
                 try {
                     val accounts =
-                        when (accountType.lowercase()) {
-                            "algorand" ->
+                        when (accountType) {
+                            Chain.ALGORAND ->
                                 getAlgorandSeedVaultSeeds()
                                     .filter { selectedSeedIds.isEmpty() || it.id in selectedSeedIds }
                                     // Only the primary (index 0) account of each seed is importable.
@@ -94,7 +94,7 @@ class SeedVaultAccountsViewModel(
                                             )
                                         }
                                     }
-                            "solana" ->
+                            Chain.SOLANA ->
                                 getSolanaAccountsFromSeedVaultUseCase()
                                     .filter { selectedSeedIds.isEmpty() || it.authToken.toString() in selectedSeedIds }
                                     .flatMap { seed ->
@@ -103,10 +103,10 @@ class SeedVaultAccountsViewModel(
                                                 address = account.address,
                                                 accountName = account.accountName ?: seed.name,
                                                 derivationPath = account.derivationPath,
+                                                chainId = Chain.SOLANA.id,
                                             )
                                         }
                                     }
-                            else -> error("Unsupported Seed Vault account type")
                         }.distinctBy { it.address }
                     val importedAddresses = accountRepository.getAllAddresses().toSet()
                     setAccountItems(accounts.map { it.copy(isImported = it.address in importedAddresses) })
@@ -223,7 +223,7 @@ class SeedVaultAccountsViewModel(
         val derivationPath: String,
         val isImported: Boolean = false,
         val publicKey: String = address,
-        val chainId: String = Chain.SOLANA.id,
+        val chainId: String,
     )
 
     sealed interface ViewState {

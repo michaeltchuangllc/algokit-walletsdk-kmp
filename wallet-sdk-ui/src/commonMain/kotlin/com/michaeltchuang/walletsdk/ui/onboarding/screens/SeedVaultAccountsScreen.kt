@@ -58,7 +58,7 @@ import org.koin.compose.viewmodel.koinViewModel
 fun ImportSeedVaultAccountsScreen(
     viewModel: SeedVaultAccountsViewModel = koinViewModel(),
     navController: NavController = rememberNavController(),
-    accountType: String = "solana",
+    accountType: Chain = Chain.ALGORAND,
     selectedSeedIds: Set<String> = emptySet(),
     showSnackBar: (message: String) -> Unit,
     onAccountsImported: () -> Unit,
@@ -102,7 +102,7 @@ fun ImportSeedVaultAccountsScreen(
 }
 
 @Composable
-private fun LoadingStateContent(accountType: String) {
+private fun LoadingStateContent(accountType: Chain) {
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -110,7 +110,7 @@ private fun LoadingStateContent(accountType: String) {
         AlgoKitBodyText(
             text =
                 localizedStringResource(
-                    if (accountType.equals("algorand", ignoreCase = true)) {
+                    if (accountType == Chain.ALGORAND) {
                         Res.string.seed_vault_loading_algorand_accounts
                     } else {
                         Res.string.seed_vault_loading_solana_accounts
@@ -174,7 +174,7 @@ private fun ErrorStateContent(
 private fun ContentStateContent(
     viewModel: SeedVaultAccountsViewModel,
     state: SeedVaultAccountsViewModel.ViewState.Content,
-    accountType: String,
+    accountType: Chain,
     onBackClick: () -> Unit = {},
 ) {
     Scaffold(
@@ -249,11 +249,11 @@ private fun ContentStateContent(
 }
 
 @Composable
-private fun TitleText(accountType: String = "solana") {
+private fun TitleText(accountType: Chain = Chain.ALGORAND) {
     AlgoKitHeadlineText(
         text =
             localizedStringResource(
-                if (accountType.equals("algorand", ignoreCase = true)) {
+                if (accountType == Chain.ALGORAND) {
                     Res.string.seed_vault_select_algorand_accounts
                 } else {
                     Res.string.seed_vault_select_solana_accounts
@@ -444,12 +444,14 @@ private fun ImportSeedVaultAccountsScreenPreview() {
                         accountName = "Main Account",
                         derivationPath = "m/44/501/0/0",
                         isImported = false,
+                        chainId = Chain.SOLANA.id,
                     ),
                     SeedVaultAccountsViewModel.SeedVaultAccountItem(
                         address = "B7DFJHGK8LMNPQR9STUVWXYZ123456789",
                         accountName = "Secondary Account",
                         derivationPath = "m/44/501/1/0",
                         isImported = false,
+                        chainId = Chain.SOLANA.id,
                     ),
                 ),
             selectedAddresses = setOf("IYRGNKJDFK3LFJD4K8GFJ4K3BFVKMY3E"),

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
@@ -552,5 +553,5 @@ fun NoAuthorizedSeedsScreenPreview() {
 @Composable
 expect fun SelectSeedScreenPlatform(
     navController: NavController,
-    accountType: String = "solana",
+    accountType: Chain = Chain.ALGORAND,
 )

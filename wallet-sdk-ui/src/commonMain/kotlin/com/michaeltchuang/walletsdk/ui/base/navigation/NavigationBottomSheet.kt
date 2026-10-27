@@ -37,6 +37,7 @@ import androidx.navigation.navArgument
 import androidx.savedstate.SavedState
 import androidx.savedstate.read
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemonic
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
@@ -768,11 +769,12 @@ fun NavigationBottomSheetNavHost(
                             navArgument("accountType") {
                                 type = NavType.StringType
                                 nullable = true
-                                defaultValue = "solana"
+                                defaultValue = Chain.ALGORAND.name
                             },
                         ),
                 ) { backStackEntry ->
-                    val accountType = backStackEntry.arguments.stringArgument("accountType") ?: "solana"
+                    val accountType =
+                        Chain.valueOf(backStackEntry.arguments.stringArgument("accountType") ?: Chain.ALGORAND.name)
                     SelectSeedScreenPlatform(navController = navController, accountType = accountType)
                 }
                 composable(
@@ -784,7 +786,7 @@ fun NavigationBottomSheetNavHost(
                             navArgument("accountType") {
                                 type = NavType.StringType
                                 nullable = true
-                                defaultValue = "solana"
+                                defaultValue = Chain.ALGORAND.name
                             },
                             navArgument("selectedSeedIds") {
                                 type = NavType.StringType
@@ -793,7 +795,8 @@ fun NavigationBottomSheetNavHost(
                             },
                         ),
                 ) { backStackEntry ->
-                    val accountType = backStackEntry.arguments.stringArgument("accountType") ?: "solana"
+                    val accountType =
+                        Chain.valueOf(backStackEntry.arguments.stringArgument("accountType") ?: Chain.ALGORAND.name)
                     val selectedSeedIdsRaw =
                         backStackEntry.arguments.stringArgument("selectedSeedIds")
                     val selectedSeedIds =

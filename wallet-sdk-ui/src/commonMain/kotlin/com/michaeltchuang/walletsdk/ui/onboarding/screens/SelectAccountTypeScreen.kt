@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.GroupChoiceWidget
@@ -24,10 +25,10 @@ fun SelectAccountTypeScreen(navController: NavController) {
     SelectAccountTypeScreenContent(
         onBackClick = { navController.popBackStack() },
         onAlgorandClick = {
-            navController.navigate("${AlgoKitScreens.SELECT_SEED_SCREEN.name}?accountType=algorand")
+            navController.navigate("${AlgoKitScreens.SELECT_SEED_SCREEN.name}?accountType=${Chain.ALGORAND.name}")
         },
         onSolanaClick = {
-            navController.navigate("${AlgoKitScreens.SELECT_SEED_SCREEN.name}?accountType=solana")
+            navController.navigate("${AlgoKitScreens.SELECT_SEED_SCREEN.name}?accountType=${Chain.SOLANA.name}")
         },
     )
 }

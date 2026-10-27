@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
@@ -27,11 +28,11 @@ class SelectSeedViewModel(
         stateDelegate.setDefaultState(ViewState.Idle)
     }
 
-    fun loadSeeds(accountType: String = "solana") {
+    fun loadSeeds(accountType: Chain = Chain.ALGORAND) {
         stateDelegate.updateState { ViewState.Loading }
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                if (accountType.equals("algorand", ignoreCase = true)) {
+                if (accountType == Chain.ALGORAND) {
                     setSeedItems(getAlgorandSeedVaultSeeds().map { SeedItem(id = it.id, name = it.name) })
                     return@launch
                 }

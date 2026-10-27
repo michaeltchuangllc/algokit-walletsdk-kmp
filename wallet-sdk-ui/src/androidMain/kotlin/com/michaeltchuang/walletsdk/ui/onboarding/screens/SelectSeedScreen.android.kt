@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavController
 import com.michaeltchuang.seedvault.sdk.SeedVaultServiceConstants
 import com.michaeltchuang.seedvault.sdk.client.SeedVaultServiceClient
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SelectSeedViewModel
 import com.solanamobile.seedvault.Wallet
@@ -78,11 +79,11 @@ private fun showSeedVaultUnsupportedAlert(context: Context) {
 @Composable
 actual fun SelectSeedScreenPlatform(
     navController: NavController,
-    accountType: String,
+    accountType: Chain,
 ) {
     val context = LocalContext.current
     val viewModel: SelectSeedViewModel = koinViewModel()
-    val isAlgorand = accountType.equals("algorand", ignoreCase = true)
+    val isAlgorand = accountType == Chain.ALGORAND
 
     val activity = remember(context) { context.findActivity() }
     val isSeedVaultSupportedDevice = remember(context) { isSupportedSeedVaultDevice(context) }
@@ -127,7 +128,7 @@ actual fun SelectSeedScreenPlatform(
                 try {
                     val authToken = Wallet.onAuthorizeSeedResult(resultCode, data)
                     Log.d("SelectSeedScreen", "Solana seed authorized successfully, authToken=$authToken")
-                    viewModel.loadSeeds()
+                    loadSeeds()
                 } catch (e: Wallet.ActionFailedException) {
                     Log.e("SelectSeedScreen", "Solana seed authorization failed: ${e.message}")
                 }
@@ -150,7 +151,7 @@ actual fun SelectSeedScreenPlatform(
             when (event) {
                 is SelectSeedViewModel.ViewEvent.SeedSelected -> {
                     navController.navigate(
-                        "${AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name}?accountType=$accountType&selectedSeedIds=${event.seed.id}",
+                        "${AlgoKitScreens.IMPORT_SEED_VAULT_ACCOUNTS_SCREEN.name}?accountType=${accountType.name}&selectedSeedIds=${event.seed.id}",
                     )
                 }
                 is SelectSeedViewModel.ViewEvent.AllSeedsConnected -> {
