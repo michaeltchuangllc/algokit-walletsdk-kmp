@@ -90,6 +90,11 @@ fun AssetTransferConfirmScreen(
     closeSheet: () -> Unit = {},
 ) {
     val viewModel: AssetTransferConfirmViewModel = koinViewModel()
+    val seedVaultSigner = rememberAlgorandSeedVaultSigner()
+    androidx.compose.runtime.DisposableEffect(viewModel, seedVaultSigner) {
+        viewModel.setSeedVaultSigner(seedVaultSigner)
+        onDispose { viewModel.setSeedVaultSigner(null) }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     val viewState by viewModel.state.collectAsState()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)

@@ -2,7 +2,6 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetBasicAccountInformationUseCase
@@ -106,11 +105,11 @@ class LiquidAuthViewModel(
             }
         val solanaAccounts =
             accounts.filter {
-                it.registrationType is AccountRegistrationType.SeedVault
+                it.isSolana
             }
         val nonSolanaAccounts =
             accounts.filterNot {
-                it.registrationType is AccountRegistrationType.SeedVault
+                it.isSolana
             }
         if (solanaAccounts.isEmpty()) {
             return nonSolanaAccounts.map { account ->
@@ -136,7 +135,7 @@ class LiquidAuthViewModel(
             )
         }
         return accounts.map { account ->
-            if (account.registrationType is AccountRegistrationType.SeedVault) {
+            if (account.isSolana) {
                 account.copy(
                     balance = balancesByAddress[account.address] ?: account.balance,
                     usdcBalance = usdcBalancesByAddress[account.address] ?: account.usdcBalance,

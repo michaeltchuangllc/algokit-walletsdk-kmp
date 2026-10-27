@@ -1,6 +1,8 @@
 package com.michaeltchuang.walletsdk.core.account.di
 
+import com.michaeltchuang.walletsdk.core.account.data.repository.AlgorandSeedVaultRepositoryImpl
 import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
+import com.michaeltchuang.walletsdk.core.account.domain.repository.algorand.AlgorandSeedVaultRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
 import org.koin.core.module.dsl.bind
 import org.koin.core.module.dsl.singleOf
@@ -26,5 +28,6 @@ class NoOpSeedVaultRepository : SeedVaultRepository {
  */
 val solanaAccountModule =
     module {
+        single<AlgorandSeedVaultRepository> { AlgorandSeedVaultRepositoryImpl() }
         singleOf(::NoOpSeedVaultRepository) { bind<SeedVaultRepository>() }
     }

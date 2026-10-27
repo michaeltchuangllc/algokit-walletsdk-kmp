@@ -31,6 +31,7 @@ import com.michaeltchuang.walletsdk.core.foundation.utils.minBalancePerAssetAsBi
 import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.network.model.TransactionSigner
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.GetTransactionParams
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction
 import com.michaeltchuang.walletsdk.core.transaction.model.SignedTransactionDetail
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.Api
@@ -38,7 +39,10 @@ import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerRes
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionManagerResult.Error.GlobalWarningError.MinBalanceError
 import com.michaeltchuang.walletsdk.core.transaction.model.TransactionSignData
 import com.michaeltchuang.walletsdk.utils.LifecycleScopedCoroutineOwner
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -65,6 +69,10 @@ open class TransactionSignManager(
 
     private var transactionParams: TransactionParams? = null
     var transactionDataList: List<TransactionSignData>? = null
+
+    /** Host-provided signing callback; Algorand Seed Vault signing fails when unset. */
+    var algorandSeedVaultSigner: SignAlgorandSeedVaultTransaction? = null
+    private var signingRequestId = 0L
 
     private val signHelperListener =
         object : ListQueuingHelper.Listener<TransactionSignData, ByteArray> {
@@ -156,6 +164,7 @@ open class TransactionSignManager(
         isGroupTransaction: Boolean,
         vararg transactionData: TransactionSignData,
     ) {
+        signingRequestId++
         currentScope.launch {
             postResult(TransactionManagerResult.Loading)
             transactionData
@@ -230,10 +239,35 @@ open class TransactionSignManager(
 
             is TransactionSigner.Falcon25 -> signFalcon25Transaction(transactionByteArray, signer.address)
 
+            is TransactionSigner.AlgorandSeedVault -> signAlgorandSeedVaultTransaction(transactionByteArray, signer.address)
+
             is TransactionSigner.Falcon24 -> {
                 signFalconTransaction(transactionByteArray, signer.address)
             }
         }
+    }
+
+    private suspend fun signAlgorandSeedVaultTransaction(
+        transactionByteArray: ByteArray?,
+        accountAddress: String,
+    ) {
+        val transactionBytes = transactionByteArray ?: return handleSignError()
+        val callback = algorandSeedVaultSigner ?: return handleSignError()
+        val requestId = signingRequestId
+        val signed =
+            try {
+                callback(accountAddress, transactionBytes.copyOf())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (requestId == signingRequestId) setSignFailed(Defined(e.message ?: "Seed Vault signing failed."))
+                return
+            }
+        currentCoroutineContext().ensureActive()
+        if (requestId != signingRequestId) return
+        if (signed.isEmpty()) return handleSignError()
+        // Preserve the approved bytes: fee recalculation must not rebuild or re-sign this transaction.
+        onTransactionSigned(signed)
     }
 
     private suspend fun signFalcon25Transaction(
@@ -283,6 +317,7 @@ open class TransactionSignManager(
             when (this) {
                 is TransactionSignData.Send -> {
                     projectedFee = calculatedFee ?: transactionParams.getTxFee(signer = signer)
+                    if (signer is TransactionSigner.AlgorandSeedVault) calculatedFee = projectedFee
                     // calculate isMax before calculating real amount because while isMax true fee will be deducted.
                     isMax = isTransactionMax(amount, senderAccountAddress, assetId)
                     // TODO: 10.08.2022 Get all those calculations from a single AmountTransactionValidationUseCase
@@ -450,7 +485,9 @@ open class TransactionSignManager(
         val accountMinimumFee =
             when (signer) {
                 is TransactionSigner.Falcon24 -> TransactionFee.FALCON24_FEE_MICRO_ALGOS
-                is TransactionSigner.Falcon25 -> TransactionFee.FALCON25_FEE_MICRO_ALGOS
+                is TransactionSigner.Falcon25,
+                is TransactionSigner.AlgorandSeedVault,
+                -> TransactionFee.FALCON25_FEE_MICRO_ALGOS
                 else -> TransactionFee.STANDARD_FEE_MICRO_ALGOS
             }
         return getTxFee(signedTxData).coerceAtLeast(accountMinimumFee)
@@ -600,6 +637,7 @@ open class TransactionSignManager(
       }*/
 
     override fun stopAllResources() {
+        signingRequestId++
         //  ledgerBleSearchManager.stop()
         transactionDataList = null
         signHelper.clearCachedData()

@@ -4,6 +4,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegist
 import com.michaeltchuang.walletsdk.core.account.domain.model.custom.AccountLite
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.utils.AppId
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.MppNetworks
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.AuthMessage
@@ -111,7 +112,7 @@ fun getSupportedAccountsByAppId(
                     AccountRegistrationType.Falcon24,
                     AccountRegistrationType.Falcon25,
                 ) ||
-                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault)
+                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault && it.isSolana)
         } ?: accountLite
 
 fun getSupportedLocalAccountsByAppId(
@@ -127,7 +128,7 @@ fun getSupportedLocalAccountsByAppId(
                 it is LocalAccount.Algo25 ||
                 it is LocalAccount.Falcon24 ||
                 it is LocalAccount.Falcon25 ||
-                (seedVaultSigningSupported && it is LocalAccount.SeedVault)
+                (seedVaultSigningSupported && it is LocalAccount.SeedVault && it.chainId == Chain.SOLANA.id)
         } ?: localAccount
 
 fun resolveLiquidStreamAccountNetwork(

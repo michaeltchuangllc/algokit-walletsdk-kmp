@@ -144,10 +144,10 @@ private fun RecoverAnAccountWithQRWidget(navController: NavController) {
 private fun SelectSeed(navController: NavController) {
     GroupChoiceWidget(
         title = "Select Seed",
-        description = "Import Solana accounts from Seed Vault",
+        description = "Import accounts from Seed Vault",
         iconContentDescription = "Seed Vault",
         icon = vectorResource(Res.drawable.ic_ledger),
-        onClick = { navController.navigate(AlgoKitScreens.SELECT_SEED_SCREEN.name) },
+        onClick = { navController.navigate(AlgoKitScreens.SELECT_ACCOUNT_TYPE_ONBOARDING_SCREEN.name) },
     )
 }
 

@@ -78,6 +78,7 @@ room = "2.8.4"
 rules = "1.7.0"
 runner = "1.7.0"
 seedvaultWalletSdk = "0.4.0"
+seedVaultSdk = "0.0.2"
 shot = "6.1.0"
 socketio = "2.1.2"
 sol4k = "0.8.1"
@@ -89,6 +90,8 @@ uuid-generator = "5.2.0"
 webviewMultiplatform = "1.3.0"
 
 [libraries]
+
+seed-vault-sdk = { module = "com.michaeltchuang.algokit.seedvault:seed-vault-sdk", version.ref = "seedVaultSdk" }
 
 # AndroidX / Compose
 androidx-activityCompose = { module = "androidx.activity:activity-compose", version.ref = "androidx-compose-activity" }

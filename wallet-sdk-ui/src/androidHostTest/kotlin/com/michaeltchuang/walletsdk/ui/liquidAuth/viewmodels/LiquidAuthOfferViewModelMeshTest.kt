@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
@@ -66,6 +67,7 @@ class LiquidAuthOfferViewModelMeshTest {
                 getCurrentBlockUseCase = getCurrentBlockUseCase,
                 getCurrentNetworkUseCase = getCurrentNetworkUseCase,
                 mppWalletSignerUseCase = mockk(),
+                getLocalAccount = { address -> LocalAccount.Falcon25(address, publicKey = ByteArray(0)) },
             )
         store.put("mesh-host", vm)
         vm.meshHostingEnabled = true

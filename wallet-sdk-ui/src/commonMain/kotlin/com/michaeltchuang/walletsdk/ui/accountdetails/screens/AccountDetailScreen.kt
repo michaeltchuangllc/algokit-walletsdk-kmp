@@ -184,8 +184,8 @@ fun ScreenContent(
                         url = state.transactionHistoryUrl,
                     )
 
-                    // Only show "View passphrase" for non-NoAuth accounts
-                    if (!state.isNoAuthAccount) {
+                    // Seed Vault supports signing, never exporting secret material.
+                    if (state.canExportPassphrase) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         AccountDetailItem(

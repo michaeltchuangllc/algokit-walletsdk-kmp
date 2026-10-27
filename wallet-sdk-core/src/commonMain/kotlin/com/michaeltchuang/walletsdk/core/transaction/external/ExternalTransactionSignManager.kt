@@ -100,6 +100,10 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
                 is TransactionSigner.Falcon25 -> {
                     signFalcon25Transaction(this@signTransaction, transactionSigner.address)
                 }
+                is TransactionSigner.AlgorandSeedVault -> {
+                    // Seed Vault callbacks are supported only by TransactionSignManager.
+                    handleSignError(this@signTransaction)
+                }
                 is TransactionSigner.LedgerBle -> {
                     //       sendTransactionWithLedger(transactionSigner, currentTransactionIndex, totalTransactionCount)
                 }

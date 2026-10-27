@@ -43,6 +43,10 @@ class AddAssetViewModel(
         transactionSignManager.setup(lifecycle)
     }
 
+    fun setSeedVaultSigner(signer: com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction?) {
+        transactionSignManager.algorandSeedVaultSigner = signer
+    }
+
     private fun collectTransactionResults() {
         viewModelScope.launch {
             transactionSignManager.transactionManagerResultStateFlow.collectLatest { result ->
@@ -154,9 +158,9 @@ class AddAssetViewModel(
     }
 
     fun approveAssetOptIn() {
+        if (state.value !is ViewState.Content) return
+        stateDelegate.updateState { ViewState.Confirming }
         viewModelScope.launch {
-            stateDelegate.updateState { ViewState.Confirming }
-
             // Get the transaction signer for the account
             val signer = getTransactionSigner(assetData.accountAddress)
 

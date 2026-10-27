@@ -11,6 +11,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.FUTURENET_DISPENSER_BASE_URL
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.TESTNET_DISPENSER_BASE_URL
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
@@ -46,8 +47,9 @@ class AccountDetailViewModel(
                 // Get account information
                 val localAccount = getLocalAccount(address)
                 val isNoAuthAccount =
-                    localAccount is LocalAccount.NoAuth || localAccount is LocalAccount.SeedVault
-                val isSolanaAccount = localAccount is LocalAccount.SeedVault
+                    localAccount is LocalAccount.NoAuth ||
+                        (localAccount is LocalAccount.SeedVault && localAccount.chainId != Chain.ALGORAND.id)
+                val isSolanaAccount = localAccount is LocalAccount.SeedVault && localAccount.chainId == Chain.SOLANA.id
 
                 getCurrentNetworkUseCase().collect { network ->
                     val usdcAssetId =
@@ -74,6 +76,7 @@ class AccountDetailViewModel(
                                     isSolanaAccount = isSolanaAccount,
                                 ),
                             isNoAuthAccount = isNoAuthAccount,
+                            canExportPassphrase = !isNoAuthAccount && localAccount !is LocalAccount.SeedVault,
                             isSolanaAccount = isSolanaAccount,
                             isUsdcOptedIn = isUsdcOptedIn,
                         )
@@ -113,6 +116,7 @@ class AccountDetailViewModel(
             val dispenserBaseUrl: String? = null,
             val transactionHistoryUrl: String = "",
             val isNoAuthAccount: Boolean = false,
+            val canExportPassphrase: Boolean = !isNoAuthAccount,
             val isSolanaAccount: Boolean = false,
             val isUsdcOptedIn: Boolean = false,
         ) : ViewState

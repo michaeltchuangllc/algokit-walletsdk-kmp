@@ -1,6 +1,7 @@
 package com.michaeltchuang.walletsdk.core.account.domain.model.custom
 
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -10,4 +11,9 @@ data class AccountLite(
     val registrationType: AccountRegistrationType,
     val balance: String? = null,
     val usdcBalance: String? = null,
-)
+    val chainId: String =
+        if (registrationType is AccountRegistrationType.SeedVault) Chain.SOLANA.id else Chain.ALGORAND.id,
+) {
+    val isSolana: Boolean
+        get() = chainId == Chain.SOLANA.id
+}

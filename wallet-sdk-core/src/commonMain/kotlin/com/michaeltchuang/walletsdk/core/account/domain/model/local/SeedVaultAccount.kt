@@ -5,7 +5,7 @@ package com.michaeltchuang.walletsdk.core.account.domain.model.local
  * Contains public_key as primary key (address), address string, chainId (format like "501"),
  * and optional accountName from Seed Vault.
  */
-data class SolanaAccount(
+data class SeedVaultAccount(
     val publicKey: String,
     val address: String,
     val chainId: String,

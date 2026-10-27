@@ -1,9 +1,10 @@
 package com.michaeltchuang.walletsdk.core.account.domain.usecase.local
 
-import com.michaeltchuang.walletsdk.core.account.domain.model.local.SolanaAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.SeedVaultAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
-import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SeedVaultAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.solana.domain.EnsureSolanaSessionKeyUseCase
 import com.michaeltchuang.walletsdk.core.solana.domain.ReturnSolanaSessionKeyFundsUseCase
 import kotlinx.coroutines.CancellationException
@@ -39,21 +40,21 @@ class GetImportedSolanaAddressesUseCase(
  * Use case for importing Solana accounts to local database.
  */
 class ImportSolanaAccountsUseCase(
-    private val solanaAccountRepository: SolanaAccountRepository,
+    private val seedVaultAccountRepository: SeedVaultAccountRepository,
     private val ensureSolanaSessionKeyUseCase: EnsureSolanaSessionKeyUseCase,
 ) {
     /**
      * Imports Solana accounts to the local database. Every Seed Vault account gets a session
      * signing key at import time so Liquid Stream / MPP vouchers can be signed without prompts.
-     * @param accounts List of SolanaAccount to import
+     * @param accounts List of SeedVaultAccount to import
      */
-    suspend operator fun invoke(accounts: List<SolanaAccount>) {
+    suspend operator fun invoke(accounts: List<SeedVaultAccount>) {
         // Filter out already imported accounts
         val newAccounts =
             accounts.filter { account ->
-                !solanaAccountRepository.isAddressExists(account.address)
+                !seedVaultAccountRepository.isAddressExists(account.address)
             }
-        solanaAccountRepository.addAccounts(newAccounts)
+        seedVaultAccountRepository.addAccounts(newAccounts)
         accounts.forEach { ensureSolanaSessionKeyUseCase(it.address) }
     }
 }
@@ -64,7 +65,7 @@ class ImportSolanaAccountsUseCase(
  */
 class SyncSolanaAccountsFromSeedVaultUseCase(
     private val seedVaultRepository: SeedVaultRepository,
-    private val solanaAccountRepository: SolanaAccountRepository,
+    private val seedVaultAccountRepository: SeedVaultAccountRepository,
     private val ensureSolanaSessionKeyUseCase: EnsureSolanaSessionKeyUseCase,
     private val returnSessionKeyFunds: ReturnSolanaSessionKeyFundsUseCase,
 ) {
@@ -74,15 +75,15 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
             seeds
                 .flatMap { it.accounts }
                 .map { account ->
-                    SolanaAccount(
+                    SeedVaultAccount(
                         publicKey = account.address,
                         address = account.address,
-                        chainId = extractChainIdFromDerivationPath(account.derivationPath),
+                        chainId = Chain.SOLANA.id,
                         accountName = account.accountName,
                     )
                 }.distinctBy { it.address }
         val latestAddresses = latestSolanaAccounts.map { it.address }.toSet()
-        val localAccounts = solanaAccountRepository.getAll()
+        val localAccounts = seedVaultAccountRepository.getAll().filter { it.chainId == Chain.SOLANA.id }
         val localAccountsByAddress = localAccounts.associateBy { it.address }
 
         // Deleting the account cascade-deletes its session key. The account is gone from Seed Vault
@@ -91,7 +92,7 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
         localAccounts
             .filter { it.address !in latestAddresses }
             .filterNot { sessionKeyMayHoldFunds(it.address) }
-            .forEach { solanaAccountRepository.deleteAccountByAddress(it.address) }
+            .forEach { seedVaultAccountRepository.deleteAccountByAddress(it.address) }
 
         val accountsToRename =
             latestSolanaAccounts.filter { latestAccount ->
@@ -99,7 +100,7 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
                 localAccount != null && localAccount.accountName != latestAccount.accountName
             }
         accountsToRename.forEach { account ->
-            solanaAccountRepository.updateAccountNameByAddress(account.address, account.accountName)
+            seedVaultAccountRepository.updateAccountNameByAddress(account.address, account.accountName)
         }
 
         // Backfill session keys for Seed Vault accounts added before keys were auto-generated.
@@ -116,11 +117,4 @@ class SyncSolanaAccountsFromSeedVaultUseCase(
         } catch (e: Exception) {
             true
         }
-
-    private fun extractChainIdFromDerivationPath(derivationPath: String): String =
-        derivationPath
-            .split("/")
-            .getOrNull(2)
-            ?.replace("'", "")
-            ?: "501"
 }

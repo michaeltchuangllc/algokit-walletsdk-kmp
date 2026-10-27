@@ -7,6 +7,8 @@ import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_falc
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_hd
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_ledger
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_seedvault
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_seedvault_algorand
+import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_seedvault_solana
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.shareddemoapp.generated.resources.ic_solana_sign
@@ -81,7 +83,7 @@ fun AccountItem(
                     style = typography.body.large.sansMedium,
                 )
                 Text(
-                    text = localizedStringResource(getAccountTypeResource(account.registrationType)),
+                    text = localizedStringResource(getAccountTypeResource(account)),
                     style = typography.footnote.mono,
                 )
             }
@@ -104,7 +106,7 @@ fun AccountItem(
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (account.registrationType is AccountRegistrationType.SeedVault) {
+                    if (account.isSolana) {
                         Icon(
                             imageVector = vectorResource(Res.drawable.ic_solana_sign),
                             contentDescription = "Solana",
@@ -113,7 +115,7 @@ fun AccountItem(
                         )
                     }
                     Text(
-                        text = "${getBalancePrefix(account.registrationType)}${account.balance?.formatAmount() ?: "0.00"}",
+                        text = "${getBalancePrefix(account)}${account.balance?.formatAmount() ?: "0.00"}",
                         fontSize = 16.sp,
                         style = typography.footnote.sansMedium,
                     )
@@ -149,11 +151,14 @@ fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResourc
         is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
     }
 
-private fun getBalancePrefix(registrationType: AccountRegistrationType): String =
-    when (registrationType) {
-        is AccountRegistrationType.SeedVault -> ""
-        else -> "\u00A6"
+internal fun getAccountTypeResource(account: AccountLite): StringResource =
+    if (account.registrationType is AccountRegistrationType.SeedVault) {
+        if (account.isSolana) Res.string.account_type_seedvault_solana else Res.string.account_type_seedvault_algorand
+    } else {
+        getAccountTypeResource(account.registrationType)
     }
+
+internal fun getBalancePrefix(account: AccountLite): String = if (account.isSolana) "" else "\u00A6"
 
 @Preview()
 @Composable

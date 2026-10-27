@@ -123,6 +123,7 @@ kotlin {
 
         androidMain {
             dependencies {
+                implementation(libs.seed.vault.sdk)
                 implementation(libs.androidx.activityCompose)
                 implementation(libs.androidx.compose.foundation)
                 implementation(libs.androidx.lifecycle.runtime.compose)

@@ -4,19 +4,20 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.TransactionFee
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetTransactionFeeForAccount
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 
 internal class GetTransactionFeeForAccountUseCase(
     private val getLocalAccount: GetLocalAccount,
 ) : GetTransactionFeeForAccount {
     override suspend fun invoke(address: String): TransactionFee {
         val account = getLocalAccount(address)
-        return when (account) {
-            is LocalAccount.Falcon24 ->
+        return when {
+            account is LocalAccount.Falcon24 ->
                 TransactionFee(
                     feeInMicroAlgos = TransactionFee.FALCON24_FEE_MICRO_ALGOS,
                     feeInAlgos = TransactionFee.FALCON24_FEE_ALGOS,
                 )
-            is LocalAccount.Falcon25 ->
+            account is LocalAccount.Falcon25 || (account is LocalAccount.SeedVault && account.chainId == Chain.ALGORAND.id) ->
                 TransactionFee(
                     feeInMicroAlgos = TransactionFee.FALCON25_FEE_MICRO_ALGOS,
                     feeInAlgos = TransactionFee.FALCON25_FEE_ALGOS,

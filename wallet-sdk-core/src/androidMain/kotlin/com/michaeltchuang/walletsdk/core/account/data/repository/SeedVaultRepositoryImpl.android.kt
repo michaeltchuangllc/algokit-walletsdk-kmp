@@ -5,7 +5,7 @@ import android.database.Cursor
 import android.util.Log
 import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedInfo
 import com.michaeltchuang.walletsdk.core.account.domain.model.solana.SolanaSeedVaultAccount
-import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SolanaAccountRepository
+import com.michaeltchuang.walletsdk.core.account.domain.repository.local.SeedVaultAccountRepository
 import com.michaeltchuang.walletsdk.core.account.domain.repository.solana.SeedVaultRepository
 import com.michaeltchuang.walletsdk.core.network.domain.AndroidContextHolder
 import com.solanamobile.seedvault.Bip44DerivationPath
@@ -19,7 +19,7 @@ import kotlinx.coroutines.withContext
  * Android implementation of SeedVaultRepository that interacts with the Solana Mobile Seed Vault.
  */
 class SeedVaultRepositoryImpl(
-    private val solanaAccountRepository: SolanaAccountRepository,
+    private val seedVaultAccountRepository: SeedVaultAccountRepository,
 ) : SeedVaultRepository {
     companion object {
         private const val TAG = "SeedVaultRepository"
@@ -110,7 +110,7 @@ class SeedVaultRepositoryImpl(
     override suspend fun getImportedAddresses(addresses: List<String>): Set<String> {
         val importedAddresses = mutableSetOf<String>()
         for (address in addresses) {
-            if (solanaAccountRepository.isAddressExists(address)) {
+            if (seedVaultAccountRepository.isAddressExists(address)) {
                 importedAddresses.add(address)
             }
         }

@@ -79,7 +79,7 @@ internal abstract class AlgoKitDatabase : RoomDatabase() {
 
     abstract fun passkeySiteDao(): PasskeySiteDao
 
-    abstract fun solanaAccountDao(): SeedVaultDao
+    abstract fun seedVaultAccountDao(): SeedVaultDao
 
     abstract fun mppVoucherDao(): MppVoucherDao
 

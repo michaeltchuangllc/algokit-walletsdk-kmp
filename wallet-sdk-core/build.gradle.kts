@@ -154,6 +154,7 @@ kotlin {
 
     sourceSets {
         androidMain.dependencies {
+            implementation(libs.seed.vault.sdk)
             implementation(libs.algokit.composer)
             implementation(libs.algokit.crypto)
             implementation(libs.algokit.transact)

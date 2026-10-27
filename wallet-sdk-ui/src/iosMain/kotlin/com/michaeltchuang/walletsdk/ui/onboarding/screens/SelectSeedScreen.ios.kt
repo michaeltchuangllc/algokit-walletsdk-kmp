@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.navigation.NavController
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SelectSeedViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -16,7 +17,10 @@ import org.koin.compose.viewmodel.koinViewModel
  * with permissionGranted = false (will show "Not Available" message).
  */
 @Composable
-actual fun SelectSeedScreenPlatform(navController: NavController) {
+actual fun SelectSeedScreenPlatform(
+    navController: NavController,
+    accountType: Chain,
+) {
     val viewModel: SelectSeedViewModel = koinViewModel()
     val showUnsupportedAlert = remember { mutableStateOf(false) }
 

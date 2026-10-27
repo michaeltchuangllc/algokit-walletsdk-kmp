@@ -153,6 +153,7 @@ object WalletSDK {
             accounts
                 .map { account ->
                     async {
+                        if (account.isSolana) return@async account
                         val accountInfo = getBasicAccountInformationUseCase(account.address)
                         account.copy(balance = accountInfo?.amount ?: "0")
                     }
