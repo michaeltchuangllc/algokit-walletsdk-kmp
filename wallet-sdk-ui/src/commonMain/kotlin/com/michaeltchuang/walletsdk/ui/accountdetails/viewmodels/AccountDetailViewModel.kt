@@ -79,6 +79,8 @@ class AccountDetailViewModel(
                             canExportPassphrase = !isNoAuthAccount && localAccount !is LocalAccount.SeedVault,
                             isSolanaAccount = isSolanaAccount,
                             isUsdcOptedIn = isUsdcOptedIn,
+                            isAlgorandSeedVaultAccount =
+                                localAccount is LocalAccount.SeedVault && localAccount.chainId == Chain.ALGORAND.id,
                         )
                     }
                 }
@@ -119,6 +121,7 @@ class AccountDetailViewModel(
             val canExportPassphrase: Boolean = !isNoAuthAccount,
             val isSolanaAccount: Boolean = false,
             val isUsdcOptedIn: Boolean = false,
+            val isAlgorandSeedVaultAccount: Boolean = false,
         ) : ViewState
     }
 

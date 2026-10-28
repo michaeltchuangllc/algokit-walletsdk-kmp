@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.accountdetails.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.address_copied_to_clipboard
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.algorand_session_title
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.copy_address
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_algo_to_your_account
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.dispenser_add_sol_to_your_account
@@ -195,6 +196,16 @@ fun ScreenContent(
                             navController.navigate(
                                 AlgoKitScreens.PASS_PHRASE_ACKNOWLEDGE_SCREEN.name,
                             )
+                        }
+                    }
+
+                    if (state.isAlgorandSeedVaultAccount) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        AccountDetailItem(
+                            icon = Res.drawable.ic_key,
+                            title = localizedStringResource(Res.string.algorand_session_title),
+                        ) {
+                            navController.navigate(AlgoKitScreens.ALGORAND_SESSION_KEY_SCREEN.name)
                         }
                     }
 
