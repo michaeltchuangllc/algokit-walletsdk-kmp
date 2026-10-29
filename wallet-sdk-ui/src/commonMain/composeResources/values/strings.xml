@@ -1,4 +1,22 @@
 <resources>
+    <string name="algorand_session_title">Session signing key</string>
+    <string name="algorand_session_description">Seed Vault keys never leave secure hardware, so this session key handles Liquid Stream settlement for you — no Seed Vault prompt for every payment.</string>
+    <string name="algorand_session_key_heading">Voucher signing is on</string>
+    <string name="algorand_session_source">Managed by Seed Vault · Index 1</string>
+    <string name="algorand_session_signing">When you pay: it only signs vouchers. No ALGO needed — the receiver pays the settlement fees.</string>
+    <string name="algorand_session_receiving">When you receive: it settles vouchers and pays the small network fees, so keep a little ALGO on it. Settled USDC goes to your Seed Vault account.</string>
+    <string name="algorand_session_missing">Session key unavailable</string>
+    <string name="algorand_session_address">Session key address (tap to copy)</string>
+    <string name="algorand_session_copied">Session key address copied</string>
+    <string name="algorand_session_balance">ALGO balance</string>
+    <string name="algorand_session_add_algo_hint">Receiving Liquid Stream payments? Add ALGO to this address so it can pay settlement fees. Keep enough ALGO for network fees and the account minimum balance (at least 0.1 ALGO for a basic account; assets and applications may require more).</string>
+    <string name="algorand_session_refresh">Refresh</string>
+    <string name="algorand_session_send">Send ALGO</string>
+    <string name="algorand_session_funding">It never needs USDC.</string>
+    <string name="algorand_session_dispenser">Dispenser-Add ALGO to index-1 address</string>
+    <string name="algorand_session_no_dispenser">A dispenser is not available on MainNet.</string>
+    <string name="algorand_session_error">Unable to load the index-1 account. Check Seed Vault authorization and your connection, then refresh.</string>
+    <string name="algorand_session_send_error">Unable to open the ALGO transfer. Please try again.</string>
     <string name="seed_vault_select_algorand_accounts">Select Algorand accounts to add</string>
     <string name="seed_vault_select_solana_accounts">Select Solana accounts to add</string>
     <string name="seed_vault_loading_algorand_accounts">Loading Algorand accounts…</string>

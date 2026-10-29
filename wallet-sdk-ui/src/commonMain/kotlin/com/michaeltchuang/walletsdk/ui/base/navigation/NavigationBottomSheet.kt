@@ -40,6 +40,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.AccountMnemo
 import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.foundation.utils.WalletSdkConstants.REPO_URL
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AccountDetailScreen
+import com.michaeltchuang.walletsdk.ui.accountdetails.screens.AlgorandSessionKeyScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.PassphraseAcknowledgeScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.ShowAddressScreen
 import com.michaeltchuang.walletsdk.ui.accountdetails.screens.SolanaSendSolScreen
@@ -81,6 +82,7 @@ import com.michaeltchuang.walletsdk.ui.signing.screens.SelectReceiverScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.SendAssetScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactingTipsScreen
 import com.michaeltchuang.walletsdk.ui.signing.screens.TransactionSuccessScreen
+import io.ktor.http.encodeURLParameter
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 
@@ -131,6 +133,7 @@ enum class AlgoKitScreens {
     LIQUID_STREAM_CREATOR_DEBUG_TOOL_SCREEN,
     GITHUB_REPO_SCREEN,
     SOLANA_SESSION_KEY_SCREEN,
+    ALGORAND_SESSION_KEY_SCREEN,
     SOLANA_SEND_SOL_SCREEN,
 }
 
@@ -839,6 +842,26 @@ fun NavigationBottomSheetNavHost(
                             },
                             onAddSol = { sessionKey ->
                                 navController.navigate("${AlgoKitScreens.SOLANA_SEND_SOL_SCREEN.name}?receiver=$sessionKey")
+                            },
+                        )
+                    }
+                }
+                composable(route = AlgoKitScreens.ALGORAND_SESSION_KEY_SCREEN.name) {
+                    address?.let { addr ->
+                        AlgorandSessionKeyScreen(
+                            address = addr,
+                            onBack = { navController.popBackStack() },
+                            showSnackBar = { message ->
+                                coroutineScope.launch { snackbarHostState.showSnackbar(message) }
+                            },
+                            onSendAlgo = { transfer ->
+                                navController.navigate(
+                                    AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
+                                        "?assetId=${transfer.assetId}" +
+                                        "&receiver=${transfer.receiverAccountAddress}" +
+                                        "&amount=${transfer.amount}" +
+                                        "&note=${transfer.note.orEmpty().encodeURLParameter()}",
+                                )
                             },
                         )
                     }

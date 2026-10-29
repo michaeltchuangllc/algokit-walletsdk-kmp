@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.accountdetails.di
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AccountDetailViewModel
+import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.AlgorandSessionKeyViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.QRCodeViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.SolanaSendSolViewModel
 import com.michaeltchuang.walletsdk.ui.accountdetails.viewmodels.SolanaSessionKeyViewModel
@@ -13,6 +14,16 @@ import org.koin.dsl.module
 internal val accountDetailModules =
     listOf(
         module {
+            viewModel {
+                AlgorandSessionKeyViewModel(
+                    getAlgorandSeedVaultSeeds = get(),
+                    getAccountAlgoBalance = get(),
+                    getCurrentNetworkUseCase = get(),
+                    createDeepLink = get(),
+                    stateDelegate = StateDelegate(),
+                    eventDelegate = EventDelegate(),
+                )
+            }
             viewModel {
                 ViewPassphraseViewModel(get(), get(), get())
             }
