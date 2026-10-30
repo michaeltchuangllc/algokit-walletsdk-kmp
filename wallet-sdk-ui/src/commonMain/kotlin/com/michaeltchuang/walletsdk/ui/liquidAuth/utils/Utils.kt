@@ -93,7 +93,14 @@ fun fromUri(uri: String): AuthMessage {
 
     Napier.d("   AppId found: '$appId'")
 
-    return AuthMessage(origin, requestId, appId)
+    // Parse chainId if present
+    val chainId =
+        uri.findParameterValue("chainId")
+            ?: uri.findParameterValue("chain_id")
+
+    Napier.d("   ChainId found: '$chainId'")
+
+    return AuthMessage(origin, requestId, appId, chainId)
 }
 
 fun getSupportedAccountsByAppId(

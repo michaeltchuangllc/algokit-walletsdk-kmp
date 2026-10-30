@@ -29,7 +29,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.account.domain.model.core.AccountRegistrationType
@@ -111,7 +110,7 @@ fun AccountItem(
                             imageVector = vectorResource(Res.drawable.ic_solana_sign),
                             contentDescription = "Solana",
                             modifier = Modifier.size(14.dp),
-                            tint = Color.Unspecified,
+                            tint = AlgoKitTheme.colors.textMain,
                         )
                     }
                     Text(

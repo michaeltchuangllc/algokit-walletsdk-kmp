@@ -41,6 +41,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme.typo
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.base.utils.getAccountTypeResource
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.vectorResource
@@ -53,13 +55,14 @@ fun SelectAccountScreen(
     receiverAddress: String,
     amount: String,
     note: String,
+    chainId: String = "",
 ) {
     val viewModel: SelectAccountViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
 
-    LaunchedEffect(receiverAddress, amount, note) {
-        viewModel.setup(receiverAddress, assetId, amount, note)
+    LaunchedEffect(receiverAddress, amount, note, chainId) {
+        viewModel.setup(receiverAddress, assetId, amount, note, chainId)
     }
 
     LaunchedEffect(events.value) {
@@ -281,7 +284,7 @@ private fun AccountItem(
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    text = getAccountTypeText(account.registrationType),
+                    text = localizedStringResource(getAccountTypeResource(account)),
                     style = typography.footnote.mono,
                     color = AlgoKitTheme.colors.textGray,
                 )
@@ -296,7 +299,7 @@ private fun AccountItem(
                             imageVector = vectorResource(Res.drawable.ic_solana_sign),
                             contentDescription = "Solana",
                             modifier = Modifier.size(14.dp),
-                            tint = Color.Unspecified,
+                            tint = AlgoKitTheme.colors.textMain,
                         )
                     }
                     Text(
@@ -315,17 +318,6 @@ private fun getWalletIcon(registrationType: AccountRegistrationType): DrawableRe
     when (registrationType) {
         is AccountRegistrationType.HdKey -> Res.drawable.ic_hd_wallet
         else -> Res.drawable.ic_wallet
-    }
-
-private fun getAccountTypeText(registrationType: AccountRegistrationType): String =
-    when (registrationType) {
-        is AccountRegistrationType.HdKey -> "HD Account"
-        is AccountRegistrationType.Algo25 -> "Algo25"
-        is AccountRegistrationType.Falcon24 -> "Falcon24"
-        is AccountRegistrationType.Falcon25 -> "Falcon25"
-        is AccountRegistrationType.NoAuth -> "Watch"
-        is AccountRegistrationType.LedgerBle -> "Ledger"
-        is AccountRegistrationType.SeedVault -> "SeedVault"
     }
 
 private fun getBalancePrefix(account: AccountLite): String = if (account.isSolana) "" else "\u00A6"

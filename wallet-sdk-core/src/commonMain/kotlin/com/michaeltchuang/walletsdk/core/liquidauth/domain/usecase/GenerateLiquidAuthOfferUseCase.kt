@@ -29,6 +29,7 @@ class GenerateLiquidAuthOfferUseCase {
     fun generateLiquidAuthUrl(
         origin: String,
         requestId: String,
+        chainId: String? = null,
     ): String {
         val host =
             origin
@@ -36,18 +37,23 @@ class GenerateLiquidAuthOfferUseCase {
                 .replace("http://", "")
                 .removePrefix("/")
                 .removeSuffix("/")
-        return "liquid://$host/?requestId=$requestId&appId=${AppId.LIQUID_AUTH_STREAM.name}"
+        val chainIdQuery = if (!chainId.isNullOrBlank()) "&chainId=$chainId" else ""
+        return "liquid://$host/?requestId=$requestId&appId=${AppId.LIQUID_AUTH_STREAM.name}$chainIdQuery"
     }
 
     /**
      * Generate complete offer data for QR code
      *
      * @param origin The origin URL of the liquid auth service
+     * @param chainId Optional chain ID to include in the offer URL
      * @return Pair of (requestId, liquidAuthUrl)
      */
-    fun generateOffer(origin: String): LiquidAuthOffer {
+    fun generateOffer(
+        origin: String,
+        chainId: String? = null,
+    ): LiquidAuthOffer {
         val requestId = generateRequestId()
-        val url = generateLiquidAuthUrl(origin, requestId)
+        val url = generateLiquidAuthUrl(origin, requestId, chainId)
         return LiquidAuthOffer(
             requestId = requestId,
             liquidAuthUrl = url,

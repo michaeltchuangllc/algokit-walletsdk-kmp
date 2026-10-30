@@ -1485,6 +1485,8 @@
     <string name="account_type_falcon25">Account Falcon25</string>
     <string name="account_type_watch">Account Osservato</string>
     <string name="account_type_ledger">Account Ledger</string>
+    <string name="account_type_seedvault_algorand">Algorand SeedVault</string>
+    <string name="account_type_seedvault_solana">Solana SeedVault</string>
     <string name="account_type_seedvault">Account SeedVault</string>
 
     <string name="error_account_already_exists">Un account con questo indirizzo esiste già</string>

@@ -47,9 +47,11 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
+import com.michaeltchuang.walletsdk.ui.base.utils.getAccountTypeResource
 import com.michaeltchuang.walletsdk.ui.liquidAuth.connectLiquidAuth
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.checkMinimumBalanceRequired
 import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.LiquidAuthViewModel
+import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import io.github.aakira.napier.Napier
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.stringResource
@@ -347,7 +349,7 @@ private fun AccountItem(
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    text = getAccountTypeText(account.registrationType),
+                    text = localizedStringResource(getAccountTypeResource(account)),
                     style = typography.footnote.mono,
                     color = AlgoKitTheme.colors.textGray,
                 )
@@ -395,17 +397,6 @@ private fun getWalletIcon(registrationType: AccountRegistrationType): DrawableRe
     when (registrationType) {
         is AccountRegistrationType.HdKey -> Res.drawable.ic_hd_wallet
         else -> Res.drawable.ic_wallet
-    }
-
-private fun getAccountTypeText(registrationType: AccountRegistrationType): String =
-    when (registrationType) {
-        is AccountRegistrationType.HdKey -> "HD Account"
-        is AccountRegistrationType.Algo25 -> "Algo25"
-        is AccountRegistrationType.Falcon24 -> "Falcon24"
-        is AccountRegistrationType.Falcon25 -> "Falcon25"
-        is AccountRegistrationType.NoAuth -> "Watch"
-        is AccountRegistrationType.LedgerBle -> "Ledger"
-        is AccountRegistrationType.SeedVault -> "SeedVault"
     }
 
 private fun getBalancePrefix(account: AccountLite): String = if (account.isSolana) "" else "\u00A6"

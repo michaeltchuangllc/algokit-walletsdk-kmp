@@ -139,4 +139,4 @@ class AlgorandSessionKeyViewModel(
     }
 }
 
-internal fun fundingDeepLink(address: String): String = "algorand://$address?amount=1000000&note=1_ALGO_Transfer"
+internal fun fundingDeepLink(address: String): String = "algorand://$address?amount=1000000&note=1_ALGO_Transfer&chainId=283"

@@ -65,7 +65,8 @@ fun QRCodeScannerScreen(
                             "?assetId=${it.assetTransfer.assetId}" +
                             "&receiver=${it.assetTransfer.receiverAccountAddress}" +
                             "&amount=${it.assetTransfer.amount}" +
-                            "&note=$encodedNote",
+                            "&note=$encodedNote" +
+                            "&chainId=${it.assetTransfer.chainId.orEmpty()}",
                     )
                 }
 

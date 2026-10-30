@@ -47,6 +47,7 @@ sealed interface DeepLink {
         val note: String?,
         val xnote: String?,
         val label: String?,
+        val chainId: String? = null,
     ) : DeepLink
 
     /**

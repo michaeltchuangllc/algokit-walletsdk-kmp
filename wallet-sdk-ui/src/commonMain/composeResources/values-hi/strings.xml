@@ -1618,6 +1618,8 @@
     <string name="account_type_falcon25">खाता Falcon25</string>
     <string name="account_type_watch">खाता देखे गए</string>
     <string name="account_type_ledger">खाता Ledger</string>
+    <string name="account_type_seedvault_algorand">Algorand SeedVault</string>
+    <string name="account_type_seedvault_solana">Solana SeedVault</string>
     <string name="account_type_seedvault">खाता SeedVault</string>
 
     <string name="send_funds_to_another_account">किसी अन्य खाते में ALGO भेजें</string>

@@ -1,13 +1,6 @@
 package com.michaeltchuang.walletsdk.ui.signing.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_algo25
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_falcon24
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_falcon25
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_hd
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_ledger
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_seedvault
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.account_type_watch
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_clipboard
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_hd_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.ic_wallet
@@ -66,10 +59,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPr
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.base.utils.getAccountTypeResource
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectReceiverViewModel
 import org.jetbrains.compose.resources.DrawableResource
-import org.jetbrains.compose.resources.StringResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
@@ -82,14 +75,15 @@ fun SelectReceiverScreen(
     note: String,
     senderAddress: String,
     assetId: Long = -7L,
+    chainId: String = "",
 ) {
     val viewModel: SelectReceiverViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
     val clipboardManager = LocalClipboardManager.current
 
-    LaunchedEffect(senderAddress) {
-        viewModel.setup(senderAddress = senderAddress)
+    LaunchedEffect(senderAddress, chainId) {
+        viewModel.setup(senderAddress = senderAddress, chainId = chainId)
         // Get clipboard text if available
         clipboardManager.getText()?.text?.let { clipboardText ->
             viewModel.setClipboardText(clipboardText)
@@ -443,7 +437,7 @@ private fun AccountItem(
                     color = AlgoKitTheme.colors.textMain,
                 )
                 Text(
-                    text = localizedStringResource(getAccountTypeResource(account.registrationType)),
+                    text = localizedStringResource(getAccountTypeResource(account)),
                     style = typography.caption.mono,
                     color = AlgoKitTheme.colors.textGray,
                 )
@@ -456,17 +450,6 @@ private fun getWalletIcon(registrationType: AccountRegistrationType): DrawableRe
     when (registrationType) {
         is AccountRegistrationType.HdKey -> Res.drawable.ic_hd_wallet
         else -> Res.drawable.ic_wallet
-    }
-
-fun getAccountTypeResource(localAccount: AccountRegistrationType): StringResource =
-    when (localAccount) {
-        is AccountRegistrationType.HdKey -> Res.string.account_type_hd
-        is AccountRegistrationType.Algo25 -> Res.string.account_type_algo25
-        is AccountRegistrationType.Falcon24 -> Res.string.account_type_falcon24
-        is AccountRegistrationType.Falcon25 -> Res.string.account_type_falcon25
-        is AccountRegistrationType.NoAuth -> Res.string.account_type_watch
-        is AccountRegistrationType.LedgerBle -> Res.string.account_type_ledger
-        is AccountRegistrationType.SeedVault -> Res.string.account_type_seedvault
     }
 
 @Preview

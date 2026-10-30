@@ -60,19 +60,9 @@ class QRScannerViewModel(
     }
 
     fun handleAssetTransferLink(deepLink: DeepLink.AssetTransfer) {
-        val assetTransfer =
-            DeepLink.AssetTransfer(
-                assetId = deepLink.assetId,
-                receiverAccountAddress = deepLink.receiverAccountAddress,
-                amount = deepLink.amount,
-                note = deepLink.note,
-                xnote = deepLink.xnote,
-                label = deepLink.label,
-            )
-
         eventDelegate.sendEvent(
             scope = viewModelScope,
-            newEvent = ViewEvent.NavigateToSelectAccountScreen(assetTransfer),
+            newEvent = ViewEvent.NavigateToSelectAccountScreen(deepLink),
         )
     }
 
