@@ -352,7 +352,7 @@ algorand://?amount=0&asset=10458941
 
 ### Algo Transfer (receiver address & amount in microAlgos)
 ```
-algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer
+algorand://7N54HZSGBRQF7FW6YNC6F5H42AT5OXN3F5OQDAXF6H6PDFHNXIEBCJFHOY?amount=1000000&note=1_ALGO_Transfer&chainId=283
 ```
 
 ### ASA Transfer (receiver address & amount in microAlgos) - USDC (testnet - 10458941, mainnet - 31566704)

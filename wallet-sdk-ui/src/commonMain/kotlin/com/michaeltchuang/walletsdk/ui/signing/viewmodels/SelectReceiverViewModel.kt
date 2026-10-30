@@ -11,6 +11,8 @@ import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import kotlinx.coroutines.launch
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
+
 class SelectReceiverViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,
     private val stateDelegate: StateDelegate<ViewState>,
@@ -19,6 +21,7 @@ class SelectReceiverViewModel(
     StateViewModel<SelectReceiverViewModel.ViewState> by stateDelegate,
     EventViewModel<SelectReceiverViewModel.ViewEvent> by eventDelegate {
     private var senderAddress: String = ""
+    private var chainId: String = ""
     private var clipboardText: String = ""
     private var allAccounts: List<AccountLite> = emptyList()
 
@@ -26,8 +29,12 @@ class SelectReceiverViewModel(
         stateDelegate.setDefaultState(ViewState.Loading)
     }
 
-    fun setup(senderAddress: String) {
+    fun setup(
+        senderAddress: String,
+        chainId: String = "",
+    ) {
         this.senderAddress = senderAddress
+        this.chainId = chainId
         loadAccounts()
     }
 
@@ -105,11 +112,12 @@ class SelectReceiverViewModel(
         viewModelScope.launch {
             try {
                 stateDelegate.updateState { ViewState.Loading }
-                // Filter out the sender account from the list
-                val filteredAccounts =
+                // Filter out the sender account and filter by chainId if provided
+                val accounts =
                     nameRegistrationUseCase.getAccountLite().filter { it.address != senderAddress }
+                val filteredAccounts = filterAccountsByChainId(accounts, chainId)
 
-                // Store all accounts for filtering
+                // Store all accounts for searching/filtering
                 allAccounts = filteredAccounts
 
                 stateDelegate.updateState {
@@ -126,6 +134,15 @@ class SelectReceiverViewModel(
             }
         }
     }
+
+    private fun filterAccountsByChainId(
+        accounts: List<AccountLite>,
+        chainId: String,
+    ): List<AccountLite> =
+        chainId.takeIf { it.isNotBlank() }?.let { id ->
+            val targetChainId = Chain.fromId(id)?.id ?: id
+            accounts.filter { it.chainId == targetChainId }
+        } ?: accounts
 
     sealed interface ViewState {
         data object Loading : ViewState

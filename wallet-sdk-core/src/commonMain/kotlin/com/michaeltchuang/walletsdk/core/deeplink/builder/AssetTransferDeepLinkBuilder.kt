@@ -25,5 +25,6 @@ internal class AssetTransferDeepLinkBuilder : DeepLinkBuilder {
             xnote = payload.xnote,
             assetId = payload.assetId ?: ALGO_ID,
             label = payload.label,
+            chainId = payload.chainId,
         )
 }

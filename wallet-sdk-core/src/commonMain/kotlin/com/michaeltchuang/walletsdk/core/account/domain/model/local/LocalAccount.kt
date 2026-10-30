@@ -1,5 +1,7 @@
 package com.michaeltchuang.walletsdk.core.account.domain.model.local
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
+
 sealed interface LocalAccount {
     val address: String
 
@@ -84,3 +86,6 @@ sealed interface LocalAccount {
         val accountName: String? = null,
     ) : LocalAccount
 }
+
+val LocalAccount.chainId: String
+    get() = (this as? LocalAccount.SeedVault)?.chainId ?: Chain.ALGORAND.id

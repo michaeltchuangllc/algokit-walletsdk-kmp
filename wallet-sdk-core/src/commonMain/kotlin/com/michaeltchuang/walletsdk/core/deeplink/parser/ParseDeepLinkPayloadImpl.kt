@@ -31,6 +31,7 @@ internal class ParseDeepLinkPayloadImpl(
             type = algorandUri.getQueryParam(TYPE_QUERY_KEY),
             path = algorandUri.getQueryParam(PATH_KEY),
             host = algorandUri.host,
+            chainId = algorandUri.getQueryParam(CHAIN_ID_QUERY_KEY),
             rawDeepLinkUri = url,
         )
     }
@@ -51,5 +52,6 @@ internal class ParseDeepLinkPayloadImpl(
         const val VOTEKEY_QUERY_KEY = "votekey"
         const val FEE_QUERY_KEY = "fee"
         const val PATH_KEY = "path"
+        const val CHAIN_ID_QUERY_KEY = "chainId"
     }
 }

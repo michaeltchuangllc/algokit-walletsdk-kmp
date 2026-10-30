@@ -1641,6 +1641,8 @@
     <string name="account_type_falcon25">Falcon25 Account</string>
     <string name="account_type_watch">Watch Account</string>
     <string name="account_type_ledger">Ledger Account</string>
+    <string name="account_type_seedvault_algorand">Algorand SeedVault</string>
+    <string name="account_type_seedvault_solana">Solana SeedVault</string>
     <string name="account_type_seedvault">SeedVault Account</string>
 
     <string name="send_funds_to_another_account">Send ALGO to another account</string>

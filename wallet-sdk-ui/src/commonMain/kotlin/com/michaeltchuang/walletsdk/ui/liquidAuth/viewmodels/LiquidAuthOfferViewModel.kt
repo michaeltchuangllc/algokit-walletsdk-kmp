@@ -230,7 +230,10 @@ class LiquidAuthOfferViewModel(
     /**
      * Generate a new liquid auth offer with QR code data
      */
-    fun generateOffer(origin: String) {
+    fun generateOffer(
+        origin: String,
+        chainId: String? = null,
+    ) {
         // Re-entering the screen or refreshing an invitation must not reset a live host.
         if (meshHostingEnabled && (hasMeshViewerConnected || getCurrentSessionId() != null)) {
             if (_pendingMeshOffer.value == null) refreshMeshInvitation(origin)
@@ -241,7 +244,7 @@ class LiquidAuthOfferViewModel(
         offerGenerationJob =
             viewModelScope.launch {
                 try {
-                    val offer = generateOfferUseCase.generateOffer(origin)
+                    val offer = generateOfferUseCase.generateOffer(origin, chainId)
                     stateDelegate.updateState {
                         OfferState.WaitingForConnection(
                             requestId = offer.requestId,
@@ -581,11 +584,14 @@ class LiquidAuthOfferViewModel(
     /**
      * Regenerate the offer (creates new requestId)
      */
-    fun regenerateOffer(origin: String) {
+    fun regenerateOffer(
+        origin: String,
+        chainId: String? = null,
+    ) {
         if (meshHostingEnabled && (hasMeshViewerConnected || getCurrentSessionId() != null)) {
             refreshMeshInvitation(origin)
         } else {
-            generateOffer(origin)
+            generateOffer(origin, chainId)
         }
     }
 

@@ -86,6 +86,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveAlgo25
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon24Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveFalcon25Account
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SaveHdKeyAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncAlgorandAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ValidateWatchAccountUseCase
 import com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase
@@ -220,5 +221,6 @@ val localAccountsModule =
         single { GetImportedSolanaAddressesUseCase(get()) }
         single { ImportSolanaAccountsUseCase(get(), get()) }
         single { SyncSolanaAccountsFromSeedVaultUseCase(get(), get(), get(), get()) }
+        single { SyncAlgorandAccountsFromSeedVaultUseCase(get(), get()) }
         single { DeleteSeedVaultAccountUseCase(get(), get()) }
     }

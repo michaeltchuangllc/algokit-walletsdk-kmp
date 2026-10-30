@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.fromUri
@@ -21,6 +22,7 @@ data class AuthMessage(
     val origin: String,
     val requestId: String,
     val appId: String,
+    val chainId: String? = null,
 )
 
 class LiquidAuthViewModel(
@@ -55,7 +57,13 @@ class LiquidAuthViewModel(
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
                 val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
 
-                val accounts = getSupportedAccountsByAppId(authMessage.appId, accountLite)
+                val chainFilteredAccounts =
+                    authMessage.chainId?.takeIf { it.isNotBlank() }?.let { id ->
+                        val targetChainId = Chain.fromId(id)?.id ?: id
+                        accountLite.filter { it.chainId == targetChainId }
+                    } ?: accountLite
+
+                val accounts = getSupportedAccountsByAppId(authMessage.appId, chainFilteredAccounts)
 
                 stateDelegate.updateState {
                     ViewState.Content(accounts)

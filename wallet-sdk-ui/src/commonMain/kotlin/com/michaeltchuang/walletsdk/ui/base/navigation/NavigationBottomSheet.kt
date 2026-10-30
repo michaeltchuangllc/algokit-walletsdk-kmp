@@ -549,7 +549,7 @@ fun NavigationBottomSheetNavHost(
                 composable(
                     route =
                         AlgoKitScreens.SELECT_ACCOUNT_SCREEN.name +
-                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}",
+                            "?assetId={assetId}&receiver={receiver}&amount={amount}&note={note}&chainId={chainId}",
                     arguments =
                         listOf(
                             navArgument("assetId") {
@@ -572,12 +572,18 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = ""
                             },
+                            navArgument("chainId") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
                         ),
                 ) { backStackEntry ->
                     val assetId = backStackEntry.arguments.longArgument("assetId", 0L)
                     val receiver = backStackEntry.arguments.stringArgument("receiver") ?: ""
                     val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
                     val note = backStackEntry.arguments.stringArgument("note") ?: ""
+                    val chainId = backStackEntry.arguments.stringArgument("chainId") ?: ""
 
                     SelectAccountScreen(
                         navController = navController,
@@ -585,6 +591,7 @@ fun NavigationBottomSheetNavHost(
                         receiverAddress = receiver,
                         amount = amount,
                         note = note,
+                        chainId = chainId,
                     )
                 }
                 composable(
@@ -630,7 +637,7 @@ fun NavigationBottomSheetNavHost(
                     )
                 }
                 composable(
-                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}&assetId={assetId}",
+                    route = AlgoKitScreens.SELECT_RECEIVER_SCREEN.name + "?sender={sender}&amount={amount}&note={note}&assetId={assetId}&chainId={chainId}",
                     arguments =
                         listOf(
                             navArgument("sender") {
@@ -653,18 +660,25 @@ fun NavigationBottomSheetNavHost(
                                 nullable = false
                                 defaultValue = -7L
                             },
+                            navArgument("chainId") {
+                                type = NavType.StringType
+                                nullable = false
+                                defaultValue = ""
+                            },
                         ),
                 ) { backStackEntry ->
                     val sender = backStackEntry.arguments.stringArgument("sender") ?: ""
                     val amount = backStackEntry.arguments.stringArgument("amount") ?: "0.00"
                     val note = backStackEntry.arguments.stringArgument("note") ?: ""
                     val assetId = backStackEntry.arguments.longArgument("assetId", -7L)
+                    val chainId = backStackEntry.arguments.stringArgument("chainId") ?: ""
                     SelectReceiverScreen(
                         navController = navController,
                         amount = amount,
                         note = note,
                         senderAddress = sender,
                         assetId = assetId,
+                        chainId = chainId,
                     )
                 }
                 composable(route = AlgoKitScreens.TRANSACTING_TIPS_SCREEN.name) {
@@ -860,7 +874,8 @@ fun NavigationBottomSheetNavHost(
                                         "?assetId=${transfer.assetId}" +
                                         "&receiver=${transfer.receiverAccountAddress}" +
                                         "&amount=${transfer.amount}" +
-                                        "&note=${transfer.note.orEmpty().encodeURLParameter()}",
+                                        "&note=${transfer.note.orEmpty().encodeURLParameter()}" +
+                                        "&chainId=${transfer.chainId.orEmpty()}",
                                 )
                             },
                         )

@@ -12,6 +12,8 @@ import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import kotlinx.coroutines.launch
 
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
+
 class SelectAccountViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,
     private val getBasicAccountInformationUseCase: GetBasicAccountInformationUseCase,
@@ -24,6 +26,7 @@ class SelectAccountViewModel(
     private var amount: String = ""
     private var assetId: Long = -7L
     private var note: String = ""
+    private var chainId: String = ""
 
     init {
         stateDelegate.setDefaultState(AccountsState.Loading)
@@ -34,11 +37,13 @@ class SelectAccountViewModel(
         assetId: Long,
         amount: String,
         note: String,
+        chainId: String = "",
     ) {
         this.receiverAddress = receiverAddress
         this.assetId = assetId
         this.amount = amount
         this.note = note
+        this.chainId = chainId
         fetchAccounts()
     }
 
@@ -48,7 +53,8 @@ class SelectAccountViewModel(
             try {
                 // Fetch account details for all accounts to get their amounts
                 val accountsWithAlgoBalances = WalletSDK.getAccountsWithBalances()
-                val accountLite = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
+                val mergedAccounts = fetchAndMergeSolanaBalances(accountsWithAlgoBalances)
+                val accountLite = filterAccountsByChainId(mergedAccounts, chainId)
                 stateDelegate.updateState {
                     AccountsState.Content(accountLite)
                 }
@@ -62,6 +68,15 @@ class SelectAccountViewModel(
             }
         }
     }
+
+    private fun filterAccountsByChainId(
+        accounts: List<AccountLite>,
+        chainId: String,
+    ): List<AccountLite> =
+        chainId.takeIf { it.isNotBlank() }?.let { id ->
+            val targetChainId = Chain.fromId(id)?.id ?: id
+            accounts.filter { it.chainId == targetChainId }
+        } ?: accounts
 
     fun onAccountSelected(senderAddress: String) {
         viewModelScope.launch {

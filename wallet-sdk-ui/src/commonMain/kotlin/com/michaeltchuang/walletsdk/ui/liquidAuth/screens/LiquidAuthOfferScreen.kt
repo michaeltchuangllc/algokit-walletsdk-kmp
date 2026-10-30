@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.chainId
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.deeplink.utils.AssetConstants
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
@@ -306,7 +307,7 @@ fun LiquidAuthOfferScreen(
         connectionManager?.stopListening()
         viewModel.clearMeshHosting()
         streamHostUiMode.value = StreamHostUiMode.Hidden
-        viewModel.regenerateOffer(origin)
+        viewModel.regenerateOffer(origin, localCreatorAccount?.chainId)
         hostViewModel.resetMediaToggles()
     }
 
@@ -317,8 +318,8 @@ fun LiquidAuthOfferScreen(
     val progressBalanceUsdc = progressBarBalanceMicroUsdc?.let { it / 1_000_000.0 }
 
     // Wait for initialize() to set the platform's mesh opt-in before generating.
-    LaunchedEffect(origin, managerInitialized, creatorRouteReady) {
-        if (managerInitialized && creatorRouteReady) viewModel.generateOffer(origin)
+    LaunchedEffect(origin, managerInitialized, creatorRouteReady, localCreatorAccount) {
+        if (managerInitialized && creatorRouteReady) viewModel.generateOffer(origin, localCreatorAccount?.chainId)
     }
 
     LaunchedEffect(creatorAddress, creatorAssetId, requiresCreatorAsaOptIn) {
@@ -578,9 +579,9 @@ fun LiquidAuthOfferScreen(
         state = creatorRouteError?.let { LiquidAuthOfferViewModel.OfferState.Error(it) } ?: state,
         cameraPreview = cameraPreview,
         connectionManager = connectionManager,
-        onRegenerate = { viewModel.regenerateOffer(origin) },
+        onRegenerate = { viewModel.regenerateOffer(origin, localCreatorAccount?.chainId) },
         onStopStreaming = { viewModel.stopVideoStreaming() },
-        onRetry = { viewModel.regenerateOffer(origin) },
+        onRetry = { viewModel.regenerateOffer(origin, localCreatorAccount?.chainId) },
         onMinimise = onMinimise,
         streamHostUiMode = streamHostUiMode,
         cameraPreviewController = resolvedCameraPreviewController,
