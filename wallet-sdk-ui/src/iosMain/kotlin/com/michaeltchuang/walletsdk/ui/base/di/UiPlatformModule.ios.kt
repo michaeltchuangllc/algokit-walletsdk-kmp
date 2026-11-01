@@ -25,6 +25,8 @@ actual fun uiPlatformModule(): Module =
                 getLocalAccounts = get(),
                 getSessionVaultContextUseCase = get(),
                 debugAddressSelectionsUseCase = get(),
+                getAlgorandSessionSigner = get(),
+                getCurrentNetwork = get(),
             )
         }
         factory { LiquidAuthPlatformServices() }

@@ -95,6 +95,7 @@ internal val onboardingModules =
                     getAlgorandSeedVaultSeeds = get(),
                     importAlgorandSeedVaultAccounts = get(),
                     accountRepository = get(),
+                    syncSolanaAccountsFromSeedVaultUseCase = get(),
                 )
             }
         },

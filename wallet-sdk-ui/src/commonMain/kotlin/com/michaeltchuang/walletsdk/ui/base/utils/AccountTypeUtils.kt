@@ -31,4 +31,3 @@ fun getAccountTypeResource(account: AccountLite): StringResource =
     } else {
         getAccountTypeResource(account.registrationType)
     }
-

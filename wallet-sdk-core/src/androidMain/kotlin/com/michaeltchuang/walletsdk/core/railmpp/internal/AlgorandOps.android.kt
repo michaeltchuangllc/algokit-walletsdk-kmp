@@ -7,6 +7,8 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSign
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import com.michaeltchuang.walletsdk.core.utils.GoMobileDispatcher
 import io.github.algorandecosystem.sdk.Sdk
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import uniffi.algokit_transact_ffi.AppCallTransactionFields
 import uniffi.algokit_transact_ffi.AssetTransferTransactionFields
@@ -43,6 +45,29 @@ private val falconLsigAddress: String by lazy {
 
 // ── Expect implementations ──────────────────────────────────────────────────
 
+internal actual fun getAccountAlgoBalanceInternal(
+    address: String,
+    algodUrl: String,
+): AccountAlgoBalance {
+    val response = httpRequest(algodUrl, "/v2/accounts/$address")
+    return decodeAlgodAccountResponse(response.code, response.body)
+}
+
+internal actual suspend fun submitPaymentInternal(
+    signer: MppWalletSigner,
+    receiverAddress: String,
+    amountMicroAlgo: Long,
+    algodUrl: String,
+): String {
+    require(amountMicroAlgo > 0) { "amountMicroAlgo must be positive" }
+    BouncyCastleProviderSetup.ensure()
+    val params = fetchTxParams(algodUrl)
+    val payment = buildPaymentTxn(signer.address, receiverAddress, amountMicroAlgo, pooledFeeFor(signer.signerType), params)
+    val signed = signTxnGroup(signer, listOf(payment))
+    check(signed.isNotEmpty() && signed.none { it.isEmpty() }) { "Payment signing returned an empty transaction" }
+    return broadcast(algodUrl, signed) ?: error("Payment broadcast returned no transaction ID")
+}
+
 internal actual fun getSessionBoxBytesInternal(
     appId: Long,
     channelId: ByteArray,
@@ -51,6 +76,17 @@ internal actual fun getSessionBoxBytesInternal(
     val boxNameB64 = Base64.encodeToString(channelId, Base64.NO_WRAP)
     return algodGetBoxValue(algodUrl, appId, boxNameB64) ?: error("Box fetch failed")
 }
+
+internal actual suspend fun findSessionBoxBytesInternal(
+    appId: Long,
+    boxKey: ByteArray,
+    algodUrl: String,
+): ByteArray? =
+    withContext(Dispatchers.IO) {
+        val encodedName = URLEncoder.encode("b64:${Base64.encodeToString(boxKey, Base64.NO_WRAP)}", "UTF-8")
+        val response = httpRequest(algodUrl, "/v2/applications/$appId/box?name=$encodedName")
+        decodeAlgodBoxResponse(response.code, response.body)
+    }
 
 internal actual fun simulateReadonlyMethodInternal(
     appId: Long,

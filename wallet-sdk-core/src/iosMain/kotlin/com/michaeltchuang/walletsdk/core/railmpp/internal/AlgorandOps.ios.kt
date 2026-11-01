@@ -4,9 +4,16 @@ import AlgorandIosSdk.spmAlgoApiBridge
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import io.github.aakira.napier.Napier
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.darwin.Darwin
+import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.request.get
+import io.ktor.client.request.parameter
+import io.ktor.client.statement.bodyAsText
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
+import kotlinx.coroutines.runBlocking
 import platform.Foundation.NSThread
 import platform.posix.memcpy
 import kotlin.io.encoding.Base64
@@ -21,6 +28,47 @@ private const val TAG = "AlgorandOps.ios"
 
 @OptIn(ExperimentalForeignApi::class)
 private val bridge by lazy { spmAlgoApiBridge() }
+
+private val accountBalanceClient by lazy {
+    HttpClient(Darwin) {
+        expectSuccess = false
+        install(HttpTimeout) { requestTimeoutMillis = 15_000 }
+    }
+}
+
+internal actual fun getAccountAlgoBalanceInternal(
+    address: String,
+    algodUrl: String,
+): AccountAlgoBalance =
+    runBlocking {
+        val response = accountBalanceClient.get("${algodUrl.removeSuffix("/")}/v2/accounts/$address")
+        decodeAlgodAccountResponse(response.status.value, response.bodyAsText())
+    }
+
+@OptIn(ExperimentalForeignApi::class)
+internal actual suspend fun submitPaymentInternal(
+    signer: MppWalletSigner,
+    receiverAddress: String,
+    amountMicroAlgo: Long,
+    algodUrl: String,
+): String {
+    require(amountMicroAlgo > 0) { "amountMicroAlgo must be positive" }
+    val params = fetchTxParams(algodUrl)
+    val payment =
+        bridge.buildPaymentTxnWithSenderAddress(
+            senderAddress = signer.address,
+            receiverAddress = receiverAddress,
+            amountMicroAlgo = amountMicroAlgo,
+            fee = pooledFeeFor(signer.signerType),
+            firstRound = params.firstRoundValid,
+            lastRound = params.lastRoundValid,
+            genesisHashBase64 = params.genesisHashBase64,
+            genesisID = params.genesisID,
+            noteBase64 = "",
+        )
+    check(payment.length > 0UL) { "Payment build returned empty" }
+    return signAndBroadcastSingle(signer, algodUrl, payment.toKotlinByteArray())
+}
 
 // ── Expect implementations ──────────────────────────────────────────────────
 
@@ -44,6 +92,19 @@ internal actual fun getSessionBoxBytesInternal(
     if (json.isEmpty()) error("iOS: Box fetch returned empty for appId=$appId")
     val valueB64 = parseJsonString(json, "value") ?: error("iOS: No 'value' in box response")
     return Base64.decode(normalizeBase64(valueB64))
+}
+
+@OptIn(ExperimentalEncodingApi::class)
+internal actual suspend fun findSessionBoxBytesInternal(
+    appId: Long,
+    boxKey: ByteArray,
+    algodUrl: String,
+): ByteArray? {
+    val response =
+        accountBalanceClient.get("${algodUrl.removeSuffix("/")}/v2/applications/$appId/box") {
+            parameter("name", "b64:${Base64.encode(boxKey)}")
+        }
+    return decodeAlgodBoxResponse(response.status.value, response.bodyAsText())
 }
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)

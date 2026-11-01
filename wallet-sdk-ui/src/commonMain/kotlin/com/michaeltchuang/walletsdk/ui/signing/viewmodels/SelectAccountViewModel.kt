@@ -9,10 +9,9 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.ui.initializeSdk.WalletSDK
 import kotlinx.coroutines.launch
-
-import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 
 class SelectAccountViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,

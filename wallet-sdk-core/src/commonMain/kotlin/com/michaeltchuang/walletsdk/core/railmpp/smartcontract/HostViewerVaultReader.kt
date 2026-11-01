@@ -131,15 +131,19 @@ object HostViewerVaultReader {
         payee: ByteArray,
         signerKey: ByteArray,
     ) {
+        validateSessionBoxLayout(box)
+        require(box.copyOfRange(0, 32).contentEquals(payer)) { "Session payer mismatch" }
+        require(box.copyOfRange(32, 64).contentEquals(payee)) { "Session payee mismatch" }
+        require(box.copyOfRange(116, 148).contentEquals(sha512_256(signerKey))) { "Session signer mismatch" }
+    }
+
+    internal fun validateSessionBoxLayout(box: ByteArray) {
         // ARC-56 ChannelInfo: address,address,byte[],six uint64s.
         // The 114-byte head holds a uint16 offset at 64; its tail is uint16(32) + signer hash.
         // Verified against contract.algo.ts and the generated approval program's extract_uint16 64.
         require(box.size == 148) { "Unexpected session box size=${box.size}" }
-        require(box.copyOfRange(0, 32).contentEquals(payer)) { "Session payer mismatch" }
-        require(box.copyOfRange(32, 64).contentEquals(payee)) { "Session payee mismatch" }
         require(box[64] == 0.toByte() && box[65] == 114.toByte()) { "Invalid session signer offset" }
         require(box[114] == 0.toByte() && box[115] == 32.toByte()) { "Invalid session signer hash length" }
-        require(box.copyOfRange(116, 148).contentEquals(sha512_256(signerKey))) { "Session signer mismatch" }
     }
 
     // Injection is per invocation, never shared mutable state.
@@ -222,7 +226,7 @@ object HostViewerVaultReader {
         )
     }
 
-    private fun decodeAmount(
+    internal fun decodeAmount(
         bytes: ByteArray,
         offset: Int,
     ): Long {

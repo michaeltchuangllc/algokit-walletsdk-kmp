@@ -8,11 +8,14 @@ import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRep
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.internal.accountFundingShortfall
+import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.compileSettlementLogicSigAddressInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.decodeAlgorandAddressPublicKey
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeAlgorandAddress
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeArc4DynamicBytes
 import com.michaeltchuang.walletsdk.core.railmpp.internal.encodeUint64
+import com.michaeltchuang.walletsdk.core.railmpp.internal.getAccountAlgoBalanceInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.getSessionBoxBytesInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
@@ -20,12 +23,24 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.simulateReadonlyMethod
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitLogicSigSettlementInternal
+import com.michaeltchuang.walletsdk.core.railmpp.internal.submitPaymentInternal
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
 /** Kotlin client for the EscrowSessionVaultHybridManager ARC-56 contract. */
 object EscrowSessionVaultHybridManagerClient {
+    /** Observed on-chain authorization state; separate box reads are not an atomic payment proof. */
+    data class SessionAuthorizationStatus(
+        val channelExists: Boolean,
+        val viewerSignerAuthorized: Boolean = false,
+        val settlementRegistered: Boolean = false,
+        val hasSettlementLogicSig: Boolean = false,
+        val authorizedPayeeSigner: String? = null,
+        val remainingBalance: Long? = null,
+        val closeRequestedAt: Long? = null,
+    )
+
     private const val DEFAULT_ALGOD_URL = "https://testnet-api.algonode.cloud"
     private val AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX = "p".encodeToByteArray()
     private val SETTLEMENT_LOGIC_SIG_BOX_PREFIX = "l".encodeToByteArray()
@@ -262,6 +277,26 @@ object EscrowSessionVaultHybridManagerClient {
         }
 
     /**
+     * Reads boxes and compiles the expected LogicSig without signing or submitting transactions.
+     * Only a channel-box HTTP 404 means absent; network and malformed data errors are failures.
+     */
+    suspend fun getSessionAuthorizationStatus(
+        channelId: ByteArray,
+        authorizedSignerPublicKey: ByteArray,
+        payeeAddress: String,
+    ): Result<SessionAuthorizationStatus> {
+        val capturedAppId = appId
+        val capturedAlgodUrl = algodUrl
+        return SessionAuthorizationStatusReader.read(
+            capturedAppId,
+            capturedAlgodUrl,
+            channelId,
+            authorizedSignerPublicKey,
+            payeeAddress,
+        )
+    }
+
+    /**
      * Computes the address of the channel's settlement LogicSig, compiled with [signer]'s own
      * ephemeral session key as `TMPL_AUTHORIZED_PUBLIC_KEY`, then registers it on-chain via
      * [setSettlementLogicSig]. Must be called by the channel's payer — the contract asserts
@@ -460,6 +495,30 @@ object EscrowSessionVaultHybridManagerClient {
                 boxKeys = emptyList(),
                 foreignAssets = emptyList(),
             )
+        }
+
+    suspend fun ensureAccountMinimumBalance(
+        signer: MppWalletSigner,
+        receiverAddress: String,
+        minimumSpendableMicroAlgo: Long,
+    ): Result<String?> =
+        runCatching {
+            require(encodeAlgorandAddress(decodeAlgorandAddressPublicKey(receiverAddress)) == receiverAddress) {
+                "Invalid funding receiver"
+            }
+            val amount = accountFundingShortfall(getAccountAlgoBalanceInternal(receiverAddress, algodUrl), minimumSpendableMicroAlgo)
+            if (amount == 0L) {
+                null
+            } else {
+                val txId = submitPaymentInternal(signer, receiverAddress, amount, algodUrl)
+                awaitTransactionConfirmed(txId).getOrThrow()
+                txId
+            }
+        }
+
+    fun awaitTransactionConfirmed(txId: String): Result<Unit> =
+        runCatching {
+            check(awaitConfirmationInternal(txId, algodUrl)) { "Transaction not confirmed: $txId" }
         }
 
     suspend fun optInUsdc(signer: MppWalletSigner): Result<String> =

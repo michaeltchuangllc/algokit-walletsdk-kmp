@@ -67,6 +67,8 @@ val liquidAuthUIModule =
                 getLocalAccounts = get(),
                 getSessionVaultContextUseCase = get(),
                 debugAddressSelectionsUseCase = get(),
+                getAlgorandSessionSigner = get(),
+                getCurrentNetwork = get(),
             )
         }
 

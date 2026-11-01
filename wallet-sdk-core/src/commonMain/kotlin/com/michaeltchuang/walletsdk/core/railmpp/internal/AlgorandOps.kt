@@ -1,6 +1,48 @@
 package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
+
+internal data class AccountAlgoBalance(
+    val amount: Long,
+    val minimumBalance: Long,
+)
+
+internal fun decodeAlgodAccountResponse(
+    status: Int,
+    body: String,
+): AccountAlgoBalance {
+    if (status == 404) return AccountAlgoBalance(0, 100_000)
+    check(status in 200..299) { "Account lookup failed: HTTP $status" }
+    val json = Json.parseToJsonElement(body).jsonObject
+    return AccountAlgoBalance(json.getValue("amount").jsonPrimitive.long, json.getValue("min-balance").jsonPrimitive.long)
+}
+
+internal fun accountFundingShortfall(
+    balance: AccountAlgoBalance,
+    minimumSpendableMicroAlgo: Long,
+): Long {
+    require(balance.amount >= 0 && balance.minimumBalance >= 0) { "Invalid account balance" }
+    require(minimumSpendableMicroAlgo >= 0) { "minimumSpendableMicroAlgo must not be negative" }
+    val minimumBalance = maxOf(100_000L, balance.minimumBalance)
+    require(minimumSpendableMicroAlgo <= Long.MAX_VALUE - minimumBalance) { "Account funding amount overflow" }
+    return (minimumBalance + minimumSpendableMicroAlgo - balance.amount).coerceAtLeast(0)
+}
+
+internal expect fun getAccountAlgoBalanceInternal(
+    address: String,
+    algodUrl: String,
+): AccountAlgoBalance
+
+internal expect suspend fun submitPaymentInternal(
+    signer: MppWalletSigner,
+    receiverAddress: String,
+    amountMicroAlgo: Long,
+    algodUrl: String,
+): String
 
 /** Fetches raw box bytes for [channelId] from the Algod REST API. */
 internal expect fun getSessionBoxBytesInternal(
@@ -8,6 +50,13 @@ internal expect fun getSessionBoxBytesInternal(
     channelId: ByteArray,
     algodUrl: String,
 ): ByteArray
+
+/** Returns null only for HTTP 404; transport and malformed-response errors propagate. */
+internal expect suspend fun findSessionBoxBytesInternal(
+    appId: Long,
+    boxKey: ByteArray,
+    algodUrl: String,
+): ByteArray?
 
 /**
  * Builds, signs (via [signer]), and broadcasts an app-call transaction.
