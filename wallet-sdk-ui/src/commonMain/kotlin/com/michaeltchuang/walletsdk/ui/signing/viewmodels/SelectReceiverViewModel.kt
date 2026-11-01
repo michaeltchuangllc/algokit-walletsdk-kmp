@@ -9,9 +9,8 @@ import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
-import kotlinx.coroutines.launch
-
 import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
+import kotlinx.coroutines.launch
 
 class SelectReceiverViewModel(
     private val nameRegistrationUseCase: NameRegistrationUseCase,

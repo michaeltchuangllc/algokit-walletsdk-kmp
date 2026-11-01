@@ -49,6 +49,7 @@ class EscrowSessionVaultDebugViewModel(
     companion object Companion {
         private const val TAG = "EscrowSessionVaultDebugViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
+
         // Fresh-session settlement needs the settlement LogicSig (103,030 µALGO), the
         // padding LogicSig (100,000 µALGO), and the payer-side funding/payment fees.
         private const val CREATOR_FUNDING_TARGET_MICRO_ALGO = 211_030L
@@ -480,10 +481,11 @@ class EscrowSessionVaultDebugViewModel(
                                 )
                             }
                         }
-                    val txId = result.getOrElse { err ->
-                        showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
-                        return@launch
-                    }
+                    val txId =
+                        result.getOrElse { err ->
+                            showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
+                            return@launch
+                        }
                     awaitConfirmed(txId)
                     sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
                     Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
@@ -633,10 +635,11 @@ class EscrowSessionVaultDebugViewModel(
                             channelId = channelId,
                         )
                     }
-                val txId = result.getOrElse { err ->
-                    showError(PaymentError.from(err), "REGISTER_LOGIC_SIG_ERR", err)
-                    return@launch
-                }
+                val txId =
+                    result.getOrElse { err ->
+                        showError(PaymentError.from(err), "REGISTER_LOGIC_SIG_ERR", err)
+                        return@launch
+                    }
                 awaitConfirmed(txId)
                 sendStatus("✅ Settlement LogicSig registered\n\nTxId:\n$txId")
                 Napier.d("[REGISTER_LOGIC_SIG_OK] txId=$txId", tag = TAG)
@@ -689,10 +692,11 @@ class EscrowSessionVaultDebugViewModel(
                             channelId = channelId,
                         )
                     }
-                val txId = settleResult.getOrElse { err ->
-                    showError(PaymentError.from(err), "LSIG_SETTLE_ERR", err)
-                    return@launch
-                }
+                val txId =
+                    settleResult.getOrElse { err ->
+                        showError(PaymentError.from(err), "LSIG_SETTLE_ERR", err)
+                        return@launch
+                    }
                 awaitConfirmed(txId)
                 updateContent { it.copy(pendingVoucher = null) }
                 sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
@@ -737,10 +741,11 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                val txId = result.getOrElse { err ->
-                    showError(PaymentError.from(err), "CLOSE_ERR", err)
-                    return@launch
-                }
+                val txId =
+                    result.getOrElse { err ->
+                        showError(PaymentError.from(err), "CLOSE_ERR", err)
+                        return@launch
+                    }
                 awaitConfirmed(txId)
                 updateContent { it.copy(pendingVoucher = null, remainingBalance = 0, creatorPayeeSigner = "") }
                 sendStatus("✅ Session vault closed\n\nTxId:\n$txId")
@@ -785,10 +790,11 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                val txId = result.getOrElse { err ->
-                    showError(PaymentError.from(err), "REQUEST_CLOSE_ERR", err)
-                    return@launch
-                }
+                val txId =
+                    result.getOrElse { err ->
+                        showError(PaymentError.from(err), "REQUEST_CLOSE_ERR", err)
+                        return@launch
+                    }
                 awaitConfirmed(txId)
                 sendStatus("✅ Requested for close of Session Vault\n\nTxId:\n$txId")
                 Napier.d("[REQUEST_CLOSE_OK] txId=$txId", tag = TAG)
@@ -832,26 +838,27 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                val txId = result.getOrElse { err ->
-                    val parsed = PaymentError.from(err)
-                    if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
-                        sendStatus(
-                            "❌ Withdraw was rejected by the contract.\n\n" +
-                                "Withdraw is the viewer's forced-close path. Make sure you:\n" +
-                                "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
-                                "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
-                                "Then try 'Request Withdraw' again.",
-                        )
-                        Napier.e(
-                            "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
-                            err,
-                            tag = TAG,
-                        )
+                val txId =
+                    result.getOrElse { err ->
+                        val parsed = PaymentError.from(err)
+                        if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
+                            sendStatus(
+                                "❌ Withdraw was rejected by the contract.\n\n" +
+                                    "Withdraw is the viewer's forced-close path. Make sure you:\n" +
+                                    "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
+                                    "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
+                                    "Then try 'Request Withdraw' again.",
+                            )
+                            Napier.e(
+                                "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
+                                err,
+                                tag = TAG,
+                            )
+                            return@launch
+                        }
+                        showError(parsed, "REQUEST_WITHDRAW_ERR", err)
                         return@launch
                     }
-                    showError(parsed, "REQUEST_WITHDRAW_ERR", err)
-                    return@launch
-                }
                 awaitConfirmed(txId)
                 sendStatus("✅ Requested withdraw from Session Vault\n\nTxId:\n$txId")
                 Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
@@ -966,7 +973,9 @@ class EscrowSessionVaultDebugViewModel(
     }
 
     sealed interface ResultMessage {
-        data class Text(val value: String) : ResultMessage
+        data class Text(
+            val value: String,
+        ) : ResultMessage
 
         data object Refreshing : ResultMessage
 

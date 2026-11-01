@@ -9,6 +9,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetImporte
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ImportAlgorandSeedVaultAccounts
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.ImportSolanaAccountsUseCase
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.SyncSolanaAccountsFromSeedVaultUseCase
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
@@ -30,6 +31,7 @@ class SeedVaultAccountsViewModel(
     private val getAlgorandSeedVaultSeeds: GetAlgorandSeedVaultSeeds,
     private val importAlgorandSeedVaultAccounts: ImportAlgorandSeedVaultAccounts,
     private val accountRepository: SeedVaultAccountRepository,
+    private val syncSolanaAccountsFromSeedVaultUseCase: SyncSolanaAccountsFromSeedVaultUseCase,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel(),
     StateViewModel<SeedVaultAccountsViewModel.ViewState> by stateDelegate,
@@ -77,6 +79,7 @@ class SeedVaultAccountsViewModel(
         loadJob =
             viewModelScope.launch(dispatcher) {
                 try {
+                    if (accountType == Chain.SOLANA) pruneRemovedSolanaSeeds()
                     val accounts =
                         when (accountType) {
                             Chain.ALGORAND ->
@@ -116,6 +119,18 @@ class SeedVaultAccountsViewModel(
                     setError("Failed to load accounts from Seed Vault: ${e.message}")
                 }
             }
+    }
+
+    // Seeds can be removed from Seed Vault while the app is running; drop their stale local rows so
+    // they aren't shown as already imported. Best effort: a failed sync must not block the list.
+    private suspend fun pruneRemovedSolanaSeeds() {
+        try {
+            syncSolanaAccountsFromSeedVaultUseCase()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Keep the existing local rows; the next sync will retry.
+        }
     }
 
     fun toggleAccountSelection(
