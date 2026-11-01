@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+
 package com.michaeltchuang.walletsdk.core.railmpp.internal
 
 import kotlinx.serialization.json.Json

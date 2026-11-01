@@ -94,6 +94,7 @@ internal actual fun getSessionBoxBytesInternal(
     return Base64.decode(normalizeBase64(valueB64))
 }
 
+@OptIn(ExperimentalEncodingApi::class)
 internal actual suspend fun findSessionBoxBytesInternal(
     appId: Long,
     boxKey: ByteArray,

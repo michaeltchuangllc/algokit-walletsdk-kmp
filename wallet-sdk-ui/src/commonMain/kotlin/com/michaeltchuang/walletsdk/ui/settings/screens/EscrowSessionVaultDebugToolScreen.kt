@@ -425,9 +425,11 @@ private fun AlgorandVaultAction(
     visible: Boolean = true,
     onClick: () -> Unit,
 ) {
+    if (!visible) return
+
     Button(
         onClick = onClick,
-        enabled = enabled && visible,
+        enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     ) {
         Text(label)

@@ -1,3 +1,5 @@
+@file:OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+
 package com.michaeltchuang.walletsdk.core.railmpp.data
 
 import com.michaeltchuang.seedvault.sdk.client.SeedVaultServiceClient

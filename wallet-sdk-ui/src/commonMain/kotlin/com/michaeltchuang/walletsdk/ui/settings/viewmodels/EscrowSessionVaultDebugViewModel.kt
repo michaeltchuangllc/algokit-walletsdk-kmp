@@ -480,14 +480,13 @@ class EscrowSessionVaultDebugViewModel(
                                 )
                             }
                         }
-                    result
-                        .onSuccess { txId ->
-                            awaitConfirmed(txId)
-                            sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
-                            Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
-                        }.onFailure { err ->
-                            showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
-                        }
+                    val txId = result.getOrElse { err ->
+                        showError(PaymentError.from(err), "ADD_TO_VAULT_ERR", err)
+                        return@launch
+                    }
+                    awaitConfirmed(txId)
+                    sendStatus("✅ Deposited $amountUsdc USDC to Session Vault!\nTxId: $txId")
+                    Napier.d("[ADD_TO_VAULT_OK] txId=$txId", tag = TAG)
                 } else {
                     showError(PaymentError.SignerNotFound(viewer), "ADD_TO_VAULT_NO_SIGNER")
                 }
@@ -634,14 +633,13 @@ class EscrowSessionVaultDebugViewModel(
                             channelId = channelId,
                         )
                     }
-                result
-                    .onSuccess { txId ->
-                        awaitConfirmed(txId)
-                        sendStatus("✅ Settlement LogicSig registered\n\nTxId:\n$txId")
-                        Napier.d("[REGISTER_LOGIC_SIG_OK] txId=$txId", tag = TAG)
-                    }.onFailure { err ->
-                        showError(PaymentError.from(err), "REGISTER_LOGIC_SIG_ERR", err)
-                    }
+                val txId = result.getOrElse { err ->
+                    showError(PaymentError.from(err), "REGISTER_LOGIC_SIG_ERR", err)
+                    return@launch
+                }
+                awaitConfirmed(txId)
+                sendStatus("✅ Settlement LogicSig registered\n\nTxId:\n$txId")
+                Napier.d("[REGISTER_LOGIC_SIG_OK] txId=$txId", tag = TAG)
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "REGISTER_LOGIC_SIG_EXCEPTION", e)
             } finally {
@@ -691,18 +689,17 @@ class EscrowSessionVaultDebugViewModel(
                             channelId = channelId,
                         )
                     }
-                settleResult
-                    .onSuccess { txId ->
-                        awaitConfirmed(txId)
-                        updateContent { it.copy(pendingVoucher = null) }
-                        sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
-                        Napier.d(
-                            "[LSIG_SETTLE_OK] txId=$txId cumulativeAmount=${pendingVoucher.cumulativeAmountMicroUsdc}",
-                            tag = TAG,
-                        )
-                    }.onFailure { err ->
-                        showError(PaymentError.from(err), "LSIG_SETTLE_ERR", err)
-                    }
+                val txId = settleResult.getOrElse { err ->
+                    showError(PaymentError.from(err), "LSIG_SETTLE_ERR", err)
+                    return@launch
+                }
+                awaitConfirmed(txId)
+                updateContent { it.copy(pendingVoucher = null) }
+                sendStatus("✅ Settlement successful\n\nTxId:\n$txId")
+                Napier.d(
+                    "[LSIG_SETTLE_OK] txId=$txId cumulativeAmount=${pendingVoucher.cumulativeAmountMicroUsdc}",
+                    tag = TAG,
+                )
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "LSIG_SETTLE_EXCEPTION", e)
             } finally {
@@ -740,15 +737,14 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                result
-                    .onSuccess { txId ->
-                        awaitConfirmed(txId)
-                        updateContent { it.copy(pendingVoucher = null, remainingBalance = 0, creatorPayeeSigner = "") }
-                        sendStatus("✅ Session vault closed\n\nTxId:\n$txId")
-                        Napier.d("[CLOSE_OK] txId=$txId", tag = TAG)
-                    }.onFailure { err ->
-                        showError(PaymentError.from(err), "CLOSE_ERR", err)
-                    }
+                val txId = result.getOrElse { err ->
+                    showError(PaymentError.from(err), "CLOSE_ERR", err)
+                    return@launch
+                }
+                awaitConfirmed(txId)
+                updateContent { it.copy(pendingVoucher = null, remainingBalance = 0, creatorPayeeSigner = "") }
+                sendStatus("✅ Session vault closed\n\nTxId:\n$txId")
+                Napier.d("[CLOSE_OK] txId=$txId", tag = TAG)
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "CLOSE_EXCEPTION", e)
             } finally {
@@ -789,14 +785,13 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                result
-                    .onSuccess { txId ->
-                        awaitConfirmed(txId)
-                        sendStatus("✅ Requested for close of Session Vault\n\nTxId:\n$txId")
-                        Napier.d("[REQUEST_CLOSE_OK] txId=$txId", tag = TAG)
-                    }.onFailure { err ->
-                        showError(PaymentError.from(err), "REQUEST_CLOSE_ERR", err)
-                    }
+                val txId = result.getOrElse { err ->
+                    showError(PaymentError.from(err), "REQUEST_CLOSE_ERR", err)
+                    return@launch
+                }
+                awaitConfirmed(txId)
+                sendStatus("✅ Requested for close of Session Vault\n\nTxId:\n$txId")
+                Napier.d("[REQUEST_CLOSE_OK] txId=$txId", tag = TAG)
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "REQUEST_CLOSE_EXCEPTION", e)
             } finally {
@@ -837,30 +832,29 @@ class EscrowSessionVaultDebugViewModel(
                         )
                     }
 
-                result
-                    .onSuccess { txId ->
-                        awaitConfirmed(txId)
-                        sendStatus("✅ Requested withdraw from Session Vault\n\nTxId:\n$txId")
-                        Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
-                    }.onFailure { err ->
-                        val parsed = PaymentError.from(err)
-                        if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
-                            sendStatus(
-                                "❌ Withdraw was rejected by the contract.\n\n" +
-                                    "Withdraw is the viewer's forced-close path. Make sure you:\n" +
-                                    "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
-                                    "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
-                                    "Then try 'Request Withdraw' again.",
-                            )
-                            Napier.e(
-                                "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
-                                err,
-                                tag = TAG,
-                            )
-                        } else {
-                            showError(parsed, "REQUEST_WITHDRAW_ERR", err)
-                        }
+                val txId = result.getOrElse { err ->
+                    val parsed = PaymentError.from(err)
+                    if (parsed is PaymentError.BroadcastFailed || parsed is PaymentError.Unknown) {
+                        sendStatus(
+                            "❌ Withdraw was rejected by the contract.\n\n" +
+                                "Withdraw is the viewer's forced-close path. Make sure you:\n" +
+                                "1. Tapped 'Request Close' first (the viewer must be the payer).\n" +
+                                "2. Waited for the ~15-minute close grace period to elapse.\n\n" +
+                                "Then try 'Request Withdraw' again.",
+                        )
+                        Napier.e(
+                            "[REQUEST_WITHDRAW_ERR] ${parsed::class.simpleName}",
+                            err,
+                            tag = TAG,
+                        )
+                        return@launch
                     }
+                    showError(parsed, "REQUEST_WITHDRAW_ERR", err)
+                    return@launch
+                }
+                awaitConfirmed(txId)
+                sendStatus("✅ Requested withdraw from Session Vault\n\nTxId:\n$txId")
+                Napier.d("[REQUEST_WITHDRAW_OK] txId=$txId", tag = TAG)
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "REQUEST_WITHDRAW_EXCEPTION", e)
             } finally {
