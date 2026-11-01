@@ -1,7 +1,36 @@
 package com.michaeltchuang.walletsdk.ui.settings.screens
 
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.algorand_session_source
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_viewer
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_close_hot_wallet
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_creator_key
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_delegate_details
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_fund_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_fund_payee_box
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_local_signer
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_open_deposit
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_status
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_complete
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_no_channel
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_progress
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_viewer
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_authorized
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_different_key
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_logic_sig
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_no_channel
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_not_authorized
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_not_registered
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_not_set
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_registered
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_unknown
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_viewer
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_top_up
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_viewer_key
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +44,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -48,6 +78,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
+import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel.ResultMessage
+import com.michaeltchuang.walletsdk.ui.signing.screens.rememberAlgorandSeedVaultSigner
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -89,9 +121,17 @@ fun EscrowSessionVaultDebugToolScreen(navController: NavHostController) {
 @Composable
 private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
     val viewModel: EscrowSessionVaultDebugViewModel = koinViewModel()
+    val sign = rememberAlgorandSeedVaultSigner()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val content = viewState as EscrowSessionVaultDebugViewModel.ViewState.Content
-    var statusMessage by remember { mutableStateOf<String?>(null) }
+    val statusMessage =
+        when (val result = content.resultMessage) {
+            is ResultMessage.Text -> result.value
+            ResultMessage.Refreshing -> localizedStringResource(Res.string.escrow_refresh_progress)
+            ResultMessage.Refreshed -> localizedStringResource(Res.string.escrow_refresh_complete)
+            ResultMessage.NoChannel -> localizedStringResource(Res.string.escrow_refresh_no_channel)
+            null -> null
+        }
     val accountAddresses = content.accountAddresses
     val viewerAddress = content.viewerAddress
     val viewerAddress2 = content.viewerAddress2
@@ -99,7 +139,7 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
     val creatorAddress = content.creatorAddress
     val depositAmount = content.depositAmountUsdc
     val remainingBalance = content.remainingBalance
-    val isLoading = content.isLoading
+    val isLoading = content.isLoading || content.isRefreshingStatus
     LaunchedEffect(isLoading) { onBusyChanged(isLoading) }
     val canRunVaultActions = content.canRunVaultActions
     val selectedAddresses =
@@ -107,13 +147,7 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             .filter { it.isNotBlank() }
             .toSet()
     LaunchedEffect(viewModel) {
-        viewModel.viewEvent.collect { event ->
-            when (event) {
-                is EscrowSessionVaultDebugViewModel.ViewEvent.ShowStatusMessage -> {
-                    statusMessage = event.message
-                }
-            }
-        }
+        viewModel.refreshSignerStatus()
     }
     val textFieldColors =
         OutlinedTextFieldDefaults.colors(
@@ -211,6 +245,8 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
 
         HorizontalDivider()
 
+        AlgorandSignerStatus(content)
+
         Text(
             text = "Actions",
             style = MaterialTheme.typography.titleMedium,
@@ -218,69 +254,100 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             color = AlgoKitTheme.colors.textMain,
         )
 
-        Button(
-            onClick = viewModel::addAmountToSessionVault,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add Amount to Session Vault")
-        }
-
-        Button(
-            onClick = viewModel::fetchSessionVaultRemainingBalance,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Fetch Session Vault Balance")
-        }
-
-        Button(
+        val canAct = !isLoading && canRunVaultActions
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_refresh_status),
+            !isLoading,
+            onClick = viewModel::onRefreshSignerStatus,
+        )
+        AlgorandVaultAction(
+            localizedStringResource(if (content.hasChannel) Res.string.escrow_top_up else Res.string.escrow_open_deposit),
+            canAct && content.authorization != null,
+            onClick = { viewModel.addAmountToSessionVault(sign) },
+        )
+        AlgorandVaultAction(
+            "Update Voucher",
+            canAct && content.authorization?.viewerSignerAuthorized == true,
+            visible = content.hasChannel,
             onClick = viewModel::updateVoucher,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Update Voucher")
-        }
+        )
+        AlgorandVaultAction(
+            "Register Settlement LogicSig",
+            canAct && content.authorization?.viewerSignerAuthorized == true,
+            visible = content.showRegisterLogicSig,
+            onClick = { viewModel.registerSettlementLogicSig(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_authorize_viewer),
+            canAct,
+            visible = content.showAuthorizeViewer,
+            onClick = { viewModel.authorizeSigner(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_revoke_viewer),
+            canAct,
+            visible = content.showRevokeViewer,
+            onClick = { viewModel.revokeSigner(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_fund_payee_box),
+            canAct,
+            visible = content.hasChannel && content.authorization?.authorizedPayeeSigner == null,
+            onClick = { viewModel.fundPayeeSignerBox(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_authorize_creator),
+            canAct,
+            visible = content.showAuthorizeCreator,
+            onClick = { viewModel.authorizePayeeSigner(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_revoke_creator),
+            canAct,
+            visible = content.showRevokeCreator,
+            onClick = { viewModel.revokePayeeSigner(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_fund_creator),
+            canAct,
+            visible = content.hasChannel,
+            onClick = { viewModel.fundCreatorSigner(sign) },
+        )
 
-        Button(
-            onClick = viewModel::registerSettlementLogicSig,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Register Settlement LogicSig")
-        }
-
-        Button(
+        Text(
+            localizedStringResource(Res.string.escrow_delegate_details),
+            color = AlgoKitTheme.colors.textGray,
+        )
+        AlgorandVaultAction(
+            "Settle Amount",
+            canAct && content.canSettle,
+            visible = content.hasChannel,
             onClick = viewModel::settleAmount,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Settle Amount")
-        }
-
-        Button(
-            onClick = viewModel::closeSessionVault,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Close")
-        }
-
-        Button(
-            onClick = viewModel::requestCloseSessionVault,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Request Close")
-        }
-
-        Button(
-            onClick = viewModel::requestWithdraw,
-            enabled = !isLoading && canRunVaultActions,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Request Withdraw")
-        }
+        )
+        AlgorandVaultAction(
+            "Close",
+            canAct,
+            visible = content.hasChannel,
+            onClick = { viewModel.closeSessionVault(sign) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_close_hot_wallet),
+            canAct,
+            visible = content.creatorSignerAuthorized,
+            onClick = viewModel::closeWithPayeeSigner,
+        )
+        AlgorandVaultAction(
+            "Request Close",
+            canAct,
+            visible = content.hasChannel && (content.authorization?.closeRequestedAt ?: 0L) == 0L,
+            onClick = { viewModel.requestCloseSessionVault(sign) },
+        )
+        AlgorandVaultAction(
+            "Request Withdraw",
+            canAct,
+            visible = content.hasChannel && (content.authorization?.closeRequestedAt ?: 0L) > 0L,
+            onClick = { viewModel.requestWithdraw(sign) },
+        )
 
         HorizontalDivider()
 
@@ -348,6 +415,98 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
         }
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun AlgorandVaultAction(
+    label: String,
+    enabled: Boolean,
+    visible: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled && visible,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(label)
+    }
+}
+
+@Composable
+private fun AlgorandSignerStatus(content: EscrowSessionVaultDebugViewModel.ViewState.Content) {
+    val status = content.authorization
+    val unavailable =
+        when {
+            status == null -> Res.string.escrow_status_unknown
+            !status.channelExists -> Res.string.escrow_status_no_channel
+            else -> null
+        }
+    val viewerStatus =
+        localizedStringResource(
+            unavailable ?: if (status?.viewerSignerAuthorized == true) {
+                Res.string.escrow_status_authorized
+            } else {
+                Res.string.escrow_status_not_authorized
+            },
+        )
+    val logicSigStatus =
+        localizedStringResource(
+            unavailable ?: when {
+                status?.settlementRegistered == true -> Res.string.escrow_status_registered
+                status?.hasSettlementLogicSig == true -> Res.string.escrow_status_different_key
+                else -> Res.string.escrow_status_not_registered
+            },
+        )
+    val creatorStatus =
+        localizedStringResource(
+            unavailable ?: when {
+                content.creatorSignerAuthorized -> Res.string.escrow_status_authorized
+                status?.authorizedPayeeSigner != null -> Res.string.escrow_status_not_authorized
+                else -> Res.string.escrow_status_not_set
+            },
+        )
+    val unknown = localizedStringResource(Res.string.escrow_status_unknown)
+    SelectionContainer {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(
+                localizedStringResource(Res.string.escrow_viewer_key, content.viewerSessionSigner.ifBlank { unknown }),
+                color = AlgoKitTheme.colors.textMain,
+            )
+            Text(
+                localizedStringResource(
+                    if (content.viewerAddress in
+                        content.seedVaultAddresses
+                    ) {
+                        Res.string.algorand_session_source
+                    } else {
+                        Res.string.escrow_local_signer
+                    },
+                ),
+                color = AlgoKitTheme.colors.textGray,
+            )
+            Text(localizedStringResource(Res.string.escrow_status_viewer, viewerStatus), color = AlgoKitTheme.colors.textMain)
+            Text(localizedStringResource(Res.string.escrow_status_logic_sig, logicSigStatus), color = AlgoKitTheme.colors.textMain)
+            Text(
+                localizedStringResource(Res.string.escrow_creator_key, content.creatorPayeeSigner.ifBlank { unknown }),
+                color = AlgoKitTheme.colors.textMain,
+            )
+            Text(
+                localizedStringResource(
+                    if (content.creatorAddress in
+                        content.seedVaultAddresses
+                    ) {
+                        Res.string.algorand_session_source
+                    } else {
+                        Res.string.escrow_local_signer
+                    },
+                ),
+                color = AlgoKitTheme.colors.textGray,
+            )
+            Text(localizedStringResource(Res.string.escrow_status_creator, creatorStatus), color = AlgoKitTheme.colors.textMain)
+            status?.authorizedPayeeSigner?.let { Text(it, color = AlgoKitTheme.colors.textMain) }
+        }
     }
 }
 

@@ -1,6 +1,11 @@
 package com.michaeltchuang.walletsdk.core.railmpp.di
 
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.database.AlgoKitDatabase
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
+import com.michaeltchuang.walletsdk.core.railmpp.data.AlgorandSeedVaultSessionSignerProvider
+import com.michaeltchuang.walletsdk.core.railmpp.data.createAlgorandSeedVaultSessionSignerProvider
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.MppVoucherRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.SessionVaultBalanceRepositoryImpl
@@ -8,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRep
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.RailMppDataRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.SessionVaultBalanceRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.DebugAddressSelectionsUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetAlgorandSessionSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRailMppChannelSaltUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
@@ -19,6 +25,18 @@ import org.koin.dsl.module
 
 val railMppModule =
     module {
+        single<AlgorandSeedVaultSessionSignerProvider> { createAlgorandSeedVaultSessionSignerProvider() }
+        factory {
+            val getLocalAccount = get<GetLocalAccount>()
+            val provider = get<AlgorandSeedVaultSessionSignerProvider>()
+            GetAlgorandSessionSigner { address ->
+                val account = getLocalAccount(address)
+                require(account is LocalAccount.SeedVault && account.chainId == Chain.ALGORAND.id) {
+                    "An Algorand Seed Vault account is required"
+                }
+                provider.get(address)
+            }
+        }
         single<MppVoucherRepository> { MppVoucherRepositoryImpl(get<AlgoKitDatabase>().mppVoucherDao()) }
         single<RailMppDataRepository> { RailMppDataRepositoryImpl() }
         single<SessionVaultBalanceRepository> { SessionVaultBalanceRepositoryImpl() }
