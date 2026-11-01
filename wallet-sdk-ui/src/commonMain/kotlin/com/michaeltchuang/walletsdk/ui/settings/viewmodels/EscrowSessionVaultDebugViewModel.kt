@@ -49,6 +49,9 @@ class EscrowSessionVaultDebugViewModel(
     companion object Companion {
         private const val TAG = "EscrowSessionVaultDebugViewModel"
         private const val MICRO_USDC_MULTIPLIER = 1_000_000L
+        // Fresh-session settlement needs the settlement LogicSig (103,030 µALGO), the
+        // padding LogicSig (100,000 µALGO), and the payer-side funding/payment fees.
+        private const val CREATOR_FUNDING_TARGET_MICRO_ALGO = 211_030L
     }
 
     data class PendingVoucher(
@@ -228,10 +231,30 @@ class EscrowSessionVaultDebugViewModel(
     }
 
     fun fundCreatorSigner(sign: SignAlgorandSeedVaultTransaction) {
-        runSignerAction("Fund creator hot wallet", true, sign) { signer, _ ->
-            val hotSigner = getHotSigner(contentState().creatorAddress)
-            updateContent { it.copy(creatorPayeeSigner = hotSigner.address) }
-            EscrowSessionVaultHybridManagerClient.ensureAccountMinimumBalance(signer, hotSigner.address, 100_000L).getOrThrow()
+        val creatorAddress = contentState().creatorAddress.trim()
+        if (creatorAddress.isBlank()) {
+            sendStatus("❌ Creator address is required before funding the hot wallet.")
+            return
+        }
+        viewModelScope.launch {
+            val hotSigner = runCatching { getHotSigner(creatorAddress) }.getOrNull()
+            if (hotSigner == null || hotSigner.address == creatorAddress) {
+                sendStatus(
+                    "❌ Creator funding is only valid for a Seed Vault session wallet. " +
+                        "Use a separate account to fund the creator hot wallet instead of funding itself.",
+                )
+                return@launch
+            }
+            runSignerAction("Fund creator hot wallet", true, sign) { signer, _ ->
+                val fundedSigner = getHotSigner(contentState().creatorAddress)
+                updateContent { it.copy(creatorPayeeSigner = fundedSigner.address) }
+                EscrowSessionVaultHybridManagerClient
+                    .ensureAccountMinimumBalance(
+                        signer,
+                        fundedSigner.address,
+                        CREATOR_FUNDING_TARGET_MICRO_ALGO,
+                    ).getOrThrow()
+            }
         }
     }
 

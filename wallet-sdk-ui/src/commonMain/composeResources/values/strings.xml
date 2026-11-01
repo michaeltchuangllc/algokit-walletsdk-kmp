@@ -3,7 +3,7 @@
     <string name="escrow_revoke_viewer">Revoke settlement LogicSig</string>
     <string name="escrow_authorize_creator">Authorize creator payee signer (on-chain)</string>
     <string name="escrow_revoke_creator">Revoke creator payee signer</string>
-    <string name="escrow_fund_creator">Fund creator hot wallet (minimum balance + 0.1 ALGO)</string>
+    <string name="escrow_fund_creator">Fund creator hot wallet (covers both LogicSigs + fees; ~0.211 ALGO)</string>
     <string name="escrow_fund_payee_box">Fund creator payee signer box (up to 0.0285 ALGO)</string>
     <string name="escrow_close_hot_wallet">Close &amp; refund - creator payee signer (hot wallet)</string>
     <string name="escrow_delegate_details">Opening a channel deposits and authorizes the viewer session key. Register its settlement LogicSig before settling. Revoking the LogicSig blocks settlement without removing the stored viewer key; register it again to resume. Creator payee authorization is for delegated close, not settlement. Fund the creator payee signer box before its first authorization and fund the creator hot wallet for network fees. Close refunds the viewer without settling an unsubmitted voucher. Seed Vault may request approval for each deposit transaction.</string>

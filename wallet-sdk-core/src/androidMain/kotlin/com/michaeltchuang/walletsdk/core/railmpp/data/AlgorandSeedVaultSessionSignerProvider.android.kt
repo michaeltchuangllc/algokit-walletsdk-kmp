@@ -14,7 +14,6 @@ internal actual fun createAlgorandSeedVaultSessionSignerProvider(): AlgorandSeed
     AlgorandSeedVaultSessionSignerProvider { ownerAddress ->
         withSeedVaultClient { client ->
             val account = client.sessionAccount(ownerAddress) ?: return@withSeedVaultClient null
-            account.requireAutosign()
             val publicKey = Base64.decode(account.publicKey)
             check(publicKey.size == 1793) { "Invalid Seed Vault Falcon session public key" }
             check(account.address != ownerAddress) { "Session key must differ from its owner" }

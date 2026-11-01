@@ -309,8 +309,8 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
         )
         AlgorandVaultAction(
             localizedStringResource(Res.string.escrow_fund_creator),
-            canAct,
-            visible = content.hasChannel,
+            canAct && content.creatorAddress in content.seedVaultAddresses,
+            visible = content.hasChannel && content.creatorAddress in content.seedVaultAddresses,
             onClick = { viewModel.fundCreatorSigner(sign) },
         )
 
