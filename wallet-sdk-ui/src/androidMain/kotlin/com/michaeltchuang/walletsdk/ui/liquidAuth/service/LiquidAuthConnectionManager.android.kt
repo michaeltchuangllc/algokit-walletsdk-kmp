@@ -1293,6 +1293,9 @@ actual class LiquidAuthConnectionManager actual constructor(
                         viewer.creator?.rtcServer?.voucherCoveredBlockCount(amount, confirmedBlocks) ?: confirmedBlocks
                     },
                     getSolanaOwnerSigner = { viewModel?.solanaOwnerSigner },
+                    buildCreatorRefundSigner = { address ->
+                        viewModel?.buildCreatorRefundSigner(address) ?: mppWalletSignerUseCase(address)
+                    },
                 )
         }
         drainAdditionalViewerVouchers(viewer)

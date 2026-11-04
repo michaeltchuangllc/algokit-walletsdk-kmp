@@ -44,6 +44,8 @@ import com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels.VideoFrameData
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.LIQUID_AUTH_SESSION
 import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultMessageSigner
 import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
+import com.michaeltchuang.walletsdk.ui.signing.screens.rememberAlgorandSeedVaultMessageSigner
+import com.michaeltchuang.walletsdk.ui.signing.screens.rememberAlgorandSeedVaultSigner
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
@@ -83,6 +85,16 @@ actual fun AnswerScreenOverlay() {
         LocalViewModelStoreOwner provides viewModelStoreOwner,
     ) {
         val viewModel: AnswerViewModel = koinViewModel()
+        val signAlgorandTransaction = rememberAlgorandSeedVaultSigner()
+        val signAlgorandMessage = rememberAlgorandSeedVaultMessageSigner()
+        DisposableEffect(viewModel, signAlgorandTransaction, signAlgorandMessage) {
+            viewModel.signAlgorandTransaction = signAlgorandTransaction
+            viewModel.signAlgorandMessage = signAlgorandMessage
+            onDispose {
+                if (viewModel.signAlgorandTransaction === signAlgorandTransaction) viewModel.signAlgorandTransaction = null
+                if (viewModel.signAlgorandMessage === signAlgorandMessage) viewModel.signAlgorandMessage = null
+            }
+        }
         val signSolanaTransaction = rememberSeedVaultTransactionSigner()
         val signSolanaMessage = rememberSeedVaultMessageSigner()
         DisposableEffect(viewModel, signSolanaMessage) {

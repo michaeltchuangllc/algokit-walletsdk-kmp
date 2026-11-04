@@ -11,3 +11,7 @@ internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTran
             error("Algorand Seed Vault signing is available only on Android.")
         }
     }
+
+@Composable
+internal actual fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, ByteArray) -> ByteArray =
+    remember { { _, _ -> error("Algorand Seed Vault signing is available only on Android.") } }

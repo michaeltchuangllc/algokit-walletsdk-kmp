@@ -119,7 +119,11 @@ fun getSupportedAccountsByAppId(
                     AccountRegistrationType.Falcon24,
                     AccountRegistrationType.Falcon25,
                 ) ||
-                (seedVaultSigningSupported && it.registrationType is AccountRegistrationType.SeedVault && it.isSolana)
+                (
+                    seedVaultSigningSupported &&
+                        it.registrationType is AccountRegistrationType.SeedVault &&
+                        it.chainId in setOf(Chain.SOLANA.id, Chain.ALGORAND.id)
+                )
         } ?: accountLite
 
 fun getSupportedLocalAccountsByAppId(
@@ -135,7 +139,11 @@ fun getSupportedLocalAccountsByAppId(
                 it is LocalAccount.Algo25 ||
                 it is LocalAccount.Falcon24 ||
                 it is LocalAccount.Falcon25 ||
-                (seedVaultSigningSupported && it is LocalAccount.SeedVault && it.chainId == Chain.SOLANA.id)
+                (
+                    seedVaultSigningSupported &&
+                        it is LocalAccount.SeedVault &&
+                        it.chainId in setOf(Chain.SOLANA.id, Chain.ALGORAND.id)
+                )
         } ?: localAccount
 
 fun resolveLiquidStreamAccountNetwork(
@@ -153,7 +161,7 @@ fun resolveLiquidStreamAccountNetwork(
         ).isNotEmpty(),
     ) { "This account cannot sign LiquidStream transactions on this platform." }
     val resolved =
-        if (account is LocalAccount.SeedVault) {
+        if (account is LocalAccount.SeedVault && account.chainId == Chain.SOLANA.id) {
             // Seed Vault accounts follow the app-wide toggle: MainNet -> Solana mainnet, else devnet.
             if (network == AlgorandNetwork.MAINNET) MppNetworks.SOLANA_MAINNET else MppNetworks.SOLANA_DEVNET
         } else {
@@ -199,7 +207,7 @@ fun validateLiquidStreamMetadataNetwork(
     advertisedNetwork: String?,
     seedVaultSigningSupported: Boolean = isSeedVaultTransactionSigningSupported,
 ): String {
-    require(account !is LocalAccount.SeedVault || !advertisedNetwork.isNullOrBlank()) {
+    require(account !is LocalAccount.SeedVault || account.chainId != Chain.SOLANA.id || !advertisedNetwork.isNullOrBlank()) {
         "Solana streams must advertise their payment network."
     }
     return resolveLiquidStreamAccountNetwork(account, network, advertisedNetwork, seedVaultSigningSupported)

@@ -12,6 +12,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.data.MppWalletSignerImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSessionSignerUseCase
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction
 
 class MppWalletSignerUseCase(
     private val getLocalAccount: GetLocalAccount,
@@ -21,12 +22,39 @@ class MppWalletSignerUseCase(
     private val getFalcon25Seed: GetFalcon25Seed,
     private val getHdSeed: GetHdSeed,
     private val getSolanaSessionSigner: GetSolanaSessionSignerUseCase,
+    private val getAlgorandSessionSigner: GetAlgorandSessionSigner,
 ) {
-    suspend operator fun invoke(address: String): MppWalletSigner? {
+    suspend operator fun invoke(
+        address: String,
+        signAlgorandTransaction: SignAlgorandSeedVaultTransaction? = null,
+    ): MppWalletSigner? {
         val localAccount = getLocalAccount(address) ?: return null
         // Seed Vault keys never leave secure hardware; auto-signing only works via a linked session key.
         if (localAccount is LocalAccount.SeedVault) {
-            return if (localAccount.chainId == Chain.SOLANA.id) getSolanaSessionSigner(address) else null
+            if (localAccount.chainId == Chain.SOLANA.id) return getSolanaSessionSigner(address)
+            if (localAccount.chainId != Chain.ALGORAND.id) return null
+            val session = getAlgorandSessionSigner(address) ?: return null
+            if (signAlgorandTransaction == null) return session
+            return object : MppWalletSigner by session {
+                override val address: String = localAccount.address
+                override val ownerAddress: String = localAccount.address
+
+                override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray {
+                    val current = checkNotNull(getAlgorandSessionSigner(address)) { "Seed Vault session signer is unavailable." }
+                    check(
+                        current.address == session.address &&
+                            current.authorizedSignerPublicKey.contentEquals(session.authorizedSignerPublicKey),
+                    ) {
+                        "Seed Vault session signer changed. Reconnect the stream."
+                    }
+                    return signAlgorandTransaction(address, txnMsgpack).also {
+                        check(it.isNotEmpty()) { "Seed Vault returned an empty signed transaction." }
+                    }
+                }
+
+                override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> =
+                    txnsMsgpack.map { signTransactionBytes(it) }
+            }
         }
 
         val authorizedSignerPublicKey: ByteArray =

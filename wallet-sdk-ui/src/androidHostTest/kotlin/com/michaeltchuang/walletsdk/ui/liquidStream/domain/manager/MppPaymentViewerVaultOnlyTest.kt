@@ -89,6 +89,10 @@ class MppPaymentViewerVaultOnlyTest {
                     secondArg<Long>().toString().encodeToByteArray()
                 }
                 val signed = mutableListOf<Long>()
+                coEvery { signer.signMessage(any()) } answers {
+                    signed += firstArg<ByteArray>().decodeToString().toLong()
+                    byteArrayOf(7, 8, 9)
+                }
                 val processing = mutableListOf<Boolean>()
                 val progress = mutableListOf<Long>()
                 var prompts = 0
@@ -105,10 +109,7 @@ class MppPaymentViewerVaultOnlyTest {
                             ConsentApproval(true, autoPaySegments = true, budgetCap = BudgetCap("91", "USDC"))
                         },
                         setViewerSessionVaultProgress = { _, available -> progress += available },
-                        signFido2Challenge = { challenge, _ ->
-                            signed += challenge.decodeToString().toLong()
-                            byteArrayOf(7, 8, 9)
-                        },
+                        signFido2Challenge = { _, _ -> error("Vouchers must not request owner authentication") },
                         channelIdProvider = { channel },
                         setViewerPaymentProcessing = { processing += it },
                         getConnectionType = { IceConnectionType.LOCAL },
@@ -263,7 +264,7 @@ class MppPaymentViewerVaultOnlyTest {
         }
 
     @Test
-    fun `EXPECT deferred receipts to sign cumulative vouchers without rail receipts WHEN billing mode is SESSION_VAULT`() =
+    fun `EXPECT deferred receipts to sign cumulative vouchers with session key without owner authentication`() =
         runTest {
             val dispatcher = StandardTestDispatcher(testScheduler)
             Dispatchers.setMain(dispatcher)
@@ -276,8 +277,22 @@ class MppPaymentViewerVaultOnlyTest {
             try {
                 val channel = ByteArray(32) { 9 }
                 val dc = Channel()
-                val signer = mockk<MppWalletSigner>(relaxed = true)
-                every { signer.authorizedSignerPublicKey } returns byteArrayOf(1, 2, 3)
+                val signed = mutableListOf<ByteArray>()
+                val sessionKey = byteArrayOf(4, 5, 6)
+                val sessionSignature = byteArrayOf(7, 8, 9)
+                val signer =
+                    object : MppWalletSigner {
+                        override val address = viewerAddress
+                        override val authorizedSignerPublicKey = sessionKey
+
+                        override suspend fun signMessage(message: ByteArray): ByteArray {
+                            signed += message.copyOf()
+                            return sessionSignature.copyOf()
+                        }
+
+                        override suspend fun signTransactionBytes(txnMsgpack: ByteArray): ByteArray =
+                            error("Funded vouchers must not sign owner transactions")
+                    }
                 val data = MppPayments.SessionDynamicData(45, 20, 20, 1)
                 coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } returns data
                 coEvery { MppPayments.getSessionProgressSnapshotFromVault(any()) } returns MppPayments.computeSessionProgressSnapshot(data)
@@ -287,8 +302,8 @@ class MppPaymentViewerVaultOnlyTest {
                     cumulative += secondArg<Long>()
                     byteArrayOf(secondArg<Long>().toByte())
                 }
-                val signed = mutableListOf<ByteArray>()
                 var prompts = 0
+                var ownerAuthenticationRequests = 0
                 manager.start(
                     MppPaymentViewerManager.StartParams(
                         dataChannel = dc,
@@ -302,9 +317,9 @@ class MppPaymentViewerVaultOnlyTest {
                             error("Funded receipts should not prompt")
                         },
                         setViewerSessionVaultProgress = { _, _ -> },
-                        signFido2Challenge = { challenge, _ ->
-                            signed += challenge
-                            byteArrayOf(7, 8, 9)
+                        signFido2Challenge = { _, _ ->
+                            ownerAuthenticationRequests++
+                            error("Vouchers must not request owner authentication")
                         },
                         channelIdProvider = { channel },
                     ),
@@ -363,7 +378,9 @@ class MppPaymentViewerVaultOnlyTest {
                 )
                 assertTrue(vouchers.all { it["channelId"]?.jsonPrimitive?.content == Base64.encode(channel) })
                 assertTrue(vouchers.all { it["billingMode"]?.jsonPrimitive?.content == BillingMode.SESSION_VAULT })
-                assertTrue(vouchers.all { !it["signature"]?.jsonPrimitive?.content.isNullOrBlank() })
+                assertTrue(vouchers.all { it["signature"]?.jsonPrimitive?.content == Base64.encode(sessionSignature) })
+                assertTrue(vouchers.all { it["viewerPublicKey"]?.jsonPrimitive?.content == Base64.encode(sessionKey) })
+                assertEquals(0, ownerAuthenticationRequests)
                 assertTrue(dc.sent.none { it["type"]?.jsonPrimitive?.content == DCMessageType.SEGMENT_PAYMENT.value })
                 // A known funded vault becomes unavailable after a receipt, just as in
                 // the device log. A failed read represented as zero must not prompt.

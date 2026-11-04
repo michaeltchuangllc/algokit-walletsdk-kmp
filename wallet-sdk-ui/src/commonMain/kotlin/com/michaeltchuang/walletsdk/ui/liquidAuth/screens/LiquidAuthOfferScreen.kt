@@ -92,6 +92,7 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.screens.LiquidStreamHostLive
 import com.michaeltchuang.walletsdk.ui.liquidStream.viewmodels.LiquidStreamHostViewModel
 import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
+import com.michaeltchuang.walletsdk.ui.signing.screens.rememberAlgorandSeedVaultSigner
 import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -245,6 +246,13 @@ fun LiquidAuthOfferScreen(
     debugFullscreen: Boolean = false,
 ) {
     val viewModel: LiquidAuthOfferViewModel = koinViewModel()
+    val algorandSigner = rememberAlgorandSeedVaultSigner()
+    DisposableEffect(viewModel, algorandSigner) {
+        viewModel.algorandSeedVaultSigner = algorandSigner
+        onDispose {
+            if (viewModel.algorandSeedVaultSigner === algorandSigner) viewModel.algorandSeedVaultSigner = null
+        }
+    }
     // Seed Vault creators approve each departing Solana viewer's refund (payee-only `close`).
     val seedVaultSigner = rememberSeedVaultTransactionSigner()
     DisposableEffect(viewModel, seedVaultSigner) {
@@ -278,10 +286,9 @@ fun LiquidAuthOfferScreen(
     val streamHostUiMode = streamHostUiModeState ?: remember { mutableStateOf(StreamHostUiMode.Hidden) }
     val isAnalyticsModalVisible = remember { mutableStateOf(false) }
     val resolvedCameraPreviewController = cameraPreviewController ?: remember { CameraStreamingPreviewController() }
-    // Labels are presentation only; SeedVault accounts never perform Algorand ASA calls.
     val requiresCreatorAsaOptIn =
-        localCreatorAccount != null && localCreatorAccount !is LocalAccount.SeedVault && creatorAssetId > 0
-    LaunchedEffect(creatorAddress, appNetwork, paymentNetworkOverride, viewModel) {
+        localCreatorAccount?.chainId == com.michaeltchuang.walletsdk.core.foundation.utils.Chain.ALGORAND.id && creatorAssetId > 0
+    LaunchedEffect(creatorAddress, appNetwork, paymentNetworkOverride, enablePaidStreaming, viewModel) {
         if (creatorAddress.isNullOrBlank()) {
             creatorRouteReady = true
             return@LaunchedEffect
@@ -292,6 +299,7 @@ fun LiquidAuthOfferScreen(
             localCreatorAccount = account
             val resolved = resolveLiquidStreamAccountNetwork(account, network, paymentNetworkOverride)
             viewModel.configureBillingNetwork(creatorAddress, resolved)
+            if (enablePaidStreaming) viewModel.prepareCreatorSession(account, resolved)
             creatorRouteReady = true
         } catch (ce: CancellationException) {
             throw ce

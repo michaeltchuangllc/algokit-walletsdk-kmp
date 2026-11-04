@@ -22,6 +22,16 @@ private class ApprovalState {
 
 @Composable
 internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTransaction {
+    val sign = rememberAlgorandSeedVaultSigning(message = false)
+    return remember(sign) { SignAlgorandSeedVaultTransaction(sign) }
+}
+
+@Composable
+internal actual fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, ByteArray) -> ByteArray =
+    rememberAlgorandSeedVaultSigning(message = true)
+
+@Composable
+private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String, ByteArray) -> ByteArray {
     val context = LocalContext.current.applicationContext
     val approval = remember { ApprovalState() }
     val launcher =
@@ -37,8 +47,8 @@ internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTran
             approval.pending = null
         }
     }
-    return remember(context, launcher, approval) {
-        SignAlgorandSeedVaultTransaction { address, transaction ->
+    return remember(context, launcher, approval, message) {
+        { address, transaction ->
             withContext(Dispatchers.Main.immediate) {
                 check(approval.active && approval.pending == null) { "Seed Vault approval is unavailable or already pending." }
                 val result = CompletableDeferred<Boolean>()
@@ -57,11 +67,20 @@ internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTran
                     checkNotNull(account) { "This account is no longer authorized in Seed Vault." }
                     val signed =
                         signWithSeedVaultApproval(
-                            autosign = account.isAutosign,
+                            autosign = account.isAutosign && !account.requiresApproval,
                             approve = {
                                 ensureActive()
                                 check(approval.active) { "Transaction screen was closed." }
-                                launcher.launch(client.confirmSignTransactionIntent(address, bytes))
+                                launcher.launch(
+                                    if (message) {
+                                        client.confirmSignBytesIntent(
+                                            address,
+                                            bytes,
+                                        )
+                                    } else {
+                                        client.confirmSignTransactionIntent(address, bytes)
+                                    },
+                                )
                                 launched = true
                                 check(result.await()) { "Seed Vault signing was cancelled." }
                             },
@@ -69,7 +88,9 @@ internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTran
                                 ensureActive()
                                 check(approval.active) { "Transaction screen was closed." }
                                 withContext(Dispatchers.IO) {
-                                    checkNotNull(client.signTransaction(address, bytes)) { "Seed Vault could not sign the transaction." }
+                                    checkNotNull(
+                                        if (message) client.signBytes(address, bytes) else client.signTransaction(address, bytes),
+                                    ) { "Seed Vault signing failed." }
                                 }
                             },
                         )

@@ -5,3 +5,6 @@ import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorand
 
 @Composable
 internal expect fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTransaction
+
+@Composable
+internal expect fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, ByteArray) -> ByteArray

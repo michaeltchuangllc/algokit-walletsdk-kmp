@@ -421,6 +421,9 @@ object EscrowSessionVaultHybridManagerClient {
     suspend fun close(
         signer: MppWalletSigner,
         channelId: ByteArray,
+        appId: Long = this.appId,
+        usdcAssetId: Long = this.usdcAssetId,
+        algodUrl: String = this.algodUrl,
     ): Result<String> =
         runCatching {
             submitAppCallInternal(
@@ -437,7 +440,7 @@ object EscrowSessionVaultHybridManagerClient {
                         Pair(appId, AUTHORIZED_PAYEE_SIGNER_BOX_PREFIX + channelId),
                     ),
                 foreignAssets = listOf(usdcAssetId),
-                foreignAccounts = getChannelParticipants(channelId),
+                foreignAccounts = getChannelParticipants(channelId, appId, algodUrl),
             )
         }
 
@@ -501,6 +504,7 @@ object EscrowSessionVaultHybridManagerClient {
         signer: MppWalletSigner,
         receiverAddress: String,
         minimumSpendableMicroAlgo: Long,
+        algodUrl: String = this.algodUrl,
     ): Result<String?> =
         runCatching {
             require(encodeAlgorandAddress(decodeAlgorandAddressPublicKey(receiverAddress)) == receiverAddress) {
@@ -511,12 +515,15 @@ object EscrowSessionVaultHybridManagerClient {
                 null
             } else {
                 val txId = submitPaymentInternal(signer, receiverAddress, amount, algodUrl)
-                awaitTransactionConfirmed(txId).getOrThrow()
+                awaitTransactionConfirmed(txId, algodUrl).getOrThrow()
                 txId
             }
         }
 
-    fun awaitTransactionConfirmed(txId: String): Result<Unit> =
+    fun awaitTransactionConfirmed(
+        txId: String,
+        algodUrl: String = this.algodUrl,
+    ): Result<Unit> =
         runCatching {
             check(awaitConfirmationInternal(txId, algodUrl)) { "Transaction not confirmed: $txId" }
         }
@@ -610,7 +617,11 @@ object EscrowSessionVaultHybridManagerClient {
 
     // ── Private helpers ──────────────────────────────────────────────────────
 
-    private fun getChannelParticipants(channelId: ByteArray): List<String> {
+    private fun getChannelParticipants(
+        channelId: ByteArray,
+        appId: Long = this.appId,
+        algodUrl: String = this.algodUrl,
+    ): List<String> {
         val bytes = getSessionBoxBytesInternal(appId, channelId, algodUrl)
         if (bytes.size < 64) error("Invalid session box payload size=${bytes.size}")
         val payer = encodeAlgorandAddress(bytes.copyOfRange(0, 32))

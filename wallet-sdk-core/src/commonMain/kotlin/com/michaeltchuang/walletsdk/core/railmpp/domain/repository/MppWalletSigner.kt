@@ -9,6 +9,8 @@ enum class MppWalletSignerType {
 /** Platform-agnostic wallet signer for Algorand/Solana payment rails. */
 interface MppWalletSigner {
     val address: String
+    val ownerAddress: String
+        get() = address
     val authorizedSignerPublicKey: ByteArray
 
     /** Transaction authorization algorithm used by this signer. */
