@@ -938,7 +938,12 @@ class MppPaymentViewerManager(
                             cumulativeAmountMicroUsdc = obligation.cumulativeAmount,
                             payeeAddress = obligation.payTo,
                         )
-                    session.params.signer.signMessage(message)
+                    try {
+                        session.params.signer.signMessage(message)
+                    } catch (_: UnsupportedOperationException) {
+                        // Custom signers without message signing keep the legacy FIDO2 challenge path.
+                        session.params.signFido2Challenge(message, session.params.viewerAddress)
+                    }
                 }
             ensureCurrent(session)
             if (signature == null || signature.isEmpty()) {
