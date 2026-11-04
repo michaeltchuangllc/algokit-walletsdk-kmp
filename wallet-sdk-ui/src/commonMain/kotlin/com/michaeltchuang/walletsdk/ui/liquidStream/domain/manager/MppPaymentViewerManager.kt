@@ -2027,7 +2027,7 @@ class MppPaymentViewerManager(
         trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=$openErrorType")
         currentCoroutineContext().ensureActive()
         openResult.onSuccess {
-            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
+            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress, signerAlreadyAuthorized = true)
             if (activeStartParams === fundingParams) refreshVaultIdentity(viewerAddress)
         }
         return VaultFundingResult(result = openResult, openedSession = true)
@@ -2036,6 +2036,7 @@ class MppPaymentViewerManager(
     private suspend fun ensureAuthorizedSignerAndSettlementLogicSig(
         signer: MppWalletSigner,
         viewerAddress: String,
+        signerAlreadyAuthorized: Boolean = false,
     ) {
         // Each owner-signed step is a separate Seed Vault approval, so only submit what is missing on-chain.
         val channel = EscrowSessionVaultHybridManagerClient.channelId?.copyOf()
@@ -2050,7 +2051,7 @@ class MppPaymentViewerManager(
                 null
             }
         currentCoroutineContext().ensureActive()
-        if (status?.viewerSignerAuthorized != true) {
+        if (!signerAlreadyAuthorized && status?.viewerSignerAuthorized != true) {
             MppPayments
                 .setAuthorizedSignerForSession(
                     signer = signer,

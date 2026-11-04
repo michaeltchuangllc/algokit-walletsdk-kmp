@@ -57,6 +57,7 @@ internal class ViewerVaultBillingSession(
     // each refund. Resolved lazily because the signer lives with the host screen's composition.
     private val getSolanaOwnerSigner: () -> (suspend (address: String, message: ByteArray) -> ByteArray)? = { null },
     private val buildCreatorRefundSigner: suspend (String) -> MppWalletSigner? = buildCreatorWalletSigner,
+    channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId?.copyOf(),
 ) {
     interface Adapter {
         suspend fun validateAuthorization(voucher: Voucher): Result<HostViewerVaultReader.Snapshot>
@@ -137,6 +138,7 @@ internal class ViewerVaultBillingSession(
     private val acceptanceMutex = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var latest: Voucher? = null
+    private var knownChannelId: ByteArray? = channelId?.copyOf()
     private var confirmedAmount = 0L
     private var confirmedBlockCount = 0L
     private var latestRound: Long? = null
@@ -275,6 +277,7 @@ internal class ViewerVaultBillingSession(
                 }
                 val channel = requireNotNull(message.channelId).copyOf()
                 require(channel.size == 32) { "Voucher channel must be 32 bytes" }
+                knownChannelId = channel.copyOf()
                 message.channelIdBase64?.let {
                     require(Base64.decode(it).contentEquals(channel)) { "Inconsistent channel encoding" }
                 }
@@ -360,6 +363,7 @@ internal class ViewerVaultBillingSession(
                             ),
                         )
                         latest = saved
+                        knownChannelId = saved.channelId.copyOf()
                         Napier.d(
                             "HOST_VOUCHER_LATEST session=$sessionId cumulativeMicro=${saved.totalAmountClaimedMicroUsdc}",
                             tag = "LS_VAULT_DEBUG",
@@ -444,6 +448,7 @@ internal class ViewerVaultBillingSession(
                 mutex.withLock {
                     if (!canAccept(voucher)) return@withLock
                     latest = voucher
+                    knownChannelId = voucher.channelId.copyOf()
                     forceRequested = true
                     wake.trySend(Unit)
                 }
@@ -548,7 +553,9 @@ internal class ViewerVaultBillingSession(
             refundSolanaVault()
             return
         }
-        val channelId = mutex.withLock { latest?.channelId } ?: return
+        val channelId = mutex.withLock {
+            latest?.channelId?.copyOf() ?: knownChannelId?.copyOf()
+        } ?: return
         try {
             val signer = buildCreatorRefundSigner(creatorAddress)
             if (signer == null) {

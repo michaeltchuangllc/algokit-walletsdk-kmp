@@ -15,9 +15,32 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-private class ApprovalState {
+private object SeedVaultApprovalCoordinator {
+    @Volatile
     var pending: CompletableDeferred<Boolean>? = null
+
+    @Volatile
     var active = true
+
+    fun start(): CompletableDeferred<Boolean> {
+        check(active) { "Seed Vault approval is unavailable or already pending." }
+        check(pending == null) { "Seed Vault approval is unavailable or already pending." }
+        val result = CompletableDeferred<Boolean>()
+        pending = result
+        return result
+    }
+
+    fun complete(result: Boolean) {
+        val current = pending
+        pending = null
+        current?.complete(result)
+    }
+
+    fun release() {
+        val current = pending
+        pending = null
+        current?.complete(false)
+    }
 }
 
 @Composable
@@ -33,26 +56,22 @@ internal actual fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, B
 @Composable
 private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String, ByteArray) -> ByteArray {
     val context = LocalContext.current.applicationContext
-    val approval = remember { ApprovalState() }
+    val approval = remember { SeedVaultApprovalCoordinator }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            approval.pending?.complete(result.resultCode == Activity.RESULT_OK)
-            approval.pending = null
+            approval.complete(result.resultCode == Activity.RESULT_OK)
         }
     DisposableEffect(approval) {
         approval.active = true
         onDispose {
             approval.active = false
-            approval.pending?.complete(false)
-            approval.pending = null
+            approval.release()
         }
     }
     return remember(context, launcher, approval, message) {
         { address, transaction ->
             withContext(Dispatchers.Main.immediate) {
-                check(approval.active && approval.pending == null) { "Seed Vault approval is unavailable or already pending." }
-                val result = CompletableDeferred<Boolean>()
-                approval.pending = result
+                val result = approval.start()
                 val bytes = transaction.copyOf()
                 val client = SeedVaultServiceClient(context)
                 var launched = false
@@ -98,7 +117,9 @@ private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String,
                     check(approval.active) { "Transaction screen was closed." }
                     signed
                 } finally {
-                    if (!launched && approval.pending === result) approval.pending = null
+                    if (!launched && approval.pending === result) {
+                        approval.complete(false)
+                    }
                     client.unbind()
                 }
             }
