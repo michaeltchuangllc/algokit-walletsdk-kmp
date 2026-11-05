@@ -8,6 +8,7 @@ import androidx.credentials.provider.PendingIntentHandler
 import androidx.credentials.provider.ProviderGetCredentialRequest
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.Passkey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialRequestOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetPasskeyByCredentialId
@@ -96,8 +97,13 @@ class DefaultGetPasskeyIntentValidator(
         passkey: Passkey,
     ): GetCredentialsParams {
         val signingProvider =
-            when (getLocalAccount(passkey.address)) {
-                is LocalAccount.SeedVault -> PasskeySigningProvider.SOLANA_SEED_VAULT
+            when (val account = getLocalAccount(passkey.address)) {
+                is LocalAccount.SeedVault ->
+                    if (account.chainId == Chain.ALGORAND.id) {
+                        PasskeySigningProvider.SEED_VAULT_DERIVED
+                    } else {
+                        PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
+                    }
                 else -> PasskeySigningProvider.BIP39_DETERMINISTIC
             }
 

@@ -3,6 +3,7 @@ package com.michaeltchuang.walletsdk.ui.passkeys
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
@@ -12,6 +13,8 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApprover
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApproverHolder
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
@@ -22,6 +25,7 @@ import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.CreatePasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.signing.screens.ScreenContent
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectAccountViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -37,6 +41,12 @@ import kotlin.coroutines.resume
 class PasskeyActivity :
     FragmentActivity(),
     ActivityCredentialRequestResolver by DefaultActivityCredentialRequestResolver() {
+    private var pendingSeedVaultApproval: CompletableDeferred<Boolean>? = null
+    private val seedVaultApprovalLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            pendingSeedVaultApproval?.complete(result.resultCode == RESULT_OK)
+            pendingSeedVaultApproval = null
+        }
     private val createPasskeyViewModel: CreatePasskeyViewModel by viewModel()
     private val getPasskeyViewModel: GetPasskeyViewModel by viewModel()
 
@@ -76,10 +86,23 @@ class PasskeyActivity :
         // Ensure Koin is started before ViewModels are created
         ensureKoinStarted()
         initializeRequestResolver(this)
+        getKoin().get<SeedVaultApproverHolder>().approver =
+            SeedVaultApprover { approvalIntent ->
+                val result = CompletableDeferred<Boolean>()
+                pendingSeedVaultApproval = result
+                seedVaultApprovalLauncher.launch(approvalIntent)
+                result.await()
+            }
         when (intent.action) {
             CREATE_PASSKEY_INTENT -> processCreatePasskeyRequest()
             GET_PASSKEY_INTENT -> processGetPasskeyRequest()
         }
+    }
+
+    override fun onDestroy() {
+        getKoin().get<SeedVaultApproverHolder>().approver = null
+        pendingSeedVaultApproval?.complete(false)
+        super.onDestroy()
     }
 
     private fun ensureKoinStarted() {
@@ -140,6 +163,8 @@ class PasskeyActivity :
     private suspend fun ensureCreatePasskeyAccountSelected(): String? {
         val requestExtras = intent.getBundleExtra(PasskeyProviderService.EXTRA_INTENT_DATA_KEY)
         val existingAddress = requestExtras?.getString(PasskeyProviderService.ADDRESS_KEY)
+        // The system sheet already asked which account to use
+        if (!existingAddress.isNullOrBlank()) return existingAddress
 
         val hdFirstAddresses = getKoin().get<GetAllHdSeedFirstAddresses>()().map { it.firstAddress }
         val seedVaultAddresses =

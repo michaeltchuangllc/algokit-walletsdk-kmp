@@ -297,7 +297,7 @@ fun PasskeysScreenContentPreview() {
                 domain = "liquid-auth.onrender.com",
                 lastUsed = "5d ago",
                 username = "kyle007",
-                accountType = "SeedVault Account",
+                accountType = "Algorand Seed Vault Account",
             ),
         )
     val fakeViewState = PasskeysViewModel.ViewState.Content(passkeys = fakePasskeys)

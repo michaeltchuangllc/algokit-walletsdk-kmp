@@ -553,9 +553,10 @@ internal class ViewerVaultBillingSession(
             refundSolanaVault()
             return
         }
-        val channelId = mutex.withLock {
-            latest?.channelId?.copyOf() ?: knownChannelId?.copyOf()
-        } ?: return
+        val channelId =
+            mutex.withLock {
+                latest?.channelId?.copyOf() ?: knownChannelId?.copyOf()
+            } ?: return
         try {
             val signer = buildCreatorRefundSigner(creatorAddress)
             if (signer == null) {

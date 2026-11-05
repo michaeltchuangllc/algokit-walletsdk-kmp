@@ -8,10 +8,12 @@ import com.michaeltchuang.walletsdk.core.account.domain.usecase.custom.GetHdSeed
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
 import com.michaeltchuang.walletsdk.core.foundation.utils.AlgoKitResult
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.GetSitePasskeyCount
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyCredentialCreateEntry
 import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
+import io.github.aakira.napier.Napier
 
 class DefaultPasskeyCreateCredentialEntryBuilder(
     private val getAllHdSeedFirstAddresses: GetAllHdSeedFirstAddresses,
@@ -23,7 +25,29 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
         val hdSeedsAddresses = getAllHdSeedFirstAddresses()
         val seedVaultAccounts = getLocalAccounts().filterIsInstance<LocalAccount.SeedVault>()
 
-        val entries = createEntries(request, hdSeedsAddresses, seedVaultAccounts)
+        val requestedAddress = getRequestedAddress(request)
+        val keystoreAccounts =
+            getLocalAccounts().filter {
+                it is LocalAccount.Falcon24 || it is LocalAccount.Falcon25 || it is LocalAccount.Algo25
+            }
+
+        Napier.d(
+            "requested user.name=$requestedAddress, hd=${hdSeedsAddresses.size}, seedVault=${seedVaultAccounts.size}, " +
+                "keystoreAccounts=${keystoreAccounts.size}",
+            tag = TAG,
+        )
+
+        val entries =
+            (createEntries(request, hdSeedsAddresses, seedVaultAccounts) + keystoreAccounts.map { keystoreEntry(request, it) })
+                .distinctBy { it.address }
+                .let { all ->
+                    // Liquid Auth sets user.name to the account being registered: offer only that account.
+                    val match = requestedAddress?.let { address -> all.firstOrNull { it.address == address } }
+                    when {
+                        match != null -> listOf(match)
+                        else -> all
+                    }
+                }
         return if (entries.isEmpty()) {
             AlgoKitResult.Error(CreateCredentialNoCreateOptionException("No HD or Seed Vault signing account is available"))
         } else {
@@ -54,12 +78,29 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
                     accountName = seedVault.accountName?.takeIf { it.isNotBlank() } ?: seedVault.address,
                     passkeyCount = registeredRelyingPartyPasskeyCount,
                     address = seedVault.address,
-                    signingProvider = PasskeySigningProvider.SOLANA_SEED_VAULT,
+                    signingProvider =
+                        if (seedVault.chainId == Chain.ALGORAND.id) {
+                            PasskeySigningProvider.SEED_VAULT_DERIVED
+                        } else {
+                            PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
+                        },
                 )
             }
 
         return (hdEntries + seedVaultEntries).distinctBy { it.address }
     }
+
+    private suspend fun keystoreEntry(
+        request: BeginCreateCredentialRequest,
+        account: LocalAccount,
+    ) = CreatePasskeyCredentialCreateEntry(
+        accountName = account.address,
+        passkeyCount = getPasskeyCount(request),
+        address = account.address,
+        signingProvider = PasskeySigningProvider.BIP39_DETERMINISTIC,
+    )
+
+    private fun getRequestedAddress(request: BeginCreateCredentialRequest): String? = getCredentialOptions(request)?.user?.name
 
     private suspend fun getPasskeyCount(request: BeginCreateCredentialRequest): Int {
         val credentialOptions = getCredentialOptions(request)
@@ -76,6 +117,7 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
         }
 
     private companion object {
+        const val TAG = "PasskeyCreateEntries"
         const val BUNDLE_KEY = "androidx.credentials.BUNDLE_KEY_REQUEST_JSON"
     }
 }

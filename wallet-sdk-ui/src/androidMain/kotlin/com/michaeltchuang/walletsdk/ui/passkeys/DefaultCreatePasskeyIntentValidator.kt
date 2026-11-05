@@ -8,6 +8,7 @@ import androidx.credentials.provider.PendingIntentHandler
 import androidx.credentials.provider.ProviderCreateCredentialRequest
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.PublicKeyCredentialCreationOptions
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.DoesPasskeyExist
 import com.michaeltchuang.walletsdk.core.passkeys.mapper.CreatePasskeyParamsMapper
@@ -38,8 +39,13 @@ internal class DefaultCreatePasskeyIntentValidator(
         if (createPasskeyRequest == null || accountAddress == null) {
             return CreatePasskeyIntentValidationResult.UnableToExtractData
         }
-        if (getLocalAccount(accountAddress) is LocalAccount.SeedVault) {
-            signingProvider = PasskeySigningProvider.SOLANA_SEED_VAULT
+        (getLocalAccount(accountAddress) as? LocalAccount.SeedVault)?.let { seedVault ->
+            signingProvider =
+                if (seedVault.chainId == Chain.ALGORAND.id) {
+                    PasskeySigningProvider.SEED_VAULT_DERIVED
+                } else {
+                    PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
+                }
         }
 
         val biometricPromptResult = createPasskeyRequest.biometricPromptResult
