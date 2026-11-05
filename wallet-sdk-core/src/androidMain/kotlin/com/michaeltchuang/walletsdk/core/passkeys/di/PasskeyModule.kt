@@ -20,11 +20,12 @@ import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.DefaultPasskeyMapp
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyEntityMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.repository.DefaultPasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AlgorandSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.DeterministicBip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApproverHolder
-import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultPasskeyKeyManager
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SolanaSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskeyUseCase
@@ -110,13 +111,15 @@ val passkeyModule =
 
         singleOf(::AndroidKeyStorePasskeyManager)
         single { SeedVaultApproverHolder() }
-        single { SeedVaultPasskeyKeyManager(androidContext(), get<SeedVaultApproverHolder>(), DeterministicP256()) }
+        single { SolanaSeedVaultPasskeyKeyManager(androidContext(), get(), get<SeedVaultApproverHolder>(), DeterministicP256()) }
+        single { AlgorandSeedVaultPasskeyKeyManager(androidContext(), get<SeedVaultApproverHolder>(), DeterministicP256()) }
 
         // View Model Processors
         single<GetCredentialResponseProcessor> {
             DefaultGetCredentialResponseProcessor(
                 get<Bip39SignManager>(),
-                get<SeedVaultPasskeyKeyManager>(),
+                get<AlgorandSeedVaultPasskeyKeyManager>(),
+                get<SolanaSeedVaultPasskeyKeyManager>(),
                 get<AndroidKeyStorePasskeyManager>(),
                 get<SetPasskeyLastUsedTime>(),
                 get<TimeProvider>(),

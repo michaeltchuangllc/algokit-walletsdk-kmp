@@ -4,9 +4,10 @@ import androidx.credentials.GetCredentialResponse
 import androidx.credentials.PublicKeyCredential
 import app.perawallet.deterministicP256.DeterministicP256
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AlgorandSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
-import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultPasskeyKeyManager
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SolanaSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AuthenticatorAssertionResponse
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.AuthenticatorFlags
@@ -15,10 +16,12 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastU
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 import io.github.aakira.napier.Napier
+import java.security.KeyPair
 
 internal class DefaultGetCredentialResponseProcessor(
     private val bip39SignManager: Bip39SignManager,
-    private val seedVaultPasskeyKeyManager: SeedVaultPasskeyKeyManager,
+    private val algorandSeedVaultPasskeyKeyManager: AlgorandSeedVaultPasskeyKeyManager,
+    private val solanaSeedVaultPasskeyKeyManager: SolanaSeedVaultPasskeyKeyManager,
     private val androidKeyStorePasskeyManager: AndroidKeyStorePasskeyManager,
     private val setPasskeyLastUsedTime: SetPasskeyLastUsedTime,
     private val timeProvider: TimeProvider,
@@ -34,11 +37,6 @@ internal class DefaultGetCredentialResponseProcessor(
                 "origin=${params.origin}, user=${params.username}",
             tag = "SeedVaultPasskey",
         )
-        Napier.d(
-            "sign-in provider=${params.signingProvider}, address=${params.address}, credId=${params.credId}, " +
-                "origin=${params.origin}, user=${params.username}",
-            tag = "SeedVaultPasskey",
-        )
         val authAssertionResponse =
             getAuthAssertionResponse(params, callingOrigin).apply {
                 signature =
@@ -46,8 +44,15 @@ internal class DefaultGetCredentialResponseProcessor(
                         PasskeySigningProvider.BIP39_DETERMINISTIC -> {
                             bip39SignManager.sign(params.address, params.origin, params.username, dataToSign())
                         }
-                        PasskeySigningProvider.SEED_VAULT_DERIVED -> {
-                            signWithSeedVault(params, dataToSign())
+                        PasskeySigningProvider.ALGORAND_SEED_VAULT_DERIVED -> {
+                            signWithSeedVault(params, dataToSign()) {
+                                algorandSeedVaultPasskeyKeyManager.deriveKeyPair(params.address, params.origin, params.username)
+                            }
+                        }
+                        PasskeySigningProvider.SOLANA_SEED_VAULT_DERIVED -> {
+                            signWithSeedVault(params, dataToSign()) {
+                                solanaSeedVaultPasskeyKeyManager.deriveKeyPair(params.address, params.origin, params.username)
+                            }
                         }
                         PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1 -> {
                             androidKeyStorePasskeyManager.sign(params.credId, dataToSign())
@@ -67,10 +72,9 @@ internal class DefaultGetCredentialResponseProcessor(
     private suspend fun signWithSeedVault(
         params: GetCredentialsParams,
         payload: ByteArray,
+        derive: suspend () -> KeyPair?,
     ): ByteArray {
-        val keyPair =
-            seedVaultPasskeyKeyManager.deriveKeyPair(params.address, params.origin, params.username)
-                ?: error("Seed Vault did not derive a key")
+        val keyPair = derive() ?: error("Seed Vault did not derive a key")
         val derivedCredId = WebAuthnUtils.b64Encode(bip39SignManager.deriveCredentialId(keyPair))
         Napier.d(
             "stored credId=${params.credId}, derived credId=$derivedCredId, origin=${params.origin}, user=${params.username}",

@@ -1,7 +1,6 @@
 package com.michaeltchuang.walletsdk.core.passkeys.domain
 
 import android.content.Context
-import android.content.Intent
 import app.perawallet.deterministicP256.DeterministicP256
 import com.michaeltchuang.seedvault.sdk.SeedVaultServiceConstants
 import com.michaeltchuang.seedvault.sdk.client.SeedVaultServiceClient
@@ -12,26 +11,12 @@ import kotlinx.coroutines.withTimeoutOrNull
 import java.security.KeyPair
 
 /**
- * Starts a Seed Vault approval screen and returns whether the user approved. Set by the screen that
- * is showing (it needs an activity result launcher); null when none is.
- */
-fun interface SeedVaultApprover {
-    suspend fun approve(intent: Intent): Boolean
-}
-
-/** Holds the [SeedVaultApprover] of the visible passkey screen. */
-class SeedVaultApproverHolder {
-    @Volatile
-    var approver: SeedVaultApprover? = null
-}
-
-/**
  * Passkey keys for Algorand Seed Vault accounts. The Seed Vault derives secret bytes for the account
  * (see `deriveKeyMaterial` in the Seed Vault SDK) and the P-256 key comes from them with the same
  * [DeterministicP256] step as the other accounts. The derived bytes and the key are never stored, so
  * every sign-in asks Seed Vault again (and the user, unless the account is an autosign account).
  */
-class SeedVaultPasskeyKeyManager(
+class AlgorandSeedVaultPasskeyKeyManager(
     context: Context,
     private val approverHolder: SeedVaultApproverHolder,
     private val deterministicSigner: DeterministicP256,
@@ -67,7 +52,7 @@ class SeedVaultPasskeyKeyManager(
                 val info = info(origin, userHandle)
                 if (!(account.isAutosign && !account.requiresApproval)) {
                     val approver = checkNotNull(approverHolder.approver) { "No screen is available to ask for Seed Vault approval." }
-                    check(approver.approve(client.confirmDeriveKeyMaterialIntent(address, DOMAIN, info, LENGTH))) {
+                    check(approver.launch(client.confirmDeriveKeyMaterialIntent(address, DOMAIN, info, LENGTH)).approved) {
                         "Seed Vault approval was cancelled."
                     }
                 }

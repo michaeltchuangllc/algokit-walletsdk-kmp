@@ -13,6 +13,7 @@ import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.NameRegistrationUseCase
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccounts
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultActivityResult
 import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApprover
 import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApproverHolder
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
@@ -41,10 +42,10 @@ import kotlin.coroutines.resume
 class PasskeyActivity :
     FragmentActivity(),
     ActivityCredentialRequestResolver by DefaultActivityCredentialRequestResolver() {
-    private var pendingSeedVaultApproval: CompletableDeferred<Boolean>? = null
+    private var pendingSeedVaultApproval: CompletableDeferred<SeedVaultActivityResult>? = null
     private val seedVaultApprovalLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            pendingSeedVaultApproval?.complete(result.resultCode == RESULT_OK)
+            pendingSeedVaultApproval?.complete(SeedVaultActivityResult(result.resultCode, result.data))
             pendingSeedVaultApproval = null
         }
     private val createPasskeyViewModel: CreatePasskeyViewModel by viewModel()
@@ -88,7 +89,7 @@ class PasskeyActivity :
         initializeRequestResolver(this)
         getKoin().get<SeedVaultApproverHolder>().approver =
             SeedVaultApprover { approvalIntent ->
-                val result = CompletableDeferred<Boolean>()
+                val result = CompletableDeferred<SeedVaultActivityResult>()
                 pendingSeedVaultApproval = result
                 seedVaultApprovalLauncher.launch(approvalIntent)
                 result.await()
@@ -101,7 +102,7 @@ class PasskeyActivity :
 
     override fun onDestroy() {
         getKoin().get<SeedVaultApproverHolder>().approver = null
-        pendingSeedVaultApproval?.complete(false)
+        pendingSeedVaultApproval?.complete(SeedVaultActivityResult(RESULT_CANCELED, null))
         super.onDestroy()
     }
 

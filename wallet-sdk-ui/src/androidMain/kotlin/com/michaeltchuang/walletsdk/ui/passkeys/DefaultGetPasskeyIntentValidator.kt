@@ -99,10 +99,10 @@ class DefaultGetPasskeyIntentValidator(
         val signingProvider =
             when (val account = getLocalAccount(passkey.address)) {
                 is LocalAccount.SeedVault ->
-                    if (account.chainId == Chain.ALGORAND.id) {
-                        PasskeySigningProvider.SEED_VAULT_DERIVED
-                    } else {
-                        PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
+                    when (account.chainId) {
+                        Chain.ALGORAND.id -> PasskeySigningProvider.ALGORAND_SEED_VAULT_DERIVED
+                        Chain.SOLANA.id -> PasskeySigningProvider.SOLANA_SEED_VAULT_DERIVED
+                        else -> PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
                     }
                 else -> PasskeySigningProvider.BIP39_DETERMINISTIC
             }

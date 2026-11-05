@@ -79,10 +79,10 @@ class DefaultPasskeyCreateCredentialEntryBuilder(
                     passkeyCount = registeredRelyingPartyPasskeyCount,
                     address = seedVault.address,
                     signingProvider =
-                        if (seedVault.chainId == Chain.ALGORAND.id) {
-                            PasskeySigningProvider.SEED_VAULT_DERIVED
-                        } else {
-                            PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
+                        when (seedVault.chainId) {
+                            Chain.ALGORAND.id -> PasskeySigningProvider.ALGORAND_SEED_VAULT_DERIVED
+                            Chain.SOLANA.id -> PasskeySigningProvider.SOLANA_SEED_VAULT_DERIVED
+                            else -> PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1
                         },
                 )
             }
