@@ -1,7 +1,9 @@
 package com.michaeltchuang.walletsdk.core.passkeys.mapper
 
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AlgorandSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SolanaSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.WebAuthnUtils
 import com.michaeltchuang.walletsdk.core.passkeys.domain.model.CreatePublicKeyCredentialResponseArgs
 import com.michaeltchuang.walletsdk.core.passkeys.model.CreatePasskeyParams
@@ -9,6 +11,8 @@ import com.michaeltchuang.walletsdk.core.passkeys.model.PasskeySigningProvider
 
 class DefaultCreatePublicKeyCredentialResponseArgsMapper(
     private val bip39SignManager: Bip39SignManager,
+    private val algorandSeedVaultPasskeyKeyManager: AlgorandSeedVaultPasskeyKeyManager,
+    private val solanaSeedVaultPasskeyKeyManager: SolanaSeedVaultPasskeyKeyManager,
     private val androidKeyStorePasskeyManager: AndroidKeyStorePasskeyManager,
 ) : CreatePublicKeyCredentialResponseArgsMapper {
     override suspend fun invoke(
@@ -26,7 +30,19 @@ class DefaultCreatePublicKeyCredentialResponseArgsMapper(
                                 ?: throw IllegalStateException("Failed to derive keypair for address: $address")
                         keyPair to bip39SignManager.deriveCredentialId(keyPair)
                     }
-                    PasskeySigningProvider.SOLANA_SEED_VAULT -> {
+                    PasskeySigningProvider.ALGORAND_SEED_VAULT_DERIVED -> {
+                        val keyPair =
+                            algorandSeedVaultPasskeyKeyManager.deriveKeyPair(address, appInfoOrigin, userHandle)
+                                ?: throw IllegalStateException("Failed to derive keypair from Seed Vault for address: $address")
+                        keyPair to bip39SignManager.deriveCredentialId(keyPair)
+                    }
+                    PasskeySigningProvider.SOLANA_SEED_VAULT_DERIVED -> {
+                        val keyPair =
+                            solanaSeedVaultPasskeyKeyManager.deriveKeyPair(address, appInfoOrigin, userHandle)
+                                ?: throw IllegalStateException("Failed to derive keypair from Solana Seed Vault for address: $address")
+                        keyPair to bip39SignManager.deriveCredentialId(keyPair)
+                    }
+                    PasskeySigningProvider.ANDROID_KEYSTORE_SECP256R1 -> {
                         val credentialId = androidKeyStorePasskeyManager.generateRandomCredentialId()
                         val credentialIdBase64 = WebAuthnUtils.b64Encode(credentialId)
                         val keyPair =

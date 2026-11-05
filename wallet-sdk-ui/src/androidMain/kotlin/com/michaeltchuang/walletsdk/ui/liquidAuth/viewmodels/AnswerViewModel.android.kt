@@ -185,8 +185,15 @@ actual open class AnswerViewModel actual constructor(
         super.setAccountAddress(address)
         viewModelScope.launch {
             currentAccountType =
-                when (getLocalAccount(address)) {
-                    is LocalAccount.SeedVault -> "solana"
+                when (val account = getLocalAccount(address)) {
+                    is LocalAccount.SeedVault ->
+                        if (account.chainId ==
+                            com.michaeltchuang.walletsdk.core.foundation.utils.Chain.SOLANA.id
+                        ) {
+                            "solana"
+                        } else {
+                            "algorand"
+                        }
                     else -> "algorand"
                 }
         }

@@ -149,6 +149,7 @@ class ViewerVaultBillingSessionTest {
         repository: FakeRepository = FakeRepository(),
         settlementError: (Throwable?) -> Unit = { error -> if (error != null) errors += error },
         getVoucherCoveredBlockCount: (suspend (Long, Long) -> Long)? = null,
+        creatorSigner: MppWalletSigner = signer,
     ) = ViewerVaultBillingSession(
         scope = backgroundScope,
         sessionId = "mesh-session",
@@ -156,7 +157,7 @@ class ViewerVaultBillingSessionTest {
         creatorAddress = "creator",
         network = MppNetworks.ALGORAND_TESTNET,
         signerPublicKey = suppliedKey,
-        buildCreatorWalletSigner = { signer },
+        buildCreatorWalletSigner = { creatorSigner },
         onSnapshot = snapshot,
         onError = { errors += it },
         onSettlementError = settlementError,
@@ -168,6 +169,43 @@ class ViewerVaultBillingSessionTest {
         operationTimeoutMillis = 1_000,
         finalDrainTimeoutMillis = 1_500,
     )
+
+    @Test
+    fun linkedSeedVaultSessionCanSettleForItsOwner() =
+        runTest {
+            val adapter = FakeAdapter()
+            val sessionSigner =
+                object : MppWalletSigner by signer {
+                    override val address = "session-wallet"
+                    override val ownerAddress = "creator"
+                }
+            val session = session(adapter, creatorSigner = sessionSigner)
+            assertTrue(session.acceptVoucher(message()))
+            session.requestSettlement().join()
+            runCurrent()
+            assertEquals(100L, adapter.settled)
+            assertEquals("creator", adapter.submissions.single().creatorAddress)
+            assertTrue(errors.isEmpty())
+            session.close().join()
+        }
+
+    @Test
+    fun unrelatedSessionSignerCannotSettleForCreator() =
+        runTest {
+            val adapter = FakeAdapter()
+            val sessionSigner =
+                object : MppWalletSigner by signer {
+                    override val address = "session-wallet"
+                    override val ownerAddress = "another-owner"
+                }
+            val session = session(adapter, creatorSigner = sessionSigner)
+            assertTrue(session.acceptVoucher(message()))
+            session.requestSettlement().join()
+            runCurrent()
+            assertTrue(adapter.submissions.isEmpty())
+            assertTrue(errors.any { it.message == "Creator wallet signer mismatch" })
+            session.close().join()
+        }
 
     private fun message(
         amount: Long? = 100,

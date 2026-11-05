@@ -245,13 +245,13 @@ object HostViewerVaultReader {
         return publicKey
     }
 
-    internal data class NetworkConfig(
+    data class NetworkConfig(
         val appId: Long,
         val assetId: Long,
         val algodUrl: String,
     )
 
-    internal fun networkConfig(network: String): NetworkConfig =
+    fun networkConfig(network: String): NetworkConfig =
         when (network) {
             MppNetworks.ALGORAND_MAINNET ->
                 NetworkConfig(

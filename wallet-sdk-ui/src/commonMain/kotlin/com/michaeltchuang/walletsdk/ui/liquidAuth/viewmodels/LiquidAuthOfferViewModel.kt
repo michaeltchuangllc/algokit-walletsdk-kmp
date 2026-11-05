@@ -2,12 +2,14 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.core.GetAccountASABalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.EventDelegate
 import com.michaeltchuang.walletsdk.core.foundation.EventViewModel
 import com.michaeltchuang.walletsdk.core.foundation.StateDelegate
 import com.michaeltchuang.walletsdk.core.foundation.StateViewModel
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.model.LiquidAuthOffer
 import com.michaeltchuang.walletsdk.core.liquidAuth.domain.usecase.GenerateLiquidAuthOfferUseCase
@@ -20,10 +22,13 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.EnforcementMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequestMeta
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.IceConnectionType
@@ -76,9 +81,38 @@ class LiquidAuthOfferViewModel(
 
     /** Seed Vault transaction signer attached by the host screen while it is composed. */
     var seedVaultTransactionSigner: (suspend (address: String, message: ByteArray) -> ByteArray)? = null
+    var algorandSeedVaultSigner: SignAlgorandSeedVaultTransaction? = null
 
     // Seed Vault accepts one request at a time; several viewers can drop together (mesh).
     private val seedVaultSigningMutex = Mutex()
+
+    suspend fun buildCreatorRefundSigner(address: String): MppWalletSigner? =
+        mppWalletSignerUseCase(
+            address,
+            SignAlgorandSeedVaultTransaction { owner, transaction ->
+                seedVaultSigningMutex.withLock {
+                    checkNotNull(algorandSeedVaultSigner) { "Seed Vault approval is unavailable; the viewer deposit remains refundable." }(
+                        owner,
+                        transaction,
+                    )
+                }
+            },
+        )
+
+    suspend fun prepareCreatorSession(
+        account: LocalAccount?,
+        network: String,
+    ) {
+        if (account !is LocalAccount.SeedVault || account.chainId != Chain.ALGORAND.id) return
+        val config = HostViewerVaultReader.networkConfig(network)
+        val session = checkNotNull(mppWalletSignerUseCase(account.address)) { "Seed Vault index-1 session signer is unavailable." }
+        val owner = checkNotNull(buildCreatorRefundSigner(account.address)) { "Seed Vault owner signer is unavailable." }
+        withContext(Dispatchers.Default) {
+            EscrowSessionVaultHybridManagerClient
+                .ensureAccountMinimumBalance(owner, session.address, 211_030L, config.algodUrl)
+                .getOrThrow()
+        }
+    }
 
     /**
      * Owner signer for payee-side Solana vault refunds, or null when no host screen is attached.
@@ -1146,6 +1180,10 @@ class LiquidAuthOfferViewModel(
                 )
 
                 val signer = mppWalletSignerUseCase(creatorAddress)
+                if (signer != null && signer.address != creatorAddress) {
+                    Napier.d("Seed Vault refunds are handled by the viewer billing session.")
+                    return@launch
+                }
                 if (signer == null) {
                     Napier.e(
                         "Failed to close session vault: signer not found for $creatorAddress",

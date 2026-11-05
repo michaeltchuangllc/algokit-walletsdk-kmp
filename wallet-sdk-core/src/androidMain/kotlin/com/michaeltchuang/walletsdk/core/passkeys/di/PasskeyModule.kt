@@ -1,8 +1,11 @@
 package com.michaeltchuang.walletsdk.core.passkeys.di
 
 import app.perawallet.deterministicP256.DeterministicP256
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAllHdSeedFirstAddresses
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon25Entropy
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetHdEntropy
+import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetLocalAccount
 import com.michaeltchuang.walletsdk.core.foundation.utils.date.TimeProvider
 import com.michaeltchuang.walletsdk.core.passkeys.CreatePublicKeyCredentialResponseProcessor
 import com.michaeltchuang.walletsdk.core.passkeys.DefaultCreatePublicKeyCredentialResponseProcessor
@@ -17,9 +20,12 @@ import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.DefaultPasskeyMapp
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyEntityMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.mapper.PasskeyMapper
 import com.michaeltchuang.walletsdk.core.passkeys.data.repository.DefaultPasskeyRepository
+import com.michaeltchuang.walletsdk.core.passkeys.domain.AlgorandSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.AndroidKeyStorePasskeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.Bip39SignManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.DeterministicBip39SignManager
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SeedVaultApproverHolder
+import com.michaeltchuang.walletsdk.core.passkeys.domain.SolanaSeedVaultPasskeyKeyManager
 import com.michaeltchuang.walletsdk.core.passkeys.domain.repository.PasskeyRepository
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskey
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.AddNewPasskeyUseCase
@@ -33,6 +39,7 @@ import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.RemovePasskeyBy
 import com.michaeltchuang.walletsdk.core.passkeys.domain.usecase.SetPasskeyLastUsedTime
 import com.michaeltchuang.walletsdk.core.passkeys.foundation.CoseMapper
 import com.michaeltchuang.walletsdk.core.passkeys.foundation.DefaultCoseMapper
+import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.singleOf
 import org.koin.dsl.bind
 import org.koin.dsl.module
@@ -96,15 +103,23 @@ val passkeyModule =
                 DeterministicP256(),
                 get<GetAllHdSeedFirstAddresses>(),
                 get<GetHdEntropy>(),
+                get<GetLocalAccount>(),
+                get<GetAlgo25SecretKey>(),
+                get<GetFalcon25Entropy>(),
             )
         }
 
         singleOf(::AndroidKeyStorePasskeyManager)
+        single { SeedVaultApproverHolder() }
+        single { SolanaSeedVaultPasskeyKeyManager(androidContext(), get(), get<SeedVaultApproverHolder>(), DeterministicP256()) }
+        single { AlgorandSeedVaultPasskeyKeyManager(androidContext(), get<SeedVaultApproverHolder>(), DeterministicP256()) }
 
         // View Model Processors
         single<GetCredentialResponseProcessor> {
             DefaultGetCredentialResponseProcessor(
                 get<Bip39SignManager>(),
+                get<AlgorandSeedVaultPasskeyKeyManager>(),
+                get<SolanaSeedVaultPasskeyKeyManager>(),
                 get<AndroidKeyStorePasskeyManager>(),
                 get<SetPasskeyLastUsedTime>(),
                 get<TimeProvider>(),

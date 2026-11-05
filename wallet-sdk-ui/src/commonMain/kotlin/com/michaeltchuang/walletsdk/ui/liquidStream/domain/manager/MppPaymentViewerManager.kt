@@ -938,7 +938,12 @@ class MppPaymentViewerManager(
                             cumulativeAmountMicroUsdc = obligation.cumulativeAmount,
                             payeeAddress = obligation.payTo,
                         )
-                    session.params.signFido2Challenge(message, session.params.viewerAddress)
+                    try {
+                        session.params.signer.signMessage(message)
+                    } catch (_: UnsupportedOperationException) {
+                        // Custom signers without message signing keep the legacy FIDO2 challenge path.
+                        session.params.signFido2Challenge(message, session.params.viewerAddress)
+                    }
                 }
             ensureCurrent(session)
             if (signature == null || signature.isEmpty()) {
@@ -2022,7 +2027,7 @@ class MppPaymentViewerManager(
         trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=$openErrorType")
         currentCoroutineContext().ensureActive()
         openResult.onSuccess {
-            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
+            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress, signerAlreadyAuthorized = true)
             if (activeStartParams === fundingParams) refreshVaultIdentity(viewerAddress)
         }
         return VaultFundingResult(result = openResult, openedSession = true)
@@ -2031,32 +2036,42 @@ class MppPaymentViewerManager(
     private suspend fun ensureAuthorizedSignerAndSettlementLogicSig(
         signer: MppWalletSigner,
         viewerAddress: String,
+        signerAlreadyAuthorized: Boolean = false,
     ) {
-        MppPayments
-            .setAuthorizedSignerForSession(
-                signer = signer,
-                viewerAddress = viewerAddress,
-                authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
-            ).onSuccess {
-                // Must run after setAuthorizedSignerForSession: the settlement LogicSig is
-                // compiled with this signer's session key, and the payee can't settle any
-                // voucher until it's registered on-chain (see ensureLogicSigSetup).
-                MppPayments
-                    .registerSettlementLogicSig(signer = signer)
-                    .onFailure { err ->
-                        Napier.e(
-                            "[VIEWER_REGISTER_LOGIC_SIG_ERR] viewer=$viewerAddress",
-                            err,
-                            tag = TAG,
-                        )
-                    }
-            }.onFailure { err ->
-                Napier.e(
-                    "[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress",
-                    err,
-                    tag = TAG,
-                )
+        // Each owner-signed step is a separate Seed Vault approval, so only submit what is missing on-chain.
+        val channel = EscrowSessionVaultHybridManagerClient.channelId?.copyOf()
+        val payee = EscrowSessionVaultHybridManagerClient.hostAddress
+        val status =
+            if (channel != null && !payee.isNullOrBlank()) {
+                EscrowSessionVaultHybridManagerClient
+                    .getSessionAuthorizationStatus(channel, signer.authorizedSignerPublicKey, payee)
+                    .getOrNull()
+                    ?.takeIf { it.channelExists }
+            } else {
+                null
             }
+        currentCoroutineContext().ensureActive()
+        if (!signerAlreadyAuthorized && status?.viewerSignerAuthorized != true) {
+            MppPayments
+                .setAuthorizedSignerForSession(
+                    signer = signer,
+                    viewerAddress = viewerAddress,
+                    authorizedSignerPublicKey = signer.authorizedSignerPublicKey,
+                ).onFailure { err ->
+                    Napier.e("[VIEWER_SET_AUTH_SIGNER_ERR] viewer=$viewerAddress", err, tag = TAG)
+                    throw err
+                }
+        }
+        if (status?.settlementRegistered != true) {
+            // Must run after the signer is authorized: the settlement LogicSig is compiled with this
+            // signer's session key, and the payee can't settle any voucher until it's registered.
+            MppPayments
+                .registerSettlementLogicSig(signer = signer)
+                .onFailure { err ->
+                    Napier.e("[VIEWER_REGISTER_LOGIC_SIG_ERR] viewer=$viewerAddress", err, tag = TAG)
+                    throw err
+                }
+        }
     }
 
     private fun stopViewerOnChainRefresh() {

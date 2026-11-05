@@ -21,6 +21,7 @@ internal actual fun createAlgorandSeedVaultSessionSignerProvider(): AlgorandSeed
             check(account.address != ownerAddress) { "Session key must differ from its owner" }
             object : MppWalletSigner {
                 override val address: String = account.address
+                override val ownerAddress: String = ownerAddress
                 override val authorizedSignerPublicKey: ByteArray
                     get() = publicKey.copyOf()
                 override val signerType: MppWalletSignerType = MppWalletSignerType.FALCON_NATIVE

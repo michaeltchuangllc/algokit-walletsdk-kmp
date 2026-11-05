@@ -5,11 +5,11 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.ChatMessage
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppVoucherRepository
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetMppVoucherNoteUseCase
+import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.ViewerVaultSettlement
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaVoucherExpiredException
-import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
 import com.michaeltchuang.walletsdk.ui.liquidAuth.service.LiquidAuthPaymentVoucherMessage
 import io.github.aakira.napier.Napier
@@ -56,6 +56,8 @@ internal class ViewerVaultBillingSession(
     // Solana: the program only lets the payee itself `close`, so a Seed Vault creator must approve
     // each refund. Resolved lazily because the signer lives with the host screen's composition.
     private val getSolanaOwnerSigner: () -> (suspend (address: String, message: ByteArray) -> ByteArray)? = { null },
+    private val buildCreatorRefundSigner: suspend (String) -> MppWalletSigner? = buildCreatorWalletSigner,
+    channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId?.copyOf(),
 ) {
     interface Adapter {
         suspend fun validateAuthorization(voucher: Voucher): Result<HostViewerVaultReader.Snapshot>
@@ -136,6 +138,7 @@ internal class ViewerVaultBillingSession(
     private val acceptanceMutex = Mutex()
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var latest: Voucher? = null
+    private var knownChannelId: ByteArray? = channelId?.copyOf()
     private var confirmedAmount = 0L
     private var confirmedBlockCount = 0L
     private var latestRound: Long? = null
@@ -274,6 +277,7 @@ internal class ViewerVaultBillingSession(
                 }
                 val channel = requireNotNull(message.channelId).copyOf()
                 require(channel.size == 32) { "Voucher channel must be 32 bytes" }
+                knownChannelId = channel.copyOf()
                 message.channelIdBase64?.let {
                     require(Base64.decode(it).contentEquals(channel)) { "Inconsistent channel encoding" }
                 }
@@ -359,6 +363,7 @@ internal class ViewerVaultBillingSession(
                             ),
                         )
                         latest = saved
+                        knownChannelId = saved.channelId.copyOf()
                         Napier.d(
                             "HOST_VOUCHER_LATEST session=$sessionId cumulativeMicro=${saved.totalAmountClaimedMicroUsdc}",
                             tag = "LS_VAULT_DEBUG",
@@ -443,6 +448,7 @@ internal class ViewerVaultBillingSession(
                 mutex.withLock {
                     if (!canAccept(voucher)) return@withLock
                     latest = voucher
+                    knownChannelId = voucher.channelId.copyOf()
                     forceRequested = true
                     wake.trySend(Unit)
                 }
@@ -547,15 +553,20 @@ internal class ViewerVaultBillingSession(
             refundSolanaVault()
             return
         }
-        val channelId = mutex.withLock { latest?.channelId } ?: return
+        val channelId =
+            mutex.withLock {
+                latest?.channelId?.copyOf() ?: knownChannelId?.copyOf()
+            } ?: return
         try {
-            val signer = buildCreatorWalletSigner(creatorAddress)
+            val signer = buildCreatorRefundSigner(creatorAddress)
             if (signer == null) {
                 report(IllegalStateException("Skipping session vault close: signer unavailable for $creatorAddress"))
                 return
             }
-            MppPayments
-                .closeSessionVault(signer = signer, channelId = channelId)
+            require(signer.address == creatorAddress) { "Seed Vault owner approval is required to refund the viewer." }
+            val config = HostViewerVaultReader.networkConfig(network)
+            EscrowSessionVaultHybridManagerClient
+                .close(signer, channelId, config.appId, config.assetId, config.algodUrl)
                 .onSuccess { txId ->
                     Napier.d("Session vault closed (refund) for $sessionId. txId=$txId")
                 }.onFailure { throwable ->
@@ -652,9 +663,9 @@ internal class ViewerVaultBillingSession(
                     }
                     if (before.lastSettledMicroUsdc < voucher.totalAmountClaimedMicroUsdc) {
                         val signer = buildCreatorWalletSigner(creatorAddress) ?: error("Creator signer unavailable")
-                        // Solana's signer address is the linked fee-payer key, not the
+                        // A Seed Vault signer's address is the linked fee-payer key, not the
                         // SeedVault owner. Core resolves and validates that linkage locally.
-                        if (!isSolana) require(signer.address == creatorAddress) { "Creator wallet signer mismatch" }
+                        if (!isSolana) require(signer.ownerAddress == creatorAddress) { "Creator wallet signer mismatch" }
                         Napier.d(
                             "HOST_SETTLEMENT_START session=$sessionId cumulativeMicro=${voucher.totalAmountClaimedMicroUsdc} " +
                                 "previouslySettledMicro=${before.lastSettledMicroUsdc}",

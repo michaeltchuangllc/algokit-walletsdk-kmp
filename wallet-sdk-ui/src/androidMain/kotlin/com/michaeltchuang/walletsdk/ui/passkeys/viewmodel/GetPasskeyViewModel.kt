@@ -11,6 +11,8 @@ import com.michaeltchuang.walletsdk.core.passkeys.model.GetCredentialsParams
 import com.michaeltchuang.walletsdk.core.passkeys.model.GetPasskeyIntentValidationResult
 import com.michaeltchuang.walletsdk.core.passkeys.validator.GetPasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel.ViewEvent
+import io.github.aakira.napier.Napier
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class GetPasskeyViewModel(
@@ -45,7 +47,16 @@ class GetPasskeyViewModel(
 
     fun createGetCredentialResponse(params: GetCredentialsParams) {
         viewModelScope.launch {
-            val response = getCredentialResponseProcessor.getResponseWithSignature(params)
+            val response =
+                try {
+                    getCredentialResponseProcessor.getResponseWithSignature(params)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Napier.e("Failed to sign in with passkey", e, tag = "SeedVaultPasskey")
+                    finishWithError("Failed to sign in: ${e.message}")
+                    return@launch
+                }
             eventDelegate.sendEvent(ViewEvent.SetGetResponseAndFinishActivity(response))
         }
     }

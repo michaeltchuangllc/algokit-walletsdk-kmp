@@ -2,6 +2,7 @@ package com.michaeltchuang.walletsdk.ui.liquidAuth.viewmodels
 
 import androidx.lifecycle.viewModelScope
 import com.michaeltchuang.walletsdk.core.account.domain.model.local.LocalAccount
+import com.michaeltchuang.walletsdk.core.account.domain.model.local.chainId
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAccountAlgoBalance
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetAlgo25SecretKey
 import com.michaeltchuang.walletsdk.core.account.domain.usecase.local.GetFalcon24SecretKey
@@ -13,6 +14,7 @@ import com.michaeltchuang.walletsdk.core.algosdk.signAlgo25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon24ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signFalcon25ArbitraryData
 import com.michaeltchuang.walletsdk.core.algosdk.signHdKeyData
+import com.michaeltchuang.walletsdk.core.foundation.utils.Chain
 import com.michaeltchuang.walletsdk.core.network.domain.usecase.GetCurrentNetworkUseCase
 import com.michaeltchuang.walletsdk.core.network.usecase.GetCurrentBlockUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.core.readMppNetwork
@@ -25,6 +27,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetSessionVaultC
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.MppWalletSignerUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
 import com.michaeltchuang.walletsdk.core.solana.domain.EnsureSolanaSessionKeyUseCase
+import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.parseLiquidStreamDepositAmount
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.resolveLiquidStreamAccountNetwork
 import com.michaeltchuang.walletsdk.ui.liquidAuth.utils.validateLiquidStreamMetadataNetwork
@@ -86,6 +89,9 @@ open class CommonAnswerViewModel(
 
     var signSolanaMessage: (suspend (String, ByteArray) -> ByteArray)? = null
 
+    var signAlgorandTransaction: SignAlgorandSeedVaultTransaction? = null
+    var signAlgorandMessage: (suspend (String, ByteArray) -> ByteArray)? = null
+
     protected val signSolanaTransactionDelegate: suspend (String, ByteArray) -> ByteArray = { address, message ->
         check(isSeedVaultTransactionSigningSupported) { "SeedVault transaction signing is not supported on this platform." }
         val sign = signSolanaTransaction ?: error("SeedVault transaction signing is not available.")
@@ -129,7 +135,7 @@ open class CommonAnswerViewModel(
         if (streamInfoValidationJob?.isActive != true && !streamNetworkRejected) {
             _isViewerStreamNetworkValidated.value =
                 account != null &&
-                (account !is LocalAccount.SeedVault || advertisedStreamNetwork != null)
+                (account.chainId != Chain.SOLANA.id || advertisedStreamNetwork != null)
         }
     }
 
@@ -298,7 +304,7 @@ open class CommonAnswerViewModel(
             if (!_isViewerStreamNetworkValidated.value) {
                 val account = getLocalAccount(accountAddress.value)
                 if (generation != viewerConnectionGeneration) return@launch
-                if (account is LocalAccount.SeedVault) {
+                if (account?.chainId == Chain.SOLANA.id) {
                     streamNetworkRejected = true
                     stopMppPaymentViewer()
                     onStreamRejected("network_mismatch", "Solana streams must advertise their payment network.")
@@ -447,7 +453,7 @@ open class CommonAnswerViewModel(
             if (streamNetworkRejected) return@launch
             val account = getLocalAccount(accountAddress.value)
             if (generation != viewerConnectionGeneration) return@launch
-            if (account is LocalAccount.SeedVault && !_isViewerStreamNetworkValidated.value) {
+            if (account?.chainId == Chain.SOLANA.id && !_isViewerStreamNetworkValidated.value) {
                 streamNetworkRejected = true
                 stopMppPaymentViewer()
                 onStreamRejected("network_mismatch", "Solana streams must advertise their payment network.")
@@ -464,7 +470,7 @@ open class CommonAnswerViewModel(
         val viewer = viewerAddress.value
         val host = hostAddress.takeIf { it.isNotBlank() } ?: this.hostAddress.value
         if (viewer.isBlank() || host.isBlank()) return 0L
-        if (getLocalAccount(viewer) is LocalAccount.SeedVault) {
+        if (getLocalAccount(viewer)?.chainId == Chain.SOLANA.id) {
             return viewerSessionVaultMicroUsdc.value
         }
         return runCatching {
@@ -523,7 +529,7 @@ open class CommonAnswerViewModel(
     fun fetchAccountBalance() {
         viewModelScope.launch {
             try {
-                if (getLocalAccount(accountAddress.value) is LocalAccount.SeedVault) return@launch
+                if (getLocalAccount(accountAddress.value)?.chainId == Chain.SOLANA.id) return@launch
                 val balance = getAccountAlgoBalance(accountAddress.value)
                 setAccountBalance(balance?.toString())
                 Napier.d("$TAG: fetched balance=${balance?.toString() ?: "0"}")
@@ -549,11 +555,12 @@ open class CommonAnswerViewModel(
             is LocalAccount.Falcon24,
             is LocalAccount.Falcon25,
             -> "falcon-1024"
-            is LocalAccount.SeedVault -> "solana"
+            is LocalAccount.SeedVault -> if (localAccount.chainId == Chain.ALGORAND.id) "falcon-1024" else "solana"
             else -> "algorand"
         }
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
     suspend fun getAccountPublicKey(address: String): ByteArray {
         val localAccount = getLocalAccount(address)
         return when (localAccount) {
@@ -570,6 +577,9 @@ open class CommonAnswerViewModel(
                 }
             }
             is LocalAccount.SeedVault -> {
+                if (localAccount.chainId == Chain.ALGORAND.id) {
+                    return Base64.decode(localAccount.publicKey).also { check(it.size == 1793) { "Invalid Seed Vault Falcon public key." } }
+                }
                 val decoded = decodeBase58(localAccount.publicKey)
                 if (decoded == null || decoded.size != 32) {
                     Napier.e(
@@ -658,6 +668,12 @@ open class CommonAnswerViewModel(
 
             is LocalAccount.SeedVault -> {
                 require(challenge.isNotEmpty()) { "Registration/authentication challenge must not be empty" }
+                if (localAccount.chainId == Chain.ALGORAND.id) {
+                    return checkNotNull(signAlgorandMessage) { "Seed Vault owner message signing is not available." }(
+                        address,
+                        challenge.copyOf(),
+                    ).also { check(it.isNotEmpty()) { "Seed Vault returned an empty challenge signature." } }
+                }
                 val sign = checkNotNull(signSolanaMessage) { "Seed Vault owner message signing is not available." }
                 sign(address, challenge.copyOf()).also {
                     check(it.size == 64) { "Seed Vault must return a raw Ed25519 challenge signature." }
@@ -679,7 +695,7 @@ open class CommonAnswerViewModel(
             val depositMicroUsdc = parseLiquidStreamDepositAmount(enteredAmount)
             val account = getLocalAccount(viewerAddress)
             resolveLiquidStreamAccountNetwork(account, getCurrentNetworkUseCase().first())
-            if (account is LocalAccount.SeedVault) {
+            if (account?.chainId == Chain.SOLANA.id) {
                 checkNotNull(signSolanaTransaction) { "SeedVault transaction signing is not available." }
                 val remaining = mppPaymentViewerManager.topUpSolanaViewerSessionVault(viewerAddress, depositMicroUsdc)
                 remaining?.let(::setViewerSessionVaultBalance)
@@ -723,7 +739,20 @@ open class CommonAnswerViewModel(
 
     /** Build an [MppWalletSigner] for the given account address. */
     suspend fun buildMppWalletSigner(address: String): MppWalletSigner? {
-        if (getLocalAccount(address) is LocalAccount.SeedVault) {
+        val account = getLocalAccount(address)
+        if (account is LocalAccount.SeedVault && account.chainId == Chain.ALGORAND.id) {
+            val network = getCurrentNetworkUseCase().first()
+            return mppWalletSignerUseCase(
+                address,
+                SignAlgorandSeedVaultTransaction { owner, transaction ->
+                    check(getCurrentNetworkUseCase().first() == network) { "Network changed. Reconnect the stream." }
+                    checkNotNull(signAlgorandTransaction) { "Seed Vault transaction signing is unavailable." }(owner, transaction).also {
+                        check(getCurrentNetworkUseCase().first() == network) { "Network changed during approval. Reconnect the stream." }
+                    }
+                },
+            )
+        }
+        if (account?.chainId == Chain.SOLANA.id) {
             resolveMppClientNetwork(address)
             getKoin().get<EnsureSolanaSessionKeyUseCase>()(address)
         }
@@ -733,7 +762,7 @@ open class CommonAnswerViewModel(
     fun startViewerOnChainRefresh(viewerAddress: String) {
         viewModelScope.launch {
             // The Solana session owns its RPC refresh loop and publishes the shared snapshots.
-            if (getLocalAccount(viewerAddress) is LocalAccount.SeedVault) return@launch
+            if (getLocalAccount(viewerAddress)?.chainId == Chain.SOLANA.id) return@launch
             val sessionVaultAppId = getSessionVaultConfigUseCase(getCurrentNetworkUseCase().first()).appId
             mppPaymentViewerManager.startViewerOnChainRefresh(
                 scope = viewModelScope,
@@ -753,7 +782,9 @@ open class CommonAnswerViewModel(
         check(!streamNetworkRejected) { "The stream network was rejected." }
         val account = getLocalAccount(address)
         val network = resolveLiquidStreamAccountNetwork(account, getCurrentNetworkUseCase().first())
-        if (account is LocalAccount.SeedVault) {
+        if (account is LocalAccount.SeedVault && account.chainId == Chain.ALGORAND.id) {
+            checkNotNull(signAlgorandTransaction) { "Seed Vault transaction signing is unavailable." }
+        } else if (account?.chainId == Chain.SOLANA.id) {
             checkNotNull(signSolanaTransaction) { "SeedVault transaction signing is not available." }
         }
         return network

@@ -12,7 +12,7 @@ import com.michaeltchuang.walletsdk.core.solana.utils.Base58
  * the user funded it with.
  */
 class SolanaSessionMppWalletSigner(
-    private val ownerAddress: String,
+    override val ownerAddress: String,
     signerAddress: String,
     private val repository: SolanaLinkedSignerRepository,
     private val rpcClient: SolanaRpcClient,
