@@ -232,6 +232,42 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     return broadcast(algodUrl, signed) ?: getTransactionId(txns.last())
 }
 
+internal actual suspend fun submitPaymentsAndAppCallInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    algodUrl: String,
+    payments: List<Pair<String, Long>>,
+    appCallArgs: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): String {
+    require(payments.isNotEmpty() && payments.all { it.second >= 0L }) { "payments must be non-empty and >= 0" }
+    BouncyCastleProviderSetup.ensure()
+    val params = fetchTxParams(algodUrl)
+    val payTxns = payments.map { (receiver, amount) -> buildPaymentTxn(signer.address, receiver, amount, MIN_TXN_FEE, params) }
+    val appCallTxn = buildAppCallTxn(signer.address, appId, appCallArgs, boxKeys, emptyList(), emptyList(), APP_CALL_FEE, params)
+
+    val needsFalcon24Dummies = signer.signerType == MppWalletSignerType.FALCON_LSIG
+    val txns =
+        if (needsFalcon24Dummies) {
+            val dummies = List((payTxns.size + 1) * DUMMIES_PER_REAL_TXN) { buildFalconDummy(params, it) }
+            val first = payTxns.first()
+            val feePaddedFirst = first.copy(fee = (first.fee ?: MIN_TXN_FEE.toULong()) + (MIN_TXN_FEE * dummies.size).toULong())
+            groupTransactions(dummies + listOf(feePaddedFirst) + payTxns.drop(1) + appCallTxn)
+        } else {
+            groupTransactions(payTxns + appCallTxn)
+        }
+    Log.d(
+        TAG,
+        "[PAY_APP_CALL_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} " +
+            "signerType=${signer.signerType} falcon24Dummies=$needsFalcon24Dummies",
+    )
+    val signed = signTxnGroup(signer, txns)
+    require(if (needsFalcon24Dummies) signed.size >= txns.size else signed.size == txns.size) {
+        "Unexpected signed group size: ${signed.size}, expected ${txns.size}"
+    }
+    return broadcast(algodUrl, signed) ?: getTransactionId(txns.last())
+}
+
 internal actual suspend fun submitDepositAndAppCallsGroupInternal(
     signer: MppWalletSigner,
     appId: Long,

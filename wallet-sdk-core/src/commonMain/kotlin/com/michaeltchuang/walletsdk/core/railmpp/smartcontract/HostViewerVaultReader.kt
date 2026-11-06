@@ -105,11 +105,7 @@ object HostViewerVaultReader {
                 val box = readBox(config.appId, channel, config.algodUrl)
                 currentCoroutineContext().ensureActive()
                 validateSessionIdentity(box, payer, payee, signerKey)
-                val storedSigner = readBox(config.appId, "p".encodeToByteArray() + channel, config.algodUrl)
-                currentCoroutineContext().ensureActive()
-                // The contract stores AVMBytes here, not an ARC-4 dynamic byte array.
-                // Only the channel's signer-hash field above has an ARC-4 length prefix.
-                require(storedSigner.contentEquals(signerKey)) { "Channel signer key mismatch" }
+                // The full key is no longer stored on-chain; the hash check above is the binding.
                 val snapshot =
                     simulateSnapshot(config, channel, simulate).copy(
                         // ChannelInfo head: two addresses, byte[] offset, then six uint64s.

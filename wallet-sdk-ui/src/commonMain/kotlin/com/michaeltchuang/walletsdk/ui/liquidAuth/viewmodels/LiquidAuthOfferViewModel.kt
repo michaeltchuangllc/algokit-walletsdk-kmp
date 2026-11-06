@@ -28,6 +28,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaul
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.HostViewerVaultReader
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
 import com.michaeltchuang.walletsdk.core.railmpp.utils.MppPayments
+import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
 import com.michaeltchuang.walletsdk.core.transaction.domain.usecase.SignAlgorandSeedVaultTransaction
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerDetails
 import com.michaeltchuang.walletsdk.ui.liquidAuth.domain.model.HostViewerProgress
@@ -89,13 +90,23 @@ class LiquidAuthOfferViewModel(
     suspend fun buildCreatorRefundSigner(address: String): MppWalletSigner? =
         mppWalletSignerUseCase(
             address,
-            SignAlgorandSeedVaultTransaction { owner, transaction ->
-                seedVaultSigningMutex.withLock {
-                    checkNotNull(algorandSeedVaultSigner) { "Seed Vault approval is unavailable; the viewer deposit remains refundable." }(
-                        owner,
-                        transaction,
-                    )
-                }
+            object : SignAlgorandSeedVaultTransaction {
+                override suspend fun invoke(
+                    address: String,
+                    transaction: ByteArray,
+                ): ByteArray = signAll(address, listOf(transaction)).single()
+
+                // Delegate the whole group so Seed Vault asks once; the default would ask per transaction.
+                override suspend fun signAll(
+                    address: String,
+                    transactions: List<ByteArray>,
+                ): List<ByteArray> =
+                    seedVaultSigningMutex.withLock {
+                        checkNotNull(
+                            algorandSeedVaultSigner,
+                        ) { "Seed Vault approval is unavailable; the viewer deposit remains refundable." }
+                            .signAll(address, transactions)
+                    }
             },
         )
 
@@ -103,15 +114,54 @@ class LiquidAuthOfferViewModel(
         account: LocalAccount?,
         network: String,
     ) {
+        if (account is LocalAccount.SeedVault && account.chainId == Chain.SOLANA.id) {
+            prepareSolanaPayeeSigner(account.address, network)
+            return
+        }
         if (account !is LocalAccount.SeedVault || account.chainId != Chain.ALGORAND.id) return
         val config = HostViewerVaultReader.networkConfig(network)
         val session = checkNotNull(mppWalletSignerUseCase(account.address)) { "Seed Vault index-1 session signer is unavailable." }
         val owner = checkNotNull(buildCreatorRefundSigner(account.address)) { "Seed Vault owner signer is unavailable." }
         withContext(Dispatchers.Default) {
+            // One owner approval for the whole start-up: fund the session key AND make it the account-level payee
+            // signer (the box deposit is in the same group), so every viewer leaving can be refunded by that key
+            // without a fingerprint.
+            val combined =
+                runCatching {
+                    EscrowSessionVaultHybridManagerClient
+                        .fundAndRegisterPayeeSigner(owner, session.address, 211_030L, config.appId, config.algodUrl)
+                        .getOrThrow()
+                }
+            val failure = combined.exceptionOrNull() ?: return@withContext
+            if (failure is CancellationException) throw failure
+            // Registration is optional (refunds then need an owner approval per viewer), funding is not.
+            Napier.w("Payee signer registration failed; funding only: ${failure.message}")
             EscrowSessionVaultHybridManagerClient
                 .ensureAccountMinimumBalance(owner, session.address, 211_030L, config.algodUrl)
                 .getOrThrow()
         }
+    }
+
+    /** One-time owner approval so the creator's linked session key can close Solana channels (viewer refunds). */
+    private suspend fun prepareSolanaPayeeSigner(
+        address: String,
+        network: String,
+    ) {
+        val sign = solanaOwnerSigner
+        if (sign == null) {
+            Napier.w("Solana payee signer not registered: no Seed Vault signer on the host screen; refunds need owner approval")
+            return
+        }
+        val owner =
+            object : SolanaTransactionSigner {
+                override val address = address
+
+                override suspend fun signMessage(message: ByteArray) = sign(address, message)
+            }
+        SolanaStreamVault
+            .ensureAccountPayeeSigner(network, address, owner)
+            .onSuccess { txId -> Napier.d("Solana account-level payee signer ready (txId=$txId)") }
+            .onFailure { Napier.w("Solana payee signer registration failed; refunds will need owner approval: ${it.message}") }
     }
 
     /**

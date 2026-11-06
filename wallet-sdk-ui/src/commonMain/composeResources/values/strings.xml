@@ -1,12 +1,13 @@
 <resources>
     <string name="escrow_authorize_viewer">Authorize viewer voucher signer (on-chain)</string>
     <string name="escrow_revoke_viewer">Revoke settlement LogicSig</string>
-    <string name="escrow_authorize_creator">Authorize creator payee signer (on-chain)</string>
-    <string name="escrow_revoke_creator">Revoke creator payee signer</string>
+    <string name="escrow_authorize_creator_account">Authorize creator payee signer - account level (all channels, one approval)</string>
+    <string name="escrow_authorize_creator_channel">Authorize creator payee signer - this channel only</string>
+    <string name="escrow_revoke_creator_account">Revoke creator payee signer - account level</string>
+    <string name="escrow_revoke_creator_channel">Revoke creator payee signer - this channel only</string>
     <string name="escrow_fund_creator">Fund creator hot wallet (covers both LogicSigs + fees; ~0.211 ALGO)</string>
-    <string name="escrow_fund_payee_box">Fund creator payee signer box (up to 0.0285 ALGO)</string>
     <string name="escrow_close_hot_wallet">Close &amp; refund - creator payee signer (hot wallet)</string>
-    <string name="escrow_delegate_details">Opening a channel deposits and authorizes the viewer session key. Register its settlement LogicSig before settling. Revoking the LogicSig blocks settlement without removing the stored viewer key; register it again to resume. Creator payee authorization is for delegated close, not settlement. Fund the creator payee signer box before its first authorization and fund the creator hot wallet for network fees. Close refunds the viewer without settling an unsubmitted voucher. Seed Vault may request approval for each deposit transaction.</string>
+    <string name="escrow_delegate_details">Opening a channel deposits and authorizes the viewer session key. Register its settlement LogicSig before settling. Revoking the LogicSig blocks settlement without removing the stored viewer key; register it again to resume. Creator payee authorization is for delegated close, not settlement. Account-level authorization lets the creator approve once for every viewer channel; a channel-level one overrides it for a single channel. The box deposit is paid in the same transaction group. Fund the creator hot wallet for network fees. Close refunds the viewer without settling an unsubmitted voucher. Seed Vault may request approval for each deposit transaction.</string>
     <string name="escrow_refresh_status">Refresh signer status / balance</string>
     <string name="escrow_refresh_progress">Refreshing signer status and balance...</string>
     <string name="escrow_refresh_complete">Signer status and balance refreshed.</string>

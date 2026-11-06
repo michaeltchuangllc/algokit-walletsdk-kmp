@@ -108,7 +108,7 @@ class MppPaymentViewerSingleFlightTest {
             assertEquals(progressAtPrompt, progress, "Consent-time polling must be UI-only")
             assertEquals(readsAtPrompt, reads, "Consent-time polling must not retry payment eligibility")
             coVerify(exactly = 0) { MppPayments.topUpSessionVault(any(), any()) }
-            coVerify(exactly = 0) { MppPayments.openSessionAndDeposit(any(), any(), any(), any()) }
+            coVerify(exactly = 0) { MppPayments.openAndAuthorizeSession(any(), any(), any(), any()) }
         }
 
     @Test
@@ -242,7 +242,7 @@ class MppPaymentViewerSingleFlightTest {
         assertEquals(1, prompts)
         assertEquals(0, deposits)
         coVerify(exactly = 0) { MppPayments.topUpSessionVault(any(), any()) }
-        coVerify(exactly = 0) { MppPayments.openSessionAndDeposit(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { MppPayments.openAndAuthorizeSession(any(), any(), any(), any()) }
     }
 
     @Test
@@ -403,7 +403,7 @@ class MppPaymentViewerSingleFlightTest {
         scenario {
             var snapshot: MppPayments.SessionDynamicData? = null
             coEvery { MppPayments.getSessionDynamicDataFromVault(any()) } answers { snapshot }
-            coEvery { MppPayments.openSessionAndDeposit(any(), any(), any(), any()) } answers {
+            coEvery { MppPayments.openAndAuthorizeSession(any(), any(), any(), any()) } answers {
                 deposits++
                 Result.success("open")
             }
