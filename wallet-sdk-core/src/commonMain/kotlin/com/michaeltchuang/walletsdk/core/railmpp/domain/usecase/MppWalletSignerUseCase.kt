@@ -52,8 +52,21 @@ class MppWalletSignerUseCase(
                     }
                 }
 
-                override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> =
-                    txnsMsgpack.map { signTransactionBytes(it) }
+                override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> {
+                    val current = checkNotNull(getAlgorandSessionSigner(address)) { "Seed Vault session signer is unavailable." }
+                    check(
+                        current.address == session.address &&
+                            current.authorizedSignerPublicKey.contentEquals(session.authorizedSignerPublicKey),
+                    ) {
+                        "Seed Vault session signer changed. Reconnect the stream."
+                    }
+                    // One approval for the whole group when the signer supports it
+                    return signAlgorandTransaction.signAll(address, txnsMsgpack).also { signed ->
+                        check(signed.size == txnsMsgpack.size && signed.none { it.isEmpty() }) {
+                            "Seed Vault returned an empty signed transaction."
+                        }
+                    }
+                }
             }
         }
 

@@ -1013,7 +1013,7 @@ class MppPaymentViewerSingleFlightTest {
         val testScope: TestScope,
     ) : CoroutineScope by testScope {
         val balanceUseCase = mockk<GetRemainingSessionVaultBalanceUseCase>()
-        val manager = MppPaymentViewerManager(balanceUseCase)
+        val manager = MppPaymentViewerManager(balanceUseCase, { _, _, _ -> Result.failure(IllegalStateException("offline")) })
         val channel = Channel()
         val signer = mockk<MppWalletSigner>(relaxed = true)
         val approved = ConsentApproval(true, autoPaySegments = true, budgetCap = BudgetCap("100", "USDC"))

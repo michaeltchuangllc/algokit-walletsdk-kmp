@@ -50,6 +50,10 @@ import kotlin.time.Duration.Companion.milliseconds
 
 class MppPaymentViewerManager(
     private val getRemainingSessionVaultBalanceUseCase: GetRemainingSessionVaultBalanceUseCase,
+    // What the viewer has already set up on-chain; replaceable so tests need no network.
+    private val readSessionAuthorizationStatus: suspend (ByteArray, ByteArray, String) ->
+    Result<EscrowSessionVaultHybridManagerClient.SessionAuthorizationStatus> =
+        EscrowSessionVaultHybridManagerClient::getSessionAuthorizationStatus,
 ) {
     companion object {
         private const val TAG = "MppPaymentViewerManager"
@@ -2043,8 +2047,7 @@ class MppPaymentViewerManager(
         val payee = EscrowSessionVaultHybridManagerClient.hostAddress
         val status =
             if (channel != null && !payee.isNullOrBlank()) {
-                EscrowSessionVaultHybridManagerClient
-                    .getSessionAuthorizationStatus(channel, signer.authorizedSignerPublicKey, payee)
+                readSessionAuthorizationStatus(channel, signer.authorizedSignerPublicKey, payee)
                     .getOrNull()
                     ?.takeIf { it.channelExists }
             } else {

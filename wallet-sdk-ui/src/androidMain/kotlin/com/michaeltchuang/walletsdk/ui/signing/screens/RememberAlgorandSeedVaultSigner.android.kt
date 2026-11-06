@@ -43,18 +43,42 @@ private object SeedVaultApprovalCoordinator {
     }
 }
 
-@Composable
-internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTransaction {
-    val sign = rememberAlgorandSeedVaultSigning(message = false)
-    return remember(sign) { SignAlgorandSeedVaultTransaction(sign) }
+private class AlgorandSeedVaultSigning(
+    val signAll: suspend (String, List<ByteArray>) -> List<ByteArray>,
+) {
+    suspend fun sign(
+        address: String,
+        data: ByteArray,
+    ): ByteArray = signAll(address, listOf(data)).single()
 }
 
 @Composable
-internal actual fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, ByteArray) -> ByteArray =
-    rememberAlgorandSeedVaultSigning(message = true)
+internal actual fun rememberAlgorandSeedVaultSigner(): SignAlgorandSeedVaultTransaction {
+    val signing = rememberAlgorandSeedVaultSigning(message = false)
+    return remember(signing) {
+        object : SignAlgorandSeedVaultTransaction {
+            override suspend fun invoke(
+                address: String,
+                transaction: ByteArray,
+            ): ByteArray = signing.sign(address, transaction)
+
+            // One Seed Vault approval for the whole group
+            override suspend fun signAll(
+                address: String,
+                transactions: List<ByteArray>,
+            ): List<ByteArray> = signing.signAll(address, transactions)
+        }
+    }
+}
 
 @Composable
-private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String, ByteArray) -> ByteArray {
+internal actual fun rememberAlgorandSeedVaultMessageSigner(): suspend (String, ByteArray) -> ByteArray {
+    val signing = rememberAlgorandSeedVaultSigning(message = true)
+    return remember(signing) { { address, data -> signing.sign(address, data) } }
+}
+
+@Composable
+private fun rememberAlgorandSeedVaultSigning(message: Boolean): AlgorandSeedVaultSigning {
     val context = LocalContext.current.applicationContext
     val approval = remember { SeedVaultApprovalCoordinator }
     val launcher =
@@ -69,10 +93,12 @@ private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String,
         }
     }
     return remember(context, launcher, approval, message) {
-        { address, transaction ->
+        AlgorandSeedVaultSigning { address, items ->
+            require(items.isNotEmpty()) { "Nothing to sign." }
+            require(!message || items.size == 1) { "Seed Vault signs one message at a time." }
             withContext(Dispatchers.Main.immediate) {
                 val result = approval.start()
-                val bytes = transaction.copyOf()
+                val payloads = items.map { it.copyOf() }
                 val client = SeedVaultServiceClient(context)
                 var launched = false
                 try {
@@ -85,30 +111,33 @@ private fun rememberAlgorandSeedVaultSigning(message: Boolean): suspend (String,
                         }
                     checkNotNull(account) { "This account is no longer authorized in Seed Vault." }
                     val signed =
-                        signWithSeedVaultApproval(
+                        signManyWithSeedVaultApproval(
+                            count = payloads.size,
                             autosign = account.isAutosign && !account.requiresApproval,
                             approve = {
                                 ensureActive()
                                 check(approval.active) { "Transaction screen was closed." }
                                 launcher.launch(
-                                    if (message) {
-                                        client.confirmSignBytesIntent(
-                                            address,
-                                            bytes,
-                                        )
-                                    } else {
-                                        client.confirmSignTransactionIntent(address, bytes)
+                                    when {
+                                        message -> client.confirmSignBytesIntent(address, payloads.single())
+                                        payloads.size == 1 -> client.confirmSignTransactionIntent(address, payloads.single())
+                                        // Several transactions: one screen and one fingerprint for all of them
+                                        else -> client.confirmSignTransactionsIntent(address, payloads)
                                     },
                                 )
                                 launched = true
                                 check(result.await()) { "Seed Vault signing was cancelled." }
                             },
-                            sign = {
+                            sign = { index ->
                                 ensureActive()
                                 check(approval.active) { "Transaction screen was closed." }
                                 withContext(Dispatchers.IO) {
                                     checkNotNull(
-                                        if (message) client.signBytes(address, bytes) else client.signTransaction(address, bytes),
+                                        if (message) {
+                                            client.signBytes(address, payloads[index])
+                                        } else {
+                                            client.signTransaction(address, payloads[index])
+                                        },
                                     ) { "Seed Vault signing failed." }
                                 }
                             },

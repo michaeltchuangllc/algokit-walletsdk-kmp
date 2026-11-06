@@ -266,6 +266,12 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             onClick = { viewModel.addAmountToSessionVault(sign) },
         )
         AlgorandVaultAction(
+            "Open + authorize + register (one approval)",
+            canAct && content.authorization != null,
+            visible = !content.hasChannel,
+            onClick = { viewModel.openAuthorizeAndRegisterSession(sign) },
+        )
+        AlgorandVaultAction(
             "Update Voucher",
             canAct && content.authorization?.viewerSignerAuthorized == true,
             visible = content.hasChannel,

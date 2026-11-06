@@ -153,6 +153,15 @@ internal actual suspend fun submitAppCallInternal(
     return broadcastAndGetTxId(algodUrl, signedB64)
 }
 
+internal actual suspend fun submitDepositAndAppCallsGroupInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    depositAmountMicroUsdc: Long,
+    appCalls: List<GroupedAppCall>,
+): String = throw UnsupportedOperationException("The one-approval session setup group is only available on Android (Seed Vault).")
+
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
 internal actual suspend fun submitAssetTransferAndAppCallInternal(
     signer: MppWalletSigner,

@@ -365,6 +365,19 @@ class EscrowSessionVaultDebugViewModel(
                 check(result.isNotEmpty()) { "Seed Vault returned an empty signed transaction." }
                 return result
             }
+
+            // A group is approved once in Seed Vault, not once per transaction
+            override suspend fun signTransactionsBytes(txnsMsgpack: List<ByteArray>): List<ByteArray> {
+                currentCoroutineContext().ensureActive()
+                check(getSessionVaultContextUseCase().network == network) { "Network changed. Retry the action." }
+                val results = checkNotNull(sign) { "Seed Vault approval is required for this action." }.signAll(address, txnsMsgpack)
+                currentCoroutineContext().ensureActive()
+                check(getSessionVaultContextUseCase().network == network) { "Network changed while approving the transactions." }
+                check(results.size == txnsMsgpack.size && results.none { it.isEmpty() }) {
+                    "Seed Vault returned an empty signed transaction."
+                }
+                return results
+            }
         }
     }
 
@@ -494,6 +507,65 @@ class EscrowSessionVaultDebugViewModel(
                 }
             } catch (e: Exception) {
                 showError(PaymentError.from(e), "ADD_TO_VAULT_EXCEPTION", e)
+            } finally {
+                setLoading(false)
+            }
+        }
+    }
+
+    /**
+     * The viewer's whole setup in one atomic group and one Seed Vault approval: USDC deposit, open the channel,
+     * authorize the session signing key and register the settlement LogicSig. The single-step actions stay for
+     * debugging each step.
+     */
+    fun openAuthorizeAndRegisterSession(sign: SignAlgorandSeedVaultTransaction? = null) {
+        val content = contentState()
+        val viewer = content.viewerAddress.trim()
+        val creator = content.creatorAddress.trim()
+        val amountUsdc = content.depositAmountUsdc.trim().toDoubleOrNull() ?: 1.0
+        val depositMicroUsdc = (amountUsdc * MICRO_USDC_MULTIPLIER).toLong()
+
+        if (!validateViewerAndCreator(content)) return
+        if (content.authorization?.channelExists == true) {
+            sendStatus("❌ The channel already exists. Use Top up and the single steps instead.")
+            return
+        }
+
+        setLoading(true)
+        viewModelScope.launch {
+            try {
+                val vaultContext = getSessionVaultContextUseCase()
+                EscrowSessionVaultHybridManagerClient.configureForNetwork(vaultContext.network)
+                sendStatus("Opening, authorizing and registering the session in one approval…")
+                Napier.d(
+                    "[OPEN_AUTHORIZE_REGISTER_CONTEXT] viewer=$viewer creator=$creator appId=${vaultContext.appId}",
+                    tag = TAG,
+                )
+                val signer = getDebugSigner(viewer, sign)
+                if (signer == null) {
+                    showError(PaymentError.SignerNotFound(viewer), "OPEN_AUTHORIZE_REGISTER_NO_SIGNER")
+                    return@launch
+                }
+                if (!refreshDebugSessionContext(signer)) return@launch
+                val result =
+                    withContext(Dispatchers.Default) {
+                        MppPayments.openAndAuthorizeSession(
+                            signer = signer,
+                            viewerAddress = viewer,
+                            depositAmountMicroUsdc = depositMicroUsdc,
+                        )
+                    }
+                val txId =
+                    result.getOrElse { err ->
+                        showError(PaymentError.from(err), "OPEN_AUTHORIZE_REGISTER_ERR", err)
+                        return@launch
+                    }
+                awaitConfirmed(txId)
+                sendStatus("✅ Session opened, signer authorized and LogicSig registered\nTxId: $txId")
+                Napier.d("[OPEN_AUTHORIZE_REGISTER_OK] txId=$txId", tag = TAG)
+                refreshSignerStatus()
+            } catch (e: Exception) {
+                showError(PaymentError.from(e), "OPEN_AUTHORIZE_REGISTER_EXCEPTION", e)
             } finally {
                 setLoading(false)
             }
