@@ -744,10 +744,25 @@ open class CommonAnswerViewModel(
             val network = getCurrentNetworkUseCase().first()
             return mppWalletSignerUseCase(
                 address,
-                SignAlgorandSeedVaultTransaction { owner, transaction ->
-                    check(getCurrentNetworkUseCase().first() == network) { "Network changed. Reconnect the stream." }
-                    checkNotNull(signAlgorandTransaction) { "Seed Vault transaction signing is unavailable." }(owner, transaction).also {
-                        check(getCurrentNetworkUseCase().first() == network) { "Network changed during approval. Reconnect the stream." }
+                object : SignAlgorandSeedVaultTransaction {
+                    override suspend fun invoke(
+                        address: String,
+                        transaction: ByteArray,
+                    ): ByteArray = signAll(address, listOf(transaction)).single()
+
+                    // Delegate the whole group so Seed Vault asks once; the default would ask per transaction.
+                    override suspend fun signAll(
+                        address: String,
+                        transactions: List<ByteArray>,
+                    ): List<ByteArray> {
+                        check(getCurrentNetworkUseCase().first() == network) { "Network changed. Reconnect the stream." }
+                        return checkNotNull(signAlgorandTransaction) { "Seed Vault transaction signing is unavailable." }
+                            .signAll(address, transactions)
+                            .also {
+                                check(
+                                    getCurrentNetworkUseCase().first() == network,
+                                ) { "Network changed during approval. Reconnect the stream." }
+                            }
                     }
                 },
             )

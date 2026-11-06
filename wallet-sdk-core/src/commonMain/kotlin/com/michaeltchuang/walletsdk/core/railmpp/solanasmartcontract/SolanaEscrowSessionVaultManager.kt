@@ -54,8 +54,18 @@ data class SolanaEscrowChannel(
     val isSignerRevoked: Boolean get() = authorizedSigner == SolanaEscrowSessionVaultManager.REVOKED_SIGNER
     val hasPayeeSigner: Boolean get() = payeeSigner != SolanaEscrowSessionVaultManager.REVOKED_SIGNER
 
-    /** True if [address] may call [SolanaEscrowSessionVaultManager.close]: the payee or its registered delegate. */
-    fun canClose(address: String): Boolean = address == payee || (hasPayeeSigner && address == payeeSigner)
+    /**
+     * True if [address] may call [SolanaEscrowSessionVaultManager.close]: the payee or its effective delegate.
+     * The channel-level [payeeSigner] overrides the payee's account-level delegate ([accountPayeeSigner]).
+     */
+    fun canClose(
+        address: String,
+        accountPayeeSigner: String? = null,
+    ): Boolean {
+        if (address == payee) return true
+        val effective = if (hasPayeeSigner) payeeSigner else accountPayeeSigner
+        return effective != null && effective != SolanaEscrowSessionVaultManager.REVOKED_SIGNER && address == effective
+    }
 
     /** Earliest unix time the payer may [SolanaEscrowSessionVaultManager.withdraw], or null if no close is pending. */
     val withdrawAvailableAt: Long?
@@ -103,7 +113,7 @@ enum class SolanaEscrowVaultError(
     CloseNotRequested("Payer must request closure before withdrawing"),
     WithdrawalTooEarly("The 888-second withdrawal delay has not elapsed"),
     InvalidDeposit("Deposit must be greater than zero"),
-    InvalidPayeeSigner("Payee signer must be a nonzero public key"),
+    InvalidPayeeSigner("Payee signer must be a nonzero public key different from the payee"),
     ;
 
     val code: Int get() = ANCHOR_ERROR_OFFSET + ordinal
@@ -333,8 +343,9 @@ class SolanaEscrowSessionVaultManager(
         }
 
     /**
-     * Payee-controlled: registers [payeeSigner] as a delegate allowed to [close] on the payee's
-     * behalf (e.g. the payee's linked session key, so closing needs no Seed Vault prompt).
+     * Payee-controlled, CHANNEL-LEVEL: registers [payeeSigner] as a delegate allowed to [close] this channel on the
+     * payee's behalf. Overrides the payee's account-level delegate ([setAccountPayeeSigner]) for this channel only.
+     * Prefer the account-level delegate when the payee should approve once for all channels.
      */
     suspend fun setAuthorizedPayeeSigner(
         network: String,
@@ -343,11 +354,16 @@ class SolanaEscrowSessionVaultManager(
         payeeSigner: String,
     ): Result<String> =
         execute("set_authorized_payee_signer") {
-            require(payeeSigner != REVOKED_SIGNER) { SolanaEscrowVaultError.InvalidPayeeSigner.message }
+            require(payeeSigner != REVOKED_SIGNER && payeeSigner != payee.address) {
+                SolanaEscrowVaultError.InvalidPayeeSigner.message
+            }
             managePayee(network, payee, channel, IX_SET_AUTHORIZED_PAYEE_SIGNER + key(payeeSigner))
         }
 
-    /** Payee-controlled: removes the close delegate so only the payee itself can close. */
+    /**
+     * Payee-controlled: removes the channel-level delegate; the channel falls back to the payee's account-level
+     * delegate if any, otherwise only the payee itself can close.
+     */
     suspend fun revokeAuthorizedPayeeSigner(
         network: String,
         payee: SolanaTransactionSigner,
@@ -355,6 +371,73 @@ class SolanaEscrowSessionVaultManager(
     ): Result<String> =
         execute("revoke_authorized_payee_signer") {
             managePayee(network, payee, channel, IX_REVOKE_AUTHORIZED_PAYEE_SIGNER)
+        }
+
+    /** Address of the payee's account-level delegate PDA (`[b"payee_signer", payee]`). */
+    fun payeeSignerConfigAddress(
+        network: String,
+        payee: String,
+    ): String = SolanaPda.findProgramAddress(listOf(PAYEE_SIGNER_SEED, key(payee)), configFor(network).programId).address
+
+    /** The payee's account-level close delegate, or null when none is registered. */
+    suspend fun getAccountPayeeSigner(
+        network: String,
+        payee: String,
+    ): String? {
+        val address = payeeSignerConfigAddress(network, payee)
+        val account = rpc.getAccountInfo(network, address) ?: return null
+        require(account.owner == configFor(network).programId) { "Payee signer config has wrong program owner" }
+        return decodePayeeSignerConfig(account.data, payee)
+    }
+
+    /**
+     * Payee-controlled, ACCOUNT-LEVEL: registers [payeeSigner] as the default delegate allowed to [close] every
+     * channel (current and future) where [payee] is the payee, so a Seed Vault payee approves once rather than per
+     * viewer channel. A channel-level delegate overrides it. [rentPayer] funds the config PDA (and pays the fee);
+     * the rent returns to the payee on [revokeAccountPayeeSigner]. Replacing an existing delegate is allowed.
+     */
+    suspend fun setAccountPayeeSigner(
+        network: String,
+        payee: SolanaTransactionSigner,
+        payeeSigner: String,
+        rentPayer: SolanaTransactionSigner = payee,
+    ): Result<String> =
+        execute("set_account_payee_signer") {
+            require(payeeSigner != REVOKED_SIGNER && payeeSigner != payee.address) {
+                SolanaEscrowVaultError.InvalidPayeeSigner.message
+            }
+            val instruction =
+                SolanaInstruction(
+                    programId = configFor(network).programId,
+                    accounts =
+                        listOf(
+                            writable(payeeSignerConfigAddress(network, payee.address)),
+                            SolanaAccountMeta(payee.address, isSigner = true, isWritable = false),
+                            SolanaAccountMeta(rentPayer.address, isSigner = true, isWritable = true),
+                            readonly(SolanaTransactionBuilder.SYSTEM_PROGRAM_ID),
+                        ),
+                    data = IX_SET_ACCOUNT_PAYEE_SIGNER + key(payeeSigner),
+                )
+            sendAndConfirm(network, rentPayer, listOf(instruction), listOf(payee))
+        }
+
+    /** Payee-controlled: removes the account-level delegate and returns its rent to the payee. */
+    suspend fun revokeAccountPayeeSigner(
+        network: String,
+        payee: SolanaTransactionSigner,
+    ): Result<String> =
+        execute("revoke_account_payee_signer") {
+            val instruction =
+                SolanaInstruction(
+                    programId = configFor(network).programId,
+                    accounts =
+                        listOf(
+                            writable(payeeSignerConfigAddress(network, payee.address)),
+                            SolanaAccountMeta(payee.address, isSigner = true, isWritable = true),
+                        ),
+                    data = IX_REVOKE_ACCOUNT_PAYEE_SIGNER,
+                )
+            sendAndConfirm(network, payee, listOf(instruction))
         }
 
     /** Starts the [WITHDRAW_DELAY_SECONDS] countdown for a payer-initiated [withdraw]. */
@@ -528,7 +611,7 @@ class SolanaEscrowSessionVaultManager(
     }
 
     /**
-     * Payee (or its registered payee signer) closes the channel: refunds the remaining vault
+     * Payee (or its effective payee signer: channel-level, else account-level) closes the channel: refunds the remaining vault
      * balance to the payer and returns rent to the payer (mirrors the Algorand host-side
      * `refundRemainingVaultBalance`). [feePayer] defaults to the caller and funds the payer's
      * USDC ATA if it no longer exists.
@@ -541,8 +624,13 @@ class SolanaEscrowSessionVaultManager(
     ): Result<String> =
         execute("close") {
             val state = requireChannel(network, channel)
-            require(state.canClose(payee.address)) { "Only the channel payee or its payee signer can close the channel" }
-            finalize(network, IX_CLOSE, state, caller = payee, feePayer = feePayer)
+            // The account-level delegate only applies when the channel has no channel-level one.
+            val accountSigner = if (state.hasPayeeSigner) null else getAccountPayeeSigner(network, state.payee)
+            require(state.canClose(payee.address, accountSigner)) {
+                "Only the channel payee or its payee signer can close the channel"
+            }
+            val configAddress = if (accountSigner != null) payeeSignerConfigAddress(network, state.payee) else null
+            finalize(network, IX_CLOSE, state, caller = payee, feePayer = feePayer, payeeSignerConfig = configAddress)
         }
 
     private suspend fun managePayee(
@@ -593,6 +681,7 @@ class SolanaEscrowSessionVaultManager(
         state: SolanaEscrowChannel,
         caller: SolanaTransactionSigner,
         feePayer: SolanaTransactionSigner,
+        payeeSignerConfig: String? = null,
     ): String {
         val payerToken = SolanaPda.associatedTokenAddress(state.payer, state.mint)
         val instructions =
@@ -609,6 +698,8 @@ class SolanaEscrowSessionVaultManager(
                             writable(vaultAddress(state.address, state.mint)),
                             writable(payerToken),
                             readonly(SolanaPda.TOKEN_PROGRAM_ID),
+                            // Optional account: Anchor encodes "none" as the program id.
+                            readonly(payeeSignerConfig ?: configFor(network).programId),
                         ),
                     data = discriminator,
                 ),
@@ -719,6 +810,7 @@ class SolanaEscrowSessionVaultManager(
         private const val PAYEE_OFFSET = 40
 
         private val CHANNEL_SEED = "channel".encodeToByteArray()
+        private val PAYEE_SIGNER_SEED = "payee_signer".encodeToByteArray()
 
         internal val IX_OPEN = anchorDiscriminator("global:open")
         internal val IX_TOP_UP = anchorDiscriminator("global:top_up")
@@ -726,6 +818,9 @@ class SolanaEscrowSessionVaultManager(
         internal val IX_REVOKE_AUTHORIZED_PAYER_SIGNER = anchorDiscriminator("global:revoke_authorized_payer_signer")
         internal val IX_SET_AUTHORIZED_PAYEE_SIGNER = anchorDiscriminator("global:set_authorized_payee_signer")
         internal val IX_REVOKE_AUTHORIZED_PAYEE_SIGNER = anchorDiscriminator("global:revoke_authorized_payee_signer")
+        internal val IX_SET_ACCOUNT_PAYEE_SIGNER = anchorDiscriminator("global:set_account_payee_signer")
+        internal val IX_REVOKE_ACCOUNT_PAYEE_SIGNER = anchorDiscriminator("global:revoke_account_payee_signer")
+        internal val PAYEE_SIGNER_CONFIG_DISCRIMINATOR = anchorDiscriminator("account:PayeeSignerConfig")
         internal val IX_SETTLE = anchorDiscriminator("global:settle")
         internal val IX_REQUEST_CLOSE = anchorDiscriminator("global:request_close")
         internal val IX_CLOSE = anchorDiscriminator("global:close")
@@ -775,6 +870,17 @@ class SolanaEscrowSessionVaultManager(
                 salt = data.copyOfRange(offset, offset + SALT_SIZE).also { offset += SALT_SIZE },
                 payeeSigner = pubkey(),
             )
+        }
+
+        /** `PayeeSignerConfig`: 8 discriminator + payee pubkey + signer pubkey + bump. Returns the delegate. */
+        internal fun decodePayeeSignerConfig(
+            data: ByteArray,
+            expectedPayee: String,
+        ): String {
+            require(data.size >= 8 + 32 + 32 + 1) { "Payee signer config too small (${data.size} bytes)" }
+            require(data.copyOf(8).contentEquals(PAYEE_SIGNER_CONFIG_DISCRIMINATOR)) { "Not a PayeeSignerConfig account" }
+            require(Base58.encode(data.copyOfRange(8, 40)) == expectedPayee) { "Payee signer config payee mismatch" }
+            return Base58.encode(data.copyOfRange(40, 72))
         }
 
         /** Maps `{"Custom":6002}` / `custom program error: 0x1772` to a typed [SolanaEscrowVaultException]. */

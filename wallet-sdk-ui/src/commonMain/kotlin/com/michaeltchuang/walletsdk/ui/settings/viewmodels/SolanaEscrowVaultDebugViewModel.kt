@@ -290,11 +290,32 @@ class SolanaEscrowVaultDebugViewModel(
     }
 
     /**
-     * Payee (creator Seed Vault) registers its linked hot key ([State.payeeFeePayer]) as the on-chain
-     * payee signer, so that key can close the channel without a Seed Vault prompt.
+     * Payee (creator Seed Vault) registers its linked hot key ([State.payeeFeePayer]) as the ACCOUNT-LEVEL payee
+     * signer: one Seed Vault approval lets that key close every channel where the creator is the payee. The hot
+     * key pays the PDA rent (returned to the payee on revoke) so the Seed Vault account needs no SOL.
+     */
+    fun authorizeAccountPayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
+        ownerAction("Authorize creator payee signer (account level)", sign, payeeSigns = true) { current, _, signer ->
+            val payeeSigner = current.payeeFeePayer
+            check(payeeSigner.isNotBlank()) { "Creator linked key is not available yet. Refresh first." }
+            val hotKey = getSessionSigner(current.payee)?.asSolanaTransactionSigner()
+            check(hotKey != null && hotKey.address == payeeSigner) { "Creator linked key changed. Refresh and try again." }
+            manager.setAccountPayeeSigner(current.cluster, signer, payeeSigner, rentPayer = hotKey).getOrThrow()
+        }
+    }
+
+    fun revokeAccountPayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
+        ownerAction("Revoke creator payee signer (account level)", sign, payeeSigns = true) { current, _, signer ->
+            manager.revokeAccountPayeeSigner(current.cluster, signer).getOrThrow()
+        }
+    }
+
+    /**
+     * CHANNEL-LEVEL: registers the creator's linked hot key ([State.payeeFeePayer]) for this channel only,
+     * overriding the account-level signer. Prefer [authorizeAccountPayeeSigner].
      */
     fun authorizePayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
-        ownerAction("Authorize creator payee signer", sign, payeeSigns = true) { current, channel, signer ->
+        ownerAction("Authorize creator payee signer (channel level)", sign, payeeSigns = true) { current, channel, signer ->
             val payeeSigner = current.payeeFeePayer
             check(payeeSigner.isNotBlank()) { "Creator linked key is not available yet. Refresh first." }
             manager.setAuthorizedPayeeSigner(current.cluster, signer, channel.address, payeeSigner).getOrThrow()
@@ -302,7 +323,7 @@ class SolanaEscrowVaultDebugViewModel(
     }
 
     fun revokePayeeSigner(sign: suspend (String, ByteArray) -> ByteArray) {
-        ownerAction("Revoke creator payee signer", sign, payeeSigns = true) { current, channel, signer ->
+        ownerAction("Revoke creator payee signer (channel level)", sign, payeeSigns = true) { current, channel, signer ->
             manager.revokeAuthorizedPayeeSigner(current.cluster, signer, channel.address).getOrThrow()
         }
     }
@@ -319,8 +340,10 @@ class SolanaEscrowVaultDebugViewModel(
                     ?: error("No linked key for creator ${current.payee}.")
             checkCurrent(token)
             check(linked.address == current.payeeFeePayer) { "Creator linked key changed. Refresh and try again." }
-            check(channel.hasPayeeSigner && channel.payeeSigner == linked.address) {
-                "The creator linked key is not the channel's payee signer. Use Authorize Creator Payee Signer first."
+            // Channel-level signer overrides the creator's account-level one.
+            val accountSigner = if (channel.hasPayeeSigner) null else manager.getAccountPayeeSigner(current.cluster, channel.payee)
+            check(linked.address != channel.payee && channel.canClose(linked.address, accountSigner)) {
+                "The creator linked key is not the effective payee signer. Use Authorize Creator Payee Signer first."
             }
             checkNetwork(token, current.cluster)
             val signature =

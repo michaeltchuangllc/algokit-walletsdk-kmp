@@ -16,6 +16,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.domain.model.GatingMode
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentReceipt
 import com.michaeltchuang.walletsdk.core.railmpp.domain.model.PaymentRequest
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSignerType
 import com.michaeltchuang.walletsdk.core.railmpp.domain.usecase.GetRemainingSessionVaultBalanceUseCase
 import com.michaeltchuang.walletsdk.core.railmpp.smartcontract.EscrowSessionVaultHybridManagerClient
 import com.michaeltchuang.walletsdk.core.railmpp.solanasmartcontract.SolanaStreamVault
@@ -1993,6 +1994,12 @@ class MppPaymentViewerManager(
         viewerAddress: String,
         depositMicroUsdc: Long,
     ): VaultFundingResult {
+        if (signer.signerType == MppWalletSignerType.FALCON_LSIG) {
+            return VaultFundingResult(
+                result = Result.failure(UnsupportedOperationException("Falcon24 accounts are not supported for Liquid Stream.")),
+                openedSession = false,
+            )
+        }
         val fundingParams = activeStartParams
         val existingSessionData =
             readConsentVaultData(checkNotNull(paymentSession))
@@ -2002,27 +2009,41 @@ class MppPaymentViewerManager(
                 "amountMicro=$depositMicroUsdc previousTotalDepositMicro=${existingSessionData?.totalDeposit}",
         )
         if (existingSessionData != null) {
+            // Seed Vault approves a group once, so fold the LogicSig registration into the top-up when only that
+            // is missing. An unknown or mismatched on-chain state keeps the separate, self-healing steps.
+            val status = readViewerAuthorizationStatus(signer)
+            currentCoroutineContext().ensureActive()
+            val batchRegistration = status?.viewerSignerAuthorized == true && status.settlementRegistered != true
             val topUpResult =
-                MppPayments.topUpSessionVault(
-                    signer = signer,
-                    additionalDepositMicroUsdc = depositMicroUsdc,
-                )
+                if (batchRegistration) {
+                    MppPayments.topUpAndRegisterSession(signer = signer, additionalDepositMicroUsdc = depositMicroUsdc)
+                } else {
+                    MppPayments.topUpSessionVault(
+                        signer = signer,
+                        additionalDepositMicroUsdc = depositMicroUsdc,
+                    )
+                }
             val topUpErrorType = topUpResult.exceptionOrNull()?.let { it::class.simpleName }
-            trace("DEPOSIT_TX_RESULT route=top_up success=${topUpResult.isSuccess} errorType=$topUpErrorType")
+            trace(
+                "DEPOSIT_TX_RESULT route=top_up batchedRegistration=$batchRegistration " +
+                    "success=${topUpResult.isSuccess} errorType=$topUpErrorType",
+            )
             currentCoroutineContext().ensureActive()
             // The channel may already exist on-chain (e.g. from an earlier session/app run)
             // without ever having had its settlement LogicSig registered — this is idempotent
             // and cheap, so just always ensure it's set up rather than tracking whether this
             // particular signer/channel already did so.
-            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
+            if (!batchRegistration) ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress)
             topUpResult.onSuccess {
                 if (activeStartParams === fundingParams) refreshVaultIdentity(viewerAddress)
             }
             return VaultFundingResult(result = topUpResult, openedSession = false)
         }
 
+        // Deposit, open and LogicSig registration are one atomic group: a single Seed Vault approval (or a single
+        // local hot-wallet signing pass).
         val openResult =
-            MppPayments.openSessionAndDeposit(
+            MppPayments.openAndAuthorizeSession(
                 signer = signer,
                 viewerAddress = viewerAddress,
                 depositAmountMicroUsdc = depositMicroUsdc,
@@ -2031,30 +2052,30 @@ class MppPaymentViewerManager(
         trace("DEPOSIT_TX_RESULT route=open_session success=${openResult.isSuccess} errorType=$openErrorType")
         currentCoroutineContext().ensureActive()
         openResult.onSuccess {
-            ensureAuthorizedSignerAndSettlementLogicSig(signer, viewerAddress, signerAlreadyAuthorized = true)
             if (activeStartParams === fundingParams) refreshVaultIdentity(viewerAddress)
         }
         return VaultFundingResult(result = openResult, openedSession = true)
     }
 
+    private suspend fun readViewerAuthorizationStatus(
+        signer: MppWalletSigner,
+    ): EscrowSessionVaultHybridManagerClient.SessionAuthorizationStatus? {
+        val channel = EscrowSessionVaultHybridManagerClient.channelId?.copyOf()
+        val payee = EscrowSessionVaultHybridManagerClient.hostAddress
+        if (channel == null || payee.isNullOrBlank()) return null
+        return readSessionAuthorizationStatus(channel, signer.authorizedSignerPublicKey, payee)
+            .getOrNull()
+            ?.takeIf { it.channelExists }
+    }
+
     private suspend fun ensureAuthorizedSignerAndSettlementLogicSig(
         signer: MppWalletSigner,
         viewerAddress: String,
-        signerAlreadyAuthorized: Boolean = false,
     ) {
         // Each owner-signed step is a separate Seed Vault approval, so only submit what is missing on-chain.
-        val channel = EscrowSessionVaultHybridManagerClient.channelId?.copyOf()
-        val payee = EscrowSessionVaultHybridManagerClient.hostAddress
-        val status =
-            if (channel != null && !payee.isNullOrBlank()) {
-                readSessionAuthorizationStatus(channel, signer.authorizedSignerPublicKey, payee)
-                    .getOrNull()
-                    ?.takeIf { it.channelExists }
-            } else {
-                null
-            }
+        val status = readViewerAuthorizationStatus(signer)
         currentCoroutineContext().ensureActive()
-        if (!signerAlreadyAuthorized && status?.viewerSignerAuthorized != true) {
+        if (status?.viewerSignerAuthorized != true) {
             MppPayments
                 .setAuthorizedSignerForSession(
                     signer = signer,

@@ -31,8 +31,11 @@ import {
 // SOLANA_SESSION_KEYPAIR optionally loads an agent key; otherwise generate an ephemeral signer.
 // Public clusters never mint tokens or request airdrops. Never deploy local-testing there.
 // WAIT_FOR_WITHDRAW=true tests successful forced withdrawal too (takes at least 888 seconds).
-// Payee close is delegated to an ephemeral authorized payee signer by default (it needs no SOL;
-// the payer pays fees). TEST_PAYEE_SIGNER=false closes as the payee directly.
+// Payee close is delegated by default (TEST_PAYEE_SIGNER=false closes as the payee directly):
+// the test exercises a channel-level payee signer, an account-level payee signer (PDA at
+// [b"payee_signer", payee]), confirms the channel-level one overrides the account-level one,
+// then revokes the override and closes as the account-level delegate. Delegates need no SOL;
+// the payer pays fees and the account-level PDA rent (returned to the payee on revoke).
 
 const DEVNET_USDC = '4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU'
 const MAINNET_USDC = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v'
@@ -140,8 +143,10 @@ async function main(): Promise<void> {
   const settleAccounts = {
     channel, authorizedSigner: session.publicKey, mint, vault, payeeToken, tokenProgram: TOKEN_PROGRAM_ID,
   }
+  // payeeSignerConfig is an optional account: Anchor encodes "none" as the program id.
   const finalize = {
     channel, caller: payee.publicKey, payer: payer.publicKey, mint, vault, payerToken, tokenProgram: TOKEN_PROGRAM_ID,
+    payeeSignerConfig: program.programId,
   }
   const settle = (value: bigint, signer = session): Promise<string> => program.methods
     .settle(new BN(value.toString()))
@@ -215,8 +220,23 @@ async function main(): Promise<void> {
   const useDelegate = process.env.TEST_PAYEE_SIGNER !== 'false'
   const payeeSigner = Keypair.generate()
   const managePayee = { channel, payee: payee.publicKey }
-  const closeAs = (caller: Keypair): Promise<string> => program.methods.close()
-    .accountsStrict({ ...finalize, caller: caller.publicKey }).signers([caller]).rpc()
+  const closeAs = (caller: Keypair, payeeSignerConfig: PublicKey = program.programId): Promise<string> => program.methods.close()
+    .accountsStrict({ ...finalize, caller: caller.publicKey, payeeSignerConfig }).signers([caller]).rpc()
+  const payeeSignerConfigFor = (owner: PublicKey): PublicKey => PublicKey.findProgramAddressSync(
+    [Buffer.from('payee_signer'), owner.toBuffer()], program.programId,
+  )[0]
+  const payeeSignerConfig = payeeSignerConfigFor(payee.publicKey)
+  const configClient = (program.account as unknown as {
+    payeeSignerConfig: { fetch(address: PublicKey): Promise<{ payee: PublicKey, signer: PublicKey }> }
+  }).payeeSignerConfig
+  const setAccountPayeeSigner = (signer: PublicKey, owner: Keypair = payee): Promise<string> => program.methods
+    .setAccountPayeeSigner(signer)
+    .accountsStrict({
+      payeeSignerConfig: payeeSignerConfigFor(owner.publicKey), payee: owner.publicKey,
+      rentPayer: payer.publicKey, systemProgram: SystemProgram.programId,
+    })
+    .signers([owner]).rpc()
+  const accountSigner = Keypair.generate()
   if (useDelegate) {
     await expectError(() => program.methods.setAuthorizedPayeeSigner(payer.publicKey)
       .accountsStrict({ channel, payee: payer.publicKey }).rpc(), 'UnauthorizedPayee')
@@ -239,7 +259,24 @@ async function main(): Promise<void> {
     await expectError(() => closeAs(payeeSigner), 'UnauthorizedPayee')
     await program.methods.setAuthorizedPayeeSigner(payeeSigner.publicKey)
       .accountsStrict(managePayee).signers([payee]).rpc()
-    console.log(`Payee signer controls verified; delegate ${payeeSigner.publicKey} registered.`)
+    console.log(`Channel-level payee signer controls verified; delegate ${payeeSigner.publicKey} registered.`)
+
+    // Account-level delegate: one payee signature covers all of the payee's channels.
+    await expectError(() => setAccountPayeeSigner(PublicKey.default), 'InvalidPayeeSigner')
+    await expectError(() => setAccountPayeeSigner(payee.publicKey), 'InvalidPayeeSigner')
+    await setAccountPayeeSigner(accountSigner.publicKey)
+    const config = await configClient.fetch(payeeSignerConfig)
+    assert(config.payee.equals(payee.publicKey) && config.signer.equals(accountSigner.publicKey))
+    // The delegate can only write its own PDA, and cannot name itself.
+    await expectError(() => setAccountPayeeSigner(accountSigner.publicKey, accountSigner), 'InvalidPayeeSigner')
+    // A config PDA for a different payee must be rejected by close's seed constraint.
+    await expectError(() => closeAs(accountSigner, payeeSignerConfigFor(payer.publicKey)), 'AccountNotInitialized')
+    // The channel-level signer overrides the account-level one for this channel.
+    await expectError(() => closeAs(accountSigner, payeeSignerConfig), 'UnauthorizedPayee')
+    // Revoking the override falls back to the account-level delegate.
+    await program.methods.revokeAuthorizedPayeeSigner().accountsStrict(managePayee).signers([payee]).rpc()
+    await expectError(() => closeAs(payeeSigner, payeeSignerConfig), 'UnauthorizedPayee')
+    console.log(`Account-level payee signer ${accountSigner.publicKey} registered; override and fallback verified.`)
   }
 
   // Unsolicited tokens must not prevent teardown or increase the spendable deposit watermark.
@@ -268,7 +305,7 @@ async function main(): Promise<void> {
     }
     signature = await withdraw()
   } else {
-    signature = await closeAs(useDelegate ? payeeSigner : payee)
+    signature = useDelegate ? await closeAs(accountSigner, payeeSignerConfig) : await closeAs(payee)
   }
   assert.equal(await balance(payerToken), beforeRefund + expectedRefund)
   assert.equal(await balance(payerToken), payerBefore - finalSettled + extra)
@@ -281,8 +318,19 @@ async function main(): Promise<void> {
   if (!forcedWithdraw) {
     assert.equal(await connection.getBalance(payer.publicKey), payerSolBefore + rent - tx.meta.fee)
   }
-  const closedBy = forcedWithdraw ? 'payer withdrawal' : useDelegate ? 'payee signer close' : 'payee close'
+  const closedBy = forcedWithdraw ? 'payer withdrawal' : useDelegate ? 'account-level payee signer close' : 'payee close'
   console.log(`Closed via ${closedBy}; refunded ${expectedRefund} raw USDC and reclaimed vault/channel rent.`)
+
+  if (useDelegate) {
+    // Only the payee can revoke the account-level delegate; rent returns to the payee.
+    await expectError(() => program.methods.revokeAccountPayeeSigner()
+      .accountsStrict({ payeeSignerConfig, payee: accountSigner.publicKey }).signers([accountSigner]).rpc(),
+    'ConstraintSeeds')
+    await program.methods.revokeAccountPayeeSigner()
+      .accountsStrict({ payeeSignerConfig, payee: payee.publicKey }).signers([payee]).rpc()
+    assert.equal(await connection.getAccountInfo(payeeSignerConfig), null, 'Payee signer config was not closed')
+    console.log('Revoked account-level payee signer; its rent was returned to the payee.')
+  }
   console.log('All lifecycle assertions passed.')
 }
 

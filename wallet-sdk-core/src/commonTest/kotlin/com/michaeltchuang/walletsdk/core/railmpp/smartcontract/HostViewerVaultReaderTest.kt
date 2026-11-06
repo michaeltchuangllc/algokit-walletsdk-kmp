@@ -194,26 +194,20 @@ class HostViewerVaultReaderTest {
                         boxCalls++
                         assertEquals(RailMppConstants.TESTNET_MPP_SESSION_VAULT_APP_ID, appId)
                         assertEquals(NODE_TESTNET_BASE_URL, url)
-                        if (boxCalls == 1) {
-                            assertContentEquals(hint, key)
-                            sessionBox().also { encodeUint64(12345).copyInto(it, 90) }
-                        } else {
-                            assertContentEquals("p".encodeToByteArray() + hint, key)
-                            // p || channelId is raw AVMBytes in the deployed contract.
-                            signer.copyOf()
-                        }
+                        assertContentEquals(hint, key)
+                        sessionBox().also { encodeUint64(12345).copyInto(it, 90) }
                     },
                     simulate = { _, _, _, args, boxes ->
                         simulateCalls++
-                        // Both participant and authorized-signer boxes must be verified first.
-                        assertEquals(2, boxCalls)
+                        // The channel box (participants and signer hash) must be verified first.
+                        assertEquals(1, boxCalls)
                         assertContentEquals(encodeArc4DynamicBytes(hint), args.single())
                         assertContentEquals(hint, boxes.first().second)
                         tuple(1000, 300, 500)
                     },
                 )
             assertEquals(HostViewerVaultReader.Snapshot(700, 300, 500, 1000, startRound = 12345), result.getOrThrow())
-            assertEquals(2, boxCalls)
+            assertEquals(1, boxCalls)
             assertEquals(1, simulateCalls)
         }
 
@@ -237,7 +231,7 @@ class HostViewerVaultReaderTest {
                         creator,
                         rawKey,
                         network,
-                        readBox = { _, key, _ -> if (key.size == 32) channelBox else rawKey },
+                        readBox = { _, _, _ -> channelBox },
                         simulate = { _, _, _, _, _ -> tuple(7_000_000, 200_000, 200_000) },
                     ).getOrThrow()
             assertEquals(6_800_000, snapshot.remainingBalanceMicroUsdc)
@@ -302,39 +296,6 @@ class HostViewerVaultReaderTest {
                     readBox = { _, _, _ -> throw CancellationException("Cancelled") },
                     simulate = { _, _, _, _, _ -> error("Must not simulate") },
                 )
-            }
-        }
-
-    @Test
-    fun `EXPECT missing, malformed, or mismatched signer boxes to be rejected WHEN reading via a channel hint`() =
-        runTest {
-            val invalidSigners =
-                listOf(
-                    byteArrayOf(),
-                    byteArrayOf(0),
-                    byteArrayOf(0, 0),
-                    byteArrayOf(0, 4, 1),
-                    encodeArc4DynamicBytes(signer),
-                    encodeArc4DynamicBytes(signer) + byteArrayOf(0),
-                    byteArrayOf(5, 6, 7, 8),
-                )
-            for (storedSigner in invalidSigners) {
-                var simulated = false
-                val result =
-                    HostViewerVaultReader.readChannel(
-                        ByteArray(32),
-                        viewer,
-                        creator,
-                        signer,
-                        network,
-                        readBox = { _, key, _ -> if (key.size == 32) sessionBox() else storedSigner },
-                        simulate = { _, _, _, _, _ ->
-                            simulated = true
-                            tuple(1000, 0, 0)
-                        },
-                    )
-                assertTrue(result.isFailure)
-                assertFalse(simulated)
             }
         }
 

@@ -153,6 +153,70 @@ internal actual suspend fun submitAppCallInternal(
     return broadcastAndGetTxId(algodUrl, signedB64)
 }
 
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
+internal actual suspend fun submitPaymentsAndAppCallInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    algodUrl: String,
+    payments: List<Pair<String, Long>>,
+    appCallArgs: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): String {
+    require(payments.isNotEmpty() && payments.all { it.second >= 0L }) { "payments must be non-empty and >= 0" }
+    val params = fetchTxParams(algodUrl)
+    val payBytes =
+        payments.map { (receiver, amount) ->
+            bridge
+                .buildPaymentTxnWithSenderAddress(
+                    senderAddress = signer.address,
+                    receiverAddress = receiver,
+                    amountMicroAlgo = amount,
+                    fee = MIN_TXN_FEE,
+                    firstRound = params.firstRoundValid,
+                    lastRound = params.lastRoundValid,
+                    genesisHashBase64 = params.genesisHashBase64,
+                    genesisID = params.genesisID,
+                    noteBase64 = "",
+                ).also { check(it.length > 0UL) { "iOS: buildPaymentTxn returned empty" } }
+                .toKotlinByteArray()
+        }
+    val appCallBytes =
+        bridge
+            .buildAppCallTxnWithSenderAddress(
+                senderAddress = signer.address,
+                appId = appId,
+                appArgsBase64 = appCallArgs.map { Base64.encode(it) },
+                boxRefAppIds = boxKeys.map { it.first },
+                boxRefNamesBase64 = boxKeys.map { Base64.encode(it.second) },
+                foreignAssets = emptyList<Long>(),
+                foreignAccountAddresses = emptyList<String>(),
+                fee = APP_CALL_FEE,
+                firstRound = params.firstRoundValid,
+                lastRound = params.lastRoundValid,
+                genesisHashBase64 = params.genesisHashBase64,
+                genesisID = params.genesisID,
+                noteBase64 = null,
+            ).also { check(it.length > 0UL) { "iOS: buildAppCallTxn returned empty" } }
+            .toKotlinByteArray()
+    val realTxns = payBytes + appCallBytes
+
+    val allSignedBytes: ByteArray =
+        if (signer.signerType == MppWalletSignerType.FALCON_LSIG) {
+            // Same as the deposit flow: the Falcon bundle signer adds its own dummies and the group id.
+            val signedTxns = signer.signTransactionsBytes(realTxns)
+            if (signedTxns.isEmpty() || signedTxns.all { it.isEmpty() }) error("iOS: Falcon group bundle signing failed")
+            signedTxns.fold(ByteArray(0)) { acc, b -> acc + b }
+        } else {
+            val grouped = bridge.assignGroupIdsWithTxnsBase64(txnsBase64 = realTxns.map { Base64.encode(it) })
+            if (grouped.size != realTxns.size) error("iOS: assignGroupIds returned ${grouped.size} txns")
+            grouped
+                .map { signer.signTransactionBytes(Base64.decode(normalizeBase64(it.toString()))) }
+                .fold(ByteArray(0)) { acc, b -> acc + b }
+        }
+    return broadcastAndGetTxId(algodUrl, Base64.encode(allSignedBytes))
+}
+
+@OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
 internal actual suspend fun submitDepositAndAppCallsGroupInternal(
     signer: MppWalletSigner,
     appId: Long,
@@ -160,7 +224,56 @@ internal actual suspend fun submitDepositAndAppCallsGroupInternal(
     algodUrl: String,
     depositAmountMicroUsdc: Long,
     appCalls: List<GroupedAppCall>,
-): String = throw UnsupportedOperationException("The one-approval session setup group is only available on Android (Seed Vault).")
+): String {
+    require(depositAmountMicroUsdc > 0L) { "depositAmountMicroUsdc must be > 0" }
+    require(appCalls.isNotEmpty()) { "At least one app call is required" }
+    require(signer.signerType != MppWalletSignerType.FALCON_LSIG) {
+        "A one-approval setup group is for native signers; Falcon24 needs dummy padding transactions per call."
+    }
+    val params = fetchTxParams(algodUrl)
+    val axferBytes =
+        bridge
+            .buildAssetTransferToAppTxnWithSenderAddress(
+                senderAddress = signer.address,
+                appId = appId,
+                assetId = usdcAssetId,
+                amount = depositAmountMicroUsdc,
+                fee = MIN_TXN_FEE,
+                firstRound = params.firstRoundValid,
+                lastRound = params.lastRoundValid,
+                genesisHashBase64 = params.genesisHashBase64,
+                genesisID = params.genesisID,
+            ).also { check(it.length > 0UL) { "iOS: buildAssetTransferToAppTxn returned empty" } }
+            .toKotlinByteArray()
+    val callBytes =
+        appCalls.map { call ->
+            bridge
+                .buildAppCallTxnWithSenderAddress(
+                    senderAddress = signer.address,
+                    appId = appId,
+                    appArgsBase64 = call.args.map { Base64.encode(it) },
+                    boxRefAppIds = call.boxKeys.map { it.first },
+                    boxRefNamesBase64 = call.boxKeys.map { Base64.encode(it.second) },
+                    foreignAssets = call.foreignAssets,
+                    foreignAccountAddresses = emptyList<String>(),
+                    fee = APP_CALL_FEE,
+                    firstRound = params.firstRoundValid,
+                    lastRound = params.lastRoundValid,
+                    genesisHashBase64 = params.genesisHashBase64,
+                    genesisID = params.genesisID,
+                    noteBase64 = null,
+                ).also { check(it.length > 0UL) { "iOS: buildAppCallTxn returned empty" } }
+                .toKotlinByteArray()
+        }
+    val grouped =
+        bridge.assignGroupIdsWithTxnsBase64(txnsBase64 = (listOf(axferBytes) + callBytes).map { Base64.encode(it) })
+    if (grouped.size != callBytes.size + 1) error("iOS: assignGroupIds returned ${grouped.size} txns")
+    val signed =
+        grouped
+            .map { signer.signTransactionBytes(Base64.decode(normalizeBase64(it.toString()))) }
+            .fold(ByteArray(0)) { acc, b -> acc + b }
+    return broadcastAndGetTxId(algodUrl, Base64.encode(signed))
+}
 
 @OptIn(ExperimentalForeignApi::class, ExperimentalEncodingApi::class)
 internal actual suspend fun submitAssetTransferAndAppCallInternal(

@@ -163,6 +163,22 @@ object MppPayments {
         return EscrowSessionVaultHybridManagerClient.topUp(signer, channelId, additionalDepositMicroUsdc)
     }
 
+    /** Tops up and registers the settlement LogicSig in one atomic group, so a Seed Vault owner approves once. */
+    suspend fun topUpAndRegisterSession(
+        signer: MppWalletSigner,
+        additionalDepositMicroUsdc: Long,
+        payeeAddress: String = EscrowSessionVaultHybridManagerClient.hostAddress.orEmpty(),
+    ): Result<String> {
+        val channelId =
+            EscrowSessionVaultHybridManagerClient.channelId
+                ?: return Result.failure(Exception("channelId is null"))
+        if (payeeAddress.isBlank()) return Result.failure(IllegalStateException("payeeAddress is null/blank"))
+        return EscrowSessionVaultHybridManagerClient
+            .topUpAndRegisterSession(signer, channelId, payeeAddress, additionalDepositMicroUsdc)
+            .onSuccess { Napier.d("[TOP_UP_REGISTER_SESSION_OK] txId=$it", tag = TAG) }
+            .onFailure { Napier.e("[TOP_UP_REGISTER_SESSION_ERR]", it, tag = TAG) }
+    }
+
     suspend fun setAuthorizedSignerForSession(
         signer: MppWalletSigner,
         viewerAddress: String,

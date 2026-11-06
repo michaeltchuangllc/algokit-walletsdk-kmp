@@ -39,20 +39,19 @@ internal object SessionAuthorizationStatusReader {
                 val settled = HostViewerVaultReader.decodeAmount(box, 74)
                 require(settled <= total) { "Session settlement exceeds total deposit" }
                 val closeRequestedAt = HostViewerVaultReader.decodeAmount(box, 106)
-                val storedSigner = readBox(appId, "p".encodeToByteArray() + channel, algodUrl)
-                require(storedSigner == null || storedSigner.isNotEmpty()) { "Empty session signer box" }
                 val logicSig = decodeOptionalAddress(readBox(appId, "l".encodeToByteArray() + channel, algodUrl))
-                val payeeSigner = decodeOptionalAddress(readBox(appId, "e".encodeToByteArray() + channel, algodUrl))
+                // Channel-level override wins over the payee's account-level default (matches the contract).
+                val payeeSigner =
+                    decodeOptionalAddress(readBox(appId, "e".encodeToByteArray() + channel, algodUrl))
+                        ?: decodeOptionalAddress(readBox(appId, "d".encodeToByteArray() + payee, algodUrl))
                 val expectedLogicSig =
                     if (logicSig == null) null else compile(appId, algodUrl, channel, signerKey, payeeAddress)
                 currentCoroutineContext().ensureActive()
                 Result.success(
                     SessionAuthorizationStatus(
                         channelExists = true,
-                        viewerSignerAuthorized =
-                            storedSigner != null &&
-                                storedSigner.contentEquals(signerKey) &&
-                                box.copyOfRange(116, 148).contentEquals(sha512_256(signerKey)),
+                        // The full key is no longer stored on-chain; only its hash is, in the channel box.
+                        viewerSignerAuthorized = box.copyOfRange(116, 148).contentEquals(sha512_256(signerKey)),
                         settlementRegistered = logicSig != null && logicSig == expectedLogicSig,
                         hasSettlementLogicSig = logicSig != null,
                         authorizedPayeeSigner = payeeSigner,

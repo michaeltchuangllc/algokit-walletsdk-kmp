@@ -10,6 +10,7 @@ import com.michaeltchuang.walletsdk.core.solana.domain.GetSolanaSettlementFeePay
 import com.michaeltchuang.walletsdk.core.solana.domain.SolanaClusters
 import com.michaeltchuang.walletsdk.core.solana.domain.SubmitSolanaSettlementVoucherUseCase
 import com.michaeltchuang.walletsdk.core.solana.transaction.SolanaTransactionSigner
+import com.michaeltchuang.walletsdk.core.solana.transaction.asSolanaTransactionSigner
 import com.michaeltchuang.walletsdk.core.solana.utils.Base58
 import com.michaeltchuang.walletsdk.core.solana.utils.SolanaPda
 import kotlinx.coroutines.CancellationException
@@ -195,6 +196,63 @@ object SolanaStreamVault : KoinComponent {
             val state = findState(payer, payee, signer, network, channel) ?: return@result null
             manager.close(cluster, ownerSigner, state.address, feePayer = ownerSigner).getOrThrow()
         }
+
+    /**
+     * One-time owner approval at stream start: registers the payee's linked session key as the ACCOUNT-LEVEL payee
+     * signer, so every later viewer refund can be closed by that key without a Seed Vault prompt. The session key
+     * pays the PDA rent (returned to the payee on revoke). Returns null when it is already registered.
+     */
+    suspend fun ensureAccountPayeeSigner(
+        network: String,
+        payee: String,
+        ownerSigner: SolanaTransactionSigner,
+    ): Result<String?> =
+        result {
+            require(ownerSigner.address == payee) { "Only the payee can register its payee signer" }
+            val cluster = cluster(network)
+            val sessionKey = sessionKeySigner(payee)
+            if (manager.getAccountPayeeSigner(cluster, payee) == sessionKey.address) return@result null
+            manager.setAccountPayeeSigner(cluster, ownerSigner, sessionKey.address, rentPayer = sessionKey).getOrThrow()
+        }
+
+    /** True when the payee's session key is the effective payee signer for [channel] (best effort; false on error). */
+    suspend fun canCloseWithSessionKey(
+        network: String,
+        payer: String,
+        payee: String,
+        signer: ByteArray,
+        channel: ByteArray,
+    ): Boolean =
+        runCatching {
+            val state = findState(payer, payee, signer, network, channel) ?: return@runCatching false
+            val sessionKey = sessionKeySigner(payee)
+            val accountSigner = if (state.hasPayeeSigner) null else manager.getAccountPayeeSigner(cluster(network), payee)
+            sessionKey.address != payee && state.canClose(sessionKey.address, accountSigner)
+        }.getOrElse {
+            if (it is CancellationException) throw it
+            false
+        }
+
+    /**
+     * Payee-signer `close` with the payee's linked session key (no Seed Vault approval). The session key pays the
+     * fee and any payer token-account rent. Check [canCloseWithSessionKey] first. Null when already closed.
+     */
+    suspend fun closeChannelWithSessionKey(
+        network: String,
+        payer: String,
+        payee: String,
+        signer: ByteArray,
+        channel: ByteArray,
+    ): Result<String?> =
+        result {
+            val state = findState(payer, payee, signer, network, channel) ?: return@result null
+            val sessionKey = sessionKeySigner(payee)
+            manager.close(cluster(network), sessionKey, state.address, feePayer = sessionKey).getOrThrow()
+        }
+
+    private suspend fun sessionKeySigner(payee: String): SolanaTransactionSigner =
+        get<GetSolanaSessionSignerUseCase>()(payee)?.asSolanaTransactionSigner()
+            ?: error("No local Solana session key linked to $payee")
 
     private suspend fun localFeePayer(payee: String): String =
         get<GetSolanaSessionSignerUseCase>()(payee)?.address ?: error("No local Solana session key linked to $payee")
