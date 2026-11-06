@@ -33,6 +33,7 @@ private const val TAG = "AlgorandOps"
 private const val SETTLEMENT_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementLogicSig.teal"
 private const val PADDING_TEMPLATE_ASSET = "railmpp/EscrowSessionSettlementPaddingLogicSig.teal"
 private const val HTTP_TIMEOUT_MS = 15_000
+private const val MAX_GROUP_SIZE = 16
 
 // Shared fee/selector/box-prefix constants live in commonMain's AlgorandUtils.kt
 // (APP_CALL_FEE, MIN_TXN_FEE, DUMMIES_PER_REAL_TXN, FALCON_SIGNED_TRANSACTION_GROUP_FEE,
@@ -228,6 +229,42 @@ internal actual suspend fun submitAssetTransferAndAppCallInternal(
     require(if (needsFalcon24Dummies) signed.size >= txns.size else signed.size == txns.size) {
         "Unexpected signed group size: ${signed.size}, expected ${realTxns.size}"
     }
+    return broadcast(algodUrl, signed) ?: getTransactionId(txns.last())
+}
+
+internal actual suspend fun submitDepositAndAppCallsGroupInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    depositAmountMicroUsdc: Long,
+    appCalls: List<GroupedAppCall>,
+): String {
+    require(depositAmountMicroUsdc > 0L) { "depositAmountMicroUsdc must be > 0" }
+    require(appCalls.isNotEmpty()) { "At least one app call is required" }
+    require(signer.signerType != MppWalletSignerType.FALCON_LSIG) {
+        "A one-approval setup group is for native signers; Falcon24 needs dummy padding transactions per call."
+    }
+    BouncyCastleProviderSetup.ensure()
+    val params = fetchTxParams(algodUrl)
+    val axferTxn =
+        buildAssetTransferTxn(
+            sender = signer.address,
+            receiver = appIdToAlgorandAddress(appId),
+            assetId = usdcAssetId,
+            amount = depositAmountMicroUsdc,
+            fee = MIN_TXN_FEE,
+            params = params,
+        )
+    val callTxns =
+        appCalls.map { call ->
+            buildAppCallTxn(signer.address, appId, call.args, call.boxKeys, call.foreignAssets, emptyList(), APP_CALL_FEE, params)
+        }
+    val txns = groupTransactions(listOf(axferTxn) + callTxns)
+    require(txns.size <= MAX_GROUP_SIZE) { "An Algorand group holds at most $MAX_GROUP_SIZE transactions" }
+    Log.d(TAG, "[SETUP_GROUP_PRE_SIGN] sender=${signer.address} appId=$appId txCount=${txns.size} signerType=${signer.signerType}")
+    val signed = signTxnGroup(signer, txns)
+    require(signed.size == txns.size) { "Unexpected signed group size: ${signed.size}, expected ${txns.size}" }
     return broadcast(algodUrl, signed) ?: getTransactionId(txns.last())
 }
 

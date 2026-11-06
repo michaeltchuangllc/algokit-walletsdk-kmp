@@ -89,6 +89,27 @@ internal expect suspend fun submitAssetTransferAndAppCallInternal(
     depositAmountMicroUsdc: Long,
 ): String
 
+/** One app call of an atomic group: the ABI arguments and the box references it needs. */
+internal class GroupedAppCall(
+    val args: List<ByteArray>,
+    val boxKeys: List<Pair<Long, ByteArray>>,
+    val foreignAssets: List<Long> = emptyList(),
+)
+
+/**
+ * Builds the USDC deposit and then each of [appCalls] as one atomic group from [signer], signs the
+ * whole group in a single [MppWalletSigner.signTransactionsBytes] call (so a Seed Vault owner approves it
+ * once), and broadcasts it. Returns the id of the last transaction.
+ */
+internal expect suspend fun submitDepositAndAppCallsGroupInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    usdcAssetId: Long,
+    algodUrl: String,
+    depositAmountMicroUsdc: Long,
+    appCalls: List<GroupedAppCall>,
+): String
+
 /**
  * Compiles the channel-specific settlement LogicSig template and returns its resulting address,
  * without registering or funding it. [authorizedSignerPublicKey] must be the *payer's* ephemeral

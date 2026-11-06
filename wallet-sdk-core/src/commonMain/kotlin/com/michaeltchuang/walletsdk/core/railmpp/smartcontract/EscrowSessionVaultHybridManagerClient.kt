@@ -8,6 +8,7 @@ import com.michaeltchuang.walletsdk.core.network.domain.provideNodePreferenceRep
 import com.michaeltchuang.walletsdk.core.network.model.AlgorandNetwork
 import com.michaeltchuang.walletsdk.core.railmpp.data.repository.RailMppDataRepositoryImpl
 import com.michaeltchuang.walletsdk.core.railmpp.domain.repository.MppWalletSigner
+import com.michaeltchuang.walletsdk.core.railmpp.internal.GroupedAppCall
 import com.michaeltchuang.walletsdk.core.railmpp.internal.accountFundingShortfall
 import com.michaeltchuang.walletsdk.core.railmpp.internal.awaitConfirmationInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.compileSettlementLogicSigAddressInternal
@@ -22,6 +23,7 @@ import com.michaeltchuang.walletsdk.core.railmpp.internal.sha512_256
 import com.michaeltchuang.walletsdk.core.railmpp.internal.simulateReadonlyMethodInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAppCallInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitAssetTransferAndAppCallInternal
+import com.michaeltchuang.walletsdk.core.railmpp.internal.submitDepositAndAppCallsGroupInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitLogicSigSettlementInternal
 import com.michaeltchuang.walletsdk.core.railmpp.internal.submitPaymentInternal
 import com.michaeltchuang.walletsdk.core.railmpp.utils.RailMppConstants
@@ -152,6 +154,85 @@ object EscrowSessionVaultHybridManagerClient {
                     ),
                 appCallForeignAssets = listOf(usdcAssetId),
                 depositAmountMicroUsdc = depositMicroUsdc,
+            )
+        }
+
+    /**
+     * The payer's whole session setup as one atomic group, so a Seed Vault owner approves once:
+     * USDC deposit, [open][ABI_OPEN], authorize the session signing key, and register the settlement LogicSig.
+     * The same four steps as [openAndDeposit], [setAuthorizedPayerSigner] and [registerSettlementLogicSig] done separately.
+     */
+    suspend fun openAndAuthorizeSession(
+        signer: MppWalletSigner,
+        payerAddress: String = signer.address,
+        depositMicroUsdc: Long,
+        channelId: ByteArray? = this.channelId,
+    ): Result<String> =
+        runCatching {
+            require(payerAddress == signer.address) { "payerAddress must match signer.address for session setup" }
+            val payee = requireNotNull(hostAddress) { "hostAddress is null. hostAddress is required for session setup" }
+            val resolvedChannelId = channelId ?: error("channelId is null")
+            val salt = salt ?: defaultSalt ?: error("salt is null")
+            val signerPublicKey = signer.authorizedSignerPublicKey
+            val logicSigAddress =
+                compileSettlementLogicSigAddressInternal(
+                    appId = appId,
+                    algodUrl = algodUrl,
+                    channelId = resolvedChannelId,
+                    authorizedSignerPublicKey = signerPublicKey,
+                    payeeAddress = payee,
+                )
+            submitDepositAndAppCallsGroupInternal(
+                signer = signer,
+                appId = appId,
+                usdcAssetId = usdcAssetId,
+                algodUrl = algodUrl,
+                depositAmountMicroUsdc = depositMicroUsdc,
+                appCalls =
+                    listOf(
+                        GroupedAppCall(
+                            args =
+                                listOf(
+                                    ABI_OPEN,
+                                    decodeAlgorandAddressPublicKey(payee),
+                                    encodeArc4DynamicBytes(salt),
+                                    encodeArc4DynamicBytes(computeSignerPubkeyHash(signerPublicKey)),
+                                    encodeArc4DynamicBytes(signerPublicKey),
+                                ),
+                            boxKeys =
+                                listOf(
+                                    Pair(appId, resolvedChannelId),
+                                    Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + resolvedChannelId),
+                                ),
+                            foreignAssets = listOf(usdcAssetId),
+                        ),
+                        GroupedAppCall(
+                            args =
+                                listOf(
+                                    ABI_SET_AUTHORIZED_PAYER_SIGNER,
+                                    encodeArc4DynamicBytes(resolvedChannelId),
+                                    encodeArc4DynamicBytes(signerPublicKey),
+                                ),
+                            boxKeys =
+                                listOf(
+                                    Pair(appId, resolvedChannelId),
+                                    Pair(appId, AUTHORIZED_SIGNER_PUBLIC_KEY_BOX_PREFIX + resolvedChannelId),
+                                ),
+                        ),
+                        GroupedAppCall(
+                            args =
+                                listOf(
+                                    ABI_SET_SETTLEMENT_LOGIC_SIG,
+                                    encodeArc4DynamicBytes(resolvedChannelId),
+                                    decodeAlgorandAddressPublicKey(logicSigAddress),
+                                ),
+                            boxKeys =
+                                listOf(
+                                    Pair(appId, resolvedChannelId),
+                                    Pair(appId, SETTLEMENT_LOGIC_SIG_BOX_PREFIX + resolvedChannelId),
+                                ),
+                        ),
+                    ),
             )
         }
 

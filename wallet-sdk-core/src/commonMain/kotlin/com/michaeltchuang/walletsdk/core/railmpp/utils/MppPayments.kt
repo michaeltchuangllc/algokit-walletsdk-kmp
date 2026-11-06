@@ -131,6 +131,28 @@ object MppPayments {
         )
     }
 
+    /**
+     * Opens the channel, authorizes the session signing key and registers the settlement LogicSig in one
+     * atomic group. A Seed Vault owner approves it once instead of once per step.
+     */
+    suspend fun openAndAuthorizeSession(
+        signer: MppWalletSigner,
+        viewerAddress: String,
+        depositAmountMicroUsdc: Long = DEPOSIT_MICRO_USDC_LONG,
+        channelId: ByteArray? = EscrowSessionVaultHybridManagerClient.channelId,
+    ): Result<String> {
+        require(viewerAddress.isNotBlank()) { "viewerAddress is required" }
+        require(signer.address == viewerAddress) { "Session setup signer must match viewerAddress" }
+        return EscrowSessionVaultHybridManagerClient
+            .openAndAuthorizeSession(
+                signer = signer,
+                payerAddress = viewerAddress,
+                depositMicroUsdc = depositAmountMicroUsdc,
+                channelId = channelId,
+            ).onSuccess { Napier.d("[OPEN_AUTHORIZE_SESSION_OK] viewer=$viewerAddress txId=$it", tag = TAG) }
+            .onFailure { Napier.e("[OPEN_AUTHORIZE_SESSION_ERR] viewer=$viewerAddress", it, tag = TAG) }
+    }
+
     suspend fun topUpSessionVault(
         signer: MppWalletSigner,
         additionalDepositMicroUsdc: Long,

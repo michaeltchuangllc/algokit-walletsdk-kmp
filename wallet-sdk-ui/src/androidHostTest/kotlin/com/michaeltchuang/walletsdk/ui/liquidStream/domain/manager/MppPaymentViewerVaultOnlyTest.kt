@@ -59,7 +59,7 @@ class MppPaymentViewerVaultOnlyTest {
             val oldSalt = EscrowSessionVaultHybridManagerClient.salt
             val oldHost = EscrowSessionVaultHybridManagerClient.hostAddress
             val balanceReader = mockk<GetRemainingSessionVaultBalanceUseCase>()
-            val manager = MppPaymentViewerManager(balanceReader)
+            val manager = MppPaymentViewerManager(balanceReader, { _, _, _ -> Result.failure(IllegalStateException("offline")) })
             mockkObject(MppPayments)
             try {
                 val channel = ByteArray(32) { 9 }
@@ -272,7 +272,7 @@ class MppPaymentViewerVaultOnlyTest {
             val oldSalt = EscrowSessionVaultHybridManagerClient.salt
             val oldHost = EscrowSessionVaultHybridManagerClient.hostAddress
             val balanceReader = mockk<GetRemainingSessionVaultBalanceUseCase>()
-            val manager = MppPaymentViewerManager(balanceReader)
+            val manager = MppPaymentViewerManager(balanceReader, { _, _, _ -> Result.failure(IllegalStateException("offline")) })
             mockkObject(MppPayments)
             try {
                 val channel = ByteArray(32) { 9 }
