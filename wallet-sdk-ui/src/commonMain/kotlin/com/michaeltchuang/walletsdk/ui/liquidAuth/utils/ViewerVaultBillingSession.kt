@@ -16,6 +16,8 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.TimeoutCancellationException
@@ -75,6 +77,13 @@ internal class ViewerVaultBillingSession(
             voucher: Voucher,
             creatorWalletSigner: MppWalletSigner,
         ): Result<Unit>
+
+        /** The payee delegate that may `close` this channel (channel override, else account level), or null. */
+        suspend fun effectivePayeeSigner(
+            creatorAddress: String,
+            channelId: ByteArray,
+            network: String,
+        ): String? = null
     }
 
     private object CoreAdapter : Adapter {
@@ -88,6 +97,19 @@ internal class ViewerVaultBillingSession(
                 cumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
                 network = voucher.network,
             )
+
+        override suspend fun effectivePayeeSigner(
+            creatorAddress: String,
+            channelId: ByteArray,
+            network: String,
+        ): String? {
+            val config = HostViewerVaultReader.networkConfig(network)
+            return withContext(Dispatchers.IO) {
+                EscrowSessionVaultHybridManagerClient
+                    .getAuthorizedPayeeSigner(creatorAddress, channelId, config.appId, config.algodUrl)
+                    .getOrNull()
+            }
+        }
 
         override suspend fun settle(
             voucher: Voucher,
@@ -558,12 +580,20 @@ internal class ViewerVaultBillingSession(
                 latest?.channelId?.copyOf() ?: knownChannelId?.copyOf()
             } ?: return
         try {
-            val signer = buildCreatorRefundSigner(creatorAddress)
+            // The creator approved their session key as account-level payee signer once at stream start, so a
+            // viewer leaving closes with that key and needs no further Seed Vault approval.
+            val sessionSigner = buildCreatorWalletSigner(creatorAddress)?.takeIf { it.address != creatorAddress }
+            val delegated =
+                sessionSigner != null &&
+                    adapter.effectivePayeeSigner(creatorAddress, channelId, network) == sessionSigner.address
+            val signer = if (delegated) sessionSigner else buildCreatorRefundSigner(creatorAddress)
             if (signer == null) {
                 report(IllegalStateException("Skipping session vault close: signer unavailable for $creatorAddress"))
                 return
             }
-            require(signer.address == creatorAddress) { "Seed Vault owner approval is required to refund the viewer." }
+            if (!delegated) {
+                require(signer.address == creatorAddress) { "Seed Vault owner approval is required to refund the viewer." }
+            }
             val config = HostViewerVaultReader.networkConfig(network)
             EscrowSessionVaultHybridManagerClient
                 .close(signer, channelId, config.appId, config.assetId, config.algodUrl)
@@ -587,6 +617,18 @@ internal class ViewerVaultBillingSession(
      * deposit stays put and the viewer's requestClose/withdraw escape hatch still applies.
      */
     private suspend fun refundSolanaVault() {
+        // The creator registered their session key as account-level payee signer at stream start: close with it.
+        val channelAddress = SolanaStreamVault.deriveChannel(viewerAddress, creatorAddress, key, network)
+        if (SolanaStreamVault.canCloseWithSessionKey(network, viewerAddress, creatorAddress, key, channelAddress)) {
+            SolanaStreamVault
+                .closeChannelWithSessionKey(network, viewerAddress, creatorAddress, key, channelAddress)
+                .onSuccess { txId -> Napier.d("Solana vault closed (delegated refund) for $sessionId. txId=$txId", tag = "LS_VAULT_DEBUG") }
+                .onFailure { error ->
+                    Napier.e("Failed to close Solana vault (delegated refund) for $sessionId", error)
+                    report(error)
+                }
+            return
+        }
         val sign = getSolanaOwnerSigner()
         if (sign == null) {
             Napier.w(

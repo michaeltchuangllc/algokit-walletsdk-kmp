@@ -201,33 +201,34 @@ class EscrowSessionVaultDebugViewModel(
         }
     }
 
-    fun authorizePayeeSigner(sign: SignAlgorandSeedVaultTransaction) {
-        runSignerAction("Authorize creator payee signer", true, sign) { signer, channelId ->
+    /**
+     * Registers the creator hot wallet as payee signer. [accountLevel] true covers every channel where the
+     * creator is the payee (one approval); false covers only the current channel and overrides the account level.
+     * The box MBR is paid in the same group, so no separate funding step is needed.
+     */
+    fun authorizePayeeSigner(
+        sign: SignAlgorandSeedVaultTransaction,
+        accountLevel: Boolean,
+    ) {
+        val scope = if (accountLevel) "account-level" else "channel-level"
+        runSignerAction("Authorize creator payee signer ($scope)", true, sign) { signer, channelId ->
             val hotSigner = getHotSigner(contentState().creatorAddress)
             updateContent { it.copy(creatorPayeeSigner = hotSigner.address) }
-            EscrowSessionVaultHybridManagerClient.setAuthorizedPayeeSigner(signer, channelId, hotSigner.address).getOrThrow()
+            EscrowSessionVaultHybridManagerClient
+                .setAuthorizedPayeeSigner(signer, hotSigner.address, if (accountLevel) null else channelId)
+                .getOrThrow()
         }
     }
 
-    fun fundPayeeSignerBox(sign: SignAlgorandSeedVaultTransaction) {
-        runSignerAction("Fund creator payee signer box", true, sign) { signer, channelId ->
-            val registered = EscrowSessionVaultHybridManagerClient.getAuthorizedPayeeSigner(channelId).getOrThrow()
-            if (registered == null) {
-                EscrowSessionVaultHybridManagerClient
-                    .ensureAccountMinimumBalance(
-                        signer,
-                        getSessionVaultContextUseCase().appAddress,
-                        EscrowSessionVaultHybridManagerClient.PAYEE_SIGNER_BOX_MBR_MICRO_ALGO,
-                    ).getOrThrow()
-            } else {
-                null
-            }
-        }
-    }
-
-    fun revokePayeeSigner(sign: SignAlgorandSeedVaultTransaction) {
-        runSignerAction("Revoke creator payee signer", true, sign) { signer, channelId ->
-            EscrowSessionVaultHybridManagerClient.revokeAuthorizedPayeeSigner(signer, channelId).getOrThrow()
+    fun revokePayeeSigner(
+        sign: SignAlgorandSeedVaultTransaction,
+        accountLevel: Boolean,
+    ) {
+        val scope = if (accountLevel) "account-level" else "channel-level"
+        runSignerAction("Revoke creator payee signer ($scope)", true, sign) { signer, channelId ->
+            EscrowSessionVaultHybridManagerClient
+                .revokeAuthorizedPayeeSigner(signer, if (accountLevel) null else channelId)
+                .getOrThrow()
         }
     }
 
@@ -261,7 +262,11 @@ class EscrowSessionVaultDebugViewModel(
 
     fun closeWithPayeeSigner() {
         runSignerAction("Close & refund via creator payee signer", true, null, hotWallet = true) { signer, channelId ->
-            val registered = EscrowSessionVaultHybridManagerClient.getAuthorizedPayeeSigner(channelId).getOrThrow()
+            // Effective signer for this channel: channel-level override, else the creator's account-level default.
+            val registered =
+                EscrowSessionVaultHybridManagerClient
+                    .getAuthorizedPayeeSigner(contentState().creatorAddress, channelId)
+                    .getOrThrow()
             check(registered == signer.address) { "Authorize the creator hot wallet as payee signer first." }
             val txId = EscrowSessionVaultHybridManagerClient.close(signer, channelId).getOrThrow()
             EscrowSessionVaultHybridManagerClient.awaitTransactionConfirmed(txId).getOrThrow()

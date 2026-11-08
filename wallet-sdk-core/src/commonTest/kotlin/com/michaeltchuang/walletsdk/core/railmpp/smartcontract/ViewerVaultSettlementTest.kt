@@ -73,7 +73,7 @@ class ViewerVaultSettlementTest {
             for (config in configs) {
                 val fake = Fake(config)
                 assertEquals("fake-tx", fake.settle(cumulativeAmount = 1_000).getOrThrow())
-                assertEquals(2, fake.boxReads)
+                assertEquals(1, fake.boxReads)
                 assertEquals(1, fake.simulations)
                 assertEquals(1, fake.signatureChecks)
                 assertEquals(1, fake.submissions)
@@ -111,7 +111,7 @@ class ViewerVaultSettlementTest {
                     sig,
                     amount,
                     network,
-                    readBox = { _, boxKey, _ -> if (boxKey.size == 32) sessionBox() else key },
+                    readBox = { _, _, _ -> sessionBox() },
                     simulate = { _, _, _, _, _ -> tuple(1_000, 300, 500) },
                     validateSignature = { signer, app, asset, url, id, cumulative, signatureBytes, publicKey, payee ->
                         checks++
@@ -167,7 +167,7 @@ class ViewerVaultSettlementTest {
                 HostViewerVaultReader.Snapshot(700, 300, 500, 1_000, startRound = 0),
                 fake.api.readSnapshot(viewer, creator, key, channel, network).getOrThrow(),
             )
-            assertEquals(2, fake.boxReads)
+            assertEquals(1, fake.boxReads)
             assertEquals(1, fake.simulations)
             assertEquals(0, fake.submissions)
             assertEquals(0, fake.signatureChecks)
@@ -242,7 +242,7 @@ class ViewerVaultSettlementTest {
             val api =
                 ViewerVaultSettlement(
                     funder,
-                    readBox = { _, boxKey, _ -> if (boxKey.size == 32) sessionBox() else key },
+                    readBox = { _, _, _ -> sessionBox() },
                     simulate = { _, _, _, _, _ -> tuple(1_000, 300, 500) },
                     validateSignature = { signer, app, asset, url, id, amount, sig, publicKey, payee ->
                         assertSame(funder, signer)
@@ -293,12 +293,6 @@ class ViewerVaultSettlementTest {
                 )
             for (box in invalidBoxes) {
                 val fake = Fake().also { it.box = box }
-                assertTrue(fake.settle().isFailure)
-                assertEquals(0, fake.submissions)
-                assertEquals(0, fake.simulations)
-            }
-            for (storedKey in listOf(byteArrayOf(), byteArrayOf(1), encodeArc4DynamicBytes(key))) {
-                val fake = Fake().also { it.storedKey = storedKey }
                 assertTrue(fake.settle().isFailure)
                 assertEquals(0, fake.submissions)
                 assertEquals(0, fake.simulations)
@@ -497,7 +491,6 @@ class ViewerVaultSettlementTest {
             ),
     ) {
         var box = sessionBox()
-        var storedKey = key.copyOf()
         var dynamicData: ByteArray? = tuple(1_000, 300, 500)
         var boxReads = 0
         var simulations = 0
@@ -519,7 +512,6 @@ class ViewerVaultSettlementTest {
                     readFailure?.let { throw it }
                     when {
                         boxKey.contentEquals(channel) -> box
-                        boxKey.contentEquals("p".encodeToByteArray() + channel) -> storedKey
                         else -> error("Channel does not exist")
                     }
                 },

@@ -131,13 +131,17 @@ internal fun SolanaEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
         )
         VaultAction("Authorize viewer voucher signer (on-chain)", hasChannel) { viewModel.authorizeSigner(sign) }
         VaultAction("Revoke viewer voucher signer", hasChannel) { viewModel.revokeSigner(sign) }
-        VaultAction("Authorize creator payee signer (on-chain)", hasChannel) { viewModel.authorizePayeeSigner(sign) }
-        VaultAction("Revoke creator payee signer", hasChannel) { viewModel.revokePayeeSigner(sign) }
+        VaultAction("Authorize creator payee signer - account level (all channels)", hasChannel) {
+            viewModel.authorizeAccountPayeeSigner(sign)
+        }
+        VaultAction("Revoke creator payee signer - account level", hasChannel) { viewModel.revokeAccountPayeeSigner(sign) }
+        VaultAction("Authorize creator payee signer - this channel only", hasChannel) { viewModel.authorizePayeeSigner(sign) }
+        VaultAction("Revoke creator payee signer - this channel only", hasChannel) { viewModel.revokePayeeSigner(sign) }
         VaultAction("Fund creator fee payer 0.01 SOL · creator", hasChannel) { viewModel.fundFeePayer(sign) }
         VaultAction("Close & refund · creator", hasChannel) { viewModel.close(sign) }
         VaultAction(
             "Close & refund · creator payee signer (hot wallet)",
-            hasChannel && state.channel?.payeeSigner == state.payeeFeePayer,
+            hasChannel,
             viewModel::closeWithPayeeSigner,
         )
         VaultAction("Request close · viewer", hasChannel) { viewModel.requestClose(sign) }

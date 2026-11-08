@@ -3,20 +3,21 @@ package com.michaeltchuang.walletsdk.ui.settings.screens
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.Res
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.algorand_session_source
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.developer_settings
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_creator_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_creator_channel
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_authorize_viewer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_close_hot_wallet
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_creator_key
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_delegate_details
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_fund_creator
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_fund_payee_box
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_local_signer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_open_deposit
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_complete
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_no_channel
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_progress
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_refresh_status
-import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_creator
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_creator_account
+import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_creator_channel
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_revoke_viewer
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_authorized
 import algokit_walletsdk_kmp.wallet_sdk_ui.generated.resources.escrow_status_creator
@@ -70,6 +71,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
@@ -296,22 +298,28 @@ private fun AlgorandEscrowVaultDebugPanel(onBusyChanged: (Boolean) -> Unit) {
             onClick = { viewModel.revokeSigner(sign) },
         )
         AlgorandVaultAction(
-            localizedStringResource(Res.string.escrow_fund_payee_box),
-            canAct,
-            visible = content.hasChannel && content.authorization?.authorizedPayeeSigner == null,
-            onClick = { viewModel.fundPayeeSignerBox(sign) },
-        )
-        AlgorandVaultAction(
-            localizedStringResource(Res.string.escrow_authorize_creator),
+            localizedStringResource(Res.string.escrow_authorize_creator_account),
             canAct,
             visible = content.showAuthorizeCreator,
-            onClick = { viewModel.authorizePayeeSigner(sign) },
+            onClick = { viewModel.authorizePayeeSigner(sign, accountLevel = true) },
         )
         AlgorandVaultAction(
-            localizedStringResource(Res.string.escrow_revoke_creator),
+            localizedStringResource(Res.string.escrow_authorize_creator_channel),
+            canAct,
+            visible = content.showAuthorizeCreator,
+            onClick = { viewModel.authorizePayeeSigner(sign, accountLevel = false) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_revoke_creator_account),
             canAct,
             visible = content.showRevokeCreator,
-            onClick = { viewModel.revokePayeeSigner(sign) },
+            onClick = { viewModel.revokePayeeSigner(sign, accountLevel = true) },
+        )
+        AlgorandVaultAction(
+            localizedStringResource(Res.string.escrow_revoke_creator_channel),
+            canAct,
+            visible = content.showRevokeCreator,
+            onClick = { viewModel.revokePayeeSigner(sign, accountLevel = false) },
         )
         AlgorandVaultAction(
             localizedStringResource(Res.string.escrow_fund_creator),
@@ -438,7 +446,7 @@ private fun AlgorandVaultAction(
         enabled = enabled,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Text(label)
+        Text(label, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
     }
 }
 

@@ -8,6 +8,7 @@ declare_id!("EJkkvypbdeRWdFQuf8gm7K65xPsHTUtDsFxsKZceW71B");
 
 pub const WITHDRAW_DELAY_SECONDS: i64 = 888;
 pub const TOKEN_DECIMALS: u8 = 6;
+pub const PAYEE_SIGNER_PDA_PREFIX: &[u8] = b"payee_signer";
 
 #[cfg(feature = "mainnet")]
 pub const USDC_MINT: Pubkey = pubkey!("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
@@ -96,18 +97,46 @@ pub mod escrow_session_vault_solana_manager {
         Ok(())
     }
 
-    /// Payee-controlled: registers a delegate allowed to call `close` on the payee's
-    /// behalf (e.g. a hot key when the payee is a Seed Vault / biometric-gated wallet).
-    /// If unset, only the payee itself can close. The delegate cannot change or revoke itself.
+    /// Payee-controlled, CHANNEL-LEVEL: registers a delegate allowed to call `close` on
+    /// the payee's behalf for this channel only (e.g. a hot key when the payee is a Seed
+    /// Vault / biometric-gated wallet). Overrides the payee's account-level delegate for
+    /// this channel. If neither is set, only the payee itself can close. The delegate
+    /// cannot change or revoke itself.
     pub fn set_authorized_payee_signer(ctx: Context<ManagePayee>, payee_signer: Pubkey) -> Result<()> {
-        require!(payee_signer != Pubkey::default(), VaultError::InvalidPayeeSigner);
+        require!(
+            payee_signer != Pubkey::default() && payee_signer != ctx.accounts.payee.key(),
+            VaultError::InvalidPayeeSigner
+        );
         ctx.accounts.channel.payee_signer = payee_signer;
         Ok(())
     }
 
-    /// Payee-controlled: removes the delegate so only the payee can close.
+    /// Payee-controlled: removes the channel-level delegate; the channel falls back to the
+    /// payee's account-level delegate (if any), otherwise only the payee can close.
     pub fn revoke_authorized_payee_signer(ctx: Context<ManagePayee>) -> Result<()> {
         ctx.accounts.channel.payee_signer = Pubkey::default();
+        Ok(())
+    }
+
+    /// Payee-controlled, ACCOUNT-LEVEL: registers a default delegate allowed to call
+    /// `close` for every channel (current and future) where the signer is the payee, so
+    /// a Seed Vault payee signs once instead of per channel. Stored in a PDA at
+    /// [b"payee_signer", payee]; `rent_payer` funds it (often the payee itself) and the
+    /// rent is returned to the payee on revoke. Replacing an existing delegate is allowed.
+    pub fn set_account_payee_signer(ctx: Context<SetAccountPayeeSigner>, payee_signer: Pubkey) -> Result<()> {
+        require!(
+            payee_signer != Pubkey::default() && payee_signer != ctx.accounts.payee.key(),
+            VaultError::InvalidPayeeSigner
+        );
+        let config = &mut ctx.accounts.payee_signer_config;
+        config.payee = ctx.accounts.payee.key();
+        config.signer = payee_signer;
+        config.bump = ctx.bumps.payee_signer_config;
+        Ok(())
+    }
+
+    /// Payee-controlled: removes the account-level delegate and returns its rent to the payee.
+    pub fn revoke_account_payee_signer(_ctx: Context<RevokeAccountPayeeSigner>) -> Result<()> {
         Ok(())
     }
 
@@ -159,11 +188,20 @@ pub mod escrow_session_vault_solana_manager {
         Ok(())
     }
 
-    /// Payee, or the payee's registered `payee_signer`, closes the channel.
+    /// Payee, or the payee's effective delegate, closes the channel. The effective delegate
+    /// is the channel-level `payee_signer` if set, otherwise the payee's account-level
+    /// delegate (pass its PDA as `payee_signer_config`; omit it when unused).
     pub fn close(ctx: Context<Finalize>) -> Result<()> {
         let caller = ctx.accounts.caller.key();
         let channel = &ctx.accounts.channel;
-        let is_payee_signer = channel.payee_signer != Pubkey::default() && caller == channel.payee_signer;
+        let effective_signer = if channel.payee_signer != Pubkey::default() {
+            channel.payee_signer
+        } else if let Some(config) = &ctx.accounts.payee_signer_config {
+            config.signer
+        } else {
+            Pubkey::default()
+        };
+        let is_payee_signer = effective_signer != Pubkey::default() && caller == effective_signer;
         require!(
             caller == channel.payee || is_payee_signer,
             VaultError::UnauthorizedPayee
@@ -281,6 +319,36 @@ pub struct ManagePayee<'info> {
 }
 
 #[derive(Accounts)]
+pub struct SetAccountPayeeSigner<'info> {
+    #[account(
+        init_if_needed,
+        payer = rent_payer,
+        space = 8 + PayeeSignerConfig::INIT_SPACE,
+        seeds = [PAYEE_SIGNER_PDA_PREFIX, payee.key().as_ref()],
+        bump
+    )]
+    pub payee_signer_config: Account<'info, PayeeSignerConfig>,
+    pub payee: Signer<'info>,
+    #[account(mut)]
+    pub rent_payer: Signer<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct RevokeAccountPayeeSigner<'info> {
+    #[account(
+        mut,
+        close = payee,
+        seeds = [PAYEE_SIGNER_PDA_PREFIX, payee.key().as_ref()],
+        bump = payee_signer_config.bump,
+        has_one = payee @ VaultError::UnauthorizedPayee
+    )]
+    pub payee_signer_config: Account<'info, PayeeSignerConfig>,
+    #[account(mut)]
+    pub payee: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct TopUp<'info> {
     #[account(
         mut,
@@ -339,6 +407,13 @@ pub struct Finalize<'info> {
     #[account(mut, associated_token::mint = mint, associated_token::authority = payer)]
     pub payer_token: Account<'info, TokenAccount>,
     pub token_program: Program<'info, Token>,
+    /// Optional: the channel payee's account-level delegate PDA, used by `close` only
+    /// when the channel has no channel-level `payee_signer`. Seeds pin it to the payee.
+    #[account(
+        seeds = [PAYEE_SIGNER_PDA_PREFIX, channel.payee.as_ref()],
+        bump = payee_signer_config.bump
+    )]
+    pub payee_signer_config: Option<Account<'info, PayeeSignerConfig>>,
 }
 
 #[account]
@@ -358,6 +433,15 @@ pub struct Channel {
     pub salt: [u8; 32],
     /// Optional payee-controlled close delegate; `Pubkey::default()` means none.
     pub payee_signer: Pubkey,
+}
+
+/// Account-level payee close delegate, PDA at [b"payee_signer", payee].
+#[account]
+#[derive(InitSpace)]
+pub struct PayeeSignerConfig {
+    pub payee: Pubkey,
+    pub signer: Pubkey,
+    pub bump: u8,
 }
 
 impl Channel {
@@ -399,6 +483,6 @@ pub enum VaultError {
     WithdrawalTooEarly,
     #[msg("Deposit must be greater than zero")]
     InvalidDeposit,
-    #[msg("Payee signer must be a nonzero public key")]
+    #[msg("Payee signer must be a nonzero public key different from the payee")]
     InvalidPayeeSigner,
 }

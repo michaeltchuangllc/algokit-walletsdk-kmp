@@ -52,9 +52,13 @@ import { EscrowSessionVaultHybridManagerClient } from '../artifacts/escrow_sessi
 
 const METHOD_SELECTOR = Uint8Array.from([0x43, 0x9c, 0x5f, 0xb1])
 const CHANNEL_BOX_PREFIX = new Uint8Array()
-const PUBLIC_KEY_BOX_PREFIX = new TextEncoder().encode('p')
 const LOGIC_SIG_BOX_PREFIX = new TextEncoder().encode('l')
-const PAYEE_SIGNER_BOX_PREFIX = new TextEncoder().encode('e')
+// Account-level payee-signer box: 'd' || payee address (one per payee, shared by all channels).
+const PAYEE_SIGNER_BOX_PREFIX = new TextEncoder().encode('d')
+// Channel-level payee-signer override box: 'e' || channelId.
+const CHANNEL_PAYEE_SIGNER_BOX_PREFIX = new TextEncoder().encode('e')
+// Empty channelId selects the account-level payee signer.
+const ACCOUNT_LEVEL = new Uint8Array()
 // MBR for the optional payee-signer box: 2,500 + 400 * (1 + 32 key bytes + 32 value bytes).
 const PAYEE_SIGNER_BOX_MBR_FUNDING = 28_500n
 const NATIVE_FALCON_FEE = 3_000n
@@ -68,8 +72,10 @@ const MIN_SETTLEMENT_LOGIC_SIG_FUNDING = microAlgo(
   100_000 + Number(LOGIC_SIG_SETTLEMENT_GROUP_FEE * SETTLEMENT_COUNT),
 )
 const MIN_PADDING_LOGIC_SIG_FUNDING = microAlgo(100_000)
-// MBR added by each new channel's session, 1,793-byte Falcon public-key, and LogicSig boxes.
-const CHANNEL_BOX_MBR_FUNDING = 835_900n
+// MBR added by each new channel's session box (2,500 + 400 * (32 + 148) = 74,500)
+// and LogicSig box (2,500 + 400 * (1 + 32 + 32) = 28,500). The Falcon public key is
+// compiled into the LogicSig, not stored in a box.
+const CHANNEL_BOX_MBR_FUNDING = 103_000n
 
 function required(name: string): string {
   const value = process.env[name]
@@ -229,12 +235,11 @@ async function main(): Promise<void> {
       deposit: { txn: deposit, signer: payer.txnSigner },
       salt,
       authorizedSigner,
-      authorizedSignerPublicKey: payer.publicKey,
     },
     sender: payer.address,
     signer: payer.txnSigner,
     staticFee: microAlgo(3_000),
-    boxReferences: [channelId, concat(PUBLIC_KEY_BOX_PREFIX, channelId)],
+    boxReferences: [channelId],
   })
   console.log('Opened channel and deposited USDC.')
 
@@ -470,14 +475,19 @@ async function main(): Promise<void> {
       const expectedPayerRefund = totalDeposit - latestVoucherAmount
       console.log(`Closing channel; expecting payer refund of ${expectedPayerRefund} USDC.`)
     }
-    const payeeSignerBox = concat(PAYEE_SIGNER_BOX_PREFIX, channelId)
+    const payeeSignerBox = concat(PAYEE_SIGNER_BOX_PREFIX, decodeAddress(payeeAddress).publicKey)
+    const channelPayeeSignerBox = concat(CHANNEL_PAYEE_SIGNER_BOX_PREFIX, channelId)
 
     // Delegated close (default on; TEST_PAYEE_SIGNER=false closes as the payee directly):
-    // the payee registers a delegate via setAuthorizedPayeeSigner and the delegate
-    // closes instead, e.g. a hot key for a Seed Vault payee that would otherwise need
-    // a fingerprint. Payouts still go to the payee. PAYEE_SIGNER_MNEMONIC (standard
-    // 25-word ed25519) selects the delegate; otherwise an ephemeral one is generated,
-    // funded by the payee, and closed back out to the payee afterwards.
+    // the payee registers an ACCOUNT-LEVEL delegate via setAuthorizedPayeeSigner (empty
+    // channelId) once, and that delegate can close every channel where this account is
+    // the payee, so a Seed Vault payee does not need a fingerprint per viewer channel.
+    // A CHANNEL-LEVEL delegate (non-empty channelId) overrides it for one channel; the
+    // test sets one, confirms it overrides, then revokes it to confirm fallback to the
+    // account-level delegate (TEST_CHANNEL_PAYEE_SIGNER=false skips). Payouts still go
+    // to the payee. PAYEE_SIGNER_MNEMONIC (standard 25-word ed25519) selects a persistent
+    // delegate that stays registered after the run; otherwise an ephemeral one is
+    // generated, funded by the payee, revoked (MBR refunded), and closed out afterwards.
     const payeeSignerMnemonic = process.env.PAYEE_SIGNER_MNEMONIC
     const payeeSigner = process.env.TEST_PAYEE_SIGNER === 'false'
       ? undefined
@@ -494,14 +504,37 @@ async function main(): Promise<void> {
       throw new Error(`Expected rejection but succeeded: ${label}`)
     }
 
-    if (payeeSigner) {
-      await algorand.send.payment({
+    // Empty channelId -> account-level entry; channelId -> signer effective for that channel.
+    async function getRegisteredPayeeSigner(forChannelId: Uint8Array = ACCOUNT_LEVEL): Promise<string | undefined> {
+      const result = await appClient.send.getAuthorizedPayeeSigner({
+        args: { payee: payeeAddress, channelId: forChannelId },
         sender: payee.address,
         signer: payee.txnSigner,
+        staticFee: microAlgo(3_000),
+        boxReferences: forChannelId.length ? [channelId, channelPayeeSignerBox, payeeSignerBox] : [payeeSignerBox],
+      })
+      return result.return
+    }
+
+    const closeBoxReferences = [
+      channelId,
+      concat(LOGIC_SIG_BOX_PREFIX, channelId),
+      payeeSignerBox,
+      channelPayeeSignerBox,
+    ]
+
+    // MBR payment grouped with setAuthorizedPayeeSigner; only the first registration
+    // must cover the box MBR, replacements can send 0.
+    async function payeeSignerMbrPayment(sender: Parameters<typeof algorand.createTransaction.payment>[0]['sender'], amount: bigint) {
+      return algorand.createTransaction.payment({
+        sender,
         receiver: appAddress,
-        amount: microAlgo(PAYEE_SIGNER_BOX_MBR_FUNDING),
+        amount: microAlgo(amount),
         staticFee: microAlgo(NATIVE_FALCON_FEE),
       })
+    }
+
+    if (payeeSigner) {
       if (ephemeralPayeeSigner) {
         // Min balance plus headroom for the 6,000 microAlgo close and one rejected attempt.
         await algorand.send.payment({
@@ -513,46 +546,99 @@ async function main(): Promise<void> {
         })
       }
 
-      // Only the payee controls the payee signer: payer must be rejected.
-      await expectRejected('payer cannot setAuthorizedPayeeSigner', () =>
-        appClient.send.setAuthorizedPayeeSigner({
-          args: { channelId, payeeSigner: payerAddress },
-          sender: payer.address,
-          signer: payer.txnSigner,
+      const existing = await getRegisteredPayeeSigner()
+      const alreadyRegistered = existing !== undefined && existing !== ALGORAND_ZERO_ADDRESS_STRING
+      const mbrAmount = alreadyRegistered ? 0n : PAYEE_SIGNER_BOX_MBR_FUNDING
+
+      if (existing === payeeSigner.addr.toString()) {
+        console.log(`Payee signer already registered at account level: ${payeeSigner.addr} (no fingerprint needed)`)
+      } else {
+        // One payee signature authorizes the delegate for all of this payee's channels.
+        await appClient.send.setAuthorizedPayeeSigner({
+          args: {
+            mbrPayment: { txn: await payeeSignerMbrPayment(payee.address, mbrAmount), signer: payee.txnSigner },
+            payeeSigner: payeeSigner.addr.toString(),
+            channelId: ACCOUNT_LEVEL,
+          },
+          sender: payee.address,
+          signer: payee.txnSigner,
           staticFee: microAlgo(3_000),
-          boxReferences: [channelId, payeeSignerBox],
-        }),
-      )
+          boxReferences: [payeeSignerBox],
+        })
+      }
 
-      await appClient.send.setAuthorizedPayeeSigner({
-        args: { channelId, payeeSigner: payeeSigner.addr.toString() },
-        sender: payee.address,
-        signer: payee.txnSigner,
-        staticFee: microAlgo(3_000),
-        boxReferences: [channelId, payeeSignerBox],
-      })
-
-      // The delegate may close but must not be able to re-delegate.
-      await expectRejected('payee signer cannot setAuthorizedPayeeSigner', () =>
+      // The delegate may close but must not be able to re-delegate. (It can only write
+      // its own account's entry, never the payee's, so it must not affect close.)
+      await expectRejected('payee signer cannot setAuthorizedPayeeSigner to itself', async () =>
         appClient.send.setAuthorizedPayeeSigner({
-          args: { channelId, payeeSigner: payerAddress },
+          args: {
+            mbrPayment: { txn: await payeeSignerMbrPayment(payeeSigner.addr.toString(), 0n), signer: payeeSigner.signer },
+            payeeSigner: payeeSigner.addr.toString(),
+            channelId: ACCOUNT_LEVEL,
+          },
           sender: payeeSigner.addr,
           signer: payeeSigner.signer,
           staticFee: microAlgo(1_000),
-          boxReferences: [channelId, payeeSignerBox],
+          boxReferences: [concat(PAYEE_SIGNER_BOX_PREFIX, payeeSigner.addr.publicKey)],
         }),
       )
-      const registered = await appClient.send.getAuthorizedPayeeSigner({
-        args: { channelId },
-        sender: payee.address,
-        signer: payee.txnSigner,
-        staticFee: microAlgo(3_000),
-        boxReferences: [channelId, payeeSignerBox],
-      })
-      if (registered.return !== payeeSigner.addr.toString()) {
-        throw new Error(`Payee signer registration mismatch: ${registered.return}`)
+
+      const registered = await getRegisteredPayeeSigner()
+      if (registered !== payeeSigner.addr.toString()) {
+        throw new Error(`Payee signer registration mismatch: ${registered}`)
       }
-      console.log(`Payee registered delegated close signer: ${payeeSigner.addr}`)
+      console.log(`Payee registered account-level delegated close signer: ${payeeSigner.addr}`)
+
+      if (process.env.TEST_CHANNEL_PAYEE_SIGNER !== 'false') {
+        // Channel-level override: a different delegate for this channel only. It never
+        // sends a transaction, so it needs no funding; the payee pays (and gets back) its MBR.
+        const channelOverride = algorand.account.random()
+        await appClient.send.setAuthorizedPayeeSigner({
+          args: {
+            mbrPayment: { txn: await payeeSignerMbrPayment(payee.address, PAYEE_SIGNER_BOX_MBR_FUNDING), signer: payee.txnSigner },
+            payeeSigner: channelOverride.addr.toString(),
+            channelId,
+          },
+          sender: payee.address,
+          signer: payee.txnSigner,
+          staticFee: microAlgo(3_000),
+          boxReferences: [channelId, channelPayeeSignerBox],
+        })
+        const effective = await getRegisteredPayeeSigner(channelId)
+        if (effective !== channelOverride.addr.toString()) {
+          throw new Error(`Channel-level override not effective: ${effective}`)
+        }
+        console.log(`Channel-level payee signer overrides account-level for this channel: ${channelOverride.addr}`)
+
+        // While the override is set, the account-level delegate must NOT be able to close this channel.
+        await expectRejected('account-level payee signer cannot close an overridden channel', () =>
+          appClient.send.close({
+            args: { channelId },
+            sender: payeeSigner.addr,
+            signer: payeeSigner.signer,
+            staticFee: microAlgo(6_000),
+            accountReferences: [payerAddress, payeeAddress],
+            assetReferences: [usdcAssetId],
+            boxReferences: closeBoxReferences,
+            coverAppCallInnerTransactionFees: true,
+            maxFee: microAlgo(6_000),
+          }),
+        )
+
+        // Revoking the override refunds its MBR and falls back to the account-level delegate.
+        await appClient.send.revokeAuthorizedPayeeSigner({
+          args: { channelId },
+          sender: payee.address,
+          signer: payee.txnSigner,
+          staticFee: microAlgo(4_000),
+          boxReferences: [channelId, channelPayeeSignerBox],
+        })
+        const fallback = await getRegisteredPayeeSigner(channelId)
+        if (fallback !== payeeSigner.addr.toString()) {
+          throw new Error(`Expected fallback to account-level payee signer, got: ${fallback}`)
+        }
+        console.log('Revoked channel-level override; channel falls back to account-level payee signer.')
+      }
     }
 
     const closer = payeeSigner
@@ -566,18 +652,32 @@ async function main(): Promise<void> {
       // The payout/refund inner-txns need the payee and payer accounts available to the app call.
       accountReferences: [payerAddress, payeeAddress],
       assetReferences: [usdcAssetId],
-      boxReferences: [
-        channelId,
-        concat(PUBLIC_KEY_BOX_PREFIX, channelId),
-        concat(LOGIC_SIG_BOX_PREFIX, channelId),
-        payeeSignerBox,
-      ],
+      boxReferences: closeBoxReferences,
       coverAppCallInnerTransactionFees: true,
       maxFee: microAlgo(6_000),
     })
     console.log(`Closed channel as ${closer.label}; remaining USDC was refunded to payer.`)
 
     if (payeeSigner && ephemeralPayeeSigner) {
+      // Only the payee can revoke; revoking refunds the box MBR to the payee.
+      await expectRejected('payer cannot revokeAuthorizedPayeeSigner for payee', () =>
+        appClient.send.revokeAuthorizedPayeeSigner({
+          args: { channelId: ACCOUNT_LEVEL },
+          sender: payer.address,
+          signer: payer.txnSigner,
+          staticFee: microAlgo(4_000),
+          boxReferences: [concat(PAYEE_SIGNER_BOX_PREFIX, decodeAddress(payerAddress).publicKey)],
+        }),
+      )
+      await appClient.send.revokeAuthorizedPayeeSigner({
+        args: { channelId: ACCOUNT_LEVEL },
+        sender: payee.address,
+        signer: payee.txnSigner,
+        staticFee: microAlgo(4_000),
+        boxReferences: [payeeSignerBox],
+      })
+      console.log('Revoked ephemeral account-level payee signer; box MBR refunded to payee.')
+
       await algorand.send.payment({
         sender: payeeSigner.addr,
         signer: payeeSigner.signer,

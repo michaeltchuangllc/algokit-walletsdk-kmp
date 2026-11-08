@@ -89,6 +89,21 @@ internal expect suspend fun submitAssetTransferAndAppCallInternal(
     depositAmountMicroUsdc: Long,
 ): String
 
+/**
+ * Builds, signs (via [signer]) and broadcasts ALGO payments (receiver address to micro-ALGO amount, in order)
+ * followed by an app call, as one atomic group. Used for methods that take a leading `pay` argument (e.g. the box
+ * MBR of `setAuthorizedPayeeSigner`, which must be the payment directly before the call), optionally together with
+ * other payments such as funding a session key. An amount may be 0 when nothing is owed.
+ */
+internal expect suspend fun submitPaymentsAndAppCallInternal(
+    signer: MppWalletSigner,
+    appId: Long,
+    algodUrl: String,
+    payments: List<Pair<String, Long>>,
+    appCallArgs: List<ByteArray>,
+    boxKeys: List<Pair<Long, ByteArray>>,
+): String
+
 /** One app call of an atomic group: the ABI arguments and the box references it needs. */
 internal class GroupedAppCall(
     val args: List<ByteArray>,
