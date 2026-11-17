@@ -329,8 +329,6 @@ actual fun AnswerScreenOverlay() {
                                 }
                             }
                     }
-
-                    else -> { /* other events */ }
                 }
             }
         }

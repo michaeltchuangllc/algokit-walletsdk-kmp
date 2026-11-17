@@ -39,12 +39,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
@@ -60,8 +60,10 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitSecondaryButton
+import com.michaeltchuang.walletsdk.ui.base.utils.setPlainText
 import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -107,7 +109,8 @@ private fun AlgorandSessionKeyContent(
     showSnackBar: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     val copied = localizedStringResource(Res.string.algorand_session_copied)
     Column(modifier.fillMaxSize().background(AlgoKitTheme.colors.background)) {
         AlgoKitTopBar(
@@ -148,7 +151,7 @@ private fun AlgorandSessionKeyContent(
                             text = state.address,
                             modifier =
                                 Modifier.clickable {
-                                    clipboard.setText(AnnotatedString(state.address))
+                                    clipboardScope.launch { clipboard.setPlainText(state.address) }
                                     showSnackBar(copied)
                                 },
                             color = AlgoKitTheme.colors.textMain,

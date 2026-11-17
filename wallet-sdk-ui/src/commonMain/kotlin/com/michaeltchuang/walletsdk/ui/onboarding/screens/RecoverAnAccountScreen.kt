@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -30,7 +31,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHigh
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun RecoverAnAccountScreen(

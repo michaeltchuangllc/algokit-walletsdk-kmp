@@ -2,24 +2,38 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
-	<key>CFBundleDisplayName</key>
-	<string>WalletSDK Demo</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
-	<!-- Camera permission (for QR code scanning) -->
-	<key>NSCameraUsageDescription</key>
-	<string>WalletSDK Demo needs camera access to scan QR codes and broadcast live streams.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>WalletSDK Demo needs microphone access to broadcast live stream audio.</string>
-	<!-- Photo library permission -->
-	<key>NSPhotoLibraryUsageDescription</key>
-	<string>WalletSDK Demo needs photo library access to save QR codes and transaction receipts.</string>
-	<!-- Allow checking if external FIDO apps are installed -->
+	<key>CFBundleDisplayName</key>
+	<string>WalletSDK Demo</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>fido</string>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>WalletSDK Demo needs camera access to scan QR codes and broadcast live streams.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>WalletSDK Demo needs microphone access to broadcast live stream audio.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>WalletSDK Demo needs photo library access to save QR codes and transaction receipts.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UIWindowSceneSessionRoleApplication</key>
+			<array>
+				<dict>
+					<key>UISceneConfigurationName</key>
+					<string>Default Configuration</string>
+					<key>UISceneDelegateClassName</key>
+					<string>$(PRODUCT_MODULE_NAME).SceneDelegate</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
 </dict>
 </plist>

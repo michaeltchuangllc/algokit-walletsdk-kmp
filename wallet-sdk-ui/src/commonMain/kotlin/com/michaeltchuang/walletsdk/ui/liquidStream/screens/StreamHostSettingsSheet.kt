@@ -30,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
@@ -46,7 +47,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsPay
 import com.michaeltchuang.walletsdk.ui.liquidStream.components.StreamSettingsTopSquareIconButton
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_BATCH_BLOCK_COUNT
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.PAYOUT_EVERY_256_BLOCKS_TAB_ID
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 private const val STREAM_COST_FREE_TAB_ID = "free"
 private const val STREAM_COST_PAID_TAB_ID = "paid"

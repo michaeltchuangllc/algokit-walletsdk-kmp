@@ -1,5 +1,7 @@
 import org.jetbrains.compose.ExperimentalComposeLibrary
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi
 
 plugins {
     alias(libs.plugins.multiplatform)
@@ -35,6 +37,12 @@ kotlin {
         target.binaries.framework {
             baseName = "sharedDemoApp"
             isStatic = true
+            binaryOption("bundleId", "com.michaeltchuang.walletsdk.demo.shared")
+            @OptIn(KotlinNativeCacheApi::class)
+            disableNativeCache(
+                DisableCacheInKotlinVersion.`2_4_0`,
+                "Xcode cannot open Kotlin/Native cache objects inside the static framework (see #209)",
+            )
         }
     }
 

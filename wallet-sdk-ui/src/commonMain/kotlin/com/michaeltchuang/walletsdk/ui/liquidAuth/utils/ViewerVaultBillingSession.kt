@@ -125,7 +125,7 @@ internal class ViewerVaultBillingSession(
                     cumulativeAmount = voucher.totalAmountClaimedMicroUsdc,
                     network = voucher.network,
                     note = voucher.note,
-                ).map { Unit }
+                ).map { }
     }
 
     class Voucher internal constructor(

@@ -38,6 +38,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitDarkColor
@@ -51,7 +52,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.utils.GiftAmountValidation
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.sanitizeGiftAmountInput
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.validateGiftAmount
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun StreamViewerGiftSupportModal(

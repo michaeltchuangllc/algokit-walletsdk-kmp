@@ -31,15 +31,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -57,11 +58,12 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
+import com.michaeltchuang.walletsdk.ui.base.utils.getPlainText
 import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.RecoverPassphraseViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +74,8 @@ fun RecoveryPhraseScreen(
     mnemonicString: String,
     snackBar: (message: String) -> Unit,
 ) {
-    val clipboardManager: ClipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     val viewModel: RecoverPassphraseViewModel = koinViewModel()
 
     val initialWordCount =
@@ -120,9 +123,11 @@ fun RecoveryPhraseScreen(
         mnemonicList = mnemonicList,
         onMnemonicChange = { newList -> mnemonicList = newList },
         onClipboardPaste = {
-            clipboardManager.getText()?.text?.let {
-                viewModel.onClipBoardPastedMnemonic(it) {
-                    mnemonicList = it.splitMnemonic()
+            clipboardScope.launch {
+                clipboard.getPlainText()?.let {
+                    viewModel.onClipBoardPastedMnemonic(it) {
+                        mnemonicList = it.splitMnemonic()
+                    }
                 }
             }
         },

@@ -367,7 +367,7 @@ fun signTxnWithAlgorandWallet(
                         transactionByteArray = txnBytes,
                     )
 
-                if (signedTxn == null || signedTxn.isEmpty()) {
+                if (signedTxn.isEmpty()) {
                     platform.Foundation.NSLog("❌ Algo25 transaction signing failed")
                     return null
                 }

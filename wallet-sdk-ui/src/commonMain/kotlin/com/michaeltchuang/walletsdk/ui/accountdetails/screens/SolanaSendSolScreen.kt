@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.solana.domain.SendSolanaSolUseCase
@@ -39,7 +40,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitBu
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.settings.utils.isSeedVaultTransactionSigningSupported
 import com.michaeltchuang.walletsdk.ui.settings.utils.rememberSeedVaultTransactionSigner
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 /** Sends SOL from a Seed Vault account; one Seed Vault approval per send. */

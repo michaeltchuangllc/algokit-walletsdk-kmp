@@ -70,8 +70,7 @@ class AddAssetViewModel(
         sendSignedTransactionUseCase.sendSignedTransaction(signedTransactionDetail).collect { result ->
             when (result) {
                 is DataResource.Success -> {
-                    val txId = result.data ?: extractTransactionId(signedTransactionDetail)
-                    eventDelegate.sendEvent(ViewEvent.AssetOptInSuccess(txId))
+                    eventDelegate.sendEvent(ViewEvent.AssetOptInSuccess(result.data))
                     restoreContentState()
                 }
                 is DataResource.Error -> {
@@ -86,14 +85,6 @@ class AddAssetViewModel(
             }
         }
     }
-
-    private fun extractTransactionId(signedTransactionDetail: SignedTransactionDetail): String =
-        when (signedTransactionDetail) {
-            is SignedTransactionDetail.AssetOperation.AssetAddition -> {
-                "${signedTransactionDetail.senderAccountAddress}_${signedTransactionDetail.assetId}"
-            }
-            else -> "unknown"
-        }
 
     fun fetchAssetDetail(id: String) {
         viewModelScope.launch {
@@ -112,7 +103,7 @@ class AddAssetViewModel(
                 }
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.Error -> {
                     stateDelegate.updateState {
-                        ViewState.Error(result.message ?: "Failed to fetch asset details")
+                        ViewState.Error(result.message)
                     }
                 }
                 is com.michaeltchuang.walletsdk.core.network.model.ApiResult.NetworkError -> {

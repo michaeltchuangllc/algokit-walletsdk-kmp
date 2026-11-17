@@ -13,8 +13,10 @@ import io.github.aakira.napier.Napier
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
+import kotlin.experimental.ExperimentalObjCName
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
+import kotlin.native.ObjCName
 
 /** Top-level helper for Liquid Stream MPP payment operations. */
 object MppPayments {
@@ -368,6 +370,12 @@ object MppPayments {
         val unclaimedVoucherAmount: Long get() = (latestVoucherAmount - lastSettled).coerceAtLeast(0L)
     }
 
+    @OptIn(ExperimentalObjCName::class)
+    @ObjCName(
+        name = "WalletSdkCoreMppPaymentsSessionProgressSnapshot",
+        swiftName = "Wallet_sdk_coreMppPaymentsSessionProgressSnapshot",
+        exact = true,
+    )
     data class SessionProgressSnapshot(
         val totalDepositMicroUsdc: Long,
         val remainingSettledMicroUsdc: Long,
