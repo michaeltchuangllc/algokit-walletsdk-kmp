@@ -104,6 +104,7 @@ enum class AlgoKitScreens {
     RECOVER_AN_ACCOUNT_SCREEN,
     FALCON_RECOVERY_MNEMONIC_TYPE_SCREEN,
     RECOVER_PHRASE_SCREEN,
+    FALCON25_RECOVER_PHRASE_SCREEN,
     RECOVER_REGISTERED_ACCOUNTS_SCREEN,
     SETTINGS_SCREEN,
     THEME_SCREEN,
@@ -220,6 +221,17 @@ fun NavigationBottomSheetNavHost(
 
     LaunchedEffect(navBackStackEntry) {
         onScreenChanged(currentScreen)
+    }
+
+    LaunchedEffect(navController) {
+        var hadEntries = false
+        navController.currentBackStack.collect { backStack ->
+            if (backStack.isNotEmpty()) {
+                hadEntries = true
+            } else if (hadEntries) {
+                closeSheet()
+            }
+        }
     }
 
     Scaffold(
@@ -410,6 +422,17 @@ fun NavigationBottomSheetNavHost(
                         navController = navController,
                         accountType = accountType,
                         mnemonicString = scannedMnemonic,
+                    ) { message ->
+                        coroutineScope.launch {
+                            snackbarHostState.showSnackbar(message)
+                        }
+                    }
+                }
+                composable(route = AlgoKitScreens.FALCON25_RECOVER_PHRASE_SCREEN.name) {
+                    RecoveryPhraseScreen(
+                        navController = navController,
+                        accountType = AccountMnemonic.AccountType.Falcon25,
+                        mnemonicString = "",
                     ) { message ->
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar(message)
