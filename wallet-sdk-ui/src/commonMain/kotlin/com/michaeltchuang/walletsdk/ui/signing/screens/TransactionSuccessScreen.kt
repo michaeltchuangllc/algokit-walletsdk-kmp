@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.final_class.webview_multiplatform_mobile.webview.WebViewPlatform
 import com.final_class.webview_multiplatform_mobile.webview.controller.rememberWebViewController
@@ -39,7 +40,6 @@ import com.michaeltchuang.walletsdk.ui.base.webview.openUrl
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.TransactionSuccessViewModel
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable

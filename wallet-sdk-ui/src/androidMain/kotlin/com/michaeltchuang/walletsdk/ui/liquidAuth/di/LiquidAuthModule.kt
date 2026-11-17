@@ -23,8 +23,8 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.domain.usecases.SetupMppPaym
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.EscrowSessionVaultDebugViewModel
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.SolanaEscrowVaultDebugViewModel
 import org.koin.android.ext.koin.androidContext
-import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val liquidAuthUIModule =

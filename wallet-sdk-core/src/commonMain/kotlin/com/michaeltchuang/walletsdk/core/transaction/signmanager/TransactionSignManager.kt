@@ -76,23 +76,23 @@ open class TransactionSignManager(
 
     private val signHelperListener =
         object : ListQueuingHelper.Listener<TransactionSignData, ByteArray> {
-            override fun onAllItemsDequeued(signedTransactions: List<ByteArray?>) {
-                if (signedTransactions.isEmpty() || signedTransactions.any { it == null }) {
+            override fun onAllItemsDequeued(dequeuedItemList: List<ByteArray?>) {
+                if (dequeuedItemList.isEmpty() || dequeuedItemList.any { it == null }) {
                     setSignFailed(
                         Defined(),
                     )
                     return
                 }
-                if (signedTransactions.size == 1) {
+                if (dequeuedItemList.size == 1) {
                     transactionDataList?.let {
                         postTxnSignResult(
-                            signedTransactions.firstOrNull(),
+                            dequeuedItemList.firstOrNull(),
                             it.firstOrNull(),
                         )
                     }
                 } else {
                     val safeSignedTransactions =
-                        signedTransactions.mapToNotNullableListOrNull { it }
+                        dequeuedItemList.mapToNotNullableListOrNull { it }
                     if (safeSignedTransactions == null) {
                         postResult(Defined())
                         return
@@ -102,13 +102,13 @@ open class TransactionSignManager(
             }
 
             override fun onNextItemToBeDequeued(
-                transaction: TransactionSignData,
+                item: TransactionSignData,
                 currentItemIndex: Int,
                 totalItemCount: Int,
             ) {
                 // TODO: add [currentItemIndex] and [totalItemCount] after merging this core swap screens
                 currentScope.launch {
-                    transaction.signTxn()
+                    item.signTxn()
                 }
             }
         }

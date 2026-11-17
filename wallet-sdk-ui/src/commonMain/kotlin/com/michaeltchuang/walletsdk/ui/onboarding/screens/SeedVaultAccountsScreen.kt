@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.text.toUpperCase
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -51,7 +52,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitHigh
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.text.AlgoKitTitleText
 import com.michaeltchuang.walletsdk.ui.onboarding.viewmodels.SeedVaultAccountsViewModel
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable

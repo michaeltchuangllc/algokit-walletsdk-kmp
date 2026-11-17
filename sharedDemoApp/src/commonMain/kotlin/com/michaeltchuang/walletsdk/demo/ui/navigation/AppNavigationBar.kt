@@ -57,7 +57,6 @@ fun AppNavigationBar(
                                 restoreState = true
                             }
                         }
-                        else -> { /* no-op */ }
                     }
                 },
                 colors =

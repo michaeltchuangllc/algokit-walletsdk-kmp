@@ -45,19 +45,19 @@ open class ExternalTransactionSignManager<TRANSACTION : ExternalTransaction>(
 
     private val signHelperListener =
         object : ListQueuingHelper.Listener<ExternalTransaction, ByteArray> {
-            override fun onAllItemsDequeued(signedTransactions: List<ByteArray?>) {
+            override fun onAllItemsDequeued(dequeuedItemList: List<ByteArray?>) {
                 transaction?.run {
-                    _signResultFlow.value = ExternalTransactionSignResult.Success(this, signedTransactions)
+                    _signResultFlow.value = ExternalTransactionSignResult.Success(this, dequeuedItemList)
                 }
             }
 
             override fun onNextItemToBeDequeued(
-                transaction: ExternalTransaction,
+                item: ExternalTransaction,
                 currentItemIndex: Int,
                 totalItemCount: Int,
             ) {
                 Napier.d("Signing transaction ${currentItemIndex + 1} of $totalItemCount", tag = "TxnSign")
-                transaction.signTransaction(
+                item.signTransaction(
                     currentTransactionIndex = currentItemIndex,
                     totalTransactionCount = totalItemCount,
                 )

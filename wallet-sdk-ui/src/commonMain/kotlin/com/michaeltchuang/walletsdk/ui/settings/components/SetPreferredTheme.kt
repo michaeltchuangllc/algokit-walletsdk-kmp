@@ -18,7 +18,7 @@ fun SetPreferredTheme() {
     val systemDark = isSystemInDarkTheme()
     val isDark = LocalThemeIsDark.current
     LaunchedEffect(currentThemePreference) {
-        currentThemePreference?.let {
+        currentThemePreference.let {
             when (it) {
                 ThemePreference.LIGHT -> {
                     isDark.value = false

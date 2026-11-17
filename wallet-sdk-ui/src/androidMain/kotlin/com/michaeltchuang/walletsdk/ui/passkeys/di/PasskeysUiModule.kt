@@ -13,8 +13,8 @@ import com.michaeltchuang.walletsdk.ui.passkeys.DefaultCreatePasskeyIntentValida
 import com.michaeltchuang.walletsdk.ui.passkeys.DefaultGetPasskeyIntentValidator
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.CreatePasskeyViewModel
 import com.michaeltchuang.walletsdk.ui.passkeys.viewmodel.GetPasskeyViewModel
-import org.koin.androidx.viewmodel.dsl.viewModel
 import org.koin.core.module.dsl.singleOf
+import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.bind
 import org.koin.dsl.module
 

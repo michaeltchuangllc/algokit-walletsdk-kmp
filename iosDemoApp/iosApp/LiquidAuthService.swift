@@ -552,7 +552,7 @@ public class LiquidAuthService {
                 }
             }
             
-            try await assertionApi.postAssertionResult(
+            _ = try await assertionApi.postAssertionResult(
                 origin: origin,
                 userAgent: userAgent,
                 credential: credentialString,
@@ -614,7 +614,7 @@ public class LiquidAuthService {
         
         // Get challenge from options (as base64url string from server)
         guard let challengeB64url = options["challenge"] as? String,
-              let challengeData = challengeB64url.base64urlToData() else {
+              challengeB64url.base64urlToData() != nil else {
             throw NSError(domain: "Invalid challenge", code: -1)
         }
         
@@ -677,7 +677,6 @@ public class LiquidAuthService {
             .replacingOccurrences(of: "http://", with: "")
         
         // Build clientDataJSON (matching WebAuthn spec for assertion)
-        let challengeB64 = challengeData.base64EncodedString()
         let clientData: [String: Any] = [
             "type": "webauthn.get",
             "challenge": originalChallengeString,

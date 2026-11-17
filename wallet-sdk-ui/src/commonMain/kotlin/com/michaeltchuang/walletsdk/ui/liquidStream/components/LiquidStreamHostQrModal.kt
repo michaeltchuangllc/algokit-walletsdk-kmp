@@ -41,13 +41,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -57,7 +57,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.AlgoKitTheme
 import com.michaeltchuang.walletsdk.ui.base.designsystem.theme.ColorPalette
+import com.michaeltchuang.walletsdk.ui.base.utils.setPlainText
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.Font
 import org.jetbrains.compose.resources.vectorResource
 import qrgenerator.qrkitpainter.rememberQrKitPainter
@@ -70,7 +72,8 @@ fun LiquidStreamHostQrModal(
     onDismiss: () -> Unit,
 ) {
     val qrPainter = rememberQrKitPainter(data = qrUrl)
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     var isCopied by remember { mutableStateOf(false) }
     val colors = AlgoKitTheme.colors
 
@@ -223,7 +226,7 @@ fun LiquidStreamHostQrModal(
                             .clip(CircleShape)
                             .border(1.5.dp, ColorPalette.ElectricBlue600, CircleShape)
                             .clickable {
-                                clipboardManager.setText(AnnotatedString(requestId))
+                                clipboardScope.launch { clipboard.setPlainText(requestId) }
                                 isCopied = true
                             }.padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,

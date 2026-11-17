@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
@@ -32,7 +33,6 @@ import com.michaeltchuang.walletsdk.ui.settings.components.SettingsItem
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.settings.viewmodels.DeveloperSettingsViewModel
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 private const val TAG = "DeveloperSettingsScreen"

@@ -17,8 +17,8 @@ import com.michaeltchuang.walletsdk.core.network.model.TransactionParams
 import com.michaeltchuang.walletsdk.core.transaction.model.OfflineKeyRegTransactionPayload
 import com.michaeltchuang.walletsdk.core.transaction.model.OnlineKeyRegTransactionPayload
 import io.github.aakira.napier.Napier
-import io.ktor.util.decodeBase64Bytes
 import io.ktor.utils.io.core.toByteArray
+import kotlinx.cinterop.BetaInteropApi
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.usePinned
@@ -49,7 +49,7 @@ actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): Suggested
         lastRoundValid = lastRound + ROUND_THRESHOLD,
         genesisHash =
             try {
-                genesisHash.decodeBase64Bytes()
+                lenientBase64.decode(genesisHash)
             } catch (e: Exception) {
                 println("Error decoding genesis hash: ${e.message}")
                 ByteArray(0)
@@ -60,7 +60,10 @@ actual fun TransactionParams.toSuggestedParams(addGenesisId: Boolean): Suggested
 @OptIn(ExperimentalForeignApi::class)
 private val bridge = spmAlgoApiBridge()
 
-@OptIn(ExperimentalForeignApi::class)
+@OptIn(ExperimentalEncodingApi::class)
+private val lenientBase64 = Base64.Default.withPadding(Base64.PaddingOption.PRESENT_OPTIONAL)
+
+@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
 fun ByteArray.toNSData(): NSData {
     if (this.isEmpty()) {
         return NSData()
@@ -71,7 +74,7 @@ fun ByteArray.toNSData(): NSData {
         NSData.create(
             bytes = pinned.addressOf(0),
             length = this.size.toULong(),
-        ) ?: NSData()
+        )
     }
 }
 
@@ -91,7 +94,7 @@ fun NSData.toByteArray(): ByteArray {
 
 private fun String.fromBase64ToByteArray(): ByteArray =
     try {
-        this.decodeBase64Bytes()
+        lenientBase64.decode(this)
     } catch (e: Exception) {
         ByteArray(0)
     }

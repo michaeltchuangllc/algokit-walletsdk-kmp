@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.plugin.mpp.DisableCacheInKotlinVersion
+import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeCacheApi
 plugins {
     alias(libs.plugins.multiplatform)
 
@@ -51,6 +53,10 @@ kotlin {
         }
     }
 
+    compilerOptions {
+        freeCompilerArgs.add("-Xexpect-actual-classes")
+    }
+
     listOf(
         iosArm64(),
         iosSimulatorArm64(),
@@ -65,6 +71,12 @@ kotlin {
         target.binaries.framework {
             baseName = "walletSDKUi"
             isStatic = true
+            binaryOption("bundleId", "com.michaeltchuang.walletsdk.ui")
+            @OptIn(KotlinNativeCacheApi::class)
+            disableNativeCache(
+                DisableCacheInKotlinVersion.`2_4_0`,
+                "Xcode cannot open Kotlin/Native cache objects inside the static framework (see #209)",
+            )
         }
     }
 

@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.michaeltchuang.walletsdk.core.foundation.utils.toAlgoCurrency
 import com.michaeltchuang.walletsdk.core.foundation.utils.toShortenedAddress
@@ -40,7 +41,6 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import org.jetbrains.compose.resources.stringResource
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 @Composable
 fun ConfirmTransferScreen(

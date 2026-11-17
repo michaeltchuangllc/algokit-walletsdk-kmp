@@ -6,8 +6,6 @@ import AVFoundation
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
-    var window: UIWindow?
-
     private var activeStreamingService: LiquidAuthService?
     private var broadcastVideoCapturer: RTCCameraVideoCapturer?
     private var broadcastMedia: SharedBroadcastMedia?
@@ -37,11 +35,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Register Liquid Auth callback for iOS
         registerLiquidAuthCallback()
         
-        window = UIWindow(frame: UIScreen.main.bounds)
-        if let window = window {
-            window.rootViewController = App_iosKt.MainViewController()
-            window.makeKeyAndVisible()
-        }
         return true
     }
     
@@ -167,8 +160,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                                     }
                                 ) {
                                     if SignalService.shared.primaryHostRequestId == requestId {
-                                        App_iosKt.setIosBroadcastPaymentSendHandler { message in
-                                            DispatchQueue.main.async { [weak paymentDC] in
+                                        App_iosKt.setIosBroadcastPaymentSendHandler { [weak paymentDC] message in
+                                            DispatchQueue.main.async {
                                                 guard let paymentDC, paymentDC.readyState == .open,
                                                       SignalService.shared.hostViewers[requestId] != nil else { return }
                                                 paymentDC.sendData(RTCDataBuffer(data: Data(message.utf8), isBinary: false))
@@ -424,7 +417,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         NSLog("      requestId isEmpty: \(requestId.isEmpty)")
         NSLog("      algoAddress: '\(algoAddress)'")
 
-        guard let rootViewController = window?.rootViewController else {
+        let keyWindow = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }
+        guard let rootViewController = keyWindow?.rootViewController else {
             NSLog("❌ Could not find root view controller")
             return
         }
@@ -476,5 +473,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         }
         
         return viewController
+    }
+}
+
+class SceneDelegate: UIResponder, UIWindowSceneDelegate {
+    var window: UIWindow?
+
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        guard let windowScene = scene as? UIWindowScene else { return }
+        let window = UIWindow(windowScene: windowScene)
+        window.rootViewController = App_iosKt.MainViewController()
+        window.makeKeyAndVisible()
+        self.window = window
     }
 }

@@ -40,8 +40,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,12 +61,12 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIcon
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.icon.AlgoKitIconRoundShape
 import com.michaeltchuang.walletsdk.ui.base.navigation.AlgoKitScreens
 import com.michaeltchuang.walletsdk.ui.base.utils.getAccountTypeResource
+import com.michaeltchuang.walletsdk.ui.base.utils.getPlainText
 import com.michaeltchuang.walletsdk.ui.settings.domain.localization.localizedStringResource
 import com.michaeltchuang.walletsdk.ui.signing.viewmodels.SelectReceiverViewModel
 import org.jetbrains.compose.resources.DrawableResource
 import org.jetbrains.compose.resources.painterResource
 import org.jetbrains.compose.resources.vectorResource
-import org.jetbrains.compose.ui.tooling.preview.Preview
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -80,12 +81,12 @@ fun SelectReceiverScreen(
     val viewModel: SelectReceiverViewModel = koinViewModel()
     val viewState by viewModel.state.collectAsStateWithLifecycle()
     val events = viewModel.viewEvent.collectAsStateWithLifecycle(initialValue = null)
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
 
     LaunchedEffect(senderAddress, chainId) {
         viewModel.setup(senderAddress = senderAddress, chainId = chainId)
         // Get clipboard text if available
-        clipboardManager.getText()?.text?.let { clipboardText ->
+        clipboard.getPlainText()?.let { clipboardText ->
             viewModel.setClipboardText(clipboardText)
         }
     }

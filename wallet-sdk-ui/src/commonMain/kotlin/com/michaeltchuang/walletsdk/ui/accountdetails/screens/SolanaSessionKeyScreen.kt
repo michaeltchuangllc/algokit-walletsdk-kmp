@@ -26,13 +26,14 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -46,7 +47,8 @@ import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.AlgoKitTopBar
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitButtonState
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitPrimaryButton
 import com.michaeltchuang.walletsdk.ui.base.designsystem.widget.button.AlgoKitSecondaryButton
-import org.jetbrains.compose.ui.tooling.preview.Preview
+import com.michaeltchuang.walletsdk.ui.base.utils.setPlainText
+import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -186,7 +188,8 @@ private fun SessionKeySection(
     onRegenerate: () -> Unit,
     onAddSol: () -> Unit,
 ) {
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     var confirmRegenerate by remember { mutableStateOf(false) }
     val hasFunds = balance?.hasFunds == true
     val hasStrayUsdc = (balance?.usdcBaseUnits ?: 0L) > 0L
@@ -204,7 +207,7 @@ private fun SessionKeySection(
             text = signer.signerAddress,
             modifier =
                 Modifier.clickable {
-                    clipboard.setText(AnnotatedString(signer.signerAddress))
+                    clipboardScope.launch { clipboard.setPlainText(signer.signerAddress) }
                     showSnackBar("Session key address copied")
                 },
             color = AlgoKitTheme.colors.textMain,

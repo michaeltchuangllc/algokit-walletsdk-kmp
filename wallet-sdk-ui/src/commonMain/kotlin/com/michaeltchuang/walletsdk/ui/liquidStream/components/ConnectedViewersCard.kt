@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.michaeltchuang.walletsdk.core.foundation.utils.LiquidStreamConstants
@@ -45,7 +46,6 @@ import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatMicroUsdc
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.formatUsdcSixDecimals
 import com.michaeltchuang.walletsdk.ui.liquidStream.utils.metricValueFontSize
 import kotlinx.coroutines.launch
-import org.jetbrains.compose.ui.tooling.preview.Preview
 
 data class ConnectedViewerInfo(
     val sessionId: String,
