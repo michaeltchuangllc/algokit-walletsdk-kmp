@@ -21,9 +21,17 @@ public enum EncryptionError: Error {
     private static let secureEnclaveKeyAlias = "com.michaeltchuang.walletsdk.se_key"
     private static let wrappedKeyAlias = "com.michaeltchuang.walletsdk.wrapped_aes_key"
     
-    // Access group for Keychain sharing between app and extension
-    // IMPORTANT: This must match the App Group ID from entitlements
-    private static let accessGroup = "group.com.michaeltchuang.walletsdk.demo"
+    // Keychain access group that holds the encryption key, shared between the app and its extensions.
+    // It must be an App Group in the app's com.apple.security.application-groups entitlement (and in
+    // each extension that reads accounts), or a full team-prefixed keychain-access-groups entry. Changing it for an existing install loses the key, so stored accounts can no
+    // longer be decrypted.
+    private static let defaultAccessGroup = "group.com.michaeltchuang.walletsdk.demo"
+    private static var accessGroup = defaultAccessGroup
+
+    /// Sets the keychain access group. Call once at launch, before any encryption.
+    @objc public static func setKeychainAccessGroup(_ group: String) {
+        accessGroup = group
+    }
 
     private var symmetricKey: SymmetricKey?
     private let queue = DispatchQueue(label: "com.michaeltchuang.walletsdk.encryption", attributes: .concurrent)
