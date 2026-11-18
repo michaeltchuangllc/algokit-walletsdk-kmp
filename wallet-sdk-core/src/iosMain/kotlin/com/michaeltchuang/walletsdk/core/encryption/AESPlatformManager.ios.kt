@@ -5,8 +5,27 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
+private var isEncryptionManagerCreated = false
+
 @OptIn(ExperimentalForeignApi::class)
-private val encryptionManager: IosEncryptionManager by lazy { IosEncryptionManager() }
+private val encryptionManager: IosEncryptionManager by lazy {
+    isEncryptionManagerCreated = true
+    IosEncryptionManager()
+}
+
+/**
+ * Sets the keychain access group that holds the key encrypting stored accounts. Defaults to
+ * `group.com.michaeltchuang.walletsdk.demo`. Pass an App Group the app (and any extension that
+ * reads accounts) lists under `com.apple.security.application-groups`, or a full keychain group
+ * including the team ID prefix from `keychain-access-groups`. Call once at launch, before
+ * any account is created, restored or read. Changing it for an existing install loses access to
+ * the accounts already stored.
+ */
+@OptIn(ExperimentalForeignApi::class)
+fun setKeychainAccessGroup(group: String) {
+    check(!isEncryptionManagerCreated) { "setKeychainAccessGroup must be called before any encryption" }
+    IosEncryptionManager.setKeychainAccessGroup(group)
+}
 
 class EncryptionException(
     message: String,
